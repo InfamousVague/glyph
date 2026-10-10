@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
+import 'package:ghost_md/canvas/canvas_view.dart';
+import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/link_preview.dart' show LinkOpener;
 import 'package:ghost_md/core/notifications.dart' show sentenceOf;
 import 'package:ghost_md/core/stored.dart';
@@ -16,10 +18,12 @@ import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/find_bar/find_bar.dart';
 import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
+import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
+import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/root/account_wiring.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
@@ -40,13 +44,13 @@ import 'part_of.dart';
 void main() {
   setUpAll(loadAppFonts);
 
-  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink, List<Seen> Function(String orgId)? presence}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
       size: size,
       prefs: const Preferences(theme: 'light'),
-      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, services: services, openLink: openLink),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, services: services, openLink: openLink, presence: presence),
     );
     await tester.pump(const Duration(milliseconds: 100));
     return library;
@@ -421,6 +425,41 @@ void main() {
       expect(opened.single, startsWith('mailto:$reportTo?subject=Ghost.md%20report%3A%20Ghost'));
       expect(Uri.decodeComponent(opened.single), contains('Reported by: matt'));
       await close(tester);
+    });
+
+    // Unwired 15 (docs/PARITY.md): Jump to cursor handed on a member's caret and never their pointer, so a canvas
+    // opened where it was left and not where they are (notes/OrganizationScreen.tsx `onJump(at.note, at.cursor ??
+    // at.pointer)`).
+    testWidgets('opens a canvas centred on a member\'s pointer from the organization\'s Jump to cursor', (tester) async {
+      final device = await Device.make();
+      final id = (await tester.runAsync(() => device.orgs.createOrg('Ghost')))!.id;
+      // Named once the library has it: the root asks who is where from its first frame.
+      String? canvasId;
+      final library = await open(
+        tester,
+        services: device.services,
+        presence: (orgId) => orgId == id && canvasId != null ? [Seen(handle: 'sam', hue: null, client: 9, at: Whereabouts(note: canvasId, title: 'Map', kind: 'canvas', pointer: const Spot(300, 200)))] : const [],
+      );
+      canvasId = library.create(canvasNoteBody('Map', parseCanvas('{"nodes":[{"id":"a","type":"text","text":"A card","x":0,"y":0,"width":120,"height":60}],"edges":[]}')!)).id;
+      await tester.pump(const Duration(milliseconds: 200));
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      shell.openOrganization(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.widget<OrganizationScreen>(find.byType(OrganizationScreen)).onJumpTo!(canvasId);
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(tester.widget<CanvasView>(find.byType(CanvasView)).goTo, (x: 300.0, y: 200.0));
+      await close(tester);
+    });
+
+    test('a member\'s place in a note is their caret, else their pointer\'s spot, and nobody else\'s', () {
+      const caret = {'anchor': 4, 'head': 9};
+      Seen at(String note, {Map<String, Object?>? cursor, Spot? pointer}) => Seen(handle: 'sam', hue: null, client: 1, at: Whereabouts(note: note, title: '', cursor: cursor, pointer: pointer));
+      expect(jumpPlace([at('n1', cursor: caret)], 'n1'), caret);
+      expect(jumpPlace([at('n1', pointer: const Spot(3, 4))], 'n1'), {'x': 3.0, 'y': 4.0});
+      expect(jumpPlace([at('n2', cursor: caret)], 'n1'), isNull);
+      expect(jumpPlace([at('n1'), const Seen(handle: 'lee', hue: null, client: 2, at: null)], 'n1'), isNull);
     });
 
     testWidgets('offers none of it in a build with no account', (tester) async {

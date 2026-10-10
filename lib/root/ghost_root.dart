@@ -186,7 +186,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -267,6 +267,10 @@ class GhostRoot extends StatefulWidget {
   /// a blank left "Waiting for a connection" goes on then. Absent, as in a test, there is always one as far as the
   /// app can tell, and such a blank waits for the queue's own look, a minute on.
   final Connection? connection;
+
+  /// Who is in an organization's notes now, where a test brings its own account ([services]) and so has no live
+  /// rooms to read; the app reads its own (lib/live/presence.dart).
+  final List<Seen> Function(String orgId)? presence;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -351,7 +355,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Who is in an organization's notes now, as the live rooms have them (lib/live/presence.dart): none in a build
   /// with no account, and while signed out.
   List<OrgPresence> _seenIn(String orgId) => [
-        for (final seen in _wired?.live.presence.presenceIn(orgId) ?? const <Seen>[])
+        for (final seen in _presenceIn(orgId))
           OrgPresence(client: '${seen.client}', handle: seen.handle, hue: seen.hue, editingNote: seen.at?.note, editingTitle: seen.at?.title),
       ];
 
@@ -365,14 +369,16 @@ class _GhostRootState extends State<GhostRoot> {
     _tick.tell();
   }
 
-  /// A note opened where a member is editing it: at their caret, where the room has one.
+  /// A note opened where a member is editing it (`onJump(at.note, at.cursor ?? at.pointer)`): at their caret, where
+  /// the room has one, or at their pointer's spot on a canvas, which its desk centres on.
   void _jumpTo(AppShellState shell, String orgId, String noteId) {
-    for (final seen in _wired?.live.presence.presenceIn(orgId) ?? const <Seen>[]) {
-      final cursor = seen.at?.note == noteId ? seen.at?.cursor : null;
-      if (cursor != null) _jumps[noteId] = cursor;
-    }
+    final place = jumpPlace(_presenceIn(orgId), noteId);
+    if (place != null) _jumps[noteId] = place;
     shell.openNote(noteId);
   }
+
+  /// Who is in an organization's notes now, as the live rooms have them; a test's own where it brings an account.
+  List<Seen> _presenceIn(String orgId) => _wired?.live.presence.presenceIn(orgId) ?? widget.presence?.call(orgId) ?? const <Seen>[];
 
   /// An organization's settings, and the sheet a new one is named in. Opened from Settings' own list or from the
   /// organization's dashboard, which the sheet's head says; from anywhere else (the home filters, a folder's "…",
@@ -2069,6 +2075,18 @@ class _GhostRootState extends State<GhostRoot> {
       onDone: () => setState(() => _launching = false),
     );
   }
+}
+
+/// Where a member is in note [noteId], for Jump to cursor (`at.cursor ?? at.pointer`): their caret, or their
+/// pointer's spot on a canvas as the desk reads one (`{x, y}`); null where nobody there has a place in it.
+Map<String, Object?>? jumpPlace(List<Seen> seen, String noteId) {
+  Map<String, Object?>? place;
+  for (final each in seen) {
+    final at = each.at;
+    if (at == null || at.note != noteId) continue;
+    place = at.cursor ?? at.pointer?.toJson() ?? place;
+  }
+  return place;
 }
 
 /// What the app does with each kind of link that opened it (`useAppLinks`' `fork`, `openNote`, `openPlace`, `join`).
