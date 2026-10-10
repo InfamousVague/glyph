@@ -671,8 +671,12 @@ class _DrawnBoardBoxState extends State<DrawnBoardBox> with TickerProviderStateM
       add(BoardGap(key: const ValueKey<String>('gap'), look: look, height: carried.height));
     }
 
+    // The carried card's id is read once, here, and not in the loop's test: Dart 3.13.5's native compiler lifted
+    // `carried.item.id` out of the loop past its `carried != null`, read it of null, and the app ended with SIGSEGV
+    // whenever a board was opened in a compiled build (android/gradle.properties, `--no-load_cse`).
+    final carriedId = carried?.item.id;
     for (final (at, card) in held.indexed) {
-      if (carried != null && card.id == carried.item.id) continue;
+      if (carriedId != null && card.id == carriedId) continue;
       gapHere();
       if (measuring) {
         add(_card(look, card, live: false, line: line, today: today, locale: locale));
