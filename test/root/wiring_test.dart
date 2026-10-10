@@ -627,6 +627,26 @@ void main() {
       await close(tester);
     });
 
+    // Differs 4 (docs/PARITY.md): a pull down on home and on All notes read the library again and did not sync
+    // (App.tsx `pullRefresh`: `await syncWithin(); await refresh()`).
+    testWidgets('syncs on a pull down from the top of home and of All notes, and reads the notes again', (tester) async {
+      final device = await Device.make();
+      await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      int passes() => device.service.calls.where((call) => call.startsWith('GET notes')).length;
+      final before = passes();
+      await tester.runAsync(() => tester.widget<HomeScreen>(find.byType(HomeScreen)).onRefresh!());
+      expect(passes(), greaterThan(before), reason: 'the pull asked the service for what changed');
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      shell.showAllNotes();
+      await tester.pump(const Duration(milliseconds: 400));
+      final again = passes();
+      await tester.runAsync(() => tester.widget<AllNotesScreen>(find.byType(AllNotesScreen)).onRefresh!());
+      expect(passes(), greaterThan(again));
+      await close(tester);
+    });
+
     testWidgets('offers none of it in a build with no account', (tester) async {
       await open(tester);
       final shell = tester.state<AppShellState>(find.byType(AppShell));

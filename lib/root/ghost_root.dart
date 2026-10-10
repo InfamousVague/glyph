@@ -611,6 +611,13 @@ class _GhostRootState extends State<GhostRoot> {
   /// A Speak button (`speak`): a capture into a new note, or the note its first command names.
   void _speak() => unawaited(_capture?.start(false));
 
+  /// A pull down from the top of the home page or All notes (docs/DESIGN.md §152; `pullRefresh`): a sync, waited for
+  /// a few seconds at most, and the notes read again whatever it answered. With no account the notes are read.
+  Future<void> _pullRefresh() async {
+    await _services?.engine?.syncWithin().then<void>((_) {}, onError: (Object _) {});
+    await _library.refresh();
+  }
+
   /// Settings' three pages over the core and the phone's pickers: where the library is and the calls that move it,
   /// the drives a backup goes to, and everything as one zip. Made once, where the build has the whole core.
   late final GhostCore? _native = _real ? widget.native : null;
@@ -1676,7 +1683,7 @@ class _GhostRootState extends State<GhostRoot> {
           clock: widget.clock,
           onOpen: (id) => _openWhereLeft(shell, id),
           onBack: shell.backToList,
-          onRefresh: _library.refresh,
+          onRefresh: _pullRefresh,
           onNoteMenu: (note, at) => _menu.open(note.id, at),
           notesInWorkspace: _notesIn,
           onTrashNotes: _trashNotes,
@@ -1835,7 +1842,7 @@ class _GhostRootState extends State<GhostRoot> {
         if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
         _actions.swipe(note, action);
       },
-      onRefresh: _library.refresh,
+      onRefresh: _pullRefresh,
       onNoteMenu: (id) => _menu.open(id, MediaQuery.sizeOf(context).center(Offset.zero)),
       onManageWorkspace: (workspace) => setState(() => _workspace = (editing: workspace)),
       organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),

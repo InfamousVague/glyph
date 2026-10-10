@@ -31,6 +31,9 @@ extension _RootCommands on _GhostRootState {
   Future<void> _openGuideBook() async {
     _closeSettings();
     try {
+      // Signed in, a sync first, so a book added on another device is here before that is asked; a slow network
+      // holds the press five seconds at most (`GUIDE_SYNC_WAIT_MS`).
+      await _services?.engine?.syncWithin().then<void>((_) {}, onError: (Object _) {});
       await _library.refresh();
       final note = await addGuideBook(_library, outOfTrash(_library.value, _trash.value));
       await _library.refresh();
