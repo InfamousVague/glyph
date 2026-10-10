@@ -8,7 +8,9 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/canvas/canvas_view.dart';
 import 'package:ghost_md/canvas/sample_canvas.dart';
+import 'package:ghost_md/editor/diagrams/diagrams.dart' show DiagramStore, diagramStore;
 
+import '../editor/diagrams/support.dart' show PicturedBridge, settleDiagrams;
 import '../support/render.dart';
 
 /// The canvas against the web app's own, drawn by Chromium (tool/canvas_reference.mjs): the example canvas filling
@@ -17,6 +19,11 @@ import '../support/render.dart';
 /// and for four cards and the group picked in turn: the ring, each handle's 44px box, the bar and its buttons, to
 /// half a pixel. A picture of each is written beside this file (shots/) to be looked at beside the page's
 /// (reference/).
+///
+/// The chart card's diagram is Mermaid's own drawing, as the app's page drew it (test/editor/diagrams/fixtures,
+/// tool/diagram_fixtures.mjs): a test has no web view to draw one with. It is in the page's grey on the light
+/// canvas and its dark theme on the dark one; the page's own pictures (reference/) have it dark on both, since the
+/// tool that took them painted the page by its attributes and Mermaid asks the preferences.
 
 const notes = {
   'Launch week': '# Launch week\n\n- [ ] Get the photos back\n- [x] Book the hall\n\nSome words about the week.',
@@ -52,6 +59,7 @@ Finder labelled(Pattern label) => find.bySemanticsLabel(label);
 
 void main() {
   setUpAll(loadAppFonts);
+  setUp(() => diagramStore = DiagramStore(bridge: PicturedBridge()));
 
   for (final (width, height, phone) in [(390.0, 844.0, true), (1280.0, 800.0, false)]) {
     for (final theme in ['light', 'dark']) {
@@ -72,6 +80,8 @@ void main() {
         );
         // The page has no safe areas round its canvas: the whole window.
         await tester.pump();
+        // The chart's picture, read and decoded.
+        await settleDiagrams(tester);
         final state = key.currentState!;
         final view = (ref['view'] as List).cast<num>();
         expect(state.camera.view.x, closeTo(view[0], 1e-3));

@@ -125,6 +125,7 @@ import '../core/preferences.dart';
 import '../core/query/query.dart';
 import '../editor/band/band.dart' as band;
 import '../editor/boards/boards.dart' show drawnBoards;
+import '../editor/diagrams/diagrams.dart' show drawnMermaid;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
 import '../editor/find_bar/find_bar.dart';
@@ -572,6 +573,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
     drawnBoards(),
+    // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
+    drawnMermaid(),
     // A ticket's front matter as its properties, and a [[GHO-12]] with the ticket's title.
     if (_world.tickets != null) tickets(() => _world.tickets?.call(widget.noteId)),
     // A ```query fence drawn as what it finds in the library: its lines where there is none.

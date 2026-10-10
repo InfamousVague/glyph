@@ -23,6 +23,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../editor/diagrams/diagrams.dart' show drawnMermaid;
 import '../editor/editor.dart';
 import '../editor/items/items.dart';
 import '../editor/looks/look.dart';
@@ -119,7 +120,7 @@ class _MarkExampleState extends State<MarkExample> {
         // The marks themselves are on the other side of the card; this side is the line as it comes out.
         display: widget.marks ? NoteView.mixed : NoteView.formatted,
         readOnly: true,
-        more: <Extension>[markExtensions(_formats), itemExtensions(), drawnTables(), ...widget.extensions],
+        more: <Extension>[markExtensions(_formats), itemExtensions(), drawnTables(), drawnMermaid(), ...widget.extensions],
       ),
     ),
   );

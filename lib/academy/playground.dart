@@ -36,6 +36,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../editor/diagrams/diagrams.dart' show drawnMermaid;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
 import '../editor/items/items.dart';
@@ -145,6 +146,7 @@ class _PlaygroundState extends State<Playground> implements TextSelectionGesture
           markExtensions(_formats),
           itemExtensions(wiki: _page),
           drawnTables(),
+          drawnMermaid(),
           boxTapsWhileReadOnly.of(true),
           EditorViewLike.updateListener.of((update) {
             if (!update.docChanged) return;

@@ -19,8 +19,8 @@
 /// - A card of words is `MarkdownView`'s lines (lib/editor/markdown_view.dart) set as CanvasView.module.css
 ///   `.words.words` sets the peek: no cap on the height, and the card's ink, not the peek's grey. `MarkdownView`
 ///   has no way to be asked for either, so [CardWords] is its few lines again with those two changed.
-/// - A chart is its Mermaid fence as a code card until diagrams are drawn (docs/STAGE4.md); a film card's `videos`
-///   mode is not taken.
+/// - A chart is drawn as its diagram, read and open (`<Editor … diagrams />`: lib/editor/diagrams); a film card's
+///   `videos` mode is not taken.
 /// - `editedBy`, another member's ring and handle on a card they have open, is the team canvas's (piece 6G).
 /// - Each card is a layer of its own (a [RepaintBoundary] under its place in the world): the page gave each card
 ///   its own compositing where it promoted one, and here it is what lets a pan or a pinch set the cards down again
@@ -35,6 +35,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/images.dart';
 import '../core/short_url.dart';
+import '../editor/diagrams/diagrams.dart' show drawnMermaid;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
 import '../editor/items/items.dart' show itemExtensions;
@@ -482,14 +483,14 @@ LookEnv cardEnv(Tokens t, {double devicePixelRatio = 2}) {
   );
 }
 
-final List<Extension> _drawn = <Extension>[itemExtensions(peek: true), drawnTables()];
+final List<Extension> _drawn = <Extension>[itemExtensions(peek: true), drawnTables(), drawnMermaid()];
 
 /// The same with the pictures of one store: a picture under its line and a film as its still, as the page's card
 /// draws them (`<Editor … peek />`: `inlineImages`, `videoCards`).
 final Expando<List<Extension>> _drawnWith = Expando<List<Extension>>('card words');
 
 List<Extension> _drawnFrom(PictureStore? store) =>
-    store == null ? _drawn : _drawnWith[store] ??= <Extension>[itemExtensions(peek: true), drawnTables(), mediaExtensions(seams: MediaSeams(pictures: store), peek: true)];
+    store == null ? _drawn : _drawnWith[store] ??= <Extension>[itemExtensions(peek: true), drawnTables(), drawnMermaid(), mediaExtensions(seams: MediaSeams(pictures: store), peek: true)];
 
 /// A card of words, to be read: the editor's own lines, taking no taps.
 class CardWords extends StatefulWidget {
@@ -580,7 +581,7 @@ class _CardEditorState extends State<_CardEditor> {
     ),
   );
 
-  static final List<Extension> _drawnLive = <Extension>[itemExtensions(), drawnTables()];
+  static final List<Extension> _drawnLive = <Extension>[itemExtensions(), drawnTables(), drawnMermaid()];
   final EditorController _controller = EditorController();
 
   @override
