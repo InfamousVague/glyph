@@ -496,6 +496,13 @@ class AppShellState extends State<AppShell> {
     widget.onAsideShownChanged?.call(next);
   }
 
+  /// The aside opened, and kept so (`setAsideShown(true); writeAsideShown(true)`): the bar's History button, which
+  /// turns it to its History tab first (aside/aside.dart `showAsideTab`).
+  void showAside() {
+    if (!_asideShown) _change(() => _asideShown = true);
+    widget.onAsideShownChanged?.call(true);
+  }
+
   /// Settings, from the cog; and Settings › Organizations, from the people icon.
   void openSettings() {
     final ask = widget.onSettings;

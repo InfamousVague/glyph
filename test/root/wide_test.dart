@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart' show GlacierContext;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/aside/aside.dart';
+import 'package:ghost_md/aside/aside_history.dart';
 import 'package:ghost_md/aside/aside_panel.dart';
 import 'package:ghost_md/book/book_view.dart';
 import 'package:ghost_md/core/note.dart';
@@ -9,10 +11,13 @@ import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/versions_file.dart' show Version;
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/editor/view/column.dart';
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/note/version_history.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
@@ -92,6 +97,61 @@ void main() {
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);
     expect(find.bySemanticsLabel('Side panel'), findsNothing);
+    await close(tester);
+  });
+
+  // Unwired 25 (docs/PARITY.md), the aside's half: nothing gave the side panel its `history`, so on a desktop a note
+  // in no notebook had no side panel at all and the bar's History opened More's page (App.tsx `asideHistory`,
+  // `openHistoryAside`; aside/AsideHistory.tsx).
+  testWidgets('on a desktop a note has its version history in the side panel, which the bar\'s History opens at it', (tester) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+    try {
+      final local = MemoryStored();
+      final library = await open(tester, size: const Size(1100, 800), stored: local);
+      final note = titled(library, 'Groceries');
+      shellOf(tester).openNote(note.id);
+      await settle(tester);
+      // A note in no notebook has a side panel all the same: its history. Hidden until it is asked for.
+      expect(find.bySemanticsLabel('Side panel'), findsOneWidget);
+      expect(find.byType(AsideHistory), findsNothing);
+      final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
+      expect(screen.onHistory, isNotNull, reason: 'the bar\'s History goes to the side panel');
+      screen.onHistory!();
+      await settle(tester);
+      expect(find.byType(AsideHistory), findsOneWidget);
+      expect(readAsideShown(local), isTrue);
+      expect(readAsideTab(local), AsideTab.history);
+      expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Version history')), findsOneWidget);
+      // It keeps none yet, and says so, with the way to start one.
+      expect(find.text('This note keeps no version history.'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('aside-history-on')));
+      await settle(tester);
+      expect(find.text('This note keeps no version history.'), findsNothing);
+      final history = tester.widget<VersionHistory>(find.descendant(of: find.byType(AsideHistory), matching: find.byType(VersionHistory)));
+      // The timeline compares with the editor's words as they are now, and puts a version back through the editor.
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      view.dispatch(TransactionSpec(changes: ChangeSpec(from: view.state.doc.length, insert: '\nTyped beside the history.'), userEvent: 'input.type'));
+      await tester.pump();
+      expect(history.current(), endsWith('Typed beside the history.'));
+      history.onRestore('# Groceries\n\nAs it was.', const Version(n: 1, at: 1, by: 'me', hash: 'h', text: '# Groceries\n\nAs it was.', added: 1, removed: 0));
+      await settle(tester);
+      expect(view.state.doc.toString(), '# Groceries\n\nAs it was.');
+      // A canvas has no history worth reading, and the home page no side panel.
+      shellOf(tester).backToList();
+      await settle(tester);
+      expect(find.bySemanticsLabel('Side panel'), findsNothing);
+      await close(tester);
+    } finally {
+      debugDefaultTargetPlatformOverride = null;
+    }
+  });
+
+  testWidgets('a phone opened out keeps a note\'s history in its More sheet: no side panel for a note in no notebook', (tester) async {
+    final library = await open(tester);
+    shellOf(tester).openNote(titled(library, 'Groceries').id);
+    await settle(tester);
+    expect(find.bySemanticsLabel('Side panel'), findsNothing);
+    expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).onHistory, isNull);
     await close(tester);
   });
 

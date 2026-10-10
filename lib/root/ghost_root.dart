@@ -7,6 +7,7 @@ import 'package:glacier/glacier.dart';
 
 import '../account/ui_state.dart';
 import '../aside/aside.dart';
+import '../aside/aside_history.dart';
 import '../aside/aside_panel.dart';
 import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
 import '../ai/backend.dart' as engine show aiBackend, readDevice;
@@ -136,7 +137,7 @@ import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
-import '../shell/wide_screen.dart' show mousePointer, splitFits;
+import '../shell/wide_screen.dart' show mobileDevice, mousePointer, splitFits;
 import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
@@ -725,6 +726,38 @@ class _GhostRootState extends State<GhostRoot> {
   String? _asideFor;
   AsideContent? _aside;
 
+  /// The open note's version history, in the aside on a desktop (App.tsx `asideHistory`; Matt: "make a sidebar that
+  /// can be expanded on desktop to see the version history"): a window wide enough for two panes, and not a phone,
+  /// which keeps its history in the More sheet. Not for a canvas, whose words are JSON and have no line history
+  /// worth reading.
+  ({String noteId, String title})? _asideHistoryOf(BuildContext context, AppShellState shell) {
+    final screen = shell.screen;
+    if (screen is! ScreenNote || mobileDevice || !splitFits(MediaQuery.sizeOf(context), mouse: mousePointer)) return null;
+    if (isCanvasBody(screen.note.body)) return null;
+    return (noteId: screen.note.id, title: noteTitle(screen.note.body));
+  }
+
+  /// The aside's History tab for that note (aside/aside_history.dart), where there is one.
+  AsideHistoryBuilder? _asideHistory(BuildContext context, AppShellState shell) {
+    final history = _asideHistoryOf(context, shell);
+    if (history == null) return null;
+    return (context) => AsideHistory(
+          key: ValueKey('aside-history-of:${history.noteId}'),
+          noteId: history.noteId,
+          title: history.title,
+          record: _versions,
+          onShareFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
+          say: (message) => _say(context, message),
+        );
+  }
+
+  /// The bar's History button: the side panel opened at its History tab, or turned to it if it was open already
+  /// (`openHistoryAside`).
+  void _openHistoryAside(AppShellState shell) {
+    showAsideTab(AsideTab.history, _stored);
+    shell.showAside();
+  }
+
   /// Whether your templates are being made now (`_openTemplates`): a second press meanwhile is the same press.
   bool _seeding = false;
 
@@ -838,6 +871,8 @@ class _GhostRootState extends State<GhostRoot> {
           // Taken back by the next journal's own: one screen is gone only after the next has come.
           onJournal: (writer) => _journalWriter = writer ?? _journalWriter,
           onSpeak: _capture == null ? null : (id) => unawaited(_speakInto(id)),
+          // The bar's History button: the side panel at its History tab, where the window has one; else More's page.
+          onHistory: _asideHistoryOf(context, shell) == null ? null : () => _openHistoryAside(shell),
           tags: _places,
         )(context, shell, screen),
       );
@@ -1783,11 +1818,15 @@ class _GhostRootState extends State<GhostRoot> {
       onAsideShownChanged: (shown) => writeAsideShown(shown, _stored),
       // The open note's book or run of chapters, beside it (aside/aside_panel.dart). The version history's
       // tab is a desktop's (`asideHistory`), and waits for one.
+      // The open note's book or run of chapters, and on a desktop its version history: with neither there is no
+      // aside and no toggle for it (`asideHolds`).
       asideBuilder: (context, shell) {
         final content = _asideOf(shell);
-        return content == null ? null : AsidePanel(content: content, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
+        final history = _asideHistory(context, shell);
+        return content == null && history == null ? null : AsidePanel(content: content, history: history, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
       },
-      asideCardBuilder: (context, shell, close) => AsideCard(content: _asideOf(shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
+      asideCardBuilder: (context, shell, close) =>
+          AsideCard(content: _asideOf(shell), history: _asideHistory(context, shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
       notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
         void openNote(String id, String? at) {
           close();

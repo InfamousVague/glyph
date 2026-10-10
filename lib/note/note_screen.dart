@@ -75,6 +75,7 @@ import '../core/stored.dart';
 import '../core/unfold.dart';
 import '../core/untouched.dart';
 import '../core/versions_file.dart';
+import '../core/versions_live.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
 import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
@@ -377,6 +378,7 @@ const String saveStoppedWords = 'This note changed somewhere else. What you writ
 class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   late final NoteSaving _saving;
   VersionKeeping? _versioning;
+  VoidCallback? _liveGone;
   late final NoteZoom _zoom = NoteZoom(device: widget.device);
   final PinchTracker _pinch = PinchTracker();
   final ScrollController _scroll = ScrollController();
@@ -520,6 +522,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _fresh = _records.isFresh(_id);
     final versions = widget.versions;
     if (versions != null && !widget.readOnly) _versioning = VersionKeeping(versions, _id, () => _saving.body, lifecycle: widget.lifecycle)..addListener(_redraw);
+    // The history in the desktop's aside (lib/aside/aside_history.dart) reads the editor's words and restores through
+    // it, as the More sheet's does: said for as long as this note is on screen (lib/core/versions_live.dart).
+    if (versions != null && !widget.readOnly) _liveGone = liveNoteOpened(_id, LiveNote(current: () => _view?.state.doc.toString() ?? _saving.body, restore: restoreVersion));
     _prefs.addListener(_redraw);
     widget.seams.headRoom?.addListener(_redraw);
     widget.workspaces.addListener(_redraw);
@@ -589,6 +594,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _versioning
       ?..removeListener(_redraw)
       ..dispose();
+    _liveGone?.call();
     _prefs.removeListener(_redraw);
     widget.seams.headRoom?.removeListener(_redraw);
     widget.workspaces.removeListener(_redraw);

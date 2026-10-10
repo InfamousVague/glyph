@@ -66,6 +66,7 @@ ShellNoteBuilder noteScreenBuilder({
   NoteSeams seams = const NoteSeams(),
   void Function(BuildContext context, String message)? say,
   ValueChanged<String>? onSpeak,
+  VoidCallback? onHistory,
   BookPlace? Function(Note note)? bookOf,
   List<NoteTemplate>? Function()? templates,
   VoidCallback? onTemplates,
@@ -95,6 +96,7 @@ ShellNoteBuilder noteScreenBuilder({
         actions().archive(archived, archived: true);
       },
       onSpeak: onSpeak,
+      onHistory: onHistory,
       at: screen.at,
       caret: screen.caret,
       book: bookOf != null ? bookOf(note) : placeOf(bookIndex(all), note),
