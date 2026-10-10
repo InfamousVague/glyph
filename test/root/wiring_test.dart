@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
+import 'package:ghost_md/core/link_preview.dart' show LinkOpener;
 import 'package:ghost_md/core/notifications.dart' show sentenceOf;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/versions_store.dart';
@@ -24,6 +25,7 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/settings/organization_sheet.dart';
+import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/sync/engine.dart';
@@ -38,13 +40,13 @@ import 'part_of.dart';
 void main() {
   setUpAll(loadAppFonts);
 
-  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844)}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
       size: size,
       prefs: const Preferences(theme: 'light'),
-      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, services: services),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, services: services, openLink: openLink),
     );
     await tester.pump(const Duration(milliseconds: 100));
     return library;
@@ -400,6 +402,24 @@ void main() {
       all.onOrganization!(id);
       await tester.pump(const Duration(milliseconds: 400));
       expect(shell.screen, isA<ScreenOrganization>().having((screen) => screen.orgId, 'orgId', id));
+      await close(tester);
+    });
+
+    // Unwired 14 (docs/PARITY.md): the sheet was never given `onOpenLink`, so Report a member or a note was drawn and
+    // could not be pressed (settings/OrganizationSheet.tsx `openLink(reportMail(…))`).
+    testWidgets('hands an organization\'s report to the phone as an email naming it', (tester) async {
+      final device = await Device.make();
+      final id = (await tester.runAsync(() => device.orgs.createOrg('Ghost')))!.id;
+      final opened = <String>[];
+      await open(tester, services: device.services, openLink: (url) async => opened.add(url));
+      await tester.pump(const Duration(milliseconds: 200));
+      tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onOrganization!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      final sheet = tester.widget<OrganizationSheet>(find.byType(OrganizationSheet));
+      expect(sheet.onOpenLink, isNotNull);
+      sheet.onOpenLink!(reportMail(orgId: id, name: 'Ghost', handle: device.services.session?.handle));
+      expect(opened.single, startsWith('mailto:$reportTo?subject=Ghost.md%20report%3A%20Ghost'));
+      expect(Uri.decodeComponent(opened.single), contains('Reported by: matt'));
       await close(tester);
     });
 

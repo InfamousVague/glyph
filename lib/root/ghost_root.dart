@@ -2017,6 +2017,8 @@ class _GhostRootState extends State<GhostRoot> {
       // `landOnMembers={orgSettings.from === 'settings'}`: from anywhere else, its list of sections.
       landOnMembers: sheet.from == OrganizationFrom.settings,
       onClose: () => setState(() => _organization = null),
+      // Report a member or a note: an email, handed to the phone.
+      onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
       onNotes: () {
         setState(() => _organization = null);
         _workspaces.chooseWorkspace(orgWorkspaceId(sheet.id));
