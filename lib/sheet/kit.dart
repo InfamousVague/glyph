@@ -174,11 +174,11 @@ class SheetIcon extends StatelessWidget {
 /// Differs from the web: [label] and [hint] are words, as every row so far gives them; [SheetRow.rich] takes widgets
 /// where the page's `ReactNode` was something else.
 class SheetRow extends StatelessWidget implements SheetRuled {
-  const SheetRow({super.key, this.icon, required String label, String? hint, this.onPress, this.disabled = false, this.chosen, this.danger = false})
+  const SheetRow({super.key, this.icon, required String label, String? hint, this.onPress, this.disabled = false, this.chosen, this.on, this.danger = false})
       : _label = label,
         _hint = hint;
 
-  const SheetRow.rich({super.key, this.icon, required Widget label, Widget? hint, this.onPress, this.disabled = false, this.chosen, this.danger = false})
+  const SheetRow.rich({super.key, this.icon, required Widget label, Widget? hint, this.onPress, this.disabled = false, this.chosen, this.on, this.danger = false})
       : _label = label,
         _hint = hint;
 
@@ -195,6 +195,10 @@ class SheetRow extends StatelessWidget implements SheetRuled {
 
   /// A choice among several: pressed, with a tick. Null for a row that is not a choice.
   final bool? chosen;
+
+  /// Something this row starts that is on now (a run of the AI's): pressed, with a dot at its end, rather than the
+  /// tick, which marks a choice (`aria-pressed` and `.chosen`). Null for a row that starts nothing of the kind.
+  final bool? on;
   final bool danger;
 
   /// A row's words in [style]: a string in the page's exact line, a widget of the caller's own under the style.
@@ -255,6 +259,10 @@ class SheetRow extends StatelessWidget implements SheetRuled {
                   Expanded(child: words),
                   // `.tick { margin-inline-start: auto }`: at the row's far end.
                   if (chosen ?? false) _Tick(color: color, em: md),
+                  // `.chosen { flex: none; inline-size: 0.55rem; block-size: 0.55rem; border-radius: 50%;
+                  //   background: var(--glacier-text) }`
+                  if (on ?? false)
+                    ExcludeSemantics(child: Container(width: t.lenOf('0.55rem'), height: t.lenOf('0.55rem'), decoration: BoxDecoration(shape: BoxShape.circle, color: t.color('glacier-text')))),
                 ],
               ),
             ),
@@ -269,8 +277,8 @@ class SheetRow extends StatelessWidget implements SheetRuled {
     }
     return GlacierPressable(
       onPressed: disabled ? null : onPress,
-      // `aria-pressed`, for a row that is a choice.
-      toggled: chosen,
+      // `aria-pressed`, for a row that is a choice, and for one whose run is on.
+      toggled: chosen ?? on,
       builder: (context, state) => row(state),
     );
   }

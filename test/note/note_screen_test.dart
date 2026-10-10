@@ -389,6 +389,44 @@ void main() {
       await closeNote(tester);
     });
 
+    // Missing 7 (docs/PARITY.md): More › AI › Fill the blanks, with its count and who is asked, and the dot on the
+    // run that is on (NoteSettings.tsx `fillHint`, `aria-pressed={running === words.id}` and `.chosen`).
+    testWidgets('offers Fill the blanks in a note that has one, with how many and that nothing leaves; and marks the run that is on', (tester) async {
+      final world = NoteWorld();
+      String? running;
+      final seams = NoteSeams(onAi: (view, kind, [instruction]) => world.asked.add('ai $kind'), aiRunning: () => running);
+      await pumpNote(tester, world, await seeded(tester, world, '# Packing\n\nThe lens weighs {?how much does a 70-200 f/2.8 weigh} and the body {?how much does a Z8 weigh}.\n'), seams: seams);
+      await more(tester);
+      SheetRow row(String id) => tester.widget<SheetRow>(find.byKey(ValueKey('ai:$id')));
+      expect(find.text('Fill the blanks'), findsOneWidget);
+      expect(find.text('Answers the 2 questions written {?like this}. Nothing leaves the phone.'), findsOneWidget);
+      expect([for (final id in ['format', 'summarize', 'fill']) row(id).on], [false, false, false]);
+      await press(tester, 'Fill the blanks');
+      expect(world.asked.last, 'ai fill');
+      // A run is on: its row is pressed, with the dot at its end, and no other.
+      running = 'summarize';
+      await more(tester);
+      expect([for (final id in ['format', 'summarize', 'fill']) row(id).on], [false, true, false]);
+      await closeNote(tester);
+
+      // No blank in the note, no row.
+      await pumpNote(tester, world, await seeded(tester, world, '# Packing\n\nThe lens.\n'), seams: seams);
+      await more(tester);
+      expect(find.byKey(const ValueKey('ai:summarize')), findsOneWidget);
+      expect(find.text('Fill the blanks'), findsNothing);
+      await closeNote(tester);
+    });
+
+    test('Fill the blanks says how many it answers, and who is asked where some are looked up', () {
+      expect(fillHint((count: 1, online: const [])), 'Answers the question written {?like this}. Nothing leaves the phone.');
+      expect(fillHint((count: 3, online: const []), platform: TargetPlatform.macOS), 'Answers the 3 questions written {?like this}. Nothing leaves this Mac.');
+      expect(fillHint((count: 2, online: const ['Open-Meteo'])), 'Answers the 2 questions written {?like this}. Some are looked up online: only their questions go, to Open-Meteo.');
+      expect(
+        fillHint((count: 4, online: const ['Wikipedia and Wikidata', 'Open-Meteo', 'Frankfurter'])),
+        'Answers the 4 questions written {?like this}. Some are looked up online: only their questions go, to Wikipedia and Wikidata, Open-Meteo and Frankfurter.',
+      );
+    });
+
     testWidgets('changes the look as one undo step, Map only for a note with a place, and Plain takes it off', (tester) async {
       final world = NoteWorld();
       final screen = await pumpNote(tester, world, await seeded(tester, world, '# Read me\n\nWords.\n'));

@@ -1467,6 +1467,8 @@ class NoteDeskState extends State<NoteDesk> {
               final run = RunKind.of(kind);
               if (run != null) ai.runAi(run, instruction);
             },
+      // The run that is on wears a dot on its row.
+      aiRunning: ai == null ? null : () => ai.runningKind?.id,
       onFind: _openFind,
       // Comment in the bar and in More, and More's "3 comments, 1 open" with their list.
       onComment: (view) => _comments.start(),

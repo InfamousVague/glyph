@@ -83,6 +83,7 @@ import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../book/tickets.dart' show withNotebookKey;
 import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
+import '../editor/ai/blanks.dart' show fillPlanOf;
 import '../editor/editor.dart';
 import '../editor/looks/look.dart' show LookEnv;
 import '../editor/media/map_card.dart' show MapPicture, MapSize;
@@ -118,6 +119,7 @@ class NoteSeams {
     this.bookmark,
     this.writtenBookmark,
     this.onAi,
+    this.aiRunning,
     this.linked,
     this.plugins,
     this.head,
@@ -164,6 +166,10 @@ class NoteSeams {
 
   /// A run of the AI on this note (editor/useNoteAi.ts).
   final void Function(EditorView view, String kind, [String? instruction])? onAi;
+
+  /// The AI's kind of run on this note now, by its id, or null (`ai.runningKind`): its row in the More sheet is
+  /// pressed, with a dot at its end.
+  final String? Function()? aiRunning;
 
   /// What the note is linked to: plugins' rows (plugins/registry.ts), made elsewhere; and the plugins' own links
   /// and actions for the sheet to draw, each with its page ([NotePlugins]), given the note as an action changes it.
@@ -1586,6 +1592,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       speakLabel: speak ?? 'Talk into this note',
       look: !_typed && !widget.readOnly ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
       onAi: seams.onAi == null || view == null ? null : (kind, [instruction]) => seams.onAi!(view, kind, instruction),
+      running: seams.aiRunning?.call(),
+      // What Fill the blanks would take, read while the sheet is up (`settingsOpen && view ? fillPlanOf(view.state)`).
+      blanks: view == null ? (count: 0, online: const <String>[]) : fillPlanOf(view.state),
       onComment: seams.onComment == null || view == null || _typed ? null : () => seams.onComment!(view),
       commentsSummary: seams.commentsSummary?.call(),
       onCommentsList: seams.onCommentsList,

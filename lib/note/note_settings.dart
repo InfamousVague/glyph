@@ -14,8 +14,9 @@
 ///   handed in ([NotePlugins]) where the page imported it. [NoteSettings.linked] is still taken, rows made
 ///   elsewhere, for a picture of the sheet.
 /// - Sharing (share/ShareRows.tsx, stage 7) is [NoteSettings.sharing], its rows.
-/// - The AI's rows (stage 8) are drawn from [aiKinds] when [NoteSettings.onAi] is given; the dot a run in progress
-///   wears, and Fill the blanks, come with the runs.
+/// - The AI's rows are drawn from [aiKinds] when [NoteSettings.onAi] is given, the one whose run is on
+///   ([NoteSettings.running]) pressed with a dot at its end, and Fill the blanks after them while the note has a
+///   blank for the model ([NoteSettings.blanks]).
 /// - A journal's page takes what the page's read for itself: the phone's half of its place switch
 ///   ([NoteJournal.device]) and whether new notes are tagged ([NoteJournal.placeDefault]).
 /// - The cheat sheet's page is [NoteSettings.cheatSheet], and the Help group is there only with it.
@@ -27,6 +28,7 @@ export '../core/location.dart' show LocateFailure;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -132,6 +134,19 @@ const List<AiKind> aiKinds = [
   AiKind('continue', 'Continue', 'Carries on from the last line in the note’s own voice.', Lucide.penLine),
 ];
 
+/// Fill the blanks, the row that follows the runs while the note has a blank for the model.
+const AiKind fillKind = AiKind('fill', 'Fill the blanks', 'Answers the questions written {?like this}.', Lucide.squareDashed);
+
+/// Fill the blanks' hint, with the count, on this device (`fillHint`). It says nothing leaves only when nothing will:
+/// a press that looks live blanks up names who is asked, since only their questions go there.
+String fillHint(({int count, List<String> online}) plan, {TargetPlatform? platform}) {
+  final device = (platform ?? defaultTargetPlatform) == TargetPlatform.macOS ? 'this Mac' : 'the phone';
+  final what = plan.count == 1 ? 'Answers the question written {?like this}.' : 'Answers the ${plan.count} questions written {?like this}.';
+  if (plan.online.isEmpty) return '$what Nothing leaves $device.';
+  final who = plan.online.length == 1 ? plan.online.single : '${plan.online.sublist(0, plan.online.length - 1).join(', ')} and ${plan.online.last}';
+  return '$what Some are looked up online: only their questions go, to $who.';
+}
+
 /// The field to name a canvas or a notebook by (`name`).
 @immutable
 class NoteName {
@@ -233,6 +248,8 @@ class NoteSettings extends StatefulWidget {
     this.speakLabel = 'Talk into this note',
     this.look,
     this.onAi,
+    this.running,
+    this.blanks = (count: 0, online: const <String>[]),
     this.onComment,
     this.commentsSummary,
     this.onCommentsList,
@@ -280,6 +297,13 @@ class NoteSettings extends StatefulWidget {
 
   /// Asks the AI for a run of that kind, with an instruction for `ask`.
   final void Function(String kind, [String? instruction])? onAi;
+
+  /// The AI's kind of run on this note now, by its id, if one is on (`running`).
+  final String? running;
+
+  /// What a press of Fill the blanks would take (editor/ai/blanks.dart `fillPlanOf`), read as the sheet is drawn: how
+  /// many, and the public sources its live blanks would be looked up at. The row shows only with one.
+  final ({int count, List<String> online}) blanks;
 
   /// A comment started on the caret's line or the selection; with [commentsSummary], the threads' list.
   final VoidCallback? onComment;
@@ -627,12 +651,14 @@ class _NoteSettingsState extends State<NoteSettings> {
           const SheetHeading('AI'),
           SheetGroup(
             children: [
-              for (final kind in aiKinds)
+              for (final kind in [...aiKinds, if (widget.blanks.count > 0) fillKind])
                 SheetRow(
                   key: ValueKey('ai:${kind.id}'),
                   icon: _lucide(kind.icon, 2.1),
                   label: kind.label,
-                  hint: kind.hint,
+                  hint: identical(kind, fillKind) ? fillHint(widget.blanks) : kind.hint,
+                  // Pressed, with a dot at its end, while that run is on.
+                  on: widget.running == kind.id,
                   onPress: () {
                     widget.onClose();
                     widget.onAi!(kind.id);
