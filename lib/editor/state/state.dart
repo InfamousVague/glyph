@@ -29,6 +29,30 @@ import 'text.dart';
 
 int _nextId = 0;
 
+/// Whether this build measures itself (`--dart-define=GHOST_PERF=true`, lib/perf): a constant, asked before every
+/// use of [StateProbe], so a build that does not measure has none of it.
+const bool _measured = bool.fromEnvironment('GHOST_PERF');
+
+/// A measured build's ear in the state: told when a field's update or a computed facet's begins and ends, and
+/// which (by where it was defined). Set by lib/editor/view/measured.dart; never in any other build.
+abstract final class StateProbe {
+  static int Function()? enter;
+  static void Function(String what, int began)? leave;
+
+  /// Where the thing being defined was written: the first frame of the stack outside this file, as
+  /// `editor/media/images.dart:270`.
+  static String _site(String kind) {
+    for (final line in StackTrace.current.toString().split('\n')) {
+      if (line.contains('editor/state/state.dart')) continue;
+      final found = _siteOf.firstMatch(line);
+      if (found != null) return '$kind ${found.group(1)}';
+    }
+    return kind;
+  }
+
+  static final RegExp _siteOf = RegExp(r'package:ghost_md/([^:)]+:\d+)');
+}
+
 // JavaScript's `===` for what a facet or field holds: the same object, or the same number, string or boolean.
 bool _same(Object? a, Object? b) => identical(a, b) || ((a is num || a is String || a is bool) && a == b);
 
@@ -221,7 +245,10 @@ class Facet<I, O> {
 }
 
 class _FacetProvider implements Extension {
-  _FacetProvider(this.dependencies, this.facet, this.type, this.value, this.getter) : id = _nextId++;
+  _FacetProvider(this.dependencies, this.facet, this.type, this.value, this.getter) : id = _nextId++, _site = _measured && getter != null ? StateProbe._site('compute') : null;
+
+  /// Where it was defined, in a build that measures itself.
+  final String? _site;
 
   final List<Object> dependencies;
   final Facet<dynamic, dynamic> facet;
@@ -255,7 +282,9 @@ class _FacetProvider implements Extension {
       },
       update: (state, tr) {
         if ((depDoc && tr.docChanged) || (depSel && (tr.docChanged || tr.selection != null)) || _ensureAll(state, depAddrs)) {
+          final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
           final newVal = getter(state);
+          if (_measured) StateProbe.leave?.call(_site ?? 'compute', began);
           if (!compare(newVal, state._values[idx])) {
             state._values[idx] = newVal;
             return _slotChanged;
@@ -392,7 +421,10 @@ final Facet<_FieldInit, List<_FieldInit>> _initField = Facet.define<_FieldInit, 
 
 /// CodeMirror's `StateField`: a value kept in the state and brought up to date by every transaction.
 class StateField<T> implements Extension {
-  StateField._(this.id, this._createF, this._updateF, this._compareF, this._toJson, this._fromJson);
+  StateField._(this.id, this._createF, this._updateF, this._compareF, this._toJson, this._fromJson) : _site = _measured ? StateProbe._site('field') : null;
+
+  /// Where it was defined, in a build that measures itself.
+  final String? _site;
 
   final int id;
   final T Function(EditorState state) _createF;
@@ -438,12 +470,16 @@ class StateField<T> implements Extension {
 
     return _DynamicSlot(
       create: (state) {
+        final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
         state._values[idx] = _create(state);
+        if (_measured) StateProbe.leave?.call(_site ?? 'field', began);
         return _slotChanged;
       },
       update: (state, tr) {
         final oldVal = state._values[idx] as T;
+        final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
         final value = _updateF(oldVal, tr);
+        if (_measured) StateProbe.leave?.call(_site ?? 'field', began);
         if (_compareF(oldVal, value)) return 0;
         state._values[idx] = value;
         return _slotChanged;

@@ -28,6 +28,7 @@ import 'dart:ui' as ui show LineMetrics, PlaceholderAlignment, PlatformDispatche
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import 'projection.dart';
 import 'widget.dart';
@@ -491,6 +492,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   void performLayout() {
     layouts += 1;
+    if (ghostPerf) Perf.count('editor.lines.laidOut');
     final look = _spec.look, proj = _spec.projection;
     final width = _width(constraints);
     _contentLeft = look.marginStart + look.borderStart + look.paddingStart;
@@ -918,6 +920,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    if (ghostPerf) Perf.count('editor.lines.painted');
     final look = _spec.look;
     final canvas = context.canvas;
     final words = _words;

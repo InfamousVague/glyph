@@ -25,6 +25,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import 'editor_view.dart';
 import 'plugin.dart';
@@ -184,9 +185,11 @@ class _EditorSliverElement extends RenderObjectElement {
   @override
   void performRebuild() {
     super.performRebuild();
+    final began = ghostPerf ? Perf.now() : 0;
     _follow();
     _rebuildAll(_view.takeDirty());
     renderObject.markNeedsLayout();
+    if (ghostPerf) Perf.add('editor.sliver.rebuilt', began);
   }
 
   /// Called from layout: makes the built entries exactly `lines`, building what is missing (and everything again
@@ -341,6 +344,13 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
 
   @override
   void performLayout() {
+    if (!ghostPerf) return _layOut();
+    final began = Perf.now();
+    _layOut();
+    Perf.add('editor.sliver.laidOut', began);
+  }
+
+  void _layOut() {
     layouts += 1;
     final c = constraints;
     assert(c.axis == Axis.vertical && c.growthDirection == GrowthDirection.forward, 'The editor scrolls down the page.');
@@ -435,12 +445,14 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
 
   @override
   void paint(PaintingContext context, Offset offset) {
+    final began = ghostPerf ? Perf.now() : 0;
     final extent = constraints.remainingPaintExtent;
     for (final child in _kids) {
       final y = childMainAxisPosition(child);
       // What is wholly off the painted stretch is left out; the cache keeps it built.
       if (y < extent && y + child.size.height > 0) context.paintChild(child, offset + Offset(0, y));
     }
+    if (ghostPerf) Perf.add('editor.sliver.painted', began);
   }
 
   // -- scrolling into view -----------------------------------------------------------------------------------------

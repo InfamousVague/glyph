@@ -30,6 +30,7 @@ import '../../plugins/mark_details.dart';
 import '../commands/task_toggle.dart' show settleFences;
 import '../editor.dart';
 import '../media/linked_rows.dart' show linkedOn;
+import '../view/line_facts.dart' show webLinkFacts;
 
 /// A box to set (`BoxChange`).
 class BoxChange {
@@ -51,8 +52,9 @@ class BoxChange {
 /// task, and not one the person is sending to the service (`skip`).
 List<BoxChange> boxesDue(Doc doc, Map<String, int> acted, [Set<String> skip = const <String>{}]) {
   final changes = <BoxChange>[];
-  for (var n = 1; n <= doc.lines; n += 1) {
-    final line = doc.line(n);
+  // A linked to-do has a link to a web address on its line: only the lines the tree keeps as having one are read
+  // (lib/editor/view/line_facts.dart), where every line of the note was put to the to-do's pattern after each letter.
+  for (final line in webLinkFacts.of(doc)) {
     final box = taskBox(line.text);
     if (box == null) continue;
     final mark = linkedOn(line.text);

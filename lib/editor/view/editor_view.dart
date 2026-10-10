@@ -34,6 +34,7 @@ import 'package:flutter/rendering.dart' hide Decoration;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 
+import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import '../looks/markdown_look.dart';
 import '../looks/sheets.dart';
@@ -44,6 +45,7 @@ import 'blocks.dart';
 import 'decoration.dart';
 import 'glyph_theme.dart';
 import 'line.dart';
+import 'measured.dart';
 import 'plugin.dart';
 import 'projection.dart';
 import 'widget.dart';
@@ -510,11 +512,29 @@ class EditorView extends EditorViewLike implements EditorLineHost {
 
   void _updateWith(List<Transaction> trs, {required int flags, required bool notify, bool inLayout = false}) {
     if (_destroyed) return;
+    if (!ghostPerf) return _updateWithInner(trs, flags: flags, notify: notify, inLayout: inLayout);
+    // What a measured walk says of the editor beside its frames: how many updates a stretch made and how long
+    // they took in all (a letter's transaction is done before its frame begins, so no frame's build has it), and
+    // where the time went (measured.dart).
+    Measured.install();
+    final began = Perf.now();
+    final whole = Measured.enter();
+    try {
+      _updateWithInner(trs, flags: flags, notify: notify, inLayout: inLayout);
+    } finally {
+      Measured.leave('view.rest', whole);
+      Perf.add(trs.isEmpty ? 'editor.update.view' : (trs.any((tr) => tr.docChanged) ? 'editor.update.doc' : 'editor.update.caret'), began);
+    }
+  }
+
+  void _updateWithInner(List<Transaction> trs, {required int flags, required bool notify, bool inLayout = false}) {
     final wasUpdating = _updating;
     _updating = true;
     ViewUpdate update;
     try {
+      var part = ghostPerf ? Measured.enter() : 0;
       final next = trs.isEmpty ? _state : trs.last.state;
+      if (ghostPerf) Measured.leave('view.state', part);
       final decorationsBefore = _decorations;
       update = ViewUpdate.create(this, next, trs);
       update.flags = flags | (_focusChanged ? UpdateFlag.focus : 0);
@@ -556,14 +576,20 @@ class EditorView extends EditorViewLike implements EditorLineHost {
         _plugins = kept;
       }
       for (final plugin in _plugins) {
+        part = ghostPerf ? Measured.enter() : 0;
         if (plugin.value == null) {
           plugin.value = plugin.spec.create(this);
         } else {
           plugin.value!.update(update);
         }
+        if (ghostPerf) Measured.leave('plugin ${plugin.value.runtimeType}', part);
       }
+      part = ghostPerf ? Measured.enter() : 0;
       _readDecorations(force: update.docChanged);
+      if (ghostPerf) Measured.leave('view.decorations', part);
+      part = ghostPerf ? Measured.enter() : 0;
       _noteDirty(update, decorationsBefore);
+      if (ghostPerf) Measured.leave('view.changed', part);
       if (!identical(next.facet(lookSheets), oldState.facet(lookSheets)) || !identical(next.facet(EditorViewLike.editorAttributes), oldState.facet(EditorViewLike.editorAttributes))) {
         _updating = wasUpdating;
         _makeLook(notify: false);
@@ -572,10 +598,12 @@ class EditorView extends EditorViewLike implements EditorLineHost {
     } finally {
       _updating = wasUpdating;
     }
+    var part = ghostPerf ? Measured.enter() : 0;
     if (notify) _notify();
     for (final plugin in _plugins) {
       plugin.value?.docViewUpdate(this);
     }
+    if (ghostPerf) Measured.leave('view.told', part);
     final listeners = _state.facet(EditorViewLike.updateListener);
     if (listeners.isNotEmpty && !update.empty) {
       if (inLayout) {
@@ -587,9 +615,11 @@ class EditorView extends EditorViewLike implements EditorLineHost {
           }
         });
       } else {
+        part = ghostPerf ? Measured.enter() : 0;
         for (final listener in listeners) {
           listener(update);
         }
+        if (ghostPerf) Measured.leave('view.listeners', part);
       }
     }
     if (_scrollTarget != null) _scheduleScroll();
@@ -795,6 +825,7 @@ class EditorView extends EditorViewLike implements EditorLineHost {
         spec = had;
         if (plain && keep._plain && keep._from == first.from && selection.same(keep._selection!)) return null;
       } else {
+        if (ghostPerf) Perf.count('editor.lines.projected');
         final source = to == first.to ? first.text : doc.sliceString(first.from, to);
         final projection = LineProjection.build(source, first.from, _decorations, atomic: _atomicIn(first.from, to));
         spec = LineSpec.resolve(projection, look, context);
