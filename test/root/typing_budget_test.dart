@@ -13,10 +13,13 @@
 // (lib/perf/perf_seed.dart "Bench long", made here the same way), and those with 370 kB of plain paragraphs after
 // them. A keystroke at the same place in each must cost the same: the work is the screen's and the changed line's,
 // and none of it is the note's length. Before the facts were kept with the document's tree, each of some twenty
-// extensions read every line of the note for every letter, and half of them for every move of the caret: this
-// test's long note would have counted about two hundred thousand lines for a letter, where it counts under three
-// hundred handed out and about eleven hundred read for the kept facts (thirty-two lines, the leaf the letter made,
-// for each of some thirty-four facts).
+// extensions read every line of the note for every letter, and half of them for every move of the caret. Counted
+// by this test's own counters put under the code as it was (c2179c6): a letter in the short note handed out 4,087
+// lines and asked for the whole note as a string 17 times, with 27 lines projected; in the long one 53,520 lines
+// (and the note split into its lines ten times more, which no counter here sees); a caret's move 854 and 6,355,
+// asking 7 times. Now a letter hands out about 270 in either note, reads about eleven hundred for the kept facts
+// (thirty-two lines, the leaf the letter made, for each of some thirty-four facts), asks for the string 6 times
+// and makes it once, and projects one line; a caret's move hands out about 90 and projects none.
 //
 // test/editor/input/budget_test.dart stays beside this one: it holds the keyboard's own client to its rules over
 // the editor's base stack (three lines shown to the keyboard, nothing pushed for a letter, one line laid out), and
