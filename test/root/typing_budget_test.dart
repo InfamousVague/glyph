@@ -23,7 +23,7 @@
 //
 // test/editor/input/budget_test.dart stays beside this one: it holds the keyboard's own client to its rules over
 // the editor's base stack (three lines shown to the keyboard, nothing pushed for a letter, one line laid out), and
-// times a keystroke there, which is why it can fail under load; the cost of typing in the app is held here.
+// counts what a keystroke reads there too; the cost of typing in the app, over the app's own list, is held here.
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
