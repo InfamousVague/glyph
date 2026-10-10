@@ -202,6 +202,10 @@ class _EditorSliverElement extends RenderObjectElement {
   /// when `all`, the decorations having moved with the viewport).
   void sync(List<int> lines, {required bool all}) {
     owner!.buildScope(this, () {
+      // With nothing built yet, every line built here is built from the view as it is now: what the view has
+      // noted as changed since it was made (everything, to begin with) is no news to them, and is let go, where
+      // it used to have every line of a note just opened built a second time in its second frame.
+      final fresh = _children.isEmpty;
       final wanted = lines.toSet();
       for (final line in _children.keys.toList()) {
         if (wanted.contains(line)) continue;
@@ -219,6 +223,10 @@ class _EditorSliverElement extends RenderObjectElement {
           _children[line] = child;
           _from[line] = _view.state.doc.line(line).from;
         }
+      }
+      if (fresh && !all) {
+        _view.takeDirty();
+        _view.takeChanges();
       }
     });
   }
