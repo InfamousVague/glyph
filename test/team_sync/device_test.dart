@@ -155,7 +155,16 @@ void main() {
       expect(identical(await pictures.smaller(jpeg), jpeg), isTrue);
       final broken = Uint8List.fromList([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0]);
       expect(identical(await pictures.smaller(broken), broken), isTrue);
-      // A device with a JPEG writer gives its own.
+      // A device with a JPEG writer draws a photograph smaller with it (the phone's: Kotlin's `Pictures.smaller`),
+      // and the copy, still a JPEG, is still what its name says: the core keeps it.
+      final written = Uint8List.fromList(jpeg.sublist(0, jpeg.length - 1));
+      final withWriter = CorePictures(files, jpeg: (bytes, {required longSide, required quality}) async => written);
+      expect(await withWriter.smaller(jpeg), written);
+      await withWriter.keep('copy.jpg', await withWriter.smaller(jpeg));
+      expect(await withWriter.read('copy.jpg'), written);
+      // A PNG stays the engine's own to draw, writer or no.
+      expect(await sizeOf(await withWriter.smaller(wide)), (1024, 256));
+      // And a test's own way of drawing smaller, whole.
       expect(await CorePictures(files, smallerWith: (bytes) async => Uint8List.fromList([1])).smaller(wide), [1]);
     }, skip: skip);
   });

@@ -10,11 +10,17 @@
 ///   cuts at thirty-two, so it reads either.
 /// - A file the core refuses to read (a name that may not name one) is no file, as the page's was; one it refuses to
 ///   WRITE throws its sentence, which the pass counts against that note and says.
-/// - **A share's smaller picture.** The page redraws any picture as a JPEG through a canvas. Flutter's engine
-///   writes PNG and nothing else, and a picture must stay the kind its name says to be kept by the core, so
-///   [CorePictures.smaller] redraws a PNG smaller (1024 on its long side) and answers anything else as it is: a
-///   share that would not hold a phone's photographs as kept carries as many as fit, in the order the pages show
-///   them (share.dart `withPictures`), until there is a JPEG writer. A test, or a device with one, gives its own.
+/// - **A share's smaller picture.** The page redraws any picture as a JPEG through a canvas
+///   (`smallerImage(bytes, 1024, 0.72)`: its long side at most 1024, the right way up, over white, at quality
+///   0.72). Flutter's engine opens a JPEG and writes PNG and nothing else, so the writing is the phone's
+///   ([JpegShrink]; lib/core/phone_pictures.dart `phoneJpegShrink` over Kotlin's `Pictures.smaller`), and
+///   [smallerPicture] hands it every picture that is not a PNG: a phone's photographs, which is nearly all of them
+///   (a picked or pasted picture is always kept as a `.jpg`). A PNG is still redrawn as a PNG ([smallerPng]),
+///   where the page made a JPEG of it under its `.png` name: the core keeps a picture only if it is what its name
+///   says (`sync_put_file`: "That picture is not what its name says."), so the page's copy of a PNG could be read
+///   in a browser and never kept by a phone that saved the share. And a reading copy that came out larger than
+///   the picture as kept is not used, where the page used it regardless. On a device with no writer (a desktop
+///   until its half has one, a test) a picture that is not a PNG is carried as it is kept, as before.
 library;
 
 import 'dart:typed_data';
@@ -56,6 +62,14 @@ class CoreDeviceBytes implements DeviceBytes {
 /// The long side a share's reading copy is drawn to (`smallerImage(bytes, 1024, 0.72)`).
 const int shareLongSide = 1024;
 
+/// The JPEG quality of a share's reading copy, of 100 (the page's 0.72).
+const int shareJpegQuality = 72;
+
+/// Draws a picture again as a JPEG: its long side at most [longSide] and never larger than it was, the right way
+/// up, over white paper, at [quality] of 100. Null when the picture will not open or there is nothing to draw
+/// with. The page's `shrink` (core/imageShrink.ts), which only a platform can do here.
+typedef JpegShrink = Future<Uint8List?> Function(Uint8List bytes, {required int longSide, required int quality});
+
 const List<int> _pngMagic = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 bool _isPng(Uint8List bytes) {
@@ -95,13 +109,31 @@ Future<Uint8List> smallerPng(Uint8List bytes, {int longSide = shareLongSide}) as
   }
 }
 
+/// A share's reading copy of a picture (`smallerImage(bytes, 1024, 0.72)`): a PNG as a smaller PNG ([smallerPng]),
+/// anything else as a JPEG by [jpeg], the device's writer. The bytes as they are where there is no writer, where
+/// the picture will not open, and where the copy came out no smaller than the picture as kept.
+Future<Uint8List> smallerPicture(Uint8List bytes, {JpegShrink? jpeg, int longSide = shareLongSide, int quality = shareJpegQuality}) async {
+  if (_isPng(bytes)) return smallerPng(bytes, longSide: longSide);
+  if (jpeg == null || bytes.isEmpty) return bytes;
+  try {
+    final drawn = await jpeg(bytes, longSide: longSide, quality: quality);
+    return drawn != null && drawn.isNotEmpty && drawn.length < bytes.length ? drawn : bytes;
+  } catch (_) {
+    return bytes;
+  }
+}
+
 /// [SharePictures] over the core.
 class CorePictures implements SharePictures {
-  /// [smallerWith] draws a picture smaller; [smallerPng] unless given. [onPicture] as [CoreDeviceBytes.onPicture].
-  const CorePictures(this.files, {Future<Uint8List> Function(Uint8List bytes)? smallerWith, this.onPicture}) : _smaller = smallerWith;
+  /// [smallerWith] draws a picture smaller; [smallerPicture] with [jpeg], this device's JPEG writer, unless given.
+  /// [onPicture] as [CoreDeviceBytes.onPicture].
+  const CorePictures(this.files, {Future<Uint8List> Function(Uint8List bytes)? smallerWith, this.jpeg, this.onPicture}) : _smaller = smallerWith;
 
   final CoreFiles files;
   final Future<Uint8List> Function(Uint8List bytes)? _smaller;
+
+  /// Writes a JPEG on this device; null where nothing can, and then only a PNG is drawn smaller.
+  final JpegShrink? jpeg;
   final void Function(String name)? onPicture;
 
   /// The picture, or null where this device has none or the name may not name one.
@@ -115,7 +147,7 @@ class CorePictures implements SharePictures {
   }
 
   @override
-  Future<Uint8List> smaller(Uint8List bytes) => (_smaller ?? smallerPng)(bytes);
+  Future<Uint8List> smaller(Uint8List bytes) => _smaller != null ? _smaller(bytes) : smallerPicture(bytes, jpeg: jpeg);
 
   @override
   Future<void> keep(String name, Uint8List bytes) async {

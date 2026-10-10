@@ -34,6 +34,7 @@ import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/note.dart';
 import '../core/phone_notices.dart';
+import '../core/phone_pictures.dart' show phoneJpegShrink;
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/versions_store.dart';
@@ -79,7 +80,7 @@ Future<List<String>?> noServiceWayIn({required String mode, required String hand
 /// What `main` hands the app for an account: where the service is, the crypto, and the app's data folder.
 @immutable
 class AccountMaking {
-  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds, this.notices});
+  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds, this.notices, this.jpeg});
 
   final String base;
   final CoreCrypto crypto;
@@ -94,6 +95,9 @@ class AccountMaking {
 
   /// The phone, asked about its own notifications for the bell's rows; the device's unless a test says otherwise.
   final NoticesHost? notices;
+
+  /// What writes a share's reading copy of a picture as a JPEG; the phone's unless a test says otherwise.
+  final JpegShrink? jpeg;
 }
 
 /// The team notes' documents, in the folder of whoever is signed in: signed out, there are none to read and
@@ -161,7 +165,8 @@ class WiredAccount {
     final notes = LibraryNotes(core);
     final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account));
     final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
-    final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, onPicture: onPicture), listNotes: notes.list);
+    // A share's reading copies are JPEGs written by the phone (lib/core/phone_pictures.dart): nothing on a device with no half for it.
+    final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list);
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,

@@ -12,8 +12,11 @@ import android.net.Uri
 import android.util.Log
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.FileOutputStream
+import java.io.InputStream
 import java.util.UUID
 
 /**
@@ -30,6 +33,11 @@ import java.util.UUID
  *   read, `{}` when there is nothing. Since Android 10 the clipboard only answers an app that holds focus, and a
  *   refusal reads as nothing at all.
  *
+ * - `smaller {bytes, longSide, quality}` -> the picture drawn again as a JPEG, its long side at most `longSide`
+ *   and never larger than it was, the right way up, over white paper; or null when it would not open. A share's
+ *   reading copy (lib/sync/device.dart; ../glyph's `smallerImage(bytes, 1024, 0.72)` in core/images.ts, which the
+ *   page drew on a canvas). Flutter's engine opens a JPEG and writes none, so the phone writes it.
+ *
  * Android's own chooser ("Choose a picture"), which asks for no permission: the picture is read through the
  * address the chooser hands back, once, and the cache copy is the only thing this ever writes. Decoded at a sample
  * size that keeps memory sane, turned per its EXIF, its long side capped at 1600 px, written as a JPEG at 85: a
@@ -45,6 +53,7 @@ class Pictures(private val activity: Activity) {
       when (call.method) {
         "pick" -> pick(result)
         "clipboard" -> clipboard(result)
+        "smaller" -> smaller(call.argument<ByteArray>("bytes"), call.argument<Int>("longSide") ?: 1024, call.argument<Int>("quality") ?: 72, result)
         else -> result.notImplemented()
       }
     }
@@ -121,15 +130,45 @@ class Pictures(private val activity: Activity) {
   /** Decodes `uri` at a sample size that keeps memory sane, rotates it per EXIF, caps the long side, writes a JPEG. */
   private fun shrink(uri: Uri): File {
     val resolver = activity.contentResolver
+    val flat = flatten(MAX_PX) { resolver.openInputStream(uri) }
+    val dir = File(activity.cacheDir, "picked").apply { mkdirs() }
+    val out = File(dir, "${UUID.randomUUID()}.jpg")
+    FileOutputStream(out).use { flat.compress(Bitmap.CompressFormat.JPEG, 85, it) }
+    return out
+  }
+
+  /**
+   * A share's reading copy: `bytes` drawn again as a JPEG at `quality`, off the main thread. Null for a picture
+   * that will not open, which the share then carries as it is kept, or not at all.
+   */
+  private fun smaller(bytes: ByteArray?, longSide: Int, quality: Int, result: MethodChannel.Result) {
+    if (bytes == null || bytes.isEmpty() || longSide < 1) return result.success(null)
+    Thread {
+      val drawn = try {
+        val flat = flatten(longSide) { ByteArrayInputStream(bytes) }
+        ByteArrayOutputStream().also { flat.compress(Bitmap.CompressFormat.JPEG, quality.coerceIn(1, 100), it) }.toByteArray()
+      } catch (error: Throwable) {
+        // Out of memory included: a picture too large for this phone to redraw is carried as it is.
+        Log.w(TAG, "picture not drawn smaller", error)
+        null
+      }
+      activity.runOnUiThread { result.success(drawn) }
+    }.start()
+  }
+
+  /**
+   * The picture `open` reads, decoded at a sample size that keeps memory sane, turned per its EXIF, its long side
+   * capped at `maxPx` (never made larger), and laid on white paper where it has no background, so a screenshot
+   * with none does not turn black as a JPEG. `open` is asked three times: the size, the pixels, the turning.
+   */
+  private fun flatten(maxPx: Int, open: () -> InputStream?): Bitmap {
     val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-    resolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it, null, bounds) }
-    val longest = maxOf(bounds.outWidth, bounds.outHeight).coerceAtLeast(1)
-    var sample = 1
-    while (longest / (sample * 2) >= MAX_PX) sample *= 2
-    val decoded = resolver.openInputStream(uri)?.use {
+    open()?.use { BitmapFactory.decodeStream(it, null, bounds) }
+    val sample = sampleFor(maxOf(bounds.outWidth, bounds.outHeight), maxPx)
+    val decoded = open()?.use {
       BitmapFactory.decodeStream(it, null, BitmapFactory.Options().apply { inSampleSize = sample })
     } ?: throw IllegalStateException("decode failed")
-    val rotation = resolver.openInputStream(uri)?.use { stream ->
+    val rotation = open()?.use { stream ->
       when (ExifInterface(stream).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)) {
         ExifInterface.ORIENTATION_ROTATE_90 -> 90f
         ExifInterface.ORIENTATION_ROTATE_180 -> 180f
@@ -137,14 +176,14 @@ class Pictures(private val activity: Activity) {
         else -> 0f
       }
     } ?: 0f
-    val scale = minOf(1f, MAX_PX.toFloat() / maxOf(decoded.width, decoded.height))
+    val scale = scaleFor(decoded.width, decoded.height, maxPx)
     val matrix = Matrix().apply {
       if (scale < 1f) postScale(scale, scale)
       if (rotation != 0f) postRotate(rotation)
     }
     val upright = Bitmap.createBitmap(decoded, 0, 0, decoded.width, decoded.height, matrix, true)
     // Paper under a transparent picture, so a screenshot with no background does not turn black as a JPEG.
-    val flat = if (upright.hasAlpha()) {
+    return if (upright.hasAlpha()) {
       Bitmap.createBitmap(upright.width, upright.height, Bitmap.Config.ARGB_8888).also { paper ->
         android.graphics.Canvas(paper).apply {
           drawColor(android.graphics.Color.WHITE)
@@ -154,10 +193,6 @@ class Pictures(private val activity: Activity) {
     } else {
       upright
     }
-    val dir = File(activity.cacheDir, "picked").apply { mkdirs() }
-    val out = File(dir, "${UUID.randomUUID()}.jpg")
-    FileOutputStream(out).use { flat.compress(Bitmap.CompressFormat.JPEG, 85, it) }
-    return out
   }
 
   companion object {
@@ -169,5 +204,19 @@ class Pictures(private val activity: Activity) {
 
     /** The long side a kept picture is capped at. */
     private const val MAX_PX = 1600
+
+    /**
+     * The power of two a picture `longest` px on its long side is decoded at, so what is decoded is the smallest
+     * that is still at least `maxPx`: half, a quarter, an eighth, never below the size it will be drawn at.
+     */
+    internal fun sampleFor(longest: Int, maxPx: Int): Int {
+      val long = longest.coerceAtLeast(1)
+      var sample = 1
+      while (long / (sample * 2) >= maxPx) sample *= 2
+      return sample
+    }
+
+    /** What a decoded picture is scaled by to bring its long side to `maxPx`: never more than 1 (`Math.min(1, …)`). */
+    internal fun scaleFor(width: Int, height: Int, maxPx: Int): Float = minOf(1f, maxPx.toFloat() / maxOf(width, height, 1))
   }
 }

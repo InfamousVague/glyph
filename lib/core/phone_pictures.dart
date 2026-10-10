@@ -24,6 +24,20 @@ import 'native/files.dart';
 /// The channel the phone's picture chooser answers on.
 const MethodChannel picturesChannel = MethodChannel('ghost_md/pictures');
 
+/// A picture drawn again as a JPEG by the phone (`smaller`, Kotlin's `Pictures`): a share's reading copy, which
+/// Flutter's engine can open and cannot write (lib/sync/device.dart `JpegShrink`). Null where the picture will not
+/// open, and on a run with no phone half or one from before it (a desktop, an iPhone, a test), where a share's
+/// pictures are carried as they are kept.
+Future<Uint8List?> phoneJpegShrink(Uint8List bytes, {required int longSide, required int quality, MethodChannel channel = picturesChannel}) async {
+  try {
+    return await channel.invokeMethod<Uint8List>('smaller', {'bytes': bytes, 'longSide': longSide, 'quality': quality});
+  } on MissingPluginException {
+    return null;
+  } on PlatformException {
+    return null;
+  }
+}
+
 /// Moves a picture the phone put in its cache among the library's pictures, and answers its name
 /// (`adoptImagePath`).
 PictureAdopter corePictureAdopter(CoreFiles files, {String Function()? name}) => (path) async {
