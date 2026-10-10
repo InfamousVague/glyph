@@ -153,6 +153,8 @@ class FakeCore {
         return _applyCommand(args['request']);
       case 'undo_command_mutation':
         return _undoCommand(text('mutationId'));
+      case 'latest_command_mutation':
+        return _latestCommand();
       case 'versions_read':
         final row = _rows[text('id')];
         return row == null ? null : _versions[_versionsPath(row.path!)];
@@ -194,8 +196,22 @@ class FakeCore {
     if (!matches) return {'status': 'conflict', 'current': current?.json(full: true)};
     final saved = _save(noteId, after, current?.source ?? source);
     if (beforeRevision != null) saved.revision = beforeRevision + 1;
-    _commands[mutationId] = _Command(noteId: noteId, beforeBody: beforeBody, afterBody: after, beforeRevision: beforeRevision, afterRevision: saved.revision);
+    _commands[mutationId] = _Command(noteId: noteId, beforeBody: beforeBody, afterBody: after, beforeRevision: beforeRevision, afterRevision: saved.revision, kind: kind, createdAt: _now);
     return {'status': 'applied', 'mutationId': mutationId, 'note': saved.json(full: true)};
+  }
+
+  /// `latest_command_undo(10 minutes)`: the newest command not taken back whose exact result is still current.
+  Object? _latestCommand() {
+    final cutoff = _now - 10 * 60 * 1000;
+    MapEntry<String, _Command>? latest;
+    for (final entry in _commands.entries) {
+      final record = entry.value;
+      if (record.undone || record.createdAt < cutoff || (latest != null && record.createdAt < latest.value.createdAt)) continue;
+      final current = _rows[record.noteId] ?? _drafts[record.noteId];
+      if (current == null || current.revision != record.afterRevision || current.body != record.afterBody) continue;
+      latest = entry;
+    }
+    return latest == null ? null : {'mutationId': latest.key, 'noteId': latest.value.noteId, 'kind': latest.value.kind, 'createdAt': latest.value.createdAt};
   }
 
   /// `undo_command`: only while the command's exact result is still current.
@@ -386,13 +402,15 @@ class FakeCore {
 
 /// A row of `command_mutations`: what a command changed, and whether it was taken back.
 class _Command {
-  _Command({required this.noteId, required this.beforeBody, required this.afterBody, required this.beforeRevision, required this.afterRevision});
+  _Command({required this.noteId, required this.beforeBody, required this.afterBody, required this.beforeRevision, required this.afterRevision, required this.kind, required this.createdAt});
 
   final String noteId;
   final String? beforeBody;
   final String afterBody;
   final int? beforeRevision;
   final int afterRevision;
+  final String kind;
+  final int createdAt;
   bool undone = false;
 }
 

@@ -9,6 +9,9 @@ import 'package:ghost_md/canvas/canvas_view.dart';
 import 'package:ghost_md/canvas/json_canvas.dart';
 import 'package:ghost_md/core/link_preview.dart' show LinkOpener;
 import 'package:ghost_md/core/notifications.dart' show sentenceOf;
+import 'package:ghost_md/core/command_mutations.dart';
+import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/versions_share.dart';
 import 'package:ghost_md/core/versions_store.dart';
@@ -408,6 +411,54 @@ void main() {
       // NoteScreen.tsx `actions` and NoteSettings: Share and Sharing are there signed in or out.
       expect(seams.sharingSection, isNotNull);
       expect(seams.onShare, isNotNull);
+      await close(tester);
+    });
+  });
+
+  // Missing 10 (docs/PARITY.md): the Undo of a voice command, offered again after the app was stopped
+  // (shell/useHousekeeping.ts: `latestCommandMutation()` asked once as the app opens, a toast for ten seconds).
+  group('a voice command applied just before the app was stopped', () {
+    Future<SampleLibrary> launched(WidgetTester tester, {required String kind}) async {
+      final library = SampleLibrary.seeded();
+      final packing = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      await library.applyCommandMutation(
+        kind == 'append'
+            ? CommandMutationRequest(mutationId: 'm1', noteId: packing.id, kind: 'append', beforeRevision: packing.revision, beforeBody: packing.body, afterBody: '${packing.body}\n- The long lens\n', source: NoteSource.capture)
+            : const CommandMutationRequest(mutationId: 'm1', noteId: 'made-by-voice', kind: 'create', beforeRevision: null, beforeBody: null, afterBody: '# Shopping list\n\n- Oat milk\n', source: NoteSource.capture),
+      );
+      await pumpApp(
+        tester,
+        prefs: const Preferences(theme: 'light'),
+        home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.pump(const Duration(milliseconds: 100));
+      return library;
+    }
+
+    testWidgets('is offered its Undo again as the app opens, which takes the words back out', (tester) async {
+      final library = await launched(tester, kind: 'append');
+      final packing = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+      expect(packing.body, endsWith('- The long lens\n'));
+      expect(find.text('Voice command changed a note.'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(library.noteOf(packing.id)!.body, isNot(contains('The long lens')));
+      await close(tester);
+    });
+
+    testWidgets('says so of a note it made, and its Undo takes the note away', (tester) async {
+      final library = await launched(tester, kind: 'create');
+      expect(find.text('Voice command created a note.'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(library.noteOf('made-by-voice'), isNull);
+      await close(tester);
+    });
+
+    testWidgets('is offered nothing where no command is waiting', (tester) async {
+      await open(tester);
+      expect(find.text('Undo'), findsNothing);
       await close(tester);
     });
   });

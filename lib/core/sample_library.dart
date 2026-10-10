@@ -144,7 +144,7 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
 
   /// The commands applied here, by their ids, each with the revision it left its note at and whether it was taken
   /// back: the page's `glyph-command-mutations` (`webCommands`), held in memory as the notes are.
-  final Map<String, ({CommandMutationRequest request, int afterRevision, bool undone})> _commands = {};
+  final Map<String, ({CommandMutationRequest request, int afterRevision, bool undone, int createdAt})> _commands = {};
 
   /// `applyCommandMutation`, the browser half: exactly the words previewed, if the previewed revision still exists.
   @override
@@ -161,7 +161,7 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
       note = current.copyWith(body: request.afterBody, updatedAt: _clock(), revision: current.revision + 1);
       _replace(note.id, (_) => note);
     }
-    _commands[request.mutationId] = (request: request, afterRevision: note.revision, undone: false);
+    _commands[request.mutationId] = (request: request, afterRevision: note.revision, undone: false, createdAt: _clock());
     return Future<CommandMutationResult>.value(CommandMutationResultApplied(mutationId: request.mutationId, note: note));
   }
 
@@ -184,8 +184,24 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
     } else {
       value = List.unmodifiable(value.where((each) => each.id != current.id));
     }
-    _commands[mutationId] = (request: request, afterRevision: record.afterRevision, undone: true);
+    _commands[mutationId] = (request: request, afterRevision: record.afterRevision, undone: true, createdAt: record.createdAt);
     return Future<CommandUndoResult>.value(CommandUndoResultUndone(mutationId: mutationId, note: restored));
+  }
+
+  /// `latestCommandMutation`, the browser half: the newest command of the last ten minutes that was not taken back
+  /// and whose note is still exactly what it left.
+  @override
+  Future<PendingCommandUndo?> latestCommandMutation() {
+    final cutoff = _clock() - 10 * 60 * 1000;
+    PendingCommandUndo? latest;
+    for (final entry in _commands.entries) {
+      final record = entry.value, request = record.request;
+      if (record.undone || record.createdAt < cutoff || (latest != null && record.createdAt < latest.createdAt)) continue;
+      final note = noteOf(request.noteId);
+      if (note == null || note.body != request.afterBody || note.revision != record.afterRevision) continue;
+      latest = PendingCommandUndo(mutationId: entry.key, noteId: request.noteId, kind: request.kind, createdAt: record.createdAt);
+    }
+    return Future<PendingCommandUndo?>.value(latest);
   }
 
   @override

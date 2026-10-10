@@ -50,6 +50,7 @@ import '../comments/ask.dart';
 import '../core/backup.dart' show Backups;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
+import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
 import '../core/front_matter.dart' show frontMatterOffset;
@@ -1340,6 +1341,8 @@ class _GhostRootState extends State<GhostRoot> {
     if (!_notesRead.isCompleted) _notesRead.complete();
     // At launch, which opens on the home page: what the phone let go of before it was left.
     if (mounted) unawaited(_takeBack.look());
+    // And a voice command's Undo, which went with the app if it was stopped inside the toast's ten seconds.
+    if (mounted) unawaited(_offerCommandUndo());
     // And the tags that waited for a pass or a note's first words while the app was away.
     if (mounted) _settleTags();
     // The links that opened the app wait for the notes to be read, so a copy lands in a library that is there and
@@ -1360,6 +1363,27 @@ class _GhostRootState extends State<GhostRoot> {
     for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch)) {
       await _library.createNote(note.body);
     }
+  }
+
+  /// A voice command applied just before the app was stopped: its Undo was a toast that went with the app, so it is
+  /// offered once more as the app opens, for ten seconds (shell/useHousekeeping.ts). The store offers the guarded undo
+  /// only while the note is exactly what the command left; a later edit makes the press a conflict, never a loss.
+  Future<void> _offerCommandUndo() async {
+    final PendingCommandUndo? pending;
+    try {
+      pending = await _library.latestCommandMutation();
+    } catch (_) {
+      return;
+    }
+    if (pending == null || !mounted) return;
+    GlacierToast.of(context).toast(
+      message: Text(pending.kind == 'create' ? 'Voice command created a note.' : 'Voice command changed a note.'),
+      duration: const Duration(seconds: 10),
+      action: GlacierToastAction(
+        label: 'Undo',
+        onPress: () => unawaited(_library.undoCommandMutation(pending!.mutationId).then<void>((_) => _library.refresh(), onError: (Object _) {})),
+      ),
+    );
   }
 
   /// The screen or the open tabs changed: a look at what was left (`takeBack`'s effect). After the frame, when the

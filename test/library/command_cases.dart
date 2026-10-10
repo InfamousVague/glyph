@@ -11,8 +11,9 @@ import 'package:ghost_md/core/note.dart';
 /// [open] answers the library a case runs over. [id] makes a case's ids its own where every case shares one
 /// library, as they do over the real core (one process has one); left out, an id is the web's.
 ///
-/// Not here: "offers the latest undo only while its result stands, and for ten minutes". `latestCommandMutation`
-/// is not ported (lib/core/library.dart).
+/// "offers the latest undo only while its result stands, and for ten minutes" is here less its ten minutes, which
+/// need a clock the real core does not take from a test; they are tried in memory
+/// (test/library/command_mutations_test.dart).
 void commandCases(Future<NoteLibrary> Function() open, {String Function(String name)? id, String? skip}) {
   String named(String name) => id == null ? name : id(name);
 
@@ -55,6 +56,19 @@ void commandCases(Future<NoteLibrary> Function() open, {String Function(String n
     final again = await library.applyCommandMutation(create(m2, a, 'Groceries'));
     expect(again.status, 'conflict');
     expect((again as CommandMutationResultConflict).current?.id, a);
+  }, skip: skip);
+
+  test('offers the latest undo only while its result stands', () async {
+    final library = await open();
+    final a = named('late'), m1 = named('l1');
+    await library.createNote('milk', id: a);
+    // A moment after whatever another case applied: the latest is told by when, to the millisecond.
+    await Future<void>.delayed(const Duration(milliseconds: 3));
+    await library.applyCommandMutation(append(m1, a, 'milk', 'milk\neggs'));
+    final latest = await library.latestCommandMutation();
+    expect((latest?.mutationId, latest?.noteId, latest?.kind), (m1, a, 'append'));
+    await library.update(a, 'milk\neggs\nand more', 2);
+    expect((await library.latestCommandMutation())?.mutationId, isNot(m1));
   }, skip: skip);
 
   test('undoes an append back to the words before it, once, and an undone create takes the note away', () async {

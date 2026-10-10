@@ -21,9 +21,9 @@
 ///   note; [NoteLibrary.destroy] is the page's `deleteNote`, for good. [NoteLibrary.delete] and
 ///   [NoteLibrary.restore] are what the shell did before there was a trash, kept so it still builds.
 /// - A command's write and its undo ([NoteLibrary.applyCommandMutation], [NoteLibrary.undoCommandMutation]) are
-///   asked and answered in the shapes of lib/core/command_mutations.dart. The page's `latestCommandMutation`, the
-///   undo it offers again after the app was stopped (`shell/useHousekeeping.ts`), is not ported, and
-///   `setNoteRecording` is the recorder's still (lib/capture/recorder.dart).
+///   asked and answered in the shapes of lib/core/command_mutations.dart, and so is the one still undoable after
+///   the app was stopped ([NoteLibrary.latestCommandMutation], which the root asks once at launch, as
+///   `shell/useHousekeeping.ts` does). `setNoteRecording` is the recorder's still (lib/capture/recorder.dart).
 library;
 
 import 'dart:async';
@@ -91,6 +91,10 @@ abstract class NoteLibrary implements ValueListenable<List<Note>> {
   /// a note it added to gets the words it had, and a note it made goes. A note changed since is a conflict and is
   /// left as it is; a change taken back already, or one nothing knows of, is said as that.
   Future<CommandUndoResult> undoCommandMutation(String mutationId);
+
+  /// The command of the last ten minutes that can still be taken back, if any (`latestCommandMutation`): asked once
+  /// at launch, so a command whose Undo went with the app when it was stopped is offered its Undo again.
+  Future<PendingCommandUndo?> latestCommandMutation();
 
   /// Writes [body] over the note as the list holds it. Where the phone's write-up appended its transcript meanwhile,
   /// the save is made again over it (editor/useNoteSaving.ts), and the note answered carries the transcript; any

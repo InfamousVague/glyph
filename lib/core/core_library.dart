@@ -387,6 +387,10 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     return result;
   }
 
+  /// `latestCommandMutation`: the core's `latest_command_mutation`, which reads the library's own index of commands.
+  @override
+  Future<PendingCommandUndo?> latestCommandMutation() async => pendingCommandUndoFromJson(await _invoke('latest_command_mutation'));
+
   @override
   Future<Note> save(String id, String body) async {
     final known = noteOf(id);

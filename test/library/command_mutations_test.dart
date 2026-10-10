@@ -18,6 +18,22 @@ void main() {
   group('a command’s write, and its undo, in memory', () {
     commandCases(() async => SampleLibrary(const []));
 
+    // Missing 10 (docs/PARITY.md): `latestCommandMutation`, the web's "offers the latest undo only while its result
+    // stands, and for ten minutes", with a clock a test can move.
+    test('offers the latest undo for ten minutes, and not once it was taken back', () async {
+      var now = 100000;
+      final library = SampleLibrary([makeNote('a', body: 'milk', updatedAt: 1)], clock: () => now);
+      expect(await library.latestCommandMutation(), isNull);
+      await library.applyCommandMutation(const CommandMutationRequest(mutationId: 'm1', noteId: 'a', kind: 'append', beforeRevision: 1, beforeBody: 'milk', afterBody: 'milk\neggs', source: NoteSource.capture));
+      final latest = await library.latestCommandMutation();
+      expect((latest?.mutationId, latest?.noteId, latest?.kind, latest?.createdAt), ('m1', 'a', 'append', 100000));
+      now = 100000 + 10 * 60000 + 1;
+      expect(await library.latestCommandMutation(), isNull);
+      now = 100000;
+      await library.undoCommandMutation('m1');
+      expect(await library.latestCommandMutation(), isNull);
+    });
+
     test('keeps the note where it was in the list, and tells its listeners of each change', () async {
       final library = SampleLibrary([makeNote('a', body: 'milk', updatedAt: 1), makeNote('z', body: 'other', updatedAt: 2)], clock: () => 5000);
       var told = 0;

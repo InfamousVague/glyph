@@ -113,6 +113,27 @@ final class CommandUndoResultNotFound extends CommandUndoResult {
   String get status => 'not-found';
 }
 
+/// A command still undoable after a restart (`PendingCommandUndo`, `latest_command_mutation`): the newest of the
+/// last ten minutes that was not taken back and whose note is still exactly what it left.
+class PendingCommandUndo {
+  const PendingCommandUndo({required this.mutationId, required this.noteId, required this.kind, required this.createdAt});
+
+  final String mutationId;
+  final String noteId;
+
+  /// `append` or `create`.
+  final String kind;
+  final int createdAt;
+}
+
+/// What `latest_command_mutation` answered: the command, or null for none (and for an answer that names none).
+PendingCommandUndo? pendingCommandUndoFromJson(Object? raw) {
+  if (raw is! Map) return null;
+  final mutationId = raw['mutationId'], noteId = raw['noteId'], kind = raw['kind'], createdAt = raw['createdAt'];
+  if (mutationId is! String || noteId is! String || kind is! String) return null;
+  return PendingCommandUndo(mutationId: mutationId, noteId: noteId, kind: kind, createdAt: createdAt is num ? createdAt.toInt() : 0);
+}
+
 /// The request as the core reads it (`apply_command_mutation`'s `request`): every field said, and none it does not
 /// name, which the core refuses.
 Map<String, Object?> commandMutationRequestToJson(CommandMutationRequest request) => {
