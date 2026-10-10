@@ -13,11 +13,11 @@ shows. "Wired" means reachable from `lib/main.dart` through `lib/root/`.
 
 | Features enumerated | match | differs | unwired | missing | n/a |
 | --- | --- | --- | --- | --- | --- |
-| 687 | 503 | 101 | 34 | 24 | 25 |
+| 687 | 509 | 98 | 34 | 21 | 25 |
 
 A row is one thing a user can see or do. A few gaps are rows of two tables (a Settings row and the feature behind
 it, a notebook's journal under both the More sheet and Journals); the three lists at the end count each once:
-14 missing, 25 unwired, 39 that differ.
+12 missing, 25 unwired, 39 that differ.
 
 What the counts say, in four lines:
 
@@ -26,8 +26,9 @@ What the counts say, in four lines:
   line or two each, and three of them change what a user is told
   is true: a shared link that does not follow edits, a renamed page that falls out of its notebook, a bell with no
   dot.
-- **Two renderers are missing**: code colouring and maths. They are most of what a note looks different for.
-  (Mermaid was the third, and is drawn since 2026-10-10: `lib/editor/diagrams`.)
+- **Three renderers were missing, and are in**: Mermaid (drawn since 2026-10-10: `lib/editor/diagrams`), code
+  colouring and maths (`lib/editor/code`, `lib/editor/maths`; Missing 1 and 2 below say what each is held to, and
+  Differs 40 and 41 where each still differs).
 - **Three build switches hide whole areas**: the side key and assistant (on always in the original, off by default
   here and never walked), the account service, and updates (on in no build at all).
 - **The words are the same.** Every Settings label and footnote, palette command, + row, More row and toast was
@@ -266,8 +267,8 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A backslash makes a mark mean itself | editor/viewMode.ts:35-41 | editor/view/view_mode.dart:47-55 | match | |
 | Emoji `:name:`, 150 names | core/emoji.ts:13 | core/emoji.dart | match | |
 | Maths `$…$` set as code where it cannot be drawn | editor/extended.ts:258,373 | editor/view/extended.dart:302,458-463 | match | The original's fallback is the port's only look. |
-| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | — | missing | |
-| A `$$` block on lines of its own, set in the middle of the page | editor/mathsDrawn.ts:141-157 | — | missing | |
+| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | editor/maths/maths.dart; editor/maths/formula.dart | differs | Drawn by flutter_math_fork, a port of KaTeX with KaTeX's faces. Of thirty-four formulas held against KaTeX 0.16 (test/editor/maths/katex_test.dart) sixteen are as tall and as deep to a hundredth of an em; ten are set another height (a superscript in a line 0.07 em low, `cases`, `aligned`, `\binom`, a brace, an arrow) and four it cannot read (`\operatorname` before a subscript, `align`, `\tag`, `\def`). A formula that cannot be read says so on a long press, in a panel, not a browser's tooltip. |
+| A `$$` block on lines of its own, set in the middle of the page | editor/mathsDrawn.ts:141-157 | editor/maths/maths.dart | match | |
 | Lists `-`, `*`, `+`, `1.`, `1)`, nested, with a hanging indent | core/itemSyntax.ts:31-33; editor/glyphLines.ts:44-93 | core/item_syntax.dart; editor/view/glyph_lines.dart:47-70 | match | |
 | To-do boxes | editor/glyphHighlight.ts:52 | editor/view/glyph_highlight.dart:80 | match | |
 | Quotes and quotes in quotes | editor/glyphLines.ts:32,124-127 | editor/view/glyph_lines.dart:39,98-101 | match | |
@@ -276,12 +277,12 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A table drawn off the caret, with alignment colons | editor/tables.ts:58-243 | editor/tables/tables.dart:87-104; editor/tables/table_box.dart:255 | match | |
 | Tap a table to edit its pipes; "+ Column" and "+ Row" | editor/tables.ts:193-216 | editor/tables/table_box.dart:177-214 | match | |
 | A block of code drawn as one card | editor/glyphLines.ts:34-35,119-122 | editor/view/glyph_lines.dart:41-42,93-96 | match | |
-| Code coloured by its language | editor/language.ts:3,35-41 (`@codemirror/language-data`) | — (editor/syntax/language.dart:13-16) | missing | The port's parser leaves a fence as `CodeText`. |
-| Code themes: Pastel, Ink, GitHub, Solarized, One Dark, Dracula, Nord | editor/codeThemes.ts:18-31 | editor/looks/code_themes.dart:16-25,145-171 | differs | Chosen and kept, and only the block's ground and ink change: no tokens to colour. |
+| Code coloured by its language | editor/language.ts:3,35-41 (`@codemirror/language-data`) | editor/code/code_highlight.dart; editor/code/languages.dart | differs | The same grammars' tables run by a port of Lezer's parser, and the pack's older modes ported, for forty of the pack's 143 languages (the ones people write: test/editor/code/conformance_test.dart holds each to the web's runs). A block in one of the other 103 is drawn in the code's ink with no token coloured. |
+| Code themes: Pastel, Ink, GitHub, Solarized, One Dark, Dracula, Nord | editor/codeThemes.ts:18-31 | editor/looks/code_themes.dart:16-25,145-171 | match | |
 | A `mermaid` block drawn as its diagram, with the reason when it cannot be | editor/mermaid.ts:36,195,218; editor/Editor.tsx:398 | editor/diagrams/diagrams.dart; editor/diagrams/store.dart; assets/diagrams/; android/…/ghost_md/DiagramRenderer.kt; apple/DiagramRenderer.swift | differs | Mermaid itself (the same 12.0.0) in a web view nobody sees, and the picture of it in the note. It is a bitmap made for the note's width, not an SVG; while its words change under it the block keeps the picture it has, where the page shows the words in between; a diagram that names a picture on the internet draws without it. |
 | A definition: the term, then `: its meaning` | editor/extended.ts:51,243-254 | editor/view/extended.dart:50,288-299 | match | |
 | Front matter as quiet keys, folded to a line of key names | editor/extended.ts:129-232 | editor/view/extended.dart:121-278 | match | |
-| HTML kept as text, never run | editor/language.ts:46 | editor/syntax/language.dart:13-16 | differs | The original colours the tags as code; the port draws them plain. |
+| HTML kept as text, never run | editor/language.ts:46 | editor/code/code_highlight.dart | match | Its tags coloured as code, a script's and a style's words by their own languages. |
 | The two views: Markdown keeps the marks dimmed, Formatted hides them off the caret's line | editor/viewMode.ts:19-76 | editor/view/view_mode.dart:30-85 | match | |
 | "Write something." on an empty note | editor/Editor.tsx:419 | editor/placeholder.dart:33 | match | |
 
@@ -356,7 +357,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A database: To-dos due this week, Overdue to-dos, To-dos by person, To-dos on a calendar, A ticket board, Open tickets with estimates, A ticket timeline, Notes changed this week, How many to-dos are open, Write your own | core/query/templates.ts:29-43 | core/query/templates.dart:40-54 | match | |
 | More: A heading, A bulleted list, A numbered list, A quote, A callout, A choice, A to-do with a due date, A block of code, A divider, Make this a ticket, A canvas, A footnote, A tag, A counter, A sum | editor/addRows.ts:202-217 | editor/plus/add_rows.dart:258-275 | match | |
 | More: A diagram | editor/addRows.ts:211,366 | editor/plus/add_rows.dart:269,304 | differs | The same fence is written and never drawn. |
-| More: A formula | editor/addRows.ts:212,364 | editor/plus/add_rows.dart:270,301 | differs | The same `$$` block is written and never drawn. |
+| More: A formula | editor/addRows.ts:212,364 | editor/plus/add_rows.dart:270,301 | match | |
 | More: A blank for the AI | editor/addRows.ts:220 | editor/plus/add_rows.dart:278 | unwired | Gated by `AddConfig.blanks`, which root/note_desk.dart:944-959 never sets. |
 | More: Blanks in the empty cells | editor/addRows.ts:221 | editor/plus/add_rows.dart:279 | unwired | The same gate. |
 | More: Heated, Frosted, Wavy, Shimmering, Haunted words | editor/addRows.ts:222-233 | editor/plus/add_rows.dart:280-290; root/note_desk.dart:179-182 | match | |
@@ -836,7 +837,7 @@ one-line readings are the same (settings/SettingsSheet.tsx:166-422; settings/set
 | Appearance › Type: Note font (Maple Mono, Fira Code, Inter, Noto, Plex), Interface font (Inter, Noto, Plex), Text size (Large, Larger, Largest), Scale (85%, 93%, Default, 110%, 125%) | settings/AppearancePane.tsx:78-116; settings/TypefaceCards.tsx; settings/ScaleCards.tsx:23 | settings/appearance_pane.dart:29-32; settings/typeface_cards.dart; settings/scale_cards.dart:31 | match | |
 | Appearance › Spacing: Tightest, Tight, Comfortable, Roomy, Roomiest | settings/AppearancePane.tsx:122-125 | settings/appearance_pane.dart:33; settings/words.dart:17-23 | match | |
 | Appearance › Corners: Square, Soft, Round, Roundest | settings/AppearancePane.tsx:128-135 | settings/appearance_pane.dart:34,198 | match | |
-| Appearance › Code: on the light page (Pastel, Ink, GitHub, Solarized), on the dark page (Pastel, Ink, One Dark, Dracula, Nord) | settings/AppearancePane.tsx:145-165 | settings/appearance_pane.dart:210-217 | differs | Chosen and kept, and with no highlighter only the block's ground and ink follow. |
+| Appearance › Code: on the light page (Pastel, Ink, GitHub, Solarized), on the dark page (Pastel, Ink, One Dark, Dracula, Nord) | settings/AppearancePane.tsx:145-165 | settings/appearance_pane.dart:210-217 | match | |
 | Appearance › Sidebar: Popover, Docked (a wide window only) | settings/AppearancePane.tsx:176-183 | settings/appearance_pane.dart:36; settings/words.dart:56 | match | |
 | Appearance › Motion: Animation speed (Relaxed, Normal, Brisk) | settings/AppearancePane.tsx:196-203 | settings/appearance_pane.dart:38; app/ghost_app.dart | match | |
 | Appearance › Motion: Ghostly typing | settings/AppearancePane.tsx:213 | settings/appearance_pane.dart:39 | differs | Followed by what the AI and the recorder write; not by a hand's deletions in a note (see the marks). |
@@ -894,7 +895,7 @@ notifications" (above), "Notion works in the app." and "Slack works in the app."
 | Ghost.md Academy: seven chapters, 61 lessons | academy/lessons.ts | academy/lessons.g.dart; academy/lessons.dart | match | Same ids, chapters and counts. |
 | Chapters page: how much is learned, Start / Continue, "I know Markdown already", Start again, Cheat sheet | academy/AcademyScreen.tsx:48-320 | academy/academy_screen.dart:74; root/ghost_root.dart:1787-1796 | match | |
 | A lesson: You type / Your note shows, ticked as the mark appears, Show me, Show me a hint, Skip, Next | academy/Playground.tsx:56-74; academy/AcademyScreen.tsx | academy/playground.dart:336-346; academy/academy_screen.dart | match | |
-| The lessons for a formula, a diagram and coloured code draw what they teach | academy/lessons.ts; editor/mathsDrawn.ts; editor/mermaid.ts | academy/lessons.g.dart:297; academy/playground.dart | differs | The diagram's lesson draws its diagram (editor/diagrams). The formula's still says "drawn as one" and the port's editor draws no formula. |
+| The lessons for a formula, a diagram and coloured code draw what they teach | academy/lessons.ts; editor/mathsDrawn.ts; editor/mermaid.ts | academy/lessons.g.dart:297; academy/playground.dart | match | Each is drawn: the diagram by editor/diagrams, the formula by editor/maths, the code's colours by editor/code. |
 | The Academy's card on the home page | App.tsx:716 (kept, never drawn) | academy/banner.dart (not imported) | n/a | Gone from the original's page. |
 | Ghost.md: The Guide, 44 chapters and its index, added once and opened | guidebook/guidebook.ts:84 | guide/guidebook.dart; assets/guidebook/; root/ghost_root.dart:908-919 | match | The 44 chapters and the index are byte for byte the original's. |
 | The Guide waits five seconds for a sync first, so a copy added elsewhere is found | App.tsx:1709-1712 | root/ghost_root.dart:908-913 | differs | No sync before the look. |
@@ -1027,10 +1028,11 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 
 ## Missing
 
-1. **Code coloured by its language**, and HTML's tags with it. Large. Needs a highlighter and its grammars in Dart;
-   the seven code themes are already chosen and kept, and colour only the block's ground and ink until then.
-2. **Maths drawn as a formula**, in a line and as a `$$` block. Large. Needs a TeX layout (a package or the port's
-   own); the +'s "A formula" and the Academy's lesson already write what would be drawn.
+1. **Code coloured by its language**, and HTML's tags with it. Done (`lib/editor/code`): the web's own grammars'
+   tables run by a port of Lezer's parser, and the language pack's older line modes ported. What is left of it is
+   Differs 40.
+2. **Maths drawn as a formula**, in a line and as a `$$` block. Done (`lib/editor/maths`), by `flutter_math_fork`.
+   What is left of it is Differs 41.
 3. ~~**A `mermaid` block drawn as its diagram**: in a note, on a canvas's chart card, in the Academy's lesson.~~
    Drawn since 2026-10-10 (`lib/editor/diagrams`, and what it left open in the README). The number is kept so the
    others keep theirs.
@@ -1148,10 +1150,10 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 11. **A note's mic stays when the note has a tape, and the tape's Add does not save what is typed first.** Small.
 12. **A line is written under every note in the library**, not home's first 16 cards and All notes' first 24
     (lib/root/ghost_root.dart:631-633). Small. The phone's cores and battery pay for it.
-13. **Formulas are written and never drawn, and the words still say drawn** (the Academy's lesson). With Missing
-    2. Diagrams and a canvas's chart card are drawn since 2026-10-10; what differs there is in their rows (a
-    picture made for one width, soft when a canvas is zoomed in past its own size).
-14. **Code themes change only a block's ground and ink.** With Missing 1.
+13. ~~**Formulas, diagrams and a canvas's chart card are written and never drawn, and the words still say
+    drawn.**~~ Each is drawn since 2026-10-10 (Missing 2 and 3); what differs is in their rows and in 41 below.
+14. ~~**Code themes change only a block's ground and ink.**~~ Done with Missing 1: each kind of token takes the
+    theme's colour.
 15. **"Summarized"** has no title and no ten seconds (lib/root/ghost_root.dart:525-531). Small.
 16. **Asking for notifications**: the meeting screen's Allow is marked asked before the phone has answered, and
     Settings can never say "Notifications are off for Ghost.md in the phone's settings."
@@ -1204,3 +1206,13 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     build's settings this one cannot read are carried back to the account, not dropped; a live note's socket is
     let go while the app is behind another.
 39. **A mouse**: hover grounds are decided by the platform, not the pointer. Small.
+40. **Code in a language the port does not read is in the code's ink, uncoloured**: 103 of the language pack's
+    143 (Perl, R, Haskell, PowerShell, Dockerfile, LaTeX and the rest; `languageNamed` in
+    lib/editor/code/languages.dart has the forty that are read). Small each: a Lezer grammar is its tables and a
+    few tokenizers (tool/code_grammars.mjs), an older mode is one `token` function. A long block being read is
+    coloured down to where the reading has got, as on the web, and never one frame in the original's own
+    in-between states.
+41. **A formula is drawn by `flutter_math_fork`, not KaTeX 0.16.** What KaTeX reads and it does not, and where its
+    box is another height, is the list in test/editor/maths/katex_test.dart. A formula that cannot be read
+    says why in a panel on a long press, where a browser shows a tooltip; the dots under it sit where Flutter
+    puts an underline; a screen reader is told the formula's TeX, where the web gives it MathML. Small each.
