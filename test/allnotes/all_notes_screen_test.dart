@@ -490,6 +490,14 @@ void main() {
       expect(cards(tester).length, inInclusiveRange(4, 30));
       expect(identical(tester.widget<NoteCard>(key('card-n0')), first), isTrue);
       await settle(tester);
+      // A note changed under the page: the cards that were there stay where they stood, and are all there the
+      // frame after, none taken away to be given again.
+      final near = cards(tester);
+      notes.value = [for (final note in many(40)) note.id == 'n2' ? makeNote('n2', body: '# Note 2, said again', updatedAt: note.updatedAt) : note];
+      await tester.pump();
+      expect(cards(tester), near);
+      expect(find.text('Note 2, said again'), findsOneWidget);
+      await settle(tester);
       // A page scrolled down is given its cards whole, and stays where it was scrolled to.
       final position = tester.state<ScrollableState>(find.descendant(of: key('all-notes-scroll'), matching: find.byType(Scrollable)).first).position;
       position.jumpTo(300);
