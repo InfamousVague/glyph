@@ -25,11 +25,11 @@
 ///   book's bar and foot, and the canvas, book and journal views, each drawn only where it is given (lib/root gives
 ///   all three). The tape is one of the rows of [NoteSeams.head], and its transcript [NoteSeams.transcript],
 ///   which takes the page under the tape while the tape plays and is not there at all otherwise, as on the page.
-/// - **The blank page's names and template cards are a sliver under the editor**, where the page drew them in a
-///   block after line 1 inside it (editor/nameChips.ts): a note with no words is its one empty line, so under the
-///   editor is under that line, and the page scrolls them with it. They wait for what the page's waited for: the
-///   editor focused, and the page ready for words (a device with no keyboard on the screen, the keyboard up, or a
-///   press of the person's own ended on the page). A map at the top's card is offered where the note keeps a place
+/// - **The blank page's names and template cards are a block after line 1 inside the editor**, as on the page
+///   (editor/nameChips.ts; lib/editor/items/blank_offers.dart), so a line made under the first is under them too.
+///   The screen keeps what the page's field kept, and tells the editor only whether the block is offered: they wait
+///   for what the page's waited for, the editor focused and the page ready for words (a device with no keyboard on
+///   the screen, the keyboard up, or a press of the person's own ended on the page). A map at the top's card is offered where the note keeps a place
 ///   ([NoteScreen.tags]).
 /// - **A note keeping its place** is this screen's, as it is the page's, over what the app hands it
 ///   ([NoteScreen.tags], lib/core/place_tags.dart): the tag its words carry or the one waiting to be written, the
@@ -86,7 +86,7 @@ import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
 import '../editor/ai/blanks.dart' show fillPlanOf;
 import '../editor/editor.dart';
-import '../editor/looks/look.dart' show LookEnv;
+import '../editor/items/blank_offers.dart';
 import '../editor/media/map_card.dart' show MapPicture, MapSize;
 import '../editor/view/editor_view.dart';
 import '../editor/view/view_mode.dart';
@@ -437,6 +437,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   bool _cardsGone = false;
   ({int pointer, Offset at})? _armed;
   final GlobalKey _offers = GlobalKey();
+
+  /// The editor's extensions that are this screen's own: the blank page's block after line 1, whose inside is
+  /// drawn here ([_offersBlock]). One list for the screen's life: another would make the editor's view again.
+  late final List<Extension> _ownExtensions = <Extension>[blankOffers(_offersBlock)];
+
+  /// Told after a build of the screen while the block is offered, so its inside is drawn again from what the
+  /// screen now has (the names at a new minute, the cards put away).
+  final _Told _offersChanged = _Told();
   Timer? _minute;
 
   late final ValueNotifier<NoteToolsModel> _toolsModel = ValueNotifier(_model());
@@ -591,6 +599,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _slowFix?.cancel();
     FocusManager.instance.removeListener(_focusMoved);
     _minute?.cancel();
+    _offersChanged.dispose();
     if (_toldJournal) {
       final told = widget.onJournal;
       // After the frame: whoever listens may be building.
@@ -643,6 +652,35 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     });
     SchedulerBinding.instance.ensureVisualUpdate();
   }
+
+  /// The editor is told whether the blank page's block is offered (`setOffers`), after the frame and only when
+  /// what it was last told is otherwise; and the block, where it is drawn, is drawn again from what the screen has.
+  void _tellOffers(bool offered) {
+    final view = _view;
+    if (view == null || (!offered && !blankOffered(view.state))) return;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(view, _view)) return;
+      if (blankOffered(view.state) != offered) view.dispatch(TransactionSpec(effects: setBlankOffers.of(offered)));
+      if (offered) _offersChanged.tell();
+    });
+  }
+
+  /// The inside of the blank page's block (`OffersWidget`): the names, the template cards while they are shown,
+  /// and the ghost, from what the screen has now.
+  Widget _offersBlock(BuildContext context) => ListenableBuilder(
+        listenable: _offersChanged,
+        builder: (context, _) {
+          final prefs = _prefs.value;
+          return _BlankOffers(
+            key: _offers,
+            names: names ?? const <NameOffer>[],
+            onName: nameIt,
+            cards: cardsShown
+                ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true))
+                : null,
+          );
+        },
+      );
 
   /// The names follow the clock: read again at the turn of each minute while they are offered (`useMinute`).
   void _watchMinute(bool on) {
@@ -1421,7 +1459,6 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     // The keyboard up is the page ready for words, and once ready it stays ready.
     if (!_ready && _KeyboardUp.of(context)) _ready = true;
     final offered = offersShown ? names : null;
-    final cards = offered != null && cardsShown;
     _watchMinute(offering);
 
     final spec = NoteEditorSpec(
@@ -1438,12 +1475,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       pageHead: padTop + (seams.headRoom?.value ?? 0),
       // The line being typed stays above the page's foot smoke, where there is smoke to keep clear of.
       footClear: !_isCanvas && smokes ? wispEdgeFootClear : 0,
-      // The names and cards are under line 1 and over the room the words keep under their last line.
-      contentBottom: offered != null ? 0 : null,
       meHue: null,
       // Behind a canvas, a journal or an index the editor is kept and not drawn: its words are not read there.
       shown: _words,
+      extensions: _ownExtensions,
     );
+    _tellOffers(offered != null);
 
     final words = CustomScrollView(
       key: _page,
@@ -1512,20 +1549,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             ),
           ),
         if (_words && _raw) ...[
-          // A new note's blank page: the names under its first line, the template cards under them, and the ghost
-          // under those, in the page's flow so it is never behind them.
-          if (offered != null)
-            SliverToBoxAdapter(
-              child: _BlankOffers(
-                key: _offers,
-                names: offered,
-                onName: nameIt,
-                cards: cards ? TemplateCards(at: widget.clock?.call() ?? DateTime.now(), taken: widget.takenTitles, onChoose: startFrom, templates: widget.templates, onYours: widget.onTemplates, localOnly: prefs.localOnly, canLocate: _tags != null && _tags!.locations.cannotLocateHere == null, refused: _refusalStands ? _tags?.allowLocationWhere() : null, mapHeader: _tags == null ? null : (context) => const MapPicture(size: MapSize.header, pin: true)) : null,
-              ),
-            ),
-          // `.cm-content { padding-block-end: var(--glacier-space-24) }` (the split layout's `space-8`), taken from
-          // the editor while the offers are drawn, and `.body { padding-block-end: var(--app-safe-bottom) }`.
-          SliverToBoxAdapter(child: SizedBox(height: (offered != null ? LookEnv.roomUnder(t) : 0) + t.len('app-safe-bottom'))),
+          // A new note's blank page (the names under its first line, the template cards under them, and the ghost
+          // under those) is a block inside the editor, after line 1 ([_offersBlock]).
+          // `.body { padding-block-end: var(--app-safe-bottom) }`.
+          SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom'))),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(
@@ -1853,6 +1880,11 @@ class _BlankGhost extends StatelessWidget {
       child: const IgnorePointer(child: Ghost(scene: GhostScene.newNote, align: GhostAlign.center)),
     );
   }
+}
+
+/// A notifier the screen may tell from outside it.
+class _Told extends ChangeNotifier {
+  void tell() => notifyListeners();
 }
 
 /// `.cm-blankOffers`: what a new note's blank page offers under its first line. The names it can be given, a row of

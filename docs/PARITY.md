@@ -202,7 +202,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 
 | Feature | Original (file:line) | Port (file:line or —) | Status | Note |
 | --- | --- | --- | --- | --- |
-| Four names under line 1 (the day in words, the date, date and time, the week), "Names for this note" | core/noteNames.ts:57-68; editor/nameChips.ts:107-130 | core/note_names.dart:56-69; note/note_screen.dart:1616-1695 | differs | Drawn as a strip under the editor, not a block after line 1. The day in words is English whatever the phone's language (core/note_names.dart:10-15). |
+| Four names under line 1 (the day in words, the date, date and time, the week), "Names for this note" | core/noteNames.ts:57-68; editor/nameChips.ts:107-130 | core/note_names.dart:56-69; editor/items/blank_offers.dart; note/note_screen.dart (`_offersBlock`) | differs | A block after line 1 inside the editor since 2026-10-10, as on the page. The day in words is English whatever the phone's language (core/note_names.dart:10-15). |
 | A name another note has is not offered | core/noteNames.ts:68 | core/note_names.dart:69; note/note_builder.dart:85-88 | match | |
 | The names wait for the keyboard and go at the first letter | core/keyboard.ts; editor/nameChips.ts | note/note_screen.dart:1368-1376 | match | Timing not compared on a device. |
 | Eight template cards: A day, A meeting, A checklist, Notes on a book, A map at the top, A page to read, Bug report, Feature | notes/noteTemplates.ts:56-82; notes/TemplateCards.tsx:61 | notes/note_templates.dart:90-114; notes/template_cards.dart:47 | match | Names, sentences and bodies identical. |
@@ -1171,7 +1171,8 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     edge for one kept on the device. Small.
 21. **A notebook read straight through**: the way back and the rail scroll away with the first page; a
     `[[link]]` in the notebook's own words does not open. Small to medium.
-22. **Names for this note** are a strip under the editor, not a block after line 1. Small to medium.
+22. ~~**Names for this note** are a strip under the editor, not a block after line 1.~~ Done 2026-10-10
+    (lib/editor/items/blank_offers.dart; held by test/root/blank_block_test.dart).
 23. **A query's timeline is the port's own drawing**: weeks tick on Monday, names beside the bars. Medium.
 24. **An organization's small ends.** The profile's button always says "Open the note" and a canvas is "an
     untitled note"; Edit from home's filters lands on Members under "← Organizations"; leaving or deleting from
