@@ -17,6 +17,9 @@ class MainFlutterWindow: NSWindow {
   private var lightsCentre: CGFloat = 27
 
   private var channels: GhostChannels?
+
+  /// A note's diagrams, drawn by a web view behind the app's own view (apple/DiagramRenderer.swift).
+  private var diagrams: DiagramRenderer?
   private var windowChannel: FlutterMethodChannel?
   private var lastPress: NSEvent?
   private var pressMonitor: Any?
@@ -47,6 +50,8 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     let messenger = flutterViewController.engine.binaryMessenger
     channels = GhostChannels(messenger: messenger, window: self)
+    // A ```mermaid fence drawn as its diagram (apple/DiagramRenderer.swift; lib/editor/diagrams/bridge.dart).
+    diagrams = DiagramRenderer(messenger: messenger) { [weak flutterViewController] in flutterViewController?.view }
 
     let window = FlutterMethodChannel(name: "ghost_md/window", binaryMessenger: messenger)
     window.setMethodCallHandler { [weak self] call, result in self?.asked(call, result) }
