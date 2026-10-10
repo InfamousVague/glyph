@@ -114,7 +114,7 @@ import '../core/command_mutations.dart' show CommandUndoResult;
 import '../core/films.dart';
 import '../core/images.dart';
 import 'iphone_wiring.dart';
-import '../core/geotag.dart' show GeoTag;
+import '../core/geotag.dart' show GeoTag, withGeoTag;
 import '../core/link_preview.dart' show LinkOpener, LinkPreviewer, noLinkPreviews;
 import '../core/location.dart' show LocateFailure, MapsApp, openPlace, tagOf, whyLocateFailed;
 import '../core/place_tags.dart' show PlaceTags;
@@ -850,10 +850,24 @@ class NoteDeskState extends State<NoteDesk> {
     final view = _view;
     if (landing.blocks.isNotEmpty) {
       if (view != null) {
-        final out = takeOut(view.state.doc.toString(), landing.blocks);
+        final doc = view.state.doc.toString();
+        final out = takeOut(doc, landing.blocks);
         missing = out.missing;
         if (out.changes.isNotEmpty) {
-          view.dispatch(TransactionSpec(changes: ChangeSet.of([for (final change in out.changes) ChangeSpec(from: change.from, to: change.to, insert: '')], view.state.doc.length), userEvent: 'delete'));
+          // A note left with nothing but where it was written (lib/core/geotag.dart) is not left behind: its tag goes
+          // in the same step, so one undo brings the words and the tag back together.
+          var rest = doc;
+          for (final change in [...out.changes]..sort((a, b) => b.from.compareTo(a.from))) {
+            rest = rest.substring(0, change.from) + rest.substring(change.to);
+          }
+          final untagged = withGeoTag(rest, null);
+          final bare = rest.trim().isNotEmpty && untagged.trim().isEmpty ? untagged : null;
+          view.dispatch(TransactionSpec(
+            changes: bare != null
+                ? ChangeSpec(from: 0, to: doc.length, insert: bare)
+                : ChangeSet.of([for (final change in out.changes) ChangeSpec(from: change.from, to: change.to, insert: '')], doc.length),
+            userEvent: 'delete',
+          ));
           removed = true;
         }
       } else {

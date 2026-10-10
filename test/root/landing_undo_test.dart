@@ -11,6 +11,7 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/untouched.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/editor/editor.dart' as editor show StateCommandTarget, undo;
 import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/note/note_screen.dart';
@@ -183,6 +184,32 @@ void main() {
       expect(find.text('Added to House TODOs and one other note'), findsOneWidget);
       await undo(tester);
       expect(find.text(changed), findsOneWidget);
+      await close(tester);
+    });
+
+    // Differs 34 (docs/PARITY.md): an Undo that emptied a note left its where-written tag behind, a note of nothing
+    // but a place (editor/useLanding.ts: the tag goes in the same step, so one undo brings both back).
+    testWidgets('takes a lone where-written tag off with the words when its Undo empties the note, as one step', (tester) async {
+      const said = 'Call the electrician about the light sockets.';
+      const tagged = '---\nlocation: 51.5074,-0.1278\nplace: "Trafalgar Square, London"\n---\n$said\n';
+      await open(tester, [note('spoken', tagged)]);
+      await land(tester, 'spoken', landing(noteId: 'spoken', title: 'Call the electrician', blocks: const [said]));
+      await undo(tester);
+      expect(doc(tester).trim(), isEmpty, reason: 'nothing left behind, its tag least of all');
+      // One step: the editor's own undo brings the words and the tag back together.
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      editor.undo(editor.StateCommandTarget(view.state, (tr) => view.dispatch(tr)));
+      await tester.pump();
+      expect(doc(tester), tagged);
+      await close(tester);
+    });
+
+    testWidgets('leaves the tag of a note that still has words after its Undo', (tester) async {
+      const tagged = '---\nlocation: 51.5074,-0.1278\n---\n# House TODOs\n\n- [ ] Fix the gutter\n- [ ] Call an electrician\n';
+      await open(tester, [note('house', tagged)]);
+      await land(tester, 'house', landing());
+      await undo(tester);
+      expect(doc(tester), '---\nlocation: 51.5074,-0.1278\n---\n# House TODOs\n\n- [ ] Fix the gutter\n');
       await close(tester);
     });
 
