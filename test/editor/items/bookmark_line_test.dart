@@ -7,10 +7,15 @@
 // Left out, as the Dart file's header says: the ribbon is the kit's own bookmark icon, so there is no path copied
 // from lucide to hold to the button's ("is the same shape as the Bookmark button draws") and no lucide classes on an
 // `<svg>` ("wears lucide’s classes…"). In their place the last group checks the signs are drawn as the ribbon widget.
+import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/items/bookmark_line.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
+import 'package:ghost_md/editor/view/line.dart';
+import 'package:glacier/glacier.dart';
+
+import '../media/support.dart';
 
 final String doc = <String>['# Launch week', '', '- [ ] Write the *pricing* page ^pricing-page', '', '   ', 'A line of ordinary words that runs on well past the room a toast has'].join('\n');
 
@@ -148,6 +153,56 @@ void main() {
       final view = editor('Marked here §§');
       expect(ribbons(view).single.line, 1);
       expect(ribbons(view).single.classes, contains('app-gold'));
+    });
+
+    // Differs 20 (docs/PARITY.md): `.cm-bookmarked::before` is the line's own on the page, whatever stands in it. The
+    // port drew it from the ribbon, so the line down the edge went with the ribbon: while the caret was at the signs,
+    // and for a bookmark kept on the device, which has no signs.
+    List<int> edgesAlone(EditorView on) {
+      final found = <int>[];
+      for (final set in on.decorations) {
+        set.between(0, on.state.doc.length, (from, to, value) {
+          if (value.widget is BookmarkEdgeWidget) found.add(on.state.doc.lineAt(from).number);
+          return null;
+        });
+      }
+      return found;
+    }
+
+    test('keeps the line down its edge where there is no ribbon to draw it: the caret at the signs, a bookmark of the device\'s', () {
+      final written = editor('Marked here §§\nAnother line');
+      // The caret away from the signs: the ribbon stands in for them, and draws the edge.
+      written.dispatch(TransactionSpec(selection: EditorSelection.single(written.state.doc.length)));
+      expect(edgesAlone(written), isEmpty);
+      // At the signs they are words again, and the edge is drawn by itself.
+      written.dispatch(TransactionSpec(selection: EditorSelection.single('Marked here §§'.length)));
+      expect(edgesAlone(written), <int>[1]);
+      expect(ribboned(written), <int>[1]);
+
+      final kept = editor();
+      kept.dispatch(TransactionSpec(effects: showBookmark.of(kept.state.doc.line(3).from + 4)));
+      expect(edgesAlone(kept), <int>[3]);
+      kept.dispatch(TransactionSpec(effects: showBookmark.of(null)));
+      expect(edgesAlone(kept), isEmpty);
+    });
+
+    testWidgets('draws that line in the bookmark\'s gold, 3px wide a little in from the line\'s start, with the caret at the signs as away from them', (tester) async {
+      final view = await pumpNote(tester, 'Marked here §§\nAnother line\n', more: [bookmarkRibbon()], caret: 'Marked here §§\nAnother'.length);
+      RenderEditorLine first() => tester.renderObjectList<RenderEditorLine>(find.byType(EditorLine)).first;
+      final gold = tester.element(find.byType(EditorLine).first).tokens.child(classes: const <String>{'app-gold'}).color('app-gold');
+      bool edge(RRect it) => (it.width - 3).abs() < 0.01 && it.height > 10 && it.brRadiusX == 2 && it.left > 0 && it.left < 12;
+      expect(find.byKey(const ValueKey<String>('cm-bookmarkEdge')), findsNothing);
+      PaintPattern edged() => paints..something((method, arguments) => method == #drawRRect && edge(arguments[0] as RRect) && (arguments[1] as Paint).color.toARGB32() == gold.toARGB32());
+      expect(first(), edged());
+      view.dispatch(TransactionSpec(selection: EditorSelection.single('Marked here §§'.length)));
+      await tester.pump();
+      expect(find.byKey(const ValueKey<String>('cm-bookmarkEdge')), findsOneWidget);
+      expect(first(), edged());
+      // And the line it stands in is as tall as it was: the box that draws it has no size.
+      final tall = first().size.height;
+      view.dispatch(TransactionSpec(selection: EditorSelection.single(view.state.doc.length)));
+      await tester.pump();
+      expect(first().size.height, tall);
     });
   });
 }

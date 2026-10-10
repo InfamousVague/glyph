@@ -161,21 +161,86 @@ class _RenderRibbon extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     super.paint(context, offset);
-    // '.cm-bookmarked::before': { position: 'absolute', insetInlineStart: '0.4em', insetBlock: '0.1em',
-    //   inlineSize: '3px', borderRadius: '2px', background: 'var(--app-gold, currentColor)' }
-    RenderObject? line = parent;
-    while (line != null && line is! RenderEditorLine) {
-      line = line.parent;
-    }
-    if (line is! RenderEditorLine || !line.hasSize) return;
-    final origin = offset - localToGlobal(Offset.zero, ancestor: line);
-    final lineEm = line.spec.look.base.fontSize;
-    final bar = Rect.fromLTRB(origin.dx + 0.4 * lineEm, origin.dy + 0.1 * lineEm, origin.dx + 0.4 * lineEm + 3, origin.dy + line.size.height - 0.1 * lineEm);
-    context.canvas.drawRRect(RRect.fromRectAndRadius(bar, const Radius.circular(2)), Paint()..color = gold);
+    _paintEdge(context, offset, this, gold);
   }
 }
 
+/// The line down a bookmarked line's leading edge, drawn from a box that stands in that line ([from], painted at
+/// [offset]): '.cm-bookmarked::before': { position: 'absolute', insetInlineStart: '0.4em', insetBlock: '0.1em',
+/// inlineSize: '3px', borderRadius: '2px', background: 'var(--app-gold, currentColor)' }
+void _paintEdge(PaintingContext context, Offset offset, RenderBox from, Color gold) {
+  RenderObject? line = from.parent;
+  while (line != null && line is! RenderEditorLine) {
+    line = line.parent;
+  }
+  if (line is! RenderEditorLine || !line.hasSize) return;
+  final origin = offset - from.localToGlobal(Offset.zero, ancestor: line);
+  final lineEm = line.spec.look.base.fontSize;
+  final bar = Rect.fromLTRB(origin.dx + 0.4 * lineEm, origin.dy + 0.1 * lineEm, origin.dx + 0.4 * lineEm + 3, origin.dy + line.size.height - 0.1 * lineEm);
+  context.canvas.drawRRect(RRect.fromRectAndRadius(bar, const Radius.circular(2)), Paint()..color = gold);
+}
+
+/// The line down the edge by itself, for a bookmarked line with no ribbon in it to draw it: while the caret is at
+/// the signs, which are then words to edit, and for a bookmark kept on the device, which has no signs. On the page
+/// the line is the line's own (`.cm-bookmarked::before`), whatever stands in it. A box of no size at the line's end,
+/// which takes no caret and no press.
+class BookmarkEdgeWidget extends EditorWidget {
+  const BookmarkEdgeWidget();
+
+  @override
+  bool eq(BookmarkEdgeWidget other) => true;
+
+  @override
+  bool takesPointer(_) => false;
+
+  @override
+  bool get isHidden => true;
+
+  @override
+  Widget build(BuildContext context) => _EdgeBox(key: const ValueKey<String>('cm-bookmarkEdge'), gold: _gold(context.tokens));
+}
+
+class _EdgeBox extends LeafRenderObjectWidget {
+  const _EdgeBox({super.key, required this.gold});
+
+  final Color gold;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderEdge(gold);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderEdge).gold = gold;
+}
+
+class _RenderEdge extends RenderBox {
+  _RenderEdge(this._gold);
+
+  Color _gold;
+  set gold(Color value) {
+    if (value == _gold) return;
+    _gold = value;
+    markNeedsPaint();
+  }
+
+  @override
+  void performLayout() => size = constraints.smallest;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.smallest;
+
+  // On the baseline, as the line's own spacer is: it changes nothing of the line it stands in.
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => 0;
+
+  @override
+  bool hitTestSelf(Offset position) => false;
+
+  @override
+  void paint(PaintingContext context, Offset offset) => _paintEdge(context, offset, this, _gold);
+}
+
 final Decoration _hidden = Decoration.replace(widget: const RibbonWidget());
+final Decoration _edge = Decoration.widget(widget: const BookmarkEdgeWidget(), side: 1);
 
 class _Marks {
   const _Marks(this.kept, this.decorations);
@@ -192,13 +257,19 @@ DecorationSet _decorate(EditorState state, int? kept) {
   final line = state.doc.line(number);
   final ranges = <Range<Decoration>>[_ribbon.range(line.from)];
   final found = written != null ? _mark.firstMatch(line.text) : null;
+  var ribboned = false;
   if (found != null) {
     final from = line.from + found.start, to = line.from + found.end;
     // The signs as text only while the caret is at them, so they can be edited; a caret elsewhere on the line
     // leaves the ribbon.
     final editing = state.selection.ranges.any((range) => range.from <= to && range.to >= to - bookmarkSigns.length);
-    if (!editing) ranges.add(_hidden.range(from, to));
+    if (!editing) {
+      ranges.add(_hidden.range(from, to));
+      ribboned = true;
+    }
   }
+  // The line down the edge is the line's, with a ribbon in it or not: with none, it is drawn by itself.
+  if (!ribboned) ranges.add(_edge.range(line.to));
   return Decoration.set(ranges, true);
 }
 
