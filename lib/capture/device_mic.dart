@@ -3,8 +3,15 @@
 /// no such file: its microphone was the page's `getUserMedia`.
 ///
 /// NO ALWAYS-ON MICROPHONE. The device is opened by [DeviceMic.open] / [DeviceMic.openWith], which the recorder
-/// calls when a person starts recording, and let go by [close] (its pause, stop and cancel). Android lets go of it
-/// too whenever the app is no longer visible ([closed] then says "background"). Nothing here opens it at launch.
+/// calls when a person starts recording, and let go by [close] (its pause, stop and cancel). Nothing here opens it
+/// at launch.
+///
+/// A take goes on when the app goes behind another, as the web app's did: its page kept the stream it had opened,
+/// and so does this (docs/PARITY.md, Differs 6: the phone's half used to close the device at `onStop`, and nothing
+/// heard that it had). Android gives a hidden app's recorder silence, so nothing is heard until the app is back in
+/// front, and then the same take hears again. The device is let go without being asked only when it fails or the
+/// app's window is destroyed, and then [lost] says why ("error", "background"): the recorder is told
+/// (audio.dart's `Microphone.lost`) and keeps what it heard.
 ///
 /// Two ways the samples travel, chosen at [openWith]:
 ///
@@ -31,6 +38,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/services.dart';
 
 import '../core/mac_app.dart';
@@ -52,7 +60,7 @@ class MicrophoneRefused implements Exception {
 /// What the device heard in all, said when it is let go.
 typedef MicTotals = ({int samples, int pushed, int refused});
 
-class DeviceMic implements MicrophoneInput {
+class DeviceMic implements MicrophoneInput, LosableInput {
   DeviceMic._(this.sampleRate, this.direct);
 
   static const MethodChannel channel = MethodChannel('ghost_md/mic');
@@ -60,7 +68,11 @@ class DeviceMic implements MicrophoneInput {
 
   /// Whether this platform has a microphone behind the channel: Kotlin's on Android, Swift's in the Mac app
   /// (macos/Runner/MicChannel.swift, the same contract over `AVAudioEngine`).
-  static bool get supported => Platform.isAndroid || runsAsMacApp;
+  static bool get supported => debugSupported ?? (Platform.isAndroid || runsAsMacApp);
+
+  /// A test's answer to [supported], so the channel's contract can be tried where there is no phone.
+  @visibleForTesting
+  static bool? debugSupported;
 
   /// "granted", "ask" (the system's dialog can still be shown) or "blocked" (it cannot).
   static Future<String> permission() async => await channel.invokeMethod<String>('permission') ?? 'blocked';
@@ -120,6 +132,7 @@ class DeviceMic implements MicrophoneInput {
   int _samples = 0;
   final StreamController<({double rms, int samples})> _levels = StreamController<({double rms, int samples})>.broadcast(sync: true);
   final Completer<String> _closed = Completer<String>();
+  final Completer<String> _lost = Completer<String>();
   final Completer<MicTotals?> _totals = Completer<MicTotals?>();
 
   /// Running until it is let go: an `AudioRecord` that opened is never left suspended.
@@ -136,9 +149,13 @@ class DeviceMic implements MicrophoneInput {
   /// Samples heard since the device opened.
   int get samples => _samples;
 
-  /// Why the device was let go: "closed" by [close], "background" when the app left the screen, "error" when the
+  /// Why the device was let go: "closed" by [close], "background" when the app's window went, "error" when the
   /// device failed.
   Future<String> get closed => _closed.future;
+
+  /// The same, only when nobody here asked: "background" or "error". Never settles after [close].
+  @override
+  Future<String> get lost => _lost.future;
 
   /// What was heard in all, once [close] has been answered: null when Android had let go of it already.
   Future<MicTotals?> get totals => _totals.future;
@@ -181,8 +198,10 @@ class DeviceMic implements MicrophoneInput {
           _onSamples?.call(floats);
         }
       case 'closed':
-        _end(event['reason'] as String? ?? 'error');
+        final reason = event['reason'] as String? ?? 'error';
+        _end(reason);
         if (!_totals.isCompleted) _totals.complete(null);
+        if (!_lost.isCompleted) _lost.complete(reason);
     }
   }
 }

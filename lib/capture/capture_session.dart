@@ -39,7 +39,7 @@ enum Phase { starting, listening, finishing, failed }
 
 /// What a session tells its screen.
 class SessionEvents {
-  const SessionEvents({required this.onPartial, required this.onSegment, required this.onLevel});
+  const SessionEvents({required this.onPartial, required this.onSegment, required this.onLevel, this.onMicrophoneLost});
 
   /// A guess at the words not yet committed; '' when it clears.
   final void Function(String text) onPartial;
@@ -49,6 +49,10 @@ class SessionEvents {
 
   /// The microphone's level for a chunk: `level` 0 to 1 for drawing, and the `rms` it came from.
   final void Function(double level, double rms) onLevel;
+
+  /// The microphone of the take under way closed without being asked to: the phone took it, or it failed
+  /// (`Microphone.lost`), with why. Nothing more will be heard, so the screen keeps what was (as Done does).
+  final void Function(String reason)? onMicrophoneLost;
 }
 
 /// One start's own: whether it was called off, and what its microphone heard before its engine was up.
@@ -164,6 +168,8 @@ class CaptureSessionState extends ChangeNotifier {
         }
         microphone = opened;
         counts.deviceRate = opened.deviceRate;
+        // The device closing by itself is heard: the web's recorder went on counting over a dead stream.
+        unawaited(opened.lost?.then<void>((reason) => _lost(mine, opened, reason)));
         info?.call('[glyph] microphone open at ${opened.deviceRate} Hz, context ${opened.state().name}');
       }
       final started = await startCapture(CaptureHandlers(
@@ -215,6 +221,14 @@ class CaptureSessionState extends ChangeNotifier {
       });
       fireNativeHaptic?.call('error');
     }
+  }
+
+  /// [opened] closed by itself. Only the take that is still this one's, still running and not already being
+  /// ended, hears of it.
+  void _lost(_Start mine, Microphone opened, String reason) {
+    if (mine.cancelled || _closed || !identical(microphone, opened) || isFinished()) return;
+    warn?.call('[glyph] the microphone closed by itself: $reason');
+    events.onMicrophoneLost?.call(reason);
   }
 
   /// The recorder went (the effect's cleanup): the start under way is called off, and unless Done or Discard has

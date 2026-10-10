@@ -36,9 +36,15 @@ enum AudioContextState { suspended, running, closed }
 
 /// An open microphone, as the recorder holds it.
 class Microphone {
-  const Microphone({required this.stop, required this.deviceRate, required this.state});
+  const Microphone({required this.stop, required this.deviceRate, required this.state, this.lost});
 
   final void Function() stop;
+
+  /// Settles with why, if the device closes without [stop] being asked: the phone took it away, or it failed
+  /// ([LosableInput]). Never settles for a device let go by [stop]; null for one that cannot say. The page's stream
+  /// had no such word (nothing there listened for a track's `ended`), so a recorder whose microphone had died went
+  /// on counting; here the recorder is told, and keeps what it heard (capture_session.dart).
+  final Future<String>? lost;
 
   /// The rate the device actually runs at, before any resampling to 16 kHz.
   final num deviceRate;
@@ -144,6 +150,13 @@ abstract class MicrophoneInput {
 
 /// Opens the device with what [openMicrophone] asks of it: the constraints, the rate wanted, and how many samples a
 /// chunk. Rejects when the person declines the microphone or the platform has none.
+/// A [MicrophoneInput] that can say it was closed without being asked to.
+abstract interface class LosableInput {
+  /// Settles with the reason when the device closes by itself: `error` when it failed, `background` when the phone
+  /// let go of it with the app's window. Never settles for a device let go by `close`.
+  Future<String> get lost;
+}
+
 typedef OpenMicrophoneInput = Future<MicrophoneInput> Function(MicrophoneConstraints constraints, {required int sampleRate, required int chunk});
 
 /// Start capturing. Rejects when the person declines the microphone or the platform has none; the caller shows why.
@@ -175,5 +188,6 @@ Future<Microphone> openMicrophone(MicrophoneHandlers handlers, {required OpenMic
       input.onSamples = null;
       input.close();
     },
+    lost: input is LosableInput ? (input as LosableInput).lost : null,
   );
 }

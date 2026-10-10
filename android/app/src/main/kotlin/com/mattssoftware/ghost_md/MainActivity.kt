@@ -176,14 +176,14 @@ class MainActivity : FlutterActivity() {
         super.onPause()
     }
 
-    override fun onStop() {
-        // No microphone held by an app nobody can see: a dictation still open is let go (a meeting is the
-        // service's, and goes on).
-        DictationMic.released()
-        super.onStop()
-    }
+    // A take goes on when the app goes behind another (docs/PARITY.md, Differs 6): nothing here closes the
+    // dictation's microphone at onStop, as nothing closed the Tauri app's WebView's (DictationMic.kt says what
+    // Android does with a hidden app's recorder, and when the device is let go).
 
     override fun onDestroy() {
+        // The window is going, and the recorder with it: a dictation still open is let go here, never left to a
+        // process with no screen (a meeting is the service's, and goes on).
+        DictationMic.released()
         tape?.release()
         film?.release()
         diagrams?.destroy()

@@ -234,6 +234,12 @@ class Capture {
   final Set<String> shared = {};
   VoidCallback? screenOff;
 
+  /// Set before [open], a case driven by hand has a microphone too, which the phone can take away: [micLost],
+  /// completed with why, is the device closing by itself. [micStops] counts the times the recorder let go of it.
+  bool microphone = false;
+  final Completer<String> micLost = Completer<String>();
+  int micStops = 0;
+
   final List<Finished> finished = [];
   int meetings = 0;
 
@@ -279,10 +285,10 @@ class Capture {
     preferences: () => prefs,
     setPreferences: (change) => prefs = change(prefs),
     tapes: tapes,
-    native: script != null,
+    native: script != null || microphone,
     simulate: false,
     openMicrophone: script == null
-        ? null
+        ? (microphone ? (given) async => Microphone(stop: () => micStops += 1, deviceRate: 16000, state: () => AudioContextState.running, lost: micLost.future) : null)
         : (given) async {
             final chunks = Timer.periodic(const Duration(milliseconds: 100), (_) {
               if (frozen != null) return;
@@ -296,7 +302,7 @@ class Capture {
       if (!configured) throw Exception('test capture session was not configured');
       return CaptureSession(
         kind: EngineKind.whisper,
-        wantsSamples: false,
+        wantsSamples: microphone,
         keepsAudio: keepsAudio,
         push: (_) {},
         positionMs: () => positionMs(),

@@ -33,9 +33,18 @@ import kotlin.math.sqrt
  *
  * NO ALWAYS-ON MICROPHONE. The device is opened by `open` and by nothing else, which the recorder calls when a
  * person starts recording, and it is let go by `close` (the recorder's pause, stop and cancel), when the reader
- * fails, and whenever the activity is no longer visible (`released`, from MainActivity.onStop): dictation is a
- * thing done with the screen in front of a person. A meeting, which goes on with the screen off, is the meeting
- * service's own microphone (MeetingService.kt) under its own notification.
+ * fails, and when the activity is destroyed (`released`, from MainActivity.onDestroy): a recorder with no window
+ * holds no microphone. A meeting, which goes on with the screen off, is the meeting service's own microphone
+ * (MeetingService.kt) under its own notification.
+ *
+ * A TAKE GOES ON WHEN THE APP GOES BEHIND ANOTHER, as the Tauri app's did (docs/PARITY.md, Differs 6). Its page
+ * opened the WebView's stream when a recording started and stopped it at Done or Discard; nothing in between closed
+ * it, whatever the activity did, and the screen going off saved the take (MeetingBridge.kt `screenOff`). So
+ * nothing here closes the device at onStop either (it used to, and the recorder went on counting over a
+ * microphone that was gone, with nothing told). What a hidden app's recorder hears is Android's to decide, the same
+ * for an `AudioRecord` as for the WebView's: from Android 9 an app that is not in front and runs no microphone
+ * service is handed silence, and the sound comes back with the app. No foreground service is started for a
+ * dictation, as the Tauri app started none: recording with the screen off is a meeting's.
  *
  * WHERE THE SAMPLES GO, chosen by `open`'s `direct`:
  *
@@ -60,7 +69,9 @@ import kotlin.math.sqrt
  * THE EVENTS on `ghost_md/mic/events`, each a map:
  * - `{event: "chunk", rms, samples, pcm?}`: one chunk heard; `rms` is its level (0-1), `samples` how many have
  *   been read since `open`, `pcm` its bytes when not direct.
- * - `{event: "closed", reason}`: the device was let go without `close` ("background", "error").
+ * - `{event: "closed", reason}`: the device was let go without `close`: "error" when the reader failed (the
+ *   device died, or Android took it away), "background" when the activity was destroyed with a dictation open.
+ *   The recorder hears it (lib/capture/device_mic.dart `lost`) and saves the take as Done does.
  *
  * `testWav` is a DEBUG BUILD'S ONLY: a 16 kHz mono PCM16 WAV file played in place of the device at the pace a
  * microphone gives it, for an emulator started without audio. A build that is not debuggable refuses it.
@@ -324,7 +335,7 @@ object DictationMic {
     }
   }
 
-  /** The activity is no longer visible: a dictation still open is let go, and Dart is told why. */
+  /** The activity is being destroyed: a dictation still open is let go, and Dart is told why, if it is there to hear. */
   fun released() {
     if (close() != null) tell(mapOf("event" to "closed", "reason" to "background"))
   }

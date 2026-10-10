@@ -378,7 +378,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     _session = CaptureSessionState(
       fromAssistant: widget.fromAssistant,
       isFinished: () => _finished,
-      events: SessionEvents(onPartial: _onPartial, onSegment: _onSegment, onLevel: _onLevel),
+      // A microphone that closed by itself hears no more: the take is saved as Done would save it, as it is when the
+      // screen goes off.
+      events: SessionEvents(onPartial: _onPartial, onSegment: _onSegment, onLevel: _onLevel, onMicrophoneLost: (_) => unawaited(finish())),
       native: _r.native && _r.openMicrophone != null,
       simulate: _r.simulate,
       openMicrophone: _r.openMicrophone ?? (_) => Future<Never>.error(StateError('This build has no microphone.')),
