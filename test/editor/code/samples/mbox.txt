@@ -1,0 +1,22 @@
+mbox
+From alice@example.org Mon Jan  1 10:00:00 2024
+Return-Path: <alice@example.org>
+From: Alice <alice@example.org>
+To: Bob <bob@example.org>
+Subject: Hello there
+Date: Mon, 1 Jan 2024 10:00:00 +0000
+X-Mailer: sample 1.0
+Content-Type: text/plain; charset="utf-8"
+
+Hi Bob,
+
+>From what I hear, this is fine.
+
+--
+Alice
+
+From bob@example.org Mon Jan  1 11:00:00 2024
+From: bob@example.org
+Subject: Re: Hello there
+
+Thanks.

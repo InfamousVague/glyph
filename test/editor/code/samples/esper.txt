@@ -1,0 +1,12 @@
+esper
+// event stream queries
+create schema OrderEvent(itemName string, price double);
+@Name('big') select itemName, avg(price) as avgPrice
+from OrderEvent#time(30 sec)
+where price > 100.5 and itemName like 'A%'
+group by itemName
+having count(*) >= 2
+output snapshot every 5 seconds;
+/* a pattern */
+select * from pattern [every a=OrderEvent -> b=OrderEvent(itemName = a.itemName) where timer:within(10 min)];
+insert into Alerts select 'x' as kind, null as note from OrderEvent;

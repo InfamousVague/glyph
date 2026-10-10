@@ -1,0 +1,12 @@
+hxml
+# build file
+-cp src
+-main Main
+-lib hxnodejs
+-D analyzer-optimize
+--macro include('sample')
+-js bin/app.js
+--next
+-cp test
+-main Test
+--interp

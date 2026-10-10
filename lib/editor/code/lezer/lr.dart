@@ -1432,6 +1432,9 @@ class LRParser {
   /// The number of the node or token named `name` in the grammar.
   int term(String name) => _base.nodeNames.indexOf(name);
 
+  /// The name of the node numbered `term`; the empty string for a term that makes no node.
+  String nameOf(int term) => term >= 0 && term < _base.nodeNames.length ? _base.nodeNames[term] : '';
+
   int dynamicPrecedence(int term) => _base.spec.dynamicPrecedences[term] ?? 0;
 
   /// Get a goto table entry.

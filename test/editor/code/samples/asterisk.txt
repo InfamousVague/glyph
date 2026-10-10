@@ -1,0 +1,15 @@
+asterisk
+; extensions.conf
+[general]
+static=yes
+writeprotect=no
+
+[default]
+exten => s,1,Answer()
+exten => s,n,Playback(hello-world)
+same => n,Set(COUNT=$[${COUNT} + 1])
+exten => _1NXXNXXXXXX,1,Dial(SIP/${EXTEN}@trunk,30,tT)
+exten => 100,1,Goto(default,s,1)
+include => parkedcalls
+#include "more.conf"
+exten => h,1,Hangup()

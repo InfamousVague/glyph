@@ -1,0 +1,18 @@
+=Closure Stylesheets (GSS)
+@def BG_COLOR rgb(235, 239, 249);
+@defmixin size(WIDTH, HEIGHT) {
+  width: WIDTH;
+  height: HEIGHT;
+}
+/* a comment */
+.logo, #main > a:hover {
+  @mixin size(150px, 55px);
+  background-color: BG_COLOR;
+  margin: 0 auto !important;
+  color: #fff;
+}
+@if (BROWSER_IE) {
+  .dialog { filter: alpha(opacity=50); }
+} @else {
+  .dialog { opacity: 0.5; }
+}

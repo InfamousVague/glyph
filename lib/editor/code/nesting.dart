@@ -89,7 +89,9 @@ class HtmlNesting {
     if (id == _H.ScriptText || id == _H.StyleText) {
       // `node.node.parent.firstChild`: the open tag is the node before this one in its element.
       final open = cursor.fork()..moveTo(cursor.pos - cursor.size);
-      final attrs = open.size >= 0 && open.id == _H.OpenTag ? _attrs(work, open) : const <String, String>{};
+      // The grammar has an `OpenTag` for each kind of element (a script's, a style's, a textarea's, any other's),
+      // each a node of its own number with the one name.
+      final attrs = open.size >= 0 && work.parser.nameOf(open.id) == 'OpenTag' ? _attrs(work, open) : const <String, String>{};
       final language = id == _H.ScriptText ? _script(attrs) : _style(attrs);
       return language == null ? null : Mount<CodeLanguage>(language);
     }
@@ -132,14 +134,50 @@ class HtmlNesting {
 
 /// `parseMixed(node => node.type.isTop ? {parser: html, overlay: node => node.name == 'Text'} : null)`: the text
 /// of a PHP file outside its `<?php … ?>` is one HTML page, in pieces.
-Mounter phpMounter(CodeLanguage html) =>
+Mounter phpMounter(CodeLanguage html) => overlayMounter(html, const <String>['Text']);
+
+/// The same for a template (Liquid, Jinja): the page between its tags, and inside a `raw` block, is HTML.
+/// `overlay: n => n.name == 'Text' || n.name == 'RawText'`.
+Mounter templateMounter(CodeLanguage html) => overlayMounter(html, const <String>['Text', 'RawText']);
+
+/// A node of the given name is `language`'s, whole: `parseMixed(node => node.name == name ? {parser} : null)`.
+Mounter nodeMounter(String name, CodeLanguage language) {
+  final mount = Mount<CodeLanguage>(language);
+  // The node's number in the one grammar this is given to, looked up once.
+  int? term;
+  return (work, id, start, end, cursor) => cursor != null && id == (term ??= work.parser.term(name)) ? mount : null;
+}
+
+/// A Vue file: HTML (`html`, with its own script, style and `style=""`), and over it Vue's own reading of each
+/// stretch of text (`text`) and of each attribute that starts `@`, `:` or `v-` (`attribute`).
+/// `mixVue` of @codemirror/lang-vue 0.1.
+Mounter vueMounter(HtmlNesting html, CodeLanguage text, CodeLanguage attribute) {
+  final asText = Mount<CodeLanguage>(text), asAttribute = Mount<CodeLanguage>(attribute);
+  int? textTerm;
+  return (work, id, start, end, cursor) {
+    if (cursor != null) {
+      if (id == _H.Attribute) {
+        // `/^(@|:|v-)/.test(input.read(node.from, node.from + 2))`
+        final code = work.code;
+        final first = start < code.length ? code.codeUnitAt(start) : 0;
+        if (first == 64 /* @ */ || first == 58 /* : */ || (first == 118 /* v */ && start + 1 < code.length && code.codeUnitAt(start + 1) == 45 /* - */)) return asAttribute;
+      } else if (id == (textTerm ??= work.parser.term('Text'))) {
+        return asText;
+      }
+    }
+    return html.mount(work, id, start, end, cursor);
+  };
+}
+
+/// The nodes named `names`, all of them together, are one text in `language`: mounted on the top node.
+Mounter overlayMounter(CodeLanguage language, List<String> names) =>
     (work, id, start, end, cursor) {
       if (cursor != null) return null;
-      final text = work.parser.term('Text');
       final ranges = work.memo<List<int>>(() {
+        final terms = <int>{for (final name in names) work.parser.term(name)};
         final found = <int>[];
         _eachNode(work, work.cursor(), 0, (node) {
-          if (node.id == text && node.end > node.start) {
+          if (terms.contains(node.id) && node.end > node.start) {
             found
               ..add(node.end)
               ..add(node.start);
@@ -147,7 +185,7 @@ Mounter phpMounter(CodeLanguage html) =>
         });
         return found.reversed.toList();
       });
-      return ranges.isEmpty ? null : Mount<CodeLanguage>(html, ranges);
+      return ranges.isEmpty ? null : Mount<CodeLanguage>(language, ranges);
     };
 
 /// Every named node of the record before `at`, back to `until`, last first.

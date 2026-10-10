@@ -1,0 +1,14 @@
+factor
+! A word definition
+USING: kernel math sequences io prettyprint ;
+IN: sample
+
+: square ( x -- y ) dup * ;
+: sum-squares ( seq -- n ) [ square ] map 0 [ + ] reduce ;
+SYMBOL: counter
+CONSTANT: limit 10
+TUPLE: point x y ;
+: <point> ( x y -- point ) point boa ;
+{ 1 2 3 } sum-squares .
+"hello\n" print 0x1F 1/2 3.5e2 t f CHAR: a drop
+[ 1 + ] [ 2 * ] bi

@@ -1,0 +1,21 @@
+troff
+.\" a man page
+.TH SAMPLE 1 "January 2024" "sample 1.0" "User Commands"
+.SH NAME
+sample \- do something
+.SH SYNOPSIS
+.B sample
+[\fB\-v\fR] [\fB\-o\fR \fIfile\fR]
+.SH DESCRIPTION
+.PP
+This is \fBbold\fP and \fIitalic\fP text with a \(co sign and \*(lq quotes \*(rq.
+.TP
+.BR \-v ", " \-\-verbose
+Be loud.
+.nf
+  preformatted \e text
+.fi
+.if n .ad l
+.de XX
+.ps +2
+..

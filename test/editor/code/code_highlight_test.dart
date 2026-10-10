@@ -140,18 +140,17 @@ void main() {
     });
 
     test('a fence nothing reads, and one with no language, are never read', () {
-      final view = viewOf('```nosuchlanguage\nx = 1\n```\n\n```\nplain\n```\n\n```apl\nx←1\n```\n');
+      final view = viewOf('```nosuchlanguage\nx = 1\n```\n\n```\nplain\n```\n');
       CodeStats.reset();
       insert(view, view.state.doc.toString().indexOf('x = 1'), 'y');
       insert(view, view.state.doc.toString().indexOf('plain'), 'y');
-      insert(view, view.state.doc.toString().indexOf('x←1'), 'y');
       expect(tokenised, 0);
       final classes = classesOf(view), text = view.state.doc.toString();
-      // No language, or one the pack does not know: the one colour of code. One the pack knows and nothing here
-      // reads: the code's own ink, as the web draws a block whose language is still on its way.
+      // No language, or one the pack does not know: the one colour of code. (A language the pack knows and
+      // nothing here reads would be in the code's own ink, as the web draws a block whose language is still on
+      // its way; there is none a fence can name.)
       expect(classes[text.indexOf('yx = 1')], <String>{'code'});
       expect(classes[text.indexOf('yplain')], <String>{'code'});
-      expect(classes[text.indexOf('yx←1')], isEmpty);
     });
   });
 

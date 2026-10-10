@@ -28,6 +28,10 @@ abstract class StreamMode<S> {
 
   void blankLine(S state, int indentUnit) {}
 
+  /// Whether a block that changed may be read on from the changed line's kept state. Not where a mode keeps
+  /// something of what it has read outside its state, so that a state kept is not all there was to keep.
+  bool get resumable => true;
+
   /// The mode's own names for tags, beside the usual ones (`tokenTable`).
   Map<String, String> get tokenTable => const <String, String>{};
 }
@@ -115,6 +119,7 @@ class StreamLanguage<S> extends CodeLanguage {
       same++;
     }
     if (same == before.length && same == code.length) return old;
+    if (!mode.resumable) return start(code);
     // The line the change is on is read again; the ones before it stand.
     var line = 0;
     while (line + 1 < old._lineStarts.length && old._lineStarts[line + 1] <= same) {
@@ -205,7 +210,16 @@ class StreamWork<S> extends CodeWork {
               break;
             }
           }
-          if (!moved) throw StateError('Stream parser failed to advance stream.');
+          if (!moved) {
+            // CodeMirror throws here ("Stream parser failed to advance stream") and colours nothing more of
+            // the document. A mode that will not move is stepped past one character, uncoloured, so that
+            // whatever a person types the block is still read to its end.
+            CodeStats.stuck++;
+            stream.pos = stream.start + 1;
+            style = null;
+          }
+          // A mode that steps past the end of its line (JavaScript lets it) has read to the end of it.
+          if (stream.pos > stream.string.length) stream.pos = stream.string.length;
           if (style != null && style.isNotEmpty) _emit(style, start + stream.start, start + stream.pos);
           if (stream.start > _maxLineLength) break;
         }

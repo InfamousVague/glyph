@@ -1,0 +1,28 @@
+fortran
+! Compute a mean
+program mean_demo
+  use iso_fortran_env, only: real64
+  implicit none
+  integer, parameter :: n = 5
+  real(real64) :: x(n), total
+  integer :: i
+  character(len=*), parameter :: msg = "mean is "
+  logical :: ok = .true.
+
+  x = [1.0d0, 2.5d0, 3.0d0, 4.5e1_real64, 5.0d0]
+  total = 0.0_real64
+  do i = 1, n
+     total = total + x(i)
+  end do
+  if (ok .and. total >= 10 .or. .not. ok) then
+     print *, msg, total / n, 'it''s'
+  else
+     call fail(1)
+  end if
+contains
+  subroutine fail(code)
+    integer, intent(in) :: code
+    write (*, '(A,I3)') "failed", code
+    stop
+  end subroutine fail
+end program mean_demo

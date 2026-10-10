@@ -1,0 +1,18 @@
+gas
+# x86-64 hello
+        .section .rodata
+msg:    .ascii "hello\n"
+        .set len, . - msg
+        .text
+        .globl _start
+_start:
+        movq $1, %rax           /* write */
+        movq $1, %rdi
+        leaq msg(%rip), %rsi
+        movq $len, %rdx
+        syscall
+        xorl %edi, %edi
+        movl $60, %eax
+        syscall
+1:      jmp 1b
+        .byte 0x90, 'a'

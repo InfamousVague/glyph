@@ -1,0 +1,19 @@
+sieve
+# a mail filter
+require ["fileinto", "reject", "vacation", "regex"];
+
+if header :contains "subject" ["offer", "buy now"] {
+    discard;
+} elsif allof (address :is "from" "boss@example.org", size :over 100K) {
+    fileinto "Important";
+    stop;
+} elsif not exists "list-id" {
+    /* a block
+       comment */
+    vacation :days 7 :subject "Away" text:
+I am away.
+.
+;
+} else {
+    keep;
+}

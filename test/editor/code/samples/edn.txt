@@ -1,0 +1,11 @@
+edn
+;; a config
+{:name "app"
+ :version [1 2 3]
+ :ratio 22/7
+ :tags #{:a :b/c}
+ :when #inst "2024-01-01T00:00:00Z"
+ :id #uuid "f81d4fae-7dec-11d0-a765-00a0c91e6bf6"
+ :char \newline
+ :nested {:on? true :off? false :none nil :n -1.5e3}
+ #_ignored :list (quote (1 2))}

@@ -1,0 +1,13 @@
+dtd
+<!-- A small DTD -->
+<!ELEMENT note (to, from, heading?, body+)>
+<!ELEMENT to (#PCDATA)>
+<!ELEMENT body (#PCDATA | em | strong)*>
+<!ATTLIST note
+  id    ID       #REQUIRED
+  lang  CDATA    "en"
+  kind  (a|b|c)  #IMPLIED>
+<!ENTITY % inline "em | strong">
+<!ENTITY copy "&#169; 2024">
+<!NOTATION gif SYSTEM "image/gif">
+<![INCLUDE[ <!ELEMENT extra EMPTY> ]]>

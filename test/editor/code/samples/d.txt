@@ -1,0 +1,23 @@
+d
+/// A doc comment
+module sample;
+import std.stdio : writeln, writefln;
+import std.algorithm;
+
+struct Point(T) if (is(T : real)) {
+    T x = 0, y = 0;
+    T dot(in Point o) const pure nothrow @safe { return x * o.x + y * o.y; }
+}
+
+/+ nesting /+ comment +/ +/
+enum Color : ubyte { red, green = 2, blue }
+
+void main(string[] args) {
+    auto p = Point!double(1.5, 2e3);
+    immutable s = `raw string` ~ "esc\n" ~ q"(delimited)" ~ 'c';
+    foreach (i, ref a; args) { writefln("%d: %s", i, a); }
+    scope (exit) writeln("bye");
+    int[string] aa = ["one": 1, "two": 0x2];
+    assert(p.dot(p) > 0 && aa.length == 2, "bad");
+    version (unittest) {} else static if (is(typeof(p))) {}
+}

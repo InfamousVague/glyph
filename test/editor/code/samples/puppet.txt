@@ -1,0 +1,28 @@
+puppet
+# A class with a resource
+class nginx (
+  String $package = 'nginx',
+  Integer $workers = 4,
+  Boolean $enable = true,
+) inherits nginx::params {
+  package { $package:
+    ensure => installed,
+  }
+  file { '/etc/nginx/nginx.conf':
+    ensure  => file,
+    content => template('nginx/nginx.conf.erb'),
+    mode    => '0644',
+    require => Package[$package],
+    notify  => Service['nginx'],
+  }
+  if $workers > 2 and $::osfamily == 'Debian' {
+    $msg = "workers: ${workers}"
+    notify { $msg: }
+  } elsif $enable =~ /^t/ {
+    warning('odd')
+  } else {
+    fail("unsupported ${::osfamily}")
+  }
+  service { 'nginx': ensure => running, enable => $enable }
+}
+node 'web01.example.org' { include nginx }

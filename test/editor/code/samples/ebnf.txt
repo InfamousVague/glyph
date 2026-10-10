@@ -1,0 +1,11 @@
+ebnf
+(* A grammar for a tiny language *)
+program    = { statement } ;
+statement  = identifier , "=" , expression , ";"
+           | "print" , expression , ";" ;
+expression = term , { ( "+" | "-" ) , term } ;
+term       = factor , { ( "*" | "/" ) , factor } ;
+factor     = number | identifier | "(" , expression , ")" ;
+number     = digit , { digit } , [ "." , digit , { digit } ] ;
+digit      = "0" | "1" | "2" | '3' | ? any other digit ? ;
+identifier = letter , { letter | digit | "_" } - "print" ;

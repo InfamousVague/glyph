@@ -287,7 +287,28 @@ const GRAMMARS = [
   { name: 'less', pkg: '@codemirror/lang-less', parser: (m) => m.lessLanguage.parser },
   // The SQL grammar is in its language package, with the one tokenizer every dialect configures.
   { name: 'sql', pkg: '@codemirror/lang-sql', parser: (m) => m.StandardSQL.language.parser, more: sqlDialects },
+  // WebAssembly's text format: a grammar in its language package, with no code of its own.
+  { name: 'wast', pkg: '@codemirror/lang-wast', parser: (m) => m.wastLanguage.parser },
+  // The two template languages: a grammar for the tags, in its language package, with the page between the tags
+  // read as HTML (nesting.dart).
+  { name: 'liquid', pkg: '@codemirror/lang-liquid', parser: (m) => m.liquidLanguage.parser },
+  { name: 'jinja', pkg: '@codemirror/lang-jinja', parser: (m) => m.jinjaLanguage.parser },
+  // Vue's own grammar, for the text and the attributes of a page that is otherwise HTML's.
+  { name: 'vue', pkg: '@codemirror/lang-vue', parser: (m, file) => vueParser(file) },
 ];
+
+/**
+ * @codemirror/lang-vue keeps its grammar to itself (what it exports is HTML's parser with Vue's mixed in): its
+ * parser made again from the file's own text, with the tags the file gives its nodes.
+ */
+async function vueParser(file) {
+  const source = readFileSync(file, 'utf8');
+  const { LRParser, LocalTokenGroup } = await import(`${MODULES}@lezer/lr/dist/index.js`);
+  const from = source.indexOf('const parser = '), to = source.indexOf('const exprMixed');
+  if (from < 0 || to < from) throw new Error('lang-vue: its parser is not where it was');
+  const text = source.slice(from, to).replace(/const exprParser = [\s\S]*?\}\);\n/, '');
+  return new Function('LRParser', 'LocalTokenGroup', 'styleTags', 'tags', `${text}; return baseParser;`)(LRParser, LocalTokenGroup, highlight.styleTags, highlight.tags);
+}
 
 /** The SQL dialects the pack loads, by its names for them: each one's switches and its words. */
 function sqlDialects(m) {
@@ -436,7 +457,7 @@ async function main() {
     const version = JSON.parse(readFileSync(`${MODULES}${grammar.pkg}/package.json`, 'utf8')).version;
     const specs = specsOf(file);
     const real = await import(file);
-    const parsers = grammar.parser ? [[grammar.name, grammar.parser(real)]] : Object.entries(real).filter(([, value]) => value && value.nodeSet && value.states);
+    const parsers = grammar.parser ? [[grammar.name, await grammar.parser(real, file)]] : Object.entries(real).filter(([, value]) => value && value.nodeSet && value.states);
     if (specs.length !== 1 || parsers.length !== 1) throw new Error(`${grammar.pkg}: ${specs.length} specs, ${parsers.length} parsers`);
     const rules = rulesOf(parsers[0][1]);
     const more = grammar.more ? grammar.more(real) : '';

@@ -1,0 +1,21 @@
+html
+<!doctype html>
+<script type="text/typescript">
+  const n = ref<number>(0) as Ref<number>;
+  interface A { b: string }
+</script>
+<script lang="ts">let x: Array<string> = [];</script>
+<script type="application/json">{"a": [1, true, null], "b": "c"}</script>
+<script type="application/ld+json">{"@type": "Thing"}</script>
+<script type="importmap">{"imports": {"a": "./a.js"}}</script>
+<script type="text/babel">const el = <div className="x">{y}</div>;</script>
+<script type="text/typescript-jsx">const el = <T,>(a: T) => <b>{a}</b>;</script>
+<script type="module">import a from "./a.js"; a?.b ?? 1;</script>
+<script type="text/x-template"><div>{{ not script }}</div></script>
+<script type="TEXT/JAVASCRIPT">var up = /re/g;</script>
+<style type="text/css">a > b { color: red; }</style>
+<style lang="scss">a { b { color: red; } }</style>
+<style type="text/less">a { .m(); }</style>
+<style>@media (min-width: 1px) { a::before { content: "x"; } }</style>
+<textarea name="t">not <b>markup</b></textarea>
+<p style="color: red; margin: 0 auto" onclick="go(1, 'x')" onfoo="no()" data-x='1'>text &amp; more</p>

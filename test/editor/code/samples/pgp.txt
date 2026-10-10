@@ -1,0 +1,9 @@
+pgp
+-----BEGIN PGP MESSAGE-----
+Version: GnuPG v2
+Comment: a sample, not a real message
+
+hQEMA5vJm1yq7VQkAQf9F5oYbXh0v3Qn2s6m9fA1vQx8Jr0mJ7QdWkq1n3y5V2bL
+p9c3kH0Jw6l1m8t2r4s5u6v7w8x9y0z1A2B3C4D5E6F7G8H9I0J1K2L3M4N5O6P7
+=ab12
+-----END PGP MESSAGE-----

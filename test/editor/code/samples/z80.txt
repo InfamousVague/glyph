@@ -1,0 +1,19 @@
+z80
+; A loop that fills memory
+        org 0x8000
+start:  ld hl, buffer
+        ld b, 16
+        xor a
+loop:   ld (hl), a
+        inc hl
+        inc a
+        djnz loop
+        call print      ; comment
+        jp nz, start
+        ret
+print:  ld a, 'A'
+        rst 10h
+        ret
+buffer: defs 16
+msg:    defb "hello", 13, 0FFh, %1010
+        equ 42

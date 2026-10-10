@@ -1,0 +1,23 @@
+vue
+<template>
+  <div id="app" :class="{ active: isActive }" @click="count++">
+    <!-- a comment -->
+    <h1 v-if="count > 0">{{ title.toUpperCase() }} {{ count * 2 }}</h1>
+    <li v-for="(item, i) in items" :key="item.id" v-bind:title="`n ${i}`">{{ item.name }}</li>
+    <my-input v-model.trim="name" #default="{ value }" />
+  </div>
+</template>
+
+<script lang="ts">
+import { defineComponent, ref } from 'vue'
+export default defineComponent({
+  setup() {
+    const count = ref<number>(0)
+    return { count, title: 'Hello', items: [] as Array<{ id: number; name: string }> }
+  },
+})
+</script>
+
+<style scoped>
+#app > h1 { color: #42b983; margin: 0 auto; }
+</style>

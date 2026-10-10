@@ -1,0 +1,25 @@
+modelica
+within Sample;
+model Pendulum "A simple pendulum"
+  import Modelica.Constants.pi;
+  parameter Real L(unit="m") = 1.0 "length";
+  constant Real g = 9.81;
+  Real theta(start=pi/4, fixed=true), omega;
+  Boolean high;
+  // a comment
+protected
+  Integer n = 3;
+equation
+  der(theta) = omega;
+  der(omega) = -g / L * sin(theta);
+  high = theta > 0.5 and not omega < 0;
+  when sample(0, 0.1) then
+    reinit(omega, 1e-3 * pre(omega));
+  end when;
+  /* block */
+algorithm
+  for i in 1:n loop
+    assert(i <> 0, "bad 'i'");
+  end for;
+  annotation (experiment(StopTime=10));
+end Pendulum;

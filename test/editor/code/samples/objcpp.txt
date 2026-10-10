@@ -1,0 +1,24 @@
+objc++
+// A class with a C++ member
+#import <Foundation/Foundation.h>
+#include <vector>
+#include <memory>
+
+namespace util { template <typename T> T twice(T v) { return v * 2; } }
+
+@interface Counter : NSObject {
+  std::vector<int> _values;
+}
+@property (nonatomic, copy) NSString *name;
+- (void)add:(int)value;
+@end
+
+@implementation Counter
+- (void)add:(int)value {
+  _values.push_back(util::twice(value));
+  auto total = std::make_unique<int>(0);
+  for (const auto &v : _values) { *total += v; }
+  NSLog(@"%@ has %d (%zu), %c", self.name, *total, _values.size(), 'c');
+  if (value > 0x10 && self.name != nil) { @throw [NSException new]; }
+}
+@end

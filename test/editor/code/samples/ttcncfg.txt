@@ -1,0 +1,20 @@
+ttcn_cfg
+# a runtime configuration
+[MODULE_PARAMETERS]
+Sample.tsp_host := "localhost"
+Sample.tsp_port := 8080
+tsp_ratio := 1.5
+[LOGGING]
+LogFile := "logs/%e.%h-%r.%s"
+FileMask := LOG_ALL | DEBUG
+ConsoleMask := ERROR | WARNING | TESTCASE
+SourceInfoFormat := Single
+// a comment
+[TESTPORT_PARAMETERS]
+*.p.debug := "yes"
+[EXECUTE]
+Sample.tc_send
+Sample.control
+[MAIN_CONTROLLER]
+TCPPort := 9034
+KillTimer := 10.0

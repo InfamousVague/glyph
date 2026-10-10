@@ -1,0 +1,15 @@
+clojurescript
+(ns app.core
+  (:require [reagent.core :as r]
+            [clojure.string :as str]))
+
+;; state
+(defonce state (r/atom {:count 0 :name "x"}))
+
+(defn greet [^String who & more]
+  (js/console.log (str "Hello, " who "!") #"re+" \a 42 3.14 0x1F 1/2)
+  (swap! state update :count inc))
+
+(defmacro unless [c & body] `(if (not ~c) (do ~@body)))
+#_(ignored form)
+(let [{:keys [a b]} {:a 1 :b nil}] (when-not b [a true false]))

@@ -1,0 +1,13 @@
+stex
+\documentclass{article}
+\usepackage{stex}
+% a module
+\begin{module}[id=sample]
+  \symdef{plus}[2]{#1 + #2}
+  \importmodule[load=../other]{other}
+  \begin{definition}
+    A \defi{group} is a set $G$ with $\plus{a}{b} \in G$ and \[ a^{-1} = \frac{1}{a} \]
+  \end{definition}
+  \trefi[other]{thing} and {\bf bold} at 10pt, see~\ref{sec:x}.
+\end{module}
+\verb|raw| \\ 100\% \& more

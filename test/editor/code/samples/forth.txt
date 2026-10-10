@@ -1,0 +1,14 @@
+forth
+\ A few definitions
+: square ( n -- n*n ) dup * ;
+: cube   ( n -- n^3 ) dup square * ;
+variable counter  10 constant limit
+: count-up ( -- )
+  limit 0 do
+    i square . cr
+    1 counter +!
+  loop ;
+( a parenthesised comment )
+: greet ." Hello, world!" cr s" a string" type ;
+: sign ( n -- ) dup 0< if ." negative" else 0= if ." zero" else ." positive" then then ;
+hex ff decimal 3.5e0 f. greet count-up

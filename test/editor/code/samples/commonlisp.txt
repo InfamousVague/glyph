@@ -1,0 +1,17 @@
+lisp
+;;; Factorial and friends
+(defpackage :sample (:use :cl) (:export #:fact))
+(in-package :sample)
+
+(defun fact (n &optional (acc 1))
+  "Docstring with \"quotes\"."
+  (if (<= n 1)
+      acc
+      (fact (1- n) (* acc n))))
+
+#| a block
+   comment |#
+(defvar *table* (make-hash-table :test 'equal))
+(let ((x 42) (y 3.14) (z #\a) (k :keyword))
+  (format t "~a ~a ~a~%" x y `(,z ,@(list k nil t))))
+(defmacro while (test &body body) `(loop (unless ,test (return)) ,@body))

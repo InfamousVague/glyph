@@ -1,0 +1,20 @@
+livescript
+# functions and pipes
+require! { fs, 'prelude-ls': { map, filter } }
+
+class Animal extends Base
+  (@name, @sound = \meow) ->
+  speak: -> console.log "#{@name} says #sound"
+
+/* block comment */
+square = (x) -> x * x
+result = [1 to 10] |> map square |> filter (> 20)
+obj = a: 1, b: \word, c: <[ list of words ]>
+ok = yes and not off or void?
+re = /^\d+$/g
+text = '''
+  heredoc
+  '''
+switch result.length
+| 0 => \none
+| otherwise => try throw new Error 'x' catch then it

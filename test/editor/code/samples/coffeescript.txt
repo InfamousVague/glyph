@@ -1,0 +1,20 @@
+coffeescript
+# A class and a comprehension
+class Animal extends Base
+  constructor: (@name, @sound = "...") ->
+    super()
+
+  speak: ->
+    console.log "#{@name} says #{@sound}"
+
+###
+block comment
+###
+square = (x) -> x * x
+list = (square n for n in [1..5] when n isnt 3)
+ok = yes and not off or null?
+re = /^\d+(\.\d+)?$/i
+text = """
+  heredoc #{list.length}
+  """
+try fs.readFileSync 'x' catch e then throw e unless e instanceof Error

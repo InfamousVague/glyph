@@ -1,0 +1,18 @@
+scheme
+;; factorial and a tail loop
+(define (fact n)
+  (if (<= n 1)
+      1
+      (* n (fact (- n 1)))))
+
+#| block
+   comment |#
+(define-syntax swap!
+  (syntax-rules ()
+    ((_ a b) (let ((tmp a)) (set! a b) (set! b tmp)))))
+
+(let loop ((i 0) (acc '()))
+  (cond ((< i 5) (loop (+ i 1) (cons (fact i) acc)))
+        (else (display (reverse acc)) (newline))))
+(define v (vector 1 2.5 #t #f #\a "str\n" 'sym #xFF 1/2))
+(lambda args (apply + `(1 ,@args)))

@@ -1,0 +1,17 @@
+asn.1
+-- A small module
+Example-Module DEFINITIONS AUTOMATIC TAGS ::= BEGIN
+  IMPORTS Other FROM Other-Module;
+  Person ::= SEQUENCE {
+    name    UTF8String (SIZE(1..64)),
+    age     INTEGER (0..150) OPTIONAL,
+    emails  SEQUENCE OF IA5String,
+    kind    ENUMERATED { adult(0), child(1) } DEFAULT adult
+  }
+  maxAge INTEGER ::= 150
+  /* a block
+     comment */
+  Id ::= OBJECT IDENTIFIER
+  flag BOOLEAN ::= TRUE
+  text PrintableString ::= "it's \"quoted\""
+END

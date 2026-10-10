@@ -1,0 +1,23 @@
+cython
+# cython: language_level=3
+cimport cython
+from libc.math cimport sqrt
+import numpy as np
+
+cdef struct Point:
+    double x
+    double y
+
+@cython.boundscheck(False)
+cpdef double norm(double[:] v) nogil except -1:
+    cdef Py_ssize_t i
+    cdef double total = 0.0
+    for i in range(v.shape[0]):
+        total += v[i] * v[i]
+    return sqrt(total)
+
+cdef class Vec:
+    cdef public int n
+    def __init__(self, n=3):
+        self.n = n  # a comment
+        print(f"made {self.n!r}", 'x', """doc""", 0x1F, 1e-3, None, True)

@@ -1,0 +1,23 @@
+octave
+% A function and a loop
+function [m, s] = stats(x)
+  m = mean(x);
+  s = sqrt(sum((x - m) .^ 2) / numel(x));
+end
+
+x = [1, 2.5; 3e2, -4]';
+A = eye(3) * 2 + ones(3) ./ 3;
+for k = 1:numel(x)
+  if x(k) > 2 && ~isnan(x(k)) || k == 1
+    printf("%d: %g\n", k, x(k));  # also a comment
+  elseif x(k) ~= 0
+    disp('it''s small');
+  else
+    continue
+  end
+end
+%{
+block comment
+%}
+f = @(t) sin(t) .* exp(-t / 10);
+s = struct('name', "octave", 'n', 3i);

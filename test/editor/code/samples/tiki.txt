@@ -1,0 +1,15 @@
+=Tiki wiki
+! A heading
+!! Sub-heading
+
+Some __bold__, ''italic'', ===underlined=== and -=title bar=- text.
+* item
+** nested
+# numbered
+[http://example.org|a link] and ((WikiPage|described)) and ~np~not parsed~/np~
+||row1 col1|row1 col2
+row2 col1|row2 col2||
+{CODE(colors="php")}echo "x";{CODE}
+{img src="a.png" width=100}
+^a box^ and ::centered:: and ~~#ff0000:red~~
+---

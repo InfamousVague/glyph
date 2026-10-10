@@ -1,0 +1,15 @@
+sml
+(* A datatype and a fold *)
+structure Sample = struct
+  datatype 'a tree = Leaf | Node of 'a tree * 'a * 'a tree
+  exception Empty of string
+
+  fun size Leaf = 0
+    | size (Node (l, _, r)) = size l + 1 + size r
+
+  val rec fact = fn 0 => 1 | n => n * fact (n - 1)
+  fun sum xs = List.foldl (op +) 0 xs
+  val x = let val y = 3.14 and c = #"a" in if y > 1.0 andalso c <> #"b" then "yes\n" else raise Empty "no" end
+  val _ = print (Int.toString (sum [1, 2, 0xFF, ~4]) ^ "\n")
+end
+signature S = sig type t val make : int -> t end

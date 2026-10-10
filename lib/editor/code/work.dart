@@ -26,7 +26,10 @@ abstract final class CodeStats {
   /// The characters read, all told.
   static int read = 0;
 
-  static void reset() => started = resumed = read = 0;
+  /// The times an older mode would not move along its line, and was stepped past a character.
+  static int stuck = 0;
+
+  static void reset() => started = resumed = read = stuck = 0;
 }
 
 /// How long a piece of work may take. `null` microseconds is as long as it needs.

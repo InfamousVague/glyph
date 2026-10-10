@@ -1,0 +1,13 @@
+msgenny
+# a simplified chart
+hscale="1.2", wordwraparcs=on;
+a : Client, b : "The Server", c;
+a => b : request;
+b -> c : lookup;
+c >> b : result;
+b alt a : ok {
+  b => a : response;
+  --- : otherwise;
+  b -x a : error;
+};
+a note a : "all done";

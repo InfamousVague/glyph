@@ -1,0 +1,17 @@
+squirrel
+// A class and a generator
+class Vec {
+  x = 0; y = 0;
+  constructor(_x, _y = 0) { x = _x; y = _y; }
+  function _add(o) { return Vec(x + o.x, y + o.y); }
+  static count = 0;
+}
+/* block comment */
+enum Color { RED, GREEN = 5, BLUE }
+local t = { name = "squirrel", [1] = 'c', list = [1, 2.5, 0xFF, null, true] };
+function gen(n) { for (local i = 0; i < n; i++) yield i; }
+foreach (i, v in t.list) {
+  if (typeof v == "integer" && v instanceof Vec) ::print(i + @"verbatim ""string""" + "\n");
+  else try { throw "x"; } catch (e) { continue; }
+}
+local f = @(a, b) a <=> b;

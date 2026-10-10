@@ -1,0 +1,17 @@
+sparql
+# people and their friends
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX xsd:  <http://www.w3.org/2001/XMLSchema#>
+SELECT DISTINCT ?name (COUNT(?friend) AS ?n)
+WHERE {
+  ?person a foaf:Person ;
+          foaf:name ?name ;
+          foaf:age ?age .
+  OPTIONAL { ?person foaf:knows ?friend . }
+  FILTER (?age >= 18 && regex(?name, "^A", "i") && lang(?name) = "en")
+  BIND ("42"^^xsd:integer AS ?x)
+  { ?s ?p _:b } UNION { ?s ?p 'single'@en }
+}
+GROUP BY ?name
+HAVING (COUNT(?friend) > 1)
+ORDER BY DESC(?n) LIMIT 10 OFFSET 5

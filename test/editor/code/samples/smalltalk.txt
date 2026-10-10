@@ -1,0 +1,21 @@
+smalltalk
+"A class and a method"
+Object subclass: #Account
+    instanceVariableNames: 'balance owner'
+    classVariableNames: 'Count'
+    package: 'Sample'!
+
+!Account methodsFor: 'operations'!
+deposit: amount
+    "Add to the balance"
+    | old ratio |
+    old := balance.
+    amount > 0
+        ifTrue: [balance := balance + amount]
+        ifFalse: [^self error: 'bad amount'].
+    ratio := 1.5e2 + 16r1F + $a asInteger.
+    #(1 2 #foo) do: [:each | Transcript show: each printString; cr].
+    ^balance - old! !
+
+Account new deposit: 100; yourself.
+x := #symbol -> nil. y := true & false.

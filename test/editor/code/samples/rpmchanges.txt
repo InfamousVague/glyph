@@ -1,0 +1,7 @@
+=RPM Changes
+* Mon Jan 01 2024 Alice Example <alice@example.org> - 1.2.3-1
+- Update to 1.2.3
+- Fix a crash on start (rhbz#12345)
+
+* Fri Dec 15 2023 Bob Example <bob@example.org> - 1.2.2-2
+- Rebuild

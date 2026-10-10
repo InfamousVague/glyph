@@ -55,6 +55,8 @@ void main() {
       continue;
     }
     test('${sample['file']}: $name, ${(sample['runs'] as List).length ~/ 3} runs', () {
+      // A sample the web's own parser throws on has nothing to be held to.
+      expect(sample['throws'], isNull);
       final code = sample['code'] as String;
       final mine = runsOf(language, code);
       final theirs = (sample['runs'] as List).cast<Object>();
@@ -72,26 +74,6 @@ void main() {
   }
 
   test('the languages with a sample that the port does not read', () {
-    expect(unread, <String>[
-      'Dockerfile',
-      'PowerShell',
-      'Perl',
-      'R',
-      'Haskell',
-      'Clojure',
-      'LaTeX',
-      'Nginx',
-      'ProtoBuf',
-      'Erlang',
-      'Groovy',
-      'Pascal',
-      'Julia',
-      'F#',
-      'OCaml',
-      'CMake',
-      'HTTP',
-      'VB.NET',
-      'WebAssembly',
-    ]);
+    expect(unread, isEmpty);
   });
 }

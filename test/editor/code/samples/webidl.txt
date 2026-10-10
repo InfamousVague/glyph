@@ -1,0 +1,22 @@
+=Web IDL
+// An interface
+[Exposed=Window, SecureContext]
+interface Sample : EventTarget {
+  constructor(DOMString name, optional SampleInit init = {});
+  readonly attribute unsigned long long size;
+  attribute EventHandler onchange;
+  Promise<sequence<DOMString>> list(optional boolean deep = false);
+  static const unsigned short MAX = 0xFF;
+  getter any (DOMString key);
+  undefined close();
+};
+/* a dictionary */
+dictionary SampleInit {
+  required DOMString mode;
+  double ratio = 1.5;
+  (long or DOMString)? id = null;
+};
+enum Mode { "read", "write" };
+callback Listener = undefined (Event e);
+typedef (ArrayBuffer or ArrayBufferView) BufferSource;
+Sample includes Mixin;

@@ -1,0 +1,26 @@
+nsis
+; An installer
+!include "MUI2.nsh"
+!define APPNAME "Sample"
+Name "${APPNAME}"
+OutFile "setup.exe"
+InstallDir "$PROGRAMFILES\${APPNAME}"
+RequestExecutionLevel admin
+Var count
+/* block
+   comment */
+Section "Main" SecMain
+  SetOutPath "$INSTDIR"
+  File /r "dist\*.*"
+  WriteRegStr HKLM "Software\${APPNAME}" "Path" "$INSTDIR"
+  StrCpy $count 0
+  ${If} $count == 0
+    MessageBox MB_OK|MB_ICONINFORMATION 'Installed "it" $\r$\n'
+  ${EndIf}
+  IntOp $0 $0 + 0x10
+SectionEnd
+Function .onInit
+  !insertmacro MUI_LANGDLL_DISPLAY
+  Goto done
+  done:
+FunctionEnd

@@ -277,7 +277,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A table drawn off the caret, with alignment colons | editor/tables.ts:58-243 | editor/tables/tables.dart:87-104; editor/tables/table_box.dart:255 | match | |
 | Tap a table to edit its pipes; "+ Column" and "+ Row" | editor/tables.ts:193-216 | editor/tables/table_box.dart:177-214 | match | |
 | A block of code drawn as one card | editor/glyphLines.ts:34-35,119-122 | editor/view/glyph_lines.dart:41-42,93-96 | match | |
-| Code coloured by its language | editor/language.ts:3,35-41 (`@codemirror/language-data`) | editor/code/code_highlight.dart; editor/code/languages.dart | differs | The same grammars' tables run by a port of Lezer's parser, and the pack's older modes ported, for forty of the pack's 143 languages (the ones people write: test/editor/code/conformance_test.dart holds each to the web's runs). A block in one of the other 103 is drawn in the code's ink with no token coloured. |
+| Code coloured by its language | editor/language.ts:3,35-41 (`@codemirror/language-data`) | editor/code/code_highlight.dart; editor/code/languages.dart; editor/code/stream/js | differs | 142 of the pack's 143 languages are read: thirty-two by the web's own Lezer grammars' tables, run by a port of Lezer's parser; twelve of the pack's older modes ported to Dart by hand; and the other ninety-eight older modes run from their own JavaScript by a small reader of it (editor/code/stream/js). test/editor/code/conformance_test.dart holds a sample of every one to the web's runs, run for run. The one not read, Angular Template, no fence can ask for: its only name has a space in it. |
 | Code themes: Pastel, Ink, GitHub, Solarized, One Dark, Dracula, Nord | editor/codeThemes.ts:18-31 | editor/looks/code_themes.dart:16-25,145-171 | match | |
 | A `mermaid` block drawn as its diagram, with the reason when it cannot be | editor/mermaid.ts:36,195,218; editor/Editor.tsx:398 | editor/diagrams/diagrams.dart; editor/diagrams/store.dart; assets/diagrams/; android/…/ghost_md/DiagramRenderer.kt; apple/DiagramRenderer.swift | differs | Mermaid itself (the same 12.0.0) in a web view nobody sees, and the picture of it in the note. It is a bitmap made for the note's width, not an SVG; while its words change under it the block keeps the picture it has, where the page shows the words in between; a diagram that names a picture on the internet draws without it. |
 | A definition: the term, then `: its meaning` | editor/extended.ts:51,243-254 | editor/view/extended.dart:50,288-299 | match | |
@@ -1029,8 +1029,8 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 ## Missing
 
 1. **Code coloured by its language**, and HTML's tags with it. Done (`lib/editor/code`): the web's own grammars'
-   tables run by a port of Lezer's parser, and the language pack's older line modes ported. What is left of it is
-   Differs 40.
+   tables run by a port of Lezer's parser, and the language pack's older line modes, a dozen ported and the rest
+   run from their own JavaScript. What is left of it is Differs 40.
 2. **Maths drawn as a formula**, in a line and as a `$$` block. Done (`lib/editor/maths`), by the copy of
    `flutter_math_fork` in packages/. What is left of it is Differs 41.
 3. ~~**A `mermaid` block drawn as its diagram**: in a note, on a canvas's chart card, in the Academy's lesson.~~
@@ -1206,12 +1206,15 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     build's settings this one cannot read are carried back to the account, not dropped; a live note's socket is
     let go while the app is behind another.
 39. **A mouse**: hover grounds are decided by the platform, not the pointer. Small.
-40. **Code in a language the port does not read is in the code's ink, uncoloured**: 103 of the language pack's
-    143 (Perl, R, Haskell, PowerShell, Dockerfile, LaTeX and the rest; `languageNamed` in
-    lib/editor/code/languages.dart has the forty that are read). Small each: a Lezer grammar is its tables and a
-    few tokenizers (tool/code_grammars.mjs), an older mode is one `token` function. A long block being read is
-    coloured down to where the reading has got, as on the web, and never one frame in the original's own
-    in-between states.
+40. **Code is coloured by the port's own readers of the web's grammars and modes**, 142 of the language pack's
+    143 (`languageNamed` in lib/editor/code/languages.dart; Angular Template is the one, and no fence can name
+    it). Where the two can still part: a mode that throws, or will not move along its line, on something typed
+    ends the web's colouring of the whole note, and here that line goes uncoloured and the next is read (and a
+    mode is stopped after two million turns of a loop on one token); Pug's mode asks JavaScript itself whether
+    an attribute's value has ended, and here the grammar JavaScript is coloured by is asked; Stylus's mode sorts
+    its words with a comparison that V8 (Android, Windows) and WebKit (the Mac) take differently, and V8's is
+    followed. A long block being read is coloured down to where the reading has got, as on the web, and never
+    one frame in the original's own in-between states.
 41. **A formula is drawn by `flutter_math_fork`, not KaTeX 0.16.** The copy in packages/flutter_math_fork is
     held to KaTeX's heights and depths (test/editor/maths/katex_test.dart: all 115 agree). What is left: twenty-five
     families of KaTeX's commands it does not read (the test's list; such a formula is shown as its source), no

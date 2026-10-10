@@ -1,0 +1,19 @@
+jinja
+{# a template #}
+{% extends "base.html" %}
+{% set items = [1, 2.5, "three", true, none] %}
+{% block content %}
+  <h1 class="title">{{ title|upper|default('Untitled') }}</h1>
+  {% for item in items if item is not none %}
+    <li>{{ loop.index }}: {{ item ~ "!" }}</li>
+  {% else %}
+    <li>nothing</li>
+  {% endfor %}
+  {% if user.age >= 18 and not user.banned or user.name == 'admin' %}
+    {{ macros.greet(user, times=2) }}
+  {% elif user %}
+    {% include 'minor.html' ignore missing %}
+  {% endif %}
+  {% raw %}{{ not parsed }}{% endraw %}
+{% endblock %}
+{% macro greet(who, times=1) -%}Hello {{ who.name }}{%- endmacro %}
