@@ -245,7 +245,6 @@ class _QueryBoardState extends State<QueryBoard> {
         plainFade: 1.2 * look.em,
         child: SingleChildScrollView(
           controller: _laneScroll(group.key),
-          physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.only(bottom: look.space(2)),
           child: Part('cards', child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.stretch, children: cards)),
         ),

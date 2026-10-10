@@ -23,6 +23,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/page_scroll.dart';
 import '../core/detent_feel.dart';
 import '../core/pull.dart';
 import '../home/home_icons.dart';
@@ -217,7 +218,7 @@ class _PullToRefreshState extends State<PullToRefresh> {
           Positioned.fill(
             child: widget.builder(
               context,
-              PullDown(offset: _offset, settling: _settling, physics: _gesture?.pulling == true || _busy ? const NeverScrollableScrollPhysics() : const ClampingScrollPhysics()),
+              PullDown(offset: _offset, settling: _settling, physics: _gesture?.pulling == true || _busy ? const NeverScrollableScrollPhysics() : pullRestPhysics()),
             ),
           ),
           if (pulling)

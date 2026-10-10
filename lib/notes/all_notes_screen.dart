@@ -35,6 +35,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/page_scroll.dart';
 import '../art/art.dart';
 import '../core/book.dart';
 import '../core/glide_to_top.dart';
@@ -344,7 +345,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
         child: SingleChildScrollView(
           key: const ValueKey('all-notes-scroll'),
           controller: _scroller,
-          physics: pull?.physics ?? const ClampingScrollPhysics(),
+          physics: pull?.physics,
           // `padding-inline: var(--app-gutter-start) var(--app-gutter-end)`
           padding: EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), top, t.len('app-gutter-end'), foot),
           child: pull == null ? column : PullLowered(pull: pull, child: column),
@@ -422,7 +423,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 }
 
 /// The platform's overscroll glow and stretch left off, and no scrollbar of its own.
-class _Still extends ScrollBehavior {
+class _Still extends GhostScrollBehavior {
   const _Still();
 
   @override

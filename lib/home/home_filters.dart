@@ -674,7 +674,6 @@ class _PanelBodyState extends State<_PanelBody> {
           // Its body scrolls when it is taller than the room under the button; `70dvh` until that is measured.
           constraints: BoxConstraints(maxHeight: widget.room ?? t.lenOf('70vh')),
           child: SingleChildScrollView(
-            physics: const ClampingScrollPhysics(),
             child: _Gapped(children: children),
           ),
         ),

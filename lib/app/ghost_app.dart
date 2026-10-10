@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/page_scroll.dart';
 import '../core/preferences.dart';
 import 'iphone_page.dart';
 import '../gallery/kit_gallery.dart';
@@ -218,14 +219,16 @@ class _Page extends StatelessWidget {
         statusBarColor: const Color(0x00000000),
         systemNavigationBarColor: const Color(0x00000000),
         statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-        // An iPhone is told the shade of what is under its bar, and chooses its own ink for it.
-        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
+        // An iPhone's bar follows the PHONE's light or dark, whatever theme is chosen here: the real app's page
+        // never tells its window a theme (it only reads `prefers-color-scheme`), so the bar is the system's own.
+        statusBarBrightness: MediaQuery.platformBrightnessOf(context),
         systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
         systemNavigationBarContrastEnforced: false,
       ),
       child: ColoredBox(
         color: t.color('glacier-bg'),
-        child: DefaultTextStyle(style: style, child: child),
+        // How every page scrolls, said once: an iPhone's rubber band, a list that stops on Android (core/page_scroll.dart).
+        child: ScrollConfiguration(behavior: const GhostScrollBehavior(), child: DefaultTextStyle(style: style, child: child)),
       ),
     );
   }

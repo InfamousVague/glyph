@@ -234,7 +234,6 @@ class MenuBandState extends State<MenuBand> {
             child: SingleChildScrollView(
               controller: _scroll,
               scrollDirection: Axis.horizontal,
-              physics: const ClampingScrollPhysics(),
               child: IntrinsicHeight(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,

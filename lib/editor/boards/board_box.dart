@@ -715,7 +715,6 @@ class _DrawnBoardBoxState extends State<DrawnBoardBox> with TickerProviderStateM
       onNotification: (notification) => _laneScrolled(notification, column),
       child: SingleChildScrollView(
         controller: _laneScroll(column),
-        physics: const ClampingScrollPhysics(),
         // An empty lane's place reaches to the lane's foot; a lane of cards keeps room under the last
         // (`paddingBlockEnd: '0.9em'`).
         padding: EdgeInsets.only(bottom: held.isEmpty ? 0 : look.laneFootHeld),

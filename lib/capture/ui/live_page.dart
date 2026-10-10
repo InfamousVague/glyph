@@ -391,7 +391,6 @@ class LivePageState extends State<LivePage> {
     // `.livePage { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding-block-start: var(--wisp-under) }`
     final scroller = SingleChildScrollView(
       controller: _scroll,
-      physics: const ClampingScrollPhysics(),
       padding: EdgeInsets.only(top: widget.under),
       child: Stack(
         children: [

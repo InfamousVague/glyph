@@ -175,7 +175,7 @@ class QueryGantt extends StatelessWidget {
                 child: CustomPaint(size: Size(wide, tall), painter: GanttPainter(chart: chart, look: look, today: today, left: left, small: small)),
               ),
             );
-            return wide > room + 0.5 ? SingleChildScrollView(scrollDirection: Axis.horizontal, physics: const ClampingScrollPhysics(), child: painted) : painted;
+            return wide > room + 0.5 ? SingleChildScrollView(scrollDirection: Axis.horizontal, child: painted) : painted;
           },
         ),
         if (unplaced > 0) quiet('warning', unplaced == 1 ? 'One has no start or due day, and is not on the timeline.' : '$unplaced have no start or due day, and are not on the timeline.'),

@@ -590,7 +590,6 @@ class _CardEditorState extends State<_CardEditor> {
   Widget build(BuildContext context) {
     final env = cardEnv(context.tokens, devicePixelRatio: MediaQuery.devicePixelRatioOf(context));
     return CustomScrollView(
-      physics: const ClampingScrollPhysics(),
       slivers: [Editor(view: _view, controller: _controller, env: env, sheets: <LookSheet>[peekLook()])],
     );
   }

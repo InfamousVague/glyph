@@ -62,6 +62,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../../core/page_scroll.dart';
 import '../../art/app_icon.dart';
 import '../../art/icons.dart';
 import '../../art/lucide.g.dart';
@@ -1027,13 +1028,13 @@ class _RowsView extends StatelessWidget {
       },
       child: ScrollConfiguration(
         behavior: const _NoBars(),
-        child: SingleChildScrollView(controller: controller, physics: const ClampingScrollPhysics(), padding: EdgeInsets.all(padding), child: child),
+        child: SingleChildScrollView(controller: controller, padding: EdgeInsets.all(padding), child: child),
       ),
     );
   }
 }
 
-class _NoBars extends ScrollBehavior {
+class _NoBars extends GhostScrollBehavior {
   const _NoBars();
 
   @override

@@ -187,7 +187,6 @@ class DrawnTable extends StatelessWidget {
         final room = width - 2 * gutter;
         return SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          physics: const ClampingScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: width),
             child: Padding(

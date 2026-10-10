@@ -78,7 +78,6 @@ class AccountGate extends StatelessWidget {
         child: LayoutBuilder(
           builder: (context, box) => SingleChildScrollView(
             key: const ValueKey('account-gate-scroll'),
-            physics: const ClampingScrollPhysics(),
             child: ConstrainedBox(
               // `.column { min-block-size: 100% }`: the card in the middle of the screen until it is taller than it.
               constraints: BoxConstraints(minHeight: box.maxHeight),

@@ -439,7 +439,6 @@ class QueryHead extends StatelessWidget {
                     clipBehavior: Clip.antiAlias,
                     child: SingleChildScrollView(
                       scrollDirection: Axis.horizontal,
-                      physics: const ClampingScrollPhysics(),
                       padding: const EdgeInsets.all(2),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -820,7 +819,6 @@ class _QueryTableState extends State<QueryTable> {
         'tableScroll',
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
-          physics: const ClampingScrollPhysics(),
           padding: EdgeInsets.symmetric(horizontal: look.space(3)),
           child: ConstrainedBox(
             constraints: BoxConstraints(minWidth: math.max(0, constraints.maxWidth - 2 * look.space(3))),

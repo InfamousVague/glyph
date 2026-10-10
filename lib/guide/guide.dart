@@ -205,7 +205,6 @@ class _GuideState extends State<Guide> {
       key: ValueKey(_page),
       controller: _scroll,
       // `overscroll-behavior: contain`.
-      physics: const ClampingScrollPhysics(),
       // Starts under the bar, so content only meets its blur once scrolled.
       padding: EdgeInsets.fromLTRB(start, under + t.space(4), end, t.space(24)),
       child: _Enter(

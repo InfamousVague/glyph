@@ -375,7 +375,6 @@ class _OrganizationLogState extends State<OrganizationLog> {
     final Widget scroller = SingleChildScrollView(
       key: const ValueKey('organization-log-scroll'),
       controller: _scroller,
-      physics: const ClampingScrollPhysics(),
       padding: EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), top, t.len('app-gutter-end'), foot),
       child: column,
     );

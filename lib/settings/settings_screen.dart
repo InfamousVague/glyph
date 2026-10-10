@@ -634,7 +634,6 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
       key: key,
       controller: controller,
       // `overscroll-behavior: contain`: the page under it never moves.
-      physics: const ClampingScrollPhysics(),
       padding: padding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -661,7 +660,6 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
             builder: (context) => WispEdge(child: SingleChildScrollView(
               key: ValueKey('scroll ${shown.id}'),
               controller: _paneScroll,
-              physics: const ClampingScrollPhysics(),
               padding: padding,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,

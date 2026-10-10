@@ -79,7 +79,6 @@ class _TranscriptWordsState extends State<TranscriptWords> {
     final padding = EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), t.space(5), t.len('app-gutter-end'), t.space(24));
 
     Widget page(Widget child) => SingleChildScrollView(
-          physics: const ClampingScrollPhysics(),
           padding: padding,
           child: SizedBox(width: double.infinity, child: child),
         );

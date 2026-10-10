@@ -34,6 +34,7 @@ import 'package:flutter/services.dart' show TextCapitalization;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../core/page_scroll.dart';
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/note.dart';
@@ -496,7 +497,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
         child: SingleChildScrollView(
           key: const ValueKey('organization-scroll'),
           controller: _scroller,
-          physics: pull?.physics ?? const ClampingScrollPhysics(),
+          physics: pull?.physics,
           padding: EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), top, t.len('app-gutter-end'), foot),
           child: pull == null ? column : PullLowered(pull: pull, child: column),
         ),
@@ -585,7 +586,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
 }
 
 /// The platform's overscroll glow and stretch left off, and no scrollbar of its own.
-class _Still extends ScrollBehavior {
+class _Still extends GhostScrollBehavior {
   const _Still();
 
   @override
