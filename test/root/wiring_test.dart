@@ -13,7 +13,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/find_bar/find_bar.dart';
 import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
-import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer;
+import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/account_wiring.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -204,6 +204,22 @@ void main() {
       await tester.pump(const Duration(seconds: 1));
       await tester.pump(const Duration(milliseconds: 100));
       expect(library.noteOf(note.id)!.body, endsWith('Typed in stage four.'));
+      await close(tester);
+    });
+
+    // Unwired 6 (docs/PARITY.md): `AddConfig.blanks` was never set, so More never offered the two rows
+    // (editor/addRows.ts: always there, since writing a blank needs no model).
+    testWidgets('offers A blank for the AI from its +, and Blanks in the empty cells under a table with one', (tester) async {
+      final library = await open(tester);
+      await openNote(tester, library.value.first.id);
+      final config = tester.widget<PlusLayer>(find.byType(PlusLayer)).config;
+      expect(config.blanks, isTrue);
+      List<String> more({required bool tableAbove}) => [
+            for (final row in moreRows(readGates(picture: false, video: false, place: false, note: true, canvas: false, tableAbove: tableAbove, board: config.boards, database: config.databases, blank: config.blanks, effects: config.effects))) row.words,
+          ];
+      expect(more(tableAbove: false), contains('A blank for the AI'));
+      expect(more(tableAbove: false), isNot(contains('Blanks in the empty cells')));
+      expect(more(tableAbove: true), containsAllInOrder(['A blank for the AI', 'Blanks in the empty cells']));
       await close(tester);
     });
 
