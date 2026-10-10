@@ -88,9 +88,14 @@ class FieldWidget extends EditorWidget {
 /// Whether a line's item is finished: its box ticked, or a done day written on it.
 bool _finished(String text, List<FieldSpan> spans) => taskBox(text)?.done == true || spans.any((span) => span.kind == FieldKind.date && span.key == 'done');
 
-/// A line with one of the fields' signs in it, kept for every line of a document (`LineFact`): the lines on screen
-/// are not put to the pattern again on every letter and every move of the caret.
-final LineFact<bool> _signed = LineFact<bool>((text) => _maySign(text) && _signs.hasMatch(text) ? true : null);
+/// The fields on each line, counted from the line's start, and whether its item is finished, kept for every line
+/// of a document (`LineFact`): the lines on screen were each put to the signs' pattern and then to every reader's
+/// (a dozen patterns to a line with a field on it) on every letter and every move of the caret to another line.
+final LineFact<({List<FieldSpan> spans, bool done})> _fields = LineFact<({List<FieldSpan> spans, bool done})>((text) {
+  if (!_maySign(text) || !_signs.hasMatch(text)) return null;
+  final spans = fieldsIn(text);
+  return spans.isEmpty ? null : (spans: spans, done: _finished(text, spans));
+});
 
 /// Whether a line could have one of the signs: an `@`, a colon, or a letter past the Latin ones, where every sign
 /// but those two is. A line of plain words has none, and is not put to the pattern, which is slow where patterns
@@ -115,18 +120,17 @@ DecorationSet _decorate(EditorViewLike view, String today) {
   final locale = state.facet(fieldsLocale);
   final doc = state.doc;
   for (final range in view.visibleRanges) {
-    // Only the lines on screen with a field's sign in them, as the tree keeps them.
-    for (final line in _signed.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+    // Only the lines on screen with a field on them, as the tree keeps them.
+    for (final line in _fields.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
       if (active.contains(line.number)) continue;
       if (front != null && line.number >= front.from && line.number <= front.to) continue;
-      final spans = fieldsIn(line.text, line.from);
-      if (spans.isEmpty) continue;
-      final done = _finished(line.text, spans);
+      final done = line.fact.done;
       final blanks = line.text.contains('{?') ? blankMatches(line.text, line.from) : const <Blank>[];
-      for (final span in spans) {
-        if (inQuietText(tree, span.from) || blanks.any((b) => span.from > b.from && span.from < b.to)) continue;
+      for (final span in line.fact.spans) {
+        final from = line.from + span.from;
+        if (inQuietText(tree, from) || blanks.any((b) => from > b.from && from < b.to)) continue;
         final look = chipLook(span, today: today, done: done, locale: locale);
-        if (look != null) builder.add(span.from, span.to, Decoration.replace(widget: FieldWidget(look, editable)));
+        if (look != null) builder.add(from, line.from + span.to, Decoration.replace(widget: FieldWidget(look, editable)));
       }
     }
   }

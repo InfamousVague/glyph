@@ -22,6 +22,7 @@ import '../../core/item_syntax.dart';
 import '../looks/look.dart' show layoutUnitCeil;
 import '../looks/markdown_look.dart';
 import '../state/rangeset.dart';
+import '../state/text.dart';
 import '../state/state.dart';
 import 'decoration.dart';
 import 'editor_view.dart';
@@ -50,24 +51,39 @@ final RegExp _hanging = RegExp('^(\\s*$markerPattern[ \\t]+(?:$boxPattern[ \\t]+
 final RegExp _boxIn = RegExp(boxPattern);
 
 /// How wide a marker is, measured in the editor's own face. Kept for each face and size, so a note costs one
-/// measure for each kind of marker.
-final Map<String, double> _widths = <String, double>{};
+/// measure for each kind of marker: by the marker as written first, and by the marker with its box unticked where
+/// that is new, so a ticked box and an unticked one are one measure.
+final Map<String, Map<String, double>> _widths = <String, Map<String, double>>{};
+final Map<String, Map<String, double>> _measures = <String, Map<String, double>>{};
+
+/// A look's face and sizes as one string, said once for each look: it is long, and was said again for every list
+/// item on screen on every letter.
+final Expando<String> _faceOf = Expando<String>('look face');
 
 double _markerWidth(EditorViewLike view, String marker) {
   if (view is! EditorView) return 0;
   final look = view.look;
   if (look == null) return 0;
-  // Ticked or not, a box is the same width: one measure for both.
-  final key = '${look.env.key}|${marker.replaceFirst(_boxIn, '[ ]')}';
-  final known = _widths[key];
+  final face = _faceOf[look] ??= look.env.key;
+  final widths = _widths[face] ??= <String, double>{};
+  final known = widths[marker];
   if (known != null) return known;
+  // Ticked or not, a box is the same width: one measure for both.
+  final measures = _measures[face] ??= <String, double>{};
+  final key = marker.replaceFirst(_boxIn, '[ ]');
+  final had = measures[key];
+  if (had != null) return widths[marker] = had;
   // A to-do's box is set in the monospace face (`.taskMarker`), so `[ ]` and `[x]` are one width.
   final box = _boxIn.firstMatch(marker);
   final width = box == null
       ? view.measureText(<(String, String?)>[(marker, null)])
       : view.measureText(<(String, String?)>[(marker.substring(0, box.start), null), (box.group(0)!, MarkdownClass.taskMarker), (marker.substring(box.end), null)]);
-  return _widths[key] = layoutUnitCeil(width);
+  return widths[marker] = measures[key] = layoutUnitCeil(width);
 }
+
+/// A list line's marker as far as its words, kept for every line of a document (`LineFact`): every list item on
+/// screen was put to the pattern on every letter. A marker is a bullet or a number.
+final LineFact<String> _markers = LineFact<String>((text) => _hanging.firstMatch(text)?.group(1));
 
 DecorationSet _buildLines(EditorViewLike view) {
   final doc = view.state.doc;
@@ -114,7 +130,7 @@ DecorationSet _buildLines(EditorViewLike view) {
   final builder = RangeSetBuilder<Decoration>();
   for (final at in perLine.keys.toList()..sort()) {
     final classes = perLine[at]!;
-    final marker = classes.contains(MarkdownClass.lineItem) ? _hanging.firstMatch(doc.lineAt(at).text)?.group(1) : null;
+    final marker = classes.contains(MarkdownClass.lineItem) ? _markers.at(doc, doc.lineAt(at).number) : null;
     final attributes = marker == null ? null : <String, String>{'style': '--hang: ${_markerWidth(view, marker).toStringAsFixed(2)}px', 'data-hang-chars': '${marker.length}'};
     builder.add(at, at, Decoration.line(className: classes.join(' '), attributes: attributes));
   }
@@ -135,6 +151,7 @@ class _GlyphLines extends PluginValue {
 
   void _onFonts() {
     _widths.clear();
+    _measures.clear();
     _remeasure = true;
     view.dispatch(const TransactionSpec());
   }
