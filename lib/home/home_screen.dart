@@ -1250,7 +1250,8 @@ class _Dock extends StatelessWidget {
       explicitChildNodes: true,
       child: ClipRRect(
         borderRadius: radius,
-        child: BackdropFilter(
+        // One of the bars' group where there is one (lib/notes/tabs/bar_parts.dart `BarGlass`).
+        child: BackdropFilter.grouped(
           filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
             padding: EdgeInsets.all(gap + t.len('glacier-hairline')),

@@ -188,7 +188,10 @@ class BarGlass extends StatelessWidget {
             child: ClipRRect(
               borderRadius: shape,
               child: blur
-                  ? BackdropFilter(filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t)))
+                  // One of a group where a group is said above it (BackdropGroup, at the app's root): the bars'
+                  // glass and the dock's then read what is behind them once between them, where each read it for
+                  // itself. With no group above, this is the filter by itself, as before.
+                  ? BackdropFilter.grouped(filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t)))
                   : ColoredBox(color: tint ?? glassTint(t)),
             ),
           ),
