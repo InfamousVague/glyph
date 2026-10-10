@@ -257,6 +257,44 @@ void main() {
       await endSettings(tester);
     });
 
+    testWidgets('builds a page’s first two cards with the page, and the rest the frame after', (tester) async {
+      // A page of many cards is not built whole in the frame it opens in: what is past its second card is under
+      // the window's foot, or still waiting its turn to arrive.
+      Widget page(List<String> names) => SettingsScreen(
+            open: true,
+            onClose: () {},
+            sections: [
+              SettingsSection(
+                id: 'theme',
+                label: 'Kit',
+                icon: const SizedBox.shrink(),
+                group: 0,
+                content: (context) => PaneBody(children: [for (final name in names) PaneSection(title: name, children: [SettingRow(label: 'Row $name')])]),
+              ),
+            ],
+            goTo: const SettingsTarget('theme', nonce: 1),
+          );
+      // The app is up before the page is, so the page's first frame is one the test can stop at.
+      final names = ValueNotifier<List<String>?>(null);
+      addTearDown(names.dispose);
+      await pumpSettings(tester, ValueListenableBuilder<List<String>?>(valueListenable: names, builder: (context, names, _) => names == null ? const SizedBox.shrink() : page(names)), settle: false);
+      names.value = ['One', 'Two', 'Three', 'Four', 'Five'];
+      await tester.pump();
+      expect(find.byType(PaneSection), findsNWidgets(PaneBody.soon));
+      expect(find.text('Row Two'), findsOneWidget);
+      expect(find.text('Row Three'), findsNothing);
+      await tester.pump();
+      expect(find.byType(PaneSection), findsNWidgets(5));
+      expect(find.text('Row Five'), findsOneWidget);
+      // A page of two cards is whole at once.
+      names.value = null;
+      await tester.pump();
+      names.value = ['One', 'Two'];
+      await tester.pump();
+      expect(find.byType(PaneSection), findsNWidgets(2));
+      await endSettings(tester);
+    });
+
     testWidgets('makes the hero pressable without making it look like a button, and says a state with its dot', (tester) async {
       var pressed = 0;
       await _pane(tester, [
