@@ -51,13 +51,21 @@ final RegExp _definition = RegExp(r'^(\s{0,3}:)(\s+\S.*)$');
 
 /// Which lines the note's front matter covers, as line numbers, or null: what core/front_matter.dart counts as
 /// front matter. Only the lines the rule can reach are read, and only when the first is a fence.
-({int from, int to})? frontMatter(Doc doc) {
-  if (!frontMatterFence.hasMatch(doc.line(1).text)) return null;
+({int from, int to})? frontMatter(Doc doc) => _front.of(doc).lines;
+
+class _Front {
+  const _Front(this.lines);
+  final ({int from, int to})? lines;
+}
+
+/// Read once for each document: the fold, the marks and the + all ask, on every letter and every move of the caret.
+final DocMemo<_Front> _front = DocMemo<_Front>((doc) {
+  if (!frontMatterFence.hasMatch(doc.line(1).text)) return const _Front(null);
   final most = doc.lines < frontMatterLines ? doc.lines : frontMatterLines;
   final head = <String>[for (var n = 1; n <= most; n++) doc.line(n).text];
   final end = frontMatterEnd(head);
-  return end > 0 ? (from: 1, to: end) : null;
-}
+  return _Front(end > 0 ? (from: 1, to: end) : null);
+});
 
 /// A callout's kind, as GitHub writes it: `> [!NOTE]` on the quote's first line.
 final RegExp _callout = RegExp(r'^\s*>\s*\[!(note|tip|important|warning|caution)\]\s*(.*)$', caseSensitive: false);
@@ -263,52 +271,101 @@ final Decoration _hide = Decoration.replace();
 final Map<String, Decoration> _scriptMarks = <String, Decoration>{for (final name in _scripts.values) name: Decoration.mark(className: name)};
 final Map<String, Decoration> _calloutLines = <String, Decoration>{};
 
+final RegExp _leadSpace = RegExp(r'^\s+');
+
+/// What a line has of a definition, of maths and of shortcodes, each counted from the line's start.
+class _Extras {
+  const _Extras(this.lead, this.maths, this.codes);
+
+  /// How much of a definition's line is its colon and the space after it, or null for a line that is none.
+  final int? lead;
+  final List<({int from, int to})> maths;
+  final List<({int from, int to, String emoji})> codes;
+}
+
+/// Kept for every line of a document (`LineFact`): the lines on screen are not put to three patterns again on
+/// every letter and every move of the caret. A definition and a shortcode are written with a colon and maths with
+/// a dollar sign, so a line with neither has none of the three.
+final LineFact<_Extras> _extras = LineFact<_Extras>((text) {
+  final colon = text.contains(':'), dollar = text.contains(r'$');
+  if (!colon && !dollar) return null;
+  int? lead;
+  if (colon) {
+    final definition = _definition.firstMatch(text);
+    if (definition != null) lead = definition.group(1)!.length + (_leadSpace.firstMatch(definition.group(2)!)?.group(0)!.length ?? 0);
+  }
+  final maths = dollar ? mathsIn(text) : const <({int from, int to})>[];
+  final codes = colon ? shortcodesIn(text) : const <({int from, int to, String emoji})>[];
+  if (lead == null && maths.isEmpty && codes.isEmpty) return null;
+  return _Extras(lead, maths, codes);
+});
+
+/// A line with a raised or lowered run's mark or a quote's in it: the only lines the tree's walk below has
+/// anything to find on.
+final LineFact<bool> _treeish = LineFact<bool>((text) => text.contains('^') || text.contains('~') || text.contains('>') ? true : null);
+
 DecorationSet _decorate(EditorState state, int from, int to, bool editing) {
   final marks = <_Mark>[];
+  final doc = state.doc;
   // The lines the caret is on, whose marks are shown as typed, to edit: none in a view nobody is typing in.
-  final caretLines = <int>{if (editing) for (final range in state.selection.ranges) state.doc.lineAt(range.head).number};
+  final caretLines = <int>{if (editing) for (final range in state.selection.ranges) doc.lineAt(range.head).number};
 
   // The note's own front matter, which the parser reads as a rule and a run of words.
-  final front = frontMatter(state.doc);
+  final front = frontMatter(doc);
   if (front != null) {
     for (var n = front.from; n <= front.to; n += 1) {
-      final line = state.doc.line(n);
+      final line = doc.line(n);
       marks.add(_Mark(line.from, line.from, _frontLine));
     }
   }
 
-  final first = state.doc.lineAt(from).number;
-  final last = state.doc.lineAt(to).number;
-  for (var n = first; n <= last; n += 1) {
-    final line = state.doc.line(n);
+  final first = doc.lineAt(from).number;
+  final last = doc.lineAt(to).number;
+  for (final line in _extras.between(doc, first, last)) {
+    final n = line.number;
     if (front != null && n >= front.from && n <= front.to) continue;
+    final extras = line.fact;
 
     // A definition under its term: the meaning hangs under the term, which is set apart. Its colon is how it is
     // written, not how it reads, so off the caret's line it goes; on it, it is there to edit.
-    final definition = _definition.firstMatch(line.text);
-    if (definition != null) {
+    final lead = extras.lead;
+    if (lead != null) {
       marks.add(_Mark(line.from, line.from, _definitionLine));
-      if (!caretLines.contains(n)) {
-        final lead = definition.group(1)!.length + (RegExp(r'^\s+').firstMatch(definition.group(2)!)?.group(0)!.length ?? 0);
-        marks.add(_Mark(line.from, line.from + lead, _hide));
-      }
-      final above = n > 1 ? state.doc.line(n - 1) : null;
+      if (!caretLines.contains(n)) marks.add(_Mark(line.from, line.from + lead, _hide));
+      final above = n > 1 ? doc.line(n - 1) : null;
       if (above != null && above.text.trim().isNotEmpty && !_definition.hasMatch(above.text)) {
         marks.add(_Mark(above.from, above.from, _termLine));
       }
     }
 
     // Maths, set as code. Found by Pandoc's rule (core/maths.dart), so a line with two prices on it is prices.
-    for (final maths in mathsIn(line.text, line.from)) {
-      marks.add(_Mark(maths.from, maths.to, _mathsMark));
+    for (final maths in extras.maths) {
+      marks.add(_Mark(line.from + maths.from, line.from + maths.to, _mathsMark));
     }
 
     // A shortcode becomes its emoji, unless the caret is on that line, where the words are wanted.
     if (!caretLines.contains(n)) {
-      for (final code in shortcodesIn(line.text, line.from)) {
-        marks.add(_Mark(code.from, code.to, Decoration.replace(widget: EmojiWidget(code.emoji, state.doc.sliceString(code.from, code.to)))));
+      for (final code in extras.codes) {
+        marks.add(_Mark(line.from + code.from, line.from + code.to, Decoration.replace(widget: EmojiWidget(code.emoji, line.text.substring(code.from, code.to)))));
       }
     }
+  }
+
+  // The lines on screen the walk can find something on. A node that starts on screen and holds none of them holds
+  // neither a raised run nor a quote, and is passed over whole; one that starts above the screen is always gone
+  // into, since a quote's own mark may be up there.
+  final marked = _treeish.between(doc, first, last);
+  bool holds(int nodeFrom, int nodeTo) {
+    var lo = 0, hi = marked.length;
+    while (lo < hi) {
+      final mid = (lo + hi) >> 1;
+      if (marked[mid].to < nodeFrom) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+    return lo < marked.length && marked[lo].from <= nodeTo;
   }
 
   syntaxTree(state).iterate(
@@ -321,8 +378,8 @@ DecorationSet _decorate(EditorState state, int from, int to, bool editing) {
         if (node.to - 1 > node.from + 1) marks.add(_Mark(node.from + 1, node.to - 1, _scriptMarks[script]!));
         return false;
       }
-      if (node.name != 'Blockquote') return null;
-      final firstLine = state.doc.lineAt(node.from);
+      if (node.name != 'Blockquote') return node.from < from || holds(node.from, node.to) ? null : false;
+      final firstLine = doc.lineAt(node.from);
       final kind = calloutKind(firstLine.text);
       if (kind == null) return null;
       // `[!NOTE]` is a link label to the parser, and was drawn as one. It is the callout's name, so it is drawn as
@@ -330,9 +387,9 @@ DecorationSet _decorate(EditorState state, int from, int to, bool editing) {
       final at = firstLine.text.indexOf('[!');
       final shut = at < 0 ? -1 : firstLine.text.indexOf(']', at);
       if (at >= 0 && shut > at) marks.add(_Mark(firstLine.from + at, firstLine.from + shut + 1, _calloutName));
-      final lastLine = state.doc.lineAt(node.to - 1 > node.from ? node.to - 1 : node.from);
+      final lastLine = doc.lineAt(node.to - 1 > node.from ? node.to - 1 : node.from);
       for (var n = firstLine.number; n <= lastLine.number; n += 1) {
-        final line = state.doc.line(n);
+        final line = doc.line(n);
         final top = n == firstLine.number;
         marks.add(
           _Mark(
@@ -464,18 +521,46 @@ final LookSheet _theme = LookSheet('editor/extended.ts', <LookRule>[
 ]);
 
 class _Extended extends PluginValue {
-  _Extended(EditorViewLike view) : decorations = _build(view);
+  _Extended(EditorViewLike view) {
+    _build(view);
+  }
 
-  DecorationSet decorations;
+  late DecorationSet decorations;
+
+  /// What the marks were last made for, beside the document and the screen: the lines the caret is on while the
+  /// view is typed in, and the parse. A caret that moves along its line changes none of it.
+  List<int> _carets = const <int>[];
+  Object? _tree;
+
+  static List<int> _caretLines(EditorViewLike view) {
+    final state = view.state;
+    if (!(view.hasFocus && state.facet(EditorViewLike.editable))) return const <int>[];
+    return <int>[for (final range in state.selection.ranges) state.doc.lineAt(range.head).number];
+  }
+
+  static bool _same(List<int> a, List<int> b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
 
   @override
   void update(ViewUpdate update) {
-    if (update.docChanged || update.viewportChanged || update.selectionSet || update.focusChanged) decorations = _build(update.view);
+    if (update.docChanged || update.viewportChanged || update.focusChanged) {
+      _build(update.view);
+    } else if (update.selectionSet) {
+      // The same lines under the caret, over the same parse: the same marks, and the set that is there is kept.
+      if (!_same(_caretLines(update.view), _carets) || !identical(syntaxTree(update.state), _tree)) _build(update.view);
+    }
   }
 
-  static DecorationSet _build(EditorViewLike view) {
+  void _build(EditorViewLike view) {
     final viewport = view.viewport;
-    return _decorate(view.state, viewport.from, viewport.to, view.hasFocus && view.state.facet(EditorViewLike.editable));
+    _carets = _caretLines(view);
+    _tree = syntaxTree(view.state);
+    decorations = _decorate(view.state, viewport.from, viewport.to, view.hasFocus && view.state.facet(EditorViewLike.editable));
   }
 }
 

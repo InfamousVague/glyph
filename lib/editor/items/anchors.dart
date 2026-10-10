@@ -16,22 +16,28 @@ import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
 import '../marks/run_paint.dart';
+import '../view/line_facts.dart';
 
 final Decoration _anchorMark = Decoration.mark(className: 'cm-itemAnchor');
 final Decoration _refMark = Decoration.mark(className: 'cm-itemRef');
 final Decoration _goneMark = Decoration.mark(className: 'cm-itemRef cm-itemRefGone');
 
+/// The anchors and the pointers at them, from the lines the tree keeps of each (lib/editor/view/line_facts.dart):
+/// a letter typed reads the lines it changed, where the page reads every line of the note.
 DecorationSet _anchors(EditorState state) {
-  final doc = state.doc.toString();
+  final doc = state.doc;
   final found = <Range<Decoration>>[];
-  final named = <String>{for (final item in itemsIn(doc)) item.id};
-  for (var n = 1; n <= state.doc.lines; n += 1) {
-    final at = state.doc.line(n);
-    // The `^anchor` naming the item on the line - last, or with an item's mark after it.
-    final anchor = itemOnLine(at.text) != null ? anchorSpan(at.text) : null;
-    if (anchor != null) found.add(_anchorMark.range(at.from + anchor.from, at.from + anchor.to));
-    for (final ref in refsIn(at.text, at.from)) {
-      found.add((named.contains(ref.id) ? _refMark : _goneMark).range(ref.from, ref.to));
+  // The `^anchor` naming the item on the line - last, or with an item's mark after it.
+  for (final line in itemAnchorFacts.of(doc)) {
+    found.add(_anchorMark.range(line.from + line.fact.from, line.from + line.fact.to));
+  }
+  final refs = itemRefFacts.of(doc);
+  if (refs.isNotEmpty) {
+    final named = <String>{for (final item in itemsOf(doc)) item.id};
+    for (final line in refs) {
+      for (final ref in line.fact) {
+        found.add((named.contains(ref.id) ? _refMark : _goneMark).range(line.from + ref.from, line.from + ref.to));
+      }
     }
   }
   return Decoration.set(found, true);
@@ -61,7 +67,7 @@ final Extension _refTaps = EditorViewLike.eventHandlers(
       if (at == null) return false;
       final line = view.state.doc.lineAt(at);
       final ref = refsIn(line.text, line.from).where((found) => found.from <= at && found.to >= at).firstOrNull;
-      final item = ref == null ? null : itemAt(view.state.doc.toString(), ref.id);
+      final item = ref == null ? null : itemOf(view.state.doc, ref.id);
       if (item == null) return false;
       goToLine(view, item.line);
       return true;

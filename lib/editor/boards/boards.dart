@@ -119,9 +119,23 @@ DecorationSet _decorate(EditorState state) {
   return ranges.isEmpty ? Decoration.none : Decoration.set(ranges);
 }
 
+/// Whether the same boards step aside for the caret in two states of one document: what is drawn is then the same.
+bool _sameOpen(EditorState before, EditorState after) {
+  for (final board in boardsOn(after)) {
+    if (caretIn(before, board.from, board.to) != caretIn(after, board.from, board.to)) return false;
+  }
+  return true;
+}
+
 final StateField<DecorationSet> _boardField = StateField.define<DecorationSet>(
   create: _decorate,
-  update: (value, tr) => tr.docChanged || tr.selection != null || focusMoved(tr) || tr.reconfigured ? _decorate(tr.state) : value,
+  update: (value, tr) {
+    if (!(tr.docChanged || tr.selection != null || focusMoved(tr) || tr.reconfigured)) return value;
+    // A caret that moved without going into a board or out of one draws the same boards: the set that is there is
+    // kept, so nothing that reads the decorations takes the move for a change.
+    if (!tr.docChanged && !tr.reconfigured && _sameOpen(tr.startState, tr.state)) return value;
+    return _decorate(tr.state);
+  },
   provide: (field) => EditorViewLike.decorations.from<DecorationSet>(field),
 );
 

@@ -46,6 +46,7 @@ import '../items/mark_menu.dart';
 import '../items/mark_reads.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
+import '../view/line_facts.dart';
 import 'images.dart' show gutterOf;
 import 'inline_box.dart';
 
@@ -551,9 +552,9 @@ DecorationSet _build(EditorState state) {
   final menus = state.facet(_menusFacet).menus;
   final open = state.fieldOrNull<int?>(_openMenu);
   final ranges = <Range<Decoration>>[];
-  final doc = state.doc;
-  for (var number = 1; number <= doc.lines; number += 1) {
-    final line = doc.line(number);
+  // A linked thing is a link to a web address: only the lines the tree keeps as having one are asked
+  // (lib/editor/view/line_facts.dart). Whether a plugin reads it is asked each time, since that changes.
+  for (final line in webLinkFacts.of(state.doc)) {
     final linked = linkedOn(line.text, line.from);
     if (linked == null) continue;
     final entry = peekMarkDetails(linked.name, linked.url);

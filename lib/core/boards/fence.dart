@@ -169,6 +169,28 @@ String withBoardHeight(String openLine, num? height) {
   return '$start${settings.isNotEmpty ? ' $settings' : ''}';
 }
 
+/// What a line that opens a board says: the fence it opens with and the settings after the word; null for any
+/// other line. With [closesBoardFence] and [boardRead] it is [boardsIn] a line at a time, for a reader that keeps
+/// what it has read of a note's lines (lib/editor/view/line_facts.dart) rather than splitting the note again.
+({String fence, String settings})? boardOpening(String line) {
+  final open = _open.firstMatch(line);
+  return open == null ? null : (fence: open.group(1) ?? '```', settings: open.group(2) ?? '');
+}
+
+/// A line that is a run of backticks or of tildes and nothing else: what may close a fence. Its mark and how many.
+final RegExp _bare = RegExp(r'^\s*(`{3,}|~{3,})\s*$');
+
+/// The run a bare fence line is, or null for any other line.
+String? bareFence(String line) => _bare.firstMatch(line)?.group(1);
+
+/// Whether a bare fence line's run [bare] closes a board opened with [fence]: the same mark, at least as many.
+bool closesBoardFence(String bare, String fence) => (bare[0] == '~') == (fence[0] == '~') && bare.length >= fence.length;
+
+/// The board whose opening fence is on line [from] and whose closing one is on line [to] (the same line where it
+/// never closes), from its opening's [settings], its [body] and the note's own [anchors].
+Board boardRead({required int from, required int to, required String body, required String settings, required Set<String> anchors}) =>
+    Board(from: from, to: to, body: body, columns: readBoard(body, anchors), height: _heightOf(settings));
+
 /// Every board in the note, in order.
 List<Board> boardsIn(String doc) {
   final lines = doc.split('\n');
@@ -176,20 +198,19 @@ List<Board> boardsIn(String doc) {
   // The note's own anchors, read once and only when a board is found: what a lane's ids are read against.
   Set<String>? anchors;
   for (var i = 0; i < lines.length; i += 1) {
-    final open = _open.firstMatch(lines[i]);
+    final open = boardOpening(lines[i]);
     if (open == null) continue;
-    final fence = open.group(1) ?? '```';
-    final close = RegExp('^\\s*${fence[0] == '~' ? '~' : '`'}{${fence.length},}\\s*\$');
     var end = i;
     for (var j = i + 1; j < lines.length; j += 1) {
-      if (close.hasMatch(lines[j])) {
+      final bare = bareFence(lines[j]);
+      if (bare != null && closesBoardFence(bare, open.fence)) {
         end = j;
         break;
       }
     }
     final body = end > i ? lines.sublist(i + 1, end).join('\n') : '';
     anchors ??= {for (final item in itemsIn(doc)) item.id};
-    boards.add(Board(from: i + 1, to: end + 1, body: body, columns: readBoard(body, anchors), height: _heightOf(open.group(2) ?? '')));
+    boards.add(boardRead(from: i + 1, to: end + 1, body: body, settings: open.settings, anchors: anchors));
     i = end;
   }
   return boards;

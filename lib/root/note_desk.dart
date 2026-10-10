@@ -160,6 +160,13 @@ import '../tapes/transcript_words.dart';
 /// How long a place's name is waited for before its line is written with the coordinates (`NAME_WAIT_MS`).
 const Duration placeNameWait = Duration(milliseconds: 3000);
 
+/// Whether a document is a note of words, neither a canvas nor a notebook's index: asked by the + on every letter
+/// and every move of the caret, and read once for each document.
+final DocMemo<bool> _ofWords = DocMemo<bool>((doc) {
+  final words = doc.toString();
+  return !isCanvasBody(words) && !isBookBody(words);
+});
+
 /// The switched-on plugins' inline formattings (`plugins.formats()`, Editor.tsx): what the editor's parser reads and
 /// its marks draw. Where nothing was ever put in the registry (a test that builds a note without the app's launch,
 /// which is what puts the five that ship there: lib/root/plugin_ground.dart), the app's own marks, which is what
@@ -823,8 +830,7 @@ class NoteDeskState extends State<NoteDesk> {
   bool _plusAllowed() {
     final view = _view;
     if (view == null || view.state.readOnly || _finding != null) return false;
-    final doc = view.state.doc.toString();
-    return !isCanvasBody(doc) && !isBookBody(doc);
+    return _ofWords.of(view.state.doc);
   }
 
   /// The desk is being let go: what its pieces say as they close is not drawn.
@@ -1024,7 +1030,7 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The bookmark written in the note, as the place to open at: the top of its line.
   Place? _writtenBookmark(EditorView view) {
-    final line = bookmarkLineIn(view.state.doc.toString());
+    final line = bookmarkLineOf(view.state.doc);
     if (line == null || line > view.state.doc.lines) return null;
     return Place(view.state.doc.line(line).from, 0);
   }

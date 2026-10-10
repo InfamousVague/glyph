@@ -33,6 +33,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 
 import '../ai/blanks.dart' show blankStamp;
 import '../editor.dart';
+import '../syntax/extension.dart' show isTableDelimiterLine;
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/syntax_tree.dart';
@@ -86,21 +87,38 @@ class TableWidget extends EditorWidget implements ClassedBlockWidget {
   bool takesPointer(PointerEvent event) => growable || event is! PointerDownEvent;
 }
 
+/// The rows of dashes and bars under a table's head, kept for every line of a document (`LineFact`): a table is
+/// parsed only round one, so a note with none has no table, and one with some has them only there.
+final LineFact<bool> _delimiters = LineFact<bool>((text) => isTableDelimiterLine(text) ? true : null);
+
 DecorationSet _build(EditorState state) {
+  // Where a table could be. With nowhere, the tree is not walked at all; with somewhere, only down to there.
+  final rows = _delimiters.of(state.doc);
+  if (rows.isEmpty) return Decoration.none;
   final ranges = <Range<Decoration>>[];
   final editable = state.facet(EditorViewLike.editable);
-  syntaxTree(state).iterate(
-    enter: (node) {
-      if (node.name != 'Table') return null;
-      final from = state.doc.lineAt(node.from).from;
-      final to = state.doc.lineAt(node.to).to;
-      final inside = editable && caretIn(state, from, to);
-      if (!inside) {
-        ranges.add(Decoration.replace(widget: TableWidget(state.doc.sliceString(from, to), from, editable, state.fieldOrNull(blankStamp) ?? 0), block: true).range(from, to));
-      }
-      return false;
-    },
-  );
+  final tree = syntaxTree(state);
+  // Where the last table found ends: a row of dashes before that is one of its own.
+  var done = -1;
+  for (final row in rows) {
+    if (row.from <= done) continue;
+    tree.iterate(
+      from: row.from,
+      to: row.to,
+      enter: (node) {
+        if (node.name != 'Table') return null;
+        if (node.from <= done) return false;
+        done = node.to;
+        final from = state.doc.lineAt(node.from).from;
+        final to = state.doc.lineAt(node.to).to;
+        final inside = editable && caretIn(state, from, to);
+        if (!inside) {
+          ranges.add(Decoration.replace(widget: TableWidget(state.doc.sliceString(from, to), from, editable, state.fieldOrNull(blankStamp) ?? 0), block: true).range(from, to));
+        }
+        return false;
+      },
+    );
+  }
   return ranges.isEmpty ? Decoration.none : Decoration.set(ranges);
 }
 

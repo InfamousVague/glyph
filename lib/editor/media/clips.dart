@@ -33,6 +33,7 @@ import '../editor.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
 import '../view/line.dart' show EditorRunScope;
+import '../view/line_facts.dart';
 import 'clip_refs.dart';
 import 'inline_box.dart';
 
@@ -305,9 +306,8 @@ DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
   final src = state.facet(tapeSource);
   final carets = state.selection.ranges;
-  for (var n = 1; n <= state.doc.lines; n += 1) {
-    final line = state.doc.line(n);
-    if (!line.text.contains('](tape:')) continue;
+  // The lines with a memo's mark in them, as the tree keeps them (lib/editor/view/line_facts.dart).
+  for (final line in tapeFacts.of(state.doc)) {
     final showing = carets.any((range) => range.from <= line.to && range.to >= line.from);
     for (final clip in clipsIn(line.text)) {
       final from = line.from + clip.from;

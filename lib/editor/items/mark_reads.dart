@@ -26,11 +26,10 @@ import 'dart:async';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleState, WidgetsBinding, WidgetsBindingObserver;
 
-import '../../core/boards.dart' show boardsIn, itemsIn;
 import '../../core/item_links.dart';
 import '../../plugins/mark_details.dart';
 import '../editor.dart';
-import '../view/lines.dart';
+import '../view/line_facts.dart';
 
 /// Details arrived from a plugin: redraw the pills and rows.
 final StateEffectType<Null> detailsArrived = StateEffect.define<Null>();
@@ -42,18 +41,22 @@ final RegExp linkPattern = RegExp(r'\[([^\]]*)\]\((https?:\/\/[^\s)]+)\)');
 /// Every linked thing in view, marks and links a plugin reads, for reading their details again.
 List<ItemMark> marksInView(EditorViewLike view) {
   final marks = <ItemMark>[];
-  forEachVisibleLine(view, (line) {
-    final mark = itemWords(line.text) != null ? markOf(line.text) : null;
-    if (mark != null) {
-      marks.add(mark);
-    } else if (line.text.contains('](')) {
-      for (final match in linkPattern.allMatches(line.text)) {
-        final url = match.group(2) ?? '';
-        final name = markNameFor(url);
-        if (name != null) marks.add(ItemMark(name: name, url: url));
+  final doc = view.state.doc;
+  for (final range in view.visibleRanges) {
+    // Only the lines on screen that have a link in them: a mark is one, and so is anything else a plugin reads.
+    for (final line in webLinkFacts.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      final mark = itemWords(line.text) != null ? markOf(line.text) : null;
+      if (mark != null) {
+        marks.add(mark);
+      } else {
+        for (final match in linkPattern.allMatches(line.text)) {
+          final url = match.group(2) ?? '';
+          final name = markNameFor(url);
+          if (name != null) marks.add(ItemMark(name: name, url: url));
+        }
       }
     }
-  });
+  }
   return <ItemMark>[...marks, ..._marksOnBoards(view)];
 }
 
@@ -69,11 +72,13 @@ List<ItemMark> marksInView(EditorViewLike view) {
 List<ItemMark> _marksOnBoards(EditorViewLike view) {
   final doc = view.state.doc;
   final viewport = view.viewport;
-  final text = doc.toString();
-  final shown = boardsIn(text).where((board) => doc.line(board.from).from <= viewport.to && doc.line(board.to).to >= viewport.from).toList();
+  // The note's boards and its items as they were read for this document (lib/editor/view/line_facts.dart).
+  final all = boardsOf(doc);
+  if (all.isEmpty) return const <ItemMark>[];
+  final shown = all.where((board) => doc.line(board.from).from <= viewport.to && doc.line(board.to).to >= viewport.from).toList();
   if (shown.isEmpty) return const <ItemMark>[];
   final open = <String, int>{
-    for (final item in itemsIn(text))
+    for (final item in itemsOf(doc))
       if (item.done == false) item.id: item.line,
   };
   final marks = <ItemMark>[];

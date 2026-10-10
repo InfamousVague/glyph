@@ -109,6 +109,10 @@ bool _hasPipe(String str, int start) {
 
 final RegExp _delimiterLine = RegExp(r'^[>\s]*\|?(\s*:?-+:?\s*\|)+(\s*:?-+:?\s*)?$');
 
+/// Whether a line is the row under a table's head, the one of dashes and bars that makes the lines round it a
+/// table: no table is parsed without one.
+bool isTableDelimiterLine(String text) => text.contains('|') && text.contains('-') && _delimiterLine.hasMatch(text);
+
 /// Lezer's `TableParser`.
 class _TableParser implements LeafBlockParser {
   // Null means we haven't seen the second line yet, an empty `isTable` false means this isn't a table, and a list

@@ -36,6 +36,7 @@ import '../../core/link_preview.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
+import '../view/line_facts.dart';
 import '../view/lines.dart';
 import 'images.dart' show gutterOf;
 import 'inline_box.dart';
@@ -269,11 +270,17 @@ DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
   final seams = state.facet(_seams);
   if (!(seams.enabled?.call() ?? true)) return builder.finish();
+  // Only a line with an address in it can be a link's, and the tree keeps which those are
+  // (lib/editor/view/line_facts.dart); whether a plugin reads one is asked each time, since that changes.
+  final lines = webAddressFacts.of(state.doc);
+  if (lines.isEmpty) return builder.finish();
   // A link in fenced code is code, and gets no card.
-  forEachDocLineOutsideFences(state.doc, (line) {
+  final fences = DocFences.of(state.doc);
+  for (final line in lines) {
+    if (fences.covers(line.number)) continue;
     final link = linkLine(line.text, reads: seams.reads);
     if (link != null) builder.add(line.to, line.to, Decoration.widget(widget: LinkCardWidget(link.url, link.words, seams.previewer), block: true, side: 1));
-  });
+  }
   return builder.finish();
 }
 

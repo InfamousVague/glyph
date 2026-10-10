@@ -73,21 +73,54 @@ Footnote? noteAtPos(EditorState state, List<Footnote> notes, int pos) {
 final Decoration _definitionLine = Decoration.line(className: 'cm-footDefinition');
 final Decoration _footMark = Decoration.mark(className: 'cm-footMark', attributes: const <String, String>{'title': 'Footnote'});
 
+/// A definition's line: its name and what it says, as [footnotesIn] reads one. Kept for every line of a document
+/// (`LineFact`), so a letter typed reads the lines it changed for a footnote, not the note.
+final LineFact<({String name, String text})> _definitions = LineFact<({String name, String text})>((text) {
+  if (!text.contains('[^')) return null;
+  final match = _definition.firstMatch(text);
+  return match == null ? null : (name: match.group(2) ?? '', text: (match.group(4) ?? '').trim());
+});
+
+/// The markers on a line that is not a definition's: where each is in the line, how long, and its name.
+final LineFact<List<({int at, int length, String name})>> _markers = LineFact<List<({int at, int length, String name})>>((text) {
+  if (!text.contains('[^') || _definition.hasMatch(text)) return null;
+  final found = <({int at, int length, String name})>[
+    for (final match in _marker.allMatches(text)) (at: match.start, length: match.group(0)!.length, name: match.group(1) ?? ''),
+  ];
+  return found.isEmpty ? null : found;
+});
+
+final DocMemo<List<Footnote>> _footnotes = DocMemo<List<Footnote>>((doc) {
+  final found = <Footnote>[];
+  final seen = <String>{};
+  for (final line in _definitions.of(doc)) {
+    final name = line.fact.name;
+    if (name.isEmpty || !seen.add(name)) continue;
+    found.add(Footnote(name: name, text: line.fact.text, line: line.number));
+  }
+  return found;
+});
+
+/// Every footnote a document defines, the first of a repeated name winning: [footnotesIn] of its words, read from
+/// the lines the tree keeps and once for each document. Not to be changed.
+List<Footnote> footnotesOf(Doc doc) => _footnotes.of(doc);
+
 DecorationSet _decorate(EditorState state) {
-  final notes = footnotesIn(state.doc.toString());
+  final doc = state.doc;
   final marks = <Range<Decoration>>[];
-  final defined = <String>{for (final note in notes) note.name};
-  for (var n = 1; n <= state.doc.lines; n += 1) {
-    final line = state.doc.line(n);
-    if (_definition.hasMatch(line.text)) {
-      marks.add(_definitionLine.range(line.from));
-      continue;
-    }
-    for (final match in _marker.allMatches(line.text)) {
-      // A marker with nothing to point at stays plain words: it is a mistake, and should look like one.
-      if (!defined.contains(match.group(1) ?? '')) continue;
-      final from = line.from + match.start;
-      marks.add(_footMark.range(from, from + match.group(0)!.length));
+  for (final line in _definitions.of(doc)) {
+    marks.add(_definitionLine.range(line.from));
+  }
+  final markers = _markers.of(doc);
+  if (markers.isNotEmpty) {
+    final defined = <String>{for (final note in footnotesOf(doc)) note.name};
+    for (final line in markers) {
+      for (final marker in line.fact) {
+        // A marker with nothing to point at stays plain words: it is a mistake, and should look like one.
+        if (!defined.contains(marker.name)) continue;
+        final from = line.from + marker.at;
+        marks.add(_footMark.range(from, from + marker.length));
+      }
     }
   }
   return Decoration.set(marks, true);
@@ -130,7 +163,7 @@ final LookSheet _theme = LookSheet('editor/footnotes.ts', <LookRule>[
 ]);
 
 class _Footnotes extends PluginValue {
-  _Footnotes(EditorViewLike view) : decorations = _decorate(view.state), notes = footnotesIn(view.state.doc.toString());
+  _Footnotes(EditorViewLike view) : decorations = _decorate(view.state), notes = footnotesOf(view.state.doc);
 
   DecorationSet decorations;
   List<Footnote> notes;
@@ -139,7 +172,7 @@ class _Footnotes extends PluginValue {
   void update(ViewUpdate update) {
     if (!update.docChanged) return;
     decorations = _decorate(update.state);
-    notes = footnotesIn(update.state.doc.toString());
+    notes = footnotesOf(update.state.doc);
     _close(update.view);
   }
 }
@@ -165,7 +198,7 @@ final ViewPlugin<_Footnotes> _plugin = ViewPlugin.define<_Footnotes>(
   ),
 );
 
-final Extension _footnotes = Extension.list(<Extension>[_plugin, baseTheme(_theme)]);
+final Extension _extension = Extension.list(<Extension>[_plugin, baseTheme(_theme)]);
 
 /// Footnotes: the marker raised, the definition quiet, and what it says on a tap.
-Extension footnotes() => _footnotes;
+Extension footnotes() => _extension;

@@ -56,6 +56,7 @@ import '../../core/video_refs.dart';
 import '../editor.dart';
 import '../view/blocks.dart' show ClassedBlockWidget;
 import '../view/drawn_block.dart';
+import '../view/line_facts.dart';
 import '../view/lines.dart';
 import 'images.dart';
 import 'inline_box.dart';
@@ -704,10 +705,13 @@ class _VideoCardState extends State<_VideoCard> {
 
 DecorationSet _cardsOf(EditorState state, VideoMode mode) {
   final builder = RangeSetBuilder<Decoration>();
-  forEachDocLineOutsideFences(state.doc, (line) {
-    final film = videoOfLine(line.text);
-    if (film != null) builder.add(line.to, line.to, Decoration.widget(widget: VideoWidget(film, mode), block: true, side: 1));
-  });
+  // The lines that are films are the tree's own keeping: a keystroke reads the lines it changed, not the note.
+  final films = filmFacts.of(state.doc);
+  if (films.isEmpty) return builder.finish();
+  final fences = DocFences.of(state.doc);
+  for (final line in films) {
+    if (!fences.covers(line.number)) builder.add(line.to, line.to, Decoration.widget(widget: VideoWidget(line.fact, mode), block: true, side: 1));
+  }
   return builder.finish();
 }
 
@@ -741,15 +745,14 @@ DecorationSet _foldAll(EditorViewLike view) {
   // The lines the selection touches show their films whole, while the note is being written (links.dart).
   final active = editable && view.hasFocus ? selectedLines(state) : const <int>{};
   final doc = state.doc;
+  final fences = DocFences.of(doc);
   for (final range in view.visibleRanges) {
-    for (var line = doc.lineAt(range.from); ; line = doc.line(line.number + 1)) {
-      // Asked of a film's line alone, which is rare, so a long note is not walked for every other line.
-      if (!active.contains(line.number) && videoOfLine(line.text) != null && !docLineInFence(doc, line.number)) {
-        for (final fold in _foldsOf(line.from, line.text)) {
-          builder.add(fold.from, fold.to, _hidden);
-        }
+    // The films among the lines on screen, from what the tree keeps of them.
+    for (final line in filmFacts.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      if (active.contains(line.number) || fences.covers(line.number)) continue;
+      for (final fold in _foldsOf(line.from, line.text)) {
+        builder.add(fold.from, fold.to, _hidden);
       }
-      if (line.to >= range.to || line.number >= doc.lines) break;
     }
   }
   return builder.finish();

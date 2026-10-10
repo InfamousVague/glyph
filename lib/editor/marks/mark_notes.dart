@@ -84,9 +84,37 @@ bool isTint(MarkNote note, Iterable<GlyphFormat> formats) {
 /// The brackets, hidden: the mark's own look is the cue and the words are the place to tap.
 final Decoration _hidden = Decoration.replace();
 
+/// The noted marks on each line, counted from the line's start, kept for every line of a document (`LineFact`): one
+/// keeping for each set of marks that is switched on, since the pattern is made from them. A noted mark never runs
+/// over a line's end (its words are `.` and its note `[^)\n]`), so the note's marks are its lines' marks.
+final Map<String, LineFact<List<MarkNote>>> _byPattern = <String, LineFact<List<MarkNote>>>{};
+
+LineFact<List<MarkNote>> _notesOn(RegExp pattern) => _byPattern[pattern.pattern] ??= LineFact<List<MarkNote>>((text) {
+  // A note is in brackets: a line with no closing one has none, and is not put to the pattern.
+  if (!text.contains(')')) return null;
+  final found = notesIn(text, pattern);
+  return found.isEmpty ? null : found;
+});
+
+/// Every noted mark in a document: `notesIn(doc.toString(), pattern)`, from the lines the tree keeps.
+List<MarkNote> notesOf(Doc doc, RegExp pattern) => <MarkNote>[
+  for (final line in _notesOn(pattern).of(doc))
+    for (final note in line.fact)
+      MarkNote(
+        from: line.from + note.from,
+        to: line.from + note.to,
+        wordsFrom: line.from + note.wordsFrom,
+        wordsTo: line.from + note.wordsTo,
+        bracketsFrom: line.from + note.bracketsFrom,
+        bracketsTo: line.from + note.bracketsTo,
+        text: note.text,
+        delimiter: note.delimiter,
+      ),
+];
+
 ({DecorationSet marks, List<MarkNote> notes}) _decorate(EditorState state, RegExp pattern) {
   final builder = RangeSetBuilder<Decoration>();
-  final notes = notesIn(state.doc.toString(), pattern);
+  final notes = notesOf(state.doc, pattern);
   for (final note in notes) {
     // The caret inside the brackets: the words are being written, so they stay words.
     final editing = state.selection.ranges.any((range) => range.to >= note.bracketsFrom && range.from <= note.bracketsTo);

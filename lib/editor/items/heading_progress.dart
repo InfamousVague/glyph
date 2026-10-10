@@ -54,8 +54,20 @@ class _Open {
   int total = 0;
 }
 
-/// Every heading with to-dos under it, and their count.
-List<HeadingCount> headingCounts(Doc doc) {
+/// What a line is to the counts: a heading, by its level from 1 to 6, or a to-do with words, open (7) or done (8).
+/// Kept for every line of a document (`LineFact`), so a letter typed reads the lines it changed, not the note.
+final LineFact<int> _counted = LineFact<int>((text) {
+  // A heading has its sign and a to-do its box: a line with neither is neither.
+  if (!text.contains('#') && !text.contains('[')) return null;
+  final heading = _heading.firstMatch(text);
+  if (heading != null) return heading.group(1)!.length;
+  final lead = listLead(text);
+  // A box with only fields after it, `- [ ] 📅 2026-10-03`, has nothing to do yet either.
+  if (lead != null && lead.done != null && withoutFields(text.substring(lead.wordsAt)).isNotEmpty) return lead.done! ? 8 : 7;
+  return null;
+});
+
+final DocMemo<List<HeadingCount>> _counts = DocMemo<List<HeadingCount>>((doc) {
   final open = <_Open>[];
   final counts = <HeadingCount>[];
   void close(int level) {
@@ -65,27 +77,29 @@ List<HeadingCount> headingCounts(Doc doc) {
     }
   }
 
+  final lines = _counted.of(doc);
+  if (lines.isEmpty) return counts;
   // A heading or a box in fenced code is code.
-  forEachDocLineOutsideFences(doc, (line) {
-    final heading = _heading.firstMatch(line.text);
-    if (heading != null) {
-      final level = heading.group(1)!.length;
-      close(level);
-      open.add(_Open(line.number, level));
-      return;
+  final fences = DocFences.of(doc);
+  for (final line in lines) {
+    if (fences.covers(line.number)) continue;
+    if (line.fact <= 6) {
+      close(line.fact);
+      open.add(_Open(line.number, line.fact));
+      continue;
     }
-    final lead = listLead(line.text);
-    // A box with only fields after it, `- [ ] 📅 2026-10-03`, has nothing to do yet either.
-    if (lead != null && lead.done != null && withoutFields(line.text.substring(lead.wordsAt)).isNotEmpty) {
-      for (final h in open) {
-        h.total += 1;
-        if (lead.done!) h.done += 1;
-      }
+    for (final h in open) {
+      h.total += 1;
+      if (line.fact == 8) h.done += 1;
     }
-  });
+  }
   close(0);
   return counts..sort((a, b) => a.line - b.line);
-}
+});
+
+/// Every heading with to-dos under it, and their count. Worked out once for each document, from the lines the
+/// tree keeps; not to be changed.
+List<HeadingCount> headingCounts(Doc doc) => _counts.of(doc);
 
 /// The x-height of the faces the app ships, as a share of the size: what `vertical-align: middle` is measured
 /// from. Maple Mono's as the page measures it; Inter's from its tables.

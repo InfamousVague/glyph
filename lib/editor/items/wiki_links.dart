@@ -87,13 +87,24 @@ final Map<String, Decoration> _titled = <String, Decoration>{};
 
 Decoration _mark(bool waiting, [String? title]) => Decoration.mark(className: waiting ? 'cm-wiki cm-wikiNew' : 'cm-wiki', attributes: title == null ? null : <String, String>{'title': title});
 
+/// The links on each line, counted from the line's start, kept for every line of a document (`LineFact`). A link
+/// never runs over a line's end, so the note's links are its lines' links.
+final LineFact<List<WikiLink>> _linked = LineFact<List<WikiLink>>((text) {
+  if (!text.contains('[[')) return null;
+  final found = wikiLinksIn(text);
+  return found.isEmpty ? null : found;
+});
+
 DecorationSet _decorate(EditorState state) {
   final options = state.facet(wikiOptions);
   if (options == null) return Decoration.none;
   final builder = RangeSetBuilder<Decoration>();
-  for (final link in wikiLinksIn(state.doc.toString())) {
-    final waiting = !options.known(link.title);
-    builder.add(link.from, link.to, _titled['$waiting|${link.title}'] ??= _mark(waiting, link.title));
+  // Whether a title is a note's is asked each time, since the library changes; where the links are is kept.
+  for (final line in _linked.of(state.doc)) {
+    for (final link in line.fact) {
+      final waiting = !options.known(link.title);
+      builder.add(line.from + link.from, line.from + link.to, _titled['$waiting|${link.title}'] ??= _mark(waiting, link.title));
+    }
   }
   return builder.finish();
 }

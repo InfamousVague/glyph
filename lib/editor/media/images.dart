@@ -6,8 +6,9 @@
 /// does on any line, deleting the line removes the picture, and the source a person sees is the source that is
 /// saved.
 ///
-/// A state field rather than a view plugin: a block widget's height has to be known before layout. The whole
-/// document is scanned; pictures are rare and notes are short.
+/// A state field rather than a view plugin: a block widget's height has to be known before layout. The lines that
+/// hold a picture are kept with the document's tree (lib/editor/view/line_facts.dart), where the page scans the
+/// whole document on every change.
 ///
 /// What differs:
 /// - Where a picture is drawn from is a [PictureStore] (lib/core/images.dart), told to the editor through the
@@ -35,9 +36,9 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../../core/images.dart';
-import '../../core/video_refs.dart';
 import '../commands/inserts.dart';
 import '../editor.dart';
+import '../view/line_facts.dart';
 import '../looks/look.dart';
 import '../view/editor_view.dart';
 
@@ -251,18 +252,12 @@ final StateEffectType<Null> refreshImages = StateEffect.define<Null>();
 int _generation = 0;
 
 /// A picture under each line that holds one. A film's line holds its poster as a picture, and its card draws that
-/// poster (videos.dart), so the picture steps aside there rather than drawing it twice.
+/// poster (videos.dart), so the picture steps aside there rather than drawing it twice. The lines are the tree's
+/// own keeping (`pictureFacts`): a keystroke reads the lines it changed for a picture, not the note.
 DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
-  for (var n = 1; n <= state.doc.lines; n += 1) {
-    final line = state.doc.line(n);
-    if (videoOfLine(line.text) != null) continue;
-    for (final match in imageRef.allMatches(line.text)) {
-      final name = match.group(2) ?? '';
-      if (name.isEmpty) continue;
-      builder.add(line.to, line.to, Decoration.widget(widget: ImageWidget(name, match.group(1) ?? '', _generation), block: true, side: 1));
-      break;
-    }
+  for (final line in pictureFacts.of(state.doc)) {
+    builder.add(line.to, line.to, Decoration.widget(widget: ImageWidget(line.fact.name, line.fact.caption, _generation), block: true, side: 1));
   }
   return builder.finish();
 }

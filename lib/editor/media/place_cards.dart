@@ -40,6 +40,7 @@ import '../../core/place_refs.dart';
 import '../editor.dart';
 import '../view/blocks.dart' show ClassedBlockWidget;
 import '../view/drawn_block.dart';
+import '../view/line_facts.dart';
 import '../view/lines.dart';
 import 'images.dart' show gutterOf;
 import 'map_card.dart';
@@ -172,17 +173,27 @@ final StateEffectType<Null> refreshPlaceCards = StateEffect.define<Null>();
 
 DecorationSet _cardsOf(EditorState state, PlaceMode mode) {
   final builder = RangeSetBuilder<Decoration>();
+  // The lines that are places are the tree's own keeping: a keystroke reads the lines it changed, not the note.
+  final places = placeFacts.of(state.doc);
+  if (places.isEmpty) return builder.finish();
   final seams = state.facet(_seams);
   final switches = seams.switches?.call() ?? (localOnly: false, mapTiles: true);
   final look = placeLook(mode, localOnly: switches.localOnly, mapTiles: switches.mapTiles);
   final dark = seams.dark?.call();
-  // The note's first lines, as far as a place at its top could be: front matter can run to 40.
+  final fences = DocFences.of(state.doc);
+  // The note's first lines, as far as a place at its top could be: front matter can run to 40. Read only where a
+  // place is among them.
   final reach = state.doc.lines < 48 ? state.doc.lines : 48;
-  final top = topPlaceLine(state.doc.sliceString(0, state.doc.line(reach).to).split('\n'));
-  forEachDocLineOutsideFences(state.doc, (line) {
-    final place = placeOfLine(line.text);
-    if (place != null) builder.add(line.to, line.to, Decoration.widget(widget: PlaceWidget(place.tag, look, dark, line.number == top ? MapSize.header : MapSize.card), block: true, side: 1));
-  });
+  int? top;
+  var topRead = false;
+  for (final line in places) {
+    if (fences.covers(line.number)) continue;
+    if (!topRead && line.number <= reach) {
+      top = topPlaceLine(state.doc.sliceString(0, state.doc.line(reach).to).split('\n'));
+      topRead = true;
+    }
+    builder.add(line.to, line.to, Decoration.widget(widget: PlaceWidget(line.fact.tag, look, dark, topRead && line.number == top ? MapSize.header : MapSize.card), block: true, side: 1));
+  }
   return builder.finish();
 }
 
@@ -252,18 +263,15 @@ DecorationSet _foldAll(EditorViewLike view) {
   // The lines the selection touches show their places whole, while the note is being written (links.dart).
   final active = editable && view.hasFocus ? selectedLines(state) : const <int>{};
   final doc = state.doc;
+  final fences = DocFences.of(doc);
   for (final range in view.visibleRanges) {
-    for (var line = doc.lineAt(range.from); ; line = doc.line(line.number + 1)) {
-      if (!active.contains(line.number)) {
-        final place = placeOfLine(line.text);
-        // A place's line in fenced code is the code's words, as the cards take it: asked of a place's line alone.
-        if (place != null && !docLineInFence(doc, line.number)) {
-          for (final fold in _foldsOf(line.from, line.text, place.words)) {
-            builder.add(fold.from, fold.to, _hidden);
-          }
-        }
+    // The places among the lines on screen, from what the tree keeps of them.
+    for (final line in placeFacts.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number)) {
+      // A place's line in fenced code is the code's words, as the cards take it.
+      if (active.contains(line.number) || fences.covers(line.number)) continue;
+      for (final fold in _foldsOf(line.from, line.text, line.fact.words)) {
+        builder.add(fold.from, fold.to, _hidden);
       }
-      if (line.to >= range.to || line.number >= doc.lines) break;
     }
   }
   return builder.finish();

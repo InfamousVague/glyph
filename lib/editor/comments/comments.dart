@@ -246,7 +246,7 @@ class DrawnComments extends StatelessWidget {
                   onOpen: (id) {
                     // The card, and the anchor brought into view under it: the list is at the foot of the note, the
                     // words it is about are not.
-                    final anchor = readComments(view.state.doc.toString()).anchors.where((each) => each.id == id).firstOrNull;
+                    final anchor = commentsOf(view.state.doc).anchors.where((each) => each.id == id).firstOrNull;
                     if (anchor != null) view.dispatch(TransactionSpec(effects: EditorViewLike.scrollIntoView(anchor.from, y: ScrollStrategy.center)));
                     widget.hooks()?.open(id);
                   },
@@ -379,19 +379,31 @@ final LookSheet _theme = LookSheet('editor/comments.ts', <LookRule>[
   ),
 ]);
 
+/// A line that could open the comments' fence: a fence's run at its start and the word after it. The fence itself
+/// is read by lib/comments/format.dart; this is only whether a note can have one.
+final LineFact<bool> _fenceish = LineFact<bool>((text) => (text.startsWith('```') || text.startsWith('~~~')) && text.toLowerCase().contains('comments') ? true : null);
+
+final DocMemo<NoteComments> _comments = DocMemo<NoteComments>((doc) => _fenceish.nowhere(doc) ? NoteComments.none : readComments(doc.toString()));
+
+/// A document's comments: `readComments(doc.toString())`, read once for each document, and not read at all for a
+/// note with no line that could open their fence, which is every note that has none.
+NoteComments commentsOf(Doc doc) => _comments.of(doc);
+
 /// Comments drawn: the anchors as rounds, the selections washed, the fence as the list, with `hooks` saying what a
 /// tap opens and whose colour is whose. `hooks` is read when it is used, so the screen's callbacks can change
 /// without the editor being made again; [refreshComments] draws everything again when the colours do.
 Extension noteComments(CommentHooks? Function() hooks) {
   final field = StateField.define<_Drawn>(
     create: (state) {
-      final comments = readComments(state.doc.toString());
+      final comments = commentsOf(state.doc);
       return _Drawn(comments, 0, _decorate(state, comments, hooks, '0'));
     },
     update: (value, tr) {
       final refreshed = tr.effects.any((effect) => effect.isOf(refreshComments));
       if (!refreshed && !tr.docChanged && tr.selection == null && !tr.reconfigured && !focusMoved(tr)) return value;
-      final comments = tr.docChanged ? readComments(tr.state.doc.toString()) : value.comments;
+      final comments = tr.docChanged ? commentsOf(tr.state.doc) : value.comments;
+      // A note with no comments draws none, whatever was typed and wherever the caret went.
+      if (!refreshed && identical(comments, NoteComments.none) && identical(value.comments, NoteComments.none) && identical(value.decorations, Decoration.none)) return value;
       final stamp = value.stamp + (refreshed ? 1 : 0);
       return _Drawn(comments, stamp, _decorate(tr.state, comments, hooks, '$stamp'));
     },

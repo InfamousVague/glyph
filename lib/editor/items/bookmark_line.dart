@@ -49,6 +49,18 @@ int? bookmarkLineIn(String text) {
   return '\n'.allMatches(text.substring(0, at)).length + 1;
 }
 
+/// A line the bookmark's signs stand on as a word, kept for every line of a document (`LineFact`).
+final LineFact<bool> _signLines = LineFact<bool>((text) => text.contains(bookmarkSigns) && _signs.hasMatch(text) ? true : null);
+
+/// The line (from 1) holding a document's bookmark, or null: [bookmarkLineIn] of its words, from the lines the
+/// tree keeps, so a letter typed and a caret moved read nothing of the note again. (The signs stand as a word where
+/// whitespace or the end follows them, and a line's break is whitespace: the note's first such signs are on its
+/// first such line.)
+int? bookmarkLineOf(Doc doc) {
+  final lines = _signLines.of(doc);
+  return lines.isEmpty ? null : lines.first.number;
+}
+
 final RegExp _endsInSpace = RegExp(r'\s$');
 
 /// The changes that put the bookmark on line `number` (from 1), taking it off everywhere else; with null, only
@@ -174,7 +186,7 @@ class _Marks {
 }
 
 DecorationSet _decorate(EditorState state, int? kept) {
-  final written = bookmarkLineIn(state.doc.toString());
+  final written = bookmarkLineOf(state.doc);
   final number = written ?? (kept == null ? null : markedLine(state, kept));
   if (number == null) return Decoration.none;
   final line = state.doc.line(number);

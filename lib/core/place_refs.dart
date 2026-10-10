@@ -104,9 +104,22 @@ int _decimalsOf(String text) {
   return dot < 0 ? 0 : text.length - dot - 1;
 }
 
+/// Whether [text] has `](geo:` in it, in either case, as [_place] reads the scheme.
+bool _hasGeoLink(String text) {
+  for (var at = text.indexOf(']('); at >= 0; at = text.indexOf('](', at + 2)) {
+    if (at + 6 > text.length) return false;
+    // `geo:` in either case: 0x20 is the bit between an ASCII letter's two cases.
+    if ((text.codeUnitAt(at + 2) | 0x20) == 0x67 && (text.codeUnitAt(at + 3) | 0x20) == 0x65 && (text.codeUnitAt(at + 4) | 0x20) == 0x6f && text.codeUnitAt(at + 5) == 0x3a) return true;
+  }
+  return false;
+}
+
 /// The place a line is, or null: a line whose words, past its quote's markers and its list lead, are exactly one
 /// link to `geo:lat,lon` with the latitude in -90..90 and the longitude in -180..180. That line draws a map card.
 PlaceLine? placeOfLine(String text) {
+  // A place's line has a link to a `geo:` address, and almost no line does: asked first, since this is asked of
+  // every line of a note and the patterns below are many times the cost of looking for the link's turn.
+  if (!_hasGeoLink(text)) return null;
   final found = _place.firstMatch(lineWords(text));
   if (found == null) return null;
   final words = found.group(1) ?? '', a = found.group(2) ?? '', b = found.group(3) ?? '';

@@ -50,6 +50,7 @@ import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../../book/tickets.dart' show peopleIn;
 import '../../core/book.dart' show withChapter;
+import '../../core/boards/fence.dart' show closesBoardFence;
 import '../../core/item_syntax.dart' show taskBox;
 import '../../core/properties.dart' show withProperty;
 import '../../core/query/query.dart';
@@ -60,6 +61,7 @@ import '../items/task_fields.dart' show fieldsLocale, fieldsToday;
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
+import '../view/line_facts.dart';
 import 'query_look.dart';
 import 'query_view.dart';
 
@@ -100,6 +102,53 @@ class QueryOptions {
 
 /// The library changed: every query is run and drawn again.
 final StateEffectType<Null> refreshQueries = StateEffect.define<Null>();
+
+final RegExp _run = RegExp(r'^\s*(`{3,}|~{3,})');
+
+/// A line that opens a query: the run it opens with, and its lanes' height. Read by `queryFencesIn` itself, of the
+/// line with a fence of each mark under it, so what opens a query is said in one place (lib/core/query/fence.dart);
+/// and asked only of a line with a run and the word in it. Kept for every line of a document (`LineFact`).
+final LineFact<({String fence, double? height})> _openings = LineFact<({String fence, double? height})>((text) {
+  if (!text.contains('```') && !text.contains('~~~')) return null;
+  if (!text.toLowerCase().contains('query')) return null;
+  final close = '`' * text.length;
+  final found = queryFencesIn('$text\n$close\n${'~' * text.length}');
+  if (found.isEmpty || found.first.from != 1) return null;
+  return (fence: _run.firstMatch(text)!.group(1)!, height: found.first.height);
+});
+
+final DocMemo<List<QueryFence>> _fences = DocMemo<List<QueryFence>>((doc) {
+  final openings = _openings.of(doc);
+  if (openings.isEmpty) return const <QueryFence>[];
+  final closers = bareFenceFacts.of(doc);
+  final found = <QueryFence>[];
+  var after = 0, closer = 0;
+  for (final open in openings) {
+    // An opening inside the query before it is that query's words.
+    if (open.number <= after) continue;
+    while (closer < closers.length && closers[closer].number <= open.number) {
+      closer += 1;
+    }
+    var end = -1;
+    for (var at = closer; at < closers.length; at += 1) {
+      if (closesBoardFence(closers[at].fact, open.fact.fence)) {
+        end = closers[at].number;
+        break;
+      }
+    }
+    // One never closed is not drawn, and nothing after it is looked at: it is still being typed.
+    if (end < 0) break;
+    final body = end > open.number + 1 ? doc.sliceString(open.to + 1, doc.line(end - 1).to) : '';
+    found.add(QueryFence(from: open.number, to: end, body: body, height: open.fact.height));
+    after = end;
+  }
+  return found;
+});
+
+/// Every closed query fence of a document, in order: `queryFencesIn(doc.toString())`, from the lines the tree
+/// keeps of it and once for each document, so a note with no query reads nothing for one and a letter typed reads
+/// the lines it changed. Not to be changed.
+List<QueryFence> queryFencesOf(Doc doc) => _fences.of(doc);
 
 /// What a change a query makes to its own note is called in the note's history.
 const String queryUserEvent = 'input.query';
@@ -252,7 +301,7 @@ class DrawnQuery extends StatelessWidget {
               final line = open();
               if (line == null) return;
               final doc = view.state.doc;
-              final fence = queryFencesIn(doc.toString()).where((each) => each.from == line.number).firstOrNull;
+              final fence = queryFencesOf(doc).where((each) => each.from == line.number).firstOrNull;
               if (fence == null || fence.to <= fence.from + 1) return;
               final bodyFrom = doc.line(fence.from + 1).from;
               final bodyTo = doc.line(fence.to - 1).to;
@@ -324,7 +373,7 @@ class _Drawn {
 DecorationSet _decorate(EditorState state, int stamp, String today, QueryOptions? Function() options) {
   final ranges = <Range<Decoration>>[];
   final editable = state.facet(EditorViewLike.editable) && !state.readOnly;
-  for (final fence in queryFencesIn(state.doc.toString())) {
+  for (final fence in queryFencesOf(state.doc)) {
     final from = state.doc.line(fence.from).from;
     final to = state.doc.line(fence.to).to;
     // The caret in the fence: the lines themselves, to edit. Elsewhere, and in a view with no caret, the answer.
@@ -382,6 +431,11 @@ Extension queries(QueryOptions? Function() options) {
       if (!refreshed && !tr.docChanged && tr.selection == null && !tr.reconfigured && !focusMoved(tr)) return value;
       final stamp = value.stamp + (refreshed || tr.docChanged ? 1 : 0);
       final today = _today(tr.state);
+      // A note with no query draws none, whatever was typed and wherever the caret went: what is there is kept,
+      // so nothing that reads the decorations takes a letter for a change.
+      if (!refreshed && !tr.reconfigured && today == value.today && identical(value.decorations, Decoration.none) && queryFencesOf(tr.state.doc).isEmpty) {
+        return stamp == value.stamp ? value : _Drawn(stamp, today, Decoration.none);
+      }
       return _Drawn(stamp, today, options() != null ? _decorate(tr.state, stamp, today, options) : Decoration.none);
     },
     provide: (field) => EditorViewLike.decorations.from<_Drawn>(field, (value) => value.decorations),

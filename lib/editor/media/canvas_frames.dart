@@ -46,20 +46,30 @@ final RegExp _frame = RegExp(r'^\s*!\[\[([^\]\n]{1,120})\]\]\s*$');
 /// An embed: its line, counting from 1, and the title as written, which is everything before a `#`.
 typedef Frame = ({int line, String title});
 
+/// The title a line embeds, when the line is only an embed and its title has words.
+String? _titleOf(String text) {
+  final match = _frame.firstMatch(text);
+  if (match == null) return null;
+  final inside = (match.group(1) ?? '').trim();
+  final hash = inside.indexOf('#');
+  final title = (hash >= 0 ? inside.substring(0, hash) : inside).trim();
+  return title.isEmpty ? null : title;
+}
+
 /// Every embed in the note, in order (`framesIn`).
 List<Frame> framesIn(String doc) {
   final found = <Frame>[];
   final lines = doc.split('\n');
   for (var i = 0; i < lines.length; i += 1) {
-    final match = _frame.firstMatch(lines[i]);
-    if (match == null) continue;
-    final inside = (match.group(1) ?? '').trim();
-    final hash = inside.indexOf('#');
-    final title = (hash >= 0 ? inside.substring(0, hash) : inside).trim();
-    if (title.isNotEmpty) found.add((line: i + 1, title: title));
+    final title = _titleOf(lines[i]);
+    if (title != null) found.add((line: i + 1, title: title));
   }
   return found;
 }
+
+/// The title each embedding line embeds, kept for every line of a document (`LineFact`): a letter typed and a
+/// caret moved read nothing of the note again for an embed.
+final LineFact<String> _frames = LineFact<String>((text) => text.contains('![[') ? _titleOf(text) : null);
 
 /// What the screen hands the editor for its frames (`FrameOptions`).
 class FrameOptions {
@@ -234,17 +244,18 @@ class DrawnFrame extends StatelessWidget {
 final StateEffectType<Null> refreshCanvasFrames = StateEffect.define<Null>();
 
 DecorationSet _build(EditorState state, FrameOptions options) {
+  final frames = _frames.of(state.doc);
+  if (frames.isEmpty) return Decoration.none;
   final ranges = <Range<Decoration>>[];
   final editable = state.facet(EditorViewLike.editable);
-  for (final frame in framesIn(state.doc.toString())) {
-    final line = state.doc.line(frame.line);
+  for (final line in frames) {
     // The caret on the line: the link itself, to edit. Elsewhere, and in a view with no caret, the canvas.
     if (editable && caretIn(state, line.from, line.to)) continue;
-    final body = options.body(frame.title);
+    final body = options.body(line.fact);
     if (body == null || _canvasIn(body) == null) continue;
     ranges.add(
       Decoration.replace(
-        widget: FrameWidget(title: frame.title, body: body, from: line.from, options: options),
+        widget: FrameWidget(title: line.fact, body: body, from: line.from, options: options),
         block: true,
       ).range(line.from, line.to),
     );

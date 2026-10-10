@@ -21,7 +21,7 @@ import '../editor.dart';
 import 'bookmark_line.dart';
 
 class NoteBookmark extends ChangeNotifier {
-  NoteBookmark({required this.view, required this.say, this.here, this.readKept, this.writeKept}) : _marked = bookmarkLineIn(view.state.doc.toString()) != null || readKept?.call() != null;
+  NoteBookmark({required this.view, required this.say, this.here, this.readKept, this.writeKept}) : _marked = bookmarkLineOf(view.state.doc) != null || readKept?.call() != null;
 
   final EditorViewLike view;
 
@@ -41,7 +41,7 @@ class NoteBookmark extends ChangeNotifier {
   bool get marked => _marked;
 
   /// The note's words changed under the button (another device, an undo): the light follows them.
-  void sync() => _set(bookmarkLineIn(view.state.doc.toString()) != null || readKept?.call() != null);
+  void sync() => _set(bookmarkLineOf(view.state.doc) != null || readKept?.call() != null);
 
   void _set(bool value) {
     if (value == _marked) return;
@@ -56,7 +56,7 @@ class NoteBookmark extends ChangeNotifier {
   void press() {
     final state = view.state;
     final at = here?.call() ?? (view.hasFocus ? state.selection.main.head : null);
-    final current = bookmarkLineIn(state.doc.toString());
+    final current = bookmarkLineOf(state.doc);
     final kept = readKept?.call();
     final target = at != null ? markedLine(state, at) : (state.doc.length > 0 ? 1 : null);
     final was = current ?? (kept != null ? markedLine(state, kept) : null);

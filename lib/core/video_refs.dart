@@ -62,6 +62,10 @@ class VideoLine {
 /// The film a line is, or null: a line whose words, past its quote's markers and its list lead, are exactly one
 /// reference.
 VideoLine? videoOfLine(String text) {
+  // A film's line has its poster's link closing on the film's, and almost no line does: asked first, since this is
+  // asked of every line of a note and the patterns below are many times the cost of a search for seven letters.
+  // (Nothing [lineWords] takes off a line can bring those seven together: each piece it takes ends at a space.)
+  if (!text.contains('](video/')) return null;
   final found = _videoWords.firstMatch(lineWords(text));
   if (found == null) return null;
   final alt = found.group(1) ?? '';
