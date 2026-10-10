@@ -14,8 +14,9 @@
 ///   lib/editor/items/suggestions.dart does for the suggestion pill these are cousins of; `.cm-aiAdded` alone is a
 ///   stylesheet rule, a wash behind the run and every mark inside it, with square corners where the page rounds
 ///   them by 3px. `cursor`, `user-select` and the tap highlight have no counterpart.
-/// - Words taken out of the middle of a line are one unbroken box (`InlineWords`), where the page's span could wrap
-///   with the line. They are a few words by the lander's own rule (a line rewritten word by word).
+/// - Words taken out of the middle of a line are a box to each word ([goneWords]: the word and the gap after it),
+///   one after the other at the place they stood, so they wrap with the line between words as the page's one span
+///   does. A word longer than the line is not broken inside, where the page's would be.
 /// - A press on a pill is the pill's alone (`takesPointer`), where the page stopped a pointer, a mouse and a touch
 ///   press each its own way.
 library;
@@ -34,6 +35,18 @@ import '../view/line.dart' show EditorRunScope;
 export '../../ai/ai_changes.dart';
 
 final RegExp _leadingSpace = RegExp(r'^\s+');
+final RegExp _wordAndGap = RegExp(r'\S+\s*');
+final RegExp _gap = RegExp(r'\s');
+
+/// The words a rewrite took out of a line, in the pieces the line may break between: each word with the gap after
+/// it, which is struck with it (`span.textContent = this.text.replace(/^\s+/, '')`, an inline span, which wraps
+/// where its words do). The gap is written as spaces that are not let go at a box's end, so the strike runs on
+/// across it as it does on the page.
+List<String> goneWords(String removed) {
+  final text = removed.replaceFirst(_leadingSpace, '');
+  final pieces = <String>[for (final piece in _wordAndGap.allMatches(text)) piece.group(0)!.replaceAll(_gap, '\u00A0')];
+  return pieces.isEmpty ? <String>[text] : pieces;
+}
 
 /// The line a struck-through word is drawn with: `text-decoration: line-through` in `color-mix(in oklch,
 /// var(--app-ink, currentColor) 45%, transparent)`.
@@ -47,26 +60,33 @@ TextStyle _struck(Tokens t, TextStyle around) => around.copyWith(
 /// The words that went, struck through: a block above the line for whole lines, or inline before the words that
 /// came (`GoneWidget`).
 class GoneWidget extends EditorWidget {
-  const GoneWidget(this.text, this.block);
+  const GoneWidget(this.text, this.block, {this.first = true, this.last = true});
 
   final String text;
   final bool block;
 
+  /// Within a line, whether this is the first and the last of the pieces the words were drawn in ([goneWords]):
+  /// the first says what they are, the last keeps the span's margin from the words that came.
+  final bool first;
+  final bool last;
+
   @override
-  bool eq(GoneWidget other) => other.text == text && other.block == block;
+  bool eq(GoneWidget other) => other.text == text && other.block == block && other.first == first && other.last == last;
 
   @override
   double get estimatedHeight => block ? 26.0 * (text.split('\n').length) : -1;
 
   @override
-  Widget build(BuildContext context) => block ? _GoneBlock(text) : _GoneWords(text);
+  Widget build(BuildContext context) => block ? _GoneBlock(text) : _GoneWords(text, first: first, last: last);
 }
 
 /// `.cm-aiGone`: the words a rewrite took out of a line, before the ones that came.
 class _GoneWords extends StatelessWidget {
-  const _GoneWords(this.text);
+  const _GoneWords(this.text, {required this.first, required this.last});
 
   final String text;
+  final bool first;
+  final bool last;
 
   @override
   Widget build(BuildContext context) {
@@ -78,16 +98,15 @@ class _GoneWords extends StatelessWidget {
     // '.cm-aiGone': { color: 'var(--app-ink-4, currentColor)', textDecoration: 'line-through',
     //   textDecorationColor: 'color-mix(in oklch, var(--app-ink, currentColor) 45%, transparent)',
     //   marginInlineEnd: '0.3em' }
-    return Semantics(
-      label: 'Words the AI took out',
-      child: ExcludeSemantics(
-        child: Padding(
-          padding: EdgeInsetsDirectional.only(end: layoutUnit(em * 0.3)),
-          // span.textContent = this.text.replace(/^\s+/, '')
-          child: InlineWords(text.replaceFirst(_leadingSpace, ''), key: const ValueKey<String>('cm-aiGone'), style: _struck(t, around)),
-        ),
+    final words = ExcludeSemantics(
+      child: Padding(
+        padding: EdgeInsetsDirectional.only(end: last ? layoutUnit(em * 0.3) : 0),
+        // span.textContent = this.text.replace(/^\s+/, '')
+        child: InlineWords(first ? text.replaceFirst(_leadingSpace, '') : text, key: const ValueKey<String>('cm-aiGone'), style: _struck(t, around)),
       ),
     );
+    // Said once, where the words begin: the pieces after the first are the same span's.
+    return first ? Semantics(label: 'Words the AI took out', child: words) : words;
   }
 }
 
@@ -259,7 +278,12 @@ DecorationSet _decorate(EditorState state) {
       if (change.block) {
         ranges.add(Decoration.widget(widget: GoneWidget(change.removed, true), block: true, side: -1).range(doc.lineAt(change.from < doc.length ? change.from : doc.length).from));
       } else {
-        ranges.add(Decoration.widget(widget: GoneWidget(change.removed, false), side: -1).range(change.from));
+        // One piece to a word, in the order they stood (ranges at one place keep the order they are given in): the
+        // line breaks between them as it does between its own words.
+        final words = goneWords(change.removed);
+        for (var i = 0; i < words.length; i++) {
+          ranges.add(Decoration.widget(widget: GoneWidget(words[i], false, first: i == 0, last: i == words.length - 1), side: -1).range(change.from));
+        }
       }
     }
     if (change.to > change.from) ranges.add(_added.range(change.from, change.to));

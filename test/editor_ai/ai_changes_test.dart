@@ -103,6 +103,42 @@ void main() {
       expect(goneBox.right, greaterThan(goneBox.left));
     });
 
+    // Differs 28 (docs/PARITY.md): the page's `.cm-aiGone` is an inline span, which wraps with its line; the port drew
+    // the words as one box that could not, so a sentence taken out stood on a row of its own, cut at the page's edge.
+    testWidgets('struck words within a line wrap with the line, between words, with the strike across the gaps', (tester) async {
+      const gone = ' we should really ring the plumber some time before the end of next week if at all possible';
+      expect(goneWords(gone).length, 18);
+      expect(goneWords(gone).first, 'we\u00A0');
+      expect(goneWords(gone).last, 'possible');
+      expect(goneWords(' friday'), ['friday']);
+      final v = await pumpNote(tester, 'Call on Thursday.\n', more: [aiChanges()], width: 320);
+      v.dispatch(TransactionSpec(effects: addAiChanges.of([change(from: 8, to: 16, removed: gone, block: false)])));
+      await tester.pump();
+      final pieces = find.byKey(const ValueKey<String>('cm-aiGone'));
+      expect([for (final words in tester.widgetList<InlineWords>(pieces)) words.text.replaceAll('\u00A0', ' ')].join(), gone.trimLeft());
+      final rects = [for (final piece in pieces.evaluate()) tester.getRect(find.byWidget(piece.widget))];
+      // Nothing of them is past the page's edge, and they are on more rows than one, each row read left to right.
+      for (final rect in rects) {
+        expect(rect.right, lessThanOrEqualTo(320.5));
+      }
+      final rows = {for (final rect in rects) rect.top.round()};
+      expect(rows.length, greaterThan(1));
+      for (var i = 1; i < rects.length; i++) {
+        final sameRow = rects[i].top.round() == rects[i - 1].top.round();
+        // On a row each piece starts where the last ended: the gap is the last one's own, struck with it.
+        if (sameRow) expect(rects[i].left, closeTo(rects[i - 1].right, 0.6));
+        if (!sameRow) expect(rects[i].top, greaterThan(rects[i - 1].top));
+      }
+      // The first is on the line of the words before it, and the words that came follow the last, a third of an em on.
+      expect(rects.first.left, greaterThan(editorTextRect(tester, 'on').right));
+      final t = tester.element(pieces.first).tokens;
+      final came = editorTextRect(tester, 'Thursday');
+      expect(came.top.round(), greaterThanOrEqualTo(rects.last.top.round() - 6));
+      if ((came.top - rects.last.top).abs() < 8) expect(rects.last.right, lessThanOrEqualTo(came.left - t.len('app-body') * 0.3 + 0.6));
+      // Said once, by the first piece: the pieces after it are the same words.
+      expect(find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.label == 'Words the AI took out'), findsOneWidget);
+    });
+
     testWidgets('struck lines stand above the line, each on a row at least an em tall, flush with the page as the page has them', (tester) async {
       final v = await pumpNote(tester, '# Trip\nCall the plumber.\n', more: [aiChanges()]);
       v.dispatch(TransactionSpec(effects: addAiChanges.of([change(from: 7, to: 24, removed: 'call plumber\n\nthursday')])));

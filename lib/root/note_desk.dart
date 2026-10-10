@@ -524,7 +524,20 @@ class NoteDeskState extends State<NoteDesk> {
           availability: _aiWorld.availability,
           reviewHost: _aiWorld.reviewHost,
           openForSummaries: _aiWorld.openForSummaries,
-        )..addListener(_redraw));
+        )
+          ..addListener(_redraw)
+          ..addListener(_aiRan));
+
+  /// The + looks again as a run starts and as it ends (`plusAllowed`, which reads `ai.runningKind`): asked at no
+  /// other word of the AI's.
+  RunKind? _ran;
+  void _aiRan() {
+    final now = _ai?.runningKind;
+    if (now == _ran) return;
+    _ran = now;
+    final view = _view;
+    if (view != null && mounted && !_leaving) _plus.recheck(view);
+  }
 
   /// Saves what is typed now, handed over by the note's screen as it is made.
   VoidCallback? _flush;
@@ -1055,10 +1068,14 @@ class NoteDeskState extends State<NoteDesk> {
     return true;
   }
 
-  /// A + may show: a note of words that can be written, with find put away.
+  /// A + may show: a note of words that can be written, with find put away, and no run writing into it
+  /// (`ai.runningKind === null || ai.runningKind === 'fill'`). A fill holds no landing bookmark an insert could
+  /// cross: its answers go only where its blanks are, so the + stays while one runs.
   bool _plusAllowed() {
     final view = _view;
     if (view == null || view.state.readOnly || _finding != null) return false;
+    final running = _ai?.runningKind;
+    if (running != null && running != RunKind.fill) return false;
     return _ofWords.of(view.state.doc);
   }
 
@@ -1076,6 +1093,7 @@ class NoteDeskState extends State<NoteDesk> {
       _aiWorld?.opened?.call(widget.noteId, null);
       ai.attach(null);
       ai.removeListener(_redraw);
+      ai.removeListener(_aiRan);
       ai.dispose();
     }
     _comments.removeListener(_redraw);

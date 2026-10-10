@@ -13,7 +13,10 @@ import 'package:ghost_md/commands/command_bar.dart';
 import 'package:ghost_md/commands/palette.dart';
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/editor/ai/fill_panel.dart';
-import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
+import 'package:ghost_md/ai/kinds.dart' show RunKind;
+import 'package:ghost_md/editor/editor.dart' show ChangeSpec, EditorSelection, TransactionSpec;
+import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, PlusLook, plusViewOf;
+import 'package:ghost_md/root/note_desk.dart' show NoteDesk, NoteDeskState;
 import 'package:ghost_md/editor/view/text_panel.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/phone_connection.dart' show Connection;
@@ -207,6 +210,42 @@ void main() {
     // Claude's page reads who is signed in from the app: nobody, in a build with no account.
     expect(claudeHandle, isNotNull);
     expect(claudeHandle!(), isNull);
+    await close(tester);
+  });
+
+  // Differs 28 (docs/PARITY.md): `plusAllowed = … && (ai.runningKind === null || ai.runningKind === 'fill')`
+  // (NoteScreen.tsx): the + stood beside an empty line while a run wrote into the note.
+  testWidgets('the + is put away while a run writes into the note, and allowed again when the run has ended', (tester) async {
+    final library = await open(tester, engine: true);
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    // The caret rests on an empty line at the note's end: the + is beside it.
+    final end = view.state.doc.length;
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: end, insert: '\n\n'), selection: EditorSelection.single(end + 2), userEvent: 'input.type'));
+    await tester.pump();
+    tester.state<NoteDeskState>(find.byType(NoteDesk)).editor.focus();
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    final plus = tester.widget<PlusLayer>(find.byType(PlusLayer)).controller!;
+    expect(plus.hooks.allowed(), isTrue);
+    expect(plusViewOf(view)!.look, PlusLook.shown);
+
+    // A run that has not answered yet.
+    final answer = Completer<Object?>();
+    backend.answers['ai_generate'] = (Object? args) => answer.future;
+    tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.onAi!(view, 'summarize');
+    await settle(tester, 4);
+    expect(tester.widget<NoteAiLayer>(find.byType(NoteAiLayer)).ai.runningKind, RunKind.summarize);
+    expect(plus.hooks.allowed(), isFalse);
+    expect(plusViewOf(view)!.look, isNot(PlusLook.shown));
+
+    answer.complete({'text': 'A shorter Packing.'});
+    await settle(tester, 8);
+    expect(tester.widget<NoteAiLayer>(find.byType(NoteAiLayer)).ai.runningKind, isNull);
+    expect(plus.hooks.allowed(), isTrue);
+    await tester.pump(const Duration(seconds: 2));
     await close(tester);
   });
 
