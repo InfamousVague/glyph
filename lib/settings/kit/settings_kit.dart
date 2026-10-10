@@ -89,19 +89,45 @@ class SettingsPaneScope extends InheritedWidget {
 /// The children of a pane, laid out as the page lays out `.settingsScreen__pane`'s: a column with `--glacier-space-4`
 /// between them. A section's page is one of these (it stands where a React pane returned a fragment), and it tells
 /// each child its place, which is what `.setk:nth-child(n)` reads to stagger the cards' arrival.
-class PaneBody extends StatelessWidget {
+///
+/// What differs from the page: a pane's first [soon] children are built with the pane, and the rest a frame later.
+/// Appearance is thirteen cards of small drawings, and built whole its one frame was 24 ms on a Mac (measured,
+/// tool/perf.sh): the cards past the second are under the window's foot or still waiting their turn to arrive
+/// (each rises 40 ms after the one before it), so nothing that is seen comes later than it did.
+class PaneBody extends StatefulWidget {
   const PaneBody({super.key, required this.children});
 
   final List<Widget> children;
 
+  /// How many of a pane's children are built in its first frame.
+  static const int soon = 2;
+
+  @override
+  State<PaneBody> createState() => _PaneBodyState();
+}
+
+class _PaneBodyState extends State<PaneBody> {
+  late bool _whole = widget.children.length <= PaneBody.soon;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_whole) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _whole = true);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final gap = context.tokens.space(4);
+    final children = widget.children;
+    final count = _whole ? children.length : PaneBody.soon;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        for (var i = 0; i < children.length; i++) ...[
+        for (var i = 0; i < count; i++) ...[
           if (i > 0) SizedBox(height: gap),
           // The page's title is the pane's first child, so the first of these is its second.
           _NthChild(nth: i + 2, child: children[i]),
