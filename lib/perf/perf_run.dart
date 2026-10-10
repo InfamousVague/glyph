@@ -465,13 +465,20 @@ Rect? _keyed(String key, {bool anywhere = false}) {
 /// a page at a time: a thing half over the window's foot is found there, and a tap on its middle lands on nothing.
 Future<bool> _tapKey(PhoneTour tour, String key, {bool quiet = false}) async {
   final window = _window();
-  bool reachable(Rect at) => at.center.dy > window.height * 0.1 && at.center.dy < window.height * 0.9;
+  // In the window, a finger's width from its edges: a page at its foot cannot bring its last button any higher.
+  bool reachable(Rect at) => window.deflate(12).contains(at.center);
   var at = _keyed(key, anywhere: true);
   for (var tries = 0; tries < 12 && at != null && !reachable(at); tries += 1) {
     final x = (window.width / 2).round(), high = (window.height * 0.35).round(), low = (window.height * 0.65).round();
-    final down = at.center.dy >= window.height * 0.9;
+    final down = at.center.dy >= window.height / 2;
     await tour.run('swipe:$x,${down ? low : high},$x,${down ? high : low},320;wait:200');
-    at = _keyed(key, anywhere: true);
+    final now = _keyed(key, anywhere: true);
+    // The page did not move: it is at its end, and what is not in reach will not be.
+    if (now != null && (now.center - at.center).distance < 1) {
+      at = now;
+      break;
+    }
+    at = now;
   }
   if (at == null || !reachable(at)) {
     if (!quiet) debugPrint('[tour] tapkey "$key" -> NOT FOUND');
