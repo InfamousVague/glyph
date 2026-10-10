@@ -84,7 +84,7 @@ class WispSides extends StatelessWidget {
         if (!start && !end) return const [];
         final whole = Offset.zero & size;
         final smoke = wispSides(size.width, size.height, start, end, ratio: ratio, still: still, fadeStart: fade, fadeEnd: fade);
-        if (smoke != null) return [WispSmokeStrip(rect: whole, smoke: smoke, within: wispSidesWithin(size.width.roundToDouble(), size.height.roundToDouble()))];
+        if (smoke != null) return wispSmokeStrips(rect: whole, smoke: smoke, within: wispSidesWithin(size.width.roundToDouble(), size.height.roundToDouble()));
         final length = wispHead() == WispHead.blur ? plainFade : fade;
         final mask = wispSidesMask(size.width, start, end, length, length);
         return [

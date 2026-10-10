@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
 
+import 'wisp_probe.dart';
+
 /// How a view's smoke is drawn: the filter that bends the words, or the mask that tears them (art/wispMask.ts
 /// `WispDraw`). The web app picks the mask in the Mac app, whose engine cannot afford the filter; here the filter is
 /// a fragment shader every engine affords, so the mask is only ever asked for by name ([WispSettings.draw], or a
@@ -65,6 +67,20 @@ class WispSettings extends ChangeNotifier {
   }
 }
 
+/// Whether the smoke is drawn the quick way: a strip in one pass over the screen with its soft half made small
+/// (lib/art/wisp_smoke.dart `paintWispSmoke`), where the first drawing made every primitive of the web filter a
+/// picture the size of the strip on every frame of a scroll.
+///
+/// Not yet what a build draws unless it is told to (`--dart-define=GHOST_WISP_QUICK=true`, or `quick` among a
+/// measured build's `GHOST_PERF_SMOKE`): the quick drawing is the same smoke to the eye and not the same pixels, so
+/// every reference picture with a strip in it has to be drawn again with it, and those are looked at first.
+bool get wispQuick => debugWispQuick ?? (_quick || WispProbe.has('quick'));
+const bool _quick = bool.fromEnvironment('GHOST_WISP_QUICK');
+
+/// Says which drawing a test gets, whatever the build was told.
+@visibleForTesting
+bool? debugWispQuick;
+
 bool get _desktop => switch (defaultTargetPlatform) {
       TargetPlatform.android || TargetPlatform.iOS || TargetPlatform.fuchsia => false,
       TargetPlatform.macOS || TargetPlatform.windows || TargetPlatform.linux => true,
@@ -75,7 +91,7 @@ bool get _desktop => switch (defaultTargetPlatform) {
 WispDraw wispDraw() => WispSettings.instance.draw ?? WispDraw.filter;
 
 /// What smokes under a header (art/wispMask.ts `wispHead`): the wisp on a phone, a blur strip on a desktop.
-WispHead wispHead() => WispSettings.instance.head ?? (_desktop ? WispHead.blur : WispHead.smoke);
+WispHead wispHead() => WispSettings.instance.head ?? (_desktop && !WispProbe.has('phone') ? WispHead.blur : WispHead.smoke);
 
 /// art/wispEdge.ts `wispModeFor`: [draw] is what the view asked for; left out, the platform decides.
 WispMode wispModeFor([WispDraw? draw]) {

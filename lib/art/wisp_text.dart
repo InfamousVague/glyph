@@ -5,8 +5,12 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
+import '../perf/frame_log.dart' show Perf, ghostPerf;
 import 'wisp.dart';
 import 'wisp_kit.dart';
+import 'wisp_letters.dart';
+import 'wisp_probe.dart';
+import 'wisp_settings.dart';
 
 /// How long a letter takes to set, in ms (art/WispText.tsx `IN_MS`), the most that is added to it at random, and how
 /// much faster than the asked-for pace the letters come.
@@ -867,6 +871,14 @@ class RenderWispText extends RenderBox {
 /// the filter's region is measured from (three widths to its left, one and a half heights above, seven widths by
 /// four heights in all); [smoke] is flat, with the run's bend and blur.
 void paintWispLetter(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, double opacity = 1}) {
+  if (ghostPerf) Perf.count('wisp.letters');
+  if (WispProbe.has('noletter')) {
+    // Measuring only: the letter as it is, at the smoke's opacity.
+    canvas.drawImageRect(glyph, Rect.fromLTWH(0, 0, glyph.width.toDouble(), glyph.height.toDouble()), glyphRect, Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0)));
+    return;
+  }
+  // From the sheet of every letter in smoke, where it holds this one (lib/art/wisp_letters.dart).
+  if (wispQuick && WispLetterSheet.instance.paint(canvas, kit: kit, table: table, glyph: glyph, glyphRect: glyphRect, box: box, smoke: smoke, opacity: opacity)) return;
   final region = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
   final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
   if (smoke.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: smoke.blur, sigmaY: smoke.blur, tileMode: TileMode.decal);

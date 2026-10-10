@@ -11,6 +11,7 @@ import 'turbulence.dart';
 import 'wisp_edge.dart';
 import 'wisp_kit.dart';
 import 'wisp_mask.dart';
+import 'wisp_probe.dart';
 import 'wisp_settings.dart';
 import 'wisp_smoke.dart';
 import 'wisp_strips.dart';
@@ -136,6 +137,10 @@ class DockHaloStrip extends WispStrip {
 
   @override
   void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
+    if (wispQuick && bends) {
+      _paintQuick(canvas, at, view, viewRect, ratio);
+      return;
+    }
     final whole = Rect.fromLTWH(0, 0, view.width.toDouble(), view.height.toDouble());
     canvas.save();
     canvas.clipRect(at, doAntiAlias: false);
@@ -162,6 +167,59 @@ class DockHaloStrip extends WispStrip {
 
     canvas.restore();
     canvas.restore();
+  }
+
+  /// The bending halo in one pass (shaders/wisp_halo.frag), where [paint] composes it as the stylesheet does, in
+  /// three layers over a picture of the bent view and a blur of that: eight pictures the engine made on every frame
+  /// of a scroll, for a patch of the screen round the dock. Here there are two small ones, the view behind the dock
+  /// bent at half the screen's pixels and that softened (lib/art/wisp_smoke.dart `wispHaze`), and the two pills of
+  /// the mask are a picture made once for the dock's size ([_pills]).
+  void _paintQuick(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
+    final kit = WispKit.maybe!;
+    final smoke = WispSmoke(seed: 3, frequency: frequency, slide: rect.topLeft, lipA: 1e9, bend: dockBendScale, blur: dockBendBlur);
+    final soft = wispHaze(kit: kit, table: kit.tableNow(3)!, source: view, sourceRect: viewRect, bentRect: at, ratio: ratio, smoke: smoke);
+    final pills = _pills(rect.size, reach48);
+    final shader = kit.halo(
+      source: view,
+      sourceRect: viewRect,
+      soft: soft.image,
+      softRect: soft.rect,
+      pills: pills,
+      // The pills' picture is whole pixels, a pixel to the logical one, from the halo's corner.
+      halo: rect.topLeft & Size(pills.width.toDouble(), pills.height.toDouble()),
+      tile: tile!,
+      tileSide: dockSmokeTileSide,
+      slide: slide,
+      wash: ground.withValues(alpha: dockHaloWashBent),
+      origin: at.topLeft,
+    );
+    canvas.save();
+    canvas.translate(at.left, at.top);
+    canvas.drawRect(Offset.zero & at.size, Paint()..shader = shader..isAntiAlias = false);
+    canvas.restore();
+    soft.image.dispose();
+  }
+
+  static ui.Image? _pillsImage;
+  static (Size, double)? _pillsFor;
+
+  /// The mask's two pills for a halo of [size], as one picture a pixel to the logical one: the ramp in red and the
+  /// core in green, each soft at its edge ([dockSmokeRamp], [dockSmokeCore]). Made when the dock's size changes,
+  /// which is when the dock gains a button or the Fold opens, and kept between.
+  static ui.Image _pills(Size size, double reach) {
+    final had = _pillsImage;
+    if (had != null && _pillsFor == (size, reach)) return had;
+    had?.dispose();
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    for (final (shape, color) in [(dockSmokeRamp(size.width, size.height, reach), const Color(0xFFFF0000)), (dockSmokeCore(size.width, size.height, reach), const Color(0xFF00FF00))]) {
+      canvas.drawRRect(shape.pill, Paint()..color = color..blendMode = BlendMode.plus..maskFilter = MaskFilter.blur(BlurStyle.normal, shape.soft));
+    }
+    final picture = recorder.endRecording();
+    final image = picture.toImageSync(math.max(1, size.width.ceil()), math.max(1, size.height.ceil()));
+    picture.dispose();
+    _pillsFor = (size, reach);
+    return _pillsImage = image;
   }
 
   @override
@@ -257,7 +315,7 @@ class _DockHaloState extends State<DockHalo> {
   Widget build(BuildContext context) {
     final dock = widget.dock;
     final strips = <WispStrip>[];
-    if (dock != null && dock.width >= 2 && dock.height >= 2) {
+    if (dock != null && dock.width >= 2 && dock.height >= 2 && !WispProbe.has('nodock')) {
       final tokens = GlacierTheme.maybeOf(context);
       strips.add(DockHaloStrip(
         rect: dock.inflate(dockSmokeReach),

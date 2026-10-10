@@ -107,7 +107,7 @@ class WispFoot extends StatelessWidget {
           return [WispFadeStrip(rect: Rect.fromLTRB(0, math.max(0, size.height - plainFade), size.width, size.height), fade: fade)];
         }
         final within = wispFootLaneWithin(size.height.roundToDouble(), size.width.roundToDouble());
-        return [WispSmokeStrip(rect: Rect.fromLTRB(0, math.max(0, within.top), size.width, size.height), smoke: smoke, within: within)];
+        return wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), size.width, size.height), smoke: smoke, within: within);
       },
       child: child,
     );

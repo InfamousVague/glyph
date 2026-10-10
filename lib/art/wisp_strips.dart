@@ -5,7 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import '../perf/frame_log.dart' show Perf, ghostPerf;
 import 'wisp_kit.dart';
+import 'wisp_probe.dart';
+import 'wisp_settings.dart';
 import 'wisp_smoke.dart';
 
 /// What one strip of a view is drawn through, in place of the view itself: its smoke, its torn mask, its fade.
@@ -63,6 +66,20 @@ class WispSmokeStrip extends WispStrip {
 
   @override
   int get hashCode => Object.hash(rect, smoke, within);
+}
+
+/// The strips a smoke is drawn in over [rect] of a view: [rect] itself as the web filter's subregion has it, or,
+/// drawn the quick way ([wispQuick]), only the parts of it the smoke changes at all ([WispSmoke.touched]). The
+/// subregion is sized for the filter's arithmetic (four deviations of the band's ramp and 48px more); what a pixel
+/// shows changes only where the band is not nothing or the fade not whole, and past three deviations of the ramp
+/// the band is under a seven-hundredth: the view there is the view, to less than one step of 255, and is left to
+/// paint itself. A third to a half of every strip, and of every picture a strip is drawn through.
+List<WispStrip> wispSmokeStrips({required Rect rect, required WispSmoke smoke, required Rect within}) {
+  if (!wispQuick) return [WispSmokeStrip(rect: rect, smoke: smoke, within: within)];
+  return [
+    for (final part in smoke.touched(rect))
+      if (!part.isEmpty) WispSmokeStrip(rect: part, smoke: smoke, within: within),
+  ];
 }
 
 /// A strip that only fades: the view's `mask-image` gradient with no filter under it, which is what the page wears
@@ -271,6 +288,7 @@ class RenderWispStrips extends RenderProxyBox {
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _repaint?.addListener(markNeedsPaint);
+    if (ghostPerf) WispProbe.watch();
   }
 
   @override
@@ -290,8 +308,9 @@ class RenderWispStrips extends RenderProxyBox {
   @override
   void paint(PaintingContext context, Offset offset) {
     final drawn = [
-      for (final strip in _strips)
-        if (strip.ready && !strip.rect.isEmpty) strip,
+      if (!WispProbe.has('off'))
+        for (final strip in _strips)
+          if (strip.ready && !strip.rect.isEmpty) strip,
     ];
     _painted = drawn;
     if (child == null || drawn.isEmpty) {
@@ -365,6 +384,7 @@ class _WispStripLayer extends OffsetLayer {
     }
 
     engineLayer = builder.pushOffset(offset.dx, offset.dy, oldLayer: engineLayer as ui.OffsetEngineLayer?);
+    if (WispProbe.has('layers')) _census();
 
     // The view itself, everywhere but under the strips. Hard edged, as the strips are drawn, so the two meet on one
     // line of pixels with neither showing through the other.
@@ -382,12 +402,19 @@ class _WispStripLayer extends OffsetLayer {
       final rect = at[i];
       if (rect.isEmpty || rect.width <= 0 || rect.height <= 0) continue;
       final strip = _strips[i];
+      if (ghostPerf) Perf.count('wisp.strips');
       final viewRect = snapOut(rect.inflate(strip.reach), _corner, _ratio);
       final view = _picture(viewRect);
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
       try {
-        strip.paint(canvas, rect, view, viewRect, _ratio);
+        if (WispProbe.has('plain')) {
+          // Measuring only: the picture of the view drawn straight back.
+          canvas.clipRect(rect, doAntiAlias: false);
+          _drawView(canvas, view, viewRect);
+        } else {
+          strip.paint(canvas, rect, view, viewRect, _ratio);
+        }
       } finally {
         view.dispose();
       }
@@ -397,6 +424,35 @@ class _WispStripLayer extends OffsetLayer {
     }
 
     builder.pop();
+  }
+
+  static int _censusAt = 0;
+
+  /// Measuring only: what lies under this view by kind of layer, said once a second while it is drawn. A layer that
+  /// is not an offset, a clip of a rectangle or a picture is one the engine may draw through a picture of its own.
+  void _census() {
+    final now = DateTime.now().millisecondsSinceEpoch;
+    if (now - _censusAt < 1000) return;
+    _censusAt = now;
+    final kinds = <String, int>{};
+    void visit(Layer layer) {
+      var kind = layer.runtimeType.toString();
+      if (layer is OpacityLayer) kind = '$kind(${layer.alpha})';
+      if (layer is ClipRRectLayer) kind = '$kind(${layer.clipBehavior.name})';
+      if (layer is ClipPathLayer) kind = '$kind(${layer.clipBehavior.name})';
+      kinds[kind] = (kinds[kind] ?? 0) + 1;
+      if (layer is ContainerLayer) {
+        for (var child = layer.firstChild; child != null; child = child.nextSibling) {
+          visit(child);
+        }
+      }
+    }
+
+    for (var child = firstChild; child != null; child = child.nextSibling) {
+      visit(child);
+    }
+    final said = (kinds.entries.toList()..sort((a, b) => b.value.compareTo(a.value))).map((entry) => '${entry.key}=${entry.value}').join(' ');
+    debugPrint('[perf] layers under ${_strips.length} strip(s): $said');
   }
 
   /// The children as a picture of [rect] of the view, at the screen's own pixels.

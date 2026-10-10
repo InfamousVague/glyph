@@ -8,6 +8,7 @@ import 'package:glacier/glacier.dart';
 import '../shell/desktop/desktop_scrollbar.dart';
 import 'wisp_kit.dart';
 import 'wisp_mask.dart';
+import 'wisp_probe.dart';
 import 'wisp_settings.dart';
 import 'wisp_strips.dart';
 
@@ -562,7 +563,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
   }
 
   List<WispStrip> _strips(Size size) {
-    if (!_wanted || (!_worn && !_footWorn && !_blurHead)) return const [];
+    if (!_wanted || (!_worn && !_footWorn && !_blurHead) || WispProbe.has('noedge')) return const [];
     final mode = _mode;
     final width = size.width, height = size.height;
     // With no header the page means the status bar to play the part (`beneath = height || safeTop()`), but its
@@ -622,7 +623,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
     } else if (_worn) {
       if (smokes) {
         final at = WispDrift.instance.at(widget.band);
-        strips.add(WispSmokeStrip(
+        strips.addAll(wispSmokeStrips(
           // Down to the end of the fade where that is longer than the band: the strip is what the mask is drawn in.
           rect: Rect.fromLTRB(0, 0, width, math.min(height, math.max(beneath + drop + wispEdgeReach, topFade))),
           smoke: wispTopSmoke(under: beneath, lift: _lift, at: at, fade: fade),
@@ -639,7 +640,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
         // The foot's own noise drifts with the page's top, so both ends of a view move as one smoke.
         final at = WispDrift.instance.at(WispBand.page);
         final within = wispFootWithin(edge);
-        strips.add(WispSmokeStrip(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within));
+        strips.addAll(wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within));
       } else {
         strips.add(WispFadeStrip(rect: Rect.fromLTRB(0, math.max(0, edge - footFade), width, height), fade: fade));
       }
