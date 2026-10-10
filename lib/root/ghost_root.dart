@@ -139,6 +139,7 @@ import 'desktop_wiring.dart';
 import 'gisted.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
+import 'note_keeping.dart';
 import 'opening.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
@@ -785,8 +786,14 @@ class _GhostRootState extends State<GhostRoot> {
         workspaces: _workspaces,
         trash: _trash,
         say: NoteActions.toaster(context),
-        onForget: (id) => _places?.setPendingTag(id, null),
-        onTrashed: (note) => _places?.setPendingTag(note.id, null),
+        // Deleted for good: its gist, its runs, its marks, its kept summary and the job to write one go with it.
+        onForget: (id) => forgetKept(id, summaries: _voice?.summaries, places: _places),
+        // A meeting's write-up stops as its note goes into the trash, and is asked for again as it comes out.
+        onTrashed: (note) {
+          meetingTrashed(note, prefs: preferences.value, cancelWriteUp: _voice?.cancelWriteUp, summaries: _voice?.summaries);
+          _places?.setPendingTag(note.id, null);
+        },
+        onRestored: (note) => unawaited(resumeWriteUp(note, prefs: preferences.value, summaries: _voice?.summaries)),
       )..addListener(_changed);
 
   /// The note actions (a delete waiting on its Undo), the walkthrough or the way into an account changed.

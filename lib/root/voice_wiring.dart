@@ -183,7 +183,7 @@ class VoiceMaking {
 /// Voice, as the root holds it: the recorder its screens are drawn over, and what the app asks of the phone about a
 /// meeting. A test makes one over a scripted recorder and a service of its own.
 class Voice {
-  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.dispose_});
+  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.cancelWriteUp, this.dispose_});
 
   /// Everything the recorder's screens reach (lib/capture/recorder.dart).
   final Recorder recorder;
@@ -230,6 +230,10 @@ class Voice {
   /// Removes the audio of these notes' tapes from this device, their words and phrases kept, and answers which
   /// went (`core/recordings.ts` `deleteRecordings`); null where nothing can.
   final Future<List<String>> Function(List<String> ids)? removeAudio;
+
+  /// Stops a note's write-up on the phone, as its note goes into the trash (`core/host.ts` `cancelWriteUpOnHost`);
+  /// null where the phone has no service to ask.
+  final Future<void> Function(String noteId)? cancelWriteUp;
 
   /// Whether the phone is locked, as last asked ([readLocked]): the recorder's screens ask at once and cannot wait.
   /// Asked before a recorder is put up, and again when the phone says the answer changed under one ([phoneSaid]),
@@ -501,6 +505,7 @@ class Voice {
         markAudioRemoved(done.removed);
         return done.removed;
       },
+      cancelWriteUp: host.hasMeetings ? host.cancelWriteUp : null,
       dispose_: () {
         offVisible();
         unbind?.call();
