@@ -24,8 +24,8 @@
 ///   page's foot smoke), held to a third of the room the page shows under its header ([Editor.headerInset]). What
 ///   the keyboard covers of the scroll view is added to it, for a page that does not shrink for the keyboard.
 ///
-/// Not here: what a screen reader is told (the editor has no semantics yet), spell-check underlines, scribble and
-/// the iPhone's floating cursor.
+/// Not here: scribble and the iPhone's floating cursor. What a screen reader is told is each line's own to say
+/// (semantics/line_semantics.dart), and spell-check is an extension the note's desk gives (spell/spell.dart).
 library;
 
 import 'dart:math' as math;

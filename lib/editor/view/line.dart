@@ -30,6 +30,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
+import '../semantics/line_semantics.dart' show assembleLine, describeLine;
 import 'projection.dart';
 import 'widget.dart';
 
@@ -333,6 +334,8 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     _hearBlink();
     markNeedsCompositingBitsUpdate();
     markNeedsPaint();
+    // What a screen reader was told of the caret is old; nothing at all while none is listening.
+    markNeedsSemanticsUpdate();
   }
 
   EditorLineHost? _host;
@@ -1071,6 +1074,25 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
   @override
   bool hitTestSelf(Offset position) => true;
+
+  // What a screen reader is told of the line (../semantics/line_semantics.dart). Flutter calls these only while
+  // one is listening.
+  final List<SemanticsNode> _linkNodes = <SemanticsNode>[];
+
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    describeLine(this, config);
+  }
+
+  @override
+  void assembleSemanticsNode(SemanticsNode node, SemanticsConfiguration config, Iterable<SemanticsNode> children) => assembleLine(this, node, config, children, _linkNodes);
+
+  @override
+  void clearSemantics() {
+    super.clearSemantics();
+    _linkNodes.clear();
+  }
 
   @override
   bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);

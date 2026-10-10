@@ -136,6 +136,7 @@ import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
+import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
@@ -615,6 +616,8 @@ class NoteDeskState extends State<NoteDesk> {
     // wave under each it would have otherwise (lib/editor/spell; the page's `spellcheck="true"`). Nothing on a
     // device whose engine has no checker to ask.
     if (const PhoneSpellChecker().supported) spellCheck(),
+    // A link a screen reader activates is opened as a tap on it is (lib/editor/semantics/line_semantics.dart).
+    if (_world.openLink != null) semanticsOpenLink.of((url) => unawaited(_world.openLink!(url))),
   ];
 
   /// What plays a voice memo: the app's one player of a recording, where there is one.
