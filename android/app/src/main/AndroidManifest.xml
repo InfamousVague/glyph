@@ -2,6 +2,12 @@
     xmlns:tools="http://schemas.android.com/tools">
     <!-- A model's download (native/src/models.rs) and the account's sync: the only things that leave the phone. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!--
+      Whether there is a connection at all, and the moment one comes back (Connection.kt): a blank left "Waiting
+      for a connection" goes on then. A normal permission: nothing is asked of the person. The Tauri app has it
+      too, merged in from WorkManager, which is what lets its WebView answer `navigator.onLine`.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
 
     <!--
       The microphone, for dictation (capture/DictationMic.kt) and meetings. Asked for at the moment a person first

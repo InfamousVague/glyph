@@ -67,6 +67,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
 import '../core/note_text.dart';
+import '../core/phone_connection.dart' show Connection;
 import '../core/preferences.dart';
 import '../core/properties.dart';
 import '../core/query/query.dart' show TicketDraft;
@@ -185,7 +186,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -261,6 +262,11 @@ class GhostRoot extends StatefulWidget {
   /// The calendar Pick a date opens (lib/core/phone_day.dart on a phone). Absent, a date is Today, Tomorrow or
   /// Next week.
   final DayPicker? dayPicker;
+
+  /// Whether the phone has a connection, and the moment one comes back (lib/core/phone_connection.dart on a phone):
+  /// a blank left "Waiting for a connection" goes on then. Absent, as in a test, there is always one as far as the
+  /// app can tell, and such a blank waits for the queue's own look, a minute on.
+  final Connection? connection;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.

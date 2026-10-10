@@ -18,6 +18,7 @@ import 'core/iphone_app.dart';
 import 'core/keep_keyboard.dart';
 import 'core/films.dart';
 import 'core/open_link.dart';
+import 'core/phone_connection.dart';
 import 'core/phone_films.dart';
 import 'core/phone_day.dart';
 import 'core/phone_pictures.dart';
@@ -77,6 +78,9 @@ Future<void> main() async {
     // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
     PhoneLocator().attach().whenComplete(() => PerfLaunch.step('located')),
   ).wait;
+  // Whether the phone has a connection, and the moment one comes back (Android's own; anywhere else there is
+  // always one as far as the app can tell). Not waited for: it answers when the phone does.
+  final connection = defaultTargetPlatform == TargetPlatform.android ? PhoneConnection().start() : null;
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
   // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
   // process, as the core is, and made before the core has opened, since the launch screen asks it to look as it
@@ -116,6 +120,7 @@ Future<void> main() async {
         picturePicker: phonePicturePicker,
         films: opened.films,
         dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null,
+        connection: connection,
       ),
     ),
   ));

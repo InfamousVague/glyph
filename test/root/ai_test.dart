@@ -13,6 +13,7 @@ import 'package:ghost_md/commands/command_bar.dart';
 import 'package:ghost_md/commands/palette.dart';
 import 'package:ghost_md/editor/editor.dart' show ChangeSpec, TransactionSpec;
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/phone_connection.dart' show Connection;
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -98,7 +99,7 @@ void main() {
         sendJobConfig: () async {},
       );
 
-  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true, Summaries? Function(SampleLibrary notes, Stored kept)? summaries, TapePlayer? tapePlayer}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {required bool engine, bool present = true, Summaries? Function(SampleLibrary notes, Stored kept)? summaries, TapePlayer? tapePlayer, Connection? connection}) async {
     final library = SampleLibrary.seeded();
     final kept = MemoryStored();
     await pumpApp(
@@ -112,6 +113,7 @@ void main() {
         stored: kept,
         voice: voiceFor(library, engine: engine, present: present, summaries: summaries?.call(library, kept)),
         tapePlayer: tapePlayer,
+        connection: connection,
       ),
     );
     for (var i = 0; i < 6; i++) {
@@ -301,6 +303,20 @@ void main() {
     await close(tester);
   });
 
+  // Unwired 12 (docs/PARITY.md): `startFills` was given no `onLine` and no `onOnline`, so a blank left "Waiting
+  // for a connection" was tried again only by the one-minute timer (ai/fills/queue.ts `window.addEventListener(
+  // 'online', …)`, `navigator.onLine`).
+  testWidgets('the fills\' queue hears a connection come back, for as long as the app is up', (tester) async {
+    final connection = _FakeConnection();
+    await open(tester, engine: true, connection: connection);
+    expect(connection.listeners, hasLength(1), reason: 'the queue asked to hear of a connection coming back');
+    // What it does with the word is the queue's own (test/ai/fills): here, that the word reaches it and is let go.
+    expect(connection.asked, 0);
+    connection.listeners.single();
+    await close(tester);
+    expect(connection.listeners, isEmpty);
+  });
+
   testWidgets('a note has none of it in an app with no engine', (tester) async {
     final library = await open(tester, engine: false);
     shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Packing').id);
@@ -309,4 +325,22 @@ void main() {
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).seams.onAi, isNull);
     await close(tester);
   });
+}
+
+/// A connection a test holds: who listens, and how often it was asked whether there is one.
+class _FakeConnection implements Connection {
+  final List<VoidCallback> listeners = [];
+  int asked = 0;
+
+  @override
+  bool get onLine {
+    asked += 1;
+    return true;
+  }
+
+  @override
+  VoidCallback onOnline(VoidCallback listener) {
+    listeners.add(listener);
+    return () => listeners.remove(listener);
+  }
 }

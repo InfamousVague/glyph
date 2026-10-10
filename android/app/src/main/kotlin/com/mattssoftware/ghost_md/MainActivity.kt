@@ -83,6 +83,9 @@ class MainActivity : FlutterActivity() {
     /** A note's diagrams, drawn by a web view nobody sees, let go with the activity (DiagramRenderer.kt). */
     private var diagrams: DiagramRenderer? = null
 
+    /** Whether the phone has a connection, and the moment one comes back (Connection.kt). */
+    private val connection by lazy { Connection(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -147,6 +150,8 @@ class MainActivity : FlutterActivity() {
         diagrams = DiagramRenderer(this).also { it.register(messenger) }
         // The bell's rows as the phone's own notifications (Notices.kt; lib/core/phone_notices.dart).
         Notices(applicationContext).register(messenger)
+        // Whether there is a connection, and its coming back (Connection.kt; lib/core/phone_connection.dart).
+        connection.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -187,6 +192,7 @@ class MainActivity : FlutterActivity() {
         tape?.release()
         film?.release()
         diagrams?.destroy()
+        connection.release()
         meeting?.onDestroy()
         super.onDestroy()
     }

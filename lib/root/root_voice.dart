@@ -166,6 +166,9 @@ extension _RootVoice on _GhostRootState {
         return _library.update(id, body, expectedRevision);
       },
       syncNow: _services?.engine?.syncNow,
+      // `navigator.onLine` and the window's `online`: the parked lookups go on when a connection is back.
+      onLine: widget.connection == null ? null : () => widget.connection!.onLine,
+      onOnline: widget.connection?.onOnline,
       visible: () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed,
     );
   }
