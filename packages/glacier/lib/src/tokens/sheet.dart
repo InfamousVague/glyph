@@ -1,4 +1,4 @@
-import 'css_value.dart';
+import 'split.dart';
 
 /// One thing a rule's selector asks of where it applies: an attribute (`[data-theme='dark']`, `[data-split]`,
 /// `:not([data-accent])`) or a class (`.app-inverse`).
@@ -66,6 +66,11 @@ class TokenRule {
 /// those rules has a `[data-theme='dark']` twin.
 class TokenSheet {
   TokenSheet._(this.rules);
+
+  /// A sheet from rules already in cascade order: what [TokenSheet.parseAll] made of the same stylesheets some
+  /// other time. The app's own is made as it is built (tool/token_sheet.dart writes lib/app/token_sheet.g.dart), so
+  /// its start reads and parses no CSS; a test holds the two to be the same, rule for rule.
+  TokenSheet.kept(Iterable<TokenRule> rules) : rules = List.of(rules);
 
   final List<TokenRule> rules;
 

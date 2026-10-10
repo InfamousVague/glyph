@@ -4,12 +4,11 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:glacier/glacier.dart';
 
 import 'account/crypto.dart';
 import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
-import 'app/style_sheets.dart';
+import 'app/token_sheet.g.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
@@ -60,17 +59,20 @@ Future<void> main() async {
   // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.
   MacWindow.instance.attach();
   DesktopKeys.attach();
-  // Five things the first frame waits for, and none of them for another: begun together, so the start is as long
-  // as the slowest of them and not as all of them one after the other (the core alone is most of it).
-  final (_, sheet, _, opened, locator) = await (
+  // The app's token sheet, worked out as the app was built (lib/app/token_sheet.g.dart, tool/token_sheet.dart): no
+  // stylesheet is read or parsed here, which was the longest wait of a quiet start.
+  final sheet = appTokenSheet();
+  PerfLaunch.step('sheet');
+  // Four things the first frame waits for, and none of them for another: begun together, so the start is as long
+  // as the slowest of them and not as all of them one after the other.
+  final (_, _, opened, locator) = await (
     // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
-    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge),
-    _styled(),
+    SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge).whenComplete(() => PerfLaunch.step('chrome')),
     _remembered(),
     _opened(),
     // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
     // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
-    PhoneLocator().attach(),
+    PhoneLocator().attach().whenComplete(() => PerfLaunch.step('located')),
   ).wait;
   final (:core, :whole, :account, :voice) = opened;
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
@@ -103,13 +105,6 @@ Future<void> main() async {
   unawaited(runMacTour());
   // And of the iPhone app, in its simulator (lib/shell/phone_tour.dart).
   unawaited(runPhoneTour());
-}
-
-/// The app's token sheet: the kit's and the app's own stylesheets, read and parsed.
-Future<TokenSheet> _styled() async {
-  final sheet = await loadTokenSheet(more: appStyleSheets);
-  PerfLaunch.step('sheet');
-  return sheet;
 }
 
 /// What this device chose and how it left things, before anything is drawn. Storage that will not answer is not
@@ -176,7 +171,11 @@ Future<({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking
   return (core: core, whole: whole, account: account, voice: voice);
 }
 
-Future<DevicePaths> _folders() async => PerfLaunch.dirs() ?? await DevicePaths.find();
+Future<DevicePaths> _folders() async {
+  final dirs = PerfLaunch.dirs() ?? await DevicePaths.find();
+  PerfLaunch.step('paths');
+  return dirs;
+}
 
 /// The app, built anew each time it is started over (Developer's resets, lib/core/reset.dart): what
 /// `window.location.reload()` was to the page. The core, the phone's halves and the links' channel are the
