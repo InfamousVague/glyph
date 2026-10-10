@@ -270,8 +270,10 @@ List<String> statusesOf(String? notebook) {
 enum StatusCategory { todo, doing, done }
 
 /// A status as its words are compared: lower case, no apostrophes, a space between words. "Won't do" is "wont do".
-String _statusWords(String status) =>
-    status.toLowerCase().replaceAll(RegExp("['’]"), '').replaceAll(RegExp(r'[^\p{L}\p{N}]+', unicode: true), ' ').trim();
+String _statusWords(String status) => status.toLowerCase().replaceAll(_apostrophes, '').replaceAll(_notWords, ' ').trim();
+
+final RegExp _apostrophes = RegExp("['’]");
+final RegExp _notWords = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
 
 const Set<String> _done = {
   'done', 'closed', 'resolved', 'complete', 'completed', 'finished', 'shipped', 'released', 'merged', 'fixed', 'cancelled', 'canceled', 'duplicate', 'rejected',
@@ -444,9 +446,11 @@ final RegExp _hashes = RegExp(r'^#+');
 
 /// A ticket's properties, or null where the note is not one. [statuses] is its notebook's workflow ([statusesOf]).
 Ticket? ticketOf(String body, [List<String>? statuses]) {
-  if (!isTicket(body)) return null;
+  // The front matter is found once, and each property read from where it lies.
+  final front = frontMatterSpan(body);
+  if (front.isEmpty || frontMatterValueIn(body, front, 'type')?.trim().toLowerCase() != ticketType) return null;
   String? said(String key) {
-    final value = frontMatterValue(body, key);
+    final value = frontMatterValueIn(body, front, key);
     if (value == null) return null;
     final clean = jsTrim(value);
     return clean.isEmpty ? null : clean;
@@ -463,7 +467,7 @@ Ticket? ticketOf(String body, [List<String>? statuses]) {
   final person = assignee == null ? '' : jsTrim(assignee.replaceFirst(_ats, ''));
   final parents = linkTargets(said('parent'));
   return Ticket(
-    id: ticketIdOf(body),
+    id: issueKeyOf(frontMatterValueIn(body, front, 'id')),
     status: status,
     category: statusCategory(status, statuses),
     assignee: person.isEmpty ? null : person,

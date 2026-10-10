@@ -418,9 +418,8 @@ String serializeCanvas(Canvas canvas) {
 /// The body after its front matter, where it opens with one; the title is not put back as a first line - a
 /// canvas's first line is `{`, and the title is the note's name.
 String _afterFrontMatter(String body) {
-  final lines = body.split('\n');
-  final end = frontMatterEnd(lines);
-  return end == 0 ? body : lines.sublist(end).join('\n');
+  final at = frontMatterOffset(body);
+  return at == 0 ? body : body.substring(at);
 }
 
 /// The canvas a note's body is, or null for a note that is words: front matter, then the JSON and nothing else.
@@ -430,7 +429,189 @@ Canvas? canvasOf(String body) {
 }
 
 /// Whether the note is a canvas rather than words: cheap enough to ask of every note in a list.
-bool isCanvasBody(String body) => canvasOf(body) != null;
+///
+/// The same answer as `canvasOf(body) != null`, with no canvas made and nothing decoded: a note of words is told
+/// by the first character after its front matter, which is not `{`; one that opens with a brace is walked once as
+/// JSON ([_canvasJson]), which says what [parseCanvas] asks of the decoded text before it reads a node: that it is
+/// JSON at all, an object, and has a `nodes` or an `edges` that is an array. It was the whole canvas decoded and
+/// built for each asking, and a list asks it of every note (test/canvas/canvas_body_test.dart holds the two
+/// answers to one).
+bool isCanvasBody(String body) {
+  var from = frontMatterOffset(body);
+  var to = body.length;
+  // `trim()`, where the text lies.
+  while (from < to && blankIn(body, from, from + 1)) {
+    from += 1;
+  }
+  if (from >= to || body.codeUnitAt(from) != 0x7B) return false;
+  while (to > from && blankIn(body, to - 1, to)) {
+    to -= 1;
+  }
+  return _canvasJson(body, from, to);
+}
+
+bool _jsonSpace(int c) => c == 0x20 || c == 0x0A || c == 0x0D || c == 0x09;
+bool _digit(int c) => c >= 0x30 && c <= 0x39;
+bool _hex(int c) => _digit(c) || (c >= 0x41 && c <= 0x46) || (c >= 0x61 && c <= 0x66);
+
+/// Where the JSON string that opens at `text[at]` (its quote) ends, one past its closing quote; -1 where it is
+/// not a string as `jsonDecode` reads one.
+int _jsonString(String text, int at, int end) {
+  var i = at + 1;
+  while (i < end) {
+    final c = text.codeUnitAt(i);
+    if (c == 0x22) return i + 1;
+    if (c < 0x20) return -1;
+    if (c == 0x5C) {
+      if (i + 1 >= end) return -1;
+      final e = text.codeUnitAt(i + 1);
+      if (e == 0x75) {
+        if (i + 5 >= end) return -1;
+        for (var h = i + 2; h < i + 6; h += 1) {
+          if (!_hex(text.codeUnitAt(h))) return -1;
+        }
+        i += 6;
+        continue;
+      }
+      // `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`.
+      if (e != 0x22 && e != 0x5C && e != 0x2F && e != 0x62 && e != 0x66 && e != 0x6E && e != 0x72 && e != 0x74) return -1;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+/// Where the JSON number that opens at `text[at]` ends; -1 where it is not one:
+/// `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`.
+int _jsonNumber(String text, int at, int end) {
+  var i = at;
+  if (i < end && text.codeUnitAt(i) == 0x2D) i += 1;
+  if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+  if (text.codeUnitAt(i) == 0x30) {
+    i += 1;
+  } else {
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  if (i < end && text.codeUnitAt(i) == 0x2E) {
+    i += 1;
+    if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  if (i < end && (text.codeUnitAt(i) | 0x20) == 0x65) {
+    i += 1;
+    if (i < end && (text.codeUnitAt(i) == 0x2B || text.codeUnitAt(i) == 0x2D)) i += 1;
+    if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  return i;
+}
+
+/// Whether `text[from..to)`, which opens with a brace, is what [parseCanvas] makes a canvas of: JSON, an object,
+/// with a `nodes` or an `edges` that is an array (of two keys the same, the last, as a decoder keeps it). The text
+/// is walked once and nothing is made of it.
+bool _canvasJson(String text, int from, int to) {
+  // Each open object or array, the innermost last: true for an object.
+  final open = <bool>[];
+  var nodes = false, edges = false;
+  // Which of the outermost object's keys the value being read is under: 1 `nodes`, 2 `edges`, 0 any other.
+  var under = 0;
+  var i = from;
+
+  int spaces(int at) {
+    while (at < to && _jsonSpace(text.codeUnitAt(at))) {
+      at += 1;
+    }
+    return at;
+  }
+
+  // A key and its colon, in an object: answers where its value begins, or -1.
+  int key(int at) {
+    if (at >= to || text.codeUnitAt(at) != 0x22) return -1;
+    final end = _jsonString(text, at, to);
+    if (end < 0) return -1;
+    if (open.length == 1) {
+      final raw = text.substring(at + 1, end - 1);
+      // A key written with an escape is read as a decoder reads it.
+      final name = raw.contains(r'\') ? jsonDecode('"$raw"') as String : raw;
+      under = name == 'nodes' ? 1 : (name == 'edges' ? 2 : 0);
+    }
+    final colon = spaces(end);
+    if (colon >= to || text.codeUnitAt(colon) != 0x3A) return -1;
+    return spaces(colon + 1);
+  }
+
+  while (true) {
+    // A value begins at i.
+    if (i >= to) return false;
+    final c = text.codeUnitAt(i);
+    if (open.length == 1) {
+      if (under == 1) nodes = c == 0x5B;
+      if (under == 2) edges = c == 0x5B;
+    }
+    var closed = false;
+    if (c == 0x7B) {
+      open.add(true);
+      i = spaces(i + 1);
+      if (i < to && text.codeUnitAt(i) == 0x7D) {
+        open.removeLast();
+        i += 1;
+        closed = true;
+      } else {
+        i = key(i);
+        if (i < 0) return false;
+        continue;
+      }
+    } else if (c == 0x5B) {
+      open.add(false);
+      i = spaces(i + 1);
+      if (i < to && text.codeUnitAt(i) == 0x5D) {
+        open.removeLast();
+        i += 1;
+        closed = true;
+      } else {
+        continue;
+      }
+    } else if (c == 0x22) {
+      i = _jsonString(text, i, to);
+    } else if (c == 0x2D || _digit(c)) {
+      i = _jsonNumber(text, i, to);
+    } else if (text.startsWith('true', i) || text.startsWith('null', i)) {
+      i += 4;
+    } else if (text.startsWith('false', i)) {
+      i += 5;
+    } else {
+      return false;
+    }
+    if (i < 0 || i > to) return false;
+    // A value has ended: what follows it closes what it is in, or goes on to the next.
+    while (true) {
+      if (open.isEmpty) return closed && spaces(i) == to && (nodes || edges);
+      i = spaces(i);
+      if (i >= to) return false;
+      final next = text.codeUnitAt(i);
+      if (next == 0x2C) {
+        i = spaces(i + 1);
+        if (open.last) {
+          i = key(i);
+          if (i < 0) return false;
+        }
+        break;
+      }
+      if (next != (open.last ? 0x7D : 0x5D)) return false;
+      open.removeLast();
+      i += 1;
+      closed = true;
+    }
+  }
+}
 
 /// A canvas note's body: the title as front matter, which is how the note gets its name, then the canvas exactly
 /// as the spec writes it. Quoted, so a title with a colon in it stays one line.

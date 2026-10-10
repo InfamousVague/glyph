@@ -12,11 +12,12 @@ library;
 
 import 'package:flutter/foundation.dart';
 
-import '../core/book.dart';
-import '../core/canvas_body.dart';
-import '../core/front_matter.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart';
+
+// How a note starts, on one line (`firstLine`): lib/core/note_text.dart's, where a note's facts read it.
+export '../core/note_text.dart' show firstLine;
 
 /// The layouts the page can be drawn in (`HomeLayout`). A layout's `name` is the id Settings keeps.
 enum HomeLayout { spotlight, cards, timeline, list }
@@ -56,8 +57,10 @@ const List<({HomeFilter id, String label})> homeFilters = [
 enum HomeKind { book, canvas, tape, note }
 
 HomeKind kindOf(Note note) {
-  if (isBookBody(note.body)) return HomeKind.book;
-  if (isCanvasBody(note.body)) return HomeKind.canvas;
+  // Read once for the note, and kept (lib/core/note_facts.dart): the page asks this of every note it has.
+  final facts = NoteFacts.of(note);
+  if (facts.isBook) return HomeKind.book;
+  if (facts.isCanvas) return HomeKind.canvas;
   if (hasTape(note)) return HomeKind.tape;
   return HomeKind.note;
 }
@@ -90,37 +93,22 @@ int _newestPinnedFirst(Note a, Note b) {
 /// The notes the page shows under a search and a filter, never the archive.
 HomeLists homeLists(Iterable<Note> all, String query, HomeFilter filter) {
   final shown = all.where((n) => n.archivedAt == null && matches(n, query) && (filter != HomeFilter.pinned || n.starred)).toList();
-  final books = filter == HomeFilter.notes ? <Note>[] : _sorted(shown.where((n) => kindOf(n) == HomeKind.book), _newestPinnedFirst);
-  final notes = filter == HomeFilter.books ? <Note>[] : _sorted(shown.where((n) => kindOf(n) != HomeKind.book), _newestPinnedFirst);
+  // A notebook is one by its front matter alone: neither list asks whether a note is a canvas.
+  final books = filter == HomeFilter.notes ? <Note>[] : _sorted(shown.where((n) => NoteFacts.of(n).isBook), _newestPinnedFirst);
+  final notes = filter == HomeFilter.books ? <Note>[] : _sorted(shown.where((n) => !NoteFacts.of(n).isBook), _newestPinnedFirst);
   return HomeLists(books: books, notes: notes);
 }
 
 /// How many of each kind there are, for the filter's counts: the archive left out, the search not applied.
 Map<HomeFilter, int> homeCounts(Iterable<Note> all) {
-  final live = all.where((n) => n.archivedAt == null).toList();
-  final books = live.where((n) => kindOf(n) == HomeKind.book).length;
-  return {HomeFilter.all: live.length, HomeFilter.books: books, HomeFilter.notes: live.length - books, HomeFilter.pinned: live.where((n) => n.starred).length};
-}
-
-final RegExp _lineLead = RegExp(r'^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s*|[-*+]\s+|\d+[.)]\s+)');
-final RegExp _stars = RegExp(r'\*\*|__|`');
-
-/// How a note starts, on one line, after its name: its first line of words that is not its title, the marks that
-/// start a line and the stars around words taken off. Empty for a note with nothing under its name.
-String firstLine(String body, [int most = 120]) {
-  final lines = body.split('\n');
-  final title = noteTitle(body).trim();
-  var titleSeen = false;
-  for (final raw in lines.sublist(frontMatterEnd(lines))) {
-    final line = raw.replaceFirst(_lineLead, '').replaceAll(_stars, '').trim();
-    if (line.isEmpty) continue;
-    if (!titleSeen && line == title) {
-      titleSeen = true;
-      continue;
-    }
-    return line.length > most ? '${line.substring(0, most - 1).trimRight()}…' : line;
+  var live = 0, books = 0, pinned = 0;
+  for (final note in all) {
+    if (note.archivedAt != null) continue;
+    live += 1;
+    if (NoteFacts.of(note).isBook) books += 1;
+    if (note.starred) pinned += 1;
   }
-  return '';
+  return {HomeFilter.all: live, HomeFilter.books: books, HomeFilter.notes: live - books, HomeFilter.pinned: pinned};
 }
 
 /// The timeline's spans, newest first.

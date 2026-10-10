@@ -5,9 +5,8 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/book.dart';
-import '../core/canvas_body.dart';
 import '../core/note.dart';
-import '../core/note_text.dart';
+import '../core/note_facts.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces;
 import '../sheet/css.dart';
@@ -187,10 +186,13 @@ class _NoteTreeState extends State<NoteTree> {
     final inBooks = bookIndex(widget.notes);
 
     Widget row(Note note) {
-      final title = noteTitle(note.body);
+      // The note's words are read once and kept (lib/core/note_facts.dart): nothing of its body is read here.
+      final facts = NoteFacts.of(note);
+      final title = facts.title;
       final place = placeOf(inBooks, note);
       final active = note.id == widget.activeId;
-      final small = compact ? null : widget.peek(context, note.body);
+      // The usual drawing is made from what the facts keep; another asked for is handed the body, as it asks.
+      final small = compact ? null : (identical(widget.peek, NotePeek.plain) ? NotePeek.ofNote(context, note) : widget.peek(context, note.body));
       final name = cssLines(
         title.isEmpty ? 'Untitled' : title,
         look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold'),
@@ -238,7 +240,7 @@ class _NoteTreeState extends State<NoteTree> {
                         ? Row(
                             spacing: 0.5 * look.em,
                             children: [
-                              _KindMark(body: note.body, color: t.color('app-ink-3')),
+                              _KindMark(book: facts.isBook, canvas: facts.isCanvas, color: t.color('app-ink-3')),
                               Expanded(child: name),
                             ],
                           )
@@ -362,7 +364,7 @@ class _NoteTreeState extends State<NoteTree> {
               inside([
                 for (final note in trashed)
                   () {
-                    final title = noteTitle(note.body);
+                    final title = NoteFacts.of(note).title;
                     final said = title.isEmpty ? 'Untitled' : title;
                     return CssFlow.block(
                       key: ValueKey('trash-row-${note.id}'),
@@ -620,15 +622,18 @@ class _Tool extends StatelessWidget {
 
 /// `KindMark` (`.kind`): a note's kind as a file browser would mark it: a book, a canvas, or a page of words.
 class _KindMark extends StatelessWidget {
-  const _KindMark({required this.body, required this.color});
-  final String body;
+  const _KindMark({required this.book, required this.canvas, required this.color});
+
+  /// Whether the note is a notebook, and whether it is a canvas, as its facts have them.
+  final bool book;
+  final bool canvas;
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final icon = isBookBody(body)
+    final icon = book
         ? Lucide.bookOpen
-        : isCanvasBody(body)
+        : canvas
             ? Lucide.workflow
             : Lucide.fileText;
     return ExcludeSemantics(child: KeyedSubtree(key: const ValueKey('kind-mark'), child: lucide(icon, size: 14, color: color)));

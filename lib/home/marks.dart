@@ -11,11 +11,21 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/note_facts.dart';
 import '../core/properties.dart';
 import 'home_text.dart';
 
 export '../notes/book_place_mark.dart' show BookPlaceMark;
 export '../notes/org_mark.dart' show OrgMark;
+
+/// The ticket a listed note is, placed in its notebook's workflow, or null for a note that is not one: what
+/// `ticketOf(note.body, statusesOf(notebook))` answers, from the note's kept facts (lib/core/note_facts.dart).
+/// [workflow] is the notebook's statuses where they were read already (its own facts' `statuses`); else [notebook]
+/// is its body, read here.
+Ticket? listedTicket(NoteFacts facts, {String? notebook, List<String>? workflow}) {
+  if (!facts.isTicket) return null;
+  return facts.ticketIn(workflow ?? (notebook == null ? null : statusesOf(notebook)));
+}
 
 /// A ticket's key and status where it is listed (`TicketMark`): small and quiet, the key in the mono face, the
 /// status's dot in its category's colour, and the status's words in that colour once it is under way or done. Nothing
@@ -24,23 +34,35 @@ export '../notes/org_mark.dart' show OrgMark;
 /// [notebook] is the body of the notebook it is a page of, whose workflow its status is placed in. [after] is a
 /// `::after` a list hangs on the mark (a row's `·`), drawn as one more item of the mark's own row.
 class TicketMark extends StatelessWidget {
-  const TicketMark({super.key, required this.body, this.notebook, this.keyOnly = false, this.after});
+  const TicketMark({super.key, required String this.body, this.notebook, this.keyOnly = false, this.after}) : ticket = null;
 
-  final String body;
+  /// The mark of a ticket read already (lib/core/note_facts.dart `ticketIn`): what a list hands over, having read
+  /// each note once, where the constructor above reads its body at every build.
+  const TicketMark.of(Ticket this.ticket, {super.key, this.keyOnly = false, this.after})
+      : body = null,
+        notebook = null;
+
+  final String? body;
   final String? notebook;
   final bool keyOnly;
   final String? after;
 
+  /// The ticket, where it was read before this was made.
+  final Ticket? ticket;
+
   /// Whether a mark is drawn for [body] at all.
-  static bool has(String body, {String? notebook, bool keyOnly = false}) {
-    final ticket = ticketOf(body, notebook == null ? null : statusesOf(notebook));
+  static bool has(String body, {String? notebook, bool keyOnly = false}) => shows(ticketOf(body, notebook == null ? null : statusesOf(notebook)), keyOnly: keyOnly);
+
+  /// Whether a mark is drawn for a ticket read already: one with a key or a status, and with a key where only that
+  /// is drawn. None for a note that is no ticket.
+  static bool shows(Ticket? ticket, {bool keyOnly = false}) {
     if (ticket == null || (ticket.id == null && ticket.status == null)) return false;
     return !(keyOnly && ticket.id == null);
   }
 
   @override
   Widget build(BuildContext context) {
-    final ticket = ticketOf(body, notebook == null ? null : statusesOf(notebook));
+    final ticket = this.ticket ?? ticketOf(body!, notebook == null ? null : statusesOf(notebook!));
     if (ticket == null || (ticket.id == null && ticket.status == null)) return const SizedBox.shrink();
     if (keyOnly && ticket.id == null) return const SizedBox.shrink();
     final t = context.tokens;

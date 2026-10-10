@@ -29,6 +29,8 @@ import 'package:glacier/glacier.dart';
 
 import '../core/canvas_body.dart';
 import '../core/images.dart' show PictureStore;
+import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../editor/items/items.dart' show itemExtensions;
 import '../editor/markdown_view.dart';
@@ -52,17 +54,34 @@ class PeekPictures extends InheritedWidget {
 /// The preview of a note's [body] on its card. Draws nothing for a canvas (its body is JSON) or a note with nothing
 /// under its title.
 class NotePeek extends StatelessWidget {
-  const NotePeek({super.key, required this.body, this.fill = false, this.dense = false, this.margin = true});
+  const NotePeek({super.key, required this.body, this.markdown, this.fill = false, this.dense = false, this.margin = true});
 
   final String body;
+
+  /// What is drawn of [body], where it was read before this was made (lib/core/note_facts.dart `peek`:
+  /// `peekMarkdown(body)`, and nothing for a canvas). A list reads each note once and hands this over; left out,
+  /// the body is read at every build.
+  final String? markdown;
 
   /// `.peek { margin-block-start: var(--glacier-space-2) }`: the room over the preview on a card. A sidebar's row
   /// keeps its own (`.rowPeek`), and asks for none.
   final bool margin;
 
+  /// What is drawn small of [body]: nothing for a canvas (its body is JSON), else the note after its title.
+  static String _drawn(String body) => isCanvasBody(body) ? '' : peekMarkdown(body);
+
   /// The preview as a list's row or a sidebar's card takes it (lib/notes/note_peek.dart `NotePeekBuilder`): the
   /// drawing alone, or null where there is nothing after the title.
-  static Widget? plain(BuildContext context, String body) => has(body) ? NotePeek(body: body, margin: false) : null;
+  static Widget? plain(BuildContext context, String body) {
+    final markdown = _drawn(body);
+    return markdown.isEmpty ? null : NotePeek(body: body, markdown: markdown, margin: false);
+  }
+
+  /// [plain] for a note, whose words are read once and kept (lib/core/note_facts.dart).
+  static Widget? ofNote(BuildContext context, Note note) {
+    final markdown = NoteFacts.of(note).peek;
+    return markdown.isEmpty ? null : NotePeek(body: note.body, markdown: markdown, margin: false);
+  }
 
   /// The card is stretched to its row's height: the preview takes the room there is, up to its six lines
   /// (NoteCard.module.css `.peek { flex: 1 }` under `max-block-size`).
@@ -72,12 +91,11 @@ class NotePeek extends StatelessWidget {
   final bool dense;
 
   /// Whether [body] has anything to draw small.
-  static bool has(String body) => !isCanvasBody(body) && peekMarkdown(body).isNotEmpty;
+  static bool has(String body) => _drawn(body).isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
-    if (isCanvasBody(body)) return const SizedBox.shrink();
-    final markdown = peekMarkdown(body);
+    final markdown = this.markdown ?? _drawn(body);
     if (markdown.isEmpty) return const SizedBox.shrink();
     // `max-block-size: calc(1.6em * 6.2)`, and the fade over the last `1.8em`.
     final drawn = MarkdownView(markdown: markdown, lines: dense ? 4.2 : 6.2, fill: fill, extensions: peekExtensions(PeekPictures.of(context)));

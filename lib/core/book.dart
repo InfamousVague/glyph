@@ -14,6 +14,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'front_matter.dart';
 import 'note.dart';
+import 'note_facts.dart';
 import 'note_text.dart';
 
 export '../book/journal.dart' show entryPages, stampOf;
@@ -34,19 +35,25 @@ class Chapter {
 
 final RegExp _item = RegExp('^(\\s*)($listMarker)\\s+(?:$taskBoxPattern\\s+)?(.*)\$');
 final RegExp _link = RegExp(r'^\[\[([^\]\n|#]{1,120})(?:[#|][^\]\n]*)?\]\]');
-final RegExp _yes = RegExp(r'^(true|yes)$', caseSensitive: false);
+final RegExp _figure = RegExp(r'\d');
+
+/// Whether a front matter value says yes: `true` or `yes`, in any case (`/^(true|yes)$/i`).
+bool saysYes(String? said) {
+  if (said == null) return false;
+  final length = said.length;
+  if (length != 3 && length != 4) return false;
+  final low = said.toLowerCase();
+  // The pattern folds ASCII's case alone: a dotless or a long letter that lower-cases to one of these is not it.
+  return (low == 'true' || low == 'yes') && said.codeUnitAt(0) < 0x80 && said.codeUnitAt(1) < 0x80 && said.codeUnitAt(2) < 0x80 && said.codeUnitAt(length - 1) < 0x80;
+}
 
 /// Whether a note is a book: its front matter says so.
-bool isBookBody(String body) {
-  final said = frontMatterValue(body, 'book');
-  return said != null && _yes.hasMatch(said);
-}
+bool isBookBody(String body) => saysYes(frontMatterValue(body, 'book'));
 
 /// Whether a notebook is a journal: `journal: true` beside `book: true`.
 bool isJournalBody(String body) {
-  if (!isBookBody(body)) return false;
-  final said = frontMatterValue(body, 'journal');
-  return said != null && _yes.hasMatch(said);
+  final span = frontMatterSpan(body);
+  return saysYes(frontMatterValueIn(body, span, 'book')) && saysYes(frontMatterValueIn(body, span, 'journal'));
 }
 
 /// The body of a new book note, named, with any chapters given in order.
@@ -68,7 +75,7 @@ List<Chapter> chaptersOf(String body) {
     if (link == null) continue;
     found.add((
       Chapter(title: link.group(1)!.trim(), depth: (item.group(1) ?? '').length >= 2 ? 1 : 0, line: n),
-      RegExp(r'\d').hasMatch(item.group(2) ?? ''),
+      _figure.hasMatch(item.group(2) ?? ''),
     ));
   }
   final numbers = found.any((c) => c.$2);
@@ -148,26 +155,38 @@ class BookPlace {
 
 /// Every page's book at once, by the page's title as it is matched: one pass over the books rather than one per row.
 /// A page in two books is marked with the first.
-Map<String, BookPlace> bookIndex(Iterable<Note> notes) {
+///
+/// Each note is read through its kept facts (note_facts.dart), and the index itself is kept by the notes it was
+/// made from: asked again for the very same notes, in a new list or not, it is the one already made. Not to be
+/// changed.
+Map<String, BookPlace> bookIndex(Iterable<Note> notes) => notes is List<Note> ? _indexes.of(notes, () => _bookIndex(notes)) : _bookIndex(notes);
+
+final NotesMemo<Map<String, BookPlace>> _indexes = NotesMemo<Map<String, BookPlace>>();
+
+Map<String, BookPlace> _bookIndex(Iterable<Note> notes) {
   final places = <String, BookPlace>{};
   for (final note in notes) {
-    if (!isBookBody(note.body)) continue;
-    final title = noteTitle(note.body);
-    final chapters = chaptersOf(note.body);
-    final journal = isJournalBody(note.body);
+    final facts = NoteFacts.of(note);
+    if (!facts.isBook) continue;
+    final title = facts.title;
+    final own = facts.key;
+    final chapters = facts.chapters;
+    final keys = facts.chapterKeys;
+    final journal = facts.isJournal;
     for (var at = 0; at < chapters.length; at += 1) {
-      final key = titleKey(chapters[at].title);
-      if (key.isEmpty || key == titleKey(title) || places.containsKey(key)) continue;
+      final key = keys[at];
+      if (key.isEmpty || key == own || places.containsKey(key)) continue;
       places[key] = BookPlace(book: note, title: title, chapters: chapters, at: at, journal: journal);
     }
   }
-  return places;
+  return Map<String, BookPlace>.unmodifiable(places);
 }
 
 /// The book a note is a page of, from the index: null for a note in none, or for a book itself.
 BookPlace? placeOf(Map<String, BookPlace> index, Note note) {
-  if (isBookBody(note.body)) return null;
-  return index[titleKey(noteTitle(note.body))];
+  final facts = NoteFacts.of(note);
+  if (facts.isBook) return null;
+  return index[facts.key];
 }
 
 // ---- pages that are not the person's notes (guidebook/guidebook.ts, notes/ownTemplates.ts) ------------------------
@@ -180,35 +199,48 @@ Set<String> guidePages(List<Note> notes) {
   final index = bookIndex(notes);
   final pages = <String>{};
   for (final note in notes) {
-    final place = index[titleKey(noteTitle(note.body))];
+    final place = index[NoteFacts.of(note).key];
     if (place != null && sameTitle(place.title, guideTitle)) pages.add(note.id);
   }
   return pages;
 }
 
 /// The Guide's own book note: the book by the Guide's title.
-bool isGuideBook(Note note) => isBookBody(note.body) && sameTitle(noteTitle(note.body), guideTitle);
+bool isGuideBook(Note note) {
+  final facts = NoteFacts.of(note);
+  return facts.isBook && sameTitle(facts.title, guideTitle);
+}
 
 /// Whether a note is a Templates notebook: `templates: true` beside `book: true`.
-bool isTemplatesBook(String body) => isBookBody(body) && _yes.hasMatch(frontMatterValue(body, 'templates') ?? '');
+bool isTemplatesBook(String body) {
+  final span = frontMatterSpan(body);
+  return saysYes(frontMatterValueIn(body, span, 'book')) && saysYes(frontMatterValueIn(body, span, 'templates'));
+}
+
+final RegExp _page = RegExp(r'^page$', caseSensitive: false);
 
 /// Whether a note is a template's page: marked `templates: page`, and not a notebook.
-bool isTemplatePage(String body) => !isBookBody(body) && RegExp(r'^page$', caseSensitive: false).hasMatch(frontMatterValue(body, 'templates') ?? '');
+bool isTemplatePage(String body) {
+  final span = frontMatterSpan(body);
+  return !saysYes(frontMatterValueIn(body, span, 'book')) && _page.hasMatch(frontMatterValueIn(body, span, 'templates') ?? '');
+}
 
 /// The marked pages a Templates notebook's index names, kept out of the lists a person's own notes are in.
 Set<String> templatePages(List<Note> notes) {
   final ids = <String>{};
-  final books = notes.where((note) => note.archivedAt == null && isTemplatesBook(note.body)).toList();
+  final books = notes.where((note) => note.archivedAt == null && NoteFacts.of(note).isTemplatesBook).toList();
   if (books.isEmpty) return ids;
   final pages = <String, List<Note>>{};
   for (final note in notes) {
-    if (note.archivedAt != null || !isTemplatePage(note.body)) continue;
-    final key = titleKey(noteTitle(note.body));
+    if (note.archivedAt != null) continue;
+    final facts = NoteFacts.of(note);
+    if (!facts.isTemplatePage) continue;
+    final key = facts.key;
     if (key.isNotEmpty) pages.putIfAbsent(key, () => []).add(note);
   }
   for (final book in books) {
-    for (final chapter in chaptersOf(book.body)) {
-      for (final page in pages[titleKey(chapter.title)] ?? const <Note>[]) {
+    for (final key in NoteFacts.of(book).chapterKeys) {
+      for (final page in pages[key] ?? const <Note>[]) {
         ids.add(page.id);
       }
     }

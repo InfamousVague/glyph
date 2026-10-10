@@ -23,18 +23,19 @@
 /// - `noteOf` answers null where the page's answers `undefined`.
 library;
 
-import '../core/book.dart' show BookPlace, Chapter, chaptersOf, isJournalBody;
+import '../core/book.dart' show BookPlace, Chapter, chaptersOf;
 import '../core/front_matter.dart' show frontMatterEnd;
 import '../core/geotag.dart' show geoTagOf, tagLabel;
 import '../core/item_syntax.dart' show jsTrim, lineWords;
 import '../core/locale_dates.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart' show noteTitle;
 import '../core/place_refs.dart' show placeOfLine;
 import '../core/template.dart';
 import '../core/title_key.dart' show titleKey;
 import '../core/video_refs.dart' show videoOfLine;
-import 'journal.dart' show isEntryTitle, stampOf, templateOf;
+import 'journal.dart' show isEntryTitle, templateOf;
 
 /// A line of the journal's index, and the note it names, if there is one.
 class JournalPage {
@@ -227,7 +228,8 @@ EntryRow _rowOf(_Written page, String filled) {
   for (final page in pages) {
     final note = page.note;
     if (note != null) {
-      rows.add((title: page.title, line: page.line, note: note, wall: stampOf(note.body, note.createdAt)));
+      // `stampOf(note.body, note.createdAt)`, as the note's kept facts have it.
+      rows.add((title: page.title, line: page.line, note: note, wall: NoteFacts.of(note).stamp(note.createdAt)));
     } else if (!isEntryTitle(page.title)) {
       unwritten.add(page.title);
     }
@@ -278,13 +280,19 @@ BookPlace inTimeOrder(BookPlace place, Note? Function(String title) noteOf) {
   return at < 0 ? place : BookPlace(book: place.book, title: place.title, chapters: chapters, at: at, journal: place.journal);
 }
 
-/// Every note by its title's key, the first of two that share one, as a link finds it.
-Note? Function(String title) _byTitle(Iterable<Note> notes) {
+/// Every note by its title's key, the first of two that share one.
+Map<String, Note> _keyed(Iterable<Note> notes) {
   final map = <String, Note>{};
   for (final note in notes) {
-    final key = titleKey(noteTitle(note.body));
+    final key = NoteFacts.of(note).key;
     if (key.isNotEmpty) map.putIfAbsent(key, () => note);
   }
+  return map;
+}
+
+/// Every note by its title's key, the first of two that share one, as a link finds it.
+Note? Function(String title) _byTitle(Iterable<Note> notes) {
+  final map = _keyed(notes);
   return (title) => map[titleKey(title)];
 }
 
@@ -300,13 +308,24 @@ class JournalCard {
 const List<String> _usMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 /// Every journal's card among [notes], by the journal's id: none where there is no journal.
-Map<String, JournalCard> journalCards(List<Note> notes, [int newest = 4]) {
+///
+/// Each note is read through its kept facts (lib/core/note_facts.dart), and the cards themselves are kept by the
+/// notes they were made from and the order the phone writes a date in: asked again for the very same notes, they
+/// are the ones already made. Not to be changed.
+Map<String, JournalCard> journalCards(List<Note> notes, [int newest = 4]) => _cards.of(notes, () => _journalCards(notes, newest), also: (newest, toldLocale));
+
+final NotesMemo<Map<String, JournalCard>> _cards = NotesMemo<Map<String, JournalCard>>();
+
+Map<String, JournalCard> _journalCards(List<Note> notes, int newest) {
   final cards = <String, JournalCard>{};
-  final journals = notes.where((note) => isJournalBody(note.body)).toList();
+  final journals = notes.where((note) => NoteFacts.of(note).isJournal).toList();
   if (journals.isEmpty) return cards;
-  final noteOf = _byTitle(notes);
+  final keyed = _keyed(notes);
   for (final journal in journals) {
-    final rows = _written(pagesOf(journal.body, noteOf)).rows;
+    final facts = NoteFacts.of(journal);
+    final chapters = facts.chapters, keys = facts.chapterKeys;
+    // `pagesOf(journal.body, noteOf)`, each line's note found by the key its facts keep.
+    final rows = _written([for (var at = 0; at < chapters.length; at += 1) JournalPage(title: chapters[at].title, line: chapters[at].line, note: keyed[keys[at]])]).rows;
     cards[journal.id] = JournalCard(
       count: rows.length,
       newest: [

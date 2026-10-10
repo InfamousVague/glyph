@@ -35,7 +35,7 @@ export 'title_key.dart' show sameTitle, titleKey;
 final RegExp _commentAnchor = RegExp(r'\[\^(c[0-9a-z]+)\]');
 
 /// The note with its comment anchors taken out, for a label.
-String withoutAnchors(String text) => text.replaceAll(_commentAnchor, '');
+String withoutAnchors(String text) => text.contains('[^') ? text.replaceAll(_commentAnchor, '') : text;
 
 // ---- a list item's lead, under the names this file gave it (core/itemSyntax.ts) ------------------------------------
 
@@ -50,7 +50,14 @@ const String taskBoxPattern = boxPattern;
 /// The bookmark and the whitespace either side of it, which a title reads as one space.
 final RegExp _bookmarkInTitle = RegExp(r'\s*§§\s*');
 final RegExp _titleKey = RegExp(r'^\s*title\s*:', caseSensitive: false);
+final RegExp _titleLead = RegExp(r'^\s*title\s*:\s*', caseSensitive: false);
+final RegExp _titleQuotes = RegExp('''^['"]|['"]\$''');
 final RegExp _imageOnly = RegExp(r'^!\[[^\]]*\]\([^)]*\)\s*$');
+final RegExp _headingLead = RegExp(r'^#{1,6}\s+');
+
+/// A front matter line that names the note, `title: "Flat"`, as the list reads it: the words after the colon, a
+/// quote off each end.
+String _named(String line) => line.replaceFirst(_titleLead, '').replaceAll(_titleQuotes, '').trim();
 
 /// A note's lines with its front matter taken off, and its `title:` first where it has one.
 List<String> withoutFrontMatter(List<String> lines) {
@@ -63,30 +70,76 @@ List<String> withoutFrontMatter(List<String> lines) {
       break;
     }
   }
-  final title = named == null
-      ? ''
-      : named.replaceFirst(RegExp(r'^\s*title\s*:\s*', caseSensitive: false), '').replaceAll(RegExp('''^['"]|['"]\$'''), '').trim();
+  final title = named == null ? '' : _named(named);
   return title.isNotEmpty ? [title, ...lines.sublist(end)] : lines.sublist(end);
 }
 
-/// The first line of a note, which is the only title Ghost.md has.
-String noteTitle(String body) {
-  final lines = withoutFrontMatter(body.split('\n'));
-  // The first line that is words, not a picture: a note that opens with a photo is titled by what is said under it.
-  var line = '';
-  for (final each in lines) {
-    if (each.trim().isNotEmpty && !_imageOnly.hasMatch(each)) {
-      line = each;
-      break;
+/// The line a note is titled by, found where it lies and with nothing else of the body read: its front matter's
+/// `title:` where that says anything, else the first line after the front matter that is words, not a picture.
+/// What [withoutFrontMatter] and the loop over its lines answered, without the lines. [span] is the body's
+/// [frontMatterSpan], for a caller that has it.
+String noteTitleLine(String body, [FrontMatterSpan? span]) {
+  final front = span ?? frontMatterSpan(body);
+  if (!front.isEmpty) {
+    var from = body.indexOf('\n') + 1;
+    while (from < front.closing) {
+      final to = body.indexOf('\n', from);
+      // `^\s*title\s*:` opens with spaces or a T: a line that opens with neither is not asked.
+      var at = from;
+      while (at < to && body.codeUnitAt(at) <= 0x20) {
+        at += 1;
+      }
+      final first = at < to ? body.codeUnitAt(at) : 0;
+      if (first == 0x74 || first == 0x54 || first >= 0x80) {
+        final line = body.substring(from, to);
+        if (_titleKey.hasMatch(line)) {
+          final title = _named(line);
+          if (title.isNotEmpty && !_imageOnly.hasMatch(title)) return title;
+          break;
+        }
+      }
+      from = to + 1;
     }
   }
-  return withoutAnchors(titleWords(line)).replaceFirst(RegExp(r'^#{1,6}\s+'), '').replaceAll(_bookmarkInTitle, ' ').trim();
+  final length = body.length;
+  var from = front.offset;
+  while (true) {
+    final next = body.indexOf('\n', from);
+    final to = next < 0 ? length : next;
+    if (!blankIn(body, from, to)) {
+      final line = body.substring(from, to);
+      // A picture alone on its line opens with its `!`.
+      if (line.codeUnitAt(0) != 0x21 || !_imageOnly.hasMatch(line)) return line;
+    }
+    if (next < 0) return '';
+    from = next + 1;
+  }
 }
+
+/// A title's line as the title: a blank's question or its answer for the blank, its anchors and its heading's
+/// hashes off, the bookmark a space.
+String _titleOf(String line) {
+  var text = withoutAnchors(titleWords(line));
+  if (text.startsWith('#')) text = text.replaceFirst(_headingLead, '');
+  if (text.contains('§§')) text = text.replaceAll(_bookmarkInTitle, ' ');
+  return text.trim();
+}
+
+/// The first line of a note, which is the only title Ghost.md has.
+///
+/// The first line that is words, not a picture: a note that opens with a photo is titled by what is said under it.
+/// A list asks this of a note through `NoteFacts.of(note).title` (note_facts.dart), which keeps the answer.
+String noteTitle(String body) => _titleOf(noteTitleLine(body));
+
+/// [noteTitle] for a body whose front matter has been found already.
+String noteTitleIn(String body, FrontMatterSpan span) => _titleOf(noteTitleLine(body, span));
 
 // ---- search (notes/allNotes.ts) -----------------------------------------------------------------------------------
 
 /// Whether a note has a recording on it, whatever made it.
 bool hasTape(Note note) => (note.recordingMs ?? 0) > 0;
+
+final RegExp _spaces = RegExp(r'\s+');
 
 /// A priority's sign (task_fields.dart): a note with none has no priority to name.
 final RegExp _prioritySign = RegExp('🔺|⏫|🔼|🔽|⏬', unicode: true);
@@ -102,7 +155,9 @@ String _priorityWords(String body) {
 /// Whether a note has every word of the query, in its title or its body, whatever the case. Words rather than the
 /// whole phrase, so "trip packing" finds a note with those two words anywhere in it.
 bool matches(Note note, String query) {
-  final words = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  // No words asked for: every note, with nothing of it read.
+  if (query.isEmpty) return true;
+  final words = query.toLowerCase().split(_spaces).where((w) => w.isNotEmpty).toList();
   if (words.isEmpty) return true;
   // A filled blank's hidden bracket (blanks_syntax.dart) is not the note's words: "memory" or "Asked" finds no note.
   final text = '${plainFills(note.body)} ${_priorityWords(note.body)}'.toLowerCase();
@@ -154,5 +209,40 @@ String peekMarkdown(String body, [int most = peekSourceLines]) {
     }
     out.add(withoutAnchor(line));
   }
-  return out.join('\n').replaceFirst(RegExp(r'\s+$'), '');
+  return out.join('\n').replaceFirst(_trailingSpaces, '');
+}
+
+final RegExp _trailingSpaces = RegExp(r'\s+$');
+
+// ---- how a note starts (home/homeLayout.ts) ------------------------------------------------------------------------
+
+final RegExp _lineLead = RegExp(r'^\s*(?:#{1,6}\s+|>\s?|[-*+]\s+\[[ xX]\]\s*|[-*+]\s+|\d+[.)]\s+)');
+final RegExp _stars = RegExp(r'\*\*|__|`');
+
+/// How a note starts, on one line, after its name: its first line of words that is not its title, the marks that
+/// start a line and the stars around words taken off. Empty for a note with nothing under its name
+/// (`home/homeLayout.ts` `firstLine`; lib/home/home_layout.dart hands it on). Read a line at a time from where the
+/// front matter ends, and no further than the line it answers with.
+String firstLine(String body, [int most = 120]) {
+  final span = frontMatterSpan(body);
+  final title = noteTitleIn(body, span).trim();
+  var titleSeen = false;
+  final length = body.length;
+  var from = span.offset;
+  while (true) {
+    final next = body.indexOf('\n', from);
+    final to = next < 0 ? length : next;
+    if (!blankIn(body, from, to)) {
+      final line = body.substring(from, to).replaceFirst(_lineLead, '').replaceAll(_stars, '').trim();
+      if (line.isNotEmpty) {
+        if (!titleSeen && line == title) {
+          titleSeen = true;
+        } else {
+          return line.length > most ? '${line.substring(0, most - 1).trimRight()}…' : line;
+        }
+      }
+    }
+    if (next < 0) return '';
+    from = next + 1;
+  }
 }
