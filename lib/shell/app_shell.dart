@@ -828,6 +828,16 @@ class _RenderKept extends RenderOffstage {
     if (!offstage || _wider == 0 || !constraints.hasBoundedWidth) return super.performLayout();
     child?.layout(BoxConstraints(minWidth: constraints.minWidth + _wider, maxWidth: constraints.maxWidth + _wider, minHeight: constraints.minHeight, maxHeight: constraints.maxHeight));
   }
+
+  /// What is not drawn is nowhere. Asked where something in it is, a covered place answers with no place at all,
+  /// so whatever finds a thing by where it stands in the window does not find one under the note: the walk that
+  /// measures the app looks for a word or a label through every element there is (lib/shell/phone_tour.dart), and
+  /// with the home page kept it pressed the page's own "Home" under the note in place of the bar's.
+  @override
+  void applyPaintTransform(RenderBox child, Matrix4 transform) {
+    if (offstage) return transform.setZero();
+    super.applyPaintTransform(child, transform);
+  }
 }
 
 /// The aside as a card at the right, over the screen and under the bar: where the web draws `AsideCard`
