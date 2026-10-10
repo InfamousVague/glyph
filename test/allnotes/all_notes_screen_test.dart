@@ -465,6 +465,44 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('a row of cards with the page and a row a frame after, each built once; all at once to a page scrolled down', (tester) async {
+      // The app is up before the page is, so the page's first frame is one the test can stop at.
+      final notes = ValueNotifier<List<Note>?>(null);
+      addTearDown(notes.dispose);
+      final spaces = allNotesWorkspaces(any: false);
+      final stored = MemoryStored();
+      await pumpAllNotes(tester, ValueListenableBuilder<List<Note>?>(valueListenable: notes, builder: (context, notes, _) => notes == null ? const SizedBox.shrink() : AllNotes(notes: notes, workspaces: spaces, asked: Asked(), stored: stored)));
+      notes.value = many(40);
+      await tester.pump();
+      // One row, which on a phone is one card; the tally is the whole list's from the first.
+      expect(cards(tester), ['n0']);
+      expect(find.text('40 notes'), findsOneWidget);
+      final first = tester.widget<NoteCard>(key('card-n0'));
+      await tester.pump();
+      expect(cards(tester), ['n0', 'n1']);
+      expect(identical(tester.widget<NoteCard>(key('card-n0')), first), isTrue, reason: 'a row given is not built again for the row after it');
+      await tester.pump();
+      expect(cards(tester), ['n0', 'n1', 'n2']);
+      for (var frame = 0; frame < 12; frame += 1) {
+        await tester.pump();
+      }
+      // All given: what is near the screen is built, and no more of the forty.
+      expect(cards(tester).length, inInclusiveRange(4, 30));
+      expect(identical(tester.widget<NoteCard>(key('card-n0')), first), isTrue);
+      await settle(tester);
+      // A page scrolled down is given its cards whole, and stays where it was scrolled to.
+      final position = tester.state<ScrollableState>(find.descendant(of: key('all-notes-scroll'), matching: find.byType(Scrollable)).first).position;
+      position.jumpTo(300);
+      await tester.pump();
+      await tester.enterText(find.byType(EditableText), 'note 1');
+      await tester.pump();
+      // (The tally is over the window's top by now.)
+      expect(find.text('13 of 40', skipOffstage: false), findsOneWidget);
+      expect(position.pixels, 300);
+      expect(cards(tester).length, greaterThan(3));
+      await away(tester);
+    });
+
     testWidgets('a desktop’s scrollbar finds its room left for it: the cards are laid out once, and no card is made again when it comes', (tester) async {
       // Where there is a mouse a page with more than it shows gives its scrollbar twelve pixels, the frame after it
       // is first laid out, and the scrollbar is put round the page as another tree. The page leaves the room from

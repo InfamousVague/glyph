@@ -186,11 +186,44 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   /// hands back these, so no card is built again for a search field's caret or a pull's move, nor for a letter
   /// typed that leaves the same notes on the page.
   Widget? _cards;
-  ({_Read read, double width, Tokens tokens, int minute, bool menu})? _cardsFor;
+  ({_Read read, double width, Tokens tokens, int minute, bool menu, int given})? _cardsFor;
 
-  /// Each card as it was built for the cards as they are now, by its place (and whether it fills a row's cell):
-  /// kept while only the page's width changes.
+  /// How many rows of other cards the page has been given so far: a row with the page and a row a frame after,
+  /// for [_rowsAhead] frames, then all of them (0). Twenty-five cards near the screen, each a note drawn small,
+  /// were made in the one frame the page opened in, or a letter was typed in (measured on a Mac: 47.7 ms and 23.6,
+  /// where a frame has 16.7). Nothing is seen later than it was: a card waits 40 ms for each card before it, 320
+  /// at the most, before it begins to arrive, and takes its arrival up from when it came to be on the page
+  /// (lib/home/home_parts.dart `Arrive.since`), so a row made a frame late is made before it shows.
+  int _rowsGiven = 0;
+  bool _giving = false;
+  static const int _rowsAhead = 10;
+
+  /// The cards built while the rows are being given, by their place (and whether a card fills its row's cell): a
+  /// row given a frame ago is handed back as it was built, and is not built again for the row that follows it.
+  /// Let go a frame after the last row is given, so a card scrolled away and come back to is made as it is then.
   final Map<int, Widget> _cardAt = <int, Widget>{};
+  bool _keeping = false;
+
+  /// One more row a frame from now, or all of them once [_rowsAhead] have been given.
+  void _giveMore() {
+    if (_giving) return;
+    _giving = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _giving = false;
+      if (!mounted || _rowsGiven == 0) return;
+      setState(() => _rowsGiven = _rowsGiven >= _rowsAhead ? 0 : _rowsGiven + 1);
+    });
+  }
+
+  /// The rows are all given: what was kept of them while they were is let go once this frame is drawn.
+  void _letGo() {
+    if (!_keeping) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_rowsGiven != 0) return;
+      _keeping = false;
+      _cardAt.clear();
+    });
+  }
 
   static bool _sameList(List<Note> a, List<Note> b) {
     if (identical(a, b)) return true;
@@ -287,17 +320,32 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   }
 
   /// The grid of cards [width] wide, as a sliver that builds the rows near the screen.
-  Widget _grid(_Read read, double width, Tokens t, int? now) {
-    final made = (read: read, width: width, tokens: t, minute: (now ?? DateTime.now().millisecondsSinceEpoch) ~/ 60000, menu: widget.onNoteMenu != null);
+  Widget _grid(_Read read, double width, double window, Tokens t, int? now) {
     final cards = _cards;
     final was = _cardsFor;
+    final shown = read.shown;
+    final minute = (now ?? DateTime.now().millisecondsSinceEpoch) ~/ 60000;
+    final menu = widget.onNoteMenu != null;
+    // Other notes to show: their cards are given a row at a time, from the first. Not to a page that is scrolled
+    // down: it is as long as its rows, and given one row it would be back at its top.
+    if (cards == null || was == null || !_sameCards(was.read, read)) {
+      final down = _scroller.hasClients && _scroller.position.hasPixels && _scroller.position.pixels > 0;
+      _cardAt.clear();
+      _keeping = !down;
+      _rowsGiven = down ? 0 : 1;
+    }
+    final columns = NoteCards.columnsFor(width, window, gap: t.space(3), least: t.lenOf('12rem'));
+    var given = _rowsGiven == 0 ? shown.length : math.min(shown.length, _rowsGiven * columns);
+    if (given >= shown.length) {
+      given = shown.length;
+      _rowsGiven = 0;
+      _letGo();
+    } else {
+      _giveMore();
+    }
+    final made = (read: read, width: width, tokens: t, minute: minute, menu: menu, given: given);
     final same = cards != null && was != null && _sameCards(was.read, made.read) && identical(was.tokens, made.tokens) && was.minute == made.minute && was.menu == made.menu;
-    if (same && was.width == made.width) return cards;
-    // Another width alone lays the same cards out again and builds none: a desktop's scrollbar takes its twelve
-    // pixels the frame after a page that has more than it shows is first laid out (lib/shell/desktop/
-    // desktop_scrollbar.dart), so the page is always laid out twice as it opens, and again whenever a search
-    // leaves it with less than a screen or gives it more.
-    if (!same) _cardAt.clear();
+    if (same && was.width == made.width && was.given == made.given) return cards;
     if (ghostPerf) {
       // Which of what the cards are made from was new.
       Perf.count('allnotes.cards');
@@ -308,16 +356,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
         if (was.minute != made.minute) Perf.count('allnotes.cards for the minute');
       }
     }
-    final shown = read.shown;
     _cardsFor = made;
-    return _cards = SliverSemantics(
-      container: true,
-      label: 'Notes',
-      sliver: SliverNoteCards(
-        count: shown.length,
-        width: width,
-        idOf: (i) => shown[i].id,
-        itemBuilder: (context, i, fill) => _cardAt[fill ? i : -1 - i] ??= () {
+    Widget build(int i, bool fill) {
           if (ghostPerf) Perf.count('allnotes.card');
           final note = shown[i];
           Widget card(String? gist) => NoteCard(
@@ -346,7 +386,17 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             },
             child: drawn,
           );
-        }(),
+    }
+
+    return _cards = SliverSemantics(
+      container: true,
+      label: 'Notes',
+      sliver: SliverNoteCards(
+        count: given,
+        width: width,
+        windowWidth: window,
+        idOf: (i) => shown[i].id,
+        itemBuilder: (context, i, fill) => _keeping ? (_cardAt[fill ? i : -1 - i] ??= build(i, fill)) : build(i, fill),
       ),
     );
   }
@@ -496,7 +546,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
               slivers: [
                 SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd + ahead, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
                 // The cards: only the rows of them near the screen are built.
-                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot), sliver: _grid(read, inner, t, now)),
+                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot), sliver: _grid(read, inner, window, t, now)),
               ],
             );
           },
