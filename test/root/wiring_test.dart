@@ -268,6 +268,34 @@ void main() {
       await close(tester);
     });
 
+    // Unwired 19 (docs/PARITY.md): `leadLine()` had no caller, so a reading note's first paragraph was set as any
+    // other (Editor.tsx `lookExtensions`: `look === 'reading' ? leadLine() : []`).
+    testWidgets('of the Reading look sets the paragraph under its title as its lead, and no other look does', (tester) async {
+      final library = await open(tester);
+      final read = library.create('---\nlook: reading\n---\n# The long road\n\nIt went on for a while.\n\nAnd then it stopped.\n');
+      await tester.pump();
+      await openNote(tester, read.id);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      List<String> leads() {
+        final found = <String>[];
+        for (final set in view.decorations) {
+          set.between(0, view.state.doc.length, (from, to, value) {
+            if (value is LineDecoration && (value.spec.className ?? '').split(' ').contains('cm-lead')) found.add(view.state.doc.lineAt(from).text);
+            return null;
+          });
+        }
+        return found;
+      }
+
+      expect(leads(), ['It went on for a while.']);
+      // The look taken off in the note's words: the same editor, and no lead.
+      view.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: '---\nlook: reading\n---\n'.length, insert: ''), userEvent: 'input.type'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(leads(), isEmpty);
+      await close(tester);
+    });
+
     testWidgets('keeps its scroll position when the editor\'s view arrives and when a chip\'s menu opens', (tester) async {
       final library = await open(tester);
       await openNote(tester, library.value.first.id);

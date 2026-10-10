@@ -26,6 +26,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../editor/editor.dart';
+import '../editor/items/open_heading.dart' show leadLine;
 import '../editor/looks/look.dart';
 import '../editor/placeholder.dart';
 import '../editor/syntax/language.dart' show InlineFormatSyntax;
@@ -112,6 +113,11 @@ typedef NoteEditorBuilder = Widget Function(BuildContext context, NoteEditorSpec
 /// Draws a host's view: a SLIVER.
 typedef NoteEditorDraw = Widget Function(BuildContext context, EditorView view, LookEnv env);
 
+/// Editor.tsx `lookExtensions`, whole: the look said on the editor for the stylesheets (`data-look`), and a reading
+/// note's lead line, the paragraph under its title a step up in the second ink, with "A line that says what it is
+/// about." while it is empty (lib/editor/items/open_heading.dart `leadLine`). Nothing for the usual look.
+Extension noteLookExtensions(String? look) => Extension.list(<Extension>[lookExtensions(look), if (look == 'reading') leadLine()]);
+
 /// The stand-in until piece D's `Editor` is wired: the note drawn, with no caret and no keyboard.
 Widget readOnlyNoteEditor(BuildContext context, NoteEditorSpec spec) => NoteEditorHost(spec: spec);
 
@@ -180,7 +186,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
               // NoteScreen.tsx: `placeholder="Write something."`.
               placeholder('Write something.'),
               _display.of(noteView(widget.spec.display)),
-              _look.of(lookExtensions(widget.spec.look)),
+              _look.of(noteLookExtensions(widget.spec.look)),
               EditorViewLike.updateListener.of((update) {
                 if (update.docChanged) widget.spec.onChange(update.state.doc.toString());
               }),
@@ -221,7 +227,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
     }
     final effects = <StateEffect<Object?>>[
       if (was.display != now.display) _display.reconfigure(noteView(now.display)),
-      if (was.look != now.look) _look.reconfigure(lookExtensions(now.look)),
+      if (was.look != now.look) _look.reconfigure(noteLookExtensions(now.look)),
     ];
     if (effects.isNotEmpty) _view.dispatch(TransactionSpec(effects: effects));
     // The words changed from outside the editor: a canvas's JSON or a book's Markdown, asked for.
