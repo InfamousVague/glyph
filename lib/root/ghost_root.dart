@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, listEquals, mapEquals, setEquals;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, mapEquals, setEquals;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -277,9 +277,12 @@ class _GhostRootState extends State<GhostRoot> {
   late final bool _real = widget.core != null && widget.library == null;
   late final NoteLibrary _library = widget.library ?? (_real ? CoreLibrary(widget.core!) : SampleLibrary.seeded(now: DateTime.now().millisecondsSinceEpoch));
   late final Trash _trash = _real ? KeptTrash() : MemoryTrash();
+  /// Where the real workspaces are kept, when the root makes them: it listens to the preferences, and is let go
+  /// with the root.
+  late final KeptWorkspaceStorage? _keptSpaces = widget.workspaces == null && _real ? KeptWorkspaceStorage() : null;
   late final WorkspaceStore _workspaces = widget.workspaces ??
-      (_real
-          ? WorkspaceStore(storage: KeptWorkspaceStorage(), trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
+      (_keptSpaces != null
+          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces);
@@ -617,15 +620,15 @@ class _GhostRootState extends State<GhostRoot> {
   DeviceFactsController? _deviceFacts;
   VoidCallback? _stopFills;
 
-  /// Local only as it stood at the last look: switched off, the fills parked while nothing could leave the phone
-  /// are pressed again, where the queue was started.
-  late bool _wasLocalOnly = preferences.value.localOnly;
+  /// Local only, listened to alone (`PreferencesStore.select`): it is read as the root begins to listen, so its first
+  /// change is a change. Kept in a field read for the first time by the listener itself, it was read after it had
+  /// moved, and the first switching off went unseen.
+  late final ValueListenable<bool> _localOnly = preferences.select((prefs) => prefs.localOnly);
 
+  /// Switched off, the fills parked while nothing could leave the phone are pressed again, where the queue was
+  /// started.
   void _localOnlyMoved() {
-    final now = preferences.value.localOnly;
-    if (now == _wasLocalOnly) return;
-    _wasLocalOnly = now;
-    if (!now && _stopFills != null) resumeParked();
+    if (!_localOnly.value && _stopFills != null) resumeParked();
   }
 
   /// The phone's models as the walkthrough's model page reads them (lib/guide/guide_models.dart): where there is an
@@ -1630,14 +1633,15 @@ class _GhostRootState extends State<GhostRoot> {
   ({Workspace? editing})? _workspace;
 
   /// The smoke at the edges is the art's own switch (lib/art/wisp_settings.dart), which follows the preference.
-  void _smoke() => WispSettings.instance.wanted = preferences.value.wispEdge;
+  late final ValueListenable<bool> _wispEdge = preferences.select((prefs) => prefs.wispEdge);
+  void _smoke() => WispSettings.instance.wanted = _wispEdge.value;
 
   @override
   void dispose() {
     _stopDesktop?.call();
-    preferences.removeListener(_smoke);
-    preferences.removeListener(plugins.preferencesChanged);
-    preferences.removeListener(_localOnlyMoved);
+    _wispEdge.removeListener(_smoke);
+    _localOnly.removeListener(plugins.preferencesChanged);
+    _localOnly.removeListener(_localOnlyMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_updatesChanged);
@@ -1680,7 +1684,20 @@ class _GhostRootState extends State<GhostRoot> {
     _wired?.dispose();
     _pictures?.dispose();
     _made?.dispose();
+    _menu.dispose();
     _tick.dispose();
+    // What the root made that is listened to from outside it, or listens: let go, so a root started over (a reset)
+    // does not leave the last one's library reading the notes at every return to the app, nor its trash and
+    // workspaces following the preferences. Each is safe to ask after: a save still on its way when the root goes
+    // lands in a library that tells nobody. The library and the workspaces a test handed in are the test's; and
+    // the ones made in memory hold nothing outside themselves, and are left to be asked by whatever is still
+    // finishing.
+    _versionsStore.dispose();
+    _keptSpaces?.dispose();
+    final trash = _trash;
+    if (trash is KeptTrash) trash.dispose();
+    final library = _library;
+    if (widget.library == null && library is CoreLibrary) library.dispose();
     super.dispose();
   }
 
@@ -1688,11 +1705,12 @@ class _GhostRootState extends State<GhostRoot> {
   void initState() {
     super.initState();
     _smoke();
-    preferences.addListener(_smoke);
-    // Local only turning on or off changes which plugins are on without a switch moving.
-    preferences.addListener(plugins.preferencesChanged);
+    _wispEdge.addListener(_smoke);
+    // Local only turning on or off changes which plugins are on without a switch moving: the registry is told of
+    // that, and not of a tab opened or a note filed, which told everything that draws a plugin to draw again.
+    _localOnly.addListener(plugins.preferencesChanged);
     // And lets the fills that were parked under it go on (ai/fills/queue.ts `resumeParked`).
-    preferences.addListener(_localOnlyMoved);
+    _localOnly.addListener(_localOnlyMoved);
     // Who Claude's page in Settings reads as signed in (plugins/claude): this build's account, where it has one.
     claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
