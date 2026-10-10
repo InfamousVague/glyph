@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/app/preferences.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -9,6 +12,9 @@ import 'package:ghost_md/home/home_parts.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/notes/workspace_bar.dart';
 import 'package:ghost_md/sheet/sheet.dart';
+import 'package:ghost_md/shell/desktop/desktop_scrollbar.dart';
+import 'package:ghost_md/shell/root_stamps.dart';
+import 'package:glacier/glacier.dart' show loadTokenSheet;
 
 import '../core/make_note.dart';
 import '../support/render.dart';
@@ -459,6 +465,38 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('a desktop’s scrollbar finds its room left for it: the cards are laid out once, and no card is made again when it comes', (tester) async {
+      // Where there is a mouse a page with more than it shows gives its scrollbar twelve pixels, the frame after it
+      // is first laid out, and the scrollbar is put round the page as another tree. The page leaves the room from
+      // its first frame and follows the scrollbar by a key, so the second frame moves nothing and makes nothing.
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        final sheet = await tester.runAsync(() => loadTokenSheet(more: appStyleSheets));
+        final page = AllNotes(notes: many(240), workspaces: allNotesWorkspaces(any: false), asked: Asked(), wisp: true);
+        await pumpApp(tester, home: RootStamps(sheet: sheet!, stamps: const {'split': 'on'}, child: page), size: const Size(1000, 800), prefs: AppPreferences(theme: 'dark'));
+        final made = tester.element(key('card-n0'));
+        final first = tester.getRect(key('card-n0')), fourth = tester.getRect(key('card-n3'));
+        final edge = tester.getRect(key('all-notes-scroll')).right;
+        await tester.pump();
+        await tester.pump();
+        expect(tester.getRect(key('all-notes-scroll')).right, edge - desktopScrollbarWidth, reason: 'the scrollbar has its room');
+        expect(identical(tester.element(key('card-n0')), made), isTrue, reason: 'the card is the one that was made');
+        expect(tester.getRect(key('card-n0')), first);
+        expect(tester.getRect(key('card-n3')), fourth);
+        // A page of a few cards, which has no scrollbar, is as wide as its window from the first frame to the last.
+        await away(tester);
+        await pumpApp(tester, home: RootStamps(sheet: sheet, stamps: const {'split': 'on'}, child: AllNotes(notes: many(3), workspaces: allNotesWorkspaces(any: false), asked: Asked(), wisp: true)), size: const Size(1000, 800), prefs: AppPreferences(theme: 'dark'));
+        final few = tester.getRect(key('card-n0'));
+        await tester.pump();
+        await tester.pump();
+        expect(tester.getRect(key('all-notes-scroll')).right, edge);
+        expect(tester.getRect(key('card-n0')), few);
+        await away(tester);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    });
+
     testWidgets('no card again for the search field’s caret or the same notes handed over again, and every card for a new search', (tester) async {
       final notes = ValueNotifier<List<Note>>(many(40));
       final spaces = allNotesWorkspaces(any: false);
@@ -474,6 +512,13 @@ void main() {
       // The field takes the keyboard: the page is built for it, and no card is.
       await tester.tap(find.byType(EditableText));
       await tester.pump();
+      expect(identical(card('n0'), first), isTrue);
+      // A letter every note has: the tally says it is a search, and the cards, the same notes in the same places,
+      // are the ones there were.
+      await type(tester, 'n');
+      expect(find.text('40 of 40'), findsOneWidget);
+      expect(identical(card('n0'), first), isTrue);
+      await type(tester, 'no');
       expect(identical(card('n0'), first), isTrue);
       // Words typed: another list, and its cards.
       await type(tester, 'note 1');

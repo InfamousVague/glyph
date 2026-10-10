@@ -49,7 +49,9 @@ import '../home/home_text.dart';
 import '../home/lazy_page.dart';
 import '../home/note_card.dart';
 import '../perf/frame_log.dart';
+import '../shell/desktop/desktop_scrollbar.dart' show desktopScrollbarWidth;
 import '../shell/header_pane.dart';
+import '../shell/wide_screen.dart' show mousePointer;
 import 'all_notes.dart';
 import 'pull_to_refresh.dart';
 import 'workspace_bar.dart';
@@ -154,13 +156,54 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   /// Where the pointer last went down on a card, for a menu a long press asks for.
   Offset _pressedAt = Offset.zero;
 
+  /// The page under its bar, by a key of its own: a desktop's scrollbar is put round it as a different tree once
+  /// the page is known to have more than it shows (lib/shell/desktop/desktop_scrollbar.dart), and without a key
+  /// that follows it there every card and every preview was made from nothing a second time, the frame after the
+  /// page opened and again each time a search took it under a screen and back.
+  final GlobalKey _page = GlobalKey(debugLabel: 'all notes page');
+
+  /// The least a row of cards can be tall: a card's padding and one line of its name.
+  static const double _leastRow = 24;
+
+  /// The room a desktop's scrollbar is about to take from the page, where it has not taken it yet: twelve pixels
+  /// at the page's end, a frame after the page is first laid out with more than it shows. Laid out with that room
+  /// already left, the cards are where they stay, and the frame after lays nothing out again (it was every card,
+  /// a second time, three pixels narrower). Only where the cards are certain to be more than the page shows: a
+  /// page that left the room and then had no scrollbar would stand twelve pixels short.
+  double _scrollbarAhead(BoxConstraints box, int cards, double width, double window, Tokens t, double under) {
+    if (!widget.wisp || !mousePointer || under <= 0 || cards == 0 || !box.hasBoundedHeight) return 0;
+    // More than it shows already: the scrollbar has its room, and the page is given what is left.
+    if (_scroller.hasClients && _scroller.position.hasContentDimensions && _scroller.position.maxScrollExtent > 0) return 0;
+    final columns = NoteCards.columnsFor(width, window, gap: t.space(3), least: t.lenOf('12rem'));
+    final rows = (cards + columns - 1) ~/ columns;
+    return rows * _leastRow > box.maxHeight ? desktopScrollbarWidth : 0;
+  }
+
   /// What the page worked out from its notes last ([_reading]).
   _Read? _read;
 
   /// The cards as they were made last, and what they were made from: built again with the same of it, the page
-  /// hands back these, so no card is built again for a search field's caret or a pull's move.
+  /// hands back these, so no card is built again for a search field's caret or a pull's move, nor for a letter
+  /// typed that leaves the same notes on the page.
   Widget? _cards;
   ({_Read read, double width, Tokens tokens, int minute, bool menu})? _cardsFor;
+
+  /// Each card as it was built for the cards as they are now, by its place (and whether it fills a row's cell):
+  /// kept while only the page's width changes.
+  final Map<int, Widget> _cardAt = <int, Widget>{};
+
+  static bool _sameList(List<Note> a, List<Note> b) {
+    if (identical(a, b)) return true;
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (!identical(a[i], b[i])) return false;
+    }
+    return true;
+  }
+
+  /// Whether two readings draw the same cards: the same notes shown, each in the same notebook and with the same
+  /// journal's entries.
+  static bool _sameCards(_Read a, _Read b) => identical(a, b) || (identical(a.shown, b.shown) && identical(a.inBooks, b.inBooks) && identical(a.journals, b.journals));
 
   /// When each card came to be on the page, for its entrance.
   final Arrivals _arrivals = Arrivals();
@@ -214,8 +257,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     if (ghostPerf) Perf.count('allnotes.read');
     final inSpace = widget.workspaces.inWorkspace(notes, spaces.current?.id, (note) => note.id);
     final began = ghostPerf ? Perf.now() : 0;
-    final shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
+    var shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
     if (ghostPerf) Perf.add('allnotes.browse', began);
+    // The same notes in the same order as were shown (a letter typed that every note shown still has): the list
+    // there was, so the cards made for it are the cards.
+    if (had != null && _sameList(had.shown, shown)) shown = had.shown;
     // A card one to a row is known by its note; across a row, by its place too (lib/home/note_card.dart
     // `SliverNoteCards`), and arrives again when that changes.
     _arrivals.keep([
@@ -245,14 +291,18 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final made = (read: read, width: width, tokens: t, minute: (now ?? DateTime.now().millisecondsSinceEpoch) ~/ 60000, menu: widget.onNoteMenu != null);
     final cards = _cards;
     final was = _cardsFor;
-    if (cards != null && was != null && identical(was.read, made.read) && was.width == made.width && identical(was.tokens, made.tokens) && was.minute == made.minute && was.menu == made.menu) {
-      return cards;
-    }
+    final same = cards != null && was != null && _sameCards(was.read, made.read) && identical(was.tokens, made.tokens) && was.minute == made.minute && was.menu == made.menu;
+    if (same && was.width == made.width) return cards;
+    // Another width alone lays the same cards out again and builds none: a desktop's scrollbar takes its twelve
+    // pixels the frame after a page that has more than it shows is first laid out (lib/shell/desktop/
+    // desktop_scrollbar.dart), so the page is always laid out twice as it opens, and again whenever a search
+    // leaves it with less than a screen or gives it more.
+    if (!same) _cardAt.clear();
     if (ghostPerf) {
       // Which of what the cards are made from was new.
       Perf.count('allnotes.cards');
       if (was != null) {
-        if (!identical(was.read, made.read)) Perf.count('allnotes.cards for the notes');
+        if (!_sameCards(was.read, made.read)) Perf.count('allnotes.cards for the notes');
         if (was.width != made.width) Perf.count('allnotes.cards for the width');
         if (!identical(was.tokens, made.tokens)) Perf.count('allnotes.cards for the tokens');
         if (was.minute != made.minute) Perf.count('allnotes.cards for the minute');
@@ -267,7 +317,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
         count: shown.length,
         width: width,
         idOf: (i) => shown[i].id,
-        itemBuilder: (context, i, fill) {
+        itemBuilder: (context, i, fill) => _cardAt[fill ? i : -1 - i] ??= () {
+          if (ghostPerf) Perf.count('allnotes.card');
           final note = shown[i];
           Widget card(String? gist) => NoteCard(
                 key: ValueKey('card-${note.id}'),
@@ -295,7 +346,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             },
             child: drawn,
           );
-        },
+        }(),
       ),
     );
   }
@@ -345,17 +396,21 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // `padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10))`
     final foot = t.len('app-safe-bottom') + t.space(10) + room;
     final hasSpaces = spaces.list.isNotEmpty;
+    final window = MediaQuery.sizeOf(context).width;
     // `padding-inline: var(--app-gutter-start) var(--app-gutter-end)`
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
     Widget page(PullDown? pull) {
       final Widget scroller = ScrollConfiguration(
+        key: _page,
         // `overscroll-behavior: contain`: the page stops at its ends, with no glow and no stretch of the platform's.
         behavior: const _Still(),
         child: LayoutBuilder(
           builder: (context, box) {
+            // What a desktop's scrollbar will take a frame from now, left for it now.
+            final ahead = _scrollbarAhead(box, shown.length, math.max(0.0, box.maxWidth - desktopScrollbarWidth - gutterStart - gutterEnd), window, t, under);
             // The page's own column, inside its gutters.
-            final inner = math.max(0.0, box.maxWidth - gutterStart - gutterEnd);
+            final inner = math.max(0.0, box.maxWidth - ahead - gutterStart - gutterEnd);
             // `@container all-notes (min-width: 44rem)`.
             final wide = inner >= t.lenOf('44rem');
             // What stands over the cards: the workspaces, the order words, and the empty page's ghost.
@@ -439,9 +494,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
               controller: _scroller,
               pull: pull,
               slivers: [
-                SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
+                SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd + ahead, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
                 // The cards: only the rows of them near the screen are built.
-                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd, foot), sliver: _grid(read, inner, t, now)),
+                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot), sliver: _grid(read, inner, t, now)),
               ],
             );
           },
