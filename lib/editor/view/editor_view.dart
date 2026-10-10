@@ -84,6 +84,9 @@ class _PluginInstance {
   _PluginInstance(this.spec);
   final ViewPlugin<PluginValue> spec;
   PluginValue? value;
+
+  /// What a measured build calls it (measured.dart): said once, not at every update.
+  late final String measuredName = 'plugin ${value.runtimeType}';
 }
 
 /// Where the document's lines may show something other than they did: [EditorView.takeDirty]'s answer.
@@ -622,7 +625,7 @@ class EditorView extends EditorViewLike implements EditorLineHost {
         } else {
           plugin.value!.update(update);
         }
-        if (ghostPerf) Measured.leave('plugin ${plugin.value.runtimeType}', part);
+        if (ghostPerf) Measured.leave(plugin.measuredName, part);
       }
       part = ghostPerf ? Measured.enter() : 0;
       _readDecorations(force: update.docChanged);

@@ -37,7 +37,11 @@ abstract final class Measured {
   static void leave(String name, int began) {
     final whole = Perf.now() - began;
     final inside = _inside.removeLast();
-    Perf.add('editor.$name', Perf.now() - (whole - inside));
+    // The name as the report has it, made once for each: a hundred of these end in every update, and a name made
+    // for each was the measuring's own weight on what it measured.
+    Perf.add(_names[name] ??= 'editor.$name', Perf.now() - (whole - inside));
     if (_inside.isNotEmpty) _inside[_inside.length - 1] += whole;
   }
+
+  static final Map<String, String> _names = <String, String>{};
 }

@@ -44,8 +44,14 @@ RegExp? notePattern(Iterable<GlyphFormat> formats) {
   final delimiters = <String>{for (final format in formats) format.delimiter};
   if (delimiters.isEmpty) return null;
   final any = delimiters.map(RegExp.escape).join('|');
-  return RegExp('($any)(?=(\\S))((?:(?!\\1).)*?\\S)\\1\\(([^)\\n]+)\\)');
+  final pattern = RegExp('($any)(?=(\\S))((?:(?!\\1).)*?\\S)\\1\\(([^)\\n]+)\\)');
+  _lastUnits[pattern.pattern] = <int>{for (final delimiter in delimiters) delimiter.codeUnitAt(delimiter.length - 1)};
+  return pattern;
 }
+
+/// The last unit of each delimiter a pattern was made from, by the pattern's source: a note's bracket stands
+/// straight after one of them.
+final Map<String, Set<int>> _lastUnits = <String, Set<int>>{};
 
 /// Every noted mark in `text`, counting positions from `offset`.
 List<MarkNote> notesIn(String text, RegExp pattern, [int offset = 0]) {
@@ -89,12 +95,24 @@ final Decoration _hidden = Decoration.replace();
 /// over a line's end (its words are `.` and its note `[^)\n]`), so the note's marks are its lines' marks.
 final Map<String, LineFact<List<MarkNote>>> _byPattern = <String, LineFact<List<MarkNote>>>{};
 
-LineFact<List<MarkNote>> _notesOn(RegExp pattern) => _byPattern[pattern.pattern] ??= LineFact<List<MarkNote>>((text) {
-  // A note is in brackets: a line with no closing one has none, and is not put to the pattern.
-  if (!text.contains(')')) return null;
-  final found = notesIn(text, pattern);
-  return found.isEmpty ? null : found;
-});
+LineFact<List<MarkNote>> _notesOn(RegExp pattern) {
+  final ends = _lastUnits[pattern.pattern];
+  return _byPattern[pattern.pattern] ??= LineFact<List<MarkNote>>((text) {
+    // A note is in brackets straight after its mark's closing delimiter: a line with no `(` standing after the
+    // last letter of one has none, and is not put to the pattern, which is long (every delimiter, tried at every
+    // letter of the line). Most lines with a bracket in them are words with an aside.
+    if (text.length < 2) return null;
+    var at = text.indexOf('(', 1);
+    if (ends != null) {
+      while (at > 0 && !ends.contains(text.codeUnitAt(at - 1))) {
+        at = text.indexOf('(', at + 1);
+      }
+    }
+    if (at < 0 || !text.contains(')')) return null;
+    final found = notesIn(text, pattern);
+    return found.isEmpty ? null : found;
+  });
+}
 
 /// Every noted mark in a document: `notesIn(doc.toString(), pattern)`, from the lines the tree keeps.
 List<MarkNote> notesOf(Doc doc, RegExp pattern) => <MarkNote>[
