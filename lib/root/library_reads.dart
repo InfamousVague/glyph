@@ -5,23 +5,25 @@
 /// (`placeInBook`).
 ///
 /// Each is read once per change to the notes and not once a draw: a notebook's index asks after every page on every
-/// draw, and a ticket's panel after every other ticket.
+/// draw, and a ticket's panel after every other ticket. And each note's title and kind are read through the
+/// reading kept for it (lib/core/note_facts.dart), not from its words again.
 ///
 /// What differs: the page's memos are keyed by the lists themselves; here whoever holds the library says when it
 /// changed ([changed]), and everything is read again the next time it is asked for.
 library;
 
-import '../book/book_nav.dart' show bookOf;
 import '../book/journal_months.dart' show inTimeOrder;
 import '../book/tickets.dart';
 import '../core/book.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/properties.dart';
 import '../core/query/records.dart' show QueryNote;
 import '../editor/tickets/tickets.dart' show TicketOptions;
 import '../notes/note_templates.dart';
 import '../notes/own_templates.dart';
+import '../perf/frame_log.dart';
 
 class LibraryReads {
   LibraryReads({required this.shown, required this.all});
@@ -43,8 +45,16 @@ class LibraryReads {
   Set<String>? _entryIds;
   List<Note>? _journals;
 
+  /// The notes less the Templates notebooks, whose lines are templates' pages and no note's place.
+  List<Note>? _plain;
+
+  /// A note's place in its notebook, by the note it was asked of: the same object asked again is not looked up again.
+  final Map<Note, BookPlace?> _places = Map<Note, BookPlace?>.identity();
+
   /// The notes changed: everything is read again when next asked for.
   void changed() {
+    _plain = null;
+    _places.clear();
     _shown = null;
     _entries = null;
     _find = null;
@@ -85,8 +95,9 @@ class LibraryReads {
     final map = <String, Note>{};
     for (final pages in const [false, true]) {
       for (final note in notes) {
-        if (isTemplatePageBody(note.body) != pages) continue;
-        final key = titleKey(noteTitle(note.body));
+        final facts = NoteFacts.of(note);
+        if (facts.isTemplatePage != pages) continue;
+        final key = facts.key;
         if (key.isNotEmpty) map.putIfAbsent(key, () => note);
       }
     }
@@ -102,7 +113,7 @@ class LibraryReads {
   /// templates' pages, which are patterns and not things to do.
   List<QueryNote> get queryNotes => _queryNotes ??= [
         for (final note in notes)
-          if ((note.archivedAt ?? 0) == 0 && !isTemplatePageBody(note.body)) QueryNote.of(note),
+          if ((note.archivedAt ?? 0) == 0 && !NoteFacts.of(note).isTemplatePage) QueryNote.of(note),
       ];
 
   /// Your own templates, a Templates notebook's pages in its order, or null where there is none.
@@ -121,16 +132,39 @@ class LibraryReads {
   /// The journals, the one written in last first; not one put away in the archive.
   List<Note> get journals => _journals ??= ([
         for (final note in notes)
-          if ((note.archivedAt ?? 0) == 0 && isJournalBody(note.body)) note,
+          if ((note.archivedAt ?? 0) == 0 && NoteFacts.of(note).isJournal) note,
       ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)));
 
   /// The notebook a note is a page of, and its place there, for the bar and the foot it wears (`placeInBook`): a
   /// journal's entries in the order they were written. A Templates notebook's lines are its marked pages, never a
   /// note of the person's that shares a name with one.
+  ///
+  /// Asked at every build of a note's screen, it read every note's front matter and every notebook's chapters each
+  /// time (`bookOf`): a note opened was a walk of the library for each build of its desk. The places are now every
+  /// notebook's at once, made once for the notes as they are (`bookIndex`, which reads each note through its kept
+  /// facts: the first notebook in the library whose index names the title, and no notebook a page of itself, as
+  /// `bookOf` answers), and a note asked after twice is answered what it was answered.
   BookPlace? placeInBook(Note note) {
-    final books = isTemplatePageBody(note.body) ? notes : notes.where((each) => !isTemplatesBody(each.body));
-    final place = bookOf(books, noteTitle(note.body));
-    return place == null ? null : inTimeOrder(place, titled);
+    final began = ghostPerf ? Perf.now() : 0;
+    final placed = _placeInBook(note);
+    // How many times a note's place was asked for in a stretch, and how long the answers took in all.
+    if (ghostPerf) Perf.add('reads.place', began);
+    return placed;
+  }
+
+  BookPlace? _placeInBook(Note note) {
+    if (_places.containsKey(note)) return _places[note];
+    // The note asked of may be an open screen's, whose words are the ones it was opened with: read, and not kept
+    // in place of the reading of its words as they now are.
+    final facts = NoteFacts.read(note.body);
+    final books = facts.isTemplatePage
+        ? notes
+        : _plain ??= [
+            for (final each in notes)
+              if (!NoteFacts.of(each).isTemplatesBook) each,
+          ];
+    final place = bookIndex(books)[facts.key];
+    return _places[note] = place == null ? null : inTimeOrder(place, titled);
   }
 
   /// What the open note's panel and its `[[GHO-12]]`s are drawn with (`useTickets`): the workflow of the notebook it

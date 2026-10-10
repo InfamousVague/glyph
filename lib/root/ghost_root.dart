@@ -1398,13 +1398,13 @@ class _GhostRootState extends State<GhostRoot> {
       children: [
         _part('shell', _shellReads, _shellPart),
         // The phone at work, over the app, while a review is on the note being read (lib/scene/at_work.dart).
-        // It reads the note's words only while a review is on it: with none the scene is not up, and a save of the
-        // note is nothing to it.
+        // It reads the note's words, and follows its AI, only while a review is on it: with none the scene is not
+        // up, and a save of the note, or its AI finding its model as the note opens, is nothing to it.
         _part('atWork', () {
           final ai = _noteAi, id = _noteAiId;
           if (ai == null || id == null) return null;
           final reviewing = ai.reviewKey != null || ai.reviewStage.value != null;
-          return (ai, id, _aiAt, reviewing ? _library.noteOf(id) : null, _voice);
+          return (ai, id, reviewing ? _aiAt : 0, reviewing ? _library.noteOf(id) : null, _voice);
         }, _atWorkPart),
         // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
         // updates), so it is built again as those change; never for a runner's turn or the home page's news.
