@@ -8,6 +8,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
+import 'package:ghost_md/core/query/query.dart';
 
 import '../../support/render.dart';
 import '../view/support.dart' show borderBox;
@@ -41,7 +42,8 @@ void main() {
     if (only != null && only.isNotEmpty && !name.contains(only)) continue;
     testWidgets('$name: lines, the card and its pieces where the page has them', (tester) async {
       final fixture = PageFixture.read(queryFixtures, name);
-      final library = fixture.library;
+      // With the open note at the fixture's own day, not the day this runs (support.dart `PageFixture.open`).
+      final library = <QueryNote>[...fixture.library, fixture.open];
       final asked = Asked();
       await pumpQueries(tester, fixture.doc, options: optionsOver(() => library, asked, adds: fixture.add ? false : null), theme: fixture.theme, readOnly: fixture.readOnly, caret: fixture.caret, today: fixture.today, locale: fixture.locale, shadows: true);
       final problems = <String>[];

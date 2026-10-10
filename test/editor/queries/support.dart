@@ -45,6 +45,15 @@ class PageFixture {
     for (final note in (json['library'] as List).cast<Map<String, dynamic>>()) QueryNote(id: note['id'] as String, body: note['body'] as String, createdAt: note['createdAt'] as int, updatedAt: note['updatedAt'] as int),
   ];
 
+  /// The note the page had open, as its library held it the day it was measured. The page's queries read an open
+  /// note the store has not got as made that moment (`withOpen`: `Date.now()`), which was the fixture's [today];
+  /// read at the moment a test runs, a list of notes says "Today" for it on that one day and the weekday on every
+  /// day after. So a test holds it in the library, at noon of the fixture's day, where the page's own stood.
+  QueryNote get open {
+    final noon = DateTime.parse('${today}T12:00:00').millisecondsSinceEpoch;
+    return QueryNote(id: 'here', body: doc, createdAt: noon, updatedAt: noon);
+  }
+
   List<Map<String, dynamic>> get lines => (json['lines'] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> get blocks => (json['blocks'] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> get titles => (json['titles'] as List).cast<Map<String, dynamic>>();
