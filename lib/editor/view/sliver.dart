@@ -49,25 +49,31 @@ class EditorSliver extends StatelessWidget {
   Widget build(BuildContext context) {
     final env = this.env ?? LookEnv.page(context.tokens, devicePixelRatio: MediaQuery.devicePixelRatioOf(context), meHue: meHue, tabSize: view.state.tabSize);
     view.setEnv(env, more: sheets);
-    return EditorViewScope(view: view, child: _RawEditorSliver(view: view, look: view.look!));
+    // Put out of sight by the page (a note drawn as a canvas, or as a notebook's index, keeps its words' editor
+    // under a `SliverOffstage`, which lays its sliver out all the same): nothing is built for a sliver nobody sees.
+    final unseen = context.findAncestorWidgetOfExactType<SliverOffstage>()?.offstage ?? false;
+    return EditorViewScope(view: view, child: _RawEditorSliver(view: view, look: view.look!, unseen: unseen));
   }
 }
 
 class _RawEditorSliver extends RenderObjectWidget {
-  const _RawEditorSliver({required this.view, required this.look});
+  const _RawEditorSliver({required this.view, required this.look, this.unseen = false});
 
   final EditorView view;
   final Look look;
+  final bool unseen;
 
   @override
   _EditorSliverElement createElement() => _EditorSliverElement(this);
 
   @override
-  RenderSliverEditor createRenderObject(BuildContext context) => RenderSliverEditor(view);
+  RenderSliverEditor createRenderObject(BuildContext context) => RenderSliverEditor(view)..unseen = unseen;
 
   @override
   void updateRenderObject(BuildContext context, RenderSliverEditor renderObject) {
-    renderObject.view = view;
+    renderObject
+      ..view = view
+      ..unseen = unseen;
   }
 }
 
@@ -266,6 +272,17 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
     markNeedsLayout();
   }
 
+  /// Whether what holds the sliver keeps it out of sight: no line is built or laid out for it, and it takes no
+  /// room. The page's own words were built and laid out under a canvas and under a notebook's index, and again on
+  /// every change to either, for nobody.
+  bool _unseen = false;
+  bool get unseen => _unseen;
+  set unseen(bool value) {
+    if (value == _unseen) return;
+    _unseen = value;
+    markNeedsLayout();
+  }
+
   _EditorSliverElement? _element;
   final List<RenderBox> _kids = <RenderBox>[];
 
@@ -357,6 +374,11 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
     final look = _view.look;
     final element = _element;
     if (look == null || element == null) {
+      geometry = SliverGeometry.zero;
+      return;
+    }
+    if (_unseen) {
+      if (_kids.isNotEmpty) invokeLayoutCallback<SliverConstraints>((_) => element.sync(const <int>[], all: false));
       geometry = SliverGeometry.zero;
       return;
     }
