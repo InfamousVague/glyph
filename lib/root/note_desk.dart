@@ -136,6 +136,7 @@ import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
+import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
@@ -550,7 +551,9 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// Every piece's extensions, once: another list would be another editor (lib/note/note_editor.dart).
   late final List<Extension> _extensions = <Extension>[
-    editorInput(),
+    // NoteScreen.tsx `assist={prefs.assist}`: the keyboard's aids and the spell checker, on unless the preference
+    // says otherwise, read as the editor is made.
+    editorInput(assist: _prefs.value.assist),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
     // The AI's arrivals bring the departures themselves: given twice, every ghost is drawn twice.
@@ -608,6 +611,10 @@ class NoteDeskState extends State<NoteDesk> {
     _tapeSlot.of(tapeSource.of(_tapeFor = _memoTape())),
     _plus.extension,
     findBarExtensions,
+    // The phone's spell checker, asked about the words near the caret a moment after the person stops, and a red
+    // wave under each it would have otherwise (lib/editor/spell; the page's `spellcheck="true"`). Nothing on a
+    // device whose engine has no checker to ask.
+    if (const PhoneSpellChecker().supported) spellCheck(),
   ];
 
   /// What plays a voice memo: the app's one player of a recording, where there is one.

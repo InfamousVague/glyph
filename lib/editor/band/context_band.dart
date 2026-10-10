@@ -57,6 +57,7 @@ import '../../core/item_links.dart';
 import '../../core/item_syntax.dart';
 import '../commands/format.dart';
 import '../editor.dart';
+import '../spell/spell_marks.dart' show misspellingAt, replaceMisspelling;
 import 'board_actions.dart';
 import 'clipboard.dart';
 import 'menu_band.dart';
@@ -513,7 +514,23 @@ class _ContextBandState extends State<ContextBand> {
     }
 
     final onComment = widget.onComment, onFind = widget.onFind, send = widget.send, onAddImage = widget.onAddImage;
+    // The word under the caret, when the spell checker would have it otherwise (lib/editor/spell): what it offers.
+    final misspelled = selected ? null : misspellingAt(view.state, view.state.selection.main.head);
     return <Widget>[
+      // First, so the right word is one press away: the page's WebView offered them in a popup of its own on a
+      // word it had underlined. Three at most; the band is a line.
+      if (misspelled != null)
+        for (final suggestion in misspelled.suggestions.take(3))
+          MenuItem(
+            key: ValueKey<String>('spell-$suggestion'),
+            icon: Lucide.spellCheck,
+            label: suggestion,
+            name: 'Change to $suggestion',
+            onPress: _act(view, () {
+              final still = misspellingAt(view.state, misspelled.from);
+              if (still != null) view.dispatch(replaceMisspelling(still, suggestion));
+            }),
+          ),
       if (selected) ...<Widget>[
         MenuItem(key: const ValueKey<String>('cut'), icon: Lucide.scissors, label: 'Cut', onPress: _act(view, cut)),
         MenuItem(key: const ValueKey<String>('copy'), icon: Lucide.copy, label: 'Copy', onPress: _act(view, copy)),
