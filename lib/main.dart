@@ -18,6 +18,8 @@ import 'core/iphone_app.dart';
 import 'core/keep_keyboard.dart';
 import 'core/films.dart';
 import 'core/open_link.dart';
+import 'core/phone_battery.dart';
+import 'format/battery.dart' show useBatterySource;
 import 'core/phone_connection.dart';
 import 'core/phone_films.dart';
 import 'core/phone_day.dart';
@@ -81,6 +83,8 @@ Future<void> main() async {
   // Whether the phone has a connection, and the moment one comes back (Android's own; anywhere else there is
   // always one as far as the app can tell). Not waited for: it answers when the phone does.
   final connection = defaultTargetPlatform == TargetPlatform.android ? PhoneConnection().start() : null;
+  // And its battery, for the AI card's Battery reading (the page's `navigator.getBattery`).
+  if (defaultTargetPlatform == TargetPlatform.android) useBatterySource(phoneBattery());
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
   // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
   // process, as the core is, and made before the core has opened, since the launch screen asks it to look as it

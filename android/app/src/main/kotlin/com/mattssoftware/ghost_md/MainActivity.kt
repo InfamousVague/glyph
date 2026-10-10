@@ -86,6 +86,9 @@ class MainActivity : FlutterActivity() {
     /** Whether the phone has a connection, and the moment one comes back (Connection.kt). */
     private val connection by lazy { Connection(applicationContext) }
 
+    /** The battery, for the AI card's reading (Battery.kt). */
+    private val battery by lazy { Battery(applicationContext) }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
@@ -152,6 +155,8 @@ class MainActivity : FlutterActivity() {
         Notices(applicationContext).register(messenger)
         // Whether there is a connection, and its coming back (Connection.kt; lib/core/phone_connection.dart).
         connection.register(messenger)
+        // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).
+        battery.register(messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -193,6 +198,7 @@ class MainActivity : FlutterActivity() {
         film?.release()
         diagrams?.destroy()
         connection.release()
+        battery.release()
         meeting?.onDestroy()
         super.onDestroy()
     }
