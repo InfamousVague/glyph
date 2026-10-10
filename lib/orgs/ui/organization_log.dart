@@ -36,6 +36,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
+import '../../core/back.dart' show OnBack;
 import '../../core/locale_dates.dart';
 import '../../core/note.dart';
 import '../../core/note_text.dart';
@@ -355,20 +356,25 @@ class _OrganizationLogState extends State<OrganizationLog> {
         // `@container org-log (min-width: 44rem)`
         final wide = box.maxWidth >= t.lenOf('44rem');
         if (opened == null) return log(wide);
-        return _Opened(
-          key: ValueKey('${opened.noteId}:${opened.n}'),
-          change: opened,
-          title: titles[opened.noteId] ?? 'Untitled',
-          record: widget.record,
+        // The phone's Back closes the change first, and only then leaves the log (`useBack(true, () => (opened ?
+        // setOpened(null) : onBack()))`): on the stack over the page's own for as long as a change is open.
+        return OnBack(
           onBack: () => _open(null),
-          onOpenNote: () => widget.onOpenNote(opened.noteId),
-          onOnly: () {
-            setState(() {
-              _only = opened.noteId;
-              _shown = 'all';
-            });
-            _open(null);
-          },
+          child: _Opened(
+            key: ValueKey('${opened.noteId}:${opened.n}'),
+            change: opened,
+            title: titles[opened.noteId] ?? 'Untitled',
+            record: widget.record,
+            onBack: () => _open(null),
+            onOpenNote: () => widget.onOpenNote(opened.noteId),
+            onOnly: () {
+              setState(() {
+                _only = opened.noteId;
+                _shown = 'all';
+              });
+              _open(null);
+            },
+          ),
         );
       },
     );

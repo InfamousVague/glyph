@@ -222,6 +222,24 @@ void main() {
       expect(find.descendant(of: profile, matching: find.text('Editing Roadmap now')), findsOneWidget);
       await tapKey(tester, 'member-jump');
       expect(asked.jumps, ['n-road']);
+      // Differs 24 (docs/PARITY.md): the button said "Open the note" whatever it opened, and a canvas with no name
+      // was "an untitled note" (notes/OrganizationScreen.tsx:395,419-422).
+      String jump() => tester.widget<Text>(find.descendant(of: find.byKey(const ValueKey('member-jump')), matching: find.byType(Text))).data!;
+      expect(jump(), 'Open the note');
+      seen.value = const [OrgPresence(client: '1', handle: 'sam', hue: 'rose', editingNote: 'n-road', editingTitle: 'Roadmap', editingPlace: true)];
+      await tester.pump();
+      expect(jump(), 'Jump to cursor');
+      seen.value = const [OrgPresence(client: '1', handle: 'sam', hue: 'rose', editingNote: 'n-map', editingTitle: '', editingCanvas: true)];
+      await tester.pump();
+      expect(members(tester)[1], contains('editing an untitled canvas'));
+      expect(find.descendant(of: profile, matching: find.text('Editing an untitled canvas now')), findsOneWidget);
+      expect(jump(), 'Open the canvas');
+      seen.value = const [OrgPresence(client: '1', handle: 'sam', hue: 'rose', editingNote: 'n-map', editingTitle: '', editingCanvas: true, editingPlace: true)];
+      await tester.pump();
+      expect(jump(), 'Jump to cursor');
+      seen.value = const [OrgPresence(client: '1', handle: 'sam', hue: 'rose', editingNote: 'n-new', editingTitle: '')];
+      await tester.pump();
+      expect(members(tester)[1], contains('editing an untitled note'));
       // In the app with nothing open: here, and the profile says so without a jump.
       seen.value = const [OrgPresence(client: '1', handle: 'sam', hue: 'rose')];
       await tester.pump();

@@ -18,6 +18,7 @@ import 'package:ghost_md/editor/editor_widget.dart' show Editor;
 import 'package:ghost_md/editor/find_bar/find_bar.dart';
 import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
+import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
@@ -460,6 +461,48 @@ void main() {
       expect(jumpPlace([at('n1', pointer: const Spot(3, 4))], 'n1'), {'x': 3.0, 'y': 4.0});
       expect(jumpPlace([at('n2', cursor: caret)], 'n1'), isNull);
       expect(jumpPlace([at('n1'), const Seen(handle: 'lee', hue: null, client: 2, at: null)], 'n1'), isNull);
+    });
+
+    // Differs 24 (docs/PARITY.md): Edit from home's filters opened an organization's settings on Members under
+    // "← Organizations", and leaving one from its dashboard's cog left its emptied page on screen (App.tsx
+    // `openOrganizationSettings` with no `from`, `closeOrganizationSettings`).
+    testWidgets('opens an organization\'s settings on their sections from home\'s filters, and goes home when it was left from its own page', (tester) async {
+      final device = await Device.make();
+      final id = (await tester.runAsync(() => device.orgs.createOrg('Ghost')))!.id;
+      await open(tester, services: device.services);
+      await tester.pump(const Duration(milliseconds: 200));
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      OrganizationSheet? sheet() => tester.widgetList<OrganizationSheet>(find.byType(OrganizationSheet)).firstOrNull;
+      tester.widget<HomeScreen>(find.byType(HomeScreen)).onOrganizationSettings!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect((sheet()?.from, sheet()?.landOnMembers), (null, false));
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+      // From Settings' own list it lands on Members, under "← Organizations".
+      tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onOrganization!(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect((sheet()?.from, sheet()?.landOnMembers), (OrganizationFrom.settings, true));
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Its page, its cog, and the organization deleted from there: closing finds home, not the emptied page.
+      shell.openOrganization(id);
+      await tester.pump(const Duration(milliseconds: 400));
+      tester.widget<OrganizationScreen>(find.byType(OrganizationScreen)).onSettings();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(sheet()?.from, OrganizationFrom.dashboard);
+      // Closed with the organization still there: its page again.
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(shell.screen, isA<ScreenOrganization>());
+      tester.widget<OrganizationScreen>(find.byType(OrganizationScreen)).onSettings();
+      await tester.pump(const Duration(milliseconds: 400));
+      await tester.runAsync(() => device.orgs.deleteOrg(id));
+      await tester.pump();
+      sheet()!.onClose();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(shell.screen, isA<ScreenList>());
+      await close(tester);
     });
 
     testWidgets('offers none of it in a build with no account', (tester) async {

@@ -4,6 +4,7 @@
 // feed and the organizations are the device's own.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/notifications.dart';
@@ -153,6 +154,26 @@ void main() {
       expect(find.text('Nothing matches.'), findsOneWidget);
       await tapKey(tester, 'log-filter-clear');
       expect(rows(tester), hasLength(3));
+      await endSettings(tester);
+    });
+
+    // Differs 24 (docs/PARITY.md): the phone's Back from an opened change left the log altogether, where the page's
+    // closes the change first (notes/OrganizationLog.tsx `useBack(true, () => (opened ? setOpened(null) : onBack()))`).
+    testWidgets('closes an opened change on the phone\'s Back, and only then is the log left', (tester) async {
+      final logged = Logged(await Device.make(engine: false));
+      await logged.kept();
+      final asked = await page(tester, logged);
+      final stack = BackScope.of(tester.element(find.byType(OrganizationLog)));
+      final before = stack.depth;
+      await tester.tap(find.byKey(const ValueKey('log:a:2')));
+      await settle(tester, 10);
+      expect(find.byKey(const ValueKey('version-change')), findsOneWidget);
+      expect(stack.depth, before + 1, reason: 'the opened change answers Back while it is up');
+      expect(stack.goBack(), isTrue);
+      await settle(tester);
+      expect(find.byKey(const ValueKey('version-change')), findsNothing);
+      expect(rows(tester), hasLength(3));
+      expect((asked.back, stack.depth), (0, before));
       await endSettings(tester);
     });
 

@@ -805,7 +805,7 @@ class _MemberLineState extends State<_MemberLine> {
     // You are in the app: this device is reading the page. The others are here when the room says so.
     final present = self || devices.isNotEmpty;
     final line = memberLine(member, self: self, now: widget.now);
-    final title = at == null ? null : (at.editingTitle != null && at.editingTitle!.isNotEmpty ? at.editingTitle! : 'an untitled note');
+    final title = at == null ? null : (at.editingTitle != null && at.editingTitle!.isNotEmpty ? at.editingTitle! : (at.editingCanvas ? 'an untitled canvas' : 'an untitled note'));
     final where = at != null ? 'editing $title' : (present && !self ? 'here now' : null);
     final hair = snapBorder(context, t.len('glacier-hairline'));
     final side = t.lenOf('2.25rem');
@@ -935,7 +935,8 @@ class _MemberLineState extends State<_MemberLine> {
                                     color: state.hovered ? here.colorOf('color-mix(in oklch, var(--app-space, var(--app-ink)) 10%, transparent)') : null,
                                     shape: StadiumBorder(side: BorderSide(color: space, width: hair)),
                                   ),
-                                  child: Text('Open the note', style: pageText(here, sm, weight: 'medium', color: space)),
+                                  // `at.cursor ?? at.pointer ? 'Jump to cursor' : at.kind === 'canvas' ? 'Open the canvas' : 'Open the note'`
+                                  child: Text(at!.editingPlace ? 'Jump to cursor' : (at.editingCanvas ? 'Open the canvas' : 'Open the note'), style: pageText(here, sm, weight: 'medium', color: space)),
                                 ),
                               ),
                             ),

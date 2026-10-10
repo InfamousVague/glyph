@@ -356,7 +356,15 @@ class _GhostRootState extends State<GhostRoot> {
   /// with no account, and while signed out.
   List<OrgPresence> _seenIn(String orgId) => [
         for (final seen in _presenceIn(orgId))
-          OrgPresence(client: '${seen.client}', handle: seen.handle, hue: seen.hue, editingNote: seen.at?.note, editingTitle: seen.at?.title),
+          OrgPresence(
+            client: '${seen.client}',
+            handle: seen.handle,
+            hue: seen.hue,
+            editingNote: seen.at?.note,
+            editingTitle: seen.at?.title,
+            editingCanvas: seen.at?.kind == 'canvas',
+            editingPlace: seen.at?.cursor != null || seen.at?.pointer != null,
+          ),
       ];
 
   /// Someone came, went, or opened another note: the home page's cards and the organization's rows say so, and
@@ -385,6 +393,17 @@ class _GhostRootState extends State<GhostRoot> {
   /// a workspace's sheet, All notes) it is opened from nowhere it goes back to.
   ({String id, OrganizationFrom? from})? _organization;
   bool _newOrganization = false;
+
+  /// `closeOrganizationSettings`: left or deleted from its settings, its dashboard has nothing to show, so the way
+  /// out is home.
+  void _closeOrganizationSettings() {
+    final id = _organization?.id;
+    setState(() => _organization = null);
+    final shell = _shell.currentState;
+    final now = shell?.screen;
+    if (id == null || shell == null || now is! ScreenOrganization || now.orgId != id) return;
+    if (!(_services?.orgs?.orgsState().list.any((row) => row.id == id) ?? false)) shell.show(const Screen.list());
+  }
 
   /// `openOrganizationSettings`: over whatever is up, the sidebar's card put away first.
   void _openOrganizationSettings(String id, [OrganizationFrom? from]) {
@@ -1805,7 +1824,9 @@ class _GhostRootState extends State<GhostRoot> {
       organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
       orgNews: homeOrgNews(services, chosenOrg),
       onOrganization: services == null ? null : shell.openOrganization,
-      onOrganizationSettings: services == null ? null : _organizationSettings,
+      // Edit on an organization's workspace, from the filters: its settings, opened from nowhere they go back to
+      // (`openOrganizationSettings` with no `from`).
+      onOrganizationSettings: services == null ? null : _openOrganizationSettings,
       onNewOrganization: signedIn ? () => setState(() => _newOrganization = true) : null,
       headerEdge: _headerEdge,
       dockHalo: _dockHalo,
@@ -2022,7 +2043,7 @@ class _GhostRootState extends State<GhostRoot> {
       from: sheet.from,
       // `landOnMembers={orgSettings.from === 'settings'}`: from anywhere else, its list of sections.
       landOnMembers: sheet.from == OrganizationFrom.settings,
-      onClose: () => setState(() => _organization = null),
+      onClose: _closeOrganizationSettings,
       // Report a member or a note: an email, handed to the phone.
       onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
       onNotes: () {

@@ -20,7 +20,7 @@ import 'home_text.dart';
 /// Someone in an organization's notes now (`Presence`, the part the home page says).
 @immutable
 class OrgPresence {
-  const OrgPresence({required this.client, required this.handle, this.hue, this.editingNote, this.editingTitle});
+  const OrgPresence({required this.client, required this.handle, this.hue, this.editingNote, this.editingTitle, this.editingCanvas = false, this.editingPlace = false});
 
   /// The device they are on: one person on two devices is here once.
   final String client;
@@ -31,12 +31,24 @@ class OrgPresence {
   final String? editingNote;
   final String? editingTitle;
 
-  @override
-  bool operator ==(Object other) =>
-      other is OrgPresence && other.client == client && other.handle == handle && other.hue == hue && other.editingNote == editingNote && other.editingTitle == editingTitle;
+  /// Whether what they are editing is a canvas (`at.kind === 'canvas'`), and whether the room knows where in it
+  /// they are: their caret, or their pointer on a canvas (`at.cursor ?? at.pointer`).
+  final bool editingCanvas;
+  final bool editingPlace;
 
   @override
-  int get hashCode => Object.hash(client, handle, hue, editingNote, editingTitle);
+  bool operator ==(Object other) =>
+      other is OrgPresence &&
+      other.client == client &&
+      other.handle == handle &&
+      other.hue == hue &&
+      other.editingNote == editingNote &&
+      other.editingTitle == editingTitle &&
+      other.editingCanvas == editingCanvas &&
+      other.editingPlace == editingPlace;
+
+  @override
+  int get hashCode => Object.hash(client, handle, hue, editingNote, editingTitle, editingCanvas, editingPlace);
 }
 
 /// An organization this account has joined (`OrgRow` with `state: 'member'`), and who is in it now.
