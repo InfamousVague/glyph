@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
+import 'package:ghost_md/core/notifications.dart' show sentenceOf;
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/versions_store.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -20,6 +21,8 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/shell/account_gate.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/sync/engine.dart';
+import 'package:ghost_md/sync/record.dart';
 
 import '../account_ui/support.dart' show Device;
 import '../support/render.dart';
@@ -172,6 +175,35 @@ void main() {
       expect((saved.heard, changed.heard), (true, true));
       wired.dispose();
       expect(changed.heard, isFalse);
+    });
+
+    // Unwired 10 (docs/PARITY.md): `Voice.make` was given no `record`, so a meeting written up never reached the
+    // bell (ai/summaries.ts:688 `record('summary-written', …)`).
+    test('a meeting written up is a row in the account\'s own feed, and nothing in a build with no account', () async {
+      final device = await Device.make(engine: false);
+      final engine = SyncEngine(
+        account: AccountDoor(device.account),
+        api: device.api,
+        crypto: device.service.crypto,
+        keys: device.keys,
+        prefs: preferences,
+        notes: device.notes,
+        files: device.files,
+        feed: device.feed,
+        orgs: device.orgs,
+        orgKeys: device.orgKeys,
+        kept: device.kept,
+        record: SelfNotifications(feed: device.feed, api: device.api),
+      );
+      addTearDown(engine.dispose);
+      final services = AccountServices(account: device.account, engine: engine, orgs: device.orgs, orgKeys: device.orgKeys, feed: device.feed, listNotes: () async => const [], prefs: preferences, workspaces: device.workspaces, kept: device.kept);
+      await feedRecord(() => services)('summary-written', {'noteId': 'n1', 'title': 'Standup'});
+      final row = services.notifications.single;
+      expect(sentenceOf(row, device.feed.openDetails(row)), 'A meeting was written up: Standup');
+      expect(device.service.calls.where((call) => call == 'POST notifications'), hasLength(1));
+      // No account in the build: asked, and nothing happens.
+      await feedRecord(() => null)('summary-written', {'noteId': 'n1', 'title': 'Standup'});
+      expect(device.service.calls.where((call) => call == 'POST notifications'), hasLength(1));
     });
 
     test('a way in with no service says so', () async {

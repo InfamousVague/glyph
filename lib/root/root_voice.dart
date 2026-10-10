@@ -27,6 +27,8 @@ extension _RootVoice on _GhostRootState {
                   isTrashed: _trash.isTrashed,
                   syncNow: _services?.engine?.syncNow,
                   syncSettled: _services?.engine?.syncSettled,
+                  // "A meeting was written up", in the bell.
+                  record: feedRecord(() => _services),
                 )
               : null);
     } catch (failure) {

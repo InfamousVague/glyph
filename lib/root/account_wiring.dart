@@ -71,6 +71,12 @@ String? accountBase(String given, {bool debug = !kReleaseMode}) {
   return base.endsWith('/') ? base.substring(0, base.length - 1) : base;
 }
 
+/// A row in the account's own feed, as the summary queue asks for one (`core/notifications/record.ts` `record`:
+/// "A meeting was written up"): recorded by the sync engine's own recorder, read as each is asked, so an account
+/// made or signed in to after voice was made is the one written to. Nothing in a build with no account.
+Future<void> Function(String kind, Map<String, Object?> details) feedRecord(AccountServices? Function() services) =>
+    (kind, details) async => services()?.engine?.record?.record(kind, details);
+
 /// What a way in says in a build with no service to sign in to.
 const String noServiceWords = 'This build has no account service. Notes stay on this device.';
 
