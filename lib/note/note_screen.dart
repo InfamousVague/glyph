@@ -121,6 +121,7 @@ class NoteSeams {
     this.head,
     this.tail,
     this.saving,
+    this.recordingChanged,
     this.cheatSheet,
     this.location,
     this.shareVersionsFile,
@@ -179,6 +180,11 @@ class NoteSeams {
   /// Handed the way to save what is typed now ([NoteScreenState.flush]) as the screen is made: the AI flushes
   /// before a run, so the run's Undo has the note as it was.
   final void Function(VoidCallback flush)? saving;
+
+  /// Hears that the phone's write-up changed this note (ai/summaries.ts `onRecordingChanged`, for this note alone),
+  /// and answers the way to stop: the screen then reads the note and takes it, when nothing typed here is waiting
+  /// to be saved; else the next save picks it up. Absent, the write-up is taken only as the note opens.
+  final VoidCallback Function(VoidCallback changed)? recordingChanged;
 
   /// The formatting cheat sheet's page (guide/CheatSheet.tsx).
   final WidgetBuilder? cheatSheet;
@@ -484,6 +490,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _drafted = _records.recordOf(_id) != null;
     _untouched = _drafted && _records.isUntouched(_id, note.body, recordingMs: note.recordingMs, starred: note.starred, archivedAt: note.archivedAt);
     widget.seams.saving?.call(flush);
+    if (!widget.readOnly) _unhearRecording = widget.seams.recordingChanged?.call(_recordingChanged);
     _fresh = _records.isFresh(_id);
     final versions = widget.versions;
     if (versions != null && !widget.readOnly) _versioning = VersionKeeping(versions, _id, () => _saving.body, lifecycle: widget.lifecycle)..addListener(_redraw);
@@ -510,10 +517,20 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _rise.forward();
   }
 
+  /// The phone's write-up changed this note: its transcript is read and shown, when nothing typed here is waiting to
+  /// be saved; else the next save picks it up (NoteScreen.tsx's `onRecordingChanged` effect).
+  VoidCallback? _unhearRecording;
+  void _recordingChanged() {
+    unawaited(widget.library.get(_id).then<void>((fresh) {
+      if (fresh != null && mounted) _saving.adopt(fresh);
+    }, onError: (Object _) {}));
+  }
+
   @override
   void dispose() {
     // A new note left without a word leaves nothing behind, its waiting tag included.
     if (_saving.blank && geoTagOf(_saving.body) == null) _tags?.setPendingTag(_id, null);
+    _unhearRecording?.call();
     _unwatchTag?.call();
     _unhearReview?.call();
     _slowFix?.cancel();

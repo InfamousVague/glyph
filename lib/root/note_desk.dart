@@ -270,6 +270,7 @@ class NoteDeskWorld {
     this.undoCommandMutation,
     this.summaries,
     this.refining,
+    this.onRecordingChanged,
   });
 
   /// Every note's title, for the +'s A note.
@@ -392,6 +393,10 @@ class NoteDeskWorld {
   /// asked as a tape is drawn: the tape reads them of its own note. Null where the build has neither.
   final ValueListenable<SummariesState>? Function()? summaries;
   final ValueListenable<RefineState>? Function()? refining;
+
+  /// Hears that the phone's write-up changed a note, by its id (ai/summaries.dart `onRecordingChanged`), and answers
+  /// the way to stop: the open note takes its transcript the moment it lands.
+  final VoidCallback Function(void Function(String noteId) listener)? onRecordingChanged;
 
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture, a launch before voice is made), and the desk then has no AI at all.
@@ -1397,6 +1402,12 @@ class NoteDeskState extends State<NoteDesk> {
     final ai = _ai;
     final seams = NoteSeams(
       saving: (flush) => _flush = flush,
+      // The phone's write-up changed this note: its screen reads it again.
+      recordingChanged: _world.onRecordingChanged == null
+          ? null
+          : (changed) => _world.onRecordingChanged!((id) {
+                if (id == widget.noteId) changed();
+              }),
       // The More sheet's AI rows: a run of that kind on this note.
       // On an iPhone, which has no AI, the rows are drawn all the same and a press says so (iphone_wiring.dart).
       onAi: ai == null || widget.readOnly ? (widget.readOnly ? null : iPhoneAiRows((message) => _toasts?.toast(message: Text(message)))) : (view, kind, [instruction]) {

@@ -77,6 +77,12 @@ extension _RootVoice on _GhostRootState {
       _voice = voice;
       _capture = capture;
     });
+    // The phone's write-up changed a note: the note's own screen, if it is open, takes it.
+    _unhearRecordings = voice.summaries?.onRecordingChanged((id) {
+      for (final heard in _recordingHeard.toList()) {
+        heard(id);
+      }
+    });
     // The meeting's state, for the row that says "Recording now", and the models, for Settings' AI page.
     _unwatchMeeting = voice.live?.subscribe(_voiceChanged);
     voice.live?.canNotify.addListener(_voiceChanged);

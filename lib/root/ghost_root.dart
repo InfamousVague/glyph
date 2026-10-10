@@ -719,7 +719,16 @@ class _GhostRootState extends State<GhostRoot> {
     // What a note's tape says of its summary: the two queues, once voice has made them.
     summaries: () => _voice?.summaries?.useSummaries,
     refining: () => _voice?.recorder.refining?.refining,
+    onRecordingChanged: (listener) {
+      _recordingHeard.add(listener);
+      return () => _recordingHeard.remove(listener);
+    },
   );
+
+  /// Who hears that the phone's write-up changed a note (ai/summaries.dart `onRecordingChanged`): the open notes'
+  /// screens, told through here so that a note opened before voice was made hears too.
+  final Set<void Function(String noteId)> _recordingHeard = <void Function(String noteId)>{};
+  VoidCallback? _unhearRecordings;
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
   /// screen is another (the note, what it was opened with), and when what it reads of the app is: the other notes
@@ -1085,6 +1094,7 @@ class _GhostRootState extends State<GhostRoot> {
     _stopLinks?.call();
     _previews.dispose();
     _unwatchMeeting?.call();
+    _unhearRecordings?.call();
     _stopFills?.call();
     _guideModels?.dispose();
     _stopGistHold?.call();

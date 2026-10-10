@@ -67,6 +67,9 @@ void main() {
     );
   }
 
+  /// What the phone's service says to the queue, by its name (`window.__glyph.recordingDone`).
+  final hostSays = <String, void Function(String json)>{};
+
   /// The summary queue over a library, with nothing of the phone behind it (lib/ai/summaries.dart).
   Summaries summariesOver(SampleLibrary notes, Stored kept) => Summaries(
         isTauri: () => true,
@@ -79,7 +82,10 @@ void main() {
         recordingJobState: () async => const [],
         takeRecordingResult: (_) async => null,
         writeUpOnHost: (_, _) => false,
-        answerHost: (_, _) => () {},
+        answerHost: (name, handler) {
+          hostSays[name] = handler;
+          return () => hostSays.remove(name);
+        },
         getNote: notes.get,
         updateNote: notes.update,
         isTrashed: (_) => false,
@@ -271,6 +277,27 @@ void main() {
     await settle(tester, 4);
     expect(tape().summary!.behind, isTrue);
     expect(find.text('Summary is from before the last take.', skipOffstage: false), findsOneWidget);
+    await close(tester);
+  });
+
+  // Unwired 8 (docs/PARITY.md): `onRecordingChanged` had no caller, so a write-up was taken only as a note opened
+  // (NoteScreen.tsx's effect: the note read again and adopted, when nothing typed is waiting to be saved).
+  testWidgets('the open note takes the phone\'s write-up the moment it lands', (tester) async {
+    final library = await open(tester, engine: true, summaries: summariesOver);
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    expect(view.state.doc.toString(), isNot(contains('## Transcript')));
+
+    // The service appends the transcript under the note, and says it is done with it.
+    final now = library.noteOf(note.id)!;
+    final written = '${now.body.trimRight()}\n\n## Transcript\n\nBring the long lens.\n';
+    await tester.runAsync(() => library.apply(Note(id: now.id, body: written, createdAt: now.createdAt, updatedAt: now.updatedAt + 1, source: now.source, revision: now.revision + 1)));
+    expect(hostSays['recordingDone'], isNotNull, reason: 'the queue answers the service once it is started');
+    hostSays['recordingDone']!('{"id":"${note.id}","outcome":"failed"}');
+    await settle(tester, 4);
+    expect(view.state.doc.toString(), written);
     await close(tester);
   });
 
