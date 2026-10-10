@@ -157,6 +157,7 @@ class LineProjection {
   /// Projects `source`, the text of the document from `from` on, under `sets`. `atomic` are the ranges the caret
   /// skips (document offsets, sorted).
   factory LineProjection.build(String source, int from, List<DecorationSet> sets, {List<(int, int)> atomic = const <(int, int)>[]}) {
+    assert(_built());
     final builder = _Builder(source, from);
     if (sets.isNotEmpty) {
       RangeSet.spans<Decoration>(sets, from, from + source.length, builder);
@@ -164,6 +165,14 @@ class LineProjection {
       builder.span(from, from + source.length, const <Decoration>[], 0);
     }
     return builder.finish(atomic);
+  }
+
+  /// How many lines were projected, counted in a debug build only: a test holds a keystroke to its own line.
+  static int builds = 0;
+
+  static bool _built() {
+    builds += 1;
+    return true;
   }
 
   /// A line of plain text, with no decorations.

@@ -329,6 +329,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     _selection = value;
     _selected?.dispose();
     _selected = null;
+    _hearBlink();
     markNeedsCompositingBitsUpdate();
     markNeedsPaint();
   }
@@ -339,13 +340,30 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     if (identical(value, _host)) return;
     if (attached) {
       _host?.lineDetached(this);
-      _host?.caretOpacity.removeListener(markNeedsPaint);
+      _deafToBlink();
     }
     _host = value;
     if (attached) {
       value?.lineAttached(this);
-      value?.caretOpacity.addListener(markNeedsPaint);
+      _hearBlink();
     }
+  }
+
+  /// The caret's blink is heard by the line the caret is on and by no other: every line on screen used to be
+  /// painted again each time it turned, twice a second, for a caret one of them draws.
+  ValueNotifier<double>? _blink;
+
+  void _hearBlink() {
+    final wanted = attached && _selection.carets.isNotEmpty ? _host?.caretOpacity : null;
+    if (identical(wanted, _blink)) return;
+    _blink?.removeListener(markNeedsPaint);
+    _blink = wanted;
+    wanted?.addListener(markNeedsPaint);
+  }
+
+  void _deafToBlink() {
+    _blink?.removeListener(markNeedsPaint);
+    _blink = null;
   }
 
   // -- what layout made -------------------------------------------------------------------------------------------
@@ -387,7 +405,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   void attach(PipelineOwner owner) {
     super.attach(owner);
     _host?.lineAttached(this);
-    _host?.caretOpacity.addListener(markNeedsPaint);
+    _hearBlink();
     // A face that arrives later is a different layout.
     PaintingBinding.instance.systemFonts.addListener(_fontsChanged);
   }
@@ -396,7 +414,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   void detach() {
     PaintingBinding.instance.systemFonts.removeListener(_fontsChanged);
     _host?.lineDetached(this);
-    _host?.caretOpacity.removeListener(markNeedsPaint);
+    _deafToBlink();
     super.detach();
   }
 

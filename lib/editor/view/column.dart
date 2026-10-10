@@ -63,6 +63,7 @@ class _EditorColumnState extends State<EditorColumn> {
     view.setEnv(env, more: widget.sheets);
     // Nothing follows lines by number here: the changes are taken so they do not pile up.
     view.takeChanges();
+    view.takeDirty();
     final doc = view.state.doc, blocks = view.blocks;
     final top = view.look!.env.contentTop, bottom = view.look!.env.contentBottom;
     return EditorViewScope(
@@ -73,7 +74,7 @@ class _EditorColumnState extends State<EditorColumn> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: <Widget>[
-            for (var n = 1; n <= doc.lines; n = blocks.lastLineOf(n) + 1) view.buildEntry(n),
+            for (var n = 1; n <= doc.lines; n = blocks.lastLineOf(n) + 1) view.buildEntry(n)!,
           ],
         ),
       ),

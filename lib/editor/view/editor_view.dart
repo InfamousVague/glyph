@@ -30,9 +30,9 @@ library;
 
 import 'dart:math' as math;
 
-import 'package:flutter/rendering.dart';
+import 'package:flutter/rendering.dart' hide Decoration;
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart';
+import 'package:flutter/widgets.dart' hide Decoration;
 
 import '../looks/look.dart';
 import '../looks/markdown_look.dart';
@@ -82,6 +82,58 @@ class _PluginInstance {
   _PluginInstance(this.spec);
   final ViewPlugin<PluginValue> spec;
   PluginValue? value;
+}
+
+/// Where the document's lines may show something other than they did: [EditorView.takeDirty]'s answer.
+class DirtyLines {
+  const DirtyLines._(this.all, this._ranges);
+
+  /// Anywhere: the look changed, or the configuration, or nothing was ever built.
+  final bool all;
+
+  /// Pairs of positions, from and to, both included.
+  final List<int> _ranges;
+
+  static const DirtyLines everywhere = DirtyLines._(true, <int>[]);
+
+  /// Whether a line from `from` to `to` may show something else.
+  bool touches(int from, int to) {
+    if (all) return true;
+    for (var i = 0; i < _ranges.length; i += 2) {
+      if (_ranges[i] <= to && _ranges[i + 1] >= from) return true;
+    }
+    return false;
+  }
+}
+
+/// What whoever keeps the lines built keeps of one entry, to build it again for less: handed back to
+/// [EditorView.buildEntry], which reuses the line's look where nothing the look is made from has changed.
+class EntryKeep {
+  LineSpec? _spec;
+  LineContext? _context;
+  Look? _look;
+  LineSelection? _selection;
+  int _from = -1;
+
+  /// Whether the entry was a line with no block widget round it: only such an entry can be left as it is.
+  bool _plain = false;
+}
+
+class _Differ<T extends RangeValue> extends RangeComparator<T> {
+  _Differ(this.add);
+  final void Function(int from, int to) add;
+
+  @override
+  void compareRange(int from, int to, List<T> activeA, List<T> activeB) => add(from, to);
+
+  @override
+  void comparePoint(int from, int to, T? pointA, T? pointB) => add(from, to);
+
+  @override
+  bool get tracksBounds => true;
+
+  @override
+  void boundChange(int pos) => add(pos, pos);
 }
 
 /// CodeMirror's `EditorView`.
@@ -183,6 +235,100 @@ class EditorView extends EditorViewLike implements EditorLineHost {
     _visible = _visibleIn(_viewport);
   }
 
+  // -- what changed, for whoever keeps the lines built -------------------------------------------------------------
+
+  /// Where a line may show something other than it did when [takeDirty] was last asked: pairs of positions in the
+  /// document as it is now. CodeMirror's `DocView.update` finds the same (`findChangedDeco` and the changed
+  /// ranges) and redraws only there; every built line used to be projected and resolved again on every
+  /// transaction, a caret's move included.
+  final List<int> _dirty = <int>[];
+  bool _dirtyAll = true;
+  List<RangeSet<RangeValue>> _atomicSets = const <RangeSet<RangeValue>>[];
+  List<Object>? _decorationSources;
+
+  void _addDirty(int from, int to) {
+    if (_dirtyAll) return;
+    // What compares the sets tells of each stretch in order: one that follows the last closely is the same place.
+    final last = _dirty.length - 2;
+    if (last >= 0 && from >= _dirty[last] && from <= _dirty[last + 1] + 64) {
+      if (to > _dirty[last + 1]) _dirty[last + 1] = to;
+      return;
+    }
+    if (_dirty.length >= 64) {
+      // Too many places to keep apart: everything between the first and the last of them.
+      var low = from, high = to;
+      for (var i = 0; i < _dirty.length; i += 2) {
+        if (_dirty[i] < low) low = _dirty[i];
+        if (_dirty[i + 1] > high) high = _dirty[i + 1];
+      }
+      _dirty
+        ..clear()
+        ..add(low)
+        ..add(high);
+      return;
+    }
+    _dirty
+      ..add(from)
+      ..add(to);
+  }
+
+  /// Notes where `update` changed what lines show: the text it changed, and wherever the decorations and the
+  /// atomic ranges differ from `before`.
+  void _noteDirty(ViewUpdate update, List<DecorationSet> before) {
+    final sources = _state.facet(EditorViewLike.decorations);
+    final atomic = atomicRanges;
+    final atomicBefore = _atomicSets;
+    _atomicSets = atomic;
+    // The same givers in the same order: a set where there was a set, and the same function where there was one.
+    // (The list itself is made again whenever one giver's set is.)
+    final had = _decorationSources ?? const <Object>[];
+    var sameSources = _decorationSources != null && had.length == sources.length;
+    for (var i = 0; sameSources && i < sources.length; i++) {
+      sameSources = identical(had[i], sources[i]) || (had[i] is DecorationSet && sources[i] is DecorationSet);
+    }
+    _decorationSources = sources;
+    if (_dirtyAll) return;
+    if (!sameSources || update.flags & UpdateFlag.geometry != 0 || before.length != _decorations.length || atomicBefore.length != atomic.length) {
+      _dirtyAll = true;
+      _dirty.clear();
+      return;
+    }
+    if (update.docChanged) {
+      final changes = update.changes;
+      for (var i = 0; i < _dirty.length; i += 2) {
+        _dirty[i] = changes.mapPos(_dirty[i], -1);
+        _dirty[i + 1] = changes.mapPos(_dirty[i + 1], 1);
+      }
+      for (final range in update.changedRanges) {
+        _addDirty(range.fromB, range.toB);
+      }
+    }
+    var same = true;
+    for (var i = 0; same && i < before.length; i++) {
+      same = identical(before[i], _decorations[i]);
+    }
+    if (!same || update.docChanged) RangeSet.compare<Decoration>(before, _decorations, update.changes, _Differ<Decoration>(_addDirty));
+    same = true;
+    for (var i = 0; same && i < atomic.length; i++) {
+      same = identical(atomicBefore[i], atomic[i]);
+    }
+    if (!same || update.docChanged) RangeSet.compare<RangeValue>(atomicBefore, atomic, update.changes, _Differ<RangeValue>(_addDirty));
+  }
+
+  /// Where lines may show something else since this was last asked; whoever keeps the lines built asks, builds
+  /// those again, and leaves the rest.
+  DirtyLines takeDirty() {
+    if (_dirtyAll) {
+      _dirtyAll = false;
+      _dirty.clear();
+      return DirtyLines.everywhere;
+    }
+    if (_dirty.isEmpty) return const DirtyLines._(false, <int>[]);
+    final taken = DirtyLines._(false, List<int>.of(_dirty));
+    _dirty.clear();
+    return taken;
+  }
+
   // -- the look ----------------------------------------------------------------------------------------------------
 
   Look? _look;
@@ -229,6 +375,7 @@ class EditorView extends EditorViewLike implements EditorLineHost {
     if (_look != null && _look!.same(next)) return;
     _look = next;
     _theme = GlyphTheme.of(withAttrs);
+    _dirtyAll = true;
     final base = next.line(LookElement(null)).base;
     _heights
       ..lineHeight = base.above + base.below
@@ -368,6 +515,7 @@ class EditorView extends EditorViewLike implements EditorLineHost {
     ViewUpdate update;
     try {
       final next = trs.isEmpty ? _state : trs.last.state;
+      final decorationsBefore = _decorations;
       update = ViewUpdate.create(this, next, trs);
       update.flags = flags | (_focusChanged ? UpdateFlag.focus : 0);
       _focusChanged = false;
@@ -415,6 +563,7 @@ class EditorView extends EditorViewLike implements EditorLineHost {
         }
       }
       _readDecorations(force: update.docChanged);
+      _noteDirty(update, decorationsBefore);
       if (!identical(next.facet(lookSheets), oldState.facet(lookSheets)) || !identical(next.facet(EditorViewLike.editorAttributes), oldState.facet(EditorViewLike.editorAttributes))) {
         _updating = wasUpdating;
         _makeLook(notify: false);
@@ -616,7 +765,12 @@ class EditorView extends EditorViewLike implements EditorLineHost {
 
   /// The widget for the entry that starts at line `line`: its line of text, or the block widget in its place, with
   /// the block widgets before and after. `line` must not be a covered line.
-  Widget buildEntry(int line) {
+  ///
+  /// With `keep` (what was kept when the entry was last built) and `dirty` (where lines may show something else
+  /// since), a line nothing has touched keeps the look it had and is not projected and resolved again; and null is
+  /// answered, for "leave what is built as it is", where the line has not moved and its part of the selection is
+  /// the same.
+  Widget? buildEntry(int line, {EntryKeep? keep, DirtyLines dirty = DirtyLines.everywhere}) {
     final look = _look;
     if (look == null) return const SizedBox.shrink();
     final doc = _state.doc;
@@ -626,15 +780,35 @@ class EditorView extends EditorViewLike implements EditorLineHost {
     final to = lastLine == line ? first.to : doc.line(math.min(lastLine, doc.lines)).to;
     Widget body;
     final replace = info?.replace;
+    final plain = info == null || (info.before.isEmpty && info.after.isEmpty);
     if (replace != null) {
       body = EditorBlock(view: this, spec: replace);
+      keep?._spec = null;
     } else {
-      final source = to == first.to ? first.text : doc.sliceString(first.from, to);
-      final projection = LineProjection.build(source, first.from, _decorations, atomic: _atomicIn(first.from, to));
-      final spec = LineSpec.resolve(projection, look, _contextOf(line, info, to));
-      body = EditorLine(spec: spec, from: first.from, selection: selectionFor(first.from, to), host: this);
+      final context = _contextOf(line, info, to);
+      final selection = selectionFor(first.from, to);
+      final had = keep?._spec;
+      final LineSpec spec;
+      if (had != null && identical(keep!._look, look) && _sameContext(keep._context!, context) && !dirty.touches(first.from, to)) {
+        // Nothing the line's look is made from has changed: its words, the decorations over them, what stands
+        // before it, the sheets.
+        spec = had;
+        if (plain && keep._plain && keep._from == first.from && selection.same(keep._selection!)) return null;
+      } else {
+        final source = to == first.to ? first.text : doc.sliceString(first.from, to);
+        final projection = LineProjection.build(source, first.from, _decorations, atomic: _atomicIn(first.from, to));
+        spec = LineSpec.resolve(projection, look, context);
+      }
+      keep
+        ?.._spec = spec
+        .._context = context
+        .._look = look
+        .._selection = selection
+        .._from = first.from
+        .._plain = plain;
+      body = EditorLine(spec: spec, from: first.from, selection: selection, host: this);
     }
-    if (info == null || (info.before.isEmpty && info.after.isEmpty)) return body;
+    if (plain) return body;
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -645,6 +819,8 @@ class EditorView extends EditorViewLike implements EditorLineHost {
       ],
     );
   }
+
+  static bool _sameContext(LineContext a, LineContext b) => a.first == b.first && a.last == b.last && a.after == b.after;
 
   // -- positions ---------------------------------------------------------------------------------------------------
 

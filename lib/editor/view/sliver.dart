@@ -77,6 +77,9 @@ class _EditorSliverElement extends RenderObjectElement {
   final Map<int, Element> _children = <int, Element>{};
   final Map<int, int> _from = <int, int>{};
 
+  /// What the view keeps of each built entry, to build it again for less (`EditorView.buildEntry`).
+  final Map<int, EntryKeep> _kept = <int, EntryKeep>{};
+
   EditorView get _view => (widget as _RawEditorSliver).view;
 
   @override
@@ -117,6 +120,7 @@ class _EditorSliverElement extends RenderObjectElement {
       }
       _children.clear();
       _from.clear();
+      _kept.clear();
     }
     performRebuild();
   }
@@ -128,6 +132,7 @@ class _EditorSliverElement extends RenderObjectElement {
     if (changes == null && _children.keys.every((line) => line <= _view.state.doc.lines && !_view.blocks.isCovered(line))) return;
     final doc = _view.state.doc;
     final moved = <int, Element>{}, from = <int, int>{};
+    final kept = <int, EntryKeep>{};
     for (final entry in _children.entries.toList()..sort((a, b) => a.key - b.key)) {
       final was = _from[entry.key]!;
       final at = changes == null ? was : changes.mapPos(was, -1);
@@ -138,6 +143,8 @@ class _EditorSliverElement extends RenderObjectElement {
       }
       moved[line.number] = entry.value;
       from[line.number] = line.from;
+      final keep = _kept[entry.key];
+      if (keep != null) kept[line.number] = keep;
       if (line.number != entry.key) updateSlotForChild(entry.value, line.number);
     }
     _children
@@ -146,16 +153,27 @@ class _EditorSliverElement extends RenderObjectElement {
     _from
       ..clear()
       ..addAll(from);
+    _kept
+      ..clear()
+      ..addAll(kept);
   }
 
-  Widget _build(int line) => EditorViewScope(view: _view, child: _view.buildEntry(line));
+  Widget? _build(int line, DirtyLines dirty) {
+    final built = _view.buildEntry(line, keep: _kept[line] ??= EntryKeep(), dirty: dirty);
+    return built == null ? null : EditorViewScope(view: _view, child: built);
+  }
 
-  void _rebuildAll() {
+  /// Builds the built entries again where `dirty` says a line may show something else, where one has moved in the
+  /// document, and where the selection on one has changed; the rest are left exactly as they are.
+  void _rebuildAll(DirtyLines dirty) {
     for (final line in _children.keys.toList()) {
-      final child = updateChild(_children[line], _build(line), line);
+      final built = _build(line, dirty);
+      if (built == null) continue;
+      final child = updateChild(_children[line], built, line);
       if (child == null) {
         _children.remove(line);
         _from.remove(line);
+        _kept.remove(line);
       } else {
         _children[line] = child;
         _from[line] = _view.state.doc.line(line).from;
@@ -167,7 +185,7 @@ class _EditorSliverElement extends RenderObjectElement {
   void performRebuild() {
     super.performRebuild();
     _follow();
-    _rebuildAll();
+    _rebuildAll(_view.takeDirty());
     renderObject.markNeedsLayout();
   }
 
@@ -181,11 +199,13 @@ class _EditorSliverElement extends RenderObjectElement {
         updateChild(_children[line], null, line);
         _children.remove(line);
         _from.remove(line);
+        _kept.remove(line);
       }
-      if (all) _rebuildAll();
+      if (all) _rebuildAll(_view.takeDirty());
       for (final line in lines) {
         if (_children.containsKey(line)) continue;
-        final child = updateChild(null, _build(line), line);
+        _kept.remove(line);
+        final child = updateChild(null, _build(line, DirtyLines.everywhere), line);
         if (child != null) {
           _children[line] = child;
           _from[line] = _view.state.doc.line(line).from;
@@ -206,6 +226,7 @@ class _EditorSliverElement extends RenderObjectElement {
   @override
   void forgetChild(Element child) {
     _children.removeWhere((line, element) => identical(element, child));
+    _kept.removeWhere((line, _) => !_children.containsKey(line));
     super.forgetChild(child);
   }
 
