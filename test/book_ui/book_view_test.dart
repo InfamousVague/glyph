@@ -363,6 +363,54 @@ void main() {
   });
 
   group('reading straight through', () {
+    testWidgets('draws a long notebook a screenful with the view and the rest in the frames after, and a page the rail asks for at once', (tester) async {
+      // Twenty pages of fifteen hundred letters: two of them are a screenful and more (the first frame's), and the
+      // rest follow in the frames after.
+      final titles = [for (var i = 1; i <= 20; i += 1) 'Page $i'];
+      final long = List.filled(150, 'Nine words.').join(' ');
+      final bodies = {for (final title in titles) title: '# $title\n\n$long'};
+      List<int> drawn() => [
+        for (var i = 0; i < titles.length; i += 1)
+          if (find.byKey(ValueKey('book-read-title-$i'), skipOffstage: false).evaluate().isNotEmpty) i,
+      ];
+      // Under twenty rows, the way in is under the window's foot.
+      Future<void> read() async {
+        await tester.ensureVisible(find.text('Read straight through', skipOffstage: false));
+        await tester.pump();
+        await tester.tap(find.text('Read straight through'));
+        await tester.pump();
+      }
+
+      await show(tester, body: bookNoteBody('Long', titles), title: 'Long', bodyOf: (t) => bodies[t]);
+      await read();
+      expect(drawn(), [0, 1]);
+      // The rail names every page from the first frame.
+      expect(find.byKey(const ValueKey('book-rail-19'), skipOffstage: false), findsOneWidget);
+      // At least a page more each frame (how many more is by the clock: more after a quick frame), in order.
+      for (var frame = 0, had = 2; had < titles.length; frame += 1) {
+        await tester.pump();
+        expect(drawn().length, greaterThan(had), reason: 'frame ${frame + 2} draws more pages');
+        expect(drawn(), [for (var i = 0; i < drawn().length; i += 1) i]);
+        had = drawn().length;
+      }
+      expect(drawn().length, 20);
+      // Back at the index and in again: the rail is asked for the last page while the pages are still coming, and
+      // every page up to it is drawn the frame after (a frame draws eight more at the most).
+      await tester.ensureVisible(find.text('Index', skipOffstage: false));
+      await tester.pump();
+      await press(tester, 'Index');
+      await read();
+      expect(drawn(), [0, 1]);
+      await tester.ensureVisible(find.byKey(const ValueKey('book-rail-19'), skipOffstage: false));
+      await tester.pump();
+      expect(drawn().length, lessThan(12));
+      await tester.tap(find.byKey(const ValueKey('book-rail-19')));
+      await tester.pump();
+      expect(drawn().length, 20);
+      await settle(tester);
+      await away(tester);
+    });
+
     testWidgets('draws the chapters one after another, says which is a canvas or not written, and goes back to the index', (tester) async {
       const bodies = <String, String>{
         'Introduction': '# Introduction\n\nStart here.',

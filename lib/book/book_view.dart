@@ -1053,8 +1053,56 @@ class BookViewState extends State<BookView> {
       // Back at the index, the place the book was left at is spent: reading through again starts afresh.
       if (!on) _left = null;
       _reading = on;
+      _readTo = 0;
     });
     _syncWatch();
+  }
+
+  /// How many pages reading straight through has drawn so far, from the first: a screenful of them with the view
+  /// (and every page up to the one the book was left at), and the rest in the frames after, a few at a time. Every
+  /// page of the notebook was built and laid out in the one frame the read-through opened in, and a notebook is
+  /// as long as a book (measured on a Mac, tool/perf.sh, sixteen written pages, two of them of twelve thousand
+  /// letters: one frame of 213 ms): what is under the window's foot is now made while the top is read.
+  int _readTo = 0;
+
+  /// How many pages the next frame adds: twice as many after a frame that was quick, one after a slow one.
+  int _readStep = 1;
+  bool _readWaiting = false;
+  final Stopwatch _readClock = Stopwatch();
+
+  /// About a screenful of a page's words, in letters: the pages built with the view reach this many between them.
+  static const int _readSoon = 2000;
+
+  /// The pages built in this build of the read-through; the rest are asked for a frame from now.
+  int _readSoFar(List<Chapter> chapters) {
+    final count = chapters.length;
+    if (_readTo == 0) {
+      final left = _left;
+      final at = left == null ? -1 : chapters.indexWhere((chapter) => sameTitle(chapter.title, left.title));
+      var first = 0, letters = 0;
+      while (first < count && (first == 0 || letters < _readSoon)) {
+        letters += _pageOf(chapters[first].title).words?.length ?? 0;
+        first += 1;
+      }
+      _readTo = math.max(first, at + 1);
+      _readStep = 1;
+    }
+    if (_readTo >= count) return count;
+    if (!_readWaiting) {
+      _readWaiting = true;
+      _readClock
+        ..reset()
+        ..start();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _readWaiting = false;
+        if (!mounted || !_reading) return;
+        // What this frame's pages took, the rest of the frame with them: under a third of a frame, and the next
+        // frame takes twice as many.
+        _readStep = _readClock.elapsedMicroseconds < 6000 ? math.min(_readStep * 2, 8) : 1;
+        setState(() => _readTo = math.min(_chapters.length, _readTo + _readStep));
+      });
+    }
+    return _readTo;
   }
 
   /// The chapter named in the form, into the index, then opened: as a page of words, or made as an empty canvas.
@@ -1177,9 +1225,20 @@ class BookViewState extends State<BookView> {
     final railEm = 0.8 * em;
     final titleEm = 1.3 * em;
 
+    final soFar = _readSoFar(chapters);
+
     void scrollTo(int i) {
       final at = _sections[i].currentContext;
-      if (at == null) return;
+      if (at == null) {
+        // A page not drawn yet: every page up to it is drawn now, and it is gone to once it is there.
+        if (i < chapters.length && i >= _readTo) {
+          setState(() => _readTo = i + 1);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted && _reading && i < _sections.length && _sections[i].currentContext != null) scrollTo(i);
+          });
+        }
+        return;
+      }
       _watch?.touched();
       // `scrollIntoView({ behavior: 'smooth', block: 'start' })`
       Scrollable.ensureVisible(at, alignment: 0, duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 300), curve: Curves.easeOut);
@@ -1245,7 +1304,7 @@ class BookViewState extends State<BookView> {
               ),
             ),
           ),
-          for (final (i, chapter) in chapters.indexed)
+          for (final (i, chapter) in chapters.indexed.take(soFar))
             () {
               if (ghostPerf) Perf.count('book.read.page');
               final read = _pageOf(chapter.title);
