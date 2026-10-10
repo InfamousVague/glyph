@@ -46,9 +46,9 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/mac_app.dart';
+import '../../core/stored_device.dart';
 import '../../editor/input/ime.dart';
 import 'mac_window.dart';
 
@@ -195,18 +195,26 @@ class _Tour {
       case 'forget':
         // Everything this app's own memory holds (its shared preferences), gone: for a walk that must start as a
         // first launch does. The library's files are not touched from here.
-        final kept = await SharedPreferences.getInstance();
-        _say('forget ${kept.getKeys().length} keys -> ${await kept.clear()}');
+        // Through the app's one door to the device's storage (lib/core/stored_device.dart), as everything that
+        // keeps or forgets a key goes: test/diag/reset_test.dart holds that nothing else opens it. A write there is
+        // handed over and not waited for; the Mac takes them in the order they were sent, a `quit` after them too.
+        final kept = await DeviceStored.open();
+        final keys = kept.allKeys.toList();
+        for (final key in keys) {
+          kept.removeItem(key);
+        }
+        _say('forget ${keys.length} keys');
       case 'pref':
         // One of the app's own preferences set for the next launch (`pref:<key>=<value>`): the theme, the sidebar's
         // style. Written where the app keeps them; the running app is not told.
         final at = arg.indexOf('=');
-        final kept = await SharedPreferences.getInstance();
-        final now = jsonDecode(kept.getString('glyph-preferences') ?? '{}');
+        final kept = await DeviceStored.open();
+        final now = jsonDecode(kept.getItem('glyph-preferences') ?? '{}');
         if (now is Map && at > 0) {
           final value = arg.substring(at + 1);
           now[arg.substring(0, at)] = value == 'true' ? true : value == 'false' ? false : (num.tryParse(value) ?? value);
-          _say('pref $arg -> ${await kept.setString('glyph-preferences', jsonEncode(now))}');
+          kept.setItem('glyph-preferences', jsonEncode(now));
+          _say('pref $arg');
         }
       case 'keylog':
         // Every key the framework hears, and whether anything took it: where a chord went, when it went nowhere.
