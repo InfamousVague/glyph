@@ -71,7 +71,8 @@ abstract final class PerfLaunch {
 /// The standard walk for a window [size] logical pixels: every touch is placed by the window, so the same walk
 /// runs on the Fold shut, the Fold open and a Mac's window. It is made of parts, each of which begins and ends on
 /// the home page, so one part can be walked alone ([only]: `home`, `note`, `board`, `canvas`, `notebook`,
-/// `allnotes`, `sidebar`, `search`, `palette`, `settings`; `bench:note+settings` on the command line). What a part
+/// `allnotes`, `sidebar`, `search`, `palette`, `settings`, and `opens`, which is walked only when it is named;
+/// `bench:note+settings` on the command line). What a part
 /// opens is looked for first (`seek`, in a stretch that is not kept): a phone's home page has it a few screens down
 /// where a wide window shows it at once.
 ///
@@ -82,6 +83,7 @@ String benchScript(Size size, {Set<String>? only}) {
   final x = (size.width / 2).round();
   final high = (size.height * 0.30).round(), low = (size.height * 0.72).round(), middle = (size.height * 0.5).round();
   String flings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$x,$from,$x,$to,140;wait:1100'].join(';');
+  String again(String steps, int times) => [for (var i = 0; i < times; i += 1) steps].join(';');
   // The notes' card hangs at the window's left, twenty rems wide: a finger down its middle.
   const card = 172;
   String cardFlings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$card,$from,$card,$to,140;wait:1100'].join(';');
@@ -192,12 +194,32 @@ String benchScript(Size size, {Set<String>? only}) {
       // Out the way a person came: the cheat sheet to About, (About to the list,) and out of Settings.
       'mark:settings-leave', 'back', 'wait:700', if (!split) 'back;wait:700', 'back', 'wait:1200',
     ],
+    // Not of the standard walk: walked only when asked for by name (`bench:opens`). Each opening several times
+    // over and nothing else, so a stretch's profile is what the opening does: in a stretch with flings after it,
+    // the one frame an opening takes is a hundredth of the samples, and the profile is the flings'.
+    'opens': [
+      'mark:_seek', 'reach:Bench canvas',
+      'mark:opens-canvas', again('taptext:Bench canvas;wait:900;taplabel:Home;wait:900', 4),
+      'mark:_seek', 'reach:Bench notebook',
+      'mark:opens-notebook', again('taptext:Bench notebook;wait:900;taplabel:Home;wait:900', 4),
+      'mark:_seek', 'taplabel:Search and commands', 'wait:900', 'type:All notes', 'wait:500', 'enter', 'wait:1500', 'taplabel:Search your notes', 'wait:500',
+      // Two letters and back, so the cards are other cards each time.
+      'mark:opens-allnotes-letters', again('type:fo;wait:500;backspace:2;wait:500', 4),
+      'mark:_seek', 'unfocus', 'taplabel:Back to home', 'wait:1200', 'taplabel:All your notes', 'wait:1200',
+      'mark:opens-sidebar-names', again('taplabel:Show names only;wait:700;taplabel:Show each note drawn small;wait:700', 4),
+      'mark:_seek', 'back', 'wait:900', 'taplabel:Settings', 'wait:1500',
+      // A page of many cards and a page of one, turn about; one page at a time, each is opened from the list.
+      'mark:opens-appearance', again(split ? 'taptext:Appearance;wait:700;taptext:Export;wait:700' : 'reach:Appearance;taptext:Appearance;wait:700;back;wait:700', 4),
+      'mark:_seek', if (split) 'swipe:160,$low,160,$high,400;wait:300;swipe:160,$low,160,$high,400;wait:300' else 'reach:About', 'taptext:About', 'wait:900',
+      'mark:opens-cheatsheet', again('reach:Cheat sheet;taptext:Cheat sheet;wait:700;back;wait:700', 4),
+      'mark:_seek', 'back', 'wait:700', if (!split) 'back;wait:700',
+    ],
   };
   return [
     // A first run on a phone opens on the welcome, over the app: skipped, or every touch of the walk lands on it.
     'mark:_start', 'tapif:Skip', 'wait:1500',
     for (final part in parts.entries)
-      if (only == null || only.contains(part.key)) ...part.value,
+      if (only == null ? part.key != 'opens' : only.contains(part.key)) ...part.value,
     'mark:end',
   ].join(';');
 }
