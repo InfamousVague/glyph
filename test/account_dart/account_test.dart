@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/account.dart';
 import 'package:ghost_md/account/api.dart';
@@ -202,6 +204,42 @@ void main() {
       expect(await phone.keys.accountKey(), isNull);
       expect(await phone.keys.deviceKey(), isNull);
       expect(await phone.keys.session(), isNull);
+    });
+
+    test('keeps the session and its keys when the network goes between the lapse and the asking again', () async {
+      final (:service, :phone, :before) = await launched();
+      service.expireAllTokens();
+      // The refresh is answered (the session has lapsed); nothing after it gets through.
+      final flaky = deviceOf(service, keys: phone.keys, fetcher: (request) async {
+        if (request.url.path.endsWith('/refresh')) return service.fetcher(request);
+        throw const FormatException('Failed to fetch');
+      });
+      await flaky.resume();
+      expect(flaky.value, AccountState(session: before, unlocked: true));
+      expect(await phone.keys.accountKey(), isNotNull);
+      expect(await phone.keys.deviceKey(), isNotNull);
+      expect(await phone.keys.session(), isNotNull);
+      // With the network back, the device's own key signs it in again.
+      service.calls.clear();
+      await phone.resume();
+      expect(service.calls, ['POST refresh', 'POST login/challenge', 'POST login/device']);
+      expect(phone.value.session?.token, isNot(before.token));
+    });
+
+    test('keeps the session when what answers the asking again is not the service\'s own no', () async {
+      // The service down, the service busy, and a proxy's page where the service should be.
+      for (final status in [500, 503, 429, 404]) {
+        final (:service, :phone, :before) = await launched();
+        service.expireAllTokens();
+        final other = deviceOf(service, keys: phone.keys, fetcher: (request) async {
+          if (request.url.path.endsWith('/refresh')) return service.fetcher(request);
+          return FetchResponse(status, headers: const {'content-type': 'text/html'}, bytes: utf8.encode('<html>$status</html>'));
+        });
+        await other.resume();
+        expect(other.value, AccountState(session: before, unlocked: true), reason: '$status');
+        expect(await phone.keys.accountKey(), isNotNull, reason: '$status');
+        expect(await phone.keys.deviceKey(), isNotNull, reason: '$status');
+      }
     });
 
     test('signs out when the session has lapsed on a device with no key of its own', () async {

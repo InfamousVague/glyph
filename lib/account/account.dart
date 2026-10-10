@@ -244,14 +244,30 @@ class Account extends ValueNotifier<AccountState> implements AccountSource {
       try {
         final challenge = await api.callMap('POST', 'login/challenge', body: {'handle': session.handle});
         final nonce = challenge['nonce'] as String;
-        final answer = SignedIn.fromJson(await api.call('POST', 'login/device', body: {'handle': session.handle, 'nonce': nonce, 'signature': await crypto.signNonce(device, nonce)}));
+        final String signature;
+        try {
+          signature = await crypto.signNonce(device, nonce);
+        } catch (_) {
+          // A key that cannot sign is no key: refused here as the service would refuse it, and signed out below.
+          throw const ApiError(401, 'This device could not be verified.');
+        }
+        final answer = SignedIn.fromJson(await api.call('POST', 'login/device', body: {'handle': session.handle, 'nonce': nonce, 'signature': signature}));
         return await _settle(answer.session);
-      } catch (_) {
-        // Falls through to signing out.
+      } catch (failure) {
+        // Only the service's own no signs this device out. The network going between the refresh that said the
+        // session had lapsed and the asking again says nothing about the key, and neither does a service that is
+        // down or busy: still signed in, as it was, keys and all, until it can be asked. (The original signs out
+        // here whatever went wrong; a phone on a train lost its keys to that.)
+        if (!_refused(failure)) return _settle(session);
       }
     }
     await signOut();
   }
+
+  /// Whether [failure] is the service saying no to who is asking: its 401 (what `login/device` answers a key the
+  /// account does not have, and a nonce that took too long) or a 403. Anything else is not its word on the key: no
+  /// answer at all, the service down (5xx) or busy (429), or a proxy's page in its place (an HTML 404).
+  static bool _refused(Object failure) => failure is ApiError && (failure.status == 401 || failure.status == 403);
 
   /// The account deleted from the service, and everything it kept there (`deleteAccount`): the notes, settings,
   /// recordings and pictures synced to it, the links shared from it, its devices and its recovery codes. Needs the
