@@ -156,6 +156,7 @@ class SettingsFeatures {
     this.meetingSound = false,
     this.meetingSoundWhy,
     this.tapes,
+    this.countingTapes = false,
     this.oldTapes = 0,
     this.onCountTapes,
     this.onRemoveOldAudio,
@@ -213,6 +214,10 @@ class SettingsFeatures {
   /// How many bytes the tapes whose audio is on this device take (settings/tapes.ts `tapeBytes` of `tapesHere`);
   /// null, with no tape store, reads as none.
   final int? tapes;
+
+  /// Whether the notes have yet to be read, so there is no saying what the tapes take: the card reads "Your tapes
+  /// are being counted." until they are (`notes === null`, before the page's `listNotes()` answered).
+  final bool countingTapes;
 
   /// How many of them are older than a month (`oldTapes`).
   final int oldTapes;

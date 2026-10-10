@@ -450,6 +450,16 @@ void main() {
       await endSettings(tester);
     });
 
+    // Differs 32 (docs/PARITY.md): `notes === null ? 'Your tapes are being counted.'` (RecordingPane.tsx): until the
+    // notes have been read there is no saying, and the card said there were none.
+    testWidgets('says the tapes are being counted until the notes have been read', (tester) async {
+      await openPane(tester, 'recording', size: const Size(390, 1400), features: SettingsFeatures(countingTapes: true, onRemoveOldAudio: () async => 0));
+      expect(find.text('Your tapes are being counted.'), findsOneWidget);
+      expect(find.text('No tapes on this device.'), findsNothing);
+      expect(tester.widget<ArmedAction>(inRow('Remove audio older than a month', find.byType(ArmedAction))).disabled, isTrue);
+      await endSettings(tester);
+    });
+
     testWidgets('has each tape’s file asked whether it is on this device as the page is put up, and says what is left', (tester) async {
       // The page's card asked the `rec` scheme itself; here whoever counts is asked to (lib/settings/tapes_here.dart).
       var asked = 0;

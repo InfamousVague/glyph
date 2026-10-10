@@ -1,5 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/backend.dart' show Output, Run;
+import 'package:ghost_md/ai/kinds.dart' show RunKind;
+import 'package:ghost_md/ai/runs.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/cheat_sheet.dart';
@@ -291,6 +296,43 @@ void main() {
       await tapOn(tester, local);
       expect(find.descendant(of: rowCalled('Reset local data'), matching: find.text('The library is in use.')), findsOneWidget);
       expect(find.descendant(of: local, matching: find.text('Reset')), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    // Differs 32 (docs/PARITY.md): `disabled={busy}` with `disabledReason` (DeveloperPane.tsx `useAnyRunning`). The
+    // row was pressable whatever the model was doing, and `useAnyRunning` had no caller.
+    testWidgets('holds the scene off, and says why, while the model is on a note', (tester) async {
+      final ran = <String>[];
+      final answer = Completer<Output>();
+      simulateRuns((options) => Run(done: answer.future, cancel: () {}));
+      addTearDown(() {
+        forgetAllRuns();
+        simulateRuns(null);
+      });
+      await openPane(tester, 'developer', developer: true, size: const Size(390, 1800), features: SettingsFeatures(onPlayScene: (readings) => ran.add('scene $readings')));
+      const reason = 'The model is on a note. Try again when it is done.';
+      expect(tester.widget<SettingRow>(rowCalled('Play the scene')).disabled, isFalse);
+      expect(find.text(reason), findsNothing);
+
+      final run = startRun(const RunRequest(noteId: 'n', kind: RunKind.format, model: 'qwen3.5-4b', system: 'Format.', prompt: 'hello', maxTokens: 200));
+      await tester.pump();
+      await tester.pump();
+      expect(anyRunning(), isTrue);
+      expect(tester.widget<SettingRow>(rowCalled('Play the scene')).disabled, isTrue);
+      expect(find.descendant(of: rowCalled('Play the scene'), matching: find.text(reason)), findsOneWidget);
+      await tapOn(tester, rowCalled('Play the scene'));
+      expect(ran, isEmpty);
+
+      // The run ends: the row is the scene's again.
+      answer.complete(const Output(text: 'x\n'));
+      await tester.runAsync(() => run.done);
+      await tester.pump();
+      await tester.pump();
+      expect(anyRunning(), isFalse);
+      expect(tester.widget<SettingRow>(rowCalled('Play the scene')).disabled, isFalse);
+      expect(find.text(reason), findsNothing);
+      await tapOn(tester, rowCalled('Play the scene'));
+      expect(ran, ['scene heat']);
       await endSettings(tester);
     });
 

@@ -28,6 +28,8 @@ import 'package:ghost_md/format/gist.dart' show forgetGistRunner;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
+import 'package:ghost_md/settings/kit/settings_kit.dart' show SettingsFindableMark;
+import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/tapes/note_tape.dart';
 import 'package:ghost_md/tapes/player.dart' show TapePlayer;
@@ -205,6 +207,37 @@ void main() {
     // Claude's page reads who is signed in from the app: nobody, in a build with no account.
     expect(claudeHandle, isNotNull);
     expect(claudeHandle!(), isNull);
+    await close(tester);
+  });
+
+  // Differs 32 (docs/PARITY.md): "Get a model" opened Settings on AI with nothing lit; the page opens it at the Model
+  // card, lit (App.tsx `setToModel`, SettingsSheet.tsx `{ id: 'ai', setting: 'Model' }`).
+  testWidgets('Get a model opens Settings on AI with the Model card lit', (tester) async {
+    final library = await open(tester, engine: true);
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    tester.widget<NoteAiLayer>(find.byType(NoteAiLayer)).ai.onGetModel!();
+    await tester.pump();
+    final sheet = tester.widget<SettingsSheet>(find.byType(SettingsSheet));
+    expect(sheet.open, isTrue);
+    expect(sheet.toPage?.id, 'ai');
+    expect(sheet.toPage?.setting, 'Model');
+    // And the card is lit, as a search's result is: looked for over the frames its page takes to be drawn.
+    bool lit() {
+      final card = find.byWidgetPredicate((w) => w is SettingsFindableMark && w.name == 'Model', skipOffstage: false);
+      if (card.evaluate().isEmpty) return false;
+      final light = find.descendant(of: card, matching: find.byKey(SettingsFindableMark.lightKey, skipOffstage: false), skipOffstage: false);
+      return light.evaluate().isNotEmpty && SettingsFindableMark.isLit(tester.widget(light.first));
+    }
+
+    var seen = false;
+    for (var i = 0; i < 40 && !seen; i++) {
+      await tester.pump(const Duration(milliseconds: 16));
+      seen = lit();
+    }
+    expect(seen, isTrue);
+    await tester.pump(const Duration(seconds: 3));
     await close(tester);
   });
 

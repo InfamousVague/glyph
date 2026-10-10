@@ -205,9 +205,11 @@ extension _RootVoice on _GhostRootState {
               listenAgain: refining.listenAgain,
             ),
       openForSummaries: summaries?.openForSummaries,
+      // Settings on AI with the Model card lit, where a model is fetched (App.tsx `setToModel`, which the sheet
+      // reads as `{ id: 'ai', setting: 'Model' }`).
       onGetModel: () => _told(() {
         _settings = true;
-        _settingsPage = SettingsTarget('ai', nonce: DateTime.now().microsecondsSinceEpoch);
+        _settingsPage = SettingsTarget('ai', setting: 'Model', nonce: DateTime.now().microsecondsSinceEpoch);
       }),
       // The tape's real kind: a meeting's write-up for a meeting, a recording's otherwise.
       summarize: summaries == null
@@ -354,6 +356,8 @@ extension _RootVoice on _GhostRootState {
       meetingSound: voice.sound?.supported ?? false,
       meetingSoundWhy: voice.sound?.reason,
       tapes: bytes,
+      // "Your tapes are being counted.", until the notes have been read for the first time.
+      countingTapes: !_read,
       oldTapes: old.length,
       onCountTapes: () => unawaited(_tapes.ask(_library.value).then<void>((_) {
         if (mounted) _told(() => _tapesAt += 1);

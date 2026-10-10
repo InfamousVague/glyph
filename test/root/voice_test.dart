@@ -37,6 +37,20 @@ import '../account_ui/support.dart' show Device;
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
 
+/// A library whose first read has not answered (`useNotes().loading`), until the test says it has.
+class _Unread extends SampleLibrary {
+  _Unread() : super(seedLibrary());
+  bool unread = true;
+
+  @override
+  bool get loading => unread;
+
+  void read() {
+    unread = false;
+    notifyListeners();
+  }
+}
+
 /// The phone's service, as a test answers for it.
 class _Service implements MeetingService, MeetingHost {
   /// What the next start answers, and every start asked: the note, its title, and whether other apps' sound was.
@@ -178,8 +192,8 @@ void main() {
     }
   }
 
-  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, bool mac = false, TapePlayer? tapePlayer, AccountServices? services}) async {
-    library = SampleLibrary.seeded();
+  Future<void> open(WidgetTester tester, {bool voice = true, bool assistant = false, String launch = '', bool canMeet = true, bool mac = false, TapePlayer? tapePlayer, AccountServices? services, SampleLibrary? notes}) async {
+    library = notes ?? SampleLibrary.seeded();
     await pumpApp(
       tester,
       prefs: const Preferences(theme: 'light'),
@@ -607,6 +621,19 @@ void main() {
       expect(features.meetings, isTrue);
       expect(features.onRemoveOldAudio, isNull, reason: 'nothing here can remove audio');
       expect(features.models, isNull, reason: 'no engine in a test');
+      await close(tester);
+    });
+
+    // Differs 32 (docs/PARITY.md): "Your tapes are being counted." until the notes have been read, where the card was
+    // told nothing of it and said there were no tapes (RecordingPane.tsx `notes === null`).
+    testWidgets('is told the tapes are being counted until the notes have been read', (tester) async {
+      final notes = _Unread();
+      await open(tester, notes: notes);
+      SettingsFeatures features() => tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features;
+      expect(features().countingTapes, isTrue);
+      notes.read();
+      await settle(tester, 2);
+      expect(features().countingTapes, isFalse);
       await close(tester);
     });
 

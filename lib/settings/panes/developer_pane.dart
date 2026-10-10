@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../ai/runs.dart' show useAnyRunning;
 import '../../art/art.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
@@ -49,7 +50,7 @@ const Map<String, String> _readings = {'heat': 'Heat', 'cold': 'No heat', 'none'
 /// - **The benches are not ported** (diag/WispBench.tsx, diag/SceneBench.tsx, stages 8 and 9): "Smoke bench" and
 ///   "Play the scene" are drawn and cannot be pressed until [SettingsFeatures.onSmokeBench] and
 ///   [SettingsFeatures.onPlayScene] are given. The readings' choice is kept for the scene's row and changes nothing
-///   else. No model runs here, so the scene's "the model is on a note" reason is never said.
+///   else.
 /// - **The resets** ask twice, as the page's do, and then run [SettingsFeatures.onReset] (core/reset.ts is the
 ///   library's to port); without it the word Reset is there and cannot be pressed.
 class DeveloperPane extends StatefulWidget {
@@ -118,13 +119,7 @@ class _DeveloperPaneState extends State<DeveloperPane> {
                 onValueChange: (value) => setState(() => _scene = _readings.containsKey(value) ? value : 'heat'),
               ),
             ),
-            SettingRow(
-              icon: const AppIcon(Lucide.smartphone, size: 20),
-              label: 'Play the scene',
-              hint: const Text('Listening again, then the run: loading, reading, thinking, writing, done.'),
-              onPress: play == null ? () {} : () => play(_scene),
-              disabled: play == null,
-            ),
+            _SceneRow(play: play == null ? null : () => play(_scene)),
           ],
         ),
         PaneSection(
@@ -157,6 +152,34 @@ class _DeveloperPaneState extends State<DeveloperPane> {
       ],
     );
   }
+}
+
+/// "Play the scene" (`busy = useAnyRunning()`): the bench's run would queue behind a real one and then play against
+/// the real engine, so the row is held off, and says why, while the model is on a note. The row hears the runs
+/// itself: nothing else on the page is drawn again for one.
+class _SceneRow extends StatefulWidget implements PaneRow {
+  const _SceneRow({required this.play});
+  final VoidCallback? play;
+
+  @override
+  State<_SceneRow> createState() => _SceneRowState();
+}
+
+class _SceneRowState extends State<_SceneRow> {
+  late final ValueListenable<bool> _busy = useAnyRunning();
+
+  @override
+  Widget build(BuildContext context) => ValueListenableBuilder<bool>(
+        valueListenable: _busy,
+        builder: (context, busy, _) => SettingRow(
+          icon: const AppIcon(Lucide.smartphone, size: 20),
+          label: 'Play the scene',
+          hint: const Text('Listening again, then the run: loading, reading, thinking, writing, done.'),
+          onPress: widget.play ?? () {},
+          disabled: widget.play == null || busy,
+          disabledReason: busy ? 'The model is on a note. Try again when it is done.' : null,
+        ),
+      );
 }
 
 /// A reset that has to be tapped twice (`ResetRow`): armed for five seconds, then done. A reset that fails says why

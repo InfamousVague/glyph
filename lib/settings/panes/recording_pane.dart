@@ -49,9 +49,9 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 /// - **Tapes**: the page's card read the notes and asked each tape's file itself (`listNotes`, `headStatus`); here
 ///   whoever holds the notes counts (the app's root, over lib/settings/tapes.dart and tapes_here.dart), and the
 ///   card asks for the files to be asked as it is put up ([SettingsFeatures.onCountTapes]). The room is
-///   [SettingsFeatures.tapes], which with no tape store reads "No tapes on this device." (the page's "being
-///   counted" has nothing to count here), and Remove is there once [SettingsFeatures.onRemoveOldAudio] is, asking
-///   twice as the page's does. The page's "Update Ghost.md to remove audio here." is not said: there is no newer
+///   [SettingsFeatures.tapes], which with no tape store reads "No tapes on this device."; until the notes have been
+///   read it says they are being counted ([SettingsFeatures.countingTapes]), as the page did until its list
+///   answered. Remove is there once [SettingsFeatures.onRemoveOldAudio] is, asking twice as the page's does. The page's "Update Ghost.md to remove audio here." is not said: there is no newer
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
@@ -210,7 +210,14 @@ class _RecordingPaneState extends State<RecordingPane> {
             // Tapes: the room the recordings take on this device, and the way to give back the room the old ones take.
             PaneSection(
               title: 'Tapes',
-              footer: Text(_said ?? (bytes <= 0 ? 'No tapes on this device.' : 'Your tapes take about ${tapeSize(bytes)} on this device.')),
+              footer: Text(
+                _said ??
+                    (features.countingTapes
+                        ? 'Your tapes are being counted.'
+                        : bytes <= 0
+                            ? 'No tapes on this device.'
+                            : 'Your tapes take about ${tapeSize(bytes)} on this device.'),
+              ),
               children: [
                 SettingRow(
                   label: 'Remove audio older than a month',
