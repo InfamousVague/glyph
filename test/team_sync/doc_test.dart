@@ -49,6 +49,21 @@ void main() {
     await docs.forget();
   }, skip: skip);
 
+  test('a write that failed is told to the one who asked, and does not stop the writes after it', () async {
+    final store = _FailsOnce();
+    final docs = TeamDocs(crdt: crdt, store: store);
+    final doc = (await docs.doc('n1', seedWords: 'a'))!;
+    await doc.flush();
+    await doc.posted(1);
+    store.failNext = true;
+    await expectLater(doc.flush(), throwsA(isA<FileSystemException>()));
+    // The disk had room again: what was not kept is kept now.
+    expect((await store.read('n1'))!.pending, hasLength(1));
+    await doc.flush();
+    expect((await store.read('n1'))!.pending, isEmpty);
+    await docs.forget();
+  }, skip: skip);
+
   test('reconciles words written elsewhere as one change the team can merge with', () async {
     final docs = TeamDocs(crdt: crdt, store: MemoryDocs());
     final doc = (await docs.doc('n1', seedWords: 'a\nb\nc'))!;
@@ -144,4 +159,18 @@ void main() {
     await store.clear();
     expect(store.folder.existsSync(), isFalse);
   }, skip: skip);
+}
+
+/// A store whose next write fails once, as a full disk does.
+class _FailsOnce extends MemoryDocs {
+  bool failNext = false;
+
+  @override
+  Future<void> write(String noteId, TeamDocRecord record) async {
+    if (failNext) {
+      failNext = false;
+      throw const FileSystemException('No space left on device');
+    }
+    return super.write(noteId, record);
+  }
 }

@@ -281,10 +281,15 @@ class TeamDoc implements LiveText {
   Future<void> flush() {
     _keep?.cancel();
     _keep = null;
-    return _keeping = _keeping.then((_) async {
+    final kept = _keeping.then((_) async {
       if (_closed) return;
       await _store.write(noteId, TeamDocRecord(state: await crdt.snapshot(), seq: seq, snapshotSeq: snapshotSeq, pending: await crdt.pending()));
     });
+    // The one who asked hears of a write that failed; the writes after it do not wait behind it for ever. Chained
+    // onto the failure itself, one full disk or one file held by another meant nothing of this note was kept again
+    // until the app was started again.
+    _keeping = kept.then<void>((_) {}, onError: (Object _) {});
+    return kept;
   }
 
   /// Told when the words change by an update from elsewhere, or by a reconcile. Answers the way to stop hearing.
