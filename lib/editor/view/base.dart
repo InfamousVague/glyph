@@ -9,6 +9,7 @@
 library;
 
 import '../code/code_highlight.dart';
+import '../maths/maths.dart';
 import '../state/state.dart';
 import '../syntax/language.dart';
 import 'extended.dart';
@@ -33,6 +34,7 @@ Extension noteExtensions({
   NoteView display = NoteView.mixed,
   bool readOnly = false,
   String? look,
+  bool maths = true,
   List<Extension> more = const <Extension>[],
 }) => Extension.list(<Extension>[
   markdownSyntax(glyphMarkdown(formats)),
@@ -43,6 +45,10 @@ Extension noteExtensions({
   glyphLines,
   // Superscript, subscript, callouts, definitions, front matter, maths and shortcodes (extended.dart).
   extendedMarkdown(),
+  // Maths drawn as its formula off the caret's line (lib/editor/maths), which Editor.tsx lists for every editor.
+  // (`maths: false` is for the pictures measured on a page that had only the view's own extensions on it,
+  // test/editor/view: there a formula is its source, set as code.)
+  if (maths) drawnMaths(),
   ...more,
   readOnlyExtensions(readOnly),
   noteView(display),

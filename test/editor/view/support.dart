@@ -53,7 +53,9 @@ Future<EditorView> pumpFixture(WidgetTester tester, Fixture fixture) async {
     wholeDocument: true,
     state: EditorState.create(
       doc: fixture.doc,
-      extensions: noteExtensions(display: fixture.display, readOnly: fixture.readOnly),
+      // The page these were measured on had the view's own extensions and no other (tool/editor_reference.mjs):
+      // a formula on it is its source set as code, not drawn.
+      extensions: noteExtensions(display: fixture.display, readOnly: fixture.readOnly, maths: false),
     ),
   );
   addTearDown(view.destroy);

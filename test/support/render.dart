@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -40,6 +41,15 @@ Future<void> loadAppFonts() async {
   }
 
   await pubspec('pubspec.yaml');
+  // KaTeX's faces, which a formula is drawn in (lib/editor/maths): the formula package's own, named as a
+  // package's faces are.
+  final packages = (jsonDecode(File('.dart_tool/package_config.json').readAsStringSync()) as Map<String, dynamic>)['packages'] as List<dynamic>;
+  for (final package in packages.cast<Map<String, dynamic>>()) {
+    if (package['name'] != 'flutter_math_fork') continue;
+    var root = Uri.parse(package['rootUri'] as String).toFilePath();
+    if (!root.endsWith('/')) root = '$root/';
+    await pubspec('${root}pubspec.yaml', prefix: 'packages/flutter_math_fork/', root: root);
+  }
 }
 
 /// The app on a phone's screen (or [size]), ready for a picture: real fonts, real shadows, the token sheets the app

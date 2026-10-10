@@ -1,0 +1,239 @@
+{
+ "katex": "0.16.47",
+ "formulas": [
+  {
+   "tex": "x^2 + y",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0.1944
+  },
+  {
+   "tex": "E = mc^2",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "a_1 + a_2 = a_{n+1}",
+   "display": false,
+   "ok": true,
+   "height": 0.5833,
+   "depth": 0.2083
+  },
+  {
+   "tex": "\\alpha\\beta\\gamma \\le \\Omega \\neq \\emptyset",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\frac{a}{b}",
+   "display": false,
+   "ok": true,
+   "height": 0.6954,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{a}{b}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sqrt{x^2 + y^2}",
+   "display": false,
+   "ok": true,
+   "height": 0.9578,
+   "depth": 0.2822
+  },
+  {
+   "tex": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+   "display": true,
+   "ok": true,
+   "height": 1.5904,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.6514,
+   "depth": 1.2777
+  },
+  {
+   "tex": "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.01,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.4773,
+   "depth": 0.9119
+  },
+  {
+   "tex": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1",
+   "display": true,
+   "ok": true,
+   "height": 1.3449,
+   "depth": 0.7171
+  },
+  {
+   "tex": "\\binom{n}{k} = \\frac{n!}{k!(n-k)!}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\vec{v} \\cdot \\hat{n} = \\|v\\|\\cos\\theta",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\mathbb{R}^n \\to \\mathcal{L}(\\mathfrak{g})",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\overline{z} + \\underbrace{a + b}_{c}",
+   "display": true,
+   "ok": true,
+   "height": 0.6945,
+   "depth": 1.2327
+  },
+  {
+   "tex": "\\left( \\frac{\\partial f}{\\partial x} \\right)_{y}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 1.1358
+  },
+  {
+   "tex": "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "f(x) = \\begin{cases} x^2 & x \\ge 0 \\\\ -x & \\text{otherwise} \\end{cases}",
+   "display": true,
+   "ok": true,
+   "height": 1.75,
+   "depth": 1.25
+  },
+  {
+   "tex": "\\begin{aligned} a &= b + c \\\\ &= d \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\prod_{p \\text{ prime}} \\frac{1}{1 - p^{-s}}",
+   "display": true,
+   "ok": true,
+   "height": 1.3215,
+   "depth": 1.4196
+  },
+  {
+   "tex": "\\sqrt[3]{\\frac{1}{1 + \\frac{1}{x}}}",
+   "display": true,
+   "ok": true,
+   "height": 1.7545,
+   "depth": 1.2855
+  },
+  {
+   "tex": "\\color{red}{x} + \\textcolor{blue}{y} + \\boxed{z}",
+   "display": false,
+   "ok": true,
+   "height": 0.7706,
+   "depth": 0.34
+  },
+  {
+   "tex": "\\mathbf{A}\\mathrm{d}x + \\operatorname{argmax}_\\theta \\, \\hat{\\theta}",
+   "display": false,
+   "ok": true,
+   "height": 0.9579,
+   "depth": 0.2441
+  },
+  {
+   "tex": "\\xrightarrow{f} \\overbrace{1 + 2}^{3} \\substack{a \\\\ b}",
+   "display": true,
+   "ok": true,
+   "height": 1.9435,
+   "depth": 0.3831
+  },
+  {
+   "tex": "\\dfrac{1}{2} + \\tfrac{1}{2} + {n \\choose k}",
+   "display": false,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\begin{align} a &= b \\\\ c &= d \\end{align}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\cancel{x} + \\tag{1}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\def\\x{y}\\x + \\newcommand{\\z}{w}\\z",
+   "display": false,
+   "ok": true,
+   "height": 0.5834,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\underline{x} \\, \\widehat{abc} \\, \\not= \\, \\ldots",
+   "display": false,
+   "ok": true,
+   "height": 0.9944,
+   "depth": 0.2
+  },
+  {
+   "tex": "\\frac{a",
+   "display": false,
+   "ok": false,
+   "error": "Unexpected end of input in a macro argument, expected '}' at end of input: \\frac{a"
+  },
+  {
+   "tex": "\\unknowncommand{x}",
+   "display": false,
+   "ok": false,
+   "error": "Undefined control sequence: \\unknowncommand at position 1: \\̲u̲n̲k̲n̲o̲w̲n̲c̲o̲m̲m̲a̲n̲d̲{x}"
+  },
+  {
+   "tex": "x^",
+   "display": false,
+   "ok": false,
+   "error": "Expected group after '^' at position 2: x^̲"
+  },
+  {
+   "tex": "\\begin{matrix} a & b",
+   "display": true,
+   "ok": false,
+   "error": "Expected & or \\\\ or \\cr or \\end at end of input: …n{matrix} a & b"
+  }
+ ]
+}
