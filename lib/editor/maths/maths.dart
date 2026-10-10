@@ -290,15 +290,13 @@ class _DrawnMathsState extends State<DrawnMaths> {
   }
 }
 
-/// How wide a formula is whole, by what it says and what it is drawn with, once it has been found wider than
-/// its line: the next time it is drawn it is in pieces from the first frame.
-final Map<(String tex, MathOptions options), double> _wholeWidths = <(String, MathOptions), double>{};
-
-/// A formula in a line that can be broken: whole where it fits its line, and in its pieces, row under row, where
-/// it does not. It cannot be both at once and the wider thrown away: the reader keeps one drawing of each part of
-/// a formula, and the whole and its pieces share theirs. So it is drawn whole, and if that was too wide it is
-/// drawn in pieces in the next frame, and from the first frame ever after ([_wholeWidths]).
-class _InlineMaths extends StatefulWidget {
+/// A formula in a line that can be broken: its pieces side by side where they fit the line, and row under row
+/// where they do not, from the first frame. A piece is the formula up to and with a relation or an operator at
+/// its top level, and keeps the space that followed it (the reader's `texBreak`, as packages/flutter_math_fork
+/// has it: README 14), so the pieces in a row are the formula as it is set whole, to the pixel. It is never
+/// drawn whole and then again in pieces: the reader keeps one drawing of each part of a formula, and the whole
+/// and its pieces would share theirs.
+class _InlineMaths extends StatelessWidget {
   const _InlineMaths({required this.formula, required this.options, required this.above, required this.below});
 
   final Formula formula;
@@ -306,39 +304,17 @@ class _InlineMaths extends StatefulWidget {
   final double above, below;
 
   @override
-  State<_InlineMaths> createState() => _InlineMathsState();
-}
-
-class _InlineMathsState extends State<_InlineMaths> {
-  void _wide(double width) {
-    if (_wholeWidths.length > 200) _wholeWidths.clear();
-    _wholeWidths[(widget.formula.tex, widget.options)] = width;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final whole = _wholeWidths[(widget.formula.tex, widget.options)];
-      final broken = whole != null && whole > constraints.maxWidth;
-      return _MathsLine(
-        above: widget.above,
-        below: widget.below,
-        onWide: broken ? null : _wide,
-        children: <Widget>[
-          if (broken) for (final part in widget.formula.parts) Math(ast: part, options: widget.options) else Math(ast: widget.formula.tree, options: widget.options),
-        ],
-      );
-    },
+  Widget build(BuildContext context) => _MathsLine(
+    above: above,
+    below: below,
+    children: <Widget>[for (final part in formula.parts) Math(ast: part, options: options)],
   );
 }
 
 /// A formula on its line: no shorter above or below its baseline than the boxes it is in ([_inlineBox]), however
 /// small it is; and, in pieces, broken onto another row of the same where the pieces do not fit the width.
 class _MathsLine extends MultiChildRenderObjectWidget {
-  const _MathsLine({required this.above, required this.below, this.onWide, this.tagged = false, required super.children});
+  const _MathsLine({required this.above, required this.below, this.tagged = false, required super.children});
 
   final double above, below;
 
@@ -346,19 +322,13 @@ class _MathsLine extends MultiChildRenderObjectWidget {
   /// middle of it.
   final bool tagged;
 
-  /// Told the formula's width when it is one piece wider than its line.
-  final void Function(double width)? onWide;
-
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)
-    ..onWide = onWide
-    ..tagged = tagged;
+  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)..tagged = tagged;
 
   @override
   void updateRenderObject(BuildContext context, _RenderMathsLine renderObject) => renderObject
     ..above = above
     ..below = below
-    ..onWide = onWide
     ..tagged = tagged;
 }
 
@@ -380,8 +350,6 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     _below = value;
     markNeedsLayout();
   }
-
-  void Function(double width)? onWide;
 
   bool _tagged = false;
   set tagged(bool value) {
@@ -449,7 +417,6 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     }
     size = constraints.constrain(Size(width, top));
     _clipped = width > size.width + 0.01;
-    if (_clipped && pieces.length == 1) onWide?.call(width);
   }
 
   @override
