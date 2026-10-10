@@ -17,7 +17,7 @@ import '../core/book.dart';
 import '../book/journal.dart' show JournalWriter;
 import '../core/library.dart';
 import '../core/note.dart';
-import '../core/note_text.dart';
+import '../core/note_facts.dart';
 import '../core/stored.dart';
 import '../core/trash.dart';
 import '../core/untouched.dart';
@@ -28,6 +28,24 @@ import '../notes/note_templates.dart' show NoteTemplate;
 import '../shell/app_shell.dart';
 import 'note_editor.dart';
 import 'note_screen.dart';
+
+/// The title keys of every note in `all` but the one by `id`, kept for the list they were read from: the library
+/// hands out the very list it had until a note changes, and a note's screen is built far more often than that (a
+/// frame of its header's glass, a save's telling, a tab). Every note's title was read from its words at each of
+/// those builds; a note's key is now its facts' own (`NoteFacts.of(note).key`, read once for the words it has),
+/// and the set is made once for a list and a note.
+Set<String> _takenBut(List<Note> all, String id) {
+  final kept = _taken[all];
+  if (kept != null && kept.id == id) return kept.keys;
+  final keys = <String>{
+    for (final each in all)
+      if (each.id != id) NoteFacts.of(each).key,
+  }..remove('');
+  _taken[all] = (id: id, keys: keys);
+  return keys;
+}
+
+final Expando<({String id, Set<String> keys})> _taken = Expando<({String id, Set<String> keys})>('taken titles');
 
 /// The builder for `AppShell.noteBuilder`.
 ///
@@ -82,10 +100,7 @@ ShellNoteBuilder noteScreenBuilder({
       book: bookOf != null ? bookOf(note) : placeOf(bookIndex(all), note),
       // Every other note's title key, archived and in the Trash too: a name another note has is not offered. Not this
       // note's own, which an undo back to its blank page would otherwise find taken.
-      takenTitles: {
-        for (final each in all)
-          if (each.id != note.id) titleKey(noteTitle(each.body)),
-      }..remove(''),
+      takenTitles: _takenBut(all, note.id),
       templates: templates?.call(),
       onTemplates: onTemplates,
       onJournal: onJournal,
