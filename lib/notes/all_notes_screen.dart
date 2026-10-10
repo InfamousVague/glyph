@@ -248,7 +248,16 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     if (cards != null && was != null && identical(was.read, made.read) && was.width == made.width && identical(was.tokens, made.tokens) && was.minute == made.minute && was.menu == made.menu) {
       return cards;
     }
-    if (ghostPerf) Perf.count('allnotes.cards');
+    if (ghostPerf) {
+      // Which of what the cards are made from was new.
+      Perf.count('allnotes.cards');
+      if (was != null) {
+        if (!identical(was.read, made.read)) Perf.count('allnotes.cards for the notes');
+        if (was.width != made.width) Perf.count('allnotes.cards for the width');
+        if (!identical(was.tokens, made.tokens)) Perf.count('allnotes.cards for the tokens');
+        if (was.minute != made.minute) Perf.count('allnotes.cards for the minute');
+      }
+    }
     final shown = read.shown;
     _cardsFor = made;
     return _cards = SliverSemantics(
