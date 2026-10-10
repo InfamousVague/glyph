@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -35,6 +36,9 @@ Future<void> main() async {
   final sheet = await loadTokenSheet(more: appStyleSheets);
   // The Mac's window, for a walk's pictures and its end (a no-op anywhere else).
   MacWindow.instance.attach();
+  // `GHOST_DIAGRAMS=none` (a Mac's environment): the same note with nothing to draw its diagrams, so no web view is
+  // ever made. What a walk's picture owes to the web view is then the difference between two walks.
+  if (Platform.environment['GHOST_DIAGRAMS'] == 'none') diagramStore = DiagramStore(bridge: const NoDiagramBridge());
   runApp(GhostApp(sheet: sheet, home: const DiagramsDemo()));
   if (kDebugMode) {
     unawaited(runMacTour());
