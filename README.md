@@ -55,6 +55,47 @@ The web app is about 110,000 lines of TypeScript, 21,500 of CSS, 27,000 of Rust 
 tests. Parity is the bar for every stage; a stage is not done until its screens have been compared with the web app's
 on the same phone.
 
+## What the diagrams left open
+
+A ```mermaid fence is drawn as its diagram since 2026-10-10 (`lib/editor/diagrams`; docs/PARITY.md's Missing 3): in
+a note, on a canvas's chart card read and open, in the Academy's page and the cheat sheet's row. Mermaid itself
+draws it, the 12.0.0 `../glyph` pins (`assets/diagrams/mermaid.min.js`: 5.6 MB in the folder, 1.6 MB of an apk),
+on a page of the app's own in the platform's web view, which is never shown: in no window on Android, behind the
+app's own view on a Mac and an iPhone. The page is the web app's as far as a diagram can tell (the same settings,
+the body's face for measuring, the editor's nest of boxes and the rules that reach a diagram in it), the web view
+is photographed where the diagram is, and the note shows the picture. `tool/diagram_page.mjs` brings Mermaid, its
+licence and the font rules from `../glyph`; `lib/main_diagrams.dart` is a note of diagrams alone, for a platform's
+half of the channel to be looked at with no library under it.
+
+- **Held to the web app** (`tool/diagram_reference.mjs`, the web app's own `Editor` and the page in one browser):
+  twelve diagrams, light and dark, Maple Mono and Inter, a phone's width and a wide one. The blocks are the same
+  size and the pictures in the same place in all forty-eight, in Chromium and in WebKit; in Chromium thirty-six
+  are the same pixel for pixel, and in the other twelve only an edge's pixels differ (a pie's rim, a letter's stem
+  drawn a part of a pixel across). What looked wrong is the web app's own: a label is measured in the interface's
+  face and drawn in the note's, so in Maple Mono "Friday: drive up" is cut at "Friday: drive", there as here.
+- **Seen on the Android emulator** (emulator-5586, API 36, its WebView 133, a debug build, 2026-10-10; pictures in
+  the session's scratchpad, `emu/NN-name.png`): a note of six diagrams, dark and light, each its words until its
+  picture came (the first some two seconds after the note opened, which is the web view being made and Mermaid
+  read; the rest a fifth of a second apart), the one written wrong with "That diagram has a mistake: Parse error
+  on line 3:"; the app stopped and opened again showed them without the web
+  view being asked; a tap put the caret in the fence, a line typed there asked for nothing, and leaving it asked
+  for one picture; two chart cards on a canvas; the Academy's lesson after Show me. A picture took 5 to 64 ms of
+  the main thread in all, in strips of at most 160,000 pixels with the note's frames between them.
+- **Seen on the Mac** (a debug build of `lib/main_diagrams.dart`, 2026-10-10): the web view behind the app's view
+  drew all five and the mistake, as the pictures kept in the app's cache folder show. The iPhone's is the same
+  file (`apple/DiagramRenderer.swift`), compiled for it and never run: no iPhone build was made.
+- **What differs from the page**, each said where it is written (`lib/editor/diagrams/diagrams.dart`,
+  `store.dart`): a picture is a bitmap made for one width at the device's ratio, so a canvas zoomed in past its own
+  size shows it soft, and a note at another width asks again once the width is still; a block whose words change
+  under it (the Academy's page, a note someone else is writing) keeps the picture it has until the new one is
+  made, where the page shows the words in between; one drawn here before waits for its picture as its remembered
+  height of nothing; an edge Mermaid animates stands still; a diagram that names a picture on the internet draws
+  without it (nothing is fetched); and the pictures kept are bounded (32 MB in memory, 240 in the folder).
+- **Not done**: a query shown as a timeline is still the port's own drawing (PARITY's Differs 23), though the same
+  store would draw Mermaid's (`drawDiagram` on the page). A phone whose Flutter ratio is not its display's density
+  gets a picture at the density and shows it resampled. The first diagram of a run makes the web view on the main
+  thread after loading its library off it; how long that stops a frame on a real phone was not measured.
+
 ## What stage 10's wide layouts left open
 
 What decides "wide" is the page's own two questions, already in the shell before this stage and unchanged: a header

@@ -13,11 +13,11 @@ shows. "Wired" means reachable from `lib/main.dart` through `lib/root/`.
 
 | Features enumerated | match | differs | unwired | missing | n/a |
 | --- | --- | --- | --- | --- | --- |
-| 687 | 503 | 100 | 34 | 25 | 25 |
+| 687 | 503 | 101 | 34 | 24 | 25 |
 
 A row is one thing a user can see or do. A few gaps are rows of two tables (a Settings row and the feature behind
 it, a notebook's journal under both the More sheet and Journals); the three lists at the end count each once:
-15 missing, 25 unwired, 39 that differ.
+14 missing, 25 unwired, 39 that differ.
 
 What the counts say, in four lines:
 
@@ -26,8 +26,8 @@ What the counts say, in four lines:
   line or two each, and three of them change what a user is told
   is true: a shared link that does not follow edits, a renamed page that falls out of its notebook, a bell with no
   dot.
-- **Three renderers are missing**: code colouring, maths, Mermaid. They are most of what a note looks different
-  for.
+- **Two renderers are missing**: code colouring and maths. They are most of what a note looks different for.
+  (Mermaid was the third, and is drawn since 2026-10-10: `lib/editor/diagrams`.)
 - **Three build switches hide whole areas**: the side key and assistant (on always in the original, off by default
   here and never walked), the account service, and updates (on in no build at all).
 - **The words are the same.** Every Settings label and footnote, palette command, + row, More row and toast was
@@ -278,7 +278,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A block of code drawn as one card | editor/glyphLines.ts:34-35,119-122 | editor/view/glyph_lines.dart:41-42,93-96 | match | |
 | Code coloured by its language | editor/language.ts:3,35-41 (`@codemirror/language-data`) | — (editor/syntax/language.dart:13-16) | missing | The port's parser leaves a fence as `CodeText`. |
 | Code themes: Pastel, Ink, GitHub, Solarized, One Dark, Dracula, Nord | editor/codeThemes.ts:18-31 | editor/looks/code_themes.dart:16-25,145-171 | differs | Chosen and kept, and only the block's ground and ink change: no tokens to colour. |
-| A `mermaid` block drawn as its diagram, with the reason when it cannot be | editor/mermaid.ts:36,195,218; editor/Editor.tsx:398 | — | missing | It stays a block of code. |
+| A `mermaid` block drawn as its diagram, with the reason when it cannot be | editor/mermaid.ts:36,195,218; editor/Editor.tsx:398 | editor/diagrams/diagrams.dart; editor/diagrams/store.dart; assets/diagrams/; android/…/ghost_md/DiagramRenderer.kt; apple/DiagramRenderer.swift | differs | Mermaid itself (the same 12.0.0) in a web view nobody sees, and the picture of it in the note. It is a bitmap made for the note's width, not an SVG; while its words change under it the block keeps the picture it has, where the page shows the words in between; a diagram that names a picture on the internet draws without it. |
 | A definition: the term, then `: its meaning` | editor/extended.ts:51,243-254 | editor/view/extended.dart:50,288-299 | match | |
 | Front matter as quiet keys, folded to a line of key names | editor/extended.ts:129-232 | editor/view/extended.dart:121-278 | match | |
 | HTML kept as text, never run | editor/language.ts:46 | editor/syntax/language.dart:13-16 | differs | The original colours the tags as code; the port draws them plain. |
@@ -485,7 +485,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | --- | --- | --- | --- | --- |
 | JSON Canvas read leniently and written exactly | canvas/jsonCanvas.ts:185-252 | canvas/json_canvas.dart:6-433 | match | |
 | Cards: Words, A note ("Not in Ghost.md yet"), A link, A picture, A table, a group | canvas/Card.tsx:70-216 | canvas/card.dart:42-657 | match | |
-| A chart: a card of Mermaid drawn as its diagram | canvas/Card.tsx:134; canvas/AddSheet.tsx:52 | canvas/card.dart:22-23,478; canvas/add_sheet.dart:85 | differs | The card shows the fence as code, while its hint still says "drawn on the card". |
+| A chart: a card of Mermaid drawn as its diagram | canvas/Card.tsx:134; canvas/AddSheet.tsx:52 | canvas/card.dart:478,570; editor/diagrams/diagrams.dart; canvas/add_sheet.dart:85 | differs | Drawn on the card, read and open. The picture is made at the device's ratio for a canvas at its own size: zoomed in past that it softens, where the page's SVG stays sharp. |
 | Double-tap empty space for a card of words | canvas/CanvasView.tsx (`DOUBLE_MS`) | canvas/canvas_view.dart:666-675 | match | |
 | Add a card: Words, A note, A link, A picture, A chart, A table, A group, with their hints | canvas/AddSheet.tsx:45-85 | canvas/add_sheet.dart:72-162 | match | |
 | Tap to pick, tap again to open; a title zooms to its card | canvas/CanvasView.tsx; canvas/Selection.tsx:38-70 | canvas/canvas_view.dart:392-396,625-656 | match | |
@@ -894,7 +894,7 @@ notifications" (above), "Notion works in the app." and "Slack works in the app."
 | Ghost.md Academy: seven chapters, 61 lessons | academy/lessons.ts | academy/lessons.g.dart; academy/lessons.dart | match | Same ids, chapters and counts. |
 | Chapters page: how much is learned, Start / Continue, "I know Markdown already", Start again, Cheat sheet | academy/AcademyScreen.tsx:48-320 | academy/academy_screen.dart:74; root/ghost_root.dart:1787-1796 | match | |
 | A lesson: You type / Your note shows, ticked as the mark appears, Show me, Show me a hint, Skip, Next | academy/Playground.tsx:56-74; academy/AcademyScreen.tsx | academy/playground.dart:336-346; academy/academy_screen.dart | match | |
-| The lessons for a formula, a diagram and coloured code draw what they teach | academy/lessons.ts; editor/mathsDrawn.ts; editor/mermaid.ts | academy/lessons.g.dart:297 | differs | The words say "drawn as one"; the port's editor draws neither a formula nor a diagram. |
+| The lessons for a formula, a diagram and coloured code draw what they teach | academy/lessons.ts; editor/mathsDrawn.ts; editor/mermaid.ts | academy/lessons.g.dart:297; academy/playground.dart | differs | The diagram's lesson draws its diagram (editor/diagrams). The formula's still says "drawn as one" and the port's editor draws no formula. |
 | The Academy's card on the home page | App.tsx:716 (kept, never drawn) | academy/banner.dart (not imported) | n/a | Gone from the original's page. |
 | Ghost.md: The Guide, 44 chapters and its index, added once and opened | guidebook/guidebook.ts:84 | guide/guidebook.dart; assets/guidebook/; root/ghost_root.dart:908-919 | match | The 44 chapters and the index are byte for byte the original's. |
 | The Guide waits five seconds for a sync first, so a copy added elsewhere is found | App.tsx:1709-1712 | root/ghost_root.dart:908-913 | differs | No sync before the look. |
@@ -1031,8 +1031,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
    the seven code themes are already chosen and kept, and colour only the block's ground and ink until then.
 2. **Maths drawn as a formula**, in a line and as a `$$` block. Large. Needs a TeX layout (a package or the port's
    own); the +'s "A formula" and the Academy's lesson already write what would be drawn.
-3. **A `mermaid` block drawn as its diagram**: in a note, on a canvas's chart card, in the Academy's lesson. Large.
-   No renderer in Dart; the +'s "A diagram" and the canvas card's hint ("drawn on the card") wait on it.
+3. ~~**A `mermaid` block drawn as its diagram**: in a note, on a canvas's chart card, in the Academy's lesson.~~
+   Drawn since 2026-10-10 (`lib/editor/diagrams`, and what it left open in the README). The number is kept so the
+   others keep theirs.
 4. **The bell's rows as the phone's own notifications**, with the app closed, and Settings › Notifications › On
    this phone (Phone notifications, Allow notifications). Large. The original's `notices/NoticeAlerts.kt` and
    `NoticeWorker.kt`, a channel, the session handed to a worker; only in a build with `GHOST_API`.
@@ -1147,8 +1148,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 11. **A note's mic stays when the note has a tape, and the tape's Add does not save what is typed first.** Small.
 12. **A line is written under every note in the library**, not home's first 16 cards and All notes' first 24
     (lib/root/ghost_root.dart:631-633). Small. The phone's cores and battery pay for it.
-13. **Diagrams, formulas and a canvas's chart card are written and never drawn, and the words still say drawn**
-    (the Academy's lessons, the card's hint). With Missing 2 and 3.
+13. **Formulas are written and never drawn, and the words still say drawn** (the Academy's lesson). With Missing
+    2. Diagrams and a canvas's chart card are drawn since 2026-10-10; what differs there is in their rows (a
+    picture made for one width, soft when a canvas is zoomed in past its own size).
 14. **Code themes change only a block's ground and ink.** With Missing 1.
 15. **"Summarized"** has no title and no ten seconds (lib/root/ghost_root.dart:525-531). Small.
 16. **Asking for notifications**: the meeting screen's Allow is marked asked before the phone has answered, and
