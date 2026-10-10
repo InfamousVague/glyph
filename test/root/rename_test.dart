@@ -10,6 +10,7 @@ import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -69,6 +70,39 @@ void main() {
     final kept = library.noteOf(canvas.id)!.body;
     expect(noteTitle(kept), 'The cabin, laid out');
     expect(canvasOf(kept)!.nodes.single.x, 40);
+    debugDisableShadows = true;
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(seconds: 2));
+  });
+
+  // Unwired 1 (docs/PARITY.md): a page's heading retyped in the app keeps its line in its notebook's index
+  // (editor/useNoteSaving.ts calling book/followRename.ts), where the port dropped the page out of its notebook.
+  testWidgets('a page renamed in its editor keeps its place in the notebook that lists it', (tester) async {
+    final library = SampleLibrary.seeded();
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    final shell = tester.state<AppShellState>(find.byType(AppShell));
+    final book = library.create('---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n1. [[Hedgerows in spring]]\n2. [[Trees]]\n');
+    final page = library.create('# Hedgerows in spring\n\nWhy this guide.\n');
+    await tester.pump();
+    shell.openNote(page.id);
+    await settle(tester);
+    final screen = tester.state<NoteScreenState>(find.byType(NoteScreen));
+    final view = screen.view!;
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: 2, to: '# Hedgerows in spring'.length, insert: 'Before you start'), userEvent: 'input.type'));
+    // The save's debounce, the save, and the notebook written after it.
+    await settle(tester, 12);
+    expect(noteTitle(library.noteOf(page.id)!.body), 'Before you start');
+    expect(library.noteOf(book.id)!.body, contains('1. [[Before you start]]'));
+    expect(library.noteOf(book.id)!.body, contains('2. [[Trees]]'));
+
+    shell.backToList();
+    await tester.pump(const Duration(milliseconds: 500));
+    await tester.pump(const Duration(milliseconds: 500));
     debugDisableShadows = true;
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(seconds: 2));

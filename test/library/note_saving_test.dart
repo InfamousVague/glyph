@@ -197,6 +197,37 @@ void main() {
     });
   });
 
+  group('a page renamed keeps its place (book/followRename.ts, called from the save)', () {
+    const book = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\n1. [[Introduction]]\n2. [[Trees]]\n';
+
+    test('a save that changes the title is followed into the notebook that lists it, from the last title it had', () async {
+      await library.createNote(book, id: 'book');
+      final note = await library.createNote('# Introduction\n\nWhy this guide.', id: 'page');
+      final saving = open(note);
+      saving.onChange('# Before you start\n\nWhy this guide.');
+      await saving.settled();
+      await untilTrue(() => library.noteOf('book')!.body.contains('1. [[Before you start]]'));
+      // An emptied heading is a rename still being typed: followed from the last title, once it has one again.
+      saving.onChange('# \n\nWhy this guide.');
+      await saving.settled();
+      saving.onChange('# Start here\n\nWhy this guide.');
+      await saving.settled();
+      await untilTrue(() => library.noteOf('book')!.body.contains('1. [[Start here]]'));
+      expect(library.noteOf('book')!.body, contains('2. [[Trees]]'));
+    });
+
+    test('words changed under the same title write no notebook', () async {
+      await library.createNote(book, id: 'book');
+      final note = await library.createNote('# Introduction\n\nWhy.', id: 'page');
+      final saving = open(note);
+      saving.onChange('# Introduction!\n\nWhy, and how.');
+      await saving.settled();
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      expect(core.asked('update_note'), 1);
+      expect(await stored('book'), book);
+    });
+  });
+
   group('the debounce', () {
     test('saves a little after the last keystroke, once, and says the title and the blank page as they change', () async {
       final note = await library.createNote('', id: 'd1');

@@ -32,6 +32,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import '../book/follow_rename.dart' show followRename;
 import 'command_mutations.dart';
 import 'native/core.dart';
 import 'note.dart';
@@ -264,10 +265,13 @@ final Map<String, Future<void>> _lastWrites = {};
 /// again is read again, once the last screen on it has finished saving, and taken while nothing is typed here yet
 /// ([adopt]).
 ///
+/// A save that changes the note's title is followed into the notebooks and journals that list it
+/// (lib/book/follow_rename.dart), from the last title the library held for it: an emptied heading is a rename still
+/// being typed, followed once it has a title again.
+///
 /// What differs: the hook is a class, listened to for [title] and [blank] (the hook's state). The rename asked for
-/// from the note's tab, and following a renamed page into its notebooks (`followRename`), come with the tabs' note
-/// screen and the notebooks (stages 4 and 5). A screen that saved anything reads the list again as it goes
-/// ([dispose]), which is the page's `announceNotesChanged`.
+/// from the note's tab is the note's screen's (lib/note/note_screen.dart `renameHere`). A screen that saved anything
+/// reads the list again as it goes ([dispose]), which is the page's `announceNotesChanged`.
 class NoteSaving extends ChangeNotifier {
   NoteSaving(this.library, Note note, {this.onExternalChange, Duration debounce = saveDebounce, bool lifecycle = true, void Function(String message)? log})
       : id = note.id,
@@ -278,6 +282,7 @@ class NoteSaving extends ChangeNotifier {
         _written = note.body,
         _revision = note.revision,
         _title = noteTitle(note.body),
+        _titled = noteTitle(note.body),
         _blank = note.body.trim().isEmpty {
     if (lifecycle) _hides = AppLifecycleListener(onHide: flush, onPause: flush, onDetach: flush);
     // The note as the library has it, once the last screen on it has finished saving: taken only while this screen has
@@ -321,6 +326,9 @@ class NoteSaving extends ChangeNotifier {
   bool _gone = false;
   String _title;
   bool _blank;
+
+  /// The title the library last held for this note, not empty: a save that changes it is followed into its notebooks.
+  String _titled;
 
   /// What the editor holds now: written by [onChange] and nothing else.
   String get body => _body;
@@ -370,6 +378,13 @@ class NoteSaving extends ChangeNotifier {
         final stored = await library.update(id, pending, _revision);
         _revision = stored.revision;
         _written = pending;
+        // A page renamed keeps its place in its notebooks and journals (lib/book/follow_rename.dart).
+        final now = noteTitle(pending);
+        if (now.isNotEmpty && titleKey(now) != titleKey(_titled)) {
+          final from = _titled;
+          _titled = now;
+          if (from.isNotEmpty) unawaited(followRename(library, id, from, now).then<void>((_) {}, onError: (Object _) {}));
+        }
       } catch (failure) {
         // Another writer won, or the note was deleted. The one writer allowed is the phone's write-up, which appends
         // the transcript: when that is the whole difference, the save is made again over it.
