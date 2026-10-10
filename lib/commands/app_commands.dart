@@ -14,13 +14,16 @@
 /// - The notes are put in the web store's order here, newest-changed first ([paletteNotes]).
 /// - Archiving from here says nothing: the page's toast with its Undo is `useNoteActions`', which is not ported.
 ///   Pass [paletteDoingFor] an `archive` of the root's own once it is.
+/// - A note's title and whether it is a journal are asked of what is kept of its words (lib/core/note_facts.dart),
+///   and the journals are kept for the list they were found in: the palette asks for its world at every letter
+///   typed, and each time read every note's front matter for the journals and the open notes' titles again.
 library;
 
 import 'package:flutter/foundation.dart';
 
 import '../core/book.dart';
 import '../core/note.dart';
-import '../core/note_text.dart';
+import '../core/note_facts.dart';
 import '../core/preferences.dart';
 import '../core/sample_library.dart' show NoteLibrary;
 import '../core/tabs.dart';
@@ -47,21 +50,25 @@ List<PaletteNote> paletteNotes(List<Note> notes) {
       return byRecency != 0 ? byRecency : a.compareTo(b);
     });
   return _named[notes] = List.unmodifiable([
-    for (final i in order) PaletteNote(id: notes[i].id, title: noteTitle(notes[i].body), entry: entries.contains(notes[i].id)),
+    for (final i in order) PaletteNote(id: notes[i].id, title: NoteFacts.of(notes[i]).title, entry: entries.contains(notes[i].id)),
   ]);
 }
+
+final Expando<List<PaletteNote>> _journals = Expando<List<PaletteNote>>('the journals as the palette offers them');
 
 /// The journals a new entry is offered in: not archived, the one written in last first, three at most, an unnamed
 /// one as "Untitled journal".
 List<PaletteNote> paletteJournals(List<Note> notes) {
+  final held = _journals[notes];
+  if (held != null) return held;
   final journals = [
     for (final note in notes)
-      if (note.archivedAt == null && isJournalBody(note.body)) note,
+      if (note.archivedAt == null && NoteFacts.of(note).isJournal) note,
   ]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
-  return [
+  return _journals[notes] = List.unmodifiable([
     for (final note in journals.take(3))
-      PaletteNote(id: note.id, title: noteTitle(note.body).isEmpty ? 'Untitled journal' : noteTitle(note.body), journal: true),
-  ];
+      PaletteNote(id: note.id, title: NoteFacts.of(note).title.isEmpty ? 'Untitled journal' : NoteFacts.of(note).title, journal: true),
+  ]);
 }
 
 /// The app as it stands, for the palette (`paletteWorld`, App.tsx): the shell's notes, tabs, screen and trail, the
@@ -81,10 +88,10 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
   return PaletteWorld(
     notes: paletteNotes(shell.notes),
     journals: paletteJournals(shell.notes),
-    tabs: [for (final note in shell.tabs.tabs) PaletteNote(id: note.id, title: noteTitle(note.body))],
+    tabs: [for (final note in shell.tabs.tabs) PaletteNote(id: note.id, title: NoteFacts.of(note).title)],
     workspaces: [for (final space in workspaces.list) (id: space.id, name: space.name)],
     workspace: workspaces.current?.id,
-    note: open == null ? null : PaletteNote(id: open.id, title: noteTitle(open.body), journal: isJournalBody(open.body), blanks: blanks),
+    note: open == null ? null : PaletteNote(id: open.id, title: NoteFacts.of(open).title, journal: NoteFacts.of(open).isJournal, blanks: blanks),
     filedIn: open == null ? null : workspaces.of[open.id],
     pinned: open?.starred ?? false,
     canBack: shell.trail.canBack,
