@@ -71,6 +71,9 @@ List<Frame> framesIn(String doc) {
 /// caret moved read nothing of the note again for an embed.
 final LineFact<String> _frames = LineFact<String>((text) => text.contains('![[') ? _titleOf(text) : null);
 
+/// Whether a document embeds anything: one that does not has no frame to look at again when the library changes.
+bool hasFrames(Doc doc) => !_frames.nowhere(doc);
+
 /// What the screen hands the editor for its frames (`FrameOptions`).
 class FrameOptions {
   const FrameOptions({required this.body, required this.known, required this.open});

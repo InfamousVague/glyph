@@ -44,14 +44,13 @@ import '../editor.dart';
 import '../items/field_menu.dart' show dayPicker, todayIs;
 import '../items/inline_box.dart';
 import '../items/task_fields.dart' show fieldsLocale, fieldsToday;
-import '../items/wiki_links.dart' show wikiLinksIn;
+import '../items/wiki_links.dart' show WikiLink, wikiLinksIn;
 import '../queries/query_look.dart';
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
 import '../view/extended.dart' show frontMatter, frontMatterDrawn;
 import '../view/line.dart' show EditorRunScope;
-import '../view/lines.dart' show forEachVisibleLine;
 import 'ticket_panel.dart';
 
 export 'ticket_panel.dart';
@@ -253,25 +252,45 @@ class KeyTitleWord extends StatelessWidget {
 
 final RegExp _spaces = RegExp(r'\s+');
 
+/// The links on a line that are a ticket's key, `[[GHO-12]]`, counted from the line's start. Kept for every line
+/// of a document (`LineFact`), so the library is asked for its tickets only by a note that names one.
+final LineFact<List<WikiLink>> _keyLinks = LineFact<List<WikiLink>>((text) {
+  if (!text.contains('[[')) return null;
+  final keys = <WikiLink>[
+    for (final link in wikiLinksIn(text))
+      if (link.anchor == null && issueKeyOf(link.title) != null) link,
+  ];
+  return keys.isEmpty ? null : keys;
+});
+
+/// Whether anything in the note is drawn from the library's tickets: its own panel, or a key's title. A note of
+/// which neither is true has nothing to draw again when the library changes.
+bool readsTickets(EditorState state) => !_keyLinks.nowhere(state.doc) || _ticketNote(state);
+
 DecorationSet _keyTitles(EditorViewLike view, TicketOptions? Function() options) {
+  final doc = view.state.doc;
+  // The keys among the lines on screen, from what the tree keeps of them: with none, the library is not asked.
+  final lines = <FactLine<List<WikiLink>>>[
+    for (final range in view.visibleRanges) ..._keyLinks.between(doc, doc.lineAt(range.from).number, doc.lineAt(range.to).number),
+  ];
+  if (lines.isEmpty) return Decoration.none;
   final lookup = options();
   if (lookup == null) return Decoration.none;
   final found = <Range<Decoration>>[];
   // Not in the front matter, whose `blocked-by: "[[GHO-9]]"` is a line of keys, drawn as the panel or typed as it is.
-  final front = frontMatter(view.state.doc);
-  final after = front == null ? -1 : view.state.doc.line(front.to).to;
-  forEachVisibleLine(view, (line) {
-    if (line.from <= after || !line.text.contains('[[')) return;
-    for (final link in wikiLinksIn(line.text, line.from)) {
-      if (link.anchor != null || issueKeyOf(link.title) == null) continue;
+  final front = frontMatter(doc);
+  final after = front == null ? -1 : doc.line(front.to).to;
+  for (final line in lines) {
+    if (line.from <= after) continue;
+    for (final link in line.fact) {
       final ticket = lookup.find(link.title);
       if (ticket == null || ticket.title.isEmpty) continue;
       final words = ticket.title.trim().split(_spaces);
       for (final (index, word) in words.indexed) {
-        found.add(Decoration.widget(widget: KeyTitle(word: word, first: index == 0, title: ticket.title, category: ticket.category, status: ticket.status ?? ''), side: 1).range(link.to));
+        found.add(Decoration.widget(widget: KeyTitle(word: word, first: index == 0, title: ticket.title, category: ticket.category, status: ticket.status ?? ''), side: 1).range(line.from + link.to));
       }
     }
-  });
+  }
   return Decoration.set(found, true);
 }
 
@@ -292,12 +311,14 @@ class _KeyTitles extends PluginValue {
 /// `options` when they are drawn; nothing where it answers null.
 Extension tickets(TicketOptions? Function() options) {
   final panel = StateField.define<_Panel>(
-    create: (state) => _Panel(0, options() != null ? _panelOf(state, 0, options) : Decoration.none),
+    // Whether the note is a ticket is asked first, of its own front matter: the library is asked for its tickets
+    // (every note read, in the root's keeping) only by a note that is one.
+    create: (state) => _Panel(0, _ticketNote(state) && options() != null ? _panelOf(state, 0, options) : Decoration.none),
     update: (value, tr) {
       final refreshed = tr.effects.any((effect) => effect.isOf(refreshTickets));
       if (!refreshed && !tr.docChanged && tr.selection == null && !tr.reconfigured && !focusMoved(tr)) return value;
       final version = value.version + (refreshed ? 1 : 0);
-      return _Panel(version, options() != null ? _panelOf(tr.state, version, options) : Decoration.none);
+      return _Panel(version, _ticketNote(tr.state) && options() != null ? _panelOf(tr.state, version, options) : Decoration.none);
     },
     provide: (field) => EditorViewLike.decorations.from<_Panel>(field, (value) => value.decorations),
   );
@@ -305,7 +326,7 @@ Extension tickets(TicketOptions? Function() options) {
     trackFocus,
     panel,
     // The folded front matter steps aside for a ticket's panel (view/extended.dart).
-    frontMatterDrawn.of((state) => options() != null && _ticketNote(state)),
+    frontMatterDrawn.of((state) => _ticketNote(state) && options() != null),
     ViewPlugin.define<_KeyTitles>((view) => _KeyTitles(view, options), decorations: (value) => value.decorations),
   ]);
 }

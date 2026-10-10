@@ -80,7 +80,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier;
+import 'package:flutter/foundation.dart' show ValueListenable, ValueNotifier, listEquals;
 import 'package:glacier/glacier.dart';
 import '../account/ui_state.dart';
 import '../ai/available.dart' show AvailabilityController;
@@ -786,11 +786,18 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The library changed: any note changed may change what a query finds, and another ticket closed or a person
   /// named changes a panel (Editor.tsx's two effects). Told after the frame where one is being built.
+  ///
+  /// Told only of what the open note reads. Every change of the library used to be sent into the editor as three
+  /// effects and drawn as a whole build of the desk, and the commonest change of all is this note's own save, a
+  /// few times a second while it is typed in: a note with no query, no ticket's panel or key and no framed canvas
+  /// reads nothing of the library and is told nothing; one that reads it is told when another note changed, or
+  /// its own times where a query reads those ([_libraryMoved]); and the desk is drawn again only when the note's
+  /// recording changed, which is all of the library it draws.
   void _libraryChanged() {
     void tell() {
       final view = _view;
       // The tape follows its note: a take added, the recording removed or put back.
-      if (mounted && _world.tapePlayer != null) setState(() {});
+      if (mounted && _world.tapePlayer != null && _recordingMoved()) setState(() {});
       if (!mounted || view == null) return;
       final tape = _memoTape();
       final retaped = tape != _tapeFor;
@@ -798,19 +805,76 @@ class NoteDeskState extends State<NoteDesk> {
         _tapeFor = tape;
         _clips?.stop();
       }
-      view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[
-        if (_world.queryNotes != null) refreshQueries.of(null),
-        if (_world.tickets != null) refreshTickets.of(null),
-        // A canvas framed in this note may have been drawn on: its frame is looked at again.
-        if (_world.bodyOf != null) refreshCanvasFrames.of(null),
+      final queried = _world.queryNotes != null && queryFencesOf(view.state.doc).isNotEmpty;
+      final ticketed = _world.tickets != null && readsTickets(view.state);
+      // A canvas framed in this note may have been drawn on: its frame is looked at again.
+      final framed = _world.bodyOf != null && hasFrames(view.state.doc);
+      final moved = (queried || ticketed || framed) && _libraryMoved(ownTimes: queried);
+      final effects = <StateEffect<Object?>>[
+        if (queried && moved) refreshQueries.of(null),
+        if (ticketed && moved) refreshTickets.of(null),
+        if (framed && moved) refreshCanvasFrames.of(null),
         if (retaped) _tapeSlot.reconfigure(tapeSource.of(tape)),
-      ]));
+      ];
+      if (effects.isNotEmpty) view.dispatch(TransactionSpec(effects: effects));
     }
 
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
       tell();
     } else {
       SchedulerBinding.instance.addPostFrameCallback((_) => tell());
+    }
+  }
+
+  /// The note's recording as the desk last drew it: its length and its phrases, which is all the tape reads of its
+  /// note beside what never changes.
+  ({int? ms, List<Segment>? segments})? _recording;
+
+  bool _recordingMoved() {
+    final note = _world.noteById?.call(widget.noteId);
+    final was = _recording;
+    _recording = (ms: note?.recordingMs, segments: note?.segments);
+    if (was == null) return true;
+    return was.ms != note?.recordingMs || !(identical(was.segments, note?.segments) || listEquals(was.segments, note?.segments));
+  }
+
+  /// The library as the editor's pieces were last told of it: the notes a query reads, each by its id, its words
+  /// and its times; and this note as the library held it then.
+  List<QueryNote>? _toldOf;
+  Note? _ownTold;
+
+  /// Whether the library differs, in what the open note's editor reads of it, from when its pieces were last told.
+  /// The note's own words never count (the editor's own are read in their place), and its own times only where a
+  /// query in it reads them ([ownTimes]). A change that left this note as it was is another note's, shown or put
+  /// away, and counts.
+  bool _libraryMoved({required bool ownTimes}) {
+    final read = _world.queryNotes;
+    if (read == null) return true;
+    final now = read();
+    final was = _toldOf;
+    _toldOf = now;
+    final own = _world.noteById?.call(widget.noteId);
+    final ownMoved = _world.noteById != null && !identical(own, _ownTold);
+    _ownTold = own;
+    if (was == null || !ownMoved) return true;
+    if (identical(was, now)) return false;
+    final id = widget.noteId;
+    var a = 0, b = 0;
+    for (;;) {
+      if (!ownTimes) {
+        while (a < was.length && was[a].id == id) {
+          a += 1;
+        }
+        while (b < now.length && now[b].id == id) {
+          b += 1;
+        }
+      }
+      if (a == was.length || b == now.length) return a != was.length || b != now.length;
+      final x = was[a], y = now[b];
+      if (x.id != y.id || x.updatedAt != y.updatedAt || x.createdAt != y.createdAt) return true;
+      if (x.id != id && !identical(x.body, y.body) && x.body != y.body) return true;
+      a += 1;
+      b += 1;
     }
   }
 
