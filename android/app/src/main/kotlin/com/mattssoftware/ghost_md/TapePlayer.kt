@@ -13,22 +13,25 @@ import java.io.File
 /**
  * A note's recording, played: the phone's half of lib/tapes/phone_player.dart, and what the page's `<audio>` over
  * the `rec` scheme was to the Tauri app (src/app/tapes/useTape.ts; src-tauri/src/lib.rs served
- * `<app data>/recordings/<id>.wav`). One player for the whole app, as the page had one element to a note's screen.
+ * `<app data>/recordings/<id>.wav`). Two for the whole app, each on a channel of its own name: the tape's
+ * (`ghost_md/tape`, the page's one `<audio>` on a note's screen) and the voice memos' (`ghost_md/clip`, the element
+ * the page made for a memo: editor/clips.ts), so a memo played takes nothing from the tape's playhead and the two
+ * can sound at once, as two elements did.
  *
- * THE CHANNEL `ghost_md/tape`:
+ * THE CHANNEL, `ghost_md/tape` for one and `ghost_md/clip` for the other:
  * - `load {noteId}` -> the recording's length in ms, stopped at its start; an error where there is no such file or
  *   it cannot be read.
  * - `play`, `pause` -> null; `seek {ms}` -> null.
  * - `onDevice {noteId}` -> whether that note's recording is a file here (the `rec` scheme's 200 or 404).
  * - `release` -> null: the player let go.
  *
- * THE EVENTS on `ghost_md/tape/events`, each a map: `{event: "position", ms}` ten times a second while it plays
+ * THE EVENTS on the channel's name with `/events` after it, each a map: `{event: "position", ms}` ten times a second while it plays
  * (the element's `timeupdate`), `{event: "playing", on}`, `{event: "ended"}` and `{event: "failed"}`.
  *
  * Only ever a file under the app's own `recordings` folder, named by a note's id: an id is letters, digits, `-` and
  * `_`, so nothing a caller says can name a file anywhere else.
  */
-class TapePlayer(private val context: Context) {
+class TapePlayer(private val context: Context, private val channel: String = CHANNEL) {
     private val main = Handler(Looper.getMainLooper())
     private var player: MediaPlayer? = null
     private var sink: EventChannel.EventSink? = null
@@ -43,11 +46,11 @@ class TapePlayer(private val context: Context) {
     }
 
     fun register(messenger: BinaryMessenger) {
-        EventChannel(messenger, EVENTS).setStreamHandler(object : EventChannel.StreamHandler {
+        EventChannel(messenger, "$channel/events").setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, events: EventChannel.EventSink?) { sink = events }
             override fun onCancel(arguments: Any?) { sink = null }
         })
-        MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
+        MethodChannel(messenger, channel).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
                     "load" -> result.success(load(call.argument<String>("noteId")))
@@ -127,7 +130,9 @@ class TapePlayer(private val context: Context) {
 
     companion object {
         const val CHANNEL = "ghost_md/tape"
-        const val EVENTS = "ghost_md/tape/events"
+
+        /** The voice memos' player: one of their own, beside the tape's. */
+        const val CLIPS = "ghost_md/clip"
         private const val TICK_MS = 100L
         private val ID = Regex("^[A-Za-z0-9_-]{1,64}$")
     }

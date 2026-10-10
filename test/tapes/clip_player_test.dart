@@ -1,5 +1,5 @@
-// A voice memo played where it sits (lib/tapes/clip_player.dart): a stretch of the note's recording on the app's
-// one player, with the player this folder's tests share (fake_player.dart).
+// A voice memo played where it sits (lib/tapes/clip_player.dart): a stretch of the note's recording on the memos'
+// own player, with the player this folder's tests share (fake_player.dart).
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/media/clip_refs.dart';
 import 'package:ghost_md/tapes/clip_player.dart';

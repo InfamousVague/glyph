@@ -2,8 +2,10 @@
 /// Kotlin `MediaPlayer` in android/…/ghost_md/TapePlayer.kt. What the page's `<audio>` element over the `rec`
 /// scheme was to `src/app/tapes/useTape.ts`.
 ///
-/// One for the whole app, made by whoever wires it and let go with it; a [Tape] loads its note's recording into it
-/// by the note's id, at the first Play, so a tape nobody plays asks the phone for nothing.
+/// Made by whoever wires the app and let go with it; a [Tape] loads its note's recording into it by the note's id,
+/// at the first Play, so a tape nobody plays asks the phone for nothing. The app makes two: the tape's, and with
+/// [PhoneTapePlayer.clips] the voice memos' own on a channel of its own (`ghost_md/clip`), as the page made an
+/// `<audio>` for a memo beside the tape's (`src/app/editor/clips.ts`).
 ///
 /// What differs: the element's five events are the channel's four (`position`, `playing`, `ended`, `failed`); a
 /// file that is not on this device is the channel's `onDevice`, where the scheme answered a HEAD with 404. Off
@@ -21,6 +23,9 @@ class PhoneTapePlayer implements TapePlayer {
   PhoneTapePlayer({MethodChannel channel = const MethodChannel('ghost_md/tape'), EventChannel events = const EventChannel('ghost_md/tape/events')}) : _channel = channel {
     _heard = events.receiveBroadcastStream().listen(_said, onError: (Object _) {});
   }
+
+  /// The player a voice memo is played on: the phone's second, which the tape's knows nothing of.
+  PhoneTapePlayer.clips() : this(channel: const MethodChannel('ghost_md/clip'), events: const EventChannel('ghost_md/clip/events'));
 
   final MethodChannel _channel;
   StreamSubscription<Object?>? _heard;

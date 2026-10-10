@@ -190,7 +190,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -247,6 +247,10 @@ class GhostRoot extends StatefulWidget {
   /// The app's one player of a note's recording (lib/tapes/phone_player.dart on a phone). Absent, a spoken note
   /// draws no tape.
   final TapePlayer? tapePlayer;
+
+  /// The player of the voice memos left in a note: one of their own beside the tape's, as the page made an
+  /// `<audio>` for a memo (lib/tapes/phone_player.dart `PhoneTapePlayer.clips`). Absent, a memo is a quiet mark.
+  final TapePlayer? clipPlayer;
 
   /// Where the phone is (lib/core/phone_position.dart on a phone), what names a place (lib/core/geocode.dart) and
   /// what draws a map's tiles (lib/editor/media/map_tiles.dart). With no [locator], as in a test, no note keeps a
@@ -760,6 +764,7 @@ class _GhostRootState extends State<GhostRoot> {
     previewer: _previews,
     ai: _aiWorld,
     tapePlayer: widget.tapePlayer,
+    clipPlayer: widget.clipPlayer,
     noteById: _library.noteOf,
     getNote: _library.get,
     setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),

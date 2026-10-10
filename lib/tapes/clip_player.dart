@@ -1,15 +1,17 @@
-/// What plays a voice memo in a note: the [ClipPlayer] lib/editor/media/clips.dart leaves as a seam, over the
-/// app's one player of a recording ([TapePlayer]; lib/tapes/phone_player.dart on a phone). What the page's
-/// `<audio>` per clip was in `src/app/editor/clips.ts`: the note's recording, played between the clip's two times.
+/// What plays a voice memo in a note: the [ClipPlayer] lib/editor/media/clips.dart leaves as a seam, over a
+/// player of a recording that is the memos' own ([TapePlayer]; lib/tapes/phone_player.dart
+/// `PhoneTapePlayer.clips` on a phone). What the page's `<audio>` per clip was in `src/app/editor/clips.ts`: the
+/// note's recording, played between the clip's two times.
 ///
 /// A memo's `src` is the id of the note whose recording it is a stretch of, which is what a [TapePlayer] loads by.
 /// The recording is loaded at the press, the playhead put at the clip's start, and playing stops when the playhead
 /// reaches its end, when the recording ends or fails, or when anything else pauses the player.
 ///
 /// What differs:
-/// - ONE VOICE FOR THE APP. The page made an element for each clip, beside the tape's own; here the tape at the
-///   note's top and its memos share the phone's one player, so a memo played while the tape plays takes the
-///   playhead from it, and the tape's Play afterwards goes on from where the memo stopped.
+/// - The page made an element for each clip, beside the tape's own, and let one clip play at a time. Here the
+///   memos share one player among themselves, which comes to the same, and the tape at the note's top has
+///   another: a memo played takes nothing from the tape's playhead, the tape's Play afterwards goes on from where
+///   the tape was, and a memo pressed while the tape plays sounds over it, as the page's two elements did.
 /// - A stretch's end is caught by the playhead as the phone tells it (every few tens of milliseconds), where the
 ///   page watched `timeupdate`: a memo may run that much over its end, as it did there.
 library;
@@ -81,7 +83,7 @@ class TapeClipPlayer extends ChangeNotifier implements ClipPlayer {
     if (_player.position.value >= now.clip.endMs) stop();
   }
 
-  /// The player was paused by something else (the tape's own button, another note's tape loading).
+  /// The player was paused by something else (another note's memo loading into it).
   void _paused() {
     if (_playing != null && _begun && !_player.playing.value) _over();
   }

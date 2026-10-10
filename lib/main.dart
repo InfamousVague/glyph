@@ -96,6 +96,8 @@ Future<void> main() async {
   final links = PhoneLinks();
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
+  // And one more for the voice memos left in a note, so a memo never takes the tape's playhead.
+  final clips = PhoneTapePlayer.clips();
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   final mapTiles = MapTiles().builder;
@@ -117,6 +119,7 @@ Future<void> main() async {
         restart: restart,
         launchSeat: seat,
         tapePlayer: tapes,
+        clipPlayer: clips,
         // With no core there is nothing to read an update with, and none is looked for.
         updates: opened.core == null ? null : updates,
         locator: locator,

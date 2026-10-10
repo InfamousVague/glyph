@@ -24,6 +24,7 @@ final class GhostChannels: NSObject {
 
   private let files: FilesChannel
   private let tape: TapeChannel
+  private let clips: TapeChannel
   private let mic: MicChannel
   private var held: [FlutterMethodChannel] = []
   private weak var window: NSWindow?
@@ -34,6 +35,7 @@ final class GhostChannels: NSObject {
     self.window = window
     files = FilesChannel(messenger: messenger, window: window)
     tape = TapeChannel(messenger: messenger)
+    clips = TapeChannel(messenger: messenger, name: "ghost_md/clip")
     mic = MicChannel(messenger: messenger)
     super.init()
 

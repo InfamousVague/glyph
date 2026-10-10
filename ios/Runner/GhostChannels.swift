@@ -26,6 +26,7 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
   static let realApp = "com.mattssoftware.glyph"
 
   private let tape: TapeChannel
+  private let clips: TapeChannel
   private let day: DayChannel
   private var held: [FlutterMethodChannel] = []
   private var links: FlutterMethodChannel?
@@ -34,6 +35,7 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
 
   init(messenger: FlutterBinaryMessenger) {
     tape = TapeChannel(messenger: messenger)
+    clips = TapeChannel(messenger: messenger, name: "ghost_md/clip")
     day = DayChannel(messenger: messenger)
     super.init()
 

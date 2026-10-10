@@ -611,7 +611,7 @@ WavSpool, the four recordings files) differs from the original's by three to eig
 | The tape says Summarizing, "Needs a model.", "The summary didn't come.", "The summary comes after the better words." | tapes/NoteTape.tsx:86-103,165-170 | tapes/note_tape.dart:57-78,143-155 | unwired | `NoteTape.queue` is never given (root/note_desk.dart:1298-1316). |
 | "Summary is from before the last take." | tapes/NoteTape.tsx:101-102; editor/NoteScreen.tsx:1302 | tapes/note_tape.dart:153-154 (`summaryBehind`, ai/summary_keep.dart:83, has no caller) | unwired | |
 | "Summarized "Title"" with Open, for ten seconds | shell/useHousekeeping.ts:100-106 | root/ghost_root.dart:525-531 | differs | "Summarized", with no title, for the toast's usual time. |
-| A voice memo plays where it sits, one at a time | editor/clips.ts:36-116 | editor/media/clips.dart:169-229; tapes/clip_player.dart | differs | One player for the tape and its memos: after a memo, the tape's Play goes on from where the memo stopped. |
+| A voice memo plays where it sits, one at a time | editor/clips.ts:36-116 | editor/media/clips.dart:169-229; tapes/clip_player.dart | match | Since 2026-10-10 the memos have a player of their own (`ghost_md/clip`, lib/tapes/phone_player.dart `PhoneTapePlayer.clips`): a memo takes nothing from the tape's playhead. |
 | A recording's row on home (the cassette, "0:40", "Recording now"); All notes' Tapes | home/HomeScreen.tsx:308-322; notes/AllNotesScreen.tsx:147-153 | home/home_rows.dart:30-105; notes/all_notes_screen.dart:265 | match | |
 | The tape shelf on home | removed | — | n/a | |
 
@@ -1159,8 +1159,8 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 16. **Asking for notifications**: the meeting screen's Allow is marked asked before the phone has answered, and
     Settings can never say "Notifications are off for Ghost.md in the phone's settings."
     (lib/root/ghost_root.dart:763-770,875-883). Small to medium. Needs the phone's real answer.
-17. **The tape and its voice memos share one player**: after a memo, Play goes on from where the memo stopped.
-    Small to medium.
+17. ~~**The tape and its voice memos share one player**: after a memo, Play goes on from where the memo stopped.~~
+    Done 2026-10-10: a second player for the memos on Android, the Mac and the iPhone.
 18. **A chip's tap opens a menu, not the band's page; a ticket's Status, Due, Estimate and Labels go through a
     sheet.** Medium, or a decision to keep the port's way. `openFields` (lib/editor/band/context_band.dart:209) is
     never called.

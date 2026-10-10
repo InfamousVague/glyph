@@ -9,7 +9,8 @@ import FlutterMacOS
 
 /// `ghost_md/tape` on the Mac and on the iPhone: the player of a note's recording (lib/tapes/phone_player.dart), as
 /// android/…/ghost_md/TapePlayer.kt is on the phone and the page's `<audio>` element over the `rec` scheme was in
-/// the Tauri app. One player for the whole app.
+/// the Tauri app. Two for the whole app, each on a channel of its own name: the tape's (`ghost_md/tape`) and the
+/// voice memos' (`ghost_md/clip`, the `<audio>` the page made for a memo), so a memo takes nothing from the tape.
 ///
 /// ONE FILE FOR BOTH: the iPhone's Runner compiles this very file (ios/Runner.xcodeproj names it by its path here),
 /// `AVAudioPlayer` being the same on each; what differs is the two imports above, the word for the device, and the
@@ -21,7 +22,7 @@ import FlutterMacOS
 ///
 /// - `load {noteId}` -> the recording's length in ms; an error where it is not on this device or will not open.
 /// - `play`, `pause`, `seek {ms}`, `release` -> null. `onDevice {noteId}` -> whether the file is here.
-/// - Events on `ghost_md/tape/events`: `{event: "position", ms}` a few times a second while it plays,
+/// - Events on the channel's name with `/events` after it: `{event: "position", ms}` a few times a second while it plays,
 ///   `{event: "playing", on}`, `{event: "ended"}`, `{event: "failed"}`.
 final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
   #if os(iOS)
@@ -36,12 +37,12 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
   private var player: AVAudioPlayer?
   private var ticker: Timer?
 
-  init(messenger: FlutterBinaryMessenger) {
+  init(messenger: FlutterBinaryMessenger, name: String = "ghost_md/tape") {
     super.init()
-    let methods = FlutterMethodChannel(name: "ghost_md/tape", binaryMessenger: messenger)
+    let methods = FlutterMethodChannel(name: name, binaryMessenger: messenger)
     methods.setMethodCallHandler { [weak self] call, result in self?.asked(call, result) }
     self.methods = methods
-    let events = FlutterEventChannel(name: "ghost_md/tape/events", binaryMessenger: messenger)
+    let events = FlutterEventChannel(name: "\(name)/events", binaryMessenger: messenger)
     events.setStreamHandler(self)
     self.events = events
   }

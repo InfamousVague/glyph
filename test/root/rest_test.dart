@@ -46,7 +46,7 @@ void main() {
 
   late List<String> asked;
 
-  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false, GuideController? guide, TapePlayer? tapePlayer}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {bool previews = false, GuideController? guide, TapePlayer? tapePlayer, TapePlayer? clipPlayer}) async {
     final library = SampleLibrary.seeded();
     asked = [];
     await pumpApp(
@@ -60,6 +60,7 @@ void main() {
         stored: MemoryStored(),
         guide: guide,
         tapePlayer: tapePlayer,
+        clipPlayer: clipPlayer,
         previewFetch: previews
             ? (url) async {
                 asked.add(url);
@@ -225,9 +226,9 @@ void main() {
       await close(tester);
     });
 
-    testWidgets('plays a voice memo left in its words on the app\'s one player, a stretch of its own recording', (tester) async {
-      final player = FakeTapePlayer(lengths: const {});
-      final library = await open(tester, tapePlayer: player);
+    testWidgets('plays a voice memo left in its words on the memos\' own player, a stretch of its own recording', (tester) async {
+      final player = FakeTapePlayer(lengths: const {}), memos = FakeTapePlayer(lengths: const {});
+      final library = await open(tester, tapePlayer: player, clipPlayer: memos);
       final taped = await tapedIn(tester, library);
       shellOf(tester).openNote(taped.id);
       await settle(tester);
@@ -236,12 +237,50 @@ void main() {
       final clips = view.state.facet(clipPlayer)!;
       // The fake has no such recording to load: the press fails, having asked for this note's.
       await tester.runAsync(() => clips.play(taped.id, const Clip(startMs: 1000, endMs: 3000)).then<void>((_) {}, onError: (Object _) {}));
-      expect(player.calls, ['load ${taped.id}']);
+      expect(memos.calls, ['load ${taped.id}']);
+      expect(player.calls, isEmpty, reason: 'the tape\'s player is not the memos\'');
       expect(clips.playing, isNull);
       // A note that was not spoken has no tape for a memo to be a stretch of.
       shellOf(tester).openNote(library.value.firstWhere((note) => noteTitle(note.body) == 'Launch week').id);
       await settle(tester);
       expect(tester.state<NoteScreenState>(find.byType(NoteScreen)).view!.state.facet(tapeSource).src, isNull);
+      await close(tester);
+    });
+
+    // docs/PARITY.md, Differs 17. The page made an `<audio>` for a memo beside the tape's own (editor/clips.ts:91;
+    // tapes/useTape.ts), so a memo played never moved the tape: Play afterwards went on from where the tape was.
+    testWidgets('a voice memo played leaves the tape\'s playhead alone: Play afterwards starts where the tape was, not where the memo stopped', (tester) async {
+      // The fakes are told the recording's length once the note has its id.
+      final lengths = <String, int>{};
+      final tape = FakeTapePlayer(lengths: lengths), clip = FakeTapePlayer(lengths: lengths);
+      final library = await open(tester, tapePlayer: tape, clipPlayer: clip);
+      final taped = await tapedIn(tester, library);
+      lengths[taped.id] = 4000;
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+      final clips = view.state.facet(clipPlayer)!;
+      // The memo plays its stretch, 1.0 s to 3.0 s, and stops at its end.
+      await clips.play(taped.id, const Clip(startMs: 1000, endMs: 3000));
+      await tester.pump(const Duration(milliseconds: 2100));
+      expect(clips.playing, isNull);
+      expect(clip.calls, ['load ${taped.id}', 'seek 1000', 'play', 'pause']);
+      expect(clip.position.value, 3000);
+      expect(tape.calls, isEmpty, reason: 'the memo took nothing from the tape');
+      // Play on the tape: from its own start.
+      await tester.tap(find.bySemanticsLabel('Play the recording'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tape.calls, ['load ${taped.id}', 'play']);
+      expect(tape.position.value, lessThan(1000), reason: 'not where the memo stopped');
+      // And a memo pressed while the tape plays sounds over it: the tape goes on.
+      await clips.play(taped.id, const Clip(startMs: 1000, endMs: 3000));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tape.playing.value, isTrue);
+      expect(clip.playing.value, isTrue);
+      clips.stop();
+      await tester.tap(find.bySemanticsLabel('Pause the recording'));
+      await tester.pump();
       await close(tester);
     });
 

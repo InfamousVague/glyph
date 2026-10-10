@@ -256,6 +256,7 @@ class NoteDeskWorld {
     this.holdNote,
     this.dropRefine,
     this.tapePlayer,
+    this.clipPlayer,
     this.noteById,
     this.getNote,
     this.setNoteRecording,
@@ -356,6 +357,10 @@ class NoteDeskWorld {
 
   /// The app's one player of a recording (lib/tapes/phone_player.dart); absent, a spoken note draws no tape.
   final tape_player.TapePlayer? tapePlayer;
+
+  /// The player of a note's voice memos, which is not the tape's (`src/app/editor/clips.ts` made an `<audio>` of
+  /// its own for a memo); absent, a memo is a quiet mark.
+  final tape_player.TapePlayer? clipPlayer;
 
   /// The note by its id as the library has it now, and read whole from the store (its phrases with it).
   final Note? Function(String id)? noteById;
@@ -747,8 +752,9 @@ class NoteDeskState extends State<NoteDesk> {
     }),
   ];
 
-  /// What plays a voice memo: the app's one player of a recording, where there is one.
-  late final TapeClipPlayer? _clips = _world.tapePlayer == null ? null : TapeClipPlayer(_world.tapePlayer!);
+  /// What plays a voice memo: the memos' own player of a recording, where there is one. Never the tape's: a memo
+  /// played must leave the tape's playhead where it was (docs/PARITY.md, Differs 17).
+  late final TapeClipPlayer? _clips = _world.clipPlayer == null ? null : TapeClipPlayer(_world.clipPlayer!);
   final Compartment _tapeSlot = Compartment();
   Tape _tapeFor = Tape.none;
 
@@ -756,7 +762,7 @@ class NoteDeskState extends State<NoteDesk> {
   /// its id, where it has one and there is a player; none otherwise, and its memos are then quiet marks.
   Tape _memoTape() {
     final note = _world.noteById?.call(widget.noteId);
-    if (_world.tapePlayer == null || note == null || (note.recordingMs ?? 0) <= 0) return Tape.none;
+    if (_world.clipPlayer == null || note == null || (note.recordingMs ?? 0) <= 0) return Tape.none;
     return Tape(src: widget.noteId, id: _world.tapes?.tapeId(widget.noteId));
   }
 
