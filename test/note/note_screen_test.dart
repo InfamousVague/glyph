@@ -1,6 +1,9 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/book/journal.dart' show defaultTemplate, entryPlaceOf, placeSentence, templateOf, templateSentence;
+import 'package:ghost_md/book/template_picker.dart' show TemplatePicker;
+import 'package:ghost_md/core/book.dart' show guideTitle, isJournalBody;
 import 'package:ghost_md/core/front_matter.dart' show frontMatterValue;
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/geotag.dart';
@@ -337,6 +340,51 @@ void main() {
       // A journal has no ticket key, nor has a note of words.
       await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\njournal: true\ntitle: "Diary"\n---\n'));
       await more(tester);
+      expect(find.byType(SheetField), findsOneWidget);
+      await closeNote(tester);
+    });
+
+    // Missing 5 (docs/PARITY.md): More › Journal and its page (NoteSettings.tsx `JournalPage`, NoteScreen.tsx
+    // `journalRows`): a notebook kept as a journal, what its entries start with, the place switch, and a journal made
+    // a notebook again.
+    testWidgets('keeps a notebook as a journal from its More sheet, and makes a journal a notebook again; never the Guide', (tester) async {
+      final world = NoteWorld();
+      final screen = await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Diary"\n---\n- [[One]]\n'));
+      await more(tester);
+      expect(find.text('New pages start dated, from a template.'), findsOneWidget);
+      await press(tester, 'Keep it as a journal');
+      // Its page: what entries start with, a draft until it is kept.
+      expect(find.byType(TemplatePicker), findsOneWidget);
+      expect(find.text('Entries you have written stay as they are.'), findsNothing);
+      expect(isJournalBody(screen.body), isFalse);
+      await press(tester, 'Make it a journal');
+      expect(isJournalBody(screen.body), isTrue);
+      expect(templateOf(screen.body), defaultTemplate);
+      // New notes are tagged by default, so its entries keep where they were written, and the row says both.
+      expect(entryPlaceOf(screen.body), isTrue);
+      expect(find.text('${templateSentence(defaultTemplate)} $placeSentence'), findsOneWidget);
+      expect(find.text('Keep it as a journal'), findsNothing);
+      // A journal has no ticket key.
+      expect(find.byType(SheetField), findsOneWidget);
+
+      // The journal's own page: a change is written as it is made, and it can be made a notebook again.
+      await press(tester, 'Journal');
+      expect(find.text('Entries you have written stay as they are.'), findsOneWidget);
+      tester.widget<TemplatePicker>(find.byType(TemplatePicker)).onPlace(false);
+      await tester.pump();
+      expect(entryPlaceOf(screen.body), isFalse);
+      await press(tester, 'Make it a notebook again');
+      expect(isJournalBody(screen.body), isFalse);
+      expect((frontMatterValue(screen.body, 'template'), frontMatterValue(screen.body, 'entry-place')), (null, null));
+      expect(screen.body, contains('- [[One]]'), reason: 'its entries stay as pages');
+      expect(find.text('Keep it as a journal'), findsOneWidget);
+      await tester.pump(const Duration(milliseconds: 450));
+      await closeNote(tester);
+
+      // The Guide is a manual, not a diary: neither row, nor a ticket key.
+      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "$guideTitle"\n---\n- [[One]]\n'));
+      await more(tester);
+      expect(find.text('Keep it as a journal'), findsNothing);
       expect(find.byType(SheetField), findsOneWidget);
       await closeNote(tester);
     });

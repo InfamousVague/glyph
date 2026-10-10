@@ -78,7 +78,8 @@ import '../core/versions_file.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
 import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
-import '../book/journal.dart' show JournalWriter;
+import '../book/journal.dart' show JournalWriter, entryPlaceOf, templateOf, withEntryPlace, withJournal, withTemplate, withoutJournal;
+import '../book/template_picker.dart' show EntryPlaceDevice;
 import '../book/tickets.dart' show withNotebookKey;
 import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
@@ -1003,7 +1004,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// A notebook's own keys written from the More sheet (its ticket key; kept as a journal, its template and its
   /// place switch): as the notebook's own changes are, and into the editor where its Markdown is the view, so the
   /// next keystroke there does not write the old keys back (`writeNotebook`).
-  void _writeNotebook(String Function(String was) change) {
+  void _writeKeys(String Function(String was) change) {
     final next = change(_saving.body);
     if (next == _saving.body) return;
     final editor = _view;
@@ -1013,6 +1014,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       _onChange(next);
     }
     setState(() => _typedBody = next);
+    // Kept as a journal while it is open: the app is handed the way to write its index, as a journal opened is.
+    if (_isJournal && !_toldJournal) _tellJournal();
   }
 
   /// The notebook's rows of the More sheet are a notebook's alone, and never the Guide's: a manual is not a diary,
@@ -1560,8 +1563,25 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             },
       onMakeBoard: !widget.readOnly && words && boardFrom(view?.state.doc.toString() ?? _saving.body) != null ? makeBoard : null,
       name: _typed && !widget.readOnly ? NoteName(value: _saving.title, onChange: renameHere, kind: _isCanvas ? 'canvas' : (_isJournal ? 'journal' : 'notebook')) : null,
+      // A notebook kept as a journal, or a journal's template and place switch (docs/DESIGN.md §142).
+      journal: _notebookRows
+          ? NoteJournal(
+              on: _isJournal,
+              template: templateOf(_typedBody),
+              place: entryPlaceOf(_typedBody),
+              keep: (template, place) => _writeKeys((was) => withJournal(was, template, place)),
+              setTemplate: (text) => _writeKeys((was) => withTemplate(was, text)),
+              setPlace: (on) => _writeKeys((was) => withEntryPlace(was, on)),
+              unkeep: () => _writeKeys(withoutJournal),
+              placeDefault: _prefs.value.tagNewNotes,
+              device: switch (_tags) {
+                final tags? => EntryPlaceDevice(cannot: () => tags.locations.cannotLocate, refused: tags.autoTagRefusal, allowWhere: tags.allowLocationWhere(), ask: tags.askFromPress),
+                _ => const EntryPlaceDevice(),
+              },
+            )
+          : null,
       // A notebook's ticket key (docs/DESIGN.md §157), written as its other keys are. Not a journal's.
-      ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeNotebook((was) => withNotebookKey(was, typed))) : null,
+      ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeKeys((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',
       look: !_typed && !widget.readOnly ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,

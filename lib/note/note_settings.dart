@@ -16,7 +16,8 @@
 /// - Sharing (share/ShareRows.tsx, stage 7) is [NoteSettings.sharing], its rows.
 /// - The AI's rows (stage 8) are drawn from [aiKinds] when [NoteSettings.onAi] is given; the dot a run in progress
 ///   wears, and Fill the blanks, come with the runs.
-/// - A journal's page (book/, stage 5) is not here; the Name field and a notebook's ticket key are.
+/// - A journal's page takes what the page's read for itself: the phone's half of its place switch
+///   ([NoteJournal.device]) and whether new notes are tagged ([NoteJournal.placeDefault]).
 /// - The cheat sheet's page is [NoteSettings.cheatSheet], and the Help group is there only with it.
 /// - Where it was written (core/location.ts, later) is [NoteSettings.location]; the hints are ported.
 /// - It is built only while it is open, by the screen, where the page's returned null while shut.
@@ -32,6 +33,8 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/icons.dart';
+import '../book/journal.dart' show defaultTemplate, placeSentence, templateSentence;
+import '../book/template_picker.dart' show EntryPlaceDevice, TemplatePicker;
 import '../book/tickets.dart' show keyProblem;
 import '../core/geotag.dart';
 import '../core/location.dart' show LocateFailure;
@@ -140,6 +143,43 @@ class NoteName {
   final String kind;
 }
 
+/// A notebook that can be kept as a journal, or a journal (book/journal.dart): its template and its place switch as
+/// the note says them, and the writes, each through the note as typing is (`journal`). Absent on anything else, and
+/// on the Guide, which is a manual and not a diary.
+@immutable
+class NoteJournal {
+  const NoteJournal({
+    required this.on,
+    required this.template,
+    required this.place,
+    required this.keep,
+    required this.setTemplate,
+    required this.setPlace,
+    required this.unkeep,
+    this.placeDefault = false,
+    this.device = const EntryPlaceDevice(),
+  });
+
+  final bool on;
+  final String template;
+  final bool place;
+
+  /// The notebook kept as a journal, with this template and place switch.
+  final void Function(String template, bool place) keep;
+  final ValueChanged<String> setTemplate;
+  final ValueChanged<bool> setPlace;
+
+  /// The journal made a notebook again: its entries stay as pages.
+  final VoidCallback unkeep;
+
+  /// What a notebook's place switch starts at before it is kept: whether new notes are tagged
+  /// (`preferences().tagNewNotes`).
+  final bool placeDefault;
+
+  /// The phone's half of "With where you are": why it cannot, and the prompt from the press that turned it on.
+  final EntryPlaceDevice device;
+}
+
 /// A notebook's ticket key (book/tickets.dart), as its front matter says it, and its write (`ticketKey`).
 @immutable
 class NoteTicketKey {
@@ -169,7 +209,7 @@ class NoteHistory {
 }
 
 /// A page of the sheet, opened from a row.
-enum NoteSettingsPage { workspace, cheatsheet, history }
+enum NoteSettingsPage { workspace, cheatsheet, history, journal }
 
 class NoteSettings extends StatefulWidget {
   const NoteSettings({
@@ -187,6 +227,7 @@ class NoteSettings extends StatefulWidget {
     this.onFind,
     this.onMakeBoard,
     this.name,
+    this.journal,
     this.ticketKey,
     this.onSpeak,
     this.speakLabel = 'Talk into this note',
@@ -225,6 +266,9 @@ class NoteSettings extends StatefulWidget {
   /// Lays the note's list out as a board; absent where there is nothing to make one of.
   final VoidCallback? onMakeBoard;
   final NoteName? name;
+
+  /// A notebook that can be kept as a journal, or a journal; absent on anything else.
+  final NoteJournal? journal;
 
   /// A notebook's ticket key and its write; absent on anything else, a journal included.
   final NoteTicketKey? ticketKey;
@@ -276,6 +320,20 @@ class _NoteSettingsState extends State<NoteSettings> {
 
   /// Why each link cannot be used on this build, asked as the sheet opens (`unavailable`).
   final Map<String, String?> _unavailable = <String, String?>{};
+
+  /// The journal's page: a notebook's choice is a draft until it is kept; a journal's is written as it is made
+  /// (`JournalPage`).
+  String _template = defaultTemplate;
+  bool _place = false;
+
+  void _openJournal() {
+    final journal = widget.journal!;
+    setState(() {
+      _template = journal.on ? journal.template : defaultTemplate;
+      _place = journal.on ? journal.place : journal.placeDefault;
+      _page = NoteSettingsPage.journal;
+    });
+  }
 
   /// The ticket key as it is being typed, which is not always a key yet.
   late String _keyTyped = widget.ticketKey?.value ?? '';
@@ -371,6 +429,57 @@ class _NoteSettingsState extends State<NoteSettings> {
         ],
       );
     }
+    final journal = widget.journal;
+    if (page == NoteSettingsPage.journal && journal != null) {
+      return Sheet(
+        label: 'Journal',
+        onClose: widget.onClose,
+        onBack: _back,
+        children: [
+          SheetBack(label: _here, onPressed: () => setState(() => _page = null)),
+          // What its entries start with, then keeping it as one, or making it a notebook again.
+          TemplatePicker(
+            template: _template,
+            onTemplate: (text) {
+              setState(() => _template = text);
+              if (journal.on) journal.setTemplate(text);
+            },
+            place: _place,
+            onPlace: (on) {
+              setState(() => _place = on);
+              if (journal.on) journal.setPlace(on);
+            },
+            name: widget.title,
+            note: journal.on ? 'Entries you have written stay as they are.' : null,
+            device: journal.device,
+          ),
+          SheetGroup(
+            children: [
+              if (journal.on)
+                SheetRow(
+                  key: const ValueKey('journal-unkeep'),
+                  label: 'Make it a notebook again',
+                  hint: 'Its entries stay as pages. New pages start plain.',
+                  onPress: () {
+                    journal.unkeep();
+                    setState(() => _page = null);
+                  },
+                )
+              else
+                SheetRow(
+                  key: const ValueKey('journal-keep'),
+                  label: 'Make it a journal',
+                  hint: 'Its pages stay where they are.',
+                  onPress: () {
+                    journal.keep(_template, _place);
+                    setState(() => _page = null);
+                  },
+                ),
+            ],
+          ),
+        ],
+      );
+    }
     if (page == NoteSettingsPage.history && history != null) {
       return Sheet(
         label: 'Version history',
@@ -433,7 +542,15 @@ class _NoteSettingsState extends State<NoteSettings> {
           ),
         if (name != null)
           SheetGroup(
-            children: [SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false)],
+            children: [
+              SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false),
+              // A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it.
+              if (journal != null)
+                if (journal.on)
+                  SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Journal', hint: '${templateSentence(journal.template)}${journal.place ? ' $placeSentence' : ''}', onPress: _openJournal)
+                else
+                  SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Keep it as a journal', hint: 'New pages start dated, from a template.', onPress: _openJournal),
+            ],
           ),
         // A notebook's ticket key, typed (`TicketKeyField`): written whenever what is typed is a key or nothing, which
         // takes it off, and what is wrong with it said under it while it is neither.
