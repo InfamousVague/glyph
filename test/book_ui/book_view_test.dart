@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/book/book_nav.dart';
 import 'package:ghost_md/book/book_spot.dart';
 import 'package:ghost_md/book/book_view.dart';
+import 'package:ghost_md/book/stuck_head.dart';
 import 'package:ghost_md/book/entry_starts.dart';
 import 'package:ghost_md/book/journal.dart';
 import 'package:ghost_md/book/tickets.dart';
@@ -17,6 +18,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/fields/field_picker.dart';
 import 'package:ghost_md/editor/markdown_view.dart';
 import 'package:ghost_md/editor/view/line.dart' show EditorLine;
+import 'package:ghost_md/note/page_head.dart';
 import 'package:ghost_md/notes/note_templates.dart';
 import 'package:ghost_md/notes/ticket_mark.dart';
 import 'package:ghost_md/sheet/kit.dart';
@@ -608,6 +610,109 @@ void main() {
       final was = scroll.offset;
       await tester.pump(const Duration(milliseconds: 150));
       expect(scroll.offset, was);
+      await away(tester);
+    });
+  });
+
+  // Differs 21 (docs/PARITY.md): `.readBar { position: sticky; top: 0; z-index: 2 }` (BookView.module.css). The way
+  // back to the index and the rail went up with the first chapter and were gone for the rest of the notebook.
+  group('the way back and the rail, reading straight through', () {
+    String words(String t) => '# $t\n\n${List.filled(40, 'Words.').join('\n\n')}';
+    Finder bar() => find.byKey(const ValueKey('book-read-bar'));
+
+    testWidgets('stay at the top of the page as the chapters go under them, and are pressed there', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await show(tester, scroll: scroll, bodyOf: words);
+      await press(tester, 'Read straight through');
+      // Where it stands with the page at its top: under the notebook's own padding, where its room is kept.
+      final stood = tester.getRect(bar());
+      expect(stood.top, greaterThan(0));
+      expect(tester.renderObject<RenderStuckHead>(find.byType(StuckHead)).shift, 0);
+      scroll.jumpTo(900);
+      await tester.pump();
+      final stuck = tester.getRect(bar());
+      expect(stuck.top, closeTo(0, 0.01));
+      expect(stuck.size, stood.size);
+      // Over the chapter that is under it now, and pressed where it is drawn: the rail's third page is scrolled to.
+      final before = scroll.offset;
+      await tester.tap(find.byKey(const ValueKey('book-rail-2')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(scroll.offset, greaterThan(before));
+      expect(tester.getRect(bar()).top, closeTo(0, 0.01));
+      // And Index, from the middle of the notebook, goes back to the rows.
+      await tester.tap(button('Index'));
+      await tester.pump();
+      expect(rows(tester), ['Introduction', 'Trees', 'Birds']);
+      await away(tester);
+    });
+
+    testWidgets('come to rest under the room the page keeps at its top, and go up with the notebook\'s foot', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await pumpSlivers(
+        tester,
+        [
+          // The page's own padding under its header, and what the view is told of it.
+          const SliverToBoxAdapter(child: SizedBox(height: 58)),
+          PageHead(
+            height: 58,
+            child: BookView(body: book, title: 'Field guide', known: (_) => true, open: (_) {}, titles: () => const [], onChange: (_) {}, bodyOf: words, clock: () => probeNow),
+          ),
+          // The page goes on under the notebook.
+          const SliverToBoxAdapter(child: SizedBox(height: 1200)),
+        ],
+        scroll: scroll,
+      );
+      await press(tester, 'Read straight through');
+      for (var i = 0; i < 6; i += 1) {
+        await tester.pump();
+      }
+      scroll.jumpTo(700);
+      await tester.pump();
+      expect(tester.getRect(bar()).top, closeTo(58, 0.01));
+      // Past the notebook's end the bar has gone up with it: its foot is never under the notebook's own.
+      scroll.jumpTo(scroll.offset + bookRect(tester).bottom - 20);
+      await tester.pump();
+      final end = bookRect(tester).bottom;
+      expect(end, closeTo(20, 0.01));
+      expect(tester.getRect(bar()).bottom, closeTo(end, 0.01));
+      await away(tester);
+    });
+
+    // The read-through is slivers, and a long page's lines are a sliver of their own: the bar is none of the first
+    // run's, and is still there when that run has gone and a long page's lines are going under it.
+    testWidgets('are still there over a long page\'s lines, when the first run has gone', (tester) async {
+      const titles = ['Short', 'Long one', 'Last'];
+      final bodies = {
+        'Short': '# Short\n\n${List.filled(10, 'Words.').join('\n\n')}',
+        'Long one': '# Long one\n\n${longWords()}',
+        'Last': '# Last\n\n${List.filled(40, 'Words.').join('\n\n')}',
+      };
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      await show(tester, body: bookNoteBody('Long', titles), title: 'Long', bodyOf: (t) => bodies[t], scroll: scroll);
+      await press(tester, 'Read straight through');
+      for (var i = 0; i < 6; i += 1) {
+        await tester.pump();
+      }
+      final stood = tester.getRect(bar());
+      // Into the long page: its title has gone past the top, and so has the whole of the first run.
+      await tester.ensureVisible(find.byKey(const ValueKey('book-read-title-1'), skipOffstage: false));
+      await tester.pump();
+      scroll.jumpTo(scroll.offset + 600);
+      await tester.pump();
+      expect(find.descendant(of: find.byKey(const ValueKey('book-read-body-1')), matching: find.byType(EditorLine)), findsWidgets);
+      final run = tester.renderObject<RenderSliver>(find.byKey(const ValueKey('book-read-run-bar'), skipOffstage: false));
+      expect(run.geometry!.visible, isFalse, reason: 'the first run is off the page');
+      final stuck = tester.getRect(bar());
+      expect(stuck.top, closeTo(0, 0.01));
+      expect(stuck.size, stood.size);
+      // Pressed there: Index goes back to the rows.
+      await tester.tap(button('Index'));
+      await tester.pump();
+      expect(rows(tester), ['Short', 'Long one', 'Last']);
       await away(tester);
     });
   });

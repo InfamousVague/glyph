@@ -36,9 +36,11 @@
 /// - **The book's own words are a column drawn to be read** ([BookWords]), which takes no caret: a `[[link]]` in
 ///   them is drawn as a link and opens on a tap, which the column is asked about where the page's editor heard it
 ///   itself; nothing else in them is pressed.
-/// - **`readBar` is not `position: sticky`**: the view is one box in the note's scroll view, which is the note
-///   screen's, so the way back to the index and the rail scroll away with the first chapter. The rail's tap scrolls
-///   the page to its chapter all the same.
+/// - **`readBar`'s `position: sticky`** is a sliver of its own, first of the read-through's and over the rest
+///   (stuck_head.dart): it takes no room, the first run keeping a box of the bar's height where the bar stands, and
+///   it is drawn there until the page has scrolled it up to the room that page keeps at its top
+///   (lib/note/page_head.dart), where a sticky box comes to rest under its scroll container's padding, and there
+///   from then on, going up with the notebook's foot. It is one layer, moved: no page under it is drawn again.
 /// - **The byline** is lib/note/byline.dart's, as the note screen draws it for a note.
 /// - **`spot`** is the book note's id alone: the page it scrolls in is the [Scrollable] the view is built in.
 /// - **Tab and the arrows in Start with**: the arrows move the choice and the focus together, as on the page; every
@@ -80,6 +82,7 @@ import '../editor/view/editor_view.dart';
 import '../editor/view/sliver.dart';
 import '../editor/view/view_mode.dart';
 import '../note/byline.dart';
+import '../note/page_head.dart';
 import '../notes/note_templates.dart';
 import '../notes/ticket_mark.dart';
 import '../perf/frame_log.dart';
@@ -89,6 +92,7 @@ import 'book_spot.dart';
 import 'book_spot_watch.dart';
 import 'entry_starts.dart';
 import 'row_drag.dart';
+import 'stuck_head.dart';
 import 'tickets.dart' show newTicketBody, nextTicketId;
 
 // ---- the rules (book/book.ts) -------------------------------------------------------------------------------------
@@ -1385,58 +1389,71 @@ class BookViewState extends State<BookView> {
     void touched() => _watch?.touched();
     Widget heard(Widget child) => Listener(onPointerDown: (_) => touched(), onPointerSignal: (_) => touched(), child: child);
 
-    // The way back, and the chapters as a rail: a tap scrolls to that one.
-    final Widget bar = DecoratedBox(
-      decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border(bottom: BorderSide(color: rule, width: line))),
-      child: Padding(
-        // `padding-block: var(--glacier-space-2)`, the line under it inside the box.
-        padding: EdgeInsets.only(top: t.space(2), bottom: t.space(2) + line),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          spacing: t.space(2),
-          children: [
-            BookAction(key: const ValueKey('book-index'), icon: Lucide.list, label: 'Index', onPressed: () => _setReading(false)),
-            Semantics(
-              container: true,
-              label: 'Pages',
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  spacing: t.space(1),
-                  children: [
-                    for (final (i, chapter) in chapters.indexed)
-                      GlacierPressable(
-                        key: ValueKey('book-rail-$i'),
-                        semanticLabel: '${numbers[i]} ${chapter.title}',
-                        excludeSemantics: true,
-                        onPressed: () => scrollTo(i),
-                        builder: (context, state) => Opacity(
-                          // `.railItem[data-depth='1'] { opacity: 0.85 }`
-                          opacity: chapter.depth == 1 ? 0.85 : 1,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(border: Border.all(color: rule, width: line), borderRadius: BorderRadius.circular(999), color: state.hovered ? _ink(t, 0.06) : null),
-                            child: Padding(
-                              // `padding: 0.3em 0.7em`
-                              padding: EdgeInsets.symmetric(vertical: 0.3 * railEm + line, horizontal: 0.7 * railEm + line),
-                              child: cssLines(
-                                '${numbers[i]} ${chapter.title}',
-                                bookText(t, railEm, color: state.hovered ? t.color('glacier-text') : muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
-                                maxLines: 1,
-                                softWrap: false,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
+    // One of the rail's: a page's number and name in a round.
+    Widget pill(String words, {required int depth, bool hovered = false}) => Opacity(
+          // `.railItem[data-depth='1'] { opacity: 0.85 }`
+          opacity: depth == 1 ? 0.85 : 1,
+          child: DecoratedBox(
+            decoration: BoxDecoration(border: Border.all(color: rule, width: line), borderRadius: BorderRadius.circular(999), color: hovered ? _ink(t, 0.06) : null),
+            child: Padding(
+              // `padding: 0.3em 0.7em`
+              padding: EdgeInsets.symmetric(vertical: 0.3 * railEm + line, horizontal: 0.7 * railEm + line),
+              child: cssLines(
+                words,
+                bookText(t, railEm, color: hovered ? t.color('glacier-text') : muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]),
+                maxLines: 1,
+                softWrap: false,
               ),
             ),
-          ],
-        ),
-      ),
-    );
+          ),
+        );
+
+    // The way back, and the chapters as a rail: a tap scrolls to that one. [room] is the same boxes down its
+    // height with nothing in them to press, find or read: what keeps the bar's place in the first run, the bar
+    // itself being a sliver over the page (below).
+    Widget barOf({required bool room}) => DecoratedBox(
+          key: room ? null : const ValueKey('book-read-bar'),
+          decoration: BoxDecoration(color: t.color('glacier-bg'), border: Border(bottom: BorderSide(color: rule, width: line))),
+          child: Padding(
+            // `padding-block: var(--glacier-space-2)`, the line under it inside the box.
+            padding: EdgeInsets.only(top: t.space(2), bottom: t.space(2) + line),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              spacing: t.space(2),
+              children: [
+                if (room)
+                  const BookAction(icon: Lucide.list, label: ' ', onPressed: null)
+                else
+                  BookAction(key: const ValueKey('book-index'), icon: Lucide.list, label: 'Index', onPressed: () => _setReading(false)),
+                if (room)
+                  // As tall as the rail: one of its rounds, or nothing where the notebook has no page.
+                  chapters.isEmpty ? const SizedBox.shrink() : pill(' ', depth: 0)
+                else
+                  Semantics(
+                    container: true,
+                    label: 'Pages',
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        spacing: t.space(1),
+                        children: [
+                          for (final (i, chapter) in chapters.indexed)
+                            GlacierPressable(
+                              key: ValueKey('book-rail-$i'),
+                              semanticLabel: '${numbers[i]} ${chapter.title}',
+                              excludeSemantics: true,
+                              onPressed: () => scrollTo(i),
+                              builder: (context, state) => pill('${numbers[i]} ${chapter.title}', depth: chapter.depth, hovered: state.hovered),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        );
 
     // A page's title, which opens it.
     Widget titleOf(int i, Chapter chapter, bool canvas) {
@@ -1490,7 +1507,8 @@ class BookViewState extends State<BookView> {
     // pieces: its title, its lines (a sliver, built and laid out where they are near the screen as the note's own
     // page has a note's), and the foot of its section.
     final pieces = <Widget>[];
-    var run = <Widget>[bar];
+    // The first run begins with the bar's room: laid out, and neither drawn nor pressed.
+    var run = <Widget>[Visibility(visible: false, maintainSize: true, maintainAnimation: true, maintainState: true, child: barOf(room: true))];
     var runKey = 'bar';
     void endRun({required bool last}) {
       if (run.isEmpty) {
@@ -1603,7 +1621,17 @@ class BookViewState extends State<BookView> {
     }
     endRun(last: true);
     _keepLazy(lazy);
-    return SliverMainAxisGroup(slivers: pieces);
+    // `.readBar { position: sticky; top: 0; z-index: 2 }`: the bar, first of the slivers and so over the rest, where
+    // its room is in the first run until the page has scrolled it up to the top the page keeps, and there from then
+    // on. Its box begins where the first run's does, the notebook's padding over it, so it is drawn as it was when
+    // it stood in that run.
+    final stuck = StuckHead(
+      key: const ValueKey('book-read-stuck'),
+      top: PageHead.of(context),
+      inset: top,
+      child: RepaintBoundary(child: Padding(padding: EdgeInsets.fromLTRB(side, top, side, 0), child: heard(barOf(room: false)))),
+    );
+    return SliverMainAxisGroup(slivers: [stuck, ...pieces]);
   }
 
   // ---- the index ----

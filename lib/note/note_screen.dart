@@ -103,6 +103,7 @@ import 'note_editor.dart';
 import 'note_place.dart';
 import 'note_settings.dart';
 import 'note_tools.dart';
+import 'page_head.dart';
 import 'pinch_zoom.dart';
 import 'version_keeping.dart';
 
@@ -1443,8 +1444,13 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             ),
           ),
         // A canvas fills what is left of the page; a journal is one box of it; a notebook's view is slivers of its own
-        // (lib/book/book_view.dart), so reading its pages straight through lays out what is near the window.
-        if (_drawing) SliverFillRemaining(hasScrollBody: true, child: _view0(context)) else if (!_words) _isJournal ? SliverToBoxAdapter(child: _view0(context)) : _view0(context),
+        // (lib/book/book_view.dart), so reading its pages straight through lays out what is near the window. The
+        // notebook's is told the room the page keeps at its top: what sticks there (the way back and the rail of a
+        // notebook read straight through) stops under the header.
+        if (_drawing)
+          SliverFillRemaining(hasScrollBody: true, child: _view0(context))
+        else if (!_words)
+          _isJournal ? SliverToBoxAdapter(child: _view0(context)) : PageHead(height: padTop + (seams.headRoom?.value ?? 0), child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
         SliverOffstage(offstage: !_words, sliver: widget.editorBuilder(context, spec)),
         if (_words) ...[
