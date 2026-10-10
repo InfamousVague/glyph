@@ -68,14 +68,16 @@ class WispSettings extends ChangeNotifier {
 }
 
 /// Whether the smoke is drawn the quick way: a strip in one pass over the screen with its soft half made small
-/// (lib/art/wisp_smoke.dart `paintWispSmoke`), where the first drawing made every primitive of the web filter a
-/// picture the size of the strip on every frame of a scroll.
+/// (lib/art/wisp_smoke.dart `paintWispSmoke`), the dock's halo in one pass, and every letter in smoke laid down from
+/// one sheet (lib/art/wisp_letters.dart), where the first drawing made every primitive of the web filter a picture
+/// the size of the strip on every frame of a scroll, and a layer with a blur for every letter.
 ///
-/// Not yet what a build draws unless it is told to (`--dart-define=GHOST_WISP_QUICK=true`, or `quick` among a
-/// measured build's `GHOST_PERF_SMOKE`): the quick drawing is the same smoke to the eye and not the same pixels, so
-/// every reference picture with a strip in it has to be drawn again with it, and those are looked at first.
-bool get wispQuick => debugWispQuick ?? (_quick || WispProbe.has('quick'));
-const bool _quick = bool.fromEnvironment('GHOST_WISP_QUICK');
+/// What a build draws, since 2026-10-10. The quick drawing is the same smoke to the eye and not the same pixels
+/// (test/art/smoke_compare_test.dart lays the two side by side), so the way back is kept: a build made with
+/// `--dart-define=GHOST_WISP_QUICK=false` draws the first, and a measured build walks either beside the other in one
+/// build (`first` or `quick` among its `GHOST_PERF_SMOKE`, lib/art/wisp_probe.dart).
+bool get wispQuick => debugWispQuick ?? (!WispProbe.has('first') && (_quick || WispProbe.has('quick')));
+const bool _quick = bool.fromEnvironment('GHOST_WISP_QUICK', defaultValue: true);
 
 /// Says which drawing a test gets, whatever the build was told.
 @visibleForTesting

@@ -11,7 +11,7 @@ import '../perf/frame_log.dart' show ghostPerf;
 /// environment of a desktop build (or the same name as a dart-define where a build has no environment), a list of
 /// the names below with commas or plus signs between.
 ///
-///     PERF_BUILD=0 GHOST_PERF_SMOKE=phone+quick tool/perf.sh mac home+note
+///     PERF_BUILD=0 GHOST_PERF_SMOKE=phone+first tool/perf.sh mac home+note
 ///
 /// - `off`: no strip is drawn at all, a view paints as if it wore no wisp: the floor.
 /// - `phone`: the phone's drawing on a desktop (the smoke under a header and at the foot, the dock's halo bending),
@@ -23,8 +23,9 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   a point.
 /// - `nodock`, `noedge`: no halo round the dock; no strips at a page's own edges.
 /// - `noletter`: a letter in smoke (a spoiler's, a typed headline's) is drawn as the letter itself.
-/// - `quick`: the quick drawing of every smoke (lib/art/wisp_settings.dart `wispQuick`), to walk beside the first
-///   in one build: `phone` against `phone+quick`.
+/// - `first`: the first drawing of every smoke, three passes a strip and a layer a letter, where a build draws the
+///   quick one (lib/art/wisp_settings.dart `wispQuick`), to walk the two beside each other in one build: `phone`
+///   against `phone+first`. `quick` asks for the quick one in a build made without it.
 /// - `layers`: says, once a second while a view is drawn, what layers lie under it by kind (lib/art/wisp_strips.dart).
 /// - `render`: says, once a second while frames are drawn, what the whole window is made of that the engine draws
 ///   through a picture of its own: opacities, masks, backdrop filters, soft clips, and how many repaint boundaries.
@@ -105,6 +106,7 @@ abstract final class WispProbe {
       // The census once a second; the switching off every frame, since a rebuild may undo it at any one.
       if (!bare && !say) return;
       final kinds = <String, int>{};
+      final where = <String>[];
       var all = 0;
       void count(String kind) => kinds[kind] = (kinds[kind] ?? 0) + 1;
       void visit(RenderObject object) {
@@ -117,6 +119,11 @@ abstract final class WispProbe {
             switchedOff += 1;
           }
           count(object.enabled ? 'backdrop' : 'backdrop(off)');
+          // Which one it is, by where it stands: in the order they are painted.
+          if (say && object.hasSize) {
+            final at = object.localToGlobal(Offset.zero);
+            where.add('${object.size.width.round()}x${object.size.height.round()}@${at.dx.round()},${at.dy.round()}${object.backdropKey == null ? '' : ' grouped'}');
+          }
         } else if (object is RenderRepaintBoundary) {
           count('boundary');
         } else if (object is RenderOpacity) {
@@ -145,7 +152,7 @@ abstract final class WispProbe {
       if (!say) return;
       saidAt = now;
       final said = (kinds.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((entry) => '${entry.key}=${entry.value}').join(' ');
-      debugPrint('[perf] render: $frames frames, $all objects, $said${bare ? ' | backdrops switched off $switchedOff, back on by a rebuild $backOn' : ''}');
+      debugPrint('[perf] render: $frames frames, $all objects, $said${where.isEmpty ? '' : ' | backdrops: ${where.join('; ')}'}${bare ? ' | backdrops switched off $switchedOff, back on by a rebuild $backOn' : ''}');
       frames = 0;
     });
   }

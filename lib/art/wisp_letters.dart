@@ -64,7 +64,9 @@ class WispLetterSheet {
       _frameBefore = _frame;
       _frame = now;
     }
-    final flows = _frame - _frameBefore <= _flowing;
+    // After, and soon after: a clock that went back (a test's, begun again) follows nothing.
+    final since = _frame - _frameBefore;
+    final flows = since > Duration.zero && since <= _flowing;
     final key = _Letter(glyph, glyphRect, box, smoke.seed, at);
     final had = _asked[key];
     if (_asked.containsKey(key)) {
