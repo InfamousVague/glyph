@@ -39,10 +39,12 @@ abstract final class StateProbe {
   static int Function()? enter;
   static void Function(String what, int began)? leave;
 
-  /// Where the thing being defined was written: the first frame of the stack outside this file, as
-  /// `editor/media/images.dart:270`.
-  static String _site(String kind) {
-    for (final line in StackTrace.current.toString().split('\n')) {
+  /// Where the thing defined under `stack` was written: the first frame outside this file, as
+  /// `editor/media/images.dart:270`. Read from the stack only when the thing is first timed: naming the frames is
+  /// slow, and a facet computed for one editor and never worked out again is never named.
+  static String _site(String kind, StackTrace? stack) {
+    if (stack == null) return kind;
+    for (final line in stack.toString().split('\n')) {
       if (line.contains('editor/state/state.dart')) continue;
       final found = _siteOf.firstMatch(line);
       if (found != null) return '$kind ${found.group(1)}';
@@ -245,10 +247,11 @@ class Facet<I, O> {
 }
 
 class _FacetProvider implements Extension {
-  _FacetProvider(this.dependencies, this.facet, this.type, this.value, this.getter) : id = _nextId++, _site = _measured && getter != null ? StateProbe._site('compute') : null;
+  _FacetProvider(this.dependencies, this.facet, this.type, this.value, this.getter) : id = _nextId++, _defined = _measured && getter != null ? StackTrace.current : null;
 
   /// Where it was defined, in a build that measures itself.
-  final String? _site;
+  final StackTrace? _defined;
+  late final String _site = StateProbe._site('compute', _defined);
 
   final List<Object> dependencies;
   final Facet<dynamic, dynamic> facet;
@@ -284,7 +287,7 @@ class _FacetProvider implements Extension {
         if ((depDoc && tr.docChanged) || (depSel && (tr.docChanged || tr.selection != null)) || _ensureAll(state, depAddrs)) {
           final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
           final newVal = getter(state);
-          if (_measured) StateProbe.leave?.call(_site ?? 'compute', began);
+          if (_measured) StateProbe.leave?.call(_site, began);
           if (!compare(newVal, state._values[idx])) {
             state._values[idx] = newVal;
             return _slotChanged;
@@ -421,10 +424,11 @@ final Facet<_FieldInit, List<_FieldInit>> _initField = Facet.define<_FieldInit, 
 
 /// CodeMirror's `StateField`: a value kept in the state and brought up to date by every transaction.
 class StateField<T> implements Extension {
-  StateField._(this.id, this._createF, this._updateF, this._compareF, this._toJson, this._fromJson) : _site = _measured ? StateProbe._site('field') : null;
+  StateField._(this.id, this._createF, this._updateF, this._compareF, this._toJson, this._fromJson) : _defined = _measured ? StackTrace.current : null;
 
   /// Where it was defined, in a build that measures itself.
-  final String? _site;
+  final StackTrace? _defined;
+  late final String _site = StateProbe._site('field', _defined);
 
   final int id;
   final T Function(EditorState state) _createF;
@@ -472,14 +476,14 @@ class StateField<T> implements Extension {
       create: (state) {
         final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
         state._values[idx] = _create(state);
-        if (_measured) StateProbe.leave?.call(_site ?? 'field', began);
+        if (_measured) StateProbe.leave?.call(_site, began);
         return _slotChanged;
       },
       update: (state, tr) {
         final oldVal = state._values[idx] as T;
         final began = _measured ? (StateProbe.enter?.call() ?? 0) : 0;
         final value = _updateF(oldVal, tr);
-        if (_measured) StateProbe.leave?.call(_site ?? 'field', began);
+        if (_measured) StateProbe.leave?.call(_site, began);
         if (_compareF(oldVal, value)) return 0;
         state._values[idx] = value;
         return _slotChanged;
