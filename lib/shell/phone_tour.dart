@@ -182,7 +182,20 @@ class PhoneTour {
       case 'tapline':
         // A line of the note's own words: the editor draws its lines itself, so they are no texts to find. The tap
         // lands a little way into the line's first row, among plain words.
-        final at = _lineAt(arg);
+        // Looked for as `seek` looks for a text: back toward the note's top first, where a walk's flings may have
+        // left it a little short, then down.
+        var at = _lineAt(arg);
+        if (at == null) {
+          final view = WidgetsBinding.instance.platformDispatcher.views.first;
+          final size = view.physicalSize / view.devicePixelRatio;
+          final x = size.width / 2, high = size.height * 0.35, low = size.height * 0.70;
+          for (var tries = 0; tries < 24 && at == null; tries += 1) {
+            final up = tries < 10;
+            await _swipe(Offset(x, up ? high : low), Offset(x, up ? low : high), ms: 320, settle: true);
+            await Future<void>.delayed(const Duration(milliseconds: 250));
+            at = _lineAt(arg);
+          }
+        }
         _say('tapline "$arg" -> ${at == null ? 'NOT FOUND' : _spot(at)}');
         if (at == null) return;
         await _touch(Offset(at.left + at.width * 0.3, at.top + (at.height < 36 ? at.height / 2 : 14)));
@@ -419,6 +432,7 @@ class PhoneTour {
   EditorIme? _editor() {
     EditorIme? found;
     void visit(Element element) {
+      if (_unseen(element)) return;
       final widget = element.widget;
       if (widget is Editor) {
         final ime = widget.controller?.ime;
@@ -435,6 +449,14 @@ class PhoneTour {
   EditableTextState? _field() {
     final context = FocusManager.instance.primaryFocus?.context;
     if (context == null) return null;
+    // Never a field of a page kept out of sight: with the home page kept under a note, a walk whose tap had missed
+    // the note typed into the home page's own field, and the typing stretch measured the home page.
+    var hidden = false;
+    context.visitAncestorElements((element) {
+      hidden = _unseen(element);
+      return !hidden;
+    });
+    if (hidden) return null;
     EditableTextState? found = context.findAncestorStateOfType<EditableTextState>();
     if (found != null) return found;
     void visit(Element element) {
