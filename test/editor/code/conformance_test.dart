@@ -73,9 +73,6 @@ void main() {
 
   test('the languages with a sample that the port does not read', () {
     expect(unread, <String>[
-      'Markdown',
-      'SCSS',
-      'LESS',
       'Dockerfile',
       'PowerShell',
       'Perl',
@@ -94,7 +91,6 @@ void main() {
       'CMake',
       'HTTP',
       'VB.NET',
-      'Sass',
       'WebAssembly',
     ]);
   });

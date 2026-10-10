@@ -468,6 +468,19 @@ class Stack {
   int lookAhead;
   Stack? parent;
 
+  /// How much of this stack's own record a checkpoint has moved behind it. Lezer chooses between two stacks that
+  /// are otherwise even by the length of each one's own record, and a checkpoint must not change the choice.
+  int _extra = 0;
+
+  /// The length Lezer would find this stack's own record to be.
+  int get _ownLength => buffer.length + _extra;
+
+  /// A split that goes on in this stack's place: what it leaves behind it still counts as its own.
+  Stack _carryOn() {
+    final next = _split();
+    return next.._extra = _extra + buffer.length - next.buffer.length;
+  }
+
   /// The grammar's context here: what its [ContextTracker] has made of the tokens so far.
   Object? get context => _curContext?.context;
 
@@ -991,9 +1004,12 @@ class _TokenCache {
 
 /// A place a parse can be taken up again from: its one stack as it stood at [pos], sharing the record behind it.
 class Checkpoint {
-  Checkpoint._(this._stack, this.pos, this.safe);
+  Checkpoint._(this._stack, this.pos, this.safe, this._bigStart, this._bigSize, this._bigCount);
 
   final Stack _stack;
+
+  // The parse's count of long reductions from one start, as it stood: part of what the parse does next.
+  final int _bigStart, _bigSize, _bigCount;
 
   /// How far the stack had read.
   final int pos;
@@ -1082,11 +1098,14 @@ class Parse {
     for (Stack? shared = checkpoint._stack; shared != null; shared = shared.parent) {
       shared.p = this;
     }
-    final stack = checkpoint._stack._split();
+    final stack = checkpoint._stack._carryOn();
     stacks = <Stack>[stack];
     _minStackPos = stack.pos;
     checkpoints.addAll(earlier);
     _lastCheckpoint = checkpoint.pos;
+    _lastBigReductionStart = checkpoint._bigStart;
+    _lastBigReductionSize = checkpoint._bigSize;
+    _bigReductionCount = checkpoint._bigCount;
   }
 
   final LRParser parser;
@@ -1176,9 +1195,9 @@ class Parse {
         final stack = newStacks[i];
         for (var j = i + 1; j < newStacks.length; j++) {
           final other = newStacks[j];
-          if (stack._sameState(other) || stack.buffer.length > _recMinBufferLengthPrune && other.buffer.length > _recMinBufferLengthPrune) {
+          if (stack._sameState(other) || stack._ownLength > _recMinBufferLengthPrune && other._ownLength > _recMinBufferLengthPrune) {
             var order = stack.score - other.score;
-            if (order == 0) order = stack.buffer.length - other.buffer.length;
+            if (order == 0) order = stack._ownLength - other._ownLength;
             if (order > 0) {
               newStacks.removeAt(j--);
             } else {
@@ -1218,10 +1237,10 @@ class Parse {
   /// recorded up to here is never written to again, and a later parse can stand on it.
   void _checkpoint() {
     final live = stacks[0];
-    final kept = live._split();
-    stacks[0] = live._split();
+    final kept = live._carryOn();
+    stacks[0] = live._carryOn();
     final seen = live.pos + _lookaheadMargin > live.lookAhead ? live.pos + _lookaheadMargin : live.lookAhead;
-    checkpoints.add(Checkpoint._(kept, live.pos, seen));
+    checkpoints.add(Checkpoint._(kept, live.pos, seen, _lastBigReductionStart, _lastBigReductionSize, _bigReductionCount));
     _lastCheckpoint = live.pos;
   }
 

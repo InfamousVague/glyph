@@ -283,6 +283,8 @@ const GRAMMARS = [
   { name: 'xml', pkg: '@lezer/xml' },
   { name: 'yaml', pkg: '@lezer/yaml' },
   { name: 'sass', pkg: '@lezer/sass' },
+  // LESS's grammar is in its language package too.
+  { name: 'less', pkg: '@codemirror/lang-less', parser: (m) => m.lessLanguage.parser },
   // The SQL grammar is in its language package, with the one tokenizer every dialect configures.
   { name: 'sql', pkg: '@codemirror/lang-sql', parser: (m) => m.StandardSQL.language.parser, more: sqlDialects },
 ];

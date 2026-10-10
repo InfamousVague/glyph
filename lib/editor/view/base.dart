@@ -8,6 +8,7 @@
 /// the input layer's.
 library;
 
+import '../code/code_highlight.dart';
 import '../state/state.dart';
 import '../syntax/language.dart';
 import 'extended.dart';
@@ -36,6 +37,9 @@ Extension noteExtensions({
 }) => Extension.list(<Extension>[
   markdownSyntax(glyphMarkdown(formats)),
   glyphHighlight(formats),
+  // A fenced block's code coloured by its language, and HTML's tags (lib/editor/code): in Editor.tsx these are
+  // the language's own (`glyphMarkdown`'s `codeLanguages`) and the one highlighter's.
+  codeHighlight(),
   glyphLines,
   // Superscript, subscript, callouts, definitions, front matter, maths and shortcodes (extended.dart).
   extendedMarkdown(),

@@ -11,9 +11,9 @@
 ///
 /// What differs: the web's `glyphMarkdown` answers a CodeMirror `Extension` (`markdown({...})`), with the key
 /// bindings and the paste handling in it; here it answers the [MarkdownParser] alone, and those are the editor's
-/// (lib/editor/commands, lib/editor/input). A fenced block is not parsed by its own language and an HTML block not
-/// by HTML: both stay `CodeText` and `HTMLBlock` with nothing inside, there being no highlighter yet
-/// (docs/STAGE4.md), so `codeLanguages` is not a parameter.
+/// (lib/editor/commands, lib/editor/input). A fenced block is not parsed by its own language here, nor an HTML
+/// block by HTML: both stay `CodeText` and `HTMLBlock` with nothing inside, and what `codeLanguages` and the HTML
+/// parser do on the web is done beside the tree, for the blocks on screen (lib/editor/code/code_highlight.dart).
 library;
 
 import 'extension.dart';

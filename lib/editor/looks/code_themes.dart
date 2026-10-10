@@ -5,8 +5,7 @@
 /// What differs: the page reads `--code-*` from the stylesheet; codeThemes.css is not one of the sheets the token
 /// engine loads (tool/sync-design.sh), so the palettes are written out here and resolved through the tokens they
 /// name. The stylesheet writes every dark palette twice, for an explicit Dark and for System on a dark phone; here
-/// the theme's side is asked once (`Tokens.isDark`). Until a highlighter for the fenced languages is ported
-/// (docs/STAGE4.md) only the block's ground and ink are used; the token colours are here for it.
+/// the theme's side is asked once (`Tokens.isDark`). The tokens are found by lib/editor/code.
 library;
 
 import 'package:flutter/painting.dart' show Color;

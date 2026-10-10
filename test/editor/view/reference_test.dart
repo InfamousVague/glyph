@@ -36,8 +36,6 @@ void main() {
       final view = await pumpFixture(tester, fixture);
       final lines = drawnLines(tester);
       final problems = <String>[];
-      // The page parses a fenced block by its language and colours its tokens; here it is plain code.
-      bool fenced(Map<String, dynamic> line) => (line['classes'] as List).contains('lineCode');
 
       expect(lines.length, fixture.lines.length, reason: 'as many lines as the page drew');
       var worstBox = 0.0, worstCoord = 0.0;
@@ -59,7 +57,9 @@ void main() {
         if (off > worstBox) worstBox = off;
         if (off > tolerance) problems.add('[$label] box $box, the page $wantBox');
         // The runs.
-        if (!fenced(want)) {
+        // A fenced block's lines too: the page parses a block by its language and colours its tokens, and so
+        // does the port (lib/editor/code).
+        {
           final runs = runsOf(line);
           final wantRuns = <(String, Set<String>)>[];
           for (final run in (want['runs'] as List).cast<Map<String, dynamic>>()) {

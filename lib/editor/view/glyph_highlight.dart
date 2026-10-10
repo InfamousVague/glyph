@@ -16,9 +16,10 @@
 /// `CommentBlock` take `codeComment`. `Paragraph`, `TableCell` (`t.content`), `TableHeader/...` (`t.heading`) and
 /// `Subscript`/`Superscript` (`t.special(t.content)`) have no class: nothing in glyphHighlight.ts names their tags.
 ///
-/// What differs: a fenced block's code is not parsed by its language (docs/STAGE4.md), so the `code*` token
-/// classes are never handed out and the block's words are `CodeText`, in the `code` class. The classes are
-/// markdown.module.css's (`looks/markdown_look.dart`).
+/// What differs: a fenced block's code is parsed by its language beside this, not in the note's tree
+/// (lib/editor/code/code_highlight.dart hands out the `code*` token classes; [nestedLanguage] is how this
+/// highlighter is told which words are that one's). The classes are markdown.module.css's
+/// (`looks/markdown_look.dart`).
 library;
 
 import '../looks/markdown_look.dart';
@@ -82,6 +83,22 @@ const Map<String, _Rule> _rules = <String, _Rule>{
   'Emoji': (MarkdownClass.codeString, false), // Emoji: t.character
 };
 
+/// A Markdown node's class and whether the nodes inside inherit it, by its name: the fold of @lezer/markdown's
+/// `styleTags` and glyphHighlight.ts above, for whoever else highlights Markdown (a fenced block of it,
+/// lib/editor/code/markdown_language.dart).
+Map<String, (String cls, bool inherit)> get markdownRules => _rules;
+
+/// Whether a node's own words are another language's to colour: a fenced block's code, read by the grammar its
+/// info string names, and HTML wherever it stands (lib/editor/code/code_highlight.dart, which gives this). On the
+/// web the other language's tree is laid over those words (`parseCode`) and `highlightTree` reads it there with
+/// no class from the note around it, so here they are handed out bare: the note's classes stop at them.
+final Facet<bool Function(EditorState state, SyntaxNode node), bool Function(EditorState state, SyntaxNode node)?> nestedLanguage = Facet.define(
+  combine: (values) => values.isEmpty ? null : values.first,
+);
+
+/// The nodes [nestedLanguage] is asked about.
+const Set<String> _mayNest = <String>{'CodeText', 'HTMLBlock', 'HTMLTag', 'CommentBlock'};
+
 class _TreeHighlighter extends PluginValue {
   _TreeHighlighter(EditorViewLike view, this.rules) {
     decorations = _build(view);
@@ -103,6 +120,7 @@ class _TreeHighlighter extends PluginValue {
 
   DecorationSet _build(EditorViewLike view) {
     final tree = syntaxTree(view.state);
+    final nested = view.state.facet(nestedLanguage);
     final builder = RangeSetBuilder<Decoration>();
     for (final range in view.visibleRanges) {
       final from = range.from, to = range.to;
@@ -137,6 +155,7 @@ class _TreeHighlighter extends PluginValue {
             own = inherited.isEmpty ? rule.$1 : '$inherited ${rule.$1}';
             if (rule.$2) down = own;
           }
+          if (nested != null && _mayNest.contains(node.name) && nested(view.state, node)) own = '';
           startSpan(node.from < from ? from : node.from, own);
           open.add((own, down));
           return null;

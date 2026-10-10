@@ -17,15 +17,18 @@ import 'grammars/html.dart';
 import 'grammars/java.dart';
 import 'grammars/javascript.dart';
 import 'grammars/json.dart';
+import 'grammars/less.dart';
 import 'grammars/php.dart';
 import 'grammars/python.dart';
 import 'grammars/rust.dart';
+import 'grammars/sass.dart';
 import 'grammars/sql.dart';
 import 'grammars/sql.g.dart' show sqlDialects;
 import 'grammars/xml.dart';
 import 'grammars/yaml.dart';
 import 'language_names.g.dart';
 import 'lr_language.dart';
+import 'markdown_language.dart';
 import 'nesting.dart';
 import 'stream/clike.dart' as clike;
 import 'stream/modes.dart';
@@ -118,6 +121,11 @@ final Map<String, CodeLanguage> _languages = <String, CodeLanguage>{
   'PHP': LrLanguage('PHP', () => phpParser, mounter: phpMounter(htmlInMarkdown)),
   'XML': LrLanguage('XML', () => xmlParser),
   'YAML': LrLanguage('YAML', () => yamlParser),
+  'LESS': LrLanguage('LESS', () => lessParser),
+  'SCSS': LrLanguage('SCSS', () => scssParser),
+  'Sass': LrLanguage('Sass', () => sassParser),
+  // Read by the note's own parser, as CommonMark (markdown_language.dart).
+  'Markdown': MarkdownCodeLanguage(htmlInMarkdown),
   // SQL, and the seven dialects the pack names: one grammar, each dialect's own words and quoting.
   for (final dialect in sqlDialects.keys) dialect: LrLanguage(dialect, () => sqlParser(dialect)),
   // The pack's older modes (@codemirror/legacy-modes), for the languages it has no grammar for.
