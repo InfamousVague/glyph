@@ -14,8 +14,9 @@
 // them. A keystroke at the same place in each must cost the same: the work is the screen's and the changed line's,
 // and none of it is the note's length. Before the facts were kept with the document's tree, each of some twenty
 // extensions read every line of the note for every letter, and half of them for every move of the caret: this
-// test's long note would have counted about two hundred thousand lines for a letter, where it counts under two
-// thousand.
+// test's long note would have counted about two hundred thousand lines for a letter, where it counts under three
+// hundred handed out and about eleven hundred read for the kept facts (thirty-two lines, the leaf the letter made,
+// for each of some thirty-four facts).
 //
 // test/editor/input/budget_test.dart stays beside this one: it holds the keyboard's own client to its rules over
 // the editor's base stack (three lines shown to the keyboard, nothing pushed for a letter, one line laid out), and
@@ -173,8 +174,8 @@ void main() {
       expect(note.letter.chars, lessThanOrEqualTo(note.length + 64), reason: '$name: one string of the note, not several');
       expect(note.letter.asked, lessThanOrEqualTo(8), reason: '$name: who asks for the whole note as a string on a letter is a short list; a new asker is a reader of the whole note');
       // The kept facts read the leaf the letter made: thirty-two lines at most for each.
-      expect(note.letter.reads, lessThanOrEqualTo(2000), reason: '$name: a fact reads the changed leaf, not the note');
-      expect(note.letter.lines, lessThanOrEqualTo(2500), reason: '$name: lines are handed out for the screen, not for the note');
+      expect(note.letter.reads, lessThanOrEqualTo(1600), reason: '$name: a fact reads the changed leaf, not the note');
+      expect(note.letter.lines, lessThanOrEqualTo(600), reason: '$name: lines are handed out for the screen, not for the note');
       expect(note.letter.projected, lessThanOrEqualTo(2), reason: '$name: a letter projects its own line');
       expect(note.letter.laidOut, lessThanOrEqualTo(2), reason: '$name: and lays it out');
 
@@ -183,21 +184,21 @@ void main() {
       expect(note.caret.asked, lessThanOrEqualTo(1), reason: '$name: only the plugins\' offers ask for the note on a caret\'s move');
       expect(note.caret.reads, 0, reason: '$name: a caret reads no line for a fact');
       expect(note.caret.memos, 0, reason: '$name: and works nothing out from the note');
-      expect(note.caret.lines, lessThanOrEqualTo(1200), reason: '$name: a caret hands out the screen\'s lines at most');
+      expect(note.caret.lines, lessThanOrEqualTo(250), reason: '$name: a caret hands out the screen\'s lines at most');
       expect(note.caret.projected, lessThanOrEqualTo(2), reason: '$name: the line the caret left and the one it came to');
       expect(note.caret.laidOut, lessThanOrEqualTo(2), reason: '$name: a caret lays out the lines it shows marks on');
 
       // A NEW LINE: a letter's cost, and the lines below moved down.
       expect(note.enter.chars, lessThanOrEqualTo(note.length + 64), reason: '$name: one string of the note for a new line');
-      expect(note.enter.reads, lessThanOrEqualTo(4000), reason: '$name: a new line reads the leaves it made');
-      expect(note.enter.lines, lessThanOrEqualTo(3500), reason: '$name: a new line hands out the screen\'s lines');
+      expect(note.enter.reads, lessThanOrEqualTo(2400), reason: '$name: a new line reads the leaves it made');
+      expect(note.enter.lines, lessThanOrEqualTo(700), reason: '$name: a new line hands out the screen\'s lines');
       expect(note.enter.projected, lessThanOrEqualTo(4), reason: '$name: a new line projects the two lines it made of one');
     }
 
     // And none of it is the note's length: the long note counts what the short one does.
-    expect(long.letter.lines, lessThanOrEqualTo(short.letter.lines + 200), reason: 'a letter in a note thirty times as long hands out no more lines');
-    expect(long.letter.reads, lessThanOrEqualTo(short.letter.reads + 400), reason: 'and reads no more for its facts');
-    expect(long.caret.lines, lessThanOrEqualTo(short.caret.lines + 200), reason: 'nor does a caret');
-    expect(long.enter.lines, lessThanOrEqualTo(short.enter.lines + 300), reason: 'nor a new line');
+    expect(long.letter.lines, lessThanOrEqualTo(short.letter.lines + 60), reason: 'a letter in a note thirty times as long hands out no more lines');
+    expect(long.letter.reads, lessThanOrEqualTo(short.letter.reads + 100), reason: 'and reads no more for its facts');
+    expect(long.caret.lines, lessThanOrEqualTo(short.caret.lines + 60), reason: 'nor does a caret');
+    expect(long.enter.lines, lessThanOrEqualTo(short.enter.lines + 60), reason: 'nor a new line');
   });
 }
