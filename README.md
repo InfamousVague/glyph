@@ -102,20 +102,23 @@ the page's pane until its own is there. A fling does not stop where it is left: 
 finger held still before it lifts.
 
 - **The phone's insets are whole CSS pixels, rounded up** (`packages/glacier/lib/src/tokens/theme.dart`), as a
-  WebView gives them to the page (Chromium's `adjustInsetForScale`): the emulator's status bar is 159 device pixels
-  unfolded (61px to the page, 60.57 here before), 128 at the cover's width (49) and 120 on its side (46). That was
-  the one device pixel by which everything under the bar stood high on every screen of the first leg.
+  WebView gives them to the page: the emulator's status bar is 159 device pixels unfolded (61px to the page, 60.57
+  here before), 128 at the cover's width (49) and 120 on its side (46), which stood everything under the bar a
+  device pixel high beside the page. Up, because Chromium's `adjustInsetForScale` is a ceiling as it is remembered;
+  the three bars measured would each come to the same whole pixel rounded to the nearest, so a bar whose fraction
+  is under a half (the Fold's has not been read) is where the two would part, and is not settled.
 - **The recorder**, both apps recording silence (the Tauri app given the microphone with `pm grant`): the top
   line, the empty page, the ghost, the hint and the card of things to say, upright, at the cover's width and on its
-  side. Its top line was never 19px off: the page's line is as tall as its word, an `.app-word` with the touch
-  target's least height, and the 19px was the failed take's line, which has no word, on the page as here. What was
-  off and is not now: the lines' heights (a line of things to say is 18.45px, the small capitals and headings a
-  line of `line-height: normal` in the phone's pixels; the card's foot stood five device pixels short), the hint
-  (the page says "Press the side key to stop" wherever its host can tell the screen went off, which the phone can
-  with or without the assistant; `lib/root/voice_wiring.dart`), and the Fold on its side, too short for the page,
-  the ghost and the hint over the card, where the page keeps the page the top line's room and lets the hint run
-  over the body's foot and this had the ghost under the top line's glass. Held by the page's rectangles read from
-  the Tauri app's WebView: `test/capture_ui/fixtures/rest-704x933.json` and `rest-933x704.json`.
+  side. Its top line was never off by the 19px: the page's line is as tall as its word, an `.app-word` with the
+  touch target's least height (56.96px), so its words stand 20px under where `.top`'s padding alone would put
+  them, on the page as here (measured on both, and within a device pixel of each other). What was off and is not
+  now: the lines' heights (a line of things to say is 18.45px, the small capitals and headings a line of
+  `line-height: normal` in the phone's pixels; the card's foot stood five device pixels short), the hint (the page
+  says "Press the side key to stop" wherever its host can tell the screen went off, which the phone can with or
+  without the assistant; `lib/root/voice_wiring.dart`), and the Fold on its side, too short for the note's page,
+  the ghost and the hint over the card: there the page keeps the note's page the top line's room and lets the hint
+  run over the body's foot, where this had the ghost under the top line's glass. Held by the page's rectangles
+  read from the Tauri app's WebView: `test/capture_ui/fixtures/rest-704x933.json` and `rest-933x704.json`.
 - **The meeting screen** matched, once both had been asked about notifications (the page's third line, "Let
   Ghost.md tell you when it is written up", is there until they have): the cassette, the two lines, the buttons.
 - **A notebook's index under its words**: `:global(.app-split) .editor .cm-editor .cm-content { padding-block-end:
@@ -123,8 +126,9 @@ finger held still before it lifts.
   three: on the split layout every editor inside the panes keeps that room under its last line, a notebook's words
   and a card's preview with them. That is the 37px, and a phone's width has none of it (looked at there too). The
   panes wear the page's class (`GlacierScope(classes: {'app-split'})`, `lib/shell/app_shell.dart`) and
-  `LookEnv.splitRoom` is the rule; a note in the panes had kept the phone's 126px under its last line, and has
-  the 38 now. Held by `test/root/wide_test.dart`.
+  `LookEnv.splitRoom` is the rule; a note in the panes had kept the phone's tall room under its last line
+  (`--glacier-space-24`) and has the paragraph's now, by the rule: a note's foot was not looked at beside the
+  page. The index is held by `test/root/wide_test.dart`.
 - **A ticket's panel is as narrow as the page's and no narrower** (`lib/editor/tickets/ticket_panel.dart`): its
   least is its narrowest content's, worked out as the page's comes out (the names' column and its gap, the values'
   `minmax(0, 1fr)` being nothing when a grid is asked how narrow it can be; what it waits on, the title whole
@@ -161,20 +165,21 @@ finger held still before it lifts.
   has no "From a shared link" (no account), its cards carry a gist (it has a model), and the two apps' recent notes
   are in another order.
 - **Upright, the rest, as far as it got:** the notifications card matched. All notes matched but for a notebook's
-  card (above). Settings' pages at their tops matched (Account, Organizations, Workspaces, Notifications, Library
-  folder, Backup, Export, Appearance, Recording, AI), and Appearance all the way down at the same scroll; what
-  differed was each app's own state (Notifications' "On this phone" card, About's updates, a model downloaded
-  here) and one thing that is the page's fault: the chosen interface-size card's label is drawn in the paper's
-  colour there, ink.css's rule for the segmented control's chosen label (`[role='radiogroup'] >
-  label[data-selected] > span:last-child`) reaching the card's, and cannot be read; here it is in ink, as the
-  card's own stylesheet says.
+  card (above). Settings' pages at their tops (Account, Organizations, Workspaces, Notifications, Library folder,
+  Backup, Export, Appearance, Recording, AI), and Appearance down its length at the same scroll but for the
+  typeface cards' stretch, showed nothing out of place. They were looked at a quarter of their size, several to a
+  sheet, so a row a few pixels off would not have shown, and nothing on them was measured. What differed was each
+  app's own state (Notifications' "On this phone" card, About's updates, a model downloaded here) and one thing
+  that is the page's fault: the chosen interface-size card's label is drawn in the paper's colour there, ink.css's
+  rule for the segmented control's chosen label (`[role='radiogroup'] > label[data-selected] > span:last-child`)
+  reaching the card's, and cannot be read; here it is in ink, as the card's own stylesheet says.
 
 Still open:
 
 - **Changed after the last build the emulator had, and so held by their tests and not seen beside the page:**
-  the recorder on its side (the page kept the top line's room), Settings' way back on the page's line, the
-  command palette's headings and rows on the page's lines (its seventh row stood two device pixels low), and a
-  notebook's card cutting a page's name with no ellipsis.
+  the recorder on its side, Settings' way back on the page's line (it stood two device pixels low), the command
+  palette's headings and rows on the page's lines (its seventh row stood two low), and a notebook's card cutting
+  a page's name with no ellipsis.
 - **A heading's words in a note** still stand off the page's on the Fold after the lines were put in the phone's
   pixels: the note's name two device pixels low, a section three high, three hashes one low, the paragraphs one
   high (the Fold on its side, "How to format a note"). The look's numbers are the page's, so what is left is in how
@@ -189,11 +194,12 @@ Still open:
   the Academy, the guide. Settings' Plugins page has no pair at its top, and the pages' feet were not all caught
   at the same scroll.
 - **The first leg's pictures were not gone through one by one** for their one and two pixels: what was found on
-  the way is above. Known and left: a tab's name and a notebook row's title about a pixel low at the cover's
-  width, and a ticket's panel one device pixel longer than the page's.
+  the way is above. Seen and left: a tab's name and a notebook row's title about a pixel low at the cover's width
+  (before the look-and-feel pass's own change to the bar's lines that day), and a ticket's panel one device pixel
+  longer than the page's.
 - **How the emulator was left** (`ghostflutter`, emulator-5584): `wm size 1848x2448` still set (`wm size reset`);
   both apps' top bar on Ledger, where they had Classic; Sidebar on Docked, the columns hidden; the Tauri app given
-  the microphone and notifications by `pm grant`.
+  the microphone and notifications by `pm grant`, and its meeting screen's Allow pressed once.
 - **The aside's version history** (`AsideHistory`, a desktop's: the page leaves it out on a phone, `!isMobile`).
   `AsidePanel` has the two tabs and takes the history as a widget; nothing gives it one, and the bar's History
   button still opens the More sheet's page. It wants the open note's live words and its restore from the note's
