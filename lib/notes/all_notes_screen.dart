@@ -404,34 +404,34 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     }
     _cardsFor = made;
     Widget build(int i, bool fill) {
-          if (ghostPerf) Perf.count('allnotes.card');
-          final note = shown[i];
-          Widget card(String? gist) => NoteCard(
-                key: ValueKey('card-${note.id}'),
-                note: note,
-                index: i,
-                onOpen: _open,
-                now: now,
-                gist: gist,
-                place: placeOf(read.inBooks, note),
-                entries: read.journals[note.id],
-                dense: true,
-                fill: fill,
-                onMenu: made.menu ? (_) => widget.onNoteMenu?.call(note, _pressedAt) : null,
-                since: _arrivals.since(fill ? '$i/${note.id}' : note.id),
-                gistSince: _gistArrivals.since(note.id),
-              );
-          // The first screens of cards say what each note is about: each reads its own line.
-          final Widget drawn = i < allNotesGisted ? Gisted(gists: _gists, id: note.id, builder: (context, gist) => card(gist)) : card(null);
-          if (!made.menu) return drawn;
-          // The right-click a card answers: the note's menu at the pointer (notes/noteMenu.ts).
-          return Listener(
-            onPointerDown: (event) {
-              _pressedAt = event.position;
-              if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) widget.onNoteMenu?.call(note, event.position);
-            },
-            child: drawn,
+      if (ghostPerf) Perf.count('allnotes.card');
+      final note = shown[i];
+      Widget card(String? gist) => NoteCard(
+            key: ValueKey('card-${note.id}'),
+            note: note,
+            index: i,
+            onOpen: _open,
+            now: now,
+            gist: gist,
+            place: placeOf(read.inBooks, note),
+            entries: read.journals[note.id],
+            dense: true,
+            fill: fill,
+            onMenu: made.menu ? (_) => widget.onNoteMenu?.call(note, _pressedAt) : null,
+            since: _arrivals.since(fill ? '$i/${note.id}' : note.id),
+            gistSince: _gistArrivals.since(note.id),
           );
+      // The first screens of cards say what each note is about: each reads its own line.
+      final Widget drawn = i < allNotesGisted ? Gisted(gists: _gists, id: note.id, builder: (context, gist) => card(gist)) : card(null);
+      if (!made.menu) return drawn;
+      // The right-click a card answers: the note's menu at the pointer (notes/noteMenu.ts).
+      return Listener(
+        onPointerDown: (event) {
+          _pressedAt = event.position;
+          if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) widget.onNoteMenu?.call(note, event.position);
+        },
+        child: drawn,
+      );
     }
 
     return _cards = SliverSemantics(
