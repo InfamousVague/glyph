@@ -318,6 +318,8 @@ class _GhostRootState extends State<GhostRoot> {
           touched: _library is CoreLibrary ? (_library).touched : null,
           refresh: _library.refresh,
           shownNotes: () => _shown,
+          // A shared link follows the notes, by whichever hand they changed (lib/share/share.dart `follow`).
+          notesChanged: _library,
           kept: _stored,
           onPicture: (name) => _pictures?.arrived(name),
           // A note of the account's own that met another device's while this one had changes unsent: this

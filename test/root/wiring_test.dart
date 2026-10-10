@@ -148,6 +148,32 @@ void main() {
       expect(accountBase('https://attack.fm/glyph/api', debug: true), isNull);
     });
 
+    // Unwired 2 (docs/PARITY.md): `Shares.follow` had no caller, so a shared link never followed an edit while
+    // Settings said "Your edits follow it." (src/main.tsx `followShares()`, at launch).
+    test('the shares follow a save here and notes changed by sync from the account\'s start, and stop with it', () async {
+      final kept = MemoryStored();
+      Future<Object?> core(String command, [Map<String, Object?> args = const <String, Object?>{}]) async => null;
+      final saved = _Heard(), changed = _Heard();
+      final wired = WiredAccount.make(
+        making: AccountMaking(base: 'http://127.0.0.1:9/api', crypto: CoreCrypto(core), dataDir: '/nowhere', fetcher: (_) async => throw StateError('nothing is asked'), secure: MemorySecureStore()),
+        core: core,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        versions: VersionsStore(core, kept: kept),
+        touched: saved,
+        refresh: () {},
+        shownNotes: () => const [],
+        notesChanged: changed,
+        prefs: PreferencesStore()..startWithoutStorage(),
+        kept: kept,
+      );
+      expect(changed.heard, isFalse);
+      await wired.start();
+      // The engine hears a save too; only the shares hear the notes change by another hand.
+      expect((saved.heard, changed.heard), (true, true));
+      wired.dispose();
+      expect(changed.heard, isFalse);
+    });
+
     test('a way in with no service says so', () async {
       await expectLater(noServiceWayIn(mode: 'in', handle: 'matt', password: 'correct horse'), throwsA(isA<SaidFailure>().having((f) => f.words, 'words', noServiceWords)));
     });
@@ -256,4 +282,9 @@ void main() {
       await close(tester);
     });
   });
+}
+
+/// A listenable that says whether anything listens to it.
+class _Heard extends ChangeNotifier {
+  bool get heard => hasListeners;
 }

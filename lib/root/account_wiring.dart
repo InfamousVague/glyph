@@ -132,13 +132,15 @@ class _AccountDocs implements TeamDocStore {
 
 /// The account's objects for this device, and their bundle for the screens.
 class WiredAccount {
-  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive, this.phone);
+  WiredAccount._(this.services, this.engine, this._docs, this.live, this.noteLive, this.phone, this._saved, this._changed);
 
   /// Makes everything over this device's own stores. [core] is the library's core; [touched] is told after this
   /// device changes a note and [refresh] reads the list again after a pass changed notes (`CoreLibrary`'s two);
   /// [versions] is the versions' own store, shared with the note's history; [onPicture] is told a picture's name
   /// once sync has kept it; [keepCopy] keeps words as a note of their own (a note of the account's own that met
-  /// another device's while this one had changes unsent).
+  /// another device's while this one had changes unsent); [notesChanged] says the notes changed by any hand, a
+  /// sync's too (the library itself, the page's `NOTES_CHANGED`), which with [touched] is what a shared link
+  /// follows.
   factory WiredAccount.make({
     required AccountMaking making,
     required CoreInvoke core,
@@ -147,6 +149,7 @@ class WiredAccount {
     required Listenable? touched,
     required FutureOr<void> Function() refresh,
     required List<Note> Function() shownNotes,
+    Listenable? notesChanged,
     PreferencesStore? prefs,
     Stored? kept,
     void Function(String name)? onPicture,
@@ -220,8 +223,12 @@ class WiredAccount {
       liveTyping: typing,
       kept: device,
     );
-    return WiredAccount._(services, engine, docs, live, noteLive, phone);
+    return WiredAccount._(services, engine, docs, live, noteLive, phone, touched, notesChanged);
   }
+
+  /// What says a note was saved here, and that the notes changed: what the shares follow.
+  final Listenable? _saved;
+  final Listenable? _changed;
 
   final AccountServices services;
   final SyncEngine engine;
@@ -248,6 +255,10 @@ class WiredAccount {
     // Before the first pass, so the rows it brings are heard.
     phone.start();
     engine.start();
+    // What this device shares follows its edits (src/main.tsx `followShares()`): a few seconds after a save here, or
+    // after notes changed by sync, every share that changed is written again; and once at launch.
+    final saved = _saved ?? _changed;
+    if (saved != null) services.shares?.follow(saved: saved, changed: identical(saved, _changed) ? null : _changed);
     // The organizations' rooms, held from here on for as long as the account is in them.
     live.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
   }
@@ -262,6 +273,8 @@ class WiredAccount {
   void paused() => live.paused();
 
   void dispose() {
+    // The shares stop following, and their wait is let go.
+    services.shares?.dispose();
     live.dispose();
     phone.dispose();
     engine.dispose();
