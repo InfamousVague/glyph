@@ -130,9 +130,11 @@ int _startOfDay(int now) {
 }
 
 /// Which span a moment falls in, counted in this device's days from [now].
-Span spanOf(int at, [int? now]) {
+Span spanOf(int at, [int? now]) => _spanFrom(at, _startOfDay(now ?? DateTime.now().millisecondsSinceEpoch));
+
+/// [spanOf], from the midnight today began at.
+Span _spanFrom(int at, int today) {
   const day = 24 * 60 * 60 * 1000;
-  final today = _startOfDay(now ?? DateTime.now().millisecondsSinceEpoch);
   if (at >= today) return Span.today;
   if (at >= today - day) return Span.yesterday;
   if (at >= today - 6 * day) return Span.week;
@@ -142,11 +144,15 @@ Span spanOf(int at, [int? now]) {
 
 /// Notes grouped by when each was last touched, newest first within each, the spans in order and empty ones left out.
 List<({Span span, List<Note> notes})> spans(Iterable<Note> notes, [int? now]) {
-  final moment = now ?? DateTime.now().millisecondsSinceEpoch;
-  final every = _sorted(notes, _newestFirst);
+  // Today's midnight is found once, and each note placed once: it was asked of the calendar ten times a note.
+  final today = _startOfDay(now ?? DateTime.now().millisecondsSinceEpoch);
+  final groups = <Span, List<Note>>{};
+  for (final note in _sorted(notes, _newestFirst)) {
+    (groups[_spanFrom(note.updatedAt, today)] ??= <Note>[]).add(note);
+  }
   return [
     for (final span in Span.values)
-      if (every.any((n) => spanOf(n.updatedAt, moment) == span)) (span: span, notes: every.where((n) => spanOf(n.updatedAt, moment) == span).toList()),
+      if (groups[span] != null) (span: span, notes: groups[span]!),
   ];
 }
 

@@ -15,7 +15,7 @@ import 'package:glacier/glacier.dart';
 
 import '../app/widgets.dart';
 import '../core/note.dart';
-import '../core/note_text.dart';
+import '../core/note_facts.dart';
 import '../core/workspaces.dart';
 import '../notes/when.dart';
 import 'home_icons.dart';
@@ -32,6 +32,12 @@ class OrgNews {
 
   /// The colour its kind wears (`KIND_HUES`).
   final String? hue;
+
+  @override
+  bool operator ==(Object other) => other is OrgNews && other.id == id && other.at == at && other.words == words && other.hue == hue;
+
+  @override
+  int get hashCode => Object.hash(id, at, words, hue);
 }
 
 /// How many lines the card shows (`MOST`).
@@ -85,7 +91,7 @@ class HomeOrgEvents extends StatelessWidget {
     final rest = <_Line>[
       for (final note in notes)
         if (filed[note.id] == workspace && note.archivedAt == null)
-          _Line(key: 'note-${note.id}', at: note.updatedAt, words: '${noteTitle(note.body).isEmpty ? 'An untitled note' : noteTitle(note.body)} changed', note: note.id),
+          _Line(key: 'note-${note.id}', at: note.updatedAt, words: '${NoteFacts.of(note).title.isEmpty ? 'An untitled note' : NoteFacts.of(note).title} changed', note: note.id),
       for (final each in news) _Line(key: 'news-${each.id}', at: each.at, words: each.words, dot: each.hue),
     ];
     final ordered = rest.indexed.toList()

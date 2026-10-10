@@ -273,7 +273,8 @@ void main() {
       // Home: three cards, far too short a page to be 900 down. It holds, then glides.
       spaces.chooseWorkspace('home');
       await tester.pump();
-      expect(find.text('3 notes'), findsOneWidget);
+      // The tally is above the window while the page is held where it was: there, and not on the screen.
+      expect(find.text('3 notes', skipOffstage: false), findsOneWidget);
       expect(position.pixels, closeTo(900, 1), reason: 'held where it was for the first frame');
       // The glide's clock starts at its first frame.
       await tester.pump(const Duration(milliseconds: 16));
@@ -417,6 +418,69 @@ void main() {
       at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 25.06, 270.84, 208.83, 360, reason: 'the ghost');
       expect(tester.getRect(find.text('Nothing has “zzzz”.')).top, closeTo(394.13, 0.5));
       at(tester.getRect(find.ancestor(of: find.text('Try fewer words, or look in the archive.'), matching: find.byType(ConstrainedBox)).first), 607.02, 456.19, 300.77, 51.38, reason: 'the hint');
+      await away(tester);
+    });
+  });
+
+  group('what the page builds, and when', () {
+    List<Note> many(int count) => [for (var i = 0; i < count; i += 1) makeNote('n$i', body: '# Note $i\n\nWhat note $i says, on a line of its own.\n\n- one\n- two', updatedAt: 100000 - i)];
+
+    /// Every card the page has, read by going down it a screen at a time: it builds only the ones near the screen.
+    Future<List<String>> down(WidgetTester tester) async {
+      final position = tester.state<ScrollableState>(find.descendant(of: key('all-notes-scroll'), matching: find.byType(Scrollable)).first).position;
+      final found = <String>[];
+      while (true) {
+        for (final id in cards(tester)) {
+          if (!found.contains(id)) found.add(id);
+        }
+        if (position.pixels >= position.maxScrollExtent) break;
+        position.jumpTo((position.pixels + position.viewportDimension * 0.5).clamp(0.0, position.maxScrollExtent));
+        await tester.pump();
+      }
+      position.jumpTo(0);
+      await tester.pump();
+      return found;
+    }
+
+    testWidgets('only the cards near the screen, on a phone and across a wide window, and every one as it is scrolled to', (tester) async {
+      await show(tester, many(240));
+      expect(find.text('240 notes'), findsOneWidget);
+      expect(tester.widgetList<NoteCard>(find.byType(NoteCard, skipOffstage: false)).length, inInclusiveRange(4, 30));
+      expect(await down(tester), [for (var i = 0; i < 240; i += 1) 'n$i']);
+      await away(tester);
+      // Four across: a row of the grid is built whole, its cards one height.
+      await show(tester, many(240), size: const Size(1000, 800), split: true);
+      final built = tester.widgetList<NoteCard>(find.byType(NoteCard, skipOffstage: false)).length;
+      expect(built, inInclusiveRange(12, 60));
+      expect(built % 4, 0);
+      expect({for (var i = 0; i < 4; i += 1) tester.getRect(key('card-n$i')).height}.length, 1, reason: 'a row of cards is one height');
+      expect({for (var i = 0; i < 4; i += 1) tester.getRect(key('card-n$i')).top}.length, 1);
+      expect(await down(tester), [for (var i = 0; i < 240; i += 1) 'n$i']);
+      await away(tester);
+    });
+
+    testWidgets('no card again for the search field’s caret or the same notes handed over again, and every card for a new search', (tester) async {
+      final notes = ValueNotifier<List<Note>>(many(40));
+      final spaces = allNotesWorkspaces(any: false);
+      final stored = MemoryStored();
+      await pumpAllNotes(tester, ValueListenableBuilder<List<Note>>(valueListenable: notes, builder: (context, notes, _) => AllNotes(notes: notes, workspaces: spaces, asked: Asked(), stored: stored)));
+      await settle(tester);
+      NoteCard card(String id) => tester.widget<NoteCard>(key('card-$id'));
+      final first = card('n0');
+      // The same notes in a new list, and the page's own callbacks made anew: the cards are the ones it made.
+      notes.value = [...notes.value];
+      await tester.pump();
+      expect(identical(card('n0'), first), isTrue);
+      // The field takes the keyboard: the page is built for it, and no card is.
+      await tester.tap(find.byType(EditableText));
+      await tester.pump();
+      expect(identical(card('n0'), first), isTrue);
+      // Words typed: another list, and its cards.
+      await type(tester, 'note 1');
+      expect(cards(tester).first, 'n1');
+      expect(find.text('13 of 40'), findsOneWidget);
+      await type(tester, '');
+      expect(identical(card('n0'), first), isFalse);
       await away(tester);
     });
   });

@@ -6,6 +6,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/home_layout.dart';
+import 'package:ghost_md/home/home_org_events.dart';
 import 'package:ghost_md/home/home_organizations.dart';
 import 'package:ghost_md/home/home_rows.dart';
 import 'package:ghost_md/home/home_screen.dart';
@@ -42,12 +43,46 @@ void main() {
   /// The filters' button, whatever it says is on: "Filters", "Filters: Pinned, Home".
   final filters = find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.button == true && (widget.properties.label ?? '').startsWith('Filters'));
 
-  /// Puts what [finder] finds a third of the way down the screen, clear of the header and the dock.
+  /// Puts what [finder] finds a third of the way down the screen, clear of the header and the dock. The page builds
+  /// only what is near the screen, so it is scrolled until the thing is there, and drawn where that left it before
+  /// it is asked where it stands.
   Future<void> bring(WidgetTester tester, Finder finder) async {
     final position = tester.state<ScrollableState>(scroller).position;
     await tester.scrollUntilVisible(finder, 300, scrollable: scroller);
+    await tester.pump();
     position.jumpTo((position.pixels + tester.getRect(finder).top - 300).clamp(0.0, position.maxScrollExtent));
     await tester.pump();
+  }
+
+  /// Everything the page lists from its top to its foot, in order: what [seen] finds as the page is scrolled down a
+  /// screen at a time, each thing once. The page builds only what is near the screen, so what it lists is read by
+  /// going down it, as a person does. The page is left at its top.
+  Future<List<T>> down<T>(WidgetTester tester, List<T> Function() seen) async {
+    final position = tester.state<ScrollableState>(scroller).position;
+    position.jumpTo(0);
+    await tester.pump();
+    final found = <T>[];
+    while (true) {
+      for (final each in seen()) {
+        if (!found.contains(each)) found.add(each);
+      }
+      if (position.pixels >= position.maxScrollExtent) break;
+      position.jumpTo((position.pixels + position.viewportDimension * 0.5).clamp(0.0, position.maxScrollExtent));
+      await tester.pump();
+    }
+    position.jumpTo(0);
+    await tester.pump();
+    return found;
+  }
+
+  /// The page at its foot, where the way to All notes is.
+  Future<void> toFoot(WidgetTester tester) async {
+    final position = tester.state<ScrollableState>(scroller).position;
+    // How far the page goes is known for certain only once its last rows are laid out: gone to twice.
+    for (var i = 0; i < 3; i += 1) {
+      position.jumpTo(position.maxScrollExtent);
+      await tester.pump();
+    }
   }
 
   /// A choice of the filters' panel, by what it says: a radio, apart from a heading or the page's name that says the
@@ -93,15 +128,21 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
       await settle(tester);
-      expect(headings(tester), ['Pinned 1', 'Recent', 'Today 3', 'Yesterday 5', 'Earlier this week 7']);
-      expect([for (final line in tester.widgetList<HomeLine>(find.byType(HomeLine))) line.note.id], ['weekend']);
-      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['prd11', 'standup', 'flat', 'open-tickets']);
-      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(4), ['sprint', 'reading', 'groceries', 'house']);
+      expect(await down(tester, () => headings(tester)), ['Pinned 1', 'Recent', 'Today 3', 'Yesterday 5', 'Earlier this week 7']);
+      expect(await down(tester, () => [for (final line in tester.widgetList<HomeLine>(find.byType(HomeLine))) line.note.id]), ['weekend']);
+      expect(await down(tester, () => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id]), ['prd11', 'standup', 'flat', 'open-tickets']);
+      final rows = await down(tester, () => [for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id]);
+      expect(rows.take(4), ['sprint', 'reading', 'groceries', 'house']);
+      // Every note is on the page once: a line, a card or a row.
+      expect(rows.length, 20 - 1 - 4);
+      await toFoot(tester);
       expect(find.text('All notes · 20'), findsOneWidget);
       // The archive is never on the page.
       it.library.archive('flat', archived: true);
       await settle(tester);
+      expect(await down(tester, () => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id]), isNot(contains('flat')));
       expect(key('card-flat'), findsNothing);
+      await toFoot(tester);
       expect(find.text('All notes · 19'), findsOneWidget);
       await away(tester);
     });
@@ -110,8 +151,8 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.cards));
       await settle(tester);
-      expect(headings(tester), ['Notebooks 2', 'Notes 18']);
-      final cards = [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id];
+      expect(await down(tester, () => headings(tester)), ['Notebooks 2', 'Notes 18']);
+      final cards = await down(tester, () => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id]);
       expect(cards.take(4), ['product', 'portugal', 'weekend', 'prd11']);
       expect(cards.length, 20);
       // A notebook's card: how many pages, and the first of them, numbered.
@@ -125,8 +166,10 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline));
       await settle(tester);
-      expect(headings(tester), ['Today 8', 'Yesterday 5', 'Earlier this week 7']);
-      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(8), ['prd11', 'standup', 'flat', 'open-tickets', 'sprint', 'reading', 'weekend', 'groceries']);
+      expect(await down(tester, () => headings(tester)), ['Today 8', 'Yesterday 5', 'Earlier this week 7']);
+      final rows = await down(tester, () => [for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id]);
+      expect(rows.take(8), ['prd11', 'standup', 'flat', 'open-tickets', 'sprint', 'reading', 'weekend', 'groceries']);
+      expect(rows.length, 20);
       expect(find.byType(NoteCard), findsNothing);
       // A row says its notebook, its ticket's key and status, and how it starts.
       expect(words('Product ·'), findsWidgets);
@@ -140,8 +183,10 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.list));
       await settle(tester);
-      expect(headings(tester), ['Notebooks 2', 'Notes 18']);
-      expect([for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id].take(4), ['product', 'portugal', 'weekend', 'prd11']);
+      expect(await down(tester, () => headings(tester)), ['Notebooks 2', 'Notes 18']);
+      final rows = await down(tester, () => [for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id]);
+      expect(rows.take(4), ['product', 'portugal', 'weekend', 'prd11']);
+      expect(rows.length, 20);
       expect(find.descendant(of: key('row-product'), matching: words('4 pages')), findsOneWidget);
       await away(tester);
     });
@@ -169,7 +214,11 @@ void main() {
       final library = SampleLibrary([for (var i = 0; i < 50; i += 1) makeNote('n$i', body: '# Note $i', updatedAt: seedNow - i * 60000)], clock: () => seedNow);
       await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.cards), ratio: 1);
       await settle(tester);
-      expect(tester.widgetList<NoteCard>(find.byType(NoteCard)).length, cardsAtMost);
+      final cards = await down(tester, () => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id]);
+      expect(cards.length, cardsAtMost);
+      // And of all of them only the ones near the screen are built.
+      expect(tester.widgetList<NoteCard>(find.byType(NoteCard)).length, lessThan(cardsAtMost ~/ 2));
+      await toFoot(tester);
       expect(find.text('2 more in All notes'), findsOneWidget);
       await away(tester);
     });
@@ -388,6 +437,7 @@ void main() {
       await tester.tap(find.bySemanticsLabel('Home: every workspace'));
       await settle(tester);
       expect(it.workspaces.value.current, isNull);
+      await toFoot(tester);
       expect(find.text('All notes · 20'), findsOneWidget);
       await away(tester);
     });
@@ -948,6 +998,163 @@ void main() {
       expect(tester.getSemantics(radio('All, 20')), matchesSemantics(label: 'All, 20', hasCheckedState: true, isChecked: true, isInMutuallyExclusiveGroup: true, hasTapAction: true));
       expect(tester.getSemantics(radio('Notebooks, 2')), matchesSemantics(label: 'Notebooks, 2', hasCheckedState: true, isInMutuallyExclusiveGroup: true, hasTapAction: true));
       handle.dispose();
+      await away(tester);
+    });
+  });
+
+  group('what the page builds, and when', () {
+    /// A library of [count] notes touched a minute apart, the newest first: a long day of them.
+    SampleLibrary long(int count) => SampleLibrary([for (var i = 0; i < count; i += 1) makeNote('n$i', body: '# Note $i\n\nWhat note $i says.', updatedAt: seedNow - i * 60000)], clock: () => seedNow);
+
+    testWidgets('only the rows near the screen, of however many it lists, and each of the rest as it is scrolled to', (tester) async {
+      final library = long(300);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.timeline));
+      await settle(tester);
+      // 300 rows under Today; a screen of them and a little more are there.
+      expect(headings(tester), ['Today 300']);
+      final built = tester.widgetList<HomeRow>(find.byType(HomeRow, skipOffstage: false)).length;
+      expect(built, inInclusiveRange(10, 40));
+      expect(find.byKey(const ValueKey('row-n0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('row-n299'), skipOffstage: false), findsNothing);
+      // Every one of them is on the page, in order, when it is gone down.
+      final rows = await down(tester, () => [for (final row in tester.widgetList<HomeRow>(find.byType(HomeRow))) row.note.id]);
+      expect(rows, [for (var i = 0; i < 300; i += 1) 'n$i']);
+      // At its foot the last row is ruled off under, and the way to All notes follows it.
+      await toFoot(tester);
+      expect(find.byKey(const ValueKey('row-n299')), findsOneWidget);
+      expect(find.text('All notes · 300'), findsOneWidget);
+      expect(tester.getRect(find.text('All notes · 300')).top, greaterThan(tester.getRect(find.byKey(const ValueKey('row-n299'))).bottom));
+      expect(tester.widgetList<HomeRow>(find.byType(HomeRow, skipOffstage: false)).length, lessThan(40));
+      await away(tester);
+    });
+
+    testWidgets('nothing again for the same notes in a new list with new callbacks, and one row for one note changed', (tester) async {
+      final library = long(40);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.timeline));
+      await settle(tester);
+      HomeRow row(String id) => tester.widget<HomeRow>(find.byKey(ValueKey('row-$id')));
+      final first = row('n0'), second = row('n1');
+      // Whoever hands the page its notes makes a new list of the same notes, and new callbacks, at every build.
+      library.value = [...library.value];
+      await tester.pump();
+      expect(identical(row('n0'), first), isTrue, reason: 'the same notes: the page hands back the rows it made');
+      expect(identical(row('n1'), second), isTrue);
+      // The same notes read again from the library: new objects that say what the old ones said.
+      library.value = [for (final note in library.value) note.copyWith()];
+      await tester.pump();
+      expect(identical(row('n0'), first), isTrue, reason: 'notes that say the same are the same notes');
+      // One note pinned: the page is made again, and says so.
+      library.pin('n1', pinned: true);
+      await tester.pump();
+      expect(identical(row('n0'), first), isFalse);
+      expect(row('n1').note.starred, isTrue);
+      await away(tester);
+    });
+
+    testWidgets('a callback handed over later is the one a row calls', (tester) async {
+      final library = long(5);
+      final first = Asked(), second = Asked();
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: first, layout: HomeLayout.timeline));
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('row-n0')));
+      expect(first.said, ['open n0']);
+      // The same page, handed another's callbacks: the rows are the ones it made, and they call the new ones.
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: second, layout: HomeLayout.timeline));
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('row-n1')));
+      expect(first.said, ['open n0']);
+      expect(second.said, ['open n1']);
+      await away(tester);
+    });
+
+    testWidgets('a row arrives once: scrolled away and back it is there, and a row that changes its place arrives again', (tester) async {
+      final library = long(120);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.timeline));
+      // Arriving: the first row is on its way in.
+      await tester.pump(const Duration(milliseconds: 100));
+      double shown(String id) => tester.widget<Opacity>(find.descendant(of: find.byKey(ValueKey('row-$id')), matching: find.byType(Opacity)).first).opacity;
+      expect(shown('n0'), inExclusiveRange(0, 1));
+      await settle(tester);
+      expect(shown('n0'), 1);
+      final position = tester.state<ScrollableState>(scroller).position;
+      // Far down the page: rows made only now, long after the page was. They have been on it all along.
+      position.jumpTo(3000);
+      await tester.pump();
+      final far = tester.widgetList<HomeRow>(find.byType(HomeRow)).first.note.id;
+      expect(shown(far), 1, reason: 'a row scrolled to is not arriving');
+      // And back: the first row was taken down and is made again, arrived.
+      expect(find.byKey(const ValueKey('row-n0'), skipOffstage: false), findsNothing);
+      position.jumpTo(0);
+      await tester.pump();
+      expect(shown('n0'), 1, reason: 'a row scrolled back to does not arrive again');
+      // A note touched goes to the top, and every row under it stands one lower: each is made again in its place.
+      library.value = [for (final note in library.value) note.id == 'n3' ? note.copyWith(updatedAt: seedNow + 1) : note];
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(shown('n3'), lessThan(1), reason: 'a row in a new place arrives there');
+      await settle(tester);
+      expect(shown('n3'), 1);
+      await away(tester);
+    });
+
+    testWidgets('a pull lowers the rows that are there and builds none again', (tester) async {
+      final library = long(60);
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.timeline, refresh: true));
+      await settle(tester);
+      final before = tester.widget<HomeRow>(find.byKey(const ValueKey('row-n0')));
+      final top = tester.getRect(find.byKey(const ValueKey('row-n0'))).top;
+      final gesture = await tester.startGesture(const Offset(200, 300));
+      await gesture.moveBy(const Offset(0, 14));
+      await tester.pump(const Duration(milliseconds: 16));
+      await gesture.moveBy(const Offset(0, 120));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(tester.getRect(find.byKey(const ValueKey('row-n0'))).top, greaterThan(top + 20), reason: 'the page comes down with the finger');
+      expect(identical(tester.widget<HomeRow>(find.byKey(const ValueKey('row-n0'))), before), isTrue, reason: 'and is not built again for it');
+      // A row is pressed where it is drawn, not where it was laid out.
+      // Let go short of the detent, the page goes back up.
+      await gesture.moveBy(const Offset(0, -134));
+      await gesture.up();
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 1));
+      expect(tester.getRect(find.byKey(const ValueKey('row-n0'))).top, closeTo(top, 0.01));
+      await away(tester);
+    });
+  });
+
+  group('an organization’s events on a wide page', () {
+    testWidgets('dock to the right of the notes, eighteen rem wide, the notes in the room that is left', (tester) async {
+      final it = seeded();
+      it.workspaces.ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+      for (final id in ['weekend', 'flat', 'prd11', 'standup', 'sprint', 'reading']) {
+        it.workspaces.fileNote(id, 'org-acme');
+      }
+      it.workspaces.chooseWorkspace('org-acme');
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: const [HomeOrg(id: 'acme', name: 'Acme', hue: 'violet', members: 3)]), size: const Size(1280, 800), ratio: 1);
+      await settle(tester);
+      final t = tester.element(key('home-scroll')).tokens;
+      // The page's column: the window inside its gutters, held to 64rem and centred.
+      final inner = 1280 - t.len('app-gutter-start') - t.len('app-gutter-end');
+      final across = inner < t.lenOf('64rem') ? inner : t.lenOf('64rem');
+      final left = t.len('app-gutter-start') + (inner - across) / 2;
+      final events = tester.getRect(find.byType(HomeOrgEvents));
+      expect(events.width, closeTo(t.lenOf('18rem'), 0.01));
+      expect(events.right, closeTo(left + across, 0.01));
+      // The notes beside it: from the column's start to a gap before the card.
+      final heading = tester.getRect(find.byType(HomeHeading).first);
+      expect(heading.left, closeTo(left, 0.01));
+      expect(heading.right, closeTo(events.left - t.space(4), 0.01));
+      // The two stand at one height: the card at the row's top, the first heading a section's air under it.
+      expect(events.top, closeTo(heading.top - t.space(3), 0.01));
+      // The cards of the notes are counted across the room the notes have, not the page's.
+      final card = tester.getRect(find.byType(NoteCard).first);
+      expect(card.left, closeTo(left, 0.01));
+      expect(card.right, lessThanOrEqualTo(events.left - t.space(4) + 0.01));
+      // And a line of the pinned runs the notes' whole width.
+      final line = tester.getRect(find.byType(HomeLine).first);
+      expect(line.left, closeTo(left, 0.01));
+      expect(line.right, closeTo(events.left - t.space(4), 0.01));
+      await tester.tap(find.text('Open Acme'));
+      expect(it.asked.said, ['organization acme']);
       await away(tester);
     });
   });

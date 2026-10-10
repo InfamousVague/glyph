@@ -8,6 +8,7 @@
 /// draws the block for whatever it is given, and nothing for an empty list.
 library;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -29,6 +30,13 @@ class OrgPresence {
   /// The note they are editing, by id, and its title; null where they are only here.
   final String? editingNote;
   final String? editingTitle;
+
+  @override
+  bool operator ==(Object other) =>
+      other is OrgPresence && other.client == client && other.handle == handle && other.hue == hue && other.editingNote == editingNote && other.editingTitle == editingTitle;
+
+  @override
+  int get hashCode => Object.hash(client, handle, hue, editingNote, editingTitle);
 }
 
 /// An organization this account has joined (`OrgRow` with `state: 'member'`), and who is in it now.
@@ -44,6 +52,14 @@ class HomeOrg {
   /// How many have joined.
   final int members;
   final List<OrgPresence> here;
+
+  /// The same organization, said the same: whoever hands the home page its organizations makes the list anew at
+  /// every build, and the page asks whether anything in it moved before it draws them again.
+  @override
+  bool operator ==(Object other) => other is HomeOrg && other.id == id && other.name == name && other.hue == hue && other.members == members && listEquals(other.here, here);
+
+  @override
+  int get hashCode => Object.hash(id, name, hue, members, Object.hashAll(here));
 }
 
 /// The section heading the organizations and an organization's events share with the page's own

@@ -17,14 +17,17 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/book.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
+import '../perf/frame_log.dart';
 import '../tapes/tape.dart';
 import 'home_icons.dart';
 import 'home_parts.dart';
@@ -55,9 +58,16 @@ class NoteCard extends StatelessWidget {
     this.working = false,
     this.marked = false,
     this.onMenu,
+    this.since = Duration.zero,
+    this.gistSince = Duration.zero,
   });
 
   final Note note;
+
+  /// How long the card has been on its page (home_parts.dart `Arrivals`), for its entrance: nothing, for a card
+  /// made as it arrives. And how long its line of what it is about has, which may come after the card.
+  final Duration since;
+  final Duration gistSince;
 
   /// Its place in the run of cards, for the beat it arrives on: the ninth and after arrive together.
   final int index;
@@ -94,12 +104,15 @@ class NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('home.card');
     final t = context.tokens;
-    final title = noteTitle(note.body);
-    final book = isBookBody(note.body);
-    final journal = book && isJournalBody(note.body);
+    // The note's words are read once and kept (lib/core/note_facts.dart): nothing of its body is read here.
+    final facts = NoteFacts.of(note);
+    final title = facts.title;
+    final book = facts.isBook;
+    final journal = book && facts.isJournal;
     // A journal's newest entries, by when each was written and with no number; else a notebook's first pages.
-    final listed = journal ? [for (final entry in entries?.newest ?? const <({String title, String when})>[]) (title: entry.when, depth: 0)] : (book ? [for (final c in chaptersOf(note.body)) (title: c.title, depth: c.depth)] : const <({String title, int depth})>[]);
+    final listed = journal ? [for (final entry in entries?.newest ?? const <({String title, String when})>[]) (title: entry.when, depth: 0)] : (book ? [for (final c in facts.chapters) (title: c.title, depth: c.depth)] : const <({String title, int depth})>[]);
     final count = journal ? (entries?.count ?? listed.length) : listed.length;
     final part = journal ? const ['entry', 'entries'] : const ['page', 'pages'];
     final radius = dense ? t.radius('md') : t.radius('lg');
@@ -108,6 +121,9 @@ class NoteCard extends StatelessWidget {
     final md = t.fontSize('md'), sm = t.fontSize('sm'), xs = t.fontSize('xs');
     final muted = t.color('glacier-text-muted'), subtle = t.color('glacier-text-subtle');
     final place = this.place;
+    // A ticket's key and status, placed in the workflow of [notebook], or of the notebook the note is a page of.
+    final ticket = book ? null : listedTicket(facts, notebook: notebook, workflow: notebook == null && place != null ? NoteFacts.of(place.book).statuses : null);
+    final peek = book ? '' : facts.peek;
 
     Widget card = GlacierPressable(
       onPressed: () => onOpen(note.id),
@@ -123,7 +139,7 @@ class NoteCard extends StatelessWidget {
             child: CssLines(
               lineHeight: 1.25 * md,
               child: Text(
-                title.isNotEmpty ? shortenUrls(title) : (journal ? 'Untitled journal' : (book ? 'Untitled notebook' : 'Untitled')),
+                title.isNotEmpty ? facts.shownTitle : (journal ? 'Untitled journal' : (book ? 'Untitled notebook' : 'Untitled')),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 // `.card:active .title { color: var(--glacier-text-muted) }`.
@@ -172,15 +188,14 @@ class NoteCard extends StatelessWidget {
         } else {
           // A page of a book says which, and a ticket its key and status.
           if (place != null) children.add(Align(alignment: AlignmentDirectional.centerStart, child: BookPlaceMark(place: place)));
-          final workflow = notebook ?? place?.book.body;
-          if (TicketMark.has(note.body, notebook: workflow)) children.add(Align(alignment: AlignmentDirectional.centerStart, child: TicketMark(body: note.body, notebook: workflow)));
+          if (TicketMark.shows(ticket)) children.add(Align(alignment: AlignmentDirectional.centerStart, child: TicketMark.of(ticket!)));
           // What the note is about, when the phone has written it; the preview under it is the note itself.
           if (gist != null && gist!.isNotEmpty) {
-            children.add(_Gist(gist!, lines: dense ? 1 : 2));
+            children.add(_Gist(gist!, lines: dense ? 1 : 2, since: gistSince));
           }
-          if (NotePeek.has(note.body)) {
-            final peek = NotePeek(body: note.body, fill: fill, dense: dense);
-            children.add(fill ? Flexible(child: peek) : peek);
+          if (peek.isNotEmpty) {
+            final drawn = NotePeek(body: note.body, markdown: peek, fill: fill, dense: dense);
+            children.add(fill ? Flexible(child: drawn) : drawn);
           }
         }
         children.add(
@@ -262,7 +277,7 @@ class NoteCard extends StatelessWidget {
     final swipe = this.swipe;
     if (swipe != null) card = SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, radius: t.radius('lg'), child: card);
     // Arriving one after another, a beat apart: `animation: arrive 360ms ... both; animation-delay: calc(var(--i) * 40ms)`.
-    return Arrive(duration: const Duration(milliseconds: 360), delay: Duration(milliseconds: 40 * math.min(index, 8)), rise: 6, child: card);
+    return Arrive(duration: const Duration(milliseconds: 360), delay: Duration(milliseconds: 40 * math.min(index, 8)), since: since, rise: 6, child: card);
   }
 
   /// The card said whole to a screen reader, as its button's words were on the page: its name, then when.
@@ -274,17 +289,22 @@ class NoteCard extends StatelessWidget {
 
 /// `.gist`: what the note is about in one line, fading in under the title a moment after the card.
 class _Gist extends StatelessWidget {
-  const _Gist(this.words, {required this.lines});
+  const _Gist(this.words, {required this.lines, this.since = Duration.zero});
   final String words;
   final int lines;
+
+  /// How long the line has been on its card's page: one that faded in before it was drawn does not fade in again.
+  final Duration since;
+
+  static const Duration _fade = Duration(milliseconds: 260);
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final sm = t.fontSize('sm');
     return TweenAnimationBuilder<double>(
-      tween: Tween(begin: t.reducedMotion ? 1 : 0, end: 1),
-      duration: const Duration(milliseconds: 260),
+      tween: Tween(begin: t.reducedMotion || since >= _fade ? 1 : 0, end: 1),
+      duration: _fade,
       curve: t.curve('glacier-ease-out'),
       builder: (context, opacity, child) => Opacity(opacity: opacity, child: child),
       child: CssLines(
@@ -332,6 +352,8 @@ class _TurningState extends State<_Turning> with SingleTickerProviderStateMixin 
 ///
 /// [windowWidth] is the window's, as the page's media query asks it; the columns are counted from the room this is
 /// given. [itemBuilder] builds the card at an index, and is told whether its card is stretched to a row.
+///
+/// Every card is built, whether it is near the screen or not: for a few. A page of many is [SliverNoteCards].
 class NoteCards extends StatelessWidget {
   const NoteCards({super.key, required this.count, required this.itemBuilder, this.windowWidth});
 
@@ -348,6 +370,20 @@ class NoteCards extends StatelessWidget {
     return math.max(1, ((width + gap) / (track + gap)).floor());
   }
 
+  /// One row of the grid: the card alone where there is one to a row, else [columns] cells of one height
+  /// ([CardRow]), the last row's empty cells left empty. Each card is its own layer, so one that changes (its
+  /// entrance, a pointer over it) is painted again alone.
+  static Widget rowOf(BuildContext context, int row, {required int count, required int columns, required double gap, required Widget Function(BuildContext context, int index, bool fill) itemBuilder}) {
+    if (columns == 1) return itemBuilder(context, row, false);
+    return CardRow(
+      columns: columns,
+      gap: gap,
+      children: [
+        for (var index = row * columns; index < count && index < (row + 1) * columns; index += 1) RepaintBoundary(child: itemBuilder(context, index, true)),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -356,36 +392,163 @@ class NoteCards extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, box) {
         final columns = columnsFor(box.maxWidth, window, gap: gap, least: t.lenOf('12rem'));
-        if (columns == 1) {
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              for (var i = 0; i < count; i += 1) ...[if (i > 0) SizedBox(height: gap), itemBuilder(context, i, false)],
-            ],
-          );
-        }
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
           children: [
             for (var row = 0; row * columns < count; row += 1) ...[
               if (row > 0) SizedBox(height: gap),
-              IntrinsicHeight(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (var column = 0; column < columns; column += 1) ...[
-                      if (column > 0) SizedBox(width: gap),
-                      Expanded(child: row * columns + column < count ? itemBuilder(context, row * columns + column, true) : const SizedBox.shrink()),
-                    ],
-                  ],
-                ),
-              ),
+              rowOf(context, row, count: count, columns: columns, gap: gap, itemBuilder: itemBuilder),
             ],
           ],
         );
       },
     );
   }
+}
+
+/// [NoteCards] as a sliver of a page that scrolls: the same grid, with only the rows near the screen built. [width]
+/// is the room the grid is given, which whoever lays the page out knows; it is not asked of the sliver, whose own
+/// measure changes at every scroll.
+///
+/// [idOf] names the card at an index. One to a row, a card whose place moves keeps what it holds, as a keyed child
+/// of the column the grid was did; across a row it is made again in its new place, as it was there too (a card
+/// was its cell's child, and a cell is known by where it stands).
+class SliverNoteCards extends StatelessWidget {
+  const SliverNoteCards({super.key, required this.count, required this.itemBuilder, required this.width, this.windowWidth, this.idOf});
+
+  final int count;
+  final Widget Function(BuildContext context, int index, bool fill) itemBuilder;
+  final double width;
+  final double? windowWidth;
+  final String Function(int index)? idOf;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final gap = t.space(3);
+    final window = windowWidth ?? MediaQuery.sizeOf(context).width;
+    final columns = NoteCards.columnsFor(width, window, gap: gap, least: t.lenOf('12rem'));
+    final idOf = columns == 1 ? this.idOf : null;
+    final places = idOf == null ? null : <String, int>{for (var index = 0; index < count; index += 1) idOf(index): index};
+    return SliverList(
+      delegate: SliverChildBuilderDelegate(
+        (context, row) {
+          final cards = NoteCards.rowOf(context, row, count: count, columns: columns, gap: gap, itemBuilder: itemBuilder);
+          final spaced = row == 0 ? cards : Padding(padding: EdgeInsets.only(top: gap), child: cards);
+          return idOf == null ? spaced : KeyedSubtree(key: _CardSlot(idOf(row)), child: spaced);
+        },
+        childCount: (count + columns - 1) ~/ columns,
+        findChildIndexCallback: places == null ? null : (key) => key is _CardSlot ? places[key.value] : null,
+        addAutomaticKeepAlives: false,
+        // The cards are said as they were: no place in a list is added to what a screen reader hears.
+        addSemanticIndexes: false,
+      ),
+    );
+  }
+}
+
+/// The name a card is kept by where the grid is one card to a row: a key of its own kind, so the card's own key
+/// (`card-<id>`) still finds one widget.
+class _CardSlot extends ValueKey<String> {
+  const _CardSlot(super.value);
+}
+
+/// A row of the grid of cards: [columns] cells of one width with [gap] between them, each as tall as the tallest
+/// card's own height, the row's empty cells at its end left empty. What the page's grid does with a row
+/// (`grid-template-columns: repeat(n, 1fr)`, its items stretched), and what a `Row` of `Expanded` cards inside an
+/// `IntrinsicHeight` did here, in one box: each card is asked its own height once and laid out once.
+class CardRow extends MultiChildRenderObjectWidget {
+  const CardRow({super.key, required this.columns, required this.gap, super.children});
+
+  final int columns;
+  final double gap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderCardRow(columns, gap);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) {
+    (renderObject as _RenderCardRow)
+      ..columns = columns
+      ..gap = gap;
+  }
+}
+
+class _CardRowData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderCardRow extends RenderBox with ContainerRenderObjectMixin<RenderBox, _CardRowData>, RenderBoxContainerDefaultsMixin<RenderBox, _CardRowData> {
+  _RenderCardRow(this._columns, this._gap);
+
+  int _columns;
+  set columns(int value) {
+    if (value == _columns) return;
+    _columns = value;
+    markNeedsLayout();
+  }
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _CardRowData) child.parentData = _CardRowData();
+  }
+
+  /// A cell's width in a row [width] wide: what is left of it after the gaps, shared equally.
+  double _cell(double width) {
+    final free = width - _gap * (_columns - 1);
+    return free > 0 ? free / _columns : 0;
+  }
+
+  double _tallest(double width) {
+    final cell = _cell(width);
+    var tallest = 0.0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      final height = child.getMaxIntrinsicHeight(cell);
+      if (height > tallest) tallest = height;
+    }
+    return tallest;
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) => _tallest(width);
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _tallest(width);
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(Size(constraints.maxWidth, _tallest(constraints.maxWidth)));
+
+  @override
+  void performLayout() {
+    final width = constraints.maxWidth;
+    final cell = _cell(width);
+    final height = constraints.hasTightHeight ? constraints.maxHeight : constraints.constrainHeight(_tallest(width));
+    final each = BoxConstraints.tightFor(width: cell, height: height);
+    var x = 0.0;
+    for (var child = firstChild; child != null; child = childAfter(child)) {
+      child.layout(each);
+      (child.parentData! as _CardRowData).offset = Offset(x, 0);
+      x += cell;
+      x += _gap;
+    }
+    size = constraints.constrain(Size(width, height));
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);
+
+  @override
+  void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
 }

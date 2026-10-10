@@ -28,8 +28,22 @@
 ///   shorter page left it: the web first gives the page room at its foot to hold its place (`core/glideToTop.ts`).
 /// - An organization's events dock beside the notes on a wide page, but do not stick as the page scrolls.
 /// - A note's long press is [onNoteMenu], where the web opened its context menu.
+/// - **Only what is near the screen is built** (lib/home/lazy_page.dart): the page is a `CustomScrollView`, each
+///   section's notes a sliver that builds its rows as they are scrolled to, where the web has every row in the
+///   document. Where things stand is the same; how far the page scrolls is known as far as it has been laid out.
+///   A row's entrance still plays once, when it comes to be on the page and not when it is scrolled to
+///   (home_parts.dart `Arrivals`).
+/// - **The page is built once for what it shows.** What it works out from its notes ([_Read]) is kept until the
+///   notes, the workspaces, the search, the filter, the layout or the day change, and its widgets ([_Drawn]) until
+///   anything they draw does: built again with the same of everything (whoever holds the page builds it often, for
+///   reasons of its own, with a new list of the same notes and new callbacks each time), it hands back the widgets
+///   it made, and nothing under them is built. So the callbacks are called through the page as it is now, and the
+///   three seams ([headerEdge], [dockHalo], [ghost]) are asked when the page is made and must answer the same for
+///   the same arguments. The notices and the lines the phone writes under titles are read where they are drawn,
+///   and built alone when they change.
 library;
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -40,17 +54,21 @@ import 'package:glacier/glacier.dart';
 import '../core/page_scroll.dart';
 import '../core/book.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../notes/pull_to_refresh.dart';
+import '../perf/frame_log.dart';
 import '../shell/header_pane.dart';
 import 'home_filters.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
 import 'home_org_events.dart';
 import 'home_organizations.dart';
+import 'home_parts.dart';
 import 'home_rows.dart';
 import 'home_text.dart';
+import 'lazy_page.dart';
 import 'note_card.dart';
 
 /// Which ghost an empty page asks for (`<Ghost scene=...>`): a library with nothing in it, a workspace with nothing
@@ -235,12 +253,107 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// What the page works out from its notes: which of them it lists and how they are laid out, every page's notebook
+/// and every journal's card. Made again only when what it was made from changes ([_HomeScreenState._reading]).
+class _Read {
+  _Read({
+    required this.notes,
+    required this.spaces,
+    required this.query,
+    required this.filter,
+    required this.layout,
+    required this.today,
+    required this.lists,
+    required this.counts,
+    required this.inBooks,
+    required this.journals,
+    required this.plan,
+  });
+
+  // What it was made from.
+  final List<Note> notes;
+  final Workspaces spaces;
+  final String query;
+  final HomeFilter filter;
+  final HomeLayout layout;
+  final int today;
+
+  // What was made.
+  final HomeLists lists;
+  final Map<HomeFilter, int> counts;
+  final Map<String, BookPlace> inBooks;
+  final Map<String, JournalCard> journals;
+  final HomePlan plan;
+}
+
+/// Everything the page's widgets are made from besides what [_Read] holds. Two builds with the same of all of it
+/// draw the same page, and the second hands back the first's widgets, so nothing under them is built again.
+@immutable
+class _Drawn {
+  const _Drawn({
+    required this.read,
+    required this.tokens,
+    required this.minute,
+    required this.loading,
+    required this.recording,
+    required this.organizations,
+    required this.orgNews,
+    required this.sideKey,
+    required this.keyboard,
+    required this.seams,
+  });
+
+  final _Read read;
+  final Tokens tokens;
+
+  /// The minute it is: what "20 min ago" is counted from changes with it.
+  final int minute;
+  final bool loading;
+  final String? recording;
+  final List<HomeOrg> organizations;
+  final List<OrgNews> orgNews;
+  final bool sideKey;
+
+  /// Whether the keyboard is up: the home bar is under it then.
+  final bool keyboard;
+
+  /// Which of the things the page may be handed it was handed, a bit each: a callback left out is a button not
+  /// drawn, and a seam left out is a page drawn without it.
+  final int seams;
+
+  bool same(_Drawn other) =>
+      identical(read, other.read) &&
+      identical(tokens, other.tokens) &&
+      minute == other.minute &&
+      loading == other.loading &&
+      recording == other.recording &&
+      (identical(organizations, other.organizations) || listEquals(organizations, other.organizations)) &&
+      (identical(orgNews, other.orgNews) || listEquals(orgNews, other.orgNews)) &&
+      sideKey == other.sideKey &&
+      keyboard == other.keyboard &&
+      seams == other.seams;
+}
+
 class _HomeScreenState extends State<HomeScreen> {
   final ScrollController _scroller = ScrollController();
   final GlobalKey<HomeFiltersState> _filters = GlobalKey<HomeFiltersState>();
+
+  /// When each card, row and line came to be on the page, for its entrance.
+  final Arrivals _arrivals = Arrivals();
+
+  /// The notices above the notes, as handed over at the last build: read by the page where they stand.
+  final ValueNotifier<List<Widget>> _notices = ValueNotifier<List<Widget>>(const <Widget>[]);
+
+  /// What each note is about in a line, as handed over at the last build: read by each card for its own note, so a
+  /// line the phone has just written draws one card again and nothing else. And when each line came to be there.
+  final ValueNotifier<Map<String, String>> _gists = ValueNotifier<Map<String, String>>(const <String, String>{});
+  final Arrivals _gistArrivals = Arrivals();
   String _query = '';
   HomeFilter _filter = HomeFilter.all;
   String? _glideKey;
+  _Read? _read;
+  _Drawn? _drawn;
+  Widget? _page;
 
   @override
   void initState() {
@@ -261,6 +374,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void dispose() {
     widget.workspaces.removeListener(_redraw);
     _scroller.dispose();
+    _notices.dispose();
+    _gists.dispose();
     super.dispose();
   }
 
@@ -287,29 +402,142 @@ class _HomeScreenState extends State<HomeScreen> {
 
   int get _now => widget.clock?.call() ?? DateTime.now().millisecondsSinceEpoch;
 
+  // What the page's widgets call, whoever handed the page its callbacks at the build they were made in: the widgets
+  // are kept from one build to the next, and the callbacks are made anew at each.
+  void _open(String id) => widget.onOpen(id);
+  void _menu(String id) => widget.onNoteMenu?.call(id);
+  void _new() => widget.onNew();
+  void _capture() => widget.onCapture?.call();
+  void _search() => widget.onSearch?.call();
+  void _allNotes() => widget.onAllNotes();
+  Future<void> _refresh() async => widget.onRefresh?.call();
+  void _manage(Workspace? which) => widget.onManageWorkspace?.call(which);
+  void _newOrganization() => widget.onNewOrganization?.call();
+  void _organization(String id) => widget.onOrganization?.call(id);
+  void _organizationSettings(String id) => (widget.onOrganizationSettings ?? widget.onOrganization)?.call(id);
+
+  /// What the page works out from its notes, made again only when the notes, the workspaces, the search, the
+  /// filter, the layout or the day changed. Whoever hands the page its notes may make a new list of the same notes
+  /// at every build, so they are asked note by note ([sameNotes]).
+  _Read _reading(Workspaces spaces, int today) {
+    final had = _read;
+    final notes = widget.notes;
+    if (had != null && identical(had.spaces, spaces) && had.query == _query && had.filter == _filter && had.layout == widget.layout && had.today == today && sameNotes(had.notes, notes)) {
+      return had;
+    }
+    if (ghostPerf) Perf.count('home.read');
+    final workspace = spaces.current?.id;
+    final inSpace = widget.workspaces.inWorkspace(notes, workspace, (note) => note.id);
+    final lists = homeLists(inSpace, _query, _filter);
+    final read = _Read(
+      // A list of the page's own: the one handed over may be changed after.
+      notes: List<Note>.of(notes, growable: false),
+      spaces: spaces,
+      query: _query,
+      filter: _filter,
+      layout: widget.layout,
+      today: today,
+      lists: lists,
+      counts: homeCounts(inSpace),
+      // Every page's notebook, for a card's and a row's mark.
+      inBooks: bookIndex(inSpace),
+      journals: journalCards(notes),
+      // The day the spans are counted from: a new plan when it turns, not on every draw.
+      plan: homePlan(widget.layout, lists, now: today),
+    );
+    // Whatever the page lists now has arrived, or arrives now.
+    _arrivals.keep([
+      for (final section in read.plan.sections)
+        for (final (at, note) in section.notes.indexed) ...[
+          _placed(section, at, note),
+          if (section.draw == SectionDraw.cards) _name(section, note),
+        ],
+    ]);
+    return _read = read;
+  }
+
+  /// What a note is called on the page, for when it arrived: the section it is in and how it is drawn there. A card
+  /// that is one to a row is known by this; it keeps its place among its fellows as they move.
+  static String _name(HomeSection section, Note note) => '${section.key}/${section.draw.name}/${note.id}';
+
+  /// And with where it stands in its section: a row, a line, and a card across a row of cards are known by their
+  /// place too, and arrive again when it changes, as each was made again when the list was a column.
+  static String _placed(HomeSection section, int at, Note note) => '${section.key}/${section.draw.name}/$at/${note.id}';
+
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('home.build');
     final t = context.tokens;
     final spaces = widget.workspaces.value;
     final workspace = spaces.current?.id;
-    // The organization the page is filtered to, when the chosen workspace is one's.
-    final orgSpace = workspace == null ? null : orgIdOf(workspace);
     _glide('${workspace ?? 'all'}|${_filter.name}|${widget.layout.name}');
 
-    final notes = widget.notes;
-    final inSpace = widget.workspaces.inWorkspace(notes, workspace, (note) => note.id);
-    final lists = homeLists(inSpace, _query, _filter);
-    final counts = homeCounts(inSpace);
-    // Every page's notebook, for a card's and a row's mark.
-    final inBooks = bookIndex(inSpace);
-    final journals = journalCards(notes);
     final now = _now;
-    // The day the spans are counted from: a new plan when it turns, not on every draw.
     final at = DateTime.fromMillisecondsSinceEpoch(now);
-    final today = DateTime(at.year, at.month, at.day).millisecondsSinceEpoch;
-    final plan = homePlan(widget.layout, lists, now: today);
+    final read = _reading(spaces, DateTime(at.year, at.month, at.day).millisecondsSinceEpoch);
+    final drawn = _Drawn(
+      read: read,
+      tokens: t,
+      minute: now ~/ 60000,
+      loading: widget.loading,
+      recording: widget.recording,
+      organizations: widget.organizations,
+      orgNews: widget.orgNews,
+      sideKey: widget.sideKey ?? defaultTargetPlatform == TargetPlatform.android,
+      // The home bar is under the keyboard while it is up: nothing to stand clear of then.
+      keyboard: MediaQuery.viewInsetsOf(context).bottom > 0,
+      seams: (widget.onCapture != null ? 1 : 0) |
+          (widget.onSearch != null ? 2 : 0) |
+          (widget.onSwipe != null ? 4 : 0) |
+          (widget.onRefresh != null ? 8 : 0) |
+          (widget.onNoteMenu != null ? 16 : 0) |
+          (widget.onOrganization != null ? 32 : 0) |
+          (widget.onOrganizationSettings != null ? 64 : 0) |
+          (widget.onNewOrganization != null ? 128 : 0) |
+          (widget.headerEdge != null ? 256 : 0) |
+          (widget.dockHalo != null ? 512 : 0) |
+          (widget.ghost != null ? 1024 : 0),
+    );
+    // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
+    // and nothing else of it is built for them.
+    if (!listEquals(_notices.value, widget.notices)) _notices.value = widget.notices;
+    if (!identical(_gists.value, widget.gists) && !mapEquals(_gists.value, widget.gists)) {
+      _gistArrivals.keep(widget.gists.keys);
+      _gists.value = widget.gists;
+    }
 
-    final searched = _query.trim().isNotEmpty;
+    var page = _page;
+    final was = _drawn;
+    if (page == null || was == null || !was.same(drawn)) {
+      if (ghostPerf) Perf.count('home.page');
+      _drawn = drawn;
+      page = _page = _made(context, drawn, now);
+    }
+    // The page's window ends at the keyboard: on the phone the web's frame is padded by it (MainActivity's insets
+    // listener), so the dock and the smoke at the foot ride above the keys and `dvh` is of what is left. Always
+    // wrapped, so a keyboard coming up moves the page and does not rebuild it.
+    return _AboveKeyboard(child: page);
+  }
+
+  /// The page's widgets, for everything [drawn] holds. [now] is the moment "20 min ago" is counted from.
+  Widget _made(BuildContext context, _Drawn drawn, int now) {
+    final t = drawn.tokens;
+    final read = drawn.read;
+    final spaces = read.spaces;
+    final workspace = spaces.current?.id;
+    // The organization the page is filtered to, when the chosen workspace is one's.
+    final orgSpace = workspace == null ? null : orgIdOf(workspace);
+    final notes = read.notes;
+    final counts = read.counts;
+    final inBooks = read.inBooks;
+    final journals = read.journals;
+    final plan = read.plan;
+    final layout = read.layout;
+    final query = read.query, filter = read.filter;
+    final recording = drawn.recording;
+    final organizations = drawn.organizations;
+
+    final searched = query.trim().isNotEmpty;
     final hasNotes = counts[HomeFilter.all]! > 0;
     // The search and its filters stay while there is anything to find, or a workspace to leave.
     final tools = notes.any((n) => n.archivedAt == null) || spaces.list.isNotEmpty;
@@ -322,23 +550,22 @@ class _HomeScreenState extends State<HomeScreen> {
     final ring = t.len('app-ring');
     final top = under + t.space(1) + t.space(2) + t.space(6);
     // Room at the foot for the dock's column to stand clear of the last lines.
-    // The home bar is under the keyboard while it is up: nothing to stand clear of then.
-    final safeBottom = MediaQuery.viewInsetsOf(context).bottom > 0 ? 0.0 : t.len('app-safe-bottom');
+    final safeBottom = drawn.keyboard ? 0.0 : t.len('app-safe-bottom');
     final foot = safeBottom + t.space(4) + ring * 4 + t.space(2) * 5 + t.space(6);
+    final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
-    // The cards' arrival is staggered down the page, whichever section each is in.
-    var order = 0;
+    final swipes = widget.onSwipe != null;
+    final onMenu = widget.onNoteMenu == null ? null : _menu;
     // Right to pin, left to archive, further left to delete: every card, row and line swipes.
     NoteSwipes? swipe(Note note) {
-      final onSwipe = widget.onSwipe;
-      if (onSwipe == null) return null;
+      if (!swipes) return null;
       final actions = noteSwipes(note);
       return (
         start: actions.start,
         end: actions.end,
         onAction: (id) {
           final action = noteSwipeOf(id);
-          if (action != null) onSwipe(note, action);
+          if (action != null) widget.onSwipe?.call(note, action);
         },
       );
     }
@@ -354,82 +581,105 @@ class _HomeScreenState extends State<HomeScreen> {
       return null;
     }
 
-    Widget drawn(HomeSection section) {
-      final hairline = t.len('glacier-hairline');
-      final rule = BorderSide(color: t.color('app-rule'), width: hairline);
+    // The cards' arrival is staggered down the page, whichever section each is in: each section's notes are
+    // numbered on from the section before.
+    final firsts = <int>[];
+    var order = 0;
+    for (final section in plan.sections) {
+      firsts.add(order);
+      order += section.notes.length;
+    }
+
+    final hairline = t.len('glacier-hairline');
+    final rule = BorderSide(color: t.color('app-rule'), width: hairline);
+
+    /// The notebook a row's note is a page of, and that notebook's workflow, which a ticket's status is placed in.
+    List<String>? workflowOf(BookPlace? place) => place == null ? null : NoteFacts.of(place.book).statuses;
+
+    /// A section's notes, as a sliver of the page [width] wide: only the ones near the screen are built.
+    Widget body(HomeSection section, int first, double width) {
+      final list = section.notes;
       switch (section.draw) {
         case SectionDraw.cards:
-          final first = order;
-          order += section.notes.length;
-          return NoteCards(
-            count: section.notes.length,
+          return SliverNoteCards(
+            count: list.length,
+            width: width,
             itemBuilder: (context, i, fill) {
-              final note = section.notes[i];
+              final note = list[i];
               final place = placeOf(inBooks, note);
-              return NoteCard(
-                key: ValueKey('card-${note.id}'),
-                note: note,
-                index: first + i,
-                onOpen: widget.onOpen,
-                now: now,
-                gist: widget.gists[note.id],
-                place: place,
-                notebook: place?.book.body,
-                entries: journals[note.id],
-                fill: fill,
-                swipe: swipe(note),
-                onMenu: widget.onNoteMenu,
+              return Gisted(
+                gists: _gists,
+                id: note.id,
+                builder: (context, gist) => NoteCard(
+                  key: ValueKey('card-${note.id}'),
+                  note: note,
+                  index: first + i,
+                  onOpen: _open,
+                  now: now,
+                  gist: gist,
+                  place: place,
+                  entries: journals[note.id],
+                  fill: fill,
+                  swipe: swipe(note),
+                  onMenu: onMenu,
+                  since: _arrivals.since(fill ? _placed(section, i, note) : _name(section, note)),
+                  gistSince: _gistArrivals.since(note.id),
+                ),
               );
             },
+            idOf: (i) => list[i].id,
           );
         case SectionDraw.rows:
         case SectionDraw.lines:
-          // A hairline over the list, between its rows, and under it.
-          return DecoratedBox(
-            decoration: BoxDecoration(border: Border(top: rule, bottom: rule)),
-            child: Padding(
-              padding: EdgeInsets.symmetric(vertical: hairline),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (final (i, note) in section.notes.indexed)
-                    DecoratedBox(
-                      position: DecorationPosition.foreground,
-                      decoration: BoxDecoration(border: i == 0 ? null : Border(top: rule)),
-                      child: Padding(
-                        padding: EdgeInsets.only(top: i == 0 ? 0 : hairline),
-                        child: section.draw == SectionDraw.rows
-                            ? HomeRow(
-                                key: ValueKey('row-${note.id}'),
-                                note: note,
-                                index: order++,
-                                onOpen: widget.onOpen,
-                                now: now,
-                                bookName: placeOf(inBooks, note)?.title,
-                                notebook: placeOf(inBooks, note)?.book.body,
-                                entries: journals[note.id]?.count,
-                                live: note.id == widget.recording,
-                                swipe: swipe(note),
-                                onMenu: widget.onNoteMenu,
-                              )
-                            : HomeLine(
-                                key: ValueKey('line-${note.id}'),
-                                note: note,
-                                index: order++,
-                                onOpen: widget.onOpen,
-                                now: now,
-                                bookName: placeOf(inBooks, note)?.title,
-                                notebook: placeOf(inBooks, note)?.book.body,
-                                live: note.id == widget.recording,
-                                swipe: swipe(note),
-                                space: filedIn(note),
-                                onMenu: widget.onNoteMenu,
-                              ),
-                      ),
-                    ),
-                ],
-              ),
+          final last = list.length - 1;
+          return SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
+                final note = list[i];
+                final place = placeOf(inBooks, note);
+                final since = _arrivals.since(_placed(section, i, note));
+                final Widget row = section.draw == SectionDraw.rows
+                    ? HomeRow(
+                        key: ValueKey('row-${note.id}'),
+                        note: note,
+                        index: first + i,
+                        onOpen: _open,
+                        now: now,
+                        bookName: place?.title,
+                        workflow: workflowOf(place),
+                        entries: journals[note.id]?.count,
+                        live: note.id == recording,
+                        swipe: swipe(note),
+                        onMenu: onMenu,
+                        since: since,
+                      )
+                    : HomeLine(
+                        key: ValueKey('line-${note.id}'),
+                        note: note,
+                        index: first + i,
+                        onOpen: _open,
+                        now: now,
+                        bookName: place?.title,
+                        workflow: workflowOf(place),
+                        live: note.id == recording,
+                        swipe: swipe(note),
+                        space: filedIn(note),
+                        onMenu: onMenu,
+                        since: since,
+                      );
+                // A hairline over the list, between its rows, and under it: the list's own over its first row and
+                // under its last, and each row after the first with one over it.
+                Widget ruled = Padding(padding: EdgeInsets.only(top: hairline), child: row);
+                ruled = i == 0
+                    ? DecoratedBox(decoration: BoxDecoration(border: Border(top: rule, bottom: i == last ? rule : BorderSide.none)), child: i == last ? Padding(padding: EdgeInsets.only(bottom: hairline), child: ruled) : ruled)
+                    : DecoratedBox(position: DecorationPosition.foreground, decoration: BoxDecoration(border: Border(top: rule)), child: ruled);
+                if (i == last && i != 0) ruled = DecoratedBox(decoration: BoxDecoration(border: Border(bottom: rule)), child: Padding(padding: EdgeInsets.only(bottom: hairline), child: ruled));
+                return KeyedSubtree(key: _Slot('$i/${note.id}'), child: ruled);
+              },
+              childCount: list.length,
+              addAutomaticKeepAlives: false,
+              // The rows are said as they were: no place in a list is added to what a screen reader hears.
+              addSemanticIndexes: false,
             ),
           );
       }
@@ -446,144 +696,172 @@ class _HomeScreenState extends State<HomeScreen> {
           null => null,
         };
 
-    // What stands in the page's main column: an empty page's words, the sections, and the way to All notes.
-    final main = <Widget>[
-      if (!widget.loading && !hasNotes)
-        _Empty(
-          workspace: spaces.current,
-          hint: (widget.sideKey ?? defaultTargetPlatform == TargetPlatform.android)
-              ? 'Write it, or hold the side key and say it.'
-              : (widget.onCapture != null ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'),
-          ghost: widget.ghost,
-        )
-      else if (!widget.loading && hasNotes && !found)
-        _Nothing(
-          lead: searched ? 'Nothing has “${_query.trim()}”.' : (_filter == HomeFilter.pinned ? 'Nothing is pinned.' : 'Nothing here.'),
-          hint: searched ? 'Try fewer words, or look through All notes.' : null,
-          ghost: widget.ghost,
-        ),
-      if (found)
-        for (final section in plan.sections)
-          Padding(
-            key: ValueKey('section-${section.key}'),
-            // A section: one quiet heading - a mark, the word, how many - then its notes.
-            padding: EdgeInsets.only(top: t.space(3)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                HomeHeading(mark: mark(section.mark), words: section.heading, count: section.count),
-                SizedBox(height: t.space(2)),
-                drawn(section),
-              ],
-            ),
+    final gap = t.space(3);
+    final showGhost = widget.ghost == null ? null : (BuildContext context, HomeGhost it) => widget.ghost!(context, it);
+
+    /// What stands in the page's main column, [width] wide: an empty page's words, the sections, and the way to All
+    /// notes, each a sliver with the room over it (`display: grid; gap`, and a section's own air).
+    List<({Widget sliver, double above})> column(double width) {
+      final blocks = <({Widget sliver, double above})>[];
+      void add(Widget sliver, [double more = 0]) => blocks.add((sliver: sliver, above: (blocks.isEmpty ? 0 : gap) + more));
+      if (!drawn.loading && !hasNotes) {
+        add(SliverToBoxAdapter(
+          child: _Empty(
+            workspace: spaces.current,
+            hint: drawn.sideKey ? 'Write it, or hold the side key and say it.' : (widget.onCapture != null ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'),
+            ghost: showGhost,
           ),
-      if (hasNotes) _AllNotes(words: plan.cut > 0 ? '${plan.cut} more in All notes' : 'All notes · ${counts[HomeFilter.all]}', onPressed: widget.onAllNotes),
+        ));
+      } else if (!drawn.loading && hasNotes && !found) {
+        add(SliverToBoxAdapter(
+          child: _Nothing(
+            lead: searched ? 'Nothing has “${query.trim()}”.' : (filter == HomeFilter.pinned ? 'Nothing is pinned.' : 'Nothing here.'),
+            hint: searched ? 'Try fewer words, or look through All notes.' : null,
+            ghost: showGhost,
+          ),
+        ));
+      }
+      if (found) {
+        for (final (at, section) in plan.sections.indexed) {
+          // A section: one quiet heading - a mark, the word, how many - then its notes.
+          add(
+            SliverToBoxAdapter(
+              key: ValueKey('section-${section.key}'),
+              child: Padding(padding: EdgeInsets.only(bottom: t.space(2)), child: HomeHeading(mark: mark(section.mark), words: section.heading, count: section.count)),
+            ),
+            t.space(3),
+          );
+          blocks.add((sliver: body(section, firsts[at], width), above: 0));
+        }
+      }
+      if (hasNotes) add(SliverToBoxAdapter(child: _AllNotes(words: plan.cut > 0 ? '${plan.cut} more in All notes' : 'All notes · ${counts[HomeFilter.all]}', onPressed: _allNotes)));
+      return blocks;
+    }
+
+    final hasOrganization = widget.onOrganization != null;
+    // The search first, the page narrowing as it is typed, and its filters beside it. Not on a blank page. Then
+    // what needs the person, and the organizations joined.
+    final head = <Widget>[
+      if (tools)
+        HomeFilters(
+          key: _filters,
+          query: query,
+          onQuery: (query) => setState(() => _query = query),
+          filter: filter,
+          onFilter: (filter) => setState(() => _filter = filter),
+          counts: counts,
+          workspaces: widget.workspaces,
+          onManage: _manage,
+          onNewOrganization: widget.onNewOrganization == null ? null : _newOrganization,
+          onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
+        ),
+      ValueListenableBuilder<List<Widget>>(
+        valueListenable: _notices,
+        builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : _Gapped(gap: gap, children: notices),
+      ),
+      // The organizations joined, a card each; not while searching, nor inside one workspace.
+      if (hasOrganization && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
     ];
 
-    final onOrganization = widget.onOrganization;
-    Widget page(PullDown? pull) {
-      final column = LayoutBuilder(
-        builder: (context, box) {
-          // The column the layouts ask their width of (`@container home-page`).
-          final wide = box.maxWidth >= t.lenOf('44rem');
-          final rows = widget.layout == HomeLayout.list || widget.layout == HomeLayout.timeline;
-          final gap = t.space(3);
-          Widget notesAndEvents = _Gapped(gap: gap, children: main);
-          if (orgSpace != null && !searched) {
-            final events = HomeOrgEvents(
-              orgId: orgSpace,
-              name: spaces.current!.name,
-              notes: notes,
-              filed: spaces.of,
-              here: [for (final org in widget.organizations) if (org.id == orgSpace) ...org.here],
-              news: widget.orgNews,
-              onOpenNote: widget.onOpen,
-              onOpen: (id) => onOrganization?.call(id),
-              now: now,
-            );
-            // Docked to the right of the notes on a page wide enough; narrower, the card sits over them.
-            notesAndEvents = box.maxWidth >= t.lenOf('52rem')
-                ? Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [Expanded(child: notesAndEvents), SizedBox(width: t.space(4)), SizedBox(width: t.lenOf('18rem'), child: events)],
-                  )
-                : _Gapped(gap: t.space(4), children: [events, notesAndEvents]);
-          }
-          return Align(
-            alignment: Alignment.topCenter,
-            child: ConstrainedBox(
-              // Wider, the rows' layouts keep one readable column.
-              constraints: BoxConstraints(maxWidth: t.lenOf(wide && rows ? '48rem' : '64rem')),
-              child: _HomeWidth(
-                wide: wide,
-                child: _Gapped(
-                  gap: gap,
-                  children: [
-                    // The search first, the page narrowing as it is typed, and its filters beside it. Not on a blank page.
-                    if (tools)
-                      HomeFilters(
-                        key: _filters,
-                        query: _query,
-                        onQuery: (query) => setState(() => _query = query),
-                        filter: _filter,
-                        onFilter: (filter) => setState(() => _filter = filter),
-                        counts: counts,
-                        workspaces: widget.workspaces,
-                        onManage: (which) => widget.onManageWorkspace?.call(which),
-                        onNewOrganization: widget.onNewOrganization,
-                        onOrganization: widget.onOrganizationSettings ?? onOrganization,
-                      ),
-                    if (widget.notices.isNotEmpty) _Gapped(gap: gap, children: widget.notices),
-                    // The organizations joined, a card each; not while searching, nor inside one workspace.
-                    if (onOrganization != null && !searched && workspace == null && widget.organizations.isNotEmpty)
-                      HomeOrganizations(orgs: widget.organizations, notes: notes, filed: spaces.of, onOpen: onOrganization),
-                    notesAndEvents,
-                  ],
-                ),
+    /// The page's slivers in a window [viewport] wide, made once for a width: the pull that lowers the page builds
+    /// its scroller again at every move, with these same slivers.
+    double? madeFor;
+    var made = const <Widget>[];
+    var madeWide = false;
+    List<Widget> slivers(double viewport) {
+      if (madeFor == viewport) return made;
+      // The column the layouts ask their width of (`@container home-page`).
+      final inner = math.max(0.0, viewport - gutterStart - gutterEnd);
+      final wide = inner >= t.lenOf('44rem');
+      final rows = layout == HomeLayout.list || layout == HomeLayout.timeline;
+      // Wider, the rows' layouts keep one readable column.
+      final across = math.min(inner, t.lenOf(wide && rows ? '48rem' : '64rem'));
+      final side = (inner - across) / 2;
+      Widget padded(Widget sliver, {double above = 0, double below = 0}) =>
+          SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart + side, above, gutterEnd + side, below), sliver: sliver);
+
+      final List<({Widget sliver, double above})> blocks;
+      final bool follows;
+      if (orgSpace != null && !searched) {
+        final events = HomeOrgEvents(
+          orgId: orgSpace,
+          name: spaces.current!.name,
+          notes: notes,
+          filed: spaces.of,
+          here: [for (final org in organizations) if (org.id == orgSpace) ...org.here],
+          news: drawn.orgNews,
+          onOpenNote: _open,
+          onOpen: _organization,
+          now: now,
+        );
+        follows = true;
+        if (inner >= t.lenOf('52rem')) {
+          // Docked to the right of the notes on a page wide enough.
+          final beside = t.lenOf('18rem'), between = t.space(4);
+          final main = column(math.max(0.0, across - between - beside));
+          blocks = [
+            (
+              sliver: SliverCrossAxisGroup(
+                slivers: [
+                  SliverCrossAxisExpanded(
+                    flex: 1,
+                    sliver: SliverMainAxisGroup(slivers: [for (final block in main) block.above > 0 ? SliverPadding(padding: EdgeInsets.only(top: block.above), sliver: block.sliver) : block.sliver]),
+                  ),
+                  SliverConstrainedCrossAxis(maxExtent: between, sliver: const SliverToBoxAdapter(child: SizedBox.shrink())),
+                  SliverConstrainedCrossAxis(maxExtent: beside, sliver: SliverToBoxAdapter(child: events)),
+                ],
               ),
+              above: 0,
             ),
-          );
-        },
-      );
-      final scroller = ScrollConfiguration(
+          ];
+        } else {
+          // Narrower, the card sits over them.
+          final main = column(across);
+          blocks = [
+            (sliver: SliverToBoxAdapter(child: events), above: 0),
+            for (final (i, block) in main.indexed) (sliver: block.sliver, above: i == 0 ? t.space(4) + block.above : block.above),
+          ];
+        }
+      } else {
+        blocks = column(across);
+        follows = blocks.isNotEmpty;
+      }
+
+      madeFor = viewport;
+      madeWide = wide;
+      return made = [
+        // Blocks one under another with a gap between them; the head's own gap is under it only while it draws
+        // anything, and something follows.
+        padded(SliverToBoxAdapter(child: _Gapped(gap: gap, after: follows ? gap : 0, children: head)), above: top, below: blocks.isEmpty ? foot : 0),
+        for (final (i, block) in blocks.indexed) padded(block.sliver, above: block.above, below: i == blocks.length - 1 ? foot : 0),
+      ];
+    }
+
+    Widget page(PullDown? pull) {
+      final Widget scroller = ScrollConfiguration(
         // `overscroll-behavior: contain`: the page stops at its ends, with no glow and no stretch of the platform's.
         behavior: const _Still(),
-        child: SingleChildScrollView(
-          key: const ValueKey('home-scroll'),
-          controller: _scroller,
-          physics: pull?.physics,
-          padding: EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), top, t.len('app-gutter-end'), foot),
-          child: pull == null ? column : PullLowered(pull: pull, child: column),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            final all = slivers(box.maxWidth);
+            return _HomeWidth(wide: madeWide, child: PageScroll(key: const ValueKey('home-scroll'), controller: _scroller, pull: pull, slivers: all));
+          },
         ),
       );
       final edge = widget.headerEdge;
       return edge == null ? scroller : edge(context, HomeEdge(under: under, foot: foot, controller: _scroller), scroller);
     }
 
-    final onRefresh = widget.onRefresh;
     // One scroller for the whole page, under the top bar.
-    final behind = onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: onRefresh, top: top, builder: (context, pull) => page(pull));
+    final behind = widget.onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: _refresh, top: top, builder: (context, pull) => page(pull));
     // The dock: a floating column in the bottom right, the palette, write, then Speak nearest the thumb.
     final dock = HomeDock(
       behind: behind,
-      dock: _Dock(onNew: widget.onNew, onCapture: widget.onCapture, onSearch: widget.onSearch),
+      dock: _Dock(onNew: _new, onCapture: widget.onCapture == null ? null : _capture, onSearch: widget.onSearch == null ? null : _search),
       alignment: AlignmentDirectional.bottomEnd,
       padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4), bottom: safeBottom + t.space(4)),
     );
-    final halo = widget.dockHalo;
-    // The page's window ends at the keyboard: on the phone the web's frame is padded by it (MainActivity's insets
-    // listener), so the dock and the smoke at the foot ride above the keys and `dvh` is of what is left. Always
-    // wrapped, so a keyboard coming up moves the page and does not rebuild it.
-    final media = MediaQuery.of(context);
-    final keyboard = media.viewInsets.bottom;
-    return Padding(
-      padding: EdgeInsets.only(bottom: keyboard),
-      child: MediaQuery(
-        data: media.copyWith(size: Size(media.size.width, media.size.height - keyboard), viewInsets: media.viewInsets.copyWith(bottom: 0)),
-        child: _screen(t, halo, dock),
-      ),
-    );
+    return _screen(t, widget.dockHalo, dock);
   }
 
   Widget _screen(Tokens t, HomeDockHaloBuilder? halo, HomeDock dock) {
@@ -610,6 +888,34 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
+/// The name a row is kept by in its list, where only the rows near the screen are built: its place and its note, so
+/// a row whose place moves is made again there, as it was when the list was a column (a row was the child of the
+/// box that ruled it off, and that box was known by where it stood). A key of its own kind, so the row's own key
+/// (`row-<id>`) still finds one widget.
+class _Slot extends ValueKey<String> {
+  const _Slot(super.value);
+}
+
+/// The page's window ends at the keyboard: padded by it, and what is under it told that the window is that much
+/// shorter and has no keyboard in it. Built at every frame of the keyboard's rise; the page under it is not.
+class _AboveKeyboard extends StatelessWidget {
+  const _AboveKeyboard({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final media = MediaQuery.of(context);
+    final keyboard = media.viewInsets.bottom;
+    return Padding(
+      padding: EdgeInsets.only(bottom: keyboard),
+      child: MediaQuery(
+        data: media.copyWith(size: Size(media.size.width, media.size.height - keyboard), viewInsets: media.viewInsets.copyWith(bottom: 0)),
+        child: child,
+      ),
+    );
+  }
+}
+
 /// The page's own width, for the parts that ask it (`@container home-page (min-width: 44rem)`).
 class _HomeWidth extends InheritedWidget {
   const _HomeWidth({required this.wide, required super.child});
@@ -628,26 +934,42 @@ class _HomeWidth extends InheritedWidget {
 /// so nothing stands between the search row and the first section. Here a notice decides inside its own build (the
 /// invitation's card listens to the account), so it is in the list while it draws nothing, and its gap put the first
 /// section 14px low on a signed-in phone (measured on the Fold beside the page).
+///
+/// [after] is room under the last block that takes any: the gap to whatever follows these blocks on the page, where
+/// that is laid out apart from them (the page's sections are slivers of their own). None under blocks that all
+/// take no room.
 class _Gapped extends MultiChildRenderObjectWidget {
-  const _Gapped({required this.gap, required super.children});
+  const _Gapped({required this.gap, this.after = 0, required super.children});
   final double gap;
+  final double after;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderGapped(gap);
+  RenderObject createRenderObject(BuildContext context) => _RenderGapped(gap, after);
 
   @override
-  void updateRenderObject(BuildContext context, covariant _RenderGapped renderObject) => renderObject.gap = gap;
+  void updateRenderObject(BuildContext context, covariant _RenderGapped renderObject) {
+    renderObject
+      ..gap = gap
+      ..after = after;
+  }
 }
 
 class _GappedParentData extends ContainerBoxParentData<RenderBox> {}
 
 class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox, _GappedParentData>, RenderBoxContainerDefaultsMixin<RenderBox, _GappedParentData> {
-  _RenderGapped(this._gap);
+  _RenderGapped(this._gap, this._after);
 
   double _gap;
   set gap(double value) {
     if (value == _gap) return;
     _gap = value;
+    markNeedsLayout();
+  }
+
+  double _after;
+  set after(double value) {
+    if (value == _after) return;
+    _after = value;
     markNeedsLayout();
   }
 
@@ -676,7 +998,7 @@ class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox,
       y += size.height;
       any = true;
     }
-    return y;
+    return any ? y + _after : y;
   }
 
   @override
@@ -697,7 +1019,7 @@ class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox,
       y += h;
       any = true;
     }
-    return y;
+    return any ? y + _after : y;
   }
 
   @override

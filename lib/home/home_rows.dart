@@ -12,13 +12,12 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../core/canvas_body.dart';
-import '../core/book.dart';
 import '../core/note.dart';
-import '../core/note_text.dart';
+import '../core/note_facts.dart';
 import '../core/workspaces.dart';
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
+import '../perf/frame_log.dart';
 import '../tapes/tape.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
@@ -114,7 +113,8 @@ Widget _swiped(NoteSwipes? swipe, {bool compact = false, required Widget child})
 
 /// `.rowItem`: arriving a beat after the one before, `animation: arrive 300ms ... both; animation-delay: calc(var(--i)
 /// * 25ms)`, the thirteenth and after together.
-Widget _arriving(int index, Widget child) => Arrive(duration: const Duration(milliseconds: 300), delay: Duration(milliseconds: 25 * math.min(index, 12)), rise: 4, child: child);
+Widget _arriving(int index, Duration since, Widget child) =>
+    Arrive(duration: const Duration(milliseconds: 300), delay: Duration(milliseconds: 25 * math.min(index, 12)), since: since, rise: 4, child: child);
 
 /// A note on one row (`HomeRow` in `src/app/home/HomeScreen.tsx`, HomeLayouts.module.css `.row`). A long press is
 /// [onMenu], where the web opened its context menu.
@@ -127,10 +127,12 @@ class HomeRow extends StatelessWidget {
     this.now,
     this.bookName,
     this.notebook,
+    this.workflow,
     this.entries,
     this.live = false,
     this.swipe,
     this.onMenu,
+    this.since = Duration.zero,
   });
 
   final Note note;
@@ -138,11 +140,18 @@ class HomeRow extends StatelessWidget {
   final ValueChanged<String> onOpen;
   final int? now;
 
+  /// How long the row has been on its page (home_parts.dart `Arrivals`), for its entrance: nothing, for a row made
+  /// as it arrives.
+  final Duration since;
+
   /// The notebook it is a page of, by name.
   final String? bookName;
 
   /// That notebook's body, whose workflow a ticket's status is placed in.
   final String? notebook;
+
+  /// That notebook's workflow where it was read already (its facts' `statuses`), in place of [notebook].
+  final List<String>? workflow;
 
   /// A journal's entries, from every workspace.
   final int? entries;
@@ -156,24 +165,31 @@ class HomeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('home.row');
     final t = context.tokens;
-    final title = noteTitle(note.body);
+    // The note's words are read once and kept (lib/core/note_facts.dart): nothing of its body is read here.
+    final facts = NoteFacts.of(note);
+    final title = facts.title;
     final kind = live ? HomeKind.tape : kindOf(note);
     // A journal counts its entries, a notebook its pages, and a canvas its cards: its first line is JSON.
     final String lead;
+    // And as the row writes it, a long address in it cut short.
+    final String shownLead;
     if (entries != null) {
-      lead = _counted(entries!, 'entry', 'entries');
+      shownLead = lead = _counted(entries!, 'entry', 'entries');
     } else if (kind == HomeKind.book) {
-      lead = _counted(chaptersOf(note.body).length, 'page', 'pages');
+      shownLead = lead = _counted(facts.chapters.length, 'page', 'pages');
     } else if (kind == HomeKind.canvas) {
-      final cards = canvasCardCount(note.body) ?? 0;
-      lead = cards > 0 ? _counted(cards, 'card', 'cards') : 'No cards yet';
+      final cards = facts.canvasCards ?? 0;
+      shownLead = lead = cards > 0 ? _counted(cards, 'card', 'cards') : 'No cards yet';
     } else {
-      lead = firstLine(note.body);
+      lead = facts.firstLine;
+      shownLead = facts.shownFirstLine;
     }
     final md = t.fontSize('md'), sm = t.fontSize('sm');
     final ink3 = t.color('app-ink-3');
-    final ticket = TicketMark.has(note.body, notebook: notebook);
+    final marked = listedTicket(facts, notebook: notebook, workflow: workflow);
+    final ticket = TicketMark.shows(marked);
     final hasLead = lead.isNotEmpty || bookName != null || kind == HomeKind.tape || ticket;
     final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', ?bookName, if (lead.isNotEmpty) lead, when(note.updatedAt, now)].join(', ');
 
@@ -215,7 +231,7 @@ class HomeRow extends StatelessWidget {
                                 ],
                                 Flexible(
                                   child: Text(
-                                    title.isNotEmpty ? shortenUrls(title) : 'Untitled',
+                                    title.isNotEmpty ? facts.shownTitle : 'Untitled',
                                     maxLines: 1,
                                     softWrap: false,
                                     overflow: TextOverflow.ellipsis,
@@ -235,11 +251,11 @@ class HomeRow extends StatelessWidget {
                                     ],
                                     if (ticket) ...[
                                       // A ticket's key and status, before how it starts (`.rowTicket`).
-                                      WidgetSpan(alignment: PlaceholderAlignment.bottom, child: TicketMark(body: note.body, notebook: notebook, after: '·')),
+                                      WidgetSpan(alignment: PlaceholderAlignment.bottom, child: TicketMark.of(marked!, after: '·')),
                                       WidgetSpan(child: SizedBox(width: 0.5 * t.fontSize('xs'))),
                                     ],
                                     ..._tapeWords(t, note, live: live, em: sm),
-                                    if (lead.isNotEmpty) TextSpan(text: shortenUrls(lead)),
+                                    if (lead.isNotEmpty) TextSpan(text: shownLead),
                                   ],
                                 ),
                                 maxLines: 1,
@@ -262,7 +278,7 @@ class HomeRow extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, _swiped(swipe, child: row));
+    return _arriving(index, since, _swiped(swipe, child: row));
   }
 }
 
@@ -278,18 +294,26 @@ class HomeLine extends StatelessWidget {
     this.now,
     this.bookName,
     this.notebook,
+    this.workflow,
     this.live = false,
     this.swipe,
     this.space,
     this.onMenu,
+    this.since = Duration.zero,
   });
 
   final Note note;
   final int index;
   final ValueChanged<String> onOpen;
   final int? now;
+
+  /// How long the line has been on its page, for its entrance ([HomeRow.since]).
+  final Duration since;
   final String? bookName;
   final String? notebook;
+
+  /// The notebook's workflow where it was read already (its facts' `statuses`), in place of [notebook].
+  final List<String>? workflow;
   final bool live;
   final NoteSwipes? swipe;
 
@@ -300,8 +324,10 @@ class HomeLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final title = noteTitle(note.body);
+    final facts = NoteFacts.of(note);
+    final title = facts.title;
     final kind = live ? HomeKind.tape : kindOf(note);
+    final marked = listedTicket(facts, notebook: notebook, workflow: workflow);
     final md = t.fontSize('md'), sm = t.fontSize('sm'), xs = t.fontSize('xs');
     final ink3 = t.color('app-ink-3');
     final space = this.space;
@@ -328,7 +354,7 @@ class HomeLine extends StatelessWidget {
                 Shrink(
                   shrink: 1,
                   child: Text(
-                    title.isNotEmpty ? shortenUrls(title) : 'Untitled',
+                    title.isNotEmpty ? facts.shownTitle : 'Untitled',
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
@@ -337,7 +363,7 @@ class HomeLine extends StatelessWidget {
                 ),
                 // Its notebook after the name, quieter, and the first to give way on a narrow line.
                 if (bookName != null) Shrink(shrink: 100, child: Text(bookName!, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, sm, color: ink3))),
-                if (TicketMark.has(note.body, notebook: notebook)) Shrink(shrink: 1, child: TicketMark(body: note.body, notebook: notebook)),
+                if (TicketMark.shows(marked)) Shrink(shrink: 1, child: TicketMark.of(marked!)),
                 if (tape.isNotEmpty) Text.rich(TextSpan(children: tape), softWrap: false),
                 if (space != null)
                   Shrink(
@@ -359,7 +385,7 @@ class HomeLine extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, _swiped(swipe, compact: true, child: line));
+    return _arriving(index, since, _swiped(swipe, compact: true, child: line));
   }
 }
 

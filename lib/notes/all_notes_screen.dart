@@ -29,6 +29,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -40,11 +41,14 @@ import '../art/art.dart';
 import '../core/book.dart';
 import '../core/glide_to_top.dart';
 import '../core/note.dart';
+import '../core/note_facts.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
 import '../home/home_parts.dart';
 import '../home/home_text.dart';
+import '../home/lazy_page.dart';
 import '../home/note_card.dart';
+import '../perf/frame_log.dart';
 import '../shell/header_pane.dart';
 import 'all_notes.dart';
 import 'pull_to_refresh.dart';
@@ -150,6 +154,22 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   /// Where the pointer last went down on a card, for a menu a long press asks for.
   Offset _pressedAt = Offset.zero;
 
+  /// What the page worked out from its notes last ([_reading]).
+  _Read? _read;
+
+  /// The cards as they were made last, and what they were made from: built again with the same of it, the page
+  /// hands back these, so no card is built again for a search field's caret or a pull's move.
+  Widget? _cards;
+  ({_Read read, double width, Tokens tokens, int minute, bool menu})? _cardsFor;
+
+  /// When each card came to be on the page, for its entrance.
+  final Arrivals _arrivals = Arrivals();
+
+  /// What each note is about in a line, as handed over at the last build: read by each card for its own note. And
+  /// when each line came to be there.
+  final ValueNotifier<Map<String, String>> _gists = ValueNotifier<Map<String, String>>(const <String, String>{});
+  final Arrivals _gistArrivals = Arrivals();
+
   @override
   void initState() {
     super.initState();
@@ -174,7 +194,99 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     _scroller.dispose();
     _field.dispose();
     _focus.dispose();
+    _gists.dispose();
     super.dispose();
+  }
+
+  // What a card calls, whoever handed the page its callbacks at the build the card was made in.
+  void _open(String id) => widget.onOpen(id);
+
+  /// What the page works out from its notes: which it shows and in what order, how many are archived or have a
+  /// tape, every page's notebook and every journal's card. Made again only when the notes, the workspaces, the
+  /// search or one of the page's own switches changed; whoever hands the page its notes may make a new list of the
+  /// same notes at every build, so they are asked note by note ([sameNotes]).
+  _Read _reading(Workspaces spaces) {
+    final had = _read;
+    final notes = widget.notes;
+    if (had != null && identical(had.spaces, spaces) && had.query == _query && had.sort == _sort && had.archived == _archived && had.tapes == _tapes && sameNotes(had.notes, notes)) {
+      return had;
+    }
+    if (ghostPerf) Perf.count('allnotes.read');
+    final inSpace = widget.workspaces.inWorkspace(notes, spaces.current?.id, (note) => note.id);
+    final shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
+    // A card one to a row is known by its note; across a row, by its place too (lib/home/note_card.dart
+    // `SliverNoteCards`), and arrives again when that changes.
+    _arrivals.keep([
+      for (final (at, note) in shown.indexed) ...[note.id, '$at/${note.id}'],
+    ]);
+    return _read = _Read(
+      // A list of the page's own: the one handed over may be changed after.
+      notes: List<Note>.of(notes, growable: false),
+      spaces: spaces,
+      query: _query,
+      sort: _sort,
+      archived: _archived,
+      tapes: _tapes,
+      shown: shown,
+      inArchive: archivedCount(inSpace),
+      // How many notes have a tape, among the notes the page can show: the archive's count only while it is shown.
+      withTape: tapeCount(_archived ? inSpace : inSpace.where((n) => n.archivedAt == null)),
+      live: inSpace.where((n) => n.archivedAt == null).length,
+      // Every page's book, for the cards' marks.
+      inBooks: bookIndex(notes),
+      journals: journalCards(notes),
+    );
+  }
+
+  /// The grid of cards [width] wide, as a sliver that builds the rows near the screen.
+  Widget _grid(_Read read, double width, Tokens t, int? now) {
+    final made = (read: read, width: width, tokens: t, minute: (now ?? DateTime.now().millisecondsSinceEpoch) ~/ 60000, menu: widget.onNoteMenu != null);
+    final cards = _cards;
+    final was = _cardsFor;
+    if (cards != null && was != null && identical(was.read, made.read) && was.width == made.width && identical(was.tokens, made.tokens) && was.minute == made.minute && was.menu == made.menu) {
+      return cards;
+    }
+    if (ghostPerf) Perf.count('allnotes.cards');
+    final shown = read.shown;
+    _cardsFor = made;
+    return _cards = SliverSemantics(
+      container: true,
+      label: 'Notes',
+      sliver: SliverNoteCards(
+        count: shown.length,
+        width: width,
+        idOf: (i) => shown[i].id,
+        itemBuilder: (context, i, fill) {
+          final note = shown[i];
+          Widget card(String? gist) => NoteCard(
+                key: ValueKey('card-${note.id}'),
+                note: note,
+                index: i,
+                onOpen: _open,
+                now: now,
+                gist: gist,
+                place: placeOf(read.inBooks, note),
+                entries: read.journals[note.id],
+                dense: true,
+                fill: fill,
+                onMenu: made.menu ? (_) => widget.onNoteMenu?.call(note, _pressedAt) : null,
+                since: _arrivals.since(fill ? '$i/${note.id}' : note.id),
+                gistSince: _gistArrivals.since(note.id),
+              );
+          // The first screens of cards say what each note is about: each reads its own line.
+          final Widget drawn = i < allNotesGisted ? Gisted(gists: _gists, id: note.id, builder: (context, gist) => card(gist)) : card(null);
+          if (!made.menu) return drawn;
+          // The right-click a card answers: the note's menu at the pointer (notes/noteMenu.ts).
+          return Listener(
+            onPointerDown: (event) {
+              _pressedAt = event.position;
+              if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) widget.onNoteMenu?.call(note, event.position);
+            },
+            child: drawn,
+          );
+        },
+      ),
+    );
   }
 
   void _redraw() {
@@ -189,23 +301,23 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    if (ghostPerf) Perf.count('allnotes.build');
     final t = context.tokens;
     final spaces = widget.workspaces.value;
     final workspace = spaces.current?.id;
-    final notes = widget.notes;
-    final inSpace = widget.workspaces.inWorkspace(notes, workspace, (note) => note.id);
-    final shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
-    final inArchive = archivedCount(inSpace);
-    // How many notes have a tape, among the notes the page can show: the archive's count only while it is shown.
-    final withTape = tapeCount(_archived ? inSpace : inSpace.where((n) => n.archivedAt == null));
-    // Every page's book, for the cards' marks.
-    final inBooks = bookIndex(notes);
-    final journals = journalCards(notes);
-    final live = inSpace.where((n) => n.archivedAt == null).length;
+    final read = _reading(spaces);
+    final shown = read.shown;
+    final inArchive = read.inArchive;
+    final withTape = read.withTape;
+    final live = read.live;
     final searched = _query.trim().isNotEmpty;
     // What a search is counted out of: the tapes when only they are shown, else the notes, and the archive with them.
     final outOf = _tapes ? withTape : live + (_archived ? inArchive : 0);
     final now = widget.clock?.call();
+    if (!identical(_gists.value, widget.gists) && !mapEquals(_gists.value, widget.gists)) {
+      _gistArrivals.keep(widget.gists.keys);
+      _gists.value = widget.gists;
+    }
 
     // The bar: `padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2)` round a
     // search as tall as its field (`min-block-size: var(--glacier-space-8)`) and its hairlines.
@@ -222,133 +334,106 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // `padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10))`
     final foot = t.len('app-safe-bottom') + t.space(10) + room;
     final hasSpaces = spaces.list.isNotEmpty;
+    // `padding-inline: var(--app-gutter-start) var(--app-gutter-end)`
+    final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
     Widget page(PullDown? pull) {
-      final column = LayoutBuilder(
-        builder: (context, box) {
-          // `@container all-notes (min-width: 44rem)`: the page's own column.
-          final wide = box.maxWidth >= t.lenOf('44rem');
-          return Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (hasSpaces) ...[
-                WorkspaceBar(
-                  store: widget.workspaces,
-                  onManage: (which) => setState(() => _manage = (editing: which)),
-                  onOrganization: widget.onOrganization,
-                ),
-                // The row's margin under it and the line's above it collapse into the larger, the row's.
-                SizedBox(height: math.max(WorkspaceBar.marginBelow(t), t.space(3))),
-              ] else
-                // `.controls { margin-block: var(--glacier-space-3) var(--glacier-space-3) }`
-                SizedBox(height: t.space(3)),
-              // The order, the tapes, and the archive: one line of words over the cards.
-              _Controls(
-                key: const ValueKey('all-notes-controls'),
-                columnGap: t.space(3),
-                rowGap: t.space(1),
-                children: [
-                  Semantics(
-                    container: true,
-                    label: 'Order',
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      // `.sorts { display: inline-flex; gap: var(--glacier-space-1) }`
-                      spacing: t.space(1),
-                      children: [
-                        for (final each in sorts) _Word(key: ValueKey('sort-${each.id}'), label: each.label, on: _sort == each, radio: true, onPressed: () => _setSort(each)),
-                      ],
-                    ),
-                  ),
-                  // Only the notes with a tape, in the archive toggle's shape; not offered while there are none.
-                  if (withTape > 0) _Word(key: const ValueKey('tapes-word'), label: 'Tapes · $withTape', icon: AppIcons.cassette, on: _tapes, onPressed: () => setState(() => _tapes = !_tapes)),
-                  // How many, and the archive's word: one group taking the rest of the line, so on a phone the two
-                  // wrap together.
-                  Row(
-                    key: const ValueKey('all-notes-counts'),
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    spacing: t.space(3),
-                    children: [
-                      Semantics(
-                        liveRegion: true,
-                        child: Text(
-                          searched ? '${shown.length} of $outOf' : (shown.length == 1 ? '1 note' : '${shown.length} notes'),
-                          key: const ValueKey('all-notes-tally'),
-                          maxLines: 1,
-                          softWrap: false,
-                          // `.tally { font-variant-numeric: tabular-nums; color: var(--app-ink-3) }`
-                          style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
-                        ),
-                      ),
-                      if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
-                    ],
-                  ),
-                ],
-              ),
-              SizedBox(height: t.space(3)),
-              if (!widget.loading && !searched && live == 0 && !_archived)
-                _Empty(
-                  scene: spaces.current != null ? GhostScene.emptyWorkspace : GhostScene.noNotes,
-                  lead: spaces.current != null ? 'Nothing in ${spaces.current!.name} yet.' : 'A blank page.',
-                  hint: widget.sideKey ? 'Write it, or hold the side key and say it.' : (widget.speaks ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'),
-                  wide: wide,
-                )
-              else if (searched && shown.isEmpty)
-                _Empty(
-                  scene: GhostScene.searchNothing,
-                  lead: 'Nothing has “${_query.trim()}”.',
-                  hint: _archived || inArchive == 0 ? 'Try fewer words.' : 'Try fewer words, or look in the archive.',
-                  wide: wide,
-                ),
-              if (shown.isNotEmpty)
-                Semantics(
-                  container: true,
-                  label: 'Notes',
-                  child: NoteCards(
-                    count: shown.length,
-                    itemBuilder: (context, i, fill) {
-                      final note = shown[i];
-                      final menu = widget.onNoteMenu;
-                      final card = NoteCard(
-                        key: ValueKey('card-${note.id}'),
-                        note: note,
-                        index: i,
-                        onOpen: widget.onOpen,
-                        now: now,
-                        gist: i < allNotesGisted ? widget.gists[note.id] : null,
-                        place: placeOf(inBooks, note),
-                        entries: journals[note.id],
-                        dense: true,
-                        fill: fill,
-                        onMenu: menu == null ? null : (_) => menu(note, _pressedAt),
-                      );
-                      if (menu == null) return card;
-                      // The right-click a card answers: the note's menu at the pointer (notes/noteMenu.ts).
-                      return Listener(
-                        onPointerDown: (event) {
-                          _pressedAt = event.position;
-                          if (event.kind == PointerDeviceKind.mouse && event.buttons == kSecondaryMouseButton) menu(note, event.position);
-                        },
-                        child: card,
-                      );
-                    },
-                  ),
-                ),
-            ],
-          );
-        },
-      );
       final Widget scroller = ScrollConfiguration(
         // `overscroll-behavior: contain`: the page stops at its ends, with no glow and no stretch of the platform's.
         behavior: const _Still(),
-        child: SingleChildScrollView(
-          key: const ValueKey('all-notes-scroll'),
-          controller: _scroller,
-          physics: pull?.physics,
-          // `padding-inline: var(--app-gutter-start) var(--app-gutter-end)`
-          padding: EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), top, t.len('app-gutter-end'), foot),
-          child: pull == null ? column : PullLowered(pull: pull, child: column),
+        child: LayoutBuilder(
+          builder: (context, box) {
+            // The page's own column, inside its gutters.
+            final inner = math.max(0.0, box.maxWidth - gutterStart - gutterEnd);
+            // `@container all-notes (min-width: 44rem)`.
+            final wide = inner >= t.lenOf('44rem');
+            // What stands over the cards: the workspaces, the order words, and the empty page's ghost.
+            final head = Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (hasSpaces) ...[
+                  WorkspaceBar(
+                    store: widget.workspaces,
+                    onManage: (which) => setState(() => _manage = (editing: which)),
+                    onOrganization: widget.onOrganization,
+                  ),
+                  // The row's margin under it and the line's above it collapse into the larger, the row's.
+                  SizedBox(height: math.max(WorkspaceBar.marginBelow(t), t.space(3))),
+                ] else
+                  // `.controls { margin-block: var(--glacier-space-3) var(--glacier-space-3) }`
+                  SizedBox(height: t.space(3)),
+                // The order, the tapes, and the archive: one line of words over the cards.
+                _Controls(
+                  key: const ValueKey('all-notes-controls'),
+                  columnGap: t.space(3),
+                  rowGap: t.space(1),
+                  children: [
+                    Semantics(
+                      container: true,
+                      label: 'Order',
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        // `.sorts { display: inline-flex; gap: var(--glacier-space-1) }`
+                        spacing: t.space(1),
+                        children: [
+                          for (final each in sorts) _Word(key: ValueKey('sort-${each.id}'), label: each.label, on: _sort == each, radio: true, onPressed: () => _setSort(each)),
+                        ],
+                      ),
+                    ),
+                    // Only the notes with a tape, in the archive toggle's shape; not offered while there are none.
+                    if (withTape > 0) _Word(key: const ValueKey('tapes-word'), label: 'Tapes · $withTape', icon: AppIcons.cassette, on: _tapes, onPressed: () => setState(() => _tapes = !_tapes)),
+                    // How many, and the archive's word: one group taking the rest of the line, so on a phone the two
+                    // wrap together.
+                    Row(
+                      key: const ValueKey('all-notes-counts'),
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      spacing: t.space(3),
+                      children: [
+                        Semantics(
+                          liveRegion: true,
+                          child: Text(
+                            searched ? '${shown.length} of $outOf' : (shown.length == 1 ? '1 note' : '${shown.length} notes'),
+                            key: const ValueKey('all-notes-tally'),
+                            maxLines: 1,
+                            softWrap: false,
+                            // `.tally { font-variant-numeric: tabular-nums; color: var(--app-ink-3) }`
+                            style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+                          ),
+                        ),
+                        if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
+                      ],
+                    ),
+                  ],
+                ),
+                SizedBox(height: t.space(3)),
+                if (!widget.loading && !searched && live == 0 && !_archived)
+                  _Empty(
+                    scene: spaces.current != null ? GhostScene.emptyWorkspace : GhostScene.noNotes,
+                    lead: spaces.current != null ? 'Nothing in ${spaces.current!.name} yet.' : 'A blank page.',
+                    hint: widget.sideKey ? 'Write it, or hold the side key and say it.' : (widget.speaks ? 'Write it, or tap Speak and say it.' : 'Tap + to write it.'),
+                    wide: wide,
+                  )
+                else if (searched && shown.isEmpty)
+                  _Empty(
+                    scene: GhostScene.searchNothing,
+                    lead: 'Nothing has “${_query.trim()}”.',
+                    hint: _archived || inArchive == 0 ? 'Try fewer words.' : 'Try fewer words, or look in the archive.',
+                    wide: wide,
+                  ),
+              ],
+            );
+            return PageScroll(
+              key: const ValueKey('all-notes-scroll'),
+              controller: _scroller,
+              pull: pull,
+              slivers: [
+                SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
+                // The cards: only the rows of them near the screen are built.
+                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd, foot), sliver: _grid(read, inner, t, now)),
+              ],
+            );
+          },
         ),
       );
       // `useWispEdge(scroller, 'all-notes', topBar)`: smoke under the bar, and no foot.
@@ -420,6 +505,38 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
       ),
     );
   }
+}
+
+/// What the page works out from its notes ([_AllNotesScreenState._reading]), and what it was worked out from.
+class _Read {
+  _Read({
+    required this.notes,
+    required this.spaces,
+    required this.query,
+    required this.sort,
+    required this.archived,
+    required this.tapes,
+    required this.shown,
+    required this.inArchive,
+    required this.withTape,
+    required this.live,
+    required this.inBooks,
+    required this.journals,
+  });
+
+  final List<Note> notes;
+  final Workspaces spaces;
+  final String query;
+  final AllNotesSort sort;
+  final bool archived;
+  final bool tapes;
+
+  final List<Note> shown;
+  final int inArchive;
+  final int withTape;
+  final int live;
+  final Map<String, BookPlace> inBooks;
+  final Map<String, JournalCard> journals;
 }
 
 /// The platform's overscroll glow and stretch left off, and no scrollbar of its own.

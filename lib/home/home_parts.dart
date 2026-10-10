@@ -15,6 +15,7 @@ library;
 import 'dart:async';
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -26,10 +27,16 @@ import '../sheet/css.dart' show pageBaseline;
 ///
 /// Ports `@keyframes arrive` of NoteCard.module.css and HomeLayouts.module.css; nothing differs.
 class Arrive extends StatefulWidget {
-  const Arrive({super.key, required this.duration, this.delay = Duration.zero, required this.rise, required this.child});
+  const Arrive({super.key, required this.duration, this.delay = Duration.zero, this.since = Duration.zero, required this.rise, required this.child});
 
   final Duration duration;
   final Duration delay;
+
+  /// How long ago the thing came to be on its page ([Arrivals]), where that was before this widget was made: a
+  /// list that builds only what is near the screen makes a row again each time it is scrolled to, and a row that
+  /// has been on the page all along has long since arrived. The entrance is taken up where it would be by now, and
+  /// is over for anything older than its delay and its duration. Nothing ago, for something made as it arrives.
+  final Duration since;
   final double rise;
   final Widget child;
 
@@ -47,14 +54,20 @@ class _ArriveState extends State<Arrive> with SingleTickerProviderStateMixin {
     super.didChangeDependencies();
     if (_started) return;
     _started = true;
+    final wait = widget.delay - widget.since;
     if (context.tokens.reducedMotion) {
       _controller.value = 1;
-    } else if (widget.delay > Duration.zero) {
-      _wait = Timer(widget.delay, () {
+    } else if (wait > Duration.zero) {
+      _wait = Timer(wait, () {
         if (mounted) _controller.forward();
       });
-    } else {
+    } else if (wait == Duration.zero) {
       _controller.forward();
+    } else if (-wait >= widget.duration) {
+      // Arrived before it was drawn.
+      _controller.value = 1;
+    } else {
+      _controller.forward(from: -wait.inMicroseconds / widget.duration.inMicroseconds);
     }
   }
 
@@ -80,6 +93,44 @@ class _ArriveState extends State<Arrive> with SingleTickerProviderStateMixin {
         );
       },
     );
+  }
+}
+
+/// When each thing on a page came to be there, for its entrance ([Arrive]).
+///
+/// On the web every row of a page is in the document from the page's first render, and its entrance plays once,
+/// seen or not. A page here builds only the rows near the screen, so a row scrolled to is made then, and would
+/// arrive then, every time. So the page keeps this: it [keep]s the names of everything it lists each time what it
+/// lists changes, and a row asks how long [since] its name was first kept. A name that leaves the page and comes
+/// back arrives again, as an element made again does.
+///
+/// Counted on the frames' own clock, which is the clock an entrance runs on.
+class Arrivals {
+  final Map<Object, Duration> _born = <Object, Duration>{};
+  Duration _last = Duration.zero;
+
+  /// The frame being drawn now, or the last one drawn where none is.
+  Duration get _now {
+    final scheduler = SchedulerBinding.instance;
+    if (scheduler.schedulerPhase != SchedulerPhase.idle) _last = scheduler.currentFrameTimeStamp;
+    return _last;
+  }
+
+  /// The page lists exactly [names] now: the new ones arrive from this frame, and the ones gone are forgotten.
+  void keep(Iterable<Object> names) {
+    final now = _now;
+    final next = <Object, Duration>{for (final name in names) name: _born[name] ?? now};
+    _born
+      ..clear()
+      ..addAll(next);
+  }
+
+  /// How long ago [name] came to be on the page; nothing ago for one the page was never told of.
+  Duration since(Object name) {
+    final born = _born[name];
+    if (born == null) return Duration.zero;
+    final since = _now - born;
+    return since > Duration.zero ? since : Duration.zero;
   }
 }
 
