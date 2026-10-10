@@ -19,6 +19,17 @@ class TopBarTools extends ChangeNotifier {
   Widget? _tools;
   Widget? _tail;
 
+  /// The bar is gone. A screen under it goes in the same frame and gives its controls back a frame later
+  /// ([_TopBarFillState._later]), to a bar that has nobody left to tell: without this the notifier threw in that
+  /// frame's callbacks, which under a test is the NEXT test's first frame.
+  bool _gone = false;
+
+  @override
+  void dispose() {
+    _gone = true;
+    super.dispose();
+  }
+
   /// The screen's own controls, or null where no screen has any.
   Widget? get tools => _tools;
 
@@ -26,6 +37,7 @@ class TopBarTools extends ChangeNotifier {
   Widget? get tail => _tail;
 
   void _set(Object owner, Widget? tools, Widget? tail) {
+    if (_gone) return;
     if (identical(_owner, owner) && identical(_tools, tools) && identical(_tail, tail)) return;
     _owner = owner;
     _tools = tools;
@@ -34,7 +46,7 @@ class TopBarTools extends ChangeNotifier {
   }
 
   void _clear(Object owner) {
-    if (!identical(_owner, owner)) return;
+    if (_gone || !identical(_owner, owner)) return;
     _owner = null;
     _tools = null;
     _tail = null;

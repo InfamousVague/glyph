@@ -382,6 +382,21 @@ void main() {
       expect(find.text('Share'), findsNothing);
       await away(tester);
     });
+
+    testWidgets('goes with a screen still up, and the screen’s controls are given back to nobody', (tester) async {
+      final app = await shell(
+        tester,
+        noteBuilder: (context, shell, screen) => const TopBarFill(tools: Text('Share'), tail: Text('More'), child: SizedBox.expand()),
+      );
+      app.openNote('weekend');
+      await settle(tester);
+      expect(find.text('Share'), findsOneWidget);
+      // The shell and the note's screen in one frame: the screen hands its controls back a frame later, to a bar
+      // that is gone. It threw there ("A TopBarTools was used after being disposed"), in the next test's first frame.
+      await away(tester);
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+    });
   });
 
   group('a window wide enough for two panes', () {
