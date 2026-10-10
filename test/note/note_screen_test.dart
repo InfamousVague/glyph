@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/front_matter.dart' show frontMatterValue;
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/geotag.dart';
 import 'package:ghost_md/core/look.dart';
@@ -295,10 +296,48 @@ void main() {
       final screen = await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Guide"\n---\n- [[One]]\n'));
       await more(tester);
       expect(find.text('What this notebook is called'), findsNothing, reason: 'the field holds the name');
-      await tester.enterText(find.descendant(of: find.byType(SheetField), matching: find.byType(EditableText)), 'Manual');
+      // The Name, over the notebook's Ticket key.
+      await tester.enterText(find.descendant(of: find.byType(SheetField).first, matching: find.byType(EditableText)), 'Manual');
       await tester.pump(const Duration(milliseconds: 450));
       expect(screen.title, 'Manual');
       expect(saves(world).last, '---\ntitle: "Manual"\nbook: true\n---\n- [[One]]\n');
+      await closeNote(tester);
+    });
+
+    // Missing 6 (docs/PARITY.md): More › Ticket key (NoteSettings.tsx `TicketKeyField`, NoteScreen.tsx `ticketKey`).
+    // Until it was here a notebook made in the port got a key only by typing `key:`, and New ticket stayed out of
+    // reach.
+    testWidgets('gives a notebook its ticket key from the More sheet: written while what is typed is a key, said why not while it is not, taken off when cleared', (tester) async {
+      final world = NoteWorld();
+      final screen = await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\ntitle: "Manual"\n---\n- [[One]]\n'));
+      await more(tester);
+      final key = find.descendant(of: find.byType(SheetField).at(1), matching: find.byType(EditableText));
+      expect(tester.widget<SheetField>(find.byType(SheetField).at(1)).label, 'Ticket key');
+      expect(find.text('Give it a key, and New ticket numbers its tickets, like a Jira project.'), findsOneWidget);
+      await tester.enterText(key, 'gho');
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(frontMatterValue(screen.body, 'key'), 'GHO');
+      expect(saves(world).last, contains('key: GHO'));
+      expect(find.text('Its tickets are numbered GHO-1, GHO-2 and on. [[GHO-1]] links to the first.'), findsOneWidget);
+      // Not a key: said, and the notebook keeps the one it has.
+      await tester.enterText(key, '2go');
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(find.text('A key starts with a letter, like GHO.'), findsOneWidget);
+      expect(frontMatterValue(screen.body, 'key'), 'GHO');
+      await tester.enterText(key, 'g');
+      await tester.pump();
+      expect(find.text('Two letters at least, like GHO.'), findsOneWidget);
+      // Cleared: the key is taken off.
+      await tester.enterText(key, '');
+      await tester.pump(const Duration(milliseconds: 450));
+      expect(frontMatterValue(screen.body, 'key'), isNull);
+      expect(find.text('Give it a key, and New ticket numbers its tickets, like a Jira project.'), findsOneWidget);
+      await closeNote(tester);
+
+      // A journal has no ticket key, nor has a note of words.
+      await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\njournal: true\ntitle: "Diary"\n---\n'));
+      await more(tester);
+      expect(find.byType(SheetField), findsOneWidget);
       await closeNote(tester);
     });
 

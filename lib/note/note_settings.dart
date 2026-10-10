@@ -16,7 +16,7 @@
 /// - Sharing (share/ShareRows.tsx, stage 7) is [NoteSettings.sharing], its rows.
 /// - The AI's rows (stage 8) are drawn from [aiKinds] when [NoteSettings.onAi] is given; the dot a run in progress
 ///   wears, and Fill the blanks, come with the runs.
-/// - A journal's page and a notebook's ticket key (book/, stage 5) are not here; the Name field is.
+/// - A journal's page (book/, stage 5) is not here; the Name field and a notebook's ticket key are.
 /// - The cheat sheet's page is [NoteSettings.cheatSheet], and the Help group is there only with it.
 /// - Where it was written (core/location.ts, later) is [NoteSettings.location]; the hints are ported.
 /// - It is built only while it is open, by the screen, where the page's returned null while shut.
@@ -32,6 +32,7 @@ import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
 import '../art/icons.dart';
+import '../book/tickets.dart' show keyProblem;
 import '../core/geotag.dart';
 import '../core/location.dart' show LocateFailure;
 import '../core/look.dart';
@@ -139,6 +140,14 @@ class NoteName {
   final String kind;
 }
 
+/// A notebook's ticket key (book/tickets.dart), as its front matter says it, and its write (`ticketKey`).
+@immutable
+class NoteTicketKey {
+  const NoteTicketKey({required this.value, required this.onChange});
+  final String value;
+  final ValueChanged<String> onChange;
+}
+
 /// The note's look, for its row of choices (`look`).
 @immutable
 class NoteLook {
@@ -178,6 +187,7 @@ class NoteSettings extends StatefulWidget {
     this.onFind,
     this.onMakeBoard,
     this.name,
+    this.ticketKey,
     this.onSpeak,
     this.speakLabel = 'Talk into this note',
     this.look,
@@ -215,6 +225,9 @@ class NoteSettings extends StatefulWidget {
   /// Lays the note's list out as a board; absent where there is nothing to make one of.
   final VoidCallback? onMakeBoard;
   final NoteName? name;
+
+  /// A notebook's ticket key and its write; absent on anything else, a journal included.
+  final NoteTicketKey? ticketKey;
 
   /// Talk into this note, or, on a journal, speak a new entry.
   final VoidCallback? onSpeak;
@@ -263,6 +276,9 @@ class _NoteSettingsState extends State<NoteSettings> {
 
   /// Why each link cannot be used on this build, asked as the sheet opens (`unavailable`).
   final Map<String, String?> _unavailable = <String, String?>{};
+
+  /// The ticket key as it is being typed, which is not always a key yet.
+  late String _keyTyped = widget.ticketKey?.value ?? '';
 
   /// The note's words as they were when the sheet opened: what an action's row is drawn from.
   late final String _body = widget.plugins?.editing.body() ?? '';
@@ -419,6 +435,32 @@ class _NoteSettingsState extends State<NoteSettings> {
           SheetGroup(
             children: [SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false)],
           ),
+        // A notebook's ticket key, typed (`TicketKeyField`): written whenever what is typed is a key or nothing, which
+        // takes it off, and what is wrong with it said under it while it is neither.
+        if (name != null && widget.ticketKey != null) ...[
+          SheetGroup(
+            children: [
+              SheetField(
+                label: 'Ticket key',
+                value: _keyTyped,
+                placeholder: 'GHO',
+                autoCapitalize: TextCapitalization.characters,
+                autoCorrect: false,
+                onChange: (typed) {
+                  final next = typed.toUpperCase();
+                  setState(() => _keyTyped = next);
+                  if (keyProblem(next) == null) widget.ticketKey!.onChange(next);
+                },
+              ),
+            ],
+          ),
+          SheetNote(
+            keyProblem(_keyTyped) ??
+                (_keyTyped.trim().isNotEmpty
+                    ? 'Its tickets are numbered ${_keyTyped.trim().toUpperCase()}-1, ${_keyTyped.trim().toUpperCase()}-2 and on. [[${_keyTyped.trim().toUpperCase()}-1]] links to the first.'
+                    : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
+          ),
+        ],
         if (reading) ...[
           const SheetHeading('Reading it'),
           SheetGroup(

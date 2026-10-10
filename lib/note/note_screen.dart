@@ -79,6 +79,7 @@ import '../core/versions_record.dart';
 import '../core/workspaces.dart';
 import '../book/book_spot.dart' show ChapterSpot, writeBookSpot;
 import '../book/journal.dart' show JournalWriter;
+import '../book/tickets.dart' show withNotebookKey;
 import '../ai/note_review.dart' show onReviewHandedBack;
 import '../core/location.dart' show whyLocateFailed;
 import '../editor/editor.dart';
@@ -999,6 +1000,25 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     return true;
   }
 
+  /// A notebook's own keys written from the More sheet (its ticket key; kept as a journal, its template and its
+  /// place switch): as the notebook's own changes are, and into the editor where its Markdown is the view, so the
+  /// next keystroke there does not write the old keys back (`writeNotebook`).
+  void _writeNotebook(String Function(String was) change) {
+    final next = change(_saving.body);
+    if (next == _saving.body) return;
+    final editor = _view;
+    if (_source && editor != null) {
+      _external(change(editor.state.doc.toString()));
+    } else {
+      _onChange(next);
+    }
+    setState(() => _typedBody = next);
+  }
+
+  /// The notebook's rows of the More sheet are a notebook's alone, and never the Guide's: a manual is not a diary,
+  /// and has no tickets (`journalRows`).
+  bool get _notebookRows => _isBook && !widget.readOnly && !isGuideBook(widget.note.copyWith(body: _typedBody));
+
   /// The name typed in the More sheet, into the front matter; the index takes it too (`renameHere`).
   void renameHere(String next) {
     final named = withFrontMatterTitle(_saving.body, next);
@@ -1540,6 +1560,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             },
       onMakeBoard: !widget.readOnly && words && boardFrom(view?.state.doc.toString() ?? _saving.body) != null ? makeBoard : null,
       name: _typed && !widget.readOnly ? NoteName(value: _saving.title, onChange: renameHere, kind: _isCanvas ? 'canvas' : (_isJournal ? 'journal' : 'notebook')) : null,
+      // A notebook's ticket key (docs/DESIGN.md §157), written as its other keys are. Not a journal's.
+      ticketKey: _notebookRows && !_isJournal ? NoteTicketKey(value: frontMatterValue(_typedBody, 'key') ?? '', onChange: (typed) => _writeNotebook((was) => withNotebookKey(was, typed))) : null,
       onSpeak: speak == null || widget.readOnly ? null : _speak,
       speakLabel: speak ?? 'Talk into this note',
       look: !_typed && !widget.readOnly ? NoteLook(value: _look, canMap: _tag != null || _look == Look.map, onChange: chooseLook) : null,
