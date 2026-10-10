@@ -92,7 +92,9 @@ int _newestPinnedFirst(Note a, Note b) {
 
 /// The notes the page shows under a search and a filter, never the archive.
 HomeLists homeLists(Iterable<Note> all, String query, HomeFilter filter) {
-  final shown = all.where((n) => n.archivedAt == null && matches(n, query) && (filter != HomeFilter.pinned || n.starred)).toList();
+  // The query's words once, not once a note; each note is looked through as it was last read (`searchText`).
+  final words = queryWords(query);
+  final shown = all.where((n) => n.archivedAt == null && hasWords(n, words) && (filter != HomeFilter.pinned || n.starred)).toList();
   // A notebook is one by its front matter alone: neither list asks whether a note is a canvas.
   final books = filter == HomeFilter.notes ? <Note>[] : _sorted(shown.where((n) => NoteFacts.of(n).isBook), _newestPinnedFirst);
   final notes = filter == HomeFilter.books ? <Note>[] : _sorted(shown.where((n) => !NoteFacts.of(n).isBook), _newestPinnedFirst);

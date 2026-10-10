@@ -55,6 +55,7 @@ import '../core/page_scroll.dart';
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
+import '../core/search_ahead.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../notes/pull_to_refresh.dart';
@@ -349,6 +350,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final ValueNotifier<Map<String, String>> _gists = ValueNotifier<Map<String, String>>(const <String, String>{});
   final Arrivals _gistArrivals = Arrivals();
   String _query = '';
+  final SearchAhead _ahead = SearchAhead();
   HomeFilter _filter = HomeFilter.all;
   String? _glideKey;
   _Read? _read;
@@ -428,7 +430,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (ghostPerf) Perf.count('home.read');
     final workspace = spaces.current?.id;
     final inSpace = widget.workspaces.inWorkspace(notes, workspace, (note) => note.id);
+    final began = ghostPerf ? Perf.now() : 0;
     final lists = homeLists(inSpace, _query, _filter);
+    if (ghostPerf) Perf.add('home.lists', began);
     final read = _Read(
       // A list of the page's own: the one handed over may be changed after.
       notes: List<Note>.of(notes, growable: false),
@@ -747,6 +751,8 @@ class _HomeScreenState extends State<HomeScreen> {
           key: _filters,
           query: query,
           onQuery: (query) => setState(() => _query = query),
+          // What the search reads of each note, made as the field takes the keyboard.
+          onSearching: () => _ahead.begin(() => widget.notes, alive: () => mounted),
           filter: filter,
           onFilter: (filter) => setState(() => _filter = filter),
           counts: counts,

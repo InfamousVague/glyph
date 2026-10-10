@@ -152,17 +152,40 @@ String _priorityWords(String body) {
   return fieldsIn(body).where((span) => span.kind == FieldKind.priority).map((span) => '${span.value} priority').join(' ');
 }
 
+/// What a search looks through for each note, by the note's id, for the body it was read from.
+final Map<String, ({String body, String text})> _searched = <String, ({String body, String text})>{};
+
+/// What a search reads of [note]: its words with a filled blank's hidden bracket taken out (blanks_syntax.dart:
+/// "memory" or "Asked" finds no note), then its to-dos' priorities in words, all in lower case. The page makes it
+/// for every note at every letter typed, which is every letter of the library copied three times a keystroke; here
+/// it is read once for the body the note has now, and kept: at most one reading for each note there is (and where
+/// the library hands back the same words in a new string, the reading takes the new string and lets the old go).
+/// The home page's search and All notes' both look through it ([matches], [hasWords]).
+String searchText(Note note) {
+  final body = note.body;
+  final had = _searched[note.id];
+  if (had != null) {
+    if (identical(had.body, body)) return had.text;
+    if (had.body == body) {
+      _searched[note.id] = (body: body, text: had.text);
+      return had.text;
+    }
+  }
+  if (_searched.length >= 32768) _searched.clear();
+  final text = '${plainFills(body)} ${_priorityWords(body)}'.toLowerCase();
+  _searched[note.id] = (body: body, text: text);
+  return text;
+}
+
+/// The words of a query as a search reads them: lower case, split at any run of white space. None for a blank one.
+List<String> queryWords(String query) => query.isEmpty ? const <String>[] : query.toLowerCase().split(_spaces).where((word) => word.isNotEmpty).toList();
+
+/// Whether a note has every one of [words] ([queryWords]); none asked for is every note, with nothing of it read.
+bool hasWords(Note note, List<String> words) => words.isEmpty || words.every(searchText(note).contains);
+
 /// Whether a note has every word of the query, in its title or its body, whatever the case. Words rather than the
 /// whole phrase, so "trip packing" finds a note with those two words anywhere in it.
-bool matches(Note note, String query) {
-  // No words asked for: every note, with nothing of it read.
-  if (query.isEmpty) return true;
-  final words = query.toLowerCase().split(_spaces).where((w) => w.isNotEmpty).toList();
-  if (words.isEmpty) return true;
-  // A filled blank's hidden bracket (blanks_syntax.dart) is not the note's words: "memory" or "Asked" finds no note.
-  final text = '${plainFills(note.body)} ${_priorityWords(note.body)}'.toLowerCase();
-  return words.every(text.contains);
-}
+bool matches(Note note, String query) => hasWords(note, queryWords(query));
 
 // ---- a note drawn small (notes/peek.ts) ---------------------------------------------------------------------------
 

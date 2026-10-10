@@ -37,6 +37,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/page_scroll.dart';
+import '../core/search_ahead.dart';
 import '../art/art.dart';
 import '../core/book.dart';
 import '../core/glide_to_top.dart';
@@ -272,33 +273,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     _focus.addListener(_readAhead);
   }
 
-  bool _readingAhead = false;
+  /// What the search reads of each note, made as the field takes the keyboard (lib/core/search_ahead.dart).
+  final SearchAhead _ahead = SearchAhead();
 
-  /// What the search reads of each note ([searchText]) made as the field takes the keyboard, a millisecond and a
-  /// half of it after each frame, so the first letter typed finds it made: it made every note's in its own frame
-  /// (measured on a Mac over 354 notes: 7.9 ms, where a letter after it took 0.3).
   void _readAhead() {
-    if (!_focus.hasFocus || _readingAhead) return;
-    _readingAhead = true;
-    var at = 0;
-    void some(Duration _) {
-      if (!mounted) return;
-      final notes = widget.notes;
-      final clock = Stopwatch()..start();
-      while (at < notes.length && clock.elapsedMicroseconds < 1500) {
-        searchText(notes[at]);
-        at += 1;
-      }
-      if (at >= notes.length) {
-        _readingAhead = false;
-        return;
-      }
-      WidgetsBinding.instance
-        ..addPostFrameCallback(some)
-        ..scheduleFrame();
-    }
-
-    WidgetsBinding.instance.addPostFrameCallback(some);
+    if (_focus.hasFocus) _ahead.begin(() => widget.notes, alive: () => mounted);
   }
 
   @override

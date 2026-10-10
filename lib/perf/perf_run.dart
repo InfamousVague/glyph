@@ -71,7 +71,8 @@ abstract final class PerfLaunch {
 /// The standard walk for a window [size] logical pixels: every touch is placed by the window, so the same walk
 /// runs on the Fold shut, the Fold open and a Mac's window. It is made of parts, each of which begins and ends on
 /// the home page, so one part can be walked alone ([only]: `home`, `note`, `board`, `canvas`, `notebook`,
-/// `allnotes`, `sidebar`, `search`, `palette`, `settings`, and `opens`, which is walked only when it is named;
+/// `allnotes`, `sidebar`, `search`, `palette`, `homesearch`, `settings`, and `opens`, which is walked only when it
+/// is named;
 /// `bench:note+settings` on the command line). What a part
 /// opens is looked for first (`seek`, in a stretch that is not kept): a phone's home page has it a few screens down
 /// where a wide window shows it at once.
@@ -179,6 +180,12 @@ String benchScript(Size size, {Set<String>? only}) {
       // A command typed, taken back, and something nothing answers to.
       'mark:palette-type', 'type:theme', 'wait:500', 'backspace:5', 'wait:400', 'type:zzqq', 'wait:600',
       'mark:palette-close', 'back', 'wait:1000',
+    ],
+    // The home page's own search: three letters, each narrowing the page, and cleared.
+    'homesearch': [
+      'mark:home-search', 'taplabel:Search notebooks and notes', 'wait:600', 'type:fox', 'wait:900',
+      'mark:home-search-clear', 'taplabel:Clear the search', 'wait:900',
+      'mark:_seek', 'unfocus', 'wait:300',
     ],
     'settings': [
       'mark:settings-open', 'taplabel:Settings', 'wait:1500',

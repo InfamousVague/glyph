@@ -1,6 +1,9 @@
 import 'package:flutter_test/flutter_test.dart' hide matches;
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/note_text.dart' show plainFills;
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/task_fields.dart' show FieldKind, fieldsIn;
+import 'package:ghost_md/home/home_layout.dart' show HomeFilter, homeLists;
 import 'package:ghost_md/notes/all_notes.dart';
 
 import '../core/make_note.dart';
@@ -41,9 +44,20 @@ void main() {
       expect(matches(makeNote('a', body: '# Trip'), '   '), isTrue);
     });
 
-    test('the page finds what the rule finds, from the reading it keeps of each note', () {
-      // The page looks through a reading of each note made once and kept (`searchText`); the rule, `matches`, makes
-      // it anew each time it is asked. Whatever the note and whatever is typed, the two say the same.
+    test('the search finds what the rule finds, from the reading it keeps of each note', () {
+      // The search looks through a reading of each note made once and kept (lib/core/note_text.dart `searchText`).
+      // The rule is the page's, written out here as it was before anything was kept: the note's words with its
+      // filled blanks' brackets out, its priorities named, in lower case, made anew at each asking. Whatever the
+      // note and whatever is typed, the two say the same, for All notes, for the home page and for `matches`.
+      final sign = RegExp('🔺|⏫|🔼|🔽|⏬', unicode: true);
+      bool rule(Note note, String query) {
+        final words = query.toLowerCase().split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+        if (words.isEmpty) return true;
+        final priorities = sign.hasMatch(note.body) ? fieldsIn(note.body).where((span) => span.kind == FieldKind.priority).map((span) => '${span.value} priority').join(' ') : '';
+        final text = '${plainFills(note.body)} $priorities'.toLowerCase();
+        return words.every(text.contains);
+      }
+
       const parts = [
         '# Trip', 'Packing: tent, stove', '- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03', '- [ ] Tidy up 🔽', '- [x] Done 🔺', 'Inline code `⏫` here',
         'Flights on ??midweek??(Qwen3.5 4B from memory, 2026-09-28. Asked: what day / time?)', 'Weather: {?weather today}', 'A ??doubt??(check with Sam)',
@@ -64,11 +78,14 @@ void main() {
           makeNote('n$n', body: [for (var line = next(7); line >= 0; line -= 1) parts[next(parts.length)]].join('\n'), updatedAt: n),
       ];
       for (final query in queries) {
-        final rule = [
+        final found = [
           for (final note in notes)
-            if (matches(note, query)) note.id,
+            if (rule(note, query)) note.id,
         ]..sort();
-        expect(ids(browseNotes(notes, Browse(query: query)))..sort(), rule, reason: 'typed "$query"');
+        expect(ids(browseNotes(notes, Browse(query: query)))..sort(), found, reason: 'All notes, typed "$query"');
+        final home = homeLists(notes, query, HomeFilter.all);
+        expect(ids([...home.books, ...home.notes])..sort(), found, reason: 'the home page, typed "$query"');
+        expect([for (final note in notes) if (matches(note, query)) note.id]..sort(), found, reason: 'matches, typed "$query"');
       }
       // A note changed is read again: the same id with other words is found by the new ones and not the old.
       final was = makeNote('same', body: '# Kettle');

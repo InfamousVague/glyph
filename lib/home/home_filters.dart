@@ -42,10 +42,15 @@ class HomeFilters extends StatefulWidget {
     required this.onManage,
     this.onNewOrganization,
     this.onOrganization,
+    this.onSearching,
   });
 
   final String query;
   final ValueChanged<String> onQuery;
+
+  /// The search field has taken the keyboard: whoever searches may make ready for the first letter
+  /// (lib/core/search_ahead.dart).
+  final VoidCallback? onSearching;
   final HomeFilter filter;
   final ValueChanged<HomeFilter> onFilter;
 
@@ -83,7 +88,12 @@ class HomeFiltersState extends State<HomeFilters> {
     super.initState();
     _controller.text = widget.query;
     _field.addListener(_redraw);
+    _field.addListener(_searching);
     widget.workspaces.addListener(_redraw);
+  }
+
+  void _searching() {
+    if (_field.hasFocus) widget.onSearching?.call();
   }
 
   @override
@@ -103,6 +113,7 @@ class HomeFiltersState extends State<HomeFilters> {
   void dispose() {
     widget.workspaces.removeListener(_redraw);
     _field.removeListener(_redraw);
+    _field.removeListener(_searching);
     _controller.dispose();
     _field.dispose();
     _button.dispose();
