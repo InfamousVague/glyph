@@ -41,12 +41,14 @@ void paintWispSmoke(
   required Rect bentRect,
   required double ratio,
   required WispSmoke smoke,
+  ({ui.Image image, Rect rect})? soft,
 }) {
   if (!wispQuick) {
     paintWispSmokeExact(canvas, kit: kit, table: table, source: source, sourceRect: sourceRect, rect: rect, bentRect: bentRect, ratio: ratio, smoke: smoke);
     return;
   }
-  final haze = wispHaze(kit: kit, table: table, source: source, sourceRect: sourceRect, bentRect: bentRect, ratio: ratio, smoke: smoke);
+  // The soft half as it was made with a page's others ([wispSoftSheet]), or made here for this smoke alone.
+  final haze = soft ?? wispHaze(kit: kit, table: table, source: source, sourceRect: sourceRect, bentRect: bentRect, ratio: ratio, smoke: smoke);
   final field = wispNoiseField(kit: kit, table: table, bentRect: bentRect, ratio: ratio, smoke: smoke);
   final shader = kit.smoke(source: source, sourceRect: sourceRect, bentRect: bentRect, haze: haze.image, hazeRect: haze.rect, field: field.image, fieldRect: field.rect, origin: rect.topLeft, smoke: smoke);
   canvas.save();
@@ -54,7 +56,7 @@ void paintWispSmoke(
   // Hard edged, as the clip that keeps the view out of this rectangle is: the two then meet on one line of pixels.
   canvas.drawRect(Offset.zero & rect.size, Paint()..shader = shader..isAntiAlias = false);
   canvas.restore();
-  haze.image.dispose();
+  if (soft == null) haze.image.dispose();
 }
 
 /// The noise of [smoke] over [bentRect], as the picture the one-pass drawing reads its bend from
@@ -124,9 +126,7 @@ double wispNearGain(int step) => debugWispGain ?? (step >= 4 ? 2.5 : (step == 2 
 @visibleForTesting
 double? debugWispGain;
 
-/// `soft` kept to `near`, small: the bent view drawn at one pixel to [wispSmallStep] of the screen's, then blurred
-/// and kept near its own ink (shaders/wisp_haze.frag). The picture lies over the answer's rectangle, which is
-/// [bentRect] grown to whole pixels of the small picture.
+/// `soft` kept to `near`, small, for one smoke: [wispSoftSheet] of one.
 ({ui.Image image, Rect rect}) wispHaze({
   required WispKit kit,
   required ui.Image table,
@@ -136,28 +136,92 @@ double? debugWispGain;
   required double ratio,
   required WispSmoke smoke,
 }) {
-  final step = wispSmallStep(smoke.blur * ratio);
-  // One pixel of the small picture, in the view's.
-  final texel = step / ratio;
-  final wide = math.max(1, (bentRect.width / texel - 1e-4).ceil()), tall = math.max(1, (bentRect.height / texel - 1e-4).ceil());
-  final rect = bentRect.topLeft & Size(wide * texel, tall * texel);
-  final bent = wispBent(kit: kit, table: table, source: source, sourceRect: sourceRect, bentRect: rect, ratio: ratio / step, smoke: smoke, spread: step == 1 ? Offset.zero : Offset(texel / 4, texel / 4));
+  final sheet = wispSoftSheet(kit: kit, ratio: ratio, asks: [WispSoftAsk(table: table, source: source, sourceRect: sourceRect, bentRect: bentRect, smoke: smoke)]);
+  return (image: sheet.image, rect: sheet.rects.single);
+}
 
-  final taps = WispProbe.has('noblur') ? WispBlurTaps.none : wispBlurTaps(wispSmallSigma(smoke.blur * ratio, step));
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  canvas.scale(ratio / step);
-  final near = WispProbe.has('nonear') ? Offset.zero : smoke.near;
-  // The ink is looked for a little nearer in a small picture than the dilate's radius: a small pixel already has
-  // the ink of the screen's pixels round it, and the gain widens what is found again. Eight tenths and the gains
-  // above are what brought this drawing's halo nearest the first's, of those tried (test/art/smoke_compare_test.dart).
-  final shader = kit.haze(bent: bent, bentRect: rect, origin: rect.topLeft, taps: taps, near: near * (step == 1 ? 1.0 : 0.8), gain: near == Offset.zero ? 0 : wispNearGain(step));
-  canvas.drawRect(Offset.zero & rect.size, Paint()..shader = shader..isAntiAlias = false..blendMode = BlendMode.src);
-  final picture = recorder.endRecording();
-  final image = picture.toImageSync(wide, tall);
+/// How many pictures the engine has been asked for on a strip's account (of the view, and of smokes' soft halves):
+/// each is a task of its own before the frame. For a test to count a frame's.
+int debugWispPictures = 0;
+
+/// One smoke's asking for its soft half: the view it bends ([source], a picture lying over [sourceRect]), where the
+/// bent view is worked out ([bentRect]), and the smoke.
+@immutable
+class WispSoftAsk {
+  const WispSoftAsk({required this.table, required this.source, required this.sourceRect, required this.bentRect, required this.smoke});
+  final ui.Image table, source;
+  final Rect sourceRect, bentRect;
+  final WispSmoke smoke;
+}
+
+/// The soft halves of several smokes, made together: `soft` kept to `near` for each (the bent view drawn at one
+/// pixel to [wispSmallStep] of the screen's, then blurred and kept near its own ink, shaders/wisp_haze.frag), every
+/// one in a place of its own on one small picture. Two pictures are made in all, the bent views and that blurred,
+/// however many smokes ask: a page's top and its foot made a pair each, and each picture the engine is asked for
+/// is a task of its own on the raster thread before the frame, which costs what it costs however small it is.
+///
+/// The answer's picture is every smoke's; [rects] says, for each, where the whole of it would lie in that smoke's
+/// view for the smoke's own place to lie over its [WispSoftAsk.bentRect] (grown to whole pixels of the small
+/// picture): what a shader that reads a picture by its place in the view is given. The places are one under the
+/// next with a clear pixel between, so a reading between two pixels at a place's edge takes nothing of its
+/// neighbour.
+({ui.Image image, List<Rect> rects}) wispSoftSheet({required WispKit kit, required double ratio, required List<WispSoftAsk> asks}) {
+  final places = <({int top, int wide, int tall, double texel, int step, Rect rect})>[];
+  var down = 0, sheetWide = 1;
+  for (final ask in asks) {
+    final step = wispSmallStep(ask.smoke.blur * ratio);
+    // One pixel of the small picture, in the view's.
+    final texel = step / ratio;
+    final wide = math.max(1, (ask.bentRect.width / texel - 1e-4).ceil()), tall = math.max(1, (ask.bentRect.height / texel - 1e-4).ceil());
+    places.add((top: down, wide: wide, tall: tall, texel: texel, step: step, rect: ask.bentRect.topLeft & Size(wide * texel, tall * texel)));
+    down += tall + 1;
+    sheetWide = math.max(sheetWide, wide);
+  }
+  final sheetTall = math.max(1, down - 1);
+  Rect whole(({int top, int wide, int tall, double texel, int step, Rect rect}) place) =>
+      Rect.fromLTWH(place.rect.left, place.rect.top - place.top * place.texel, sheetWide * place.texel, sheetTall * place.texel);
+
+  // The bent views, each in its place at the place's own size.
+  var recorder = ui.PictureRecorder();
+  var canvas = Canvas(recorder);
+  for (var i = 0; i < asks.length; i++) {
+    final ask = asks[i], place = places[i];
+    canvas.save();
+    canvas.translate(0, place.top.toDouble());
+    canvas.clipRect(Rect.fromLTWH(0, 0, place.wide.toDouble(), place.tall.toDouble()), doAntiAlias: false);
+    canvas.scale(1 / place.texel);
+    final shader = kit.bend(source: ask.source, sourceRect: ask.sourceRect, origin: place.rect.topLeft, smoke: ask.smoke, table: ask.table, spread: place.step == 1 ? Offset.zero : Offset(place.texel / 4, place.texel / 4));
+    canvas.drawRect(Offset.zero & place.rect.size, Paint()..shader = shader..isAntiAlias = false);
+    canvas.restore();
+  }
+  var picture = recorder.endRecording();
+  final bent = picture.toImageSync(sheetWide, sheetTall);
+  picture.dispose();
+
+  // And blurred, each by its own deviation and kept near its own ink, reading only its own place.
+  recorder = ui.PictureRecorder();
+  canvas = Canvas(recorder);
+  for (var i = 0; i < asks.length; i++) {
+    final smoke = asks[i].smoke, place = places[i];
+    final taps = WispProbe.has('noblur') ? WispBlurTaps.none : wispBlurTaps(wispSmallSigma(smoke.blur * ratio, place.step));
+    final near = WispProbe.has('nonear') ? Offset.zero : smoke.near;
+    // The ink is looked for a little nearer in a small picture than the dilate's radius: a small pixel already has
+    // the ink of the screen's pixels round it, and the gain widens what is found again. Eight tenths and the gains
+    // above are what brought this drawing's halo nearest the first's, of those tried (test/art/smoke_compare_test.dart).
+    final shader = kit.haze(bent: bent, bentRect: whole(place), own: place.rect, origin: place.rect.topLeft, taps: taps, near: near * (place.step == 1 ? 1.0 : 0.8), gain: near == Offset.zero ? 0 : wispNearGain(place.step));
+    canvas.save();
+    canvas.translate(0, place.top.toDouble());
+    canvas.scale(1 / place.texel);
+    canvas.drawRect(Offset.zero & place.rect.size, Paint()..shader = shader..isAntiAlias = false..blendMode = BlendMode.src);
+    canvas.restore();
+  }
+  picture = recorder.endRecording();
+  final image = picture.toImageSync(sheetWide, sheetTall);
   picture.dispose();
   bent.dispose();
-  return (image: image, rect: rect);
+  debugWispPictures += 2;
+  if (ghostPerf) Perf.count('wisp.pictures', 2);
+  return (image: image, rects: [for (final place in places) whole(place)]);
 }
 
 /// The same filter in three passes, each primitive a picture of its own at the screen's pixels, as the web filter

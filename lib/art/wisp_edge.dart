@@ -57,6 +57,10 @@ const double wispEdgeFootBend = 23;
 const double wispEdgeBlur = 3.4;
 const double wispEdgeNear = 2.5;
 
+/// How far above the foot of what covers a header's smoke ([WispEdge.covered]) the smoke still begins: room for a
+/// hairline or a rounded corner at the cover's own edge.
+const double wispEdgeCoveredKeep = 8;
+
 /// The fade at a smoking foot, a desktop's plain foot, and the mask drawing's two tears (art/wisp.css).
 const double wispFootFadeSmoke = 32;
 const double wispFootFadePlain = 28;
@@ -344,6 +348,7 @@ class WispEdge extends StatefulWidget {
     super.key,
     required this.child,
     this.under = 0,
+    this.covered = 0,
     this.foot = false,
     this.footOver = 0,
     this.draw,
@@ -355,6 +360,15 @@ class WispEdge extends StatefulWidget {
 
   final Widget child;
   final double under;
+
+  /// How much of [under] is behind something that hides the smoke: a header of glass, whose blur is wider than
+  /// anything the smoke does (the bars' is 18px; the smoke throws a pixel 12 at most and softens by 3.4). The view
+  /// is left to paint itself there, and the smoke begins [wispEdgeCoveredKeep] above the cover's foot: what shows
+  /// under the header's edge is the same smoke, and what is behind the glass is the view through the same blur,
+  /// bent or not. Nothing (the default) where the header is clear, or islands with the page between them. On a
+  /// page whose header is most of the top strip this is most of the strip not drawn: under a header 107px tall,
+  /// 72 rows of smoke where there were 171.
+  final double covered;
   final bool foot;
   final double footOver;
   final WispDraw? draw;
@@ -623,9 +637,11 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
     } else if (_worn) {
       if (smokes) {
         final at = WispDrift.instance.at(widget.band);
+        // Behind a header that hides it, no smoke is drawn (`covered`; a measured build can say every header is one).
+        final hidden = WispProbe.has('covered') ? beneath : math.min(widget.covered, beneath);
         strips.addAll(wispSmokeStrips(
           // Down to the end of the fade where that is longer than the band: the strip is what the mask is drawn in.
-          rect: Rect.fromLTRB(0, 0, width, math.min(height, math.max(beneath + drop + wispEdgeReach, topFade))),
+          rect: Rect.fromLTRB(0, math.max(0, hidden - wispEdgeCoveredKeep), width, math.min(height, math.max(beneath + drop + wispEdgeReach, topFade))),
           smoke: wispTopSmoke(under: beneath, lift: _lift, at: at, fade: fade),
           within: wispTopWithin(beneath),
         ));

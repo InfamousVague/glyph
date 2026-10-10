@@ -81,10 +81,13 @@ const bool _quick = bool.fromEnvironment('GHOST_WISP_QUICK', defaultValue: true)
 
 /// Whether the editor's arriving words (the recorder's words out of smoke, the voice's ripples:
 /// lib/editor/ai/wisp_filters.dart) are laid down from the sheet of letters too, as a spoiler's and a heated line's
-/// are. Not yet, unless a build says so (`--dart-define=GHOST_WISP_ARRIVALS=true`): a letter off the sheet is drawn
-/// one frame behind its filter, and the eight pictures of test/editor_ai that take an arrival moment by moment
-/// (arrival-{dark,light}-{30,50}, ripple-light-{8,15,30}, ripple-dark-30) are of that frame; they are the same
-/// letters as sharp (build/smoke-compare/arrivals), and are to be drawn again when this is turned on.
+/// are. Not yet, unless a build says so (`--dart-define=GHOST_WISP_ARRIVALS=true`), for two reasons found by
+/// drawing test/editor_ai's pictures with it on. A letter off the sheet is drawn one frame behind its filter, so
+/// thirteen pictures that take an arrival moment by moment move (arrival-*, heard-*, ripple-*,
+/// ripple-over-arrival: the same letters as sharp, build/smoke-compare/arrivals). And three of them
+/// (ripple-light-8, ripple-light-15, ripple-dark-30) then came out one step of 255 apart on a few hundred pixels
+/// between two runs of the same code: a picture that is not the same twice cannot be a reference, and what
+/// differs between the runs has not been found.
 bool get wispArrivalsQuick => wispQuick && _arrivals;
 const bool _arrivals = bool.fromEnvironment('GHOST_WISP_ARRIVALS');
 

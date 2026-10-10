@@ -4,6 +4,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/widgets.dart';
 
 import '../perf/frame_log.dart' show ghostPerf;
 
@@ -38,6 +39,10 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   raster, beside its raster time, in tenths of a millisecond. The pictures a strip or a sheet of
 ///   letters is drawn through are drawn by the engine in tasks of their own on the raster thread, before the
 ///   frame that uses them and outside its raster time: that wait is where they show.
+/// - `covered`: every header a page smokes under is taken to hide its smoke (lib/art/wisp_edge.dart
+///   `WispEdge.covered`): what that would save, before the pages that have such a header say so.
+/// - `scroll=<pixels>`: every page that can scroll that far is put there, and put back there for the walk's first
+///   seconds: two drawings of one page at one place, for pictures to be laid pixel on pixel (`shots`).
 /// - `nobackdrop`: every backdrop filter in the window is switched off (the bars' glass, the dock's), and the log
 ///   says how often a rebuild switched one back on, since a frame it was on for is a frame that paid for it.
 ///
@@ -61,6 +66,23 @@ abstract final class WispProbe {
   }
 
   static bool has(String name) => ghostPerf && _asked.contains(name);
+
+  /// `scroll=`: every vertical scroller that reaches [to] is put there, twice a second for eight seconds.
+  static void _scrollTo(double to) {
+    var times = 0;
+    Timer.periodic(const Duration(milliseconds: 500), (timer) {
+      if (++times > 16) timer.cancel();
+      void visit(Element element) {
+        if (element is StatefulElement && element.state is ScrollableState) {
+          final position = (element.state as ScrollableState).position;
+          if (position.axis == Axis.vertical && position.hasContentDimensions && position.maxScrollExtent >= to && (position.pixels - to).abs() > 0.01) position.jumpTo(to);
+        }
+        element.visitChildren(visit);
+      }
+
+      WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    });
+  }
 
   /// `spans`: each frame's wait between its build's end and its raster's start, and its raster, a line a second.
   static void _spans() {
@@ -118,6 +140,10 @@ abstract final class WispProbe {
     final census = _asked.contains('render'), bare = _asked.contains('nobackdrop'), one = _asked.contains('onebackdrop');
     if (_asked.contains('shots')) _shoot();
     if (_asked.contains('spans')) _spans();
+    for (final name in _asked) {
+      final to = name.startsWith('scroll=') ? double.tryParse(name.substring(7)) : null;
+      if (to != null) _scrollTo(to);
+    }
     if (!census && !bare && !one) return;
     final shared = BackdropKey();
     var frames = 0, saidAt = 0, switchedOff = 0, backOn = 0;

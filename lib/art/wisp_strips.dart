@@ -32,6 +32,20 @@ abstract class WispStrip {
 
   /// Whether the strip can be drawn yet: a smoke waits for its programs and its table.
   bool get ready => true;
+
+  /// Whether the strip reads its picture of the view only through shaders that are told where the picture lies,
+  /// and only near where it stands itself. A view's strips that do are given one picture between them, of the
+  /// rectangle that holds them all with only their own parts drawn in it (the picture then lies over more of the
+  /// view than the strip's own part, and [paint]'s `viewRect` says where). A strip that lays the whole picture
+  /// down, or blurs it, has one of its own.
+  bool get shares => false;
+
+  /// The soft half this strip's smoke wants made before it is painted, with the view's others
+  /// (lib/art/wisp_smoke.dart `wispSoftSheet`); null for a strip with none. [at], [view] and [viewRect] are [paint]'s.
+  WispSoftAsk? softAsk(Rect at, ui.Image view, Rect viewRect, double ratio) => null;
+
+  /// [paint], with the soft half [softAsk] asked for.
+  void paintSoft(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio, ({ui.Image image, Rect rect}) soft) => paint(canvas, at, view, viewRect, ratio);
 }
 
 /// A strip that smokes: one of the web app's smoke filters over the part of the view it bends ([WispSmoke]).
@@ -52,14 +66,26 @@ class WispSmokeStrip extends WispStrip {
   @override
   bool get ready => WispKit.maybe?.tableNow(smoke.seed) != null;
 
+  /// The bent view is worked out a throw past the strip, so the blur at the strip's edge has what the page's has:
+  /// pixels thrown out of the view, which the page's own mask then hides.
+  Rect _bentRect(Rect at, double ratio) => snapOut(at.inflate((smoke.bend / 2).ceilToDouble()).intersect(within), at.topLeft, ratio);
+
   @override
-  void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
+  bool get shares => wispQuick;
+
+  @override
+  WispSoftAsk? softAsk(Rect at, ui.Image view, Rect viewRect, double ratio) =>
+      wispQuick ? WispSoftAsk(table: WispKit.maybe!.tableNow(smoke.seed)!, source: view, sourceRect: viewRect, bentRect: _bentRect(at, ratio), smoke: smoke) : null;
+
+  @override
+  void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) => _paint(canvas, at, view, viewRect, ratio, null);
+
+  @override
+  void paintSoft(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio, ({ui.Image image, Rect rect}) soft) => _paint(canvas, at, view, viewRect, ratio, soft);
+
+  void _paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio, ({ui.Image image, Rect rect})? soft) {
     final kit = WispKit.maybe!;
-    // The bent view is worked out a throw past the strip, so the blur at the strip's edge has what the page's has:
-    // pixels thrown out of the view, which the page's own mask then hides.
-    final throwBy = (smoke.bend / 2).ceilToDouble();
-    final bentRect = snapOut(at.inflate(throwBy).intersect(within), at.topLeft, ratio);
-    paintWispSmoke(canvas, kit: kit, table: kit.tableNow(smoke.seed)!, source: view, sourceRect: viewRect, rect: at, bentRect: bentRect, ratio: ratio, smoke: smoke);
+    paintWispSmoke(canvas, kit: kit, table: kit.tableNow(smoke.seed)!, source: view, sourceRect: viewRect, rect: at, bentRect: _bentRect(at, ratio), ratio: ratio, smoke: smoke, soft: soft);
   }
 
   @override
@@ -435,29 +461,68 @@ class _WispStripLayer extends OffsetLayer {
     addChildrenToScene(builder);
     builder.pop();
 
-    for (var i = 0; i < _strips.length; i++) {
-      final rect = at[i];
-      if (rect.isEmpty || rect.width <= 0 || rect.height <= 0) continue;
-      final strip = _strips[i];
+    // The strips' pictures of the view. Those that can share one do ([WispStrip.shares]): each picture the engine
+    // is asked for is a task of its own on the raster thread before the frame, with a walk of every layer under
+    // this view in it, and a page's top, its foot and its dock's halo each asked for one.
+    final live = [
+      for (var i = 0; i < _strips.length; i++)
+        if (!(at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0)) i,
+    ];
+    final views = <int, ({ui.Image image, Rect rect})>{};
+    final sharing = [
+      for (final i in live)
+        if (_strips[i].shares) i,
+    ];
+    ui.Image? shared;
+    if (sharing.isNotEmpty) {
+      final rects = [for (final i in sharing) snapOut(at[i].inflate(_strips[i].reach), _corner, _ratio)];
+      final made = _pictures(rects);
+      shared = made.image;
+      for (final i in sharing) {
+        views[i] = made;
+      }
+    }
+    for (final i in live) {
+      if (!views.containsKey(i)) views[i] = _pictures([snapOut(at[i].inflate(_strips[i].reach), _corner, _ratio)]);
+    }
+
+    // The smokes' soft halves, made together.
+    final asking = <int>[], asks = <WispSoftAsk>[];
+    if (!WispProbe.has('plain')) {
+      for (final i in live) {
+        final ask = _strips[i].softAsk(at[i], views[i]!.image, views[i]!.rect, _ratio);
+        if (ask == null) continue;
+        asking.add(i);
+        asks.add(ask);
+      }
+    }
+    final softs = asks.isEmpty ? null : wispSoftSheet(kit: WispKit.maybe!, ratio: _ratio, asks: asks);
+
+    for (final i in live) {
+      final rect = at[i], strip = _strips[i], view = views[i]!;
       if (ghostPerf) Perf.count('wisp.strips');
-      final viewRect = snapOut(rect.inflate(strip.reach), _corner, _ratio);
-      final view = _picture(viewRect);
       final recorder = ui.PictureRecorder();
       final canvas = Canvas(recorder);
-      try {
-        if (WispProbe.has('plain')) {
-          // Measuring only: the picture of the view drawn straight back.
-          canvas.clipRect(rect, doAntiAlias: false);
-          _drawView(canvas, view, viewRect);
+      if (WispProbe.has('plain')) {
+        // Measuring only: the picture of the view drawn straight back.
+        canvas.clipRect(rect, doAntiAlias: false);
+        _drawView(canvas, view.image, view.rect);
+      } else {
+        final n = asking.indexOf(i);
+        if (n >= 0) {
+          strip.paintSoft(canvas, rect, view.image, view.rect, _ratio, (image: softs!.image, rect: softs.rects[n]));
         } else {
-          strip.paint(canvas, rect, view, viewRect, _ratio);
+          strip.paint(canvas, rect, view.image, view.rect, _ratio);
         }
-      } finally {
-        view.dispose();
       }
       final picture = recorder.endRecording();
       builder.addPicture(Offset.zero, picture);
       picture.dispose();
+    }
+    softs?.image.dispose();
+    shared?.dispose();
+    for (final i in live) {
+      if (!identical(views[i]!.image, shared)) views[i]!.image.dispose();
     }
 
     builder.pop();
@@ -492,16 +557,37 @@ class _WispStripLayer extends OffsetLayer {
     debugPrint('[perf] layers under ${_strips.length} strip(s): $said');
   }
 
-  /// The children as a picture of [rect] of the view, at the screen's own pixels.
-  ui.Image _picture(Rect rect) {
+  /// The children as one picture of several parts of the view ([rects], each on the screen's pixels), at the
+  /// screen's own pixels: a picture of the rectangle that holds them all, with only the parts drawn in it and the
+  /// rest clear. The answer's [rect] is that rectangle, which is where the picture lies in the view and what a
+  /// shader that reads it is told. For one part, it is the part.
+  ///
+  /// One picture, and the children put into its scene once: a scene may use a layer only once, so a picture with
+  /// each part's rows moved up against the next is not to be had from one scene, and a scene for each part is a
+  /// walk of every layer under this view for each. What lies between the parts costs the engine a clear.
+  ({ui.Image image, Rect rect}) _pictures(List<Rect> rects) {
+    var all = rects.first;
+    for (final rect in rects.skip(1)) {
+      all = all.expandToInclude(rect);
+    }
     final builder = ui.SceneBuilder();
-    final transform = Matrix4.diagonal3Values(_ratio, _ratio, 1)..translateByDouble(-rect.left, -rect.top, 0, 1);
+    final transform = Matrix4.diagonal3Values(_ratio, _ratio, 1)..translateByDouble(-all.left, -all.top, 0, 1);
     builder.pushTransform(transform.storage);
+    if (rects.length > 1) {
+      final parts = Path();
+      for (final rect in rects) {
+        parts.addRect(rect);
+      }
+      builder.pushClipPath(parts, clipBehavior: Clip.hardEdge);
+    }
     addChildrenToScene(builder);
+    if (rects.length > 1) builder.pop();
     builder.pop();
     final scene = builder.build();
+    debugWispPictures += 1;
+    if (ghostPerf) Perf.count('wisp.pictures');
     try {
-      return scene.toImageSync(math.max(1, (rect.width * _ratio).round()), math.max(1, (rect.height * _ratio).round()));
+      return (image: scene.toImageSync(math.max(1, (all.width * _ratio).round()), math.max(1, (all.height * _ratio).round())), rect: all);
     } finally {
       scene.dispose();
     }

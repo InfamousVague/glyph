@@ -135,10 +135,24 @@ class DockHaloStrip extends WispStrip {
   @override
   bool get ready => tile != null && (!bends || WispKit.maybe?.tableNow(3) != null);
 
+  /// What the bending halo softens: the foot's noise at the foot's strength over the whole box, breathed by the
+  /// page's drift and not slid.
+  WispSmoke get _smoke => WispSmoke(seed: 3, frequency: frequency, slide: rect.topLeft, lipA: 1e9, bend: dockBendScale, blur: dockBendBlur);
+
+  @override
+  bool get shares => wispQuick && bends;
+
+  @override
+  WispSoftAsk? softAsk(Rect at, ui.Image view, Rect viewRect, double ratio) =>
+      wispQuick && bends ? WispSoftAsk(table: WispKit.maybe!.tableNow(3)!, source: view, sourceRect: viewRect, bentRect: at, smoke: _smoke) : null;
+
+  @override
+  void paintSoft(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio, ({ui.Image image, Rect rect}) soft) => _paintQuick(canvas, at, view, viewRect, ratio, soft);
+
   @override
   void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
     if (wispQuick && bends) {
-      _paintQuick(canvas, at, view, viewRect, ratio);
+      _paintQuick(canvas, at, view, viewRect, ratio, null);
       return;
     }
     final whole = Rect.fromLTWH(0, 0, view.width.toDouble(), view.height.toDouble());
@@ -174,10 +188,9 @@ class DockHaloStrip extends WispStrip {
   /// of a scroll, for a patch of the screen round the dock. Here there are two small ones, the view behind the dock
   /// bent at half the screen's pixels and that softened (lib/art/wisp_smoke.dart `wispHaze`), and the two pills of
   /// the mask are a picture made once for the dock's size ([_pills]).
-  void _paintQuick(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
+  void _paintQuick(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio, ({ui.Image image, Rect rect})? made) {
     final kit = WispKit.maybe!;
-    final smoke = WispSmoke(seed: 3, frequency: frequency, slide: rect.topLeft, lipA: 1e9, bend: dockBendScale, blur: dockBendBlur);
-    final soft = wispHaze(kit: kit, table: kit.tableNow(3)!, source: view, sourceRect: viewRect, bentRect: at, ratio: ratio, smoke: smoke);
+    final soft = made ?? wispHaze(kit: kit, table: kit.tableNow(3)!, source: view, sourceRect: viewRect, bentRect: at, ratio: ratio, smoke: _smoke);
     final pills = _pills(rect.size, reach48);
     final shader = kit.halo(
       source: view,
@@ -197,7 +210,7 @@ class DockHaloStrip extends WispStrip {
     canvas.translate(at.left, at.top);
     canvas.drawRect(Offset.zero & at.size, Paint()..shader = shader..isAntiAlias = false);
     canvas.restore();
-    soft.image.dispose();
+    if (made == null) soft.image.dispose();
   }
 
   static ui.Image? _pillsImage;

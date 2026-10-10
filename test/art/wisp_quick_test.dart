@@ -142,6 +142,55 @@ void main() {
     expect(identical(strips.debugPainted, first), isFalse, reason: 'and the next paints it where it now stands');
   });
 
+  testWidgets('a page smoking at its top and its foot asks the engine for three pictures a frame, and behind a header that hides it draws no smoke', (tester) async {
+    tester.view.devicePixelRatio = 2;
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.reset);
+    debugWispQuick = true;
+    addTearDown(() => debugWispQuick = null);
+    await tester.runAsync(() => WispKit.load(seeds: [3]));
+    final controller = ScrollController();
+    Widget page(double covered) => Directionality(
+          textDirection: TextDirection.ltr,
+          child: MediaQuery(
+            data: const MediaQueryData(size: Size(400, 800), devicePixelRatio: 2),
+            child: WispEdge(
+              under: 100,
+              covered: covered,
+              foot: true,
+              draw: WispDraw.filter,
+              scrollbar: false,
+              child: ListView(controller: controller, children: [for (var i = 0; i < 80; i++) SizedBox(height: 40, child: Text('row $i'))]),
+            ),
+          ),
+        );
+    await tester.pumpWidget(page(0));
+    controller.jumpTo(300);
+    await tester.pump();
+    await tester.pump();
+    final strips = tester.renderObject<RenderWispStrips>(find.byType(WispStrips));
+    expect(strips.debugPainted, hasLength(2), reason: 'the top band and the foot');
+    expect(strips.debugPainted.first.rect.top, 0);
+
+    // One more frame of scrolling: one picture of the view for both strips, and the two small ones their soft
+    // halves are made on together. (A picture each, and a pair each, was six.)
+    final before = debugWispPictures;
+    controller.jumpTo(310);
+    await tester.pump();
+    expect(debugWispPictures - before, 3);
+
+    // The header said to hide its smoke: the top band begins a little above the header's foot, and ends where it did.
+    final bottom = strips.debugPainted.first.rect.bottom;
+    await tester.pumpWidget(page(100));
+    await tester.pump();
+    expect(strips.debugPainted.first.rect.top, 100 - wispEdgeCoveredKeep);
+    expect(strips.debugPainted.first.rect.bottom, bottom);
+    // Never more than the header is tall.
+    await tester.pumpWidget(page(400));
+    await tester.pump();
+    expect(strips.debugPainted.first.rect.top, 100 - wispEdgeCoveredKeep);
+  });
+
   test('a smoke\'s small pictures: a quarter of the screen each way from a blur of five of its pixels, a half from two and a half', () {
     // A page's edge (3.4) on a Mac, the Fold and an iPhone; a lane's foot (2.4) and the tabs (1.6) on a Mac and the Fold.
     expect([for (final ratio in [2.0, 2.625, 3.0]) wispSmallStep(wispEdgeBlur * ratio)], [4, 4, 4]);
