@@ -285,6 +285,32 @@ void main() {
     await close(tester);
   });
 
+  // Differs 15 (docs/PARITY.md): a summary that landed was said as "Summarized", with no title, for the kit's own
+  // few seconds (shell/useHousekeeping.ts: `Summarized “${title}”`, ten seconds, Open).
+  testWidgets('a summary that lands with the app on screen is said by the note\'s name, for ten seconds, with Open', (tester) async {
+    late Summaries queue;
+    final library = await open(tester, engine: true, summaries: (notes, kept) => queue = summariesOver(notes, kept), tapePlayer: FakeTapePlayer(lengths: const {}));
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    await tester.runAsync(() => library.apply(Note(id: note.id, body: note.body, createdAt: note.createdAt, updatedAt: note.updatedAt, source: NoteSource.capture, recordingMs: 4000, segments: const [Segment(text: 'Bring the long lens', startMs: 0, endMs: 2000)], revision: note.revision)));
+    await settle(tester, 2);
+    shellOf(tester).openNote(note.id);
+    await settle(tester);
+    backend.script('Pack the long lens.');
+    queue.enqueueSummary(note.id, SummaryKind.recording);
+    for (var i = 0; i < 30 && find.text('Summarized “Packing”').evaluate().isEmpty; i++) {
+      await settle(tester, 2);
+    }
+    expect(find.text('Summarized “Packing”'), findsOneWidget);
+    expect(find.text('Open'), findsOneWidget);
+    // Still there after the kit's own few seconds, and gone after its ten.
+    await tester.pump(const Duration(seconds: 7));
+    expect(find.text('Summarized “Packing”'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 4));
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Summarized “Packing”'), findsNothing);
+    await close(tester);
+  });
+
   // Unwired 8 (docs/PARITY.md): `onRecordingChanged` had no caller, so a write-up was taken only as a note opened
   // (NoteScreen.tsx's effect: the note read again and adopted, when nothing typed is waiting to be saved).
   testWidgets('the open note takes the phone\'s write-up the moment it lands', (tester) async {

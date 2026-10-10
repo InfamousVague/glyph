@@ -110,9 +110,17 @@ extension _RootVoice on _GhostRootState {
       // A summary landed with the app on screen: said, with the way to the note.
       summarized: (done) {
         if (!mounted) return;
+        // `Summarized “${title}”`, for ten seconds, and Open goes to the note where it was left.
         GlacierToast.of(context).toast(
-          message: const Text('Summarized'),
-          action: GlacierToastAction(label: 'Open', onPress: () => _shell.currentState?.openNote(done.id)),
+          message: Text('Summarized “${done.title}”'),
+          duration: const Duration(seconds: 10),
+          action: GlacierToastAction(
+            label: 'Open',
+            onPress: () {
+              final shell = _shell.currentState;
+              if (shell != null) _openWhereLeft(shell, done.id);
+            },
+          ),
         );
       },
     );
