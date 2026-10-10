@@ -12,10 +12,11 @@
 /// The rules - what the search finds, the order, the archive, the tapes - are lib/notes/all_notes.dart.
 ///
 /// What differs from the web page:
-/// - What it read from the app is handed in: the workspaces (`useWorkspaces()`), the lines the phone wrote under
-///   titles (`useGists`, as [AllNotesScreen.gists]), where the order is kept ([AllNotesScreen.stored]), and what
-///   the device can do, for the empty page's hint (`isAndroid`, `recordsVoice`: [AllNotesScreen.sideKey],
-///   [AllNotesScreen.speaks]).
+/// - What it read from the app is handed in: the workspaces (`useWorkspaces()`), where the order is kept
+///   ([AllNotesScreen.stored]), and what the device can do, for the empty page's hint (`isAndroid`,
+///   `recordsVoice`: [AllNotesScreen.sideKey], [AllNotesScreen.speaks]). The lines the phone wrote under titles it
+///   asks for itself, as the page does (`useGists(gisted)`, format/gist.dart `Gists`): the first
+///   [allNotesGisted] cards it shows, and each card hears its own line.
 /// - **The order words are a Chromium page's**, the Fold's own WebView: a `<button>` there has one pixel of padding
 ///   above and below its word, so a word is 20px tall at the phone's size. WebKit gives a button two above and three
 ///   below, and the same line is 23px on an iPhone. Measured in both; see test/allnotes.
@@ -45,6 +46,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
+import '../format/gist.dart' show Gists;
 import '../home/home_parts.dart';
 import '../home/home_text.dart';
 import '../home/lazy_page.dart';
@@ -82,7 +84,7 @@ class AllNotesScreen extends StatefulWidget {
     this.onNoteMenu,
     this.notesInWorkspace,
     this.onTrashNotes,
-    this.gists = const {},
+    this.gists,
     this.stored,
     this.clock,
     this.sideKey = false,
@@ -119,8 +121,10 @@ class AllNotesScreen extends StatefulWidget {
   final List<String> Function(String workspaceId)? notesInWorkspace;
   final void Function(List<String> noteIds)? onTrashNotes;
 
-  /// What each note is about in a line, by its id (`format/gist.ts`), for the first [allNotesGisted] cards.
-  final Map<String, String> gists;
+  /// What each note is about in a line, by its id (`format/gist.ts`), for the first [allNotesGisted] cards, where a
+  /// picture or a test brings its own. Left out, the page asks for them itself, as the web's does
+  /// (`useGists(gisted)`): the first cards it shows, what it searched for and the order it is in included.
+  final Map<String, String>? gists;
 
   /// Where the order chosen is kept; the app's own unless given.
   final Stored? stored;
@@ -260,10 +264,25 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   /// When each card came to be on the page, for its entrance.
   final Arrivals _arrivals = Arrivals();
 
-  /// What each note is about in a line, as handed over at the last build: read by each card for its own note. And
+  /// What each note is about in a line, for the page's first cards: read by each card for its own note. And
   /// when each line came to be there.
   final ValueNotifier<Map<String, String>> _gists = ValueNotifier<Map<String, String>>(const <String, String>{});
   final Arrivals _gistArrivals = Arrivals();
+
+  /// The lines' runner, shown this page's first cards each time they change and heard as it writes one
+  /// (format/gist.dart `Gists`, the page's `useGists`); none where the lines are handed in.
+  Gists? _runner;
+
+  /// The lines as they are now: a card whose own line is another is the only thing drawn again.
+  void _takeGists(Map<String, String> now) {
+    if (identical(_gists.value, now) || mapEquals(_gists.value, now)) return;
+    _gistArrivals.keep(now.keys);
+    _gists.value = now;
+  }
+
+  void _gistsSpoke() {
+    if (_runner case final runner?) _takeGists(runner.value);
+  }
 
   @override
   void initState() {
@@ -271,6 +290,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     widget.workspaces.addListener(_redraw);
     _focus.addListener(_redraw);
     _focus.addListener(_readAhead);
+    if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
 
   /// What the search reads of each note, made as the field takes the keyboard (lib/core/search_ahead.dart).
@@ -294,6 +314,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     widget.workspaces.removeListener(_redraw);
     _focus.removeListener(_redraw);
     _focus.removeListener(_readAhead);
+    _runner
+      ?..removeListener(_gistsSpoke)
+      ..dispose();
     _glide.dispose();
     _scroller.dispose();
     _field.dispose();
@@ -328,6 +351,12 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     _arrivals.keep([
       for (final (at, note) in shown.indexed) ...[note.id, '$at/${note.id}'],
     ]);
+    // The first screens of cards have their line written: the runner asks about what the page shows now, what it
+    // searched for and the order it is in included (`useGists(gisted)`).
+    if (_runner case final runner?) {
+      runner.show(shown.take(allNotesGisted).toList(growable: false));
+      _takeGists(runner.value);
+    }
     return _read = _Read(
       // A list of the page's own: the one handed over may be changed after.
       notes: List<Note>.of(notes, growable: false),
@@ -458,10 +487,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // What a search is counted out of: the tapes when only they are shown, else the notes, and the archive with them.
     final outOf = _tapes ? withTape : live + (_archived ? inArchive : 0);
     final now = widget.clock?.call();
-    if (!identical(_gists.value, widget.gists) && !mapEquals(_gists.value, widget.gists)) {
-      _gistArrivals.keep(widget.gists.keys);
-      _gists.value = widget.gists;
-    }
+    if (widget.gists case final given?) _takeGists(given);
 
     // The bar: `padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2)` round a
     // search as tall as its field (`min-block-size: var(--glacier-space-8)`) and its hairlines.

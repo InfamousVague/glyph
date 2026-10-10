@@ -8,6 +8,8 @@ import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/ai/backend.dart' show NoAiBackend, useAiBackend;
+import 'package:ghost_md/format/gist.dart' show forgetGistRunner;
 import 'package:ghost_md/home/home_parts.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/notes/workspace_bar.dart';
@@ -16,6 +18,7 @@ import 'package:ghost_md/shell/desktop/desktop_scrollbar.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart' show loadTokenSheet;
 
+import '../ai/fake_backend.dart';
 import '../core/make_note.dart';
 import '../support/render.dart';
 import 'support.dart';
@@ -66,6 +69,53 @@ void main() {
       expect(tester.widgetList<NoteCard>(find.byType(NoteCard)).every((card) => card.dense), isTrue);
       await tester.tap(key('card-c'));
       expect(asked.said, ['open c']);
+      await away(tester);
+    });
+
+    // Differs 12 (docs/PARITY.md): `useGists(shown.slice(0, GISTED))` (notes/AllNotesScreen.tsx). The page asks the
+    // phone for a line under the first cards it shows, so its search decides whose is written; the app's root asked
+    // for the page as it opens, and a note found only by searching was never asked about.
+    testWidgets('asks the phone for a line under the cards it shows, what it searched for included, and each card draws its own as it lands', (tester) async {
+      final before = stored;
+      useStored(MemoryStored());
+      addTearDown(() => useStored(before));
+      forgetGistRunner();
+      final phone = FakeAiBackend()
+        ..answers['ai_models'] = const [
+          {'id': 'qwen3.5-2b', 'present': true},
+        ]
+        ..answers['ai_generate'] = (Object? args) {
+          final first = (((args! as Map)['request'] as Map)['prompt'] as String).split('\n').first.replaceFirst('# ', '');
+          return {'text': 'What $first is for', 'ms': 5, 'truncated': false, 'outputTokens': 6, 'thinking': false};
+        };
+      addTearDown(() {
+        forgetGistRunner();
+        useAiBackend(const NoAiBackend());
+      });
+      await show(tester, [makeNote('a', body: '# Apples\n\nfor the pie', updatedAt: 3), makeNote('b', body: '# Bread\n\nrye', updatedAt: 2), makeNote('c', body: '# Cake\n\napples in it', updatedAt: 1)]);
+      // The phone has its engine from here: the search's cards are the first the runner is shown.
+      useAiBackend(phone);
+      await type(tester, 'apples');
+      expect(cards(tester), ['a', 'c']);
+      String? line(String id) => tester.widget<NoteCard>(key('card-$id')).gist;
+      expect((line('a'), line('c')), (null, null));
+      // The runner's first look is a second and a half after the cards were shown, and a turn follows each 800 ms.
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(line('a'), 'What Apples is for');
+      expect(line('c'), 'What Cake is for');
+      await tester.pump(const Duration(seconds: 3));
+      // Newest first, and never the note the search left out.
+      expect([for (final request in phone.requests) (request['prompt'] as String).split('\n').first], ['# Apples', '# Cake']);
+      // The search cleared, the note it left out is shown, and asked about in its turn.
+      await type(tester, '');
+      expect(cards(tester), ['a', 'b', 'c']);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(line('b'), 'What Bread is for');
+      forgetGistRunner();
       await away(tester);
     });
 

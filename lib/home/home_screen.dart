@@ -15,8 +15,10 @@
 /// What differs from the web page:
 /// - What it reads from the app is handed in: the layout (`usePreferences().homeLayout`), the workspaces
 ///   (`useWorkspaces()`), the organizations and who is in them (`useOrgs`, `usePresence`, the notifications' feed),
-///   the meeting being recorded (`useMeetingState`), the lines the phone wrote under titles (`useGists`), and the
-///   notices above the notes (an update, an invitation, the voice model: `notes/Notices.tsx`, as [notices]).
+///   the meeting being recorded (`useMeetingState`), and the notices above the notes (an update, an invitation,
+///   the voice model: `notes/Notices.tsx`, as [notices]). The lines the phone wrote under titles it asks for
+///   itself, as the page does (`useGists(carded)`, format/gist.dart `Gists`): its first [homeGisted] cards, with
+///   its search and its filter, and each card hears its own line.
 /// - Two sheets it opened are callbacks: the workspace's (`notes/WorkspaceSheet.tsx`, [onManageWorkspace]) and a new
 ///   organization's (`home/NewOrganizationSheet.tsx`, [onNewOrganization]).
 /// - The smoke is not drawn here. The wisp under the header and at the foot (`art/wispEdge.ts`) and the halo round
@@ -58,6 +60,7 @@ import '../core/note_facts.dart';
 import '../core/search_ahead.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
+import '../format/gist.dart' show Gists;
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../shell/header_pane.dart';
@@ -136,6 +139,10 @@ class HomeGhost {
 /// `ghost: (context, it) => Ghost(scene: ..., size: it.lead ? GhostSize.lead : GhostSize.small, heightShare: it.heightShare)`.
 typedef HomeGhostBuilder = Widget Function(BuildContext context, HomeGhost ghost);
 
+/// How many of the first cards get a line written under their titles (format/gist.dart), the rest waiting for a
+/// scroll (`GISTED`).
+const int homeGisted = 16;
+
 /// The home page (`src/app/home/HomeScreen.tsx`): the search and its filters, the notebooks and the notes in the
 /// layout chosen, the way to All notes, and the dock. What it read from the app on the web it is handed here, what
 /// left the page there is a callback here, and its smoke and its ghosts are seams ([headerEdge], [dockHalo],
@@ -162,7 +169,7 @@ class HomeScreen extends StatefulWidget {
     this.organizations = const [],
     this.orgNews = const [],
     this.recording,
-    this.gists = const {},
+    this.gists,
     this.notices = const [],
     this.clock,
     this.sideKey,
@@ -228,8 +235,10 @@ class HomeScreen extends StatefulWidget {
   /// The meeting being recorded now, by its note's id: its row says so.
   final String? recording;
 
-  /// What each note is about in a line, by note id, where the phone has written it.
-  final Map<String, String> gists;
+  /// What each note is about in a line, by note id, where a picture or a test brings its own. Left out, the page
+  /// asks for them itself, as the web's does (`useGists(carded)`): the first [homeGisted] cards it draws, with its
+  /// search and its filter, are the ones the phone writes a line for, and the ones that show theirs.
+  final Map<String, String>? gists;
 
   /// What needs the person, above the notes: an update ready, an invitation, the voice model's download.
   final List<Widget> notices;
@@ -345,10 +354,26 @@ class _HomeScreenState extends State<HomeScreen> {
   /// The notices above the notes, as handed over at the last build: read by the page where they stand.
   final ValueNotifier<List<Widget>> _notices = ValueNotifier<List<Widget>>(const <Widget>[]);
 
-  /// What each note is about in a line, as handed over at the last build: read by each card for its own note, so a
-  /// line the phone has just written draws one card again and nothing else. And when each line came to be there.
+  /// What each note is about in a line, for the page's first cards: read by each card for its own note, so a line
+  /// the phone has just written draws one card again and nothing else. And when each line came to be there.
   final ValueNotifier<Map<String, String>> _gists = ValueNotifier<Map<String, String>>(const <String, String>{});
   final Arrivals _gistArrivals = Arrivals();
+
+  /// The lines' runner, shown this page's first cards each time they change and heard as it writes one
+  /// (format/gist.dart `Gists`, the page's `useGists`); none where the lines are handed in.
+  Gists? _runner;
+
+  /// The lines as they are now: a card whose own line is another is the only thing drawn again.
+  void _takeGists(Map<String, String> now) {
+    if (identical(_gists.value, now) || mapEquals(_gists.value, now)) return;
+    _gistArrivals.keep(now.keys);
+    _gists.value = now;
+  }
+
+  void _gistsSpoke() {
+    if (_runner case final runner?) _takeGists(runner.value);
+  }
+
   String _query = '';
   final SearchAhead _ahead = SearchAhead();
   HomeFilter _filter = HomeFilter.all;
@@ -361,6 +386,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     widget.workspaces.addListener(_redraw);
+    if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
 
   @override
@@ -375,6 +401,9 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     widget.workspaces.removeListener(_redraw);
+    _runner
+      ?..removeListener(_gistsSpoke)
+      ..dispose();
     _scroller.dispose();
     _notices.dispose();
     _gists.dispose();
@@ -457,6 +486,12 @@ class _HomeScreenState extends State<HomeScreen> {
           if (section.draw == SectionDraw.cards) _name(section, note),
         ],
     ]);
+    // A line under each card's title, for the first cards only: the runner asks about what is on screen, as the
+    // page lays it out now, what it searched for and filtered to included (`useGists(carded)`).
+    if (_runner case final runner?) {
+      runner.show(cardsIn(read.plan).take(homeGisted).toList(growable: false));
+      _takeGists(runner.value);
+    }
     return _read = read;
   }
 
@@ -505,10 +540,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
     // and nothing else of it is built for them.
     if (!listEquals(_notices.value, widget.notices)) _notices.value = widget.notices;
-    if (!identical(_gists.value, widget.gists) && !mapEquals(_gists.value, widget.gists)) {
-      _gistArrivals.keep(widget.gists.keys);
-      _gists.value = widget.gists;
-    }
+    if (widget.gists case final given?) _takeGists(given);
 
     var page = _page;
     final was = _drawn;

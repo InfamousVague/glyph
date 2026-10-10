@@ -159,12 +159,15 @@ void main() {
     await tester.pump(const Duration(seconds: 30));
   }
 
-  testWidgets('with no model on the phone the gists\' runner is shown nothing, and the home page\'s first cards once one is there', (tester) async {
+  testWidgets('with no model on the phone the gists\' runner looks once and asks nothing more, and writes for the home page\'s first cards once one is there', (tester) async {
     forgetGistRunner();
     await open(tester, engine: true, present: false);
     // Shown notes owed a line and no model to write one, the runner asked the engine for its models every 800 ms
-    // and told the whole app twice each time, for as long as the app was open. Thirty seconds on, nothing has asked
+    // and told the whole app twice each time, for as long as the app was open. It looks once, a second and a half
+    // after the home page showed its cards (lib/format/gist.dart), and thirty seconds on nothing more has asked
     // but the catalogue's own readings.
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+    await tester.pump(const Duration(seconds: 3));
     final before = backend.calls('ai_models').length;
     for (var i = 0; i < 30; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));

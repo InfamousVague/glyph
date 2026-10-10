@@ -2,8 +2,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/backend.dart' show NoAiBackend, useAiBackend;
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
+import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/format/body_hash.dart';
+import 'package:ghost_md/format/gist.dart' show forgetGistRunner;
+import 'package:ghost_md/format/results.dart' show Gist, keepGist;
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/home_layout.dart';
 import 'package:ghost_md/home/home_org_events.dart';
@@ -15,6 +20,7 @@ import 'package:ghost_md/notes/swipe_row.dart';
 import 'package:ghost_md/shell/header_pane.dart';
 import 'package:glacier/glacier.dart';
 
+import '../ai/fake_backend.dart';
 import '../core/make_note.dart';
 import '../support/render.dart';
 import '../support/editor_text.dart';
@@ -318,6 +324,64 @@ void main() {
       final after = tester.getRect(key('dock-add'));
       expect(before.top - after.top, closeTo(300, 0.01));
       expect(after.left, before.left);
+      await away(tester);
+    });
+
+    // Differs 12 (docs/PARITY.md): `useGists(cardsIn(plan).slice(0, GISTED))` (home/HomeScreen.tsx). The page asks
+    // the phone for a line under the first sixteen cards it lays out, so its search and its filter decide whose is
+    // written; a card past the sixteenth has none, written before or not.
+    testWidgets('draws the line the phone wrote under each of its first sixteen cards, and none under a card past them, written or not', (tester) async {
+      // `gists[note.id]` of `useGists(carded)`: the hook answers for the cards it was handed and no others
+      // (format/gist.ts), so a line kept for the seventeenth card is not drawn.
+      final before = stored;
+      useStored(MemoryStored());
+      addTearDown(() => useStored(before));
+      forgetGistRunner();
+      addTearDown(forgetGistRunner);
+      final library = SampleLibrary([for (var i = 0; i < 20; i += 1) makeNote('n$i', body: '# Note $i\n\nWhat note $i says.', updatedAt: seedNow - i * 60000)], clock: () => seedNow);
+      for (final note in library.value) {
+        keepGist(note.id, Gist(text: 'The line of ${note.id}', forBody: bodyHash(note.body), model: 'qwen3.5-2b', len: note.body.length, head: note.body.split('\n').first));
+      }
+      await pumpHome(tester, Home(library: library, workspaces: WorkspaceStore(), asked: Asked(), layout: HomeLayout.cards), ratio: 1);
+      await settle(tester);
+      final lines = await down(tester, () => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) (card.note.id, card.gist)]);
+      expect(lines.length, 20);
+      expect(homeGisted, 16);
+      expect(lines.take(16), [for (var i = 0; i < 16; i += 1) ('n$i', 'The line of n$i')]);
+      expect(lines.skip(16), [for (var i = 16; i < 20; i += 1) ('n$i', null)]);
+      await away(tester);
+    });
+
+    testWidgets('asks the phone for a line under the cards it lays out, what it searched for included', (tester) async {
+      final before = stored;
+      useStored(MemoryStored());
+      addTearDown(() => useStored(before));
+      forgetGistRunner();
+      final phone = FakeAiBackend()
+        ..answers['ai_models'] = const [
+          {'id': 'qwen3.5-2b', 'present': true},
+        ]
+        ..answers['ai_generate'] = const {'text': 'What the weekend is for', 'ms': 5, 'truncated': false, 'outputTokens': 6, 'thinking': false};
+      addTearDown(() {
+        forgetGistRunner();
+        useAiBackend(const NoAiBackend());
+      });
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
+      await settle(tester);
+      // The phone has its engine from here: the search's one card is the first the runner is shown.
+      useAiBackend(phone);
+      await tester.enterText(find.byType(EditableText), 'cabin friday');
+      await settle(tester);
+      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['cabin-canvas']);
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 50));
+      await tester.pump(const Duration(seconds: 3));
+      // One card on the page, one line asked for: the pinned line above it is no card, and no other note is asked
+      // about while the search stands.
+      expect(phone.requests, hasLength(1));
+      expect(tester.widget<NoteCard>(key('card-cabin-canvas')).gist, 'What the weekend is for');
+      forgetGistRunner();
       await away(tester);
     });
 

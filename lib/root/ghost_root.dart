@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, mapEquals, setEquals;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, setEquals;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -90,7 +90,7 @@ import '../diag/scene_bench.dart' show showSceneBench;
 import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../format/device_facts.dart' show DeviceFactsController;
-import '../format/gist.dart' show Gists, gistFor, gistVisible, gistsCameBack, pauseGists;
+import '../format/gist.dart' show gistVisible, gistsCameBack, pauseGists, wakeGistsOn;
 import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
@@ -101,7 +101,6 @@ import '../launch/launch_screen.dart';
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
-import '../notes/all_notes.dart' show readSort;
 import '../notes/all_notes_screen.dart';
 import '../notes/new_sheet.dart';
 import '../notes/note_actions.dart';
@@ -142,7 +141,6 @@ import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
 import 'desktop_wiring.dart';
-import 'gisted.dart';
 import 'library_reads.dart';
 import 'note_desk.dart';
 import 'note_keeping.dart';
@@ -535,13 +533,6 @@ class _GhostRootState extends State<GhostRoot> {
     _tick.tell();
   }
 
-  /// The gists' runner spoke: read again by whoever shows them, and drawn again only if a line is another
-  /// (`_gistsShown`). It speaks twice a turn whether or not it wrote anything.
-  void _gistsChanged() {
-    _gistsRead = false;
-    _tick.tell();
-  }
-
   /// The voice model's fetch as its line says it.
   static notices.VoiceModel _voiceModelState(VoiceModel? model) => switch (model?.state) {
         VoiceModelStateDownloading(:final received, :final total) => notices.VoiceModelDownloading(received: received, total: total),
@@ -608,9 +599,11 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   /// A line for each note that wants one, written by the smallest model while nothing else has the cores
-  /// (lib/format/gist.dart): the home page's cards read them.
-  Gists? _gists;
+  /// (lib/format/gist.dart). The pages ask for their own first cards and each card hears its own line
+  /// (lib/home/home_screen.dart, lib/notes/all_notes_screen.dart): the root says only when the runner must stand
+  /// aside, whether the app is on screen, and that the models on the phone changed.
   VoidCallback? _stopGistHold;
+  VoidCallback? _stopGistModels;
 
   /// The AI of the note on screen, told by its desk: the scene over the window is drawn from it.
   String? _noteAiId;
@@ -1097,63 +1090,6 @@ class _GhostRootState extends State<GhostRoot> {
   List<Note>? _draftsOf;
   Set<String> _draftsNow = const {};
 
-  /// Each note's gist for the page on screen, which is the only page the runner works for (`useGists(carded)`,
-  /// lib/root/gisted.dart). [by] says which page it is and what it was laid out from: where that is another, the
-  /// runner is shown the page's first cards ([carded]) in place of the ones it had. Under a note neither page asks,
-  /// and the runner goes on with the cards it was last shown, as the page's does. The map is read again after the
-  /// runner has spoken, and is the same map while no line in it is another.
-  ///
-  /// **With no model on the phone the runner is shown nothing.** It has no way to write a line then, and shown
-  /// notes that are owed one it does not stop: every 800 ms it takes the first, says it has begun, finds there is no
-  /// model, says it has ended and waits to begin again, for as long as the app is open (lib/format/gist.dart
-  /// `_pump`; measured as two tellings of the whole app every turn, in every stretch of the walk, on a Mac and an
-  /// emulator that have no model). The lines already kept for the cards are still read and drawn, by the same
-  /// reading the runner's own map is made with (`gistFor`); and the cards are shown to it the moment a model is
-  /// there (`_modelsChanged`).
-  Map<String, String> _gistsOn(Object by, List<Note> Function() carded) {
-    final gists = _gists;
-    if (gists == null) return const {};
-    final writes = presentIds(_voice?.models?.models ?? const []).isNotEmpty;
-    final asked = (by, writes);
-    if (asked != _gistedBy) {
-      _gistedBy = asked;
-      _gisted = carded();
-      gists.show(writes ? _gisted : const []);
-      _gistsRead = false;
-    }
-    if (!_gistsRead) {
-      _gistsRead = true;
-      final read = <String, String>{
-        for (final note in _gisted)
-          if (gistFor(note.id, note.body) case final String gist) note.id: gist,
-      };
-      if (!mapEquals(read, _gistsNow)) _gistsNow = Map.unmodifiable(read);
-    }
-    return _gistsNow;
-  }
-
-  /// The cards the page on screen begins with: whose lines are read.
-  List<Note> _gisted = const [];
-
-  /// The home page's: its first sixteen cards, as it lays out the notes it is handed today.
-  Map<String, String> _homeGists(AppShellState shell) {
-    final notes = shell.notes;
-    final layout = homeLayoutOf(preferences.value.homeLayout);
-    final now = widget.clock?.call() ?? DateTime.now().millisecondsSinceEpoch;
-    return _gistsOn(('home', notes, _workspaces.value, layout, DateTime.fromMillisecondsSinceEpoch(now).day), () => homeCarded(notes, _workspaces, layout, now));
-  }
-
-  /// All notes': its first twenty-four, in the order it was left in.
-  Map<String, String> _allNotesGists(AppShellState shell, bool tapes) {
-    final notes = shell.notes;
-    final sort = readSort(_stored);
-    return _gistsOn(('notes', notes, _workspaces.value, sort, tapes), () => allNotesCarded(notes, _workspaces, sort: sort, tapes: tapes));
-  }
-
-  Object? _gistedBy;
-  Map<String, String> _gistsNow = const {};
-  bool _gistsRead = true;
-
   /// The note of the meeting being recorded now. As last known: asking the service afresh tells its listeners.
   String? get _recordingNow {
     final meeting = _voice?.live?.state;
@@ -1210,8 +1146,7 @@ class _GhostRootState extends State<GhostRoot> {
     _stopFills?.call();
     _guideModels?.dispose();
     _stopGistHold?.call();
-    _gists?.removeListener(_gistsChanged);
-    _gists?.dispose();
+    _stopGistModels?.call();
     _availability?.removeListener(_voiceChanged);
     _availability?.dispose();
     _deviceFacts?.dispose();
@@ -1743,7 +1678,7 @@ class _GhostRootState extends State<GhostRoot> {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, _allNotesGists(shell, screen.tapes), preferences.value.wispEdge),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -1752,7 +1687,6 @@ class _GhostRootState extends State<GhostRoot> {
           workspaces: _workspaces,
           stored: _stored,
           tapes: screen.tapes,
-          gists: _allNotesGists(shell, screen.tapes),
           clock: widget.clock,
           onOpen: (id) => _openWhereLeft(shell, id),
           onBack: shell.backToList,
@@ -1867,8 +1801,8 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The home page, while it is the screen (the shell takes it down under a note, the grid and an organization's
   /// page, and makes it anew on the way back, as the page's is: lib/shell/app_shell.dart). It is built again for
-  /// the notes it shows, its layout, the workspace looked at, a recording, its notices, the gists, and the
-  /// organizations with who is in them.
+  /// the notes it shows, its layout, the workspace looked at, a recording, its notices, and the organizations with
+  /// who is in them. The lines under its cards are its own to ask for and each card's to hear.
   Widget _home(BuildContext context, AppShellState shell) => _part(
         'home',
         () => (
@@ -1880,7 +1814,6 @@ class _GhostRootState extends State<GhostRoot> {
           _recordingNow,
           _updatesAt,
           _voiceModelLine,
-          _homeGists(shell),
           _accountAt,
           _presenceAt,
         ),
@@ -1910,7 +1843,6 @@ class _GhostRootState extends State<GhostRoot> {
       // phone, whether or not this build answers it, and the empty page's words are held to the page's.
       sideKey: defaultTargetPlatform == TargetPlatform.android,
       notices: _notices(),
-      gists: _homeGists(shell),
       clock: widget.clock,
       onAllNotes: shell.showAllNotes,
       onSearch: _search,

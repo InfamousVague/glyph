@@ -5,6 +5,7 @@
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/backend.dart';
 import 'package:ghost_md/ai/runs.dart' show forgetAllRuns;
@@ -168,6 +169,90 @@ void main() {
       await runGists();
       expect(told, greaterThan(0));
       expect(gists.value, {'n3': 'Gist of plans for the weekend'});
+    });
+
+    // Differs 12 (docs/PARITY.md), the runner's half. The page's turn said it had begun before it knew there was a
+    // model, and with none said it had ended and looked again 800 ms on, for as long as the app was open: an ask of
+    // the engine and two tellings of every card each time (measured: 39 asks in 30 s). Here a turn asks first, and
+    // with no model tells nobody and waits for the models to change.
+    testWidgets('with no model on the phone asks once, lights no card, tells no page, and looks again only when the models change', (tester) async {
+      phone.answers['ai_models'] = const [
+        {'id': 'qwen3.5-2b', 'present': false},
+      ];
+      final note = makeNote('m1', 'plans for the weekend\n- cabin\n', updatedAt: 3);
+      final gists = show([note]);
+      var told = 0;
+      gists.addListener(() => told += 1);
+      final lit = <String?>[];
+      void heard() => lit.add(gistWorking.value);
+      gistWorking.addListener(heard);
+      addTearDown(() => gistWorking.removeListener(heard));
+      // The first look comes a second and a half after the page showed its cards; then half a minute of nothing.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(seconds: 30));
+      expect(phone.calls('ai_models'), hasLength(1));
+      expect(phone.requests, isEmpty);
+      expect(told, 0, reason: 'nothing began, so no page reads its lines again');
+      expect(lit, isEmpty, reason: 'no card wore the ring for a line nobody could write');
+      // The page showing its cards again (a letter in its search) asks nothing more of a phone with no model.
+      gists.show([note]);
+      await tester.pump(const Duration(seconds: 30));
+      expect(phone.calls('ai_models'), hasLength(1));
+
+      // The catalogue says something that leaves the same models on the phone (a fetch's chunk): still nothing.
+      final models = ValueNotifier<int>(0);
+      addTearDown(models.dispose);
+      var present = const <String>[];
+      final stop = wakeGistsOn(models, () => present);
+      models.value += 1;
+      await tester.pump(const Duration(seconds: 30));
+      expect(phone.calls('ai_models'), hasLength(1));
+      // A model is there: the runner looks again, and the line is written.
+      phone.answers['ai_models'] = const [
+        {'id': 'qwen3.5-2b', 'present': true},
+      ];
+      present = const ['qwen3.5-2b'];
+      models.value += 1;
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(phone.calls('ai_models'), hasLength(2));
+      expect(phone.requests, hasLength(1));
+      expect(gists.value, {'m1': 'Gist of plans for the weekend'});
+      expect(lit, ['m1', null], reason: 'the card wore the ring while its line was written, and no longer');
+      expect(told, greaterThan(0));
+      stop();
+      // The runner's next look is waiting: let go, as the app's end lets it go.
+      forgetGistRunner();
+    });
+
+    // The home page is kept under All notes here, so both have handed their cards over: All notes' are worked
+    // through first, and the home page's are the runner's again when All notes has gone.
+    test('works through the cards of the page that showed its own last, then the other page\'s, and lets go of a page that has gone', () async {
+      final home = show([makeNote('h1', 'home page note\n- one\n', updatedAt: 9)]);
+      final all = show([makeNote('a1', 'all notes note\n- two\n', updatedAt: 1), makeNote('h1', 'home page note\n- one\n', updatedAt: 9)]);
+      await runGists();
+      expect([for (final request in phone.requests) (request['prompt'] as String).split('\n').first], ['home page note']);
+      // (Newest first within a page: the note both pages have is the newest All notes shows.)
+      await runGists();
+      expect([for (final request in phone.requests) (request['prompt'] as String).split('\n').first], ['home page note', 'all notes note']);
+      // A page that has gone before its cards were reached: they are nobody's.
+      final late = show([makeNote('l1', 'a late note\n- three\n', updatedAt: 2)]);
+      late.dispose();
+      made.remove(late);
+      await runGists();
+      expect(phone.requests, hasLength(2));
+      expect(home.value.keys, ['h1']);
+      expect(all.value.keys, unorderedEquals(['a1', 'h1']));
+    });
+
+    test('goes on with the cards it was last shown when the page that showed them has gone, as under an open note', () async {
+      // The web app's bodies are a module's: the home page taken down under a note leaves them where they were.
+      final home = show([makeNote('u1', 'left under a note\n- one\n', updatedAt: 4)]);
+      home.dispose();
+      made.remove(home);
+      await runGists();
+      expect([for (final request in phone.requests) (request['prompt'] as String).split('\n').first], ['left under a note']);
+      expect(gistFor('u1', 'left under a note\n- one\n'), 'Gist of left under a note');
     });
 
     test('writes a gist for a note the home page showed, with the smallest model, and keeps it against the body', () async {

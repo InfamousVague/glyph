@@ -6,8 +6,8 @@ part of 'ghost_root.dart';
 /// Recording and AI pages.
 ///
 /// One of the files `_GhostRootState` is written in (lib/root/ghost_root.dart says which). The fields these fill
-/// (`_voice`, `_capture`, `_availability`, `_gists`) and what each is listened to by (`_voiceChanged`,
-/// `_modelsChanged`, `_gistsChanged`, `_aiChanged`) are the class's own: a listener added here is taken off there,
+/// (`_voice`, `_capture`, `_availability`) and what each is listened to by (`_voiceChanged`,
+/// `_modelsChanged`, `_aiChanged`) are the class's own: a listener added here is taken off there,
 /// by the same function.
 extension _RootVoice on _GhostRootState {
   /// Voice made, once the root is up (lib/root/voice_wiring.dart): the recorder, where a capture begins and ends
@@ -153,10 +153,9 @@ extension _RootVoice on _GhostRootState {
     // The gists step aside for the recorder and a review, and are written only with the app on screen.
     _stopGistHold = voice.recorder.refining?.onRefineHold(pauseGists);
     gistVisible = () => WidgetsBinding.instance.lifecycleState == null || WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
-    // The runner is shown the cards of the page on screen as that page is drawn (`_gistsOn`), and no other notes.
-    _gists = Gists()..addListener(_gistsChanged);
-    _gistedBy = null;
-    _gistsChanged();
+    // With no model on the phone the runner asks nothing: it looks again when one is there (a download ended).
+    final models = voice.models!;
+    _stopGistModels = wakeGistsOn(models, () => presentIds(models.models));
     // The fills' queue: a press run to its end and landed, in the open note or a closed one.
     _stopFills = startFills(
       (said) {

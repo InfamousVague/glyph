@@ -10,8 +10,11 @@
 /// goes first (ai/runs.dart): the model is one. Nothing leaves the phone.
 ///
 /// The home page and the page of every note both draw gists (home/home_screen.dart, notes/all_notes_screen.dart),
-/// never at once: the bodies the runner works from are the last page's to hand them over, so two pages drawn
-/// together would take turns replacing each other's.
+/// each for the first cards it draws, with its own search and filter. The bodies the runner works from are the
+/// pages' that have handed theirs over ([Gists.show]), the last to do so first: two pages up together (a page kept
+/// under another) do not take turns replacing each other's, and when the one on top has gone the other's are the
+/// runner's again. With no page up, under a note, it goes on with the cards it was last shown, as the web app's
+/// does.
 ///
 /// The recorder wins the cores (docs/DESIGN.md §127 section 2): while it or a review is up ([pauseGists], following
 /// capture/refine.dart's hold) a gist in flight is cancelled and not counted against its note, and the runner looks
@@ -30,6 +33,12 @@
 ///   (`onRefineHold(pauseGists)` ran as the page's module loaded; here whoever makes the better-words queue says
 ///   `refining.onRefineHold(pauseGists)`).
 /// - `isTauri()` is the engine's [AiBackend.available]; a warning goes to [gistWarn].
+/// - **A turn asks whether there is a model before it says it has begun**, and with none it says nothing and does
+///   not look again by itself. The page's turn took the first note owed a line, said it had begun, found no model,
+///   said it had ended and looked again 800 ms on, for as long as the app was open: on a phone with no model that
+///   was an ask of the engine and two tellings of every card every 800 ms (measured here: 39 asks in 30 s), and a
+///   card's ring lit for the length of each ask. Here the runner waits to be told the models changed
+///   ([gistModelsChanged], [wakeGistsOn]) or the app came back ([gistsCameBack]).
 library;
 
 import 'dart:async';
@@ -119,6 +128,13 @@ Timer? _timer;
 /// The recorder or a review is up: nothing starts, and what was running is cancelled.
 bool _paused = false;
 
+/// A turn is asking the phone which models it has: no other turn begins meanwhile.
+bool _asking = false;
+
+/// The last turn found no model on the phone to write a line with: nothing is asked again until the models change
+/// or the app comes back.
+bool _noModel = false;
+
 /// No gist runs while [on]; a run in flight is cancelled, uncounted, and the runner looks again once let go
 /// (`pauseGists`).
 void pauseGists(bool on) {
@@ -185,7 +201,7 @@ String? activeGist() => _active;
 Future<void> runGists() => _pump();
 
 Future<void> _pump() async {
-  if (_active != null || _paused || !aiBackend.available || !gistVisible()) return;
+  if (_asking || _active != null || _paused || !aiBackend.available || !gistVisible()) return;
   // A note's own run comes first: the model is one, and a line for the home page can wait a few seconds.
   if (anyRunning()) {
     _timer?.cancel();
@@ -195,14 +211,30 @@ Future<void> _pump() async {
   final next = _owed();
   if (next == null) return;
   final (id, body) = next;
+  // Whether there is a model to write it with, before anything is said to have begun: with none the cards are told
+  // nothing, and the runner waits for the models to change rather than asking again in 800 ms.
+  final String? model;
+  _asking = true;
+  try {
+    model = smallestOf(presentIds(await listModels()));
+  } catch (failure) {
+    gistWarn('[glyph] the gist did not come:', failure);
+    _noModel = true;
+    return;
+  } finally {
+    _asking = false;
+  }
+  if (model == null) {
+    _noModel = true;
+    return;
+  }
+  _noModel = false;
+  // The recorder may have come up while the catalogue was read: nothing starts under it.
+  if (_paused || _active != null) return;
   _active = id;
-  // The card being worked on shows it (home/home_screen.dart).
+  // The card being worked on shows it (home/note_card.dart).
   _speak();
   try {
-    final model = smallestOf(presentIds(await listModels()));
-    if (model == null) return;
-    // The recorder may have come up while the catalogue was read: nothing starts under it.
-    if (_paused) return;
     // The words after the front matter; links go in as tokens, as for every run, and the line never has them.
     final words = _wordsOf(body);
     // Blanks out and fills as their words (docs/DESIGN.md §145): the smallest model is never handed a question to
@@ -234,12 +266,40 @@ Future<void> _pump() async {
 
 void _kick() {
   _timer?.cancel();
+  _timer = null;
+  // With no engine in this build, or no model on the phone at the last look, there is nothing to wait for.
+  if (!aiBackend.available || _noModel) return;
   _timer = Timer(const Duration(milliseconds: 1500), () => unawaited(_pump()));
 }
 
-/// The app came back to the screen: the runner looks again (the page's `visibilitychange`, when it says `visible`).
+/// The app came back to the screen: the runner looks again (the page's `visibilitychange`, when it says `visible`),
+/// for a model too.
 void gistsCameBack() {
-  if (gistVisible()) _kick();
+  if (!gistVisible()) return;
+  _noModel = false;
+  _kick();
+}
+
+/// The models on the phone changed (one fetched, one removed): a runner that found none looks again.
+void gistModelsChanged() {
+  _noModel = false;
+  _kick();
+}
+
+/// Wakes the runner as the models on the phone change: [models] is whatever says so (the app's catalogue, told for
+/// a fetch's every chunk too), [present] the ids on the phone now. Only another set of ids is a change. Answers the
+/// way to stop.
+VoidCallback wakeGistsOn(Listenable models, Iterable<String> Function() present) {
+  var had = present().join('\n');
+  void heard() {
+    final now = present().join('\n');
+    if (now == had) return;
+    had = now;
+    gistModelsChanged();
+  }
+
+  models.addListener(heard);
+  return () => models.removeListener(heard);
 }
 
 /// For the tests: the runner as a fresh launch has it. What is kept (results.dart) is the storage's to clear.
@@ -248,11 +308,27 @@ void forgetGistRunner() {
   _timer?.cancel();
   _timer = null;
   _bodies.clear();
+  _pages.clear();
   _hashes.clear();
   _failed.clear();
   _active = null;
   _activeRun = null;
   _paused = false;
+  _asking = false;
+  _noModel = false;
+}
+
+/// The pages that have handed their cards over, the last to do so last.
+final List<Gists> _pages = <Gists>[];
+
+/// The runner's bodies, from the pages': the last page's first, and each page's newest first.
+void _gather() {
+  _bodies.clear();
+  for (final page in _pages.reversed) {
+    for (final note in page._sorted) {
+      _bodies.putIfAbsent(note.id, () => note.body);
+    }
+  }
 }
 
 /// The gists for the notes a page shows, by id, and the work to have them: the runner starts when a note has none
@@ -264,6 +340,7 @@ class Gists extends ChangeNotifier implements ValueListenable<Map<String, String
 
   late final VoidCallback _stop;
   List<Note> _notes = const <Note>[];
+  List<Note> _sorted = const <Note>[];
   Map<String, String>? _read;
 
   // Read again after the runner speaks as well as when the notes change: the gists live in results.dart, not here.
@@ -277,7 +354,6 @@ class Gists extends ChangeNotifier implements ValueListenable<Map<String, String
     _notes = notes;
     _read = null;
     // Newest first: the note just made is the one a person is looking at.
-    _bodies.clear();
     final sorted = <Note>[...notes];
     for (var i = 1; i < sorted.length; i += 1) {
       final note = sorted[i];
@@ -288,9 +364,11 @@ class Gists extends ChangeNotifier implements ValueListenable<Map<String, String
       }
       sorted[j + 1] = note;
     }
-    for (final note in sorted) {
-      _bodies[note.id] = note.body;
-    }
+    _sorted = sorted;
+    _pages
+      ..remove(this)
+      ..add(this);
+    _gather();
     _kick();
   }
 
@@ -303,6 +381,10 @@ class Gists extends ChangeNotifier implements ValueListenable<Map<String, String
 
   @override
   void dispose() {
+    // Its cards are no longer the runner's where another page has handed its own over: those stand. With no page
+    // left (a note is open) the runner goes on with the cards it was last shown, as the web app's does, whose
+    // bodies are a module's and outlive the page.
+    if (_pages.remove(this) && _pages.isNotEmpty) _gather();
     _stop();
     super.dispose();
   }
