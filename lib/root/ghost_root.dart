@@ -707,13 +707,15 @@ class _GhostRootState extends State<GhostRoot> {
   );
 
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
-  /// screen is another (the note, what it was opened with), and when what it reads of the app is: the notes (the
-  /// titles that are taken, its place in its notebook, your templates), the trash, the workspaces, the preferences
-  /// and the account. Not for a keystroke, the home page's news or a runner's turn.
+  /// screen is another (the note, what it was opened with), and when what it reads of the app is: the notes, every
+  /// one for the titles that are taken and the ones a screen shows for its place in its notebook and your templates
+  /// (so a notebook thrown away takes its bar off the page being read at once, not when its Undo runs out), the
+  /// trash, the workspaces, the preferences and the account. Not for a keystroke, the home page's news or a
+  /// runner's turn.
   Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => Selected(
         listenable: _tick,
         name: 'note',
-        select: () => (screen, _library.value, _trash.isTrashed(screen.note.id), _workspaces.value, _prefsAt, _capture != null, _accountAt),
+        select: () => (screen, _library.value, _shown, _trash.isTrashed(screen.note.id), _workspaces.value, _prefsAt, _capture != null, _accountAt),
         builder: (context, _) => _desked(context, shell, screen),
       );
 
