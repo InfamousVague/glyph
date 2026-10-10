@@ -81,7 +81,10 @@ DecorationSet _buildLines(EditorViewLike view) {
       to: range.to,
       enter: (node) {
         final cls = _lineClass[node.name];
-        if (cls == null) return null;
+        // Every node with a line's class is a block, and no block is inside a block that holds only words (a
+        // paragraph, a heading, a table): the words of each were walked letter by letter for nothing, on every
+        // letter typed.
+        if (cls == null) return node.type.groups.contains('LeafBlock') ? false : null;
         final first = doc.lineAt(node.from).number;
         // `node.to` sits just past the block, which on a block ending in a newline is the first character of the
         // next line; stepping back one keeps the decoration off a line the node does not really cover.
@@ -101,7 +104,7 @@ DecorationSet _buildLines(EditorViewLike view) {
           }
           (perLine[at] ??= <String>[]).addAll(classes);
         }
-        return null;
+        return node.type.groups.contains('LeafBlock') ? false : null;
       },
     );
   }

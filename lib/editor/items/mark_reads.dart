@@ -87,7 +87,8 @@ List<ItemMark> _marksOnBoards(EditorViewLike view) {
       for (final id in column.cards) {
         final number = open[id];
         final line = number == null ? null : doc.line(number).text;
-        final mark = line != null && itemWords(line) != null ? markOf(line) : null;
+        // A mark is a link to a web address: a card's line with none is not put to the patterns.
+        final mark = line != null && line.contains('](http') && itemWords(line) != null ? markOf(line) : null;
         if (mark != null) marks.add(mark);
       }
     }

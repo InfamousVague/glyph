@@ -188,8 +188,24 @@ bool closesBoardFence(String bare, String fence) => (bare[0] == '~') == (fence[0
 
 /// The board whose opening fence is on line [from] and whose closing one is on line [to] (the same line where it
 /// never closes), from its opening's [settings], its [body] and the note's own [anchors].
-Board boardRead({required int from, required int to, required String body, required String settings, required Set<String> anchors}) =>
-    Board(from: from, to: to, body: body, columns: readBoard(body, anchors), height: _heightOf(settings));
+///
+/// A body's columns are kept for the anchors they were read against: a board is read again for every letter typed
+/// anywhere in its note (a dozen patterns to a card), and almost always its own lines and the note's anchors are
+/// what they were.
+Board boardRead({required int from, required int to, required String body, required String settings, required Set<String> anchors}) {
+  var read = _read[body];
+  if (read == null || read.anchors.length != anchors.length || !read.anchors.containsAll(anchors)) {
+    final columns = List<BoardColumn>.unmodifiable(<BoardColumn>[
+      for (final column in readBoard(body, anchors)) BoardColumn(name: column.name, cards: List<String>.unmodifiable(column.cards)),
+    ]);
+    read = (anchors: anchors, columns: columns);
+    if (_read.length >= 32) _read.clear();
+    _read[body] = read;
+  }
+  return Board(from: from, to: to, body: body, columns: read.columns, height: _heightOf(settings));
+}
+
+final Map<String, ({Set<String> anchors, List<BoardColumn> columns})> _read = <String, ({Set<String> anchors, List<BoardColumn> columns})>{};
 
 /// Every board in the note, in order.
 List<Board> boardsIn(String doc) {
