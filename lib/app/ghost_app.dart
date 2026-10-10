@@ -136,7 +136,10 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                   },
                 ),
                 // An iPhone's page (iphone_page.dart): what WebKit gives the real app's page and Flutter does not.
-                child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!))))),
+                // One reading of what lies behind for every glass in the window (the bars and the dock ask for theirs
+                // with `BackdropFilter.grouped`): each used to copy the screen for itself. Compared on the Mac's own
+                // engine with content scrolled under the two bars of the split layout: at most 4 of 255 apart.
+                child: BackdropGroup(child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!)))))),
               ),
             ),
           ),
