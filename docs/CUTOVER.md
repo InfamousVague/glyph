@@ -309,7 +309,7 @@ still under it, untouched, for as long as the carry's rule stands.
 
 ## 6. To publish, in order
 
-1. Merge `cutover` into `main` of this repository. Rebuild nothing native: the core is unchanged.
+1. Merge `cutover` into `main` of this repository. This branch changes nothing native, so the core needs no rebuild for it.
 2. On a spare phone, or the Fold with the owner's say: sign in on the Tauri app, leave an unsynced note, then
    `adb install -r` the release from `tool/cutover-build.sh 2.0.0` (pick the version). Read
    `carry/tauri-carry.log`, edit a note on each side, see both arrive. This is the proof this file lacks.
