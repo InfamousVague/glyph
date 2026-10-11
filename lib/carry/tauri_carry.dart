@@ -42,7 +42,6 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../account/device_keys.dart' show SecureStore;
 import '../core/native/core.dart';
@@ -89,25 +88,6 @@ abstract interface class CarryPrefs {
 
   /// Reads the store again from where it is kept, so a read after this is of what was really written.
   Future<void> reload();
-}
-
-/// [CarryPrefs] over the phone's SharedPreferences: the store lib/core/preferences.dart and stored_device.dart read.
-class DeviceCarryPrefs implements CarryPrefs {
-  DeviceCarryPrefs(this._kept);
-
-  final SharedPreferences _kept;
-
-  @override
-  String? read(String key) {
-    final value = _kept.get(key);
-    return value is String ? value : null;
-  }
-
-  @override
-  Future<bool> write(String key, String value) => _kept.setString(key, value);
-
-  @override
-  Future<void> reload() => _kept.reload();
 }
 
 /// What one half did.

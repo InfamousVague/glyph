@@ -4,7 +4,6 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account/crypto.dart';
 import 'app/front_frames.dart';
@@ -179,8 +178,8 @@ final Future<TauriCarry?> _carry = () async {
   if (defaultTargetPlatform != TargetPlatform.android || ghostPerf) return null;
   try {
     final dirs = await DevicePaths.find();
-    final kept = await SharedPreferences.getInstance().timeout(const Duration(seconds: 2));
-    return TauriCarry(dataDir: dirs.dataDir, prefs: DeviceCarryPrefs(kept), secure: deviceSecureStore(), device: const ChannelCarryDevice());
+    final kept = await DeviceCarryPrefs.open().timeout(const Duration(seconds: 2));
+    return TauriCarry(dataDir: dirs.dataDir, prefs: kept, secure: deviceSecureStore(), device: const ChannelCarryDevice());
   } catch (failure) {
     debugPrint('[carry] not begun: $failure');
     return null;

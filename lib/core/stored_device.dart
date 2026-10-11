@@ -1,5 +1,6 @@
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../carry/tauri_carry.dart' show CarryPrefs;
 import 'stored.dart';
 
 /// [Stored] kept on the device: the app's `localStorage`, over the same store the preferences are kept in
@@ -33,4 +34,27 @@ class DeviceStored extends Stored {
 
   @override
   Iterable<String> get allKeys => _kept.getKeys();
+}
+
+/// The same store as the carry from the Tauri app writes into it (lib/carry/tauri_carry.dart [CarryPrefs]): each
+/// write waited for, and read again from the phone afterwards, so "carried" means kept.
+class DeviceCarryPrefs implements CarryPrefs {
+  DeviceCarryPrefs(this._kept);
+
+  final SharedPreferences _kept;
+
+  /// The device's storage, for the carry: asked before anything else reads it.
+  static Future<DeviceCarryPrefs> open() async => DeviceCarryPrefs(await SharedPreferences.getInstance());
+
+  @override
+  String? read(String key) {
+    final value = _kept.get(key);
+    return value is String ? value : null;
+  }
+
+  @override
+  Future<bool> write(String key, String value) => _kept.setString(key, value);
+
+  @override
+  Future<void> reload() => _kept.reload();
 }
