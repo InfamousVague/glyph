@@ -150,5 +150,5 @@ class QuerySplitLook extends BoardLook {
 
   @override
   WordsFace face(double size, double lineHeight, {double weight = 400, Color? color, bool italic = false, bool struck = false, double tracking = 0}) =>
-      WordsFace(style(size, weight: weight, color: color), blinkLineHeight(lineHeight, size));
+      WordsFace(style(size, weight: weight, color: color), blinkLineHeight(lineHeight, size, pageRatio), ratio: pageRatio);
 }

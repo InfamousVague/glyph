@@ -25,12 +25,23 @@ import 'height.dart' show boardType, laneFoot;
 /// A `<button>`'s own type where the stylesheet gives it none: the browser's 13.3333px.
 const double buttonType = 40 / 3;
 
-double _fl(double value) => layoutUnitFloor(value);
+/// The device pixels to a CSS one the page is laid out in (the tokens' `css.lineDpr`): 1 on a desktop, a phone's
+/// own on a phone, where a padding is a sixty-fourth of a DEVICE pixel and a face's ascent a whole one. One for
+/// the whole app, as the screen is; said as a look is made.
+double _ratio = 1;
+
+double _fl(double value) => layoutUnitFloor(value * _ratio) / _ratio;
+
+/// [_fl] for the first length a look works out, which says the ratio for the rest.
+double _flAt(double value, Tokens t) {
+  _ratio = t.css.lineDpr > 0 ? t.css.lineDpr : 1;
+  return _fl(value);
+}
 
 class BoardLook {
   BoardLook({required this.t, required this.base, required this.note, required double gutter, required this.window})
     : em = boardType * note,
-      bleed = _fl(gutter),
+      bleed = _flAt(gutter, t),
       ink = base?.color ?? t.color('app-ink'),
       ink2 = t.color('app-ink-2'),
       ink3 = t.color('app-ink-3'),
@@ -100,7 +111,7 @@ class BoardLook {
   }
 
   WordsFace face(double size, double lineHeight, {double weight = 400, Color? color, bool italic = false, bool struck = false, double tracking = 0}) =>
-      WordsFace(style(size, weight: weight, color: color, italic: italic, struck: struck, tracking: tracking), blinkLineHeight(lineHeight, size));
+      WordsFace(style(size, weight: weight, color: color, italic: italic, struck: struck, tracking: tracking), blinkLineHeight(lineHeight, size, _ratio), ratio: _ratio);
 
   /// Whether the note is set in a coding face, whose letters are never spaced out.
   bool get coding => base?.props.mono ?? true;
