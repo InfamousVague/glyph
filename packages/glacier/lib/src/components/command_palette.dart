@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/physics.dart';
@@ -193,6 +195,10 @@ class GlacierCommandPalette extends StatefulWidget {
   /// Laid over the shortcut key caps' text style; null leaves the kit's.
   final TextStyle? kbdStyle;
 
+  /// How many times a palette opening has taken the page behind it to blur once, for a test.
+  @visibleForTesting
+  static int debugBehindTaken = 0;
+
   @override
   State<GlacierCommandPalette> createState() => _GlacierCommandPaletteState();
 }
@@ -223,6 +229,10 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
   Map<String, GlobalKey> _keyOf = const {};
   int _cursor = -1;
 
+  /// The page behind the palette as it was when the palette opened, blurred once: what the scrim fades in while it
+  /// opens ([_takeBehind]). Null where there is none to be had, and once the scrim is all there.
+  ui.Image? _behind;
+
   FocusNode? _opener;
   bool _started = false;
   bool _watchingBack = false;
@@ -236,6 +246,10 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     super.initState();
     _rematch();
     _watchKeys(widget.shortcut);
+    // The scrim all there: the picture it was fading in is let go, and the blur itself is drawn from here on.
+    _fade.addStatusListener((status) {
+      if (status == AnimationStatus.completed) _letBehindGo();
+    });
   }
 
   @override
@@ -267,6 +281,7 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     _watchBack(false);
     _fade.dispose();
     _spring.dispose();
+    _behind?.dispose();
     _scope.dispose();
     _field.dispose();
     _scroll.dispose();
@@ -320,6 +335,8 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
       _spring.value = 1;
     } else {
       _fade.forward(from: 0);
+      // Once this frame is drawn: the page as it stands under a palette of which nothing shows yet.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _takeBehind());
       _spring.value = 0;
       _spring.animateWith(SpringSimulation(springDescription(Spring.snappy), 0, 1, 0, tolerance: const Tolerance(distance: 0.01, velocity: 0.01))).whenCompleteOrCancel(() {
         if (mounted && widget.open && !_spring.isAnimating) _spring.value = 1;
@@ -336,7 +353,51 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
     });
   }
 
+  /// `.overlay { backdrop-filter: blur(sm) }` under an opacity that eases in: the page's engine blurs what is behind
+  /// and fades the blurred picture in over the page. A backdrop filter cannot be faded here, so its blur came up by
+  /// its own strength instead, another blur of the whole window at each frame of the entrance, and a weak blur of a
+  /// whole window is the dearest thing a phone's engine is asked for. So while the palette opens the scrim is what
+  /// the page's is: the page behind, taken once at half its size and blurred once, faded in over the page as it
+  /// goes on being drawn. Once the scrim is all there it is the backdrop filter at its full strength, as it was.
+  ///
+  /// The page behind is the outermost layer of its own between the palette's place in the page and the overlay the
+  /// palette is drawn in (a route's page is one); where there is none that fills the window, nothing is taken and
+  /// the blur comes up by its strength as before.
+  void _takeBehind() {
+    if (!mounted || !widget.open || _fade.value >= 1) return;
+    final theater = Overlay.maybeOf(context, rootOverlay: true)?.context.findRenderObject();
+    RenderRepaintBoundary? page;
+    for (RenderObject? at = context.findRenderObject(); at != null && !identical(at, theater); at = at.parent) {
+      if (at is RenderRepaintBoundary) page = at;
+    }
+    if (page == null || theater is! RenderBox || !page.attached || page.size != theater.size || page.size.isEmpty) return;
+    final t = GlacierTheme.of(context);
+    final by = MediaQuery.devicePixelRatioOf(context) / 2;
+    final sharp = page.toImageSync(pixelRatio: by);
+    final recorder = ui.PictureRecorder();
+    final sigma = t.len('glacier-blur-sm') * by;
+    Canvas(recorder).drawImage(sharp, Offset.zero, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.clamp));
+    final drawn = recorder.endRecording();
+    final blurred = drawn.toImageSync(sharp.width, sharp.height);
+    drawn.dispose();
+    sharp.dispose();
+    GlacierCommandPalette.debugBehindTaken += 1;
+    setState(() {
+      _behind?.dispose();
+      _behind = blurred;
+    });
+  }
+
+  void _letBehindGo() {
+    final behind = _behind;
+    if (behind == null) return;
+    _behind = null;
+    // After the frame: the last drawing of it may still be on its way to the screen.
+    WidgetsBinding.instance.addPostFrameCallback((_) => behind.dispose());
+  }
+
   void _closed() {
+    _letBehindGo();
     _fade.stop();
     _spring.stop();
     _watchBack(false);
@@ -517,7 +578,11 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
                   child: Stack(
                     fit: StackFit.expand,
                     children: [
-                      GlassBackdrop(blur: t.len('glacier-blur-sm'), amount: shown),
+                      // Opening, the page behind blurred once and faded in; all there, the blur itself.
+                      if (_behind != null && shown < 1)
+                        RawImage(image: _behind, fit: BoxFit.fill, opacity: AlwaysStoppedAnimation<double>(shown), filterQuality: FilterQuality.low)
+                      else
+                        GlassBackdrop(blur: t.len('glacier-blur-sm'), amount: shown),
                       ColoredBox(color: _faded(t.color('glacier-overlay'), shown)),
                     ],
                   ),

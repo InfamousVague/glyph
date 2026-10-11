@@ -180,6 +180,50 @@ void main() {
       expect(under.radius, t.radius('2xl'));
     });
 
+    testWidgets('opening, the scrim is the page behind blurred once and faded in; all there, it is the blur itself', (tester) async {
+      // A page that is a layer of its own filling the window, as a route's page is.
+      final rig = Rig();
+      await pumpKit(tester, RepaintBoundary(child: SizedBox.expand(child: Align(alignment: Alignment.topLeft, child: rig.build()))));
+      final taken = GlacierCommandPalette.debugBehindTaken;
+      rig.set(() => rig.open = true);
+      // The first frame shows nothing of the scrim, and the page under it is taken once that frame is drawn.
+      await tester.pump();
+      expect(GlacierCommandPalette.debugBehindTaken, taken + 1);
+      double shown() => tester.widget<RawImage>(find.byType(RawImage)).opacity!.value;
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(find.byType(BackdropFilter), findsNothing, reason: 'no blur of the window at a strength that grows');
+      final early = shown();
+      expect(early, inExclusiveRange(0.0, 1.0));
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(shown(), greaterThan(early));
+      expect(tester.widget<RawImage>(find.byType(RawImage)).image!.width, 195, reason: 'at half the window’s size');
+      expect(GlacierCommandPalette.debugBehindTaken, taken + 1, reason: 'blurred once, and that faded');
+      // All there: the backdrop filter at its strength, and no picture kept.
+      await tester.pumpAndSettle();
+      expect(find.byType(RawImage), findsNothing);
+      expect(find.byType(BackdropFilter), findsOneWidget);
+      // Shut and opened again, the page is taken as it is then.
+      rig.set(() => rig.open = false);
+      await tester.pump();
+      rig.set(() => rig.open = true);
+      await tester.pump();
+      expect(GlacierCommandPalette.debugBehindTaken, taken + 2);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('with no page of its own behind it, the scrim’s blur comes up by its strength', (tester) async {
+      final rig = Rig();
+      await pumpKit(tester, rig.build());
+      final taken = GlacierCommandPalette.debugBehindTaken;
+      rig.set(() => rig.open = true);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 60));
+      expect(GlacierCommandPalette.debugBehindTaken, taken);
+      expect(find.byType(RawImage), findsNothing);
+      expect(find.byType(BackdropFilter), findsOneWidget);
+      await tester.pumpAndSettle();
+    });
+
     testWidgets('lists every command under its heading, in the caller’s order, with the cursor on the first', (tester) async {
       final rig = Rig(open: true);
       await pumpKit(tester, rig.build());

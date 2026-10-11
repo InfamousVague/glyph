@@ -35,8 +35,16 @@ void main() {
       VoidCallback open = () {};
       await pumpBar(tester, world: apples(), doing: everyDoing(Calls()), stack: stack, onReady: (opener) => open = opener);
       expect(palette, findsNothing);
+      // In the app the page behind the palette is the route's own layer: opening, the scrim fades a picture of it
+      // blurred once, where it blurred the whole window again at each frame (the kit's GlacierCommandPalette).
+      final taken = GlacierCommandPalette.debugBehindTaken;
       open();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 40));
+      expect(GlacierCommandPalette.debugBehindTaken, taken + 1);
+      expect(find.byType(BackdropFilter), findsNothing);
       await settle(tester);
+      expect(find.byType(BackdropFilter), findsOneWidget);
       expect(palette, findsOneWidget);
       expect(lines(tester).map((line) => line.text), contains('Open Apples'));
       // The phone's gesture, as the system asks it of the app (core/back.dart): the palette takes it.
