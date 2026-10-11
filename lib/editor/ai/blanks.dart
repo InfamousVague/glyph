@@ -253,7 +253,8 @@ bool _inWords(EditorState state, int from, [Tree? tree]) {
 /// blank as words.
 List<Blank> editorBlanks(EditorState state, [bool whole = true]) {
   if (_matches.of(state.doc).isEmpty) return const <Blank>[];
-  return _inWordsOf(state, syntaxTree(state));
+  // Whole also for a state asleep behind a canvas, whose tree as drawn is empty: a blank in code is not one.
+  return _inWordsOf(state, syntaxTreeWhole(state) ?? syntaxTree(state));
 }
 
 /// A blank's identity among `all`: its question and its order among blanks with that question.
@@ -1013,7 +1014,7 @@ class _Blanks extends PluginValue {
       final state = view.state;
       final text = state.doc.toString();
       final options = _laneOptions(hooks);
-      final count = _braced.nowhere(state.doc) ? 0 : _inWordsOf(state, syntaxTree(state)).where((b) => fillable(laneOf(b, text, options))).length;
+      final count = _braced.nowhere(state.doc) ? 0 : _inWordsOf(state, syntaxTreeWhole(state) ?? syntaxTree(state)).where((b) => fillable(laneOf(b, text, options))).length;
       final was = openNoteBlanks.value;
       if (was == null || was.noteId != hooks.noteId() || was.count != count) openNoteBlanks.value = (noteId: hooks.noteId(), count: count);
     });

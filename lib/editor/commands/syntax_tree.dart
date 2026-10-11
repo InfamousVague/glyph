@@ -29,7 +29,8 @@ final Expando<({MarkdownParser parser, Tree tree})> _parsed = Expando<({Markdown
 Tree syntaxTree(EditorState state) {
   // The tree the state already keeps (view/syntax_tree.dart), reparsed only where a change touched: a whole parse
   // of a 380 kB note on every keystroke was 60 ms.
-  final held = kept.syntaxTreeOrNull(state);
+  // (Whole also for a state kept asleep behind another view of its note: read then, with the state's own parser.)
+  final held = kept.syntaxTreeWhole(state);
   if (held != null) return held;
   final parser = state.facet(commandParser) ?? _plain;
   final Doc doc = state.doc;

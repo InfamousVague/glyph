@@ -8,6 +8,14 @@
 /// block of the old tree). There is no
 /// language data, no indentation service and no folding: nothing in ../glyph asks for them.
 ///
+/// A state can be ASLEEP ([syntaxAsleep]): the editor a note keeps behind its canvas or its notebook's index is
+/// never drawn, and what it holds there is the canvas's JSON, which read as Markdown is one paragraph thousands of
+/// lines long (30 ms for a canvas of 200 cards on a Mac, at its opening and again each time the canvas's words
+/// are handed to it). Asleep, the field parses nothing and [syntaxTree] answers the empty tree, as for a state
+/// with no language, which is all the extensions that draw ask of it; whoever acts on the note's words through
+/// a sleeping state (a command, the AI's fills) asks [syntaxTreeWhole], which reads the note then, once for the
+/// words as they are. The parse is made the moment the state is woken.
+///
 /// It lives beside the view because the view's base extensions are the first to need it; it reads nothing of the
 /// view, and belongs with the state and the parser (see the note to piece A in docs/STAGE4.md).
 library;
@@ -19,9 +27,18 @@ import '../syntax/tree.dart' as lezer;
 
 /// The parse a state holds: the tree, the text it was made from, and the parser that made it.
 class SyntaxState {
-  const SyntaxState(this.parser, this.text, this.tree);
+  const SyntaxState(this.parser, this.text, this.tree) : asleep = false;
+
+  /// What a sleeping state holds: its parser, and nothing read.
+  SyntaxState.asleep(this.parser)
+      : text = '',
+        tree = _noTree,
+        asleep = true;
 
   final MarkdownParser parser;
+
+  /// Whether nothing was read: [text] and [tree] are then empty, whatever the note holds.
+  final bool asleep;
 
   /// The document as one string: what the regex half of the extensions reads, and what the next reparse starts
   /// from.
@@ -34,21 +51,57 @@ final Facet<MarkdownParser, MarkdownParser?> syntaxParser = Facet.define<Markdow
   combine: (values) => values.isEmpty ? null : values.first,
 );
 
-SyntaxState _parse(MarkdownParser parser, String text) => SyntaxState(parser, text, parser.parse(text));
+/// Whether the state's note is left unread: given true by whoever keeps an editor out of sight (lib/note's host,
+/// for the editor behind a canvas or an index), and taken back, through a compartment, as the editor is shown.
+/// Any true wins.
+final Facet<bool, bool> syntaxAsleep = Facet.define<bool, bool>(combine: (values) => values.contains(true));
+
+/// What the parsing has cost, for the tests that hold it to a count. Debug builds only: every count is made inside
+/// an `assert`.
+abstract final class SyntaxWork {
+  /// Notes read whole.
+  static int whole = 0;
+
+  /// Notes read again where a change touched them.
+  static int again = 0;
+
+  static void reset() {
+    whole = 0;
+    again = 0;
+  }
+}
+
+SyntaxState _parse(MarkdownParser parser, Doc doc) {
+  // Read already for these words while the state slept ([syntaxTreeWhole]): that reading is the parse.
+  final known = _whole[doc];
+  final text = doc.toString();
+  if (known != null && identical(known.parser, parser)) return SyntaxState(parser, text, known.tree);
+  assert(() {
+    SyntaxWork.whole += 1;
+    return true;
+  }());
+  return SyntaxState(parser, text, parser.parse(text));
+}
 
 final StateField<SyntaxState?> _syntaxField = StateField.define<SyntaxState?>(
   create: (state) {
     final parser = state.facet(syntaxParser);
-    return parser == null ? null : _parse(parser, state.doc.toString());
+    if (parser == null) return null;
+    return state.facet(syntaxAsleep) ? SyntaxState.asleep(parser) : _parse(parser, state.doc);
   },
   update: (value, tr) {
     final parser = tr.state.facet(syntaxParser);
     if (parser == null) return null;
-    if (value == null || !identical(value.parser, parser)) return _parse(parser, tr.newDoc.toString());
+    if (tr.state.facet(syntaxAsleep)) return value != null && value.asleep && identical(value.parser, parser) ? value : SyntaxState.asleep(parser);
+    if (value == null || value.asleep || !identical(value.parser, parser)) return _parse(parser, tr.newDoc);
     if (!tr.docChanged) return value;
     final changes = <lezer.ChangedRange>[];
     tr.changes.iterChangedRanges((fromA, toA, fromB, toB) => changes.add(lezer.ChangedRange(fromA, toA, fromB, toB)));
     final text = _textAfter(value.text, tr);
+    assert(() {
+      SyntaxWork.again += 1;
+      return true;
+    }());
     return SyntaxState(parser, text, parser.reparse(value.tree, text, changes));
   },
 );
@@ -90,17 +143,46 @@ String _textAfter(String before, Transaction tr) {
 
 final lezer.Tree _noTree = parser.parse('');
 
-/// `syntaxTree(state)` (@codemirror/language): the note's parse, or an empty tree for a state with no language.
+/// `syntaxTree(state)` (@codemirror/language): the note's parse, or an empty tree for a state with no language
+/// and for one that is asleep.
 lezer.Tree syntaxTree(EditorState state) => state.fieldOrNull(_syntaxField)?.tree ?? _noTree;
 
-/// The note's parse, or null for a state with no language: for whoever keeps a tree of its own otherwise
-/// (lib/editor/commands/syntax_tree.dart parses a state whole each time its document is new; with this it can
-/// read the tree the state already keeps, reparsed only where a change touched).
-lezer.Tree? syntaxTreeOrNull(EditorState state) => state.fieldOrNull(_syntaxField)?.tree;
+/// The note's parse, or null for a state with no language or asleep: for whoever keeps a tree of its own
+/// otherwise.
+lezer.Tree? syntaxTreeOrNull(EditorState state) {
+  final held = state.fieldOrNull(_syntaxField);
+  return held == null || held.asleep ? null : held.tree;
+}
+
+/// The note's parse, whole, whether the state is asleep or not; null for a state with no language. For whoever
+/// acts on what the note says and not on what is drawn of it: the commands (lib/editor/commands/syntax_tree.dart
+/// reads the tree the state keeps, reparsed only where a change touched, through this), the blanks the AI fills.
+/// A sleeping state's note is read here, the first time it is asked for the words as they are, and that reading
+/// is the state's own once it wakes with the same words.
+lezer.Tree? syntaxTreeWhole(EditorState state) {
+  final held = state.fieldOrNull(_syntaxField);
+  if (held == null) return null;
+  if (!held.asleep) return held.tree;
+  final doc = state.doc;
+  final known = _whole[doc];
+  if (known != null && identical(known.parser, held.parser)) return known.tree;
+  assert(() {
+    SyntaxWork.whole += 1;
+    return true;
+  }());
+  final tree = held.parser.parse(doc.toString());
+  _whole[doc] = (parser: held.parser, tree: tree);
+  return tree;
+}
+
+final Expando<({MarkdownParser parser, lezer.Tree tree})> _whole = Expando<({MarkdownParser parser, lezer.Tree tree})>('syntaxTreeWhole');
 
 /// The whole document as a string, when the state already holds it for its parse; null for a state with no
-/// language.
-String? syntaxText(EditorState state) => state.fieldOrNull(_syntaxField)?.text;
+/// language or asleep.
+String? syntaxText(EditorState state) {
+  final held = state.fieldOrNull(_syntaxField);
+  return held == null || held.asleep ? null : held.text;
+}
 
 /// The language extension: the state parses its note with [language] and keeps the tree. What the web's
 /// `glyphMarkdown(formats)` answers, less its key bindings and paste handling, which are the input layer's:
