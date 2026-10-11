@@ -144,24 +144,56 @@ class _HapticsProviderState extends State<HapticsProvider> {
     super.dispose();
   }
 
-  void _onPointerDown(PointerDownEvent event) {
-    if (!widget.enabled || event.kind != PointerDeviceKind.touch) return; // a mouse and a pen have no motor
+  // A tap is only a tap in hindsight: a scroll begins with a finger down on whatever row is under it, and a tick at
+  // touch-down buzzed the whole way down a list. So the tick is given as the finger lifts, where it went down, soon
+  // after, and still over something pressable (the app's own rule: src/app/core/haptics.ts `installTapHaptics`).
+  static const double _tapSlop = 10;
+  static const Duration _tapMax = Duration(milliseconds: 700);
+  int? _armed;
+  HapticKind _kind = HapticKind.light;
+  Offset _from = Offset.zero;
+  Duration _at = Duration.zero;
+
+  HapticKind? _kindAt(Offset position, int viewId) {
     final result = HitTestResult();
-    WidgetsBinding.instance.hitTestInView(result, event.position, event.viewId);
+    WidgetsBinding.instance.hitTestInView(result, position, viewId);
     for (final entry in result.path) {
       final target = entry.target;
-      if (target is RenderMetaData && target.metaData is _HapticMark) {
-        final kind = (target.metaData as _HapticMark).kind;
-        if (kind != null) _motor(kind); // motor only: a visual layer watches the same press itself
-        return;
-      }
+      if (target is RenderMetaData && target.metaData is _HapticMark) return (target.metaData as _HapticMark).kind;
     }
+    return null;
   }
+
+  void _onPointerDown(PointerDownEvent event) {
+    _armed = null;
+    if (!widget.enabled || event.kind != PointerDeviceKind.touch) return; // a mouse and a pen have no motor
+    final kind = _kindAt(event.position, event.viewId);
+    if (kind == null) return;
+    _kind = kind;
+    _armed = event.pointer;
+    _from = event.position;
+    _at = event.timeStamp;
+  }
+
+  void _onPointerUp(PointerUpEvent event) {
+    if (_armed != event.pointer) return;
+    _armed = null;
+    if (!widget.enabled) return;
+    if ((event.position.dx - _from.dx).abs() > _tapSlop || (event.position.dy - _from.dy).abs() > _tapSlop) return;
+    if (event.timeStamp - _at > _tapMax) return;
+    // The control is the one the finger landed on: within the slop it is still over it, and a hit test asked for
+    // while the lift is being handed out answers nothing.
+    _motor(_kind); // motor only: a visual layer watches the same press itself
+  }
+
+  void _onPointerCancel(PointerCancelEvent event) => _armed = null;
 
   @override
   Widget build(BuildContext context) {
     return Listener(
       onPointerDown: _onPointerDown,
+      onPointerUp: _onPointerUp,
+      onPointerCancel: _onPointerCancel,
       behavior: HitTestBehavior.translucent,
       child: _HapticsScope(fire: _fire, child: widget.child),
     );
