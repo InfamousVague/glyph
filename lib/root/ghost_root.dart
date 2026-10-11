@@ -1063,7 +1063,13 @@ class _GhostRootState extends State<GhostRoot> {
   late bool _launching = widget.launch && widget.launchSeat == null;
 
   /// What the launch screen reads of the root, where it is drawn over it from outside (`GhostRoot.launchSeat`).
-  LaunchFacts _launchFacts() => (loading: !_read, notes: _launchNotes, sync: _launchSync, recording: _meetingRecording);
+  LaunchFacts _launchFacts() => (loading: _launchLoading, notes: _launchNotes, sync: _launchSync, recording: _meetingRecording);
+
+  /// Whether the launch screen is still opening the notes: until they are read, and, in a build with an account,
+  /// until what this device kept of it has been read too (`_account`, a moment later). The screen waits for a
+  /// signed-in device's sync, and until the kept session is read nobody can say whether there is one to wait for:
+  /// with the notes read first, it had begun to leave before the sync's line was there.
+  bool get _launchLoading => !_read || (_services != null && _gate == null);
 
   /// How many notes the launch screen says there are: every one the library holds that is not in the archive
   /// (App.tsx: `notes.filter((n) => !n.archivedAt).length`, of the library's notes, the Trash's among them).

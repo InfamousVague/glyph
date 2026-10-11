@@ -70,6 +70,12 @@ typedef _Line = ({String key, _LineState state, String words});
 /// slow network never holds anyone at the door; and it stays at least long enough to be read rather than flash. Once
 /// ready the ghost looks out of the screen and winks, then the screen fades and [onDone] hands over.
 ///
+/// **It waits for the sync's answer too**, under the same three seconds: while the account's line says "Syncing your
+/// devices" the screen stays, and goes once it is ticked "In sync" or says "Sync will try again". The page's does
+/// not wait, and on a phone its line was still turning as the screen left (Matt, 2026-10-11: the checks should show
+/// in order "and the checkmarks should remain"): every line has its answer before the ghost looks out. Signed out
+/// there is no line and nothing more to wait for.
+///
 /// Differs from the web: its clock was a 150 ms beat compared against `Date.now()`; here each wait is a timer of its
 /// own, so the moments are exact. And [claimAutoReload] and [recording] are asked of the caller, where the web read
 /// local storage and the meeting recorder itself: neither exists here yet.
@@ -185,7 +191,8 @@ class _LaunchScreenState extends State<LaunchScreen> {
     final checked = _skipped || (_begun && !updates.checking);
     // Ready once, and ready from then on: a second check starting mid-fade can't hold the screen up again. Not while
     // an update is being taken: the app is about to start again, and the ghost's wink is the new build's to give.
-    if (!_applying && !widget.loading && _pastShortest && (checked || _pastLongest)) _latched = true;
+    final synced = widget.sync != SyncPhase.syncing;
+    if (!_applying && !widget.loading && _pastShortest && ((checked && synced) || _pastLongest)) _latched = true;
 
     final lines = <_Line>[
       widget.loading
