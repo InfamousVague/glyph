@@ -1,11 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/backend.dart' show Output, Run;
 import 'package:ghost_md/ai/kinds.dart' show RunKind;
 import 'package:ghost_md/ai/runs.dart';
 import 'package:ghost_md/art/art.dart';
+import 'package:ghost_md/core/reset.dart' show spared;
+import 'package:ghost_md/core/wip.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/cheat_sheet.dart';
 import 'package:ghost_md/settings/panes/developer_pane.dart';
@@ -240,7 +244,7 @@ void main() {
   group('Developer', () {
     testWidgets('says what the window is, marks the benches that wait, and hides itself by its switch', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
-      expect(cardTitles(tester), ['Window', 'Smoke', 'The phone at work', 'Developer mode', 'Reset']);
+      expect(cardTitles(tester), ['Window', 'Smoke', 'The phone at work', 'Developer mode', 'Reset', 'Work in progress']);
       expect(rowLabels(tester, 'Window'), ['Top inset', 'Page', 'Screen', 'Engine']);
       final facts = windowFacts(tester.element(find.byType(DeveloperPane)));
       expect((facts.inset, facts.page, facts.engine), ('0px', '390 × 1800 @2', 'Flutter on android'));
@@ -254,6 +258,41 @@ void main() {
       expect(developerMode.value, isFalse);
       // The section is gone from the list, and so is its page.
       expect(find.byType(DeveloperPane), findsNothing);
+      await endSettings(tester);
+    });
+
+    // The phone assistant, the side key and Record note are off until a developer switches them on for this phone
+    // (lib/core/wip.dart; Ghost.md's branch voice/assistant-flag, DESIGN §146): the page's last card.
+    testWidgets('the voice assistant is off, and its switch tells the phone and keeps this device\'s flag', (tester) async {
+      final asked = <Object?>[];
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(const MethodChannel('ghost_md/meeting'), (call) async {
+        asked.add([call.method, (call.arguments as Map?)?['on']]);
+        return (call.arguments as Map?)?['on'] == true;
+      });
+      addTearDown(() => messenger.setMockMethodCallHandler(const MethodChannel('ghost_md/meeting'), null));
+      addTearDown(() => wipAssistant.set(false));
+      await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
+      expect(rowLabels(tester, 'Work in progress'), ['Voice assistant']);
+      expect(wipAssistant.value, isFalse);
+      final control = find.descendant(of: rowCalled('Voice assistant'), matching: find.byType(GlacierSwitch));
+      expect(tester.widget<GlacierSwitch>(control).checked, isFalse);
+      await tapOn(tester, control);
+      expect(asked, [
+        ['setAssistantSwitch', true],
+      ]);
+      expect(wipAssistant.value, isTrue);
+      expect(tester.widget<GlacierSwitch>(control).checked, isTrue);
+      await tapOn(tester, control);
+      expect(asked.last, ['setAssistantSwitch', false]);
+      expect(wipAssistant.value, isFalse);
+      // A reset leaves it as the developer set it, as it leaves the page.
+      expect(spared, contains(wipAssistantKey));
+      // The phone's half answers by these names, and the build's own switch is off unless asked for.
+      final kotlin = File('android/app/src/main/kotlin/com/mattssoftware/ghost_md/MeetingBridge.kt').readAsStringSync();
+      expect(kotlin, contains('"setAssistantSwitch" ->'));
+      final gradle = File('android/app/build.gradle.kts').readAsStringSync();
+      expect(gradle, contains('val ghostAssistant = System.getenv("GHOST_ASSISTANT") == "1"'));
       await endSettings(tester);
     });
 

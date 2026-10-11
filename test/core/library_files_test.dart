@@ -138,13 +138,14 @@ void main() {
       final library = RegExp(r'pub const LIBRARY: &str = "([^"]+)";').firstMatch(File('native/src/paths.rs').readAsStringSync())!.group(1)!;
       expect(provider, contains('private fun library(): File = File(context!!.dataDir, "$library")'));
       expect(provider, contains('paths.rs'));
-      // The authority is made from the id this app is installed by, which is never the real app's.
+      // The authority is made from the id this app is installed by: its own, or, only in the build made to replace
+      // the Tauri app (GHOST_CUTOVER), that app's, whose place in Files it then carries on.
       expect(provider, contains(r'fun authority(packageName: String) = "$packageName.library"'));
       final manifest = File('android/app/src/main/AndroidManifest.xml').readAsStringSync();
       final declared = RegExp(r'<provider\s+android:name="com\.mattssoftware\.glyph\.files\.LibraryDocuments"[^>]*>').firstMatch(manifest)?.group(0) ?? '';
       expect(declared, contains(r'android:authorities="${applicationId}.library"'));
       expect(manifest, isNot(contains('"com.mattssoftware.glyph.library"')));
-      expect(File('android/app/build.gradle.kts').readAsStringSync(), contains('applicationId = "com.mattssoftware.glyph.flutter"'));
+      expect(File('android/app/build.gradle.kts').readAsStringSync(), contains('applicationId = if (ghostCutover) "com.mattssoftware.glyph" else "com.mattssoftware.glyph.flutter"'));
       // Reached only by the system's Files app, and read-only there.
       expect(declared, allOf(contains('android:exported="true"'), contains('android:permission="android.permission.MANAGE_DOCUMENTS"')));
       expect(manifest, contains('<action android:name="android.content.action.DOCUMENTS_PROVIDER" />'));

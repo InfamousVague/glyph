@@ -51,7 +51,8 @@ import java.util.concurrent.Executors
  * - `isLocked` -> bool; `setCapturing {on}` -> null (the screen kept on, and its going off heard);
  *   `endCapture {leave}` -> null.
  * - `isAssistant` -> bool; `openAssistantSettings` -> bool; `deviceMaker` -> String; `assistantEnabled` -> whether
- *   this build has the phone assistant at all (`@bool/ghost_assistant`).
+ *   the phone assistant is there at all (the build's `@bool/ghost_assistant`, or this phone's switch);
+ *   `assistantSwitch` -> this phone's switch; `setAssistantSwitch {on}` -> switches it (AssistantSwitch.kt).
  *
  * THE EVENTS on `ghost_md/meeting/events`, each `{name, argument}` where the Tauri page was called
  * `window.__glyph.<name>(argument)`:
@@ -91,8 +92,11 @@ class MeetingBridge(private val activity: Activity) {
   private var resumed = false
   private var capturing = false
 
-  /** Whether this build has the phone assistant and the capture launch at all (res/values/voice_assistant.xml). */
-  private val assistant: Boolean get() = activity.resources.getBoolean(R.bool.ghost_assistant)
+  /**
+   * Whether the phone assistant and the capture launch are there at all: the build's switch
+   * (res/values, `ghost_assistant`, off unless the build turns it on) or this phone's own (AssistantSwitch.kt).
+   */
+  private val assistant: Boolean get() = AssistantSwitch.enabled(activity)
 
   fun register(messenger: BinaryMessenger) {
     EventChannel(messenger, EVENTS).setStreamHandler(object : EventChannel.StreamHandler {
@@ -186,6 +190,11 @@ class MeetingBridge(private val activity: Activity) {
         result.success(null)
       }
       "assistantEnabled" -> result.success(assistant)
+      "assistantSwitch" -> result.success(AssistantSwitch.on(activity))
+      "setAssistantSwitch" -> {
+        AssistantSwitch.set(activity, call.argument<Boolean>("on") == true)
+        result.success(assistant)
+      }
       "isAssistant" -> result.success(isAssistant())
       "openAssistantSettings" -> result.success(openAssistantSettings())
       "deviceMaker" -> result.success(Build.MANUFACTURER ?: "")
@@ -349,7 +358,7 @@ class MeetingBridge(private val activity: Activity) {
     return true
   }
 
-  // ---- the capture launch and the lock screen (8F: in every build but one made with the assistant off) -----------
+  // ---- the capture launch and the lock screen (8F: only with the assistant on, by the build or by this phone) -----------
 
   private fun isCapture(intent: Intent?): Boolean = assistant && (intent?.action == MainActivity.ACTION_CAPTURE || intent?.action == Intent.ACTION_ASSIST)
 

@@ -92,9 +92,11 @@
               android:name="io.flutter.embedding.android.NormalTheme"
               android:resource="@style/NormalTheme"
               />
+            <!-- The launcher's entry, in every build but the one that replaces the Tauri app, whose launcher entry is
+                 the alias below (android/app/build.gradle.kts, `ghostCutover`). -->
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
-                <category android:name="android.intent.category.LAUNCHER"/>
+                <category android:name="${ghostOwnLauncher}"/>
             </intent-filter>
             <!--
               Links that open the app (AppLinks.kt; lib/share/app_links.dart says what each means): an invitation,
@@ -106,6 +108,8 @@
             -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
+                <!-- ChromeOS's ARC++ sends a link by another action; the Tauri app's filter took both. -->
+                <action android:name="org.chromium.arc.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="ghostmd" />
@@ -125,15 +129,36 @@
         </activity>
 
         <!--
-          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and ENABLED, as Ghost.md's own manifest
-          has them (docs/PARITY.md, Differs 1), unless the build turns them off (`@bool/ghost_assistant`, true by
-          default; android/app/build.gradle.kts says how). Four things hang on the one switch: this alias, which is
-          the activity's two capture doors (ASSIST for launchers and OEM builds that invoke the assistant by
-          activity, and the capture action the side key and the launcher shortcut send; DEFAULT is not optional,
-          the role controller matches with MATCH_DEFAULT_ONLY), and the three services below. Enabled, the app is
-          OFFERED as a digital assistant and is not one until a person picks it in the phone's settings. Disabled,
-          none of them exists as far as the system is concerned: the app is not offered and nothing can start a
-          capture from outside it.
+          THE TAURI APP'S ACTIVITY, BY NAME, only in the build that replaces it (`@bool/ghost_cutover`;
+          android/app/build.gradle.kts). A home screen keeps an app's icon, and a pinned "Record note", by the
+          launcher activity's name, and removes them when an update no longer has an activity of that name. The
+          Tauri app's was `com.mattssoftware.glyph.MainActivity`, so the update has one: an alias of this app's
+          own, which is then the launcher's entry and the one the shortcuts hang on.
+        -->
+        <activity-alias
+            android:name="com.mattssoftware.glyph.MainActivity"
+            android:targetActivity=".MainActivity"
+            android:enabled="@bool/ghost_cutover"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="${ghostTauriLauncher}"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="${ghostShortcuts}" />
+        </activity-alias>
+
+        <!--
+          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and DISABLED (`@bool/ghost_assistant`, false
+          unless the build turns it on; android/app/build.gradle.kts says how), until a developer switches them on
+          for one phone (AssistantSwitch.kt enables these four by name). Four things hang on the one switch: this
+          alias, which is the activity's two capture doors (ASSIST for launchers and OEM builds that invoke the
+          assistant by activity, and the capture action the side key and the launcher shortcut send; DEFAULT is not
+          optional, the role controller matches with MATCH_DEFAULT_ONLY), and the three services below. Enabled,
+          the app is OFFERED as a digital assistant and is not one until a person picks it in the phone's settings.
+          Disabled, none of them exists as far as the system is concerned: the app is not offered and nothing can
+          start a capture from outside it.
         -->
         <activity-alias
             android:name=".CaptureDoor"

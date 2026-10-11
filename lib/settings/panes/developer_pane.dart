@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -5,6 +7,7 @@ import 'package:glacier/glacier.dart';
 import '../../ai/runs.dart' show useAnyRunning;
 import '../../art/art.dart';
 import '../../core/preferences.dart';
+import '../../core/wip.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import '../settings_sheet.dart' show developerMode;
@@ -14,6 +17,7 @@ import 'settings_host.dart';
 /// What Settings' search finds on Developer (`findable`, src/app/settings/DeveloperPane.findable.ts), by the names the
 /// page draws, in its order.
 const List<SettingsFindable> developerFindable = [
+  SettingsFindable('Voice assistant', 'work in progress side key record note shortcut'),
   SettingsFindable('Window', 'inset screen engine'),
   SettingsFindable('Smoke bench', 'wisp performance frames'),
   SettingsFindable('Play the scene', 'scene bench thermal heat readings'),
@@ -54,7 +58,10 @@ const Map<String, String> _readings = {'heat': 'Heat', 'cold': 'No heat', 'none'
 /// - **The resets** ask twice, as the page's do, and then run [SettingsFeatures.onReset] (core/reset.ts is the
 ///   library's to port); without it the word Reset is there and cannot be pressed.
 class DeveloperPane extends StatefulWidget {
-  const DeveloperPane({super.key, this.features = const SettingsFeatures(), this.developer});
+  const DeveloperPane({super.key, this.features = const SettingsFeatures(), this.developer, this.assistantSwitch});
+
+  /// What the Voice assistant switch does; the app's own (lib/core/wip.dart `switchVoiceAssistant`) when null.
+  final Future<void> Function(bool on)? assistantSwitch;
 
   final SettingsFeatures features;
 
@@ -149,6 +156,24 @@ class _DeveloperPaneState extends State<DeveloperPane> {
             _ResetRow(label: 'Reset everything', hint: 'The same, and the downloaded models too. They come back when asked for.', models: true, onReset: features.onReset),
           ],
         ),
+        // Ghost.md's branch `voice/assistant-flag` has this card (lib/core/wip.dart), as the page's first; here it is
+        // the last, so everything above it stays where `main`'s page has it, which is the page this one is held to
+        // rect for rect. Only on a phone, where there is an assistant to be.
+        if (defaultTargetPlatform == TargetPlatform.android)
+          PaneSection(
+            title: 'Work in progress',
+            children: [
+              SettingRow(
+                icon: const AppIcon(Lucide.mic, size: 20),
+                label: 'Voice assistant',
+                hint: const Text(wipAssistantHint),
+                control: ValueListenableBuilder<bool>(
+                  valueListenable: wipAssistant,
+                  builder: (context, on, _) => GlacierSwitch(ariaLabel: 'Voice assistant', checked: on, onCheckedChange: (next) => unawaited((widget.assistantSwitch ?? switchVoiceAssistant)(next))),
+                ),
+              ),
+            ],
+          ),
       ],
     );
   }

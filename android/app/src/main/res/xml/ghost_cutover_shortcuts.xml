@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  "Record note" in the build that replaces the Tauri app (android/app/build.gradle.kts, `ghostCutover`): the same
+  shortcut id, package and class the Tauri app's own shortcut named
+  (../glyph/src-tauri/gen/android/app/src/channel/production/res/xml/glyph_shortcuts.xml), so one a person pinned
+  to a home screen goes on working. The class is the alias the manifest keeps under the Tauri activity's name. A
+  shortcut's package has to be written out, which is why this is a file of its own beside ghost_shortcuts.xml.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="capture"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/ghost_capture_short"
+        android:shortcutLongLabel="@string/ghost_capture_long">
+        <intent
+            android:action="com.mattssoftware.glyph.CAPTURE"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+</shortcuts>

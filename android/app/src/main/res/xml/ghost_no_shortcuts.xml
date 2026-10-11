@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   No shortcuts on the icon: what a build made without the phone assistant has in place of ghost_shortcuts.xml
-  (GHOST_ASSISTANT=0, or a build made to be measured; android/app/build.gradle.kts `ghostShortcuts`).
+  (every build not made with GHOST_ASSISTANT=1, and a build made to be measured; android/app/build.gradle.kts `ghostShortcuts`).
 -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android" />

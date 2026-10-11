@@ -199,8 +199,8 @@ class VoiceMaking {
   /// Where a model is fetched from ([voiceMirrors]).
   final List<String>? mirrors;
 
-  /// Whether this build has the phone assistant and the side key at all (on, as Ghost.md's own, unless built with
-  /// GHOST_ASSISTANT=0).
+  /// Whether the phone assistant and the side key are there at all: off, unless the build was made with
+  /// GHOST_ASSISTANT=1 or a developer switched them on for this phone (lib/core/wip.dart).
   final bool assistant;
 
   /// What this launch was for, read once: "capture", "meeting" or "" (`takeCaptureLaunch`).
@@ -237,8 +237,8 @@ class Voice {
   /// The catalogue with what is on this phone, for Settings' AI page; null where there is no engine.
   final ai.ModelsController? models;
 
-  /// Whether this build has the phone assistant and the side key (every build but one made with
-  /// `GHOST_ASSISTANT=0`): only then is a launch or a key press ever a recording. Never an always-on microphone
+  /// Whether the phone assistant and the side key are there (a build made with `GHOST_ASSISTANT=1`, or a phone
+  /// a developer switched them on for): only then is a launch or a key press ever a recording. Never an always-on microphone
   /// either way.
   final bool assistant;
 
@@ -454,7 +454,7 @@ class Voice {
     var made = false;
     final heard = host.events.listen((event) {
       switch (event.name) {
-        // Only a build with the assistant is ever asked for a capture by the phone (all but one built without).
+        // Only a build with the assistant is ever asked for a capture by the phone (off unless the build or the phone's developer switch turned it on).
         case 'capture':
           if (making.assistant) keys.add(null);
         case 'screenOff':

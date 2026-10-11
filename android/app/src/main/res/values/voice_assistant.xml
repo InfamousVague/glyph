@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  The phone assistant and the capture launch (docs/STAGES_5_6_8_9.md, 8F), ON in an ordinary build as they are in
-  Ghost.md's own (docs/PARITY.md, Differs 1). The switch itself, `ghost_assistant`, is made by
-  android/app/build.gradle.kts (a `resValue`, true unless the build is asked otherwise: GHOST_ASSISTANT=0 in the
-  environment, or `-Pghost.assistant=false`), which says how. It is read by the manifest (the three services and
+  The phone assistant and the capture launch (docs/STAGES_5_6_8_9.md, 8F), OFF in an ordinary build (docs/PARITY.md,
+  Differs 1): a developer switches them on for one phone (AssistantSwitch.kt). The build's own switch,
+  `ghost_assistant`, is made by android/app/build.gradle.kts (a `resValue`, false unless the build is asked:
+  GHOST_ASSISTANT=1 in the environment, or `-Pghost.assistant=true`), which says how. It is read by the manifest (the three services and
   the activity's alias are `android:enabled="@bool/ghost_assistant"`) and by MeetingBridge.kt (a capture launch is
   ignored without it); the launcher shortcut goes with it by the file the manifest names (res/xml/ghost_shortcuts.xml).
 -->
