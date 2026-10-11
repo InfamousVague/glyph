@@ -1,10 +1,12 @@
-// A note opening builds its desk once. The AI of a note tells its listeners as it is given the editor's view, a
-// frame after the note opens, and the desk was one of them: it built itself again for it, and with it the note's
-// screen and the canvas, the notebook's index or the editor under it, a third time (lib/root/note_desk.dart
-// `_aiSaid`). The desk now builds for the two things its own seams draw of the AI and no others.
+// A note opening builds its view once: the canvas, the notebook's index or the words' editor is made as the note's
+// screen is first built, and nothing that happens as the screen settles (the editor's view arriving a frame later,
+// the AI saying it has that view) builds it again.
 //
 // Counted by the framework's own word for an element built (`debugOnRebuildDirtyWidget`), from the press that
-// opens the note until eight frames on, with an engine for the AI and without one.
+// opens the note until eight frames on, with an engine for the AI and without one: the AI of a note tells its
+// listeners once as it is given the editor's view, and the desk was one of them and built itself, the screen and
+// the view again for it (lib/root/note_desk.dart `_aiSaid`); and the screen set its own state as the editor's view
+// arrived, which built the view again too (lib/note/note_screen.dart `_view0`).
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/backend.dart';
@@ -112,19 +114,19 @@ void main() {
   for (final engine in <bool>[false, true]) {
     final where = engine ? 'with an engine for the AI' : 'with no engine';
 
-    testWidgets('a canvas's desk is built once as it opens, $where', (tester) async {
+    testWidgets('a canvas is built once as its note opens, $where', (tester) async {
       final counted = await builtOpening(tester, 'cabin-canvas', engine: engine);
       // ignore: avoid_print
       print('a canvas opening, $where: $counted');
-      expect(counted[CanvasView], lessThanOrEqualTo(2), reason: 'the canvas is not built a third time: $counted');
+      expect(counted[CanvasView], 1, reason: 'the canvas is made once: $counted');
       expect(counted[NoteDesk], 1, reason: 'the desk is built once: $counted');
     });
 
-    testWidgets('a notebook\'s desk is built once as it opens, $where', (tester) async {
+    testWidgets('a notebook\'s index is built once as it opens, $where', (tester) async {
       final counted = await builtOpening(tester, bookId(), engine: engine);
       // ignore: avoid_print
       print('a notebook opening, $where: $counted');
-      expect(counted[BookView], lessThanOrEqualTo(2), reason: 'the index is not built a third time: $counted');
+      expect(counted[BookView], 1, reason: 'the index is made once: $counted');
       expect(counted[NoteDesk], 1, reason: 'the desk is built once: $counted');
     });
 

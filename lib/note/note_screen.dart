@@ -1329,28 +1329,25 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// (`.header:empty`); with its own row, the row and its padding.
   static double _headerHeight(Tokens t, bool inBar) => inBar ? t.len('app-safe-top') : t.len('app-safe-top') + t.space(1) + t.len('app-bar-ring') + t.space(2);
 
+  /// What the note is drawn as in place of its words: its canvas, its journal's months or its notebook's index, as
+  /// the desk's seams draw them. The widget is kept while it is for the same seams and the same words: the screen
+  /// builds itself again for reasons of its own that change nothing here (the editor's view arriving a frame after
+  /// the note opens, each save landing, the keyboard), and handed the widget it already has, the framework leaves
+  /// the view as it is, where a new one each time built the canvas and every card of it again. Other seams (the
+  /// desk built again: another note changed, a team joined, a spot to go to) or other words make another.
   Widget _view0(BuildContext context) {
-    final seams = widget.seams;
-    void write(String next) {
-      _onChange(next);
-      setState(() => _typedBody = next);
-    }
+    final kind = _drawing ? _OtherKind.canvas : (_isJournal ? _OtherKind.journal : _OtherKind.book);
+    final kept = _other;
+    if (kept != null && identical(kept.seams, widget.seams) && kept.kind == kind && kept.body == _typedBody) return kept;
+    return _other = _OtherView(seams: widget.seams, body: _typedBody, kind: kind, write: _writeTyped);
+  }
 
-    if (_drawing) {
-      // `<div class="body canvasBody">`: the canvas is in a body too, and `.body { padding-block-end:
-      // var(--app-safe-bottom) }` ends it above the phone's own bar, so its tools and its map stand clear of it as
-      // the dock does. Without it the tool pill sat 84px lower than the dock's lift on a phone with a bar.
-      // With the keyboard up there is no bar under the page to keep clear of (the keys are over it), as home has it:
-      // kept, the card being written stood 84px too high and its bar went under the card, over the tools.
-      return Padding(
-        padding: EdgeInsets.only(bottom: _KeyboardUp.of(context) ? 0 : context.tokens.len('app-safe-bottom')),
-        child: seams.canvas?.call(context, _typedBody, write) ?? const SizedBox.shrink(),
-      );
-    }
-    if (_isJournal) {
-      return seams.journal?.call(context, _typedBody, write) ?? const SizedBox.shrink();
-    }
-    return seams.book?.call(context, _typedBody, write) ?? const SliverToBoxAdapter(child: SizedBox.shrink());
+  _OtherView? _other;
+
+  /// What the view wrote: the note's words from here, saved as typing is.
+  void _writeTyped(String next) {
+    _onChange(next);
+    setState(() => _typedBody = next);
   }
 
   @override
@@ -1835,6 +1832,40 @@ class _NameChip extends StatelessWidget {
         );
       },
     );
+  }
+}
+
+enum _OtherKind { canvas, journal, book }
+
+/// A note's view in place of its words ([NoteScreenState._view0]), asked of the seam with this widget's own place
+/// in the tree: what the view reads of the page around it (the sizes, whether the keyboard is up) builds this
+/// again and not the note's whole screen.
+class _OtherView extends StatelessWidget {
+  const _OtherView({required this.seams, required this.body, required this.kind, required this.write});
+
+  final NoteSeams seams;
+  final String body;
+  final _OtherKind kind;
+  final ValueChanged<String> write;
+
+  @override
+  Widget build(BuildContext context) {
+    switch (kind) {
+      case _OtherKind.canvas:
+        // `<div class="body canvasBody">`: the canvas is in a body too, and `.body { padding-block-end:
+        // var(--app-safe-bottom) }` ends it above the phone's own bar, so its tools and its map stand clear of it as
+        // the dock does. Without it the tool pill sat 84px lower than the dock's lift on a phone with a bar.
+        // With the keyboard up there is no bar under the page to keep clear of (the keys are over it), as home has it:
+        // kept, the card being written stood 84px too high and its bar went under the card, over the tools.
+        return Padding(
+          padding: EdgeInsets.only(bottom: _KeyboardUp.of(context) ? 0 : context.tokens.len('app-safe-bottom')),
+          child: seams.canvas?.call(context, body, write) ?? const SizedBox.shrink(),
+        );
+      case _OtherKind.journal:
+        return seams.journal?.call(context, body, write) ?? const SizedBox.shrink();
+      case _OtherKind.book:
+        return seams.book?.call(context, body, write) ?? const SliverToBoxAdapter(child: SizedBox.shrink());
+    }
   }
 }
 
