@@ -47,6 +47,8 @@ import '../perf/frame_log.dart' show ghostPerf;
 /// - `through`: a page's layers go through one program as they are drawn, an image filter over them (Impeller),
 ///   which bends and fades the strips its smoke stands in: no picture of the view asked for, nothing behind it
 ///   read, the bend and the fade only and not the soft half (shaders/wisp_through.frag).
+/// - `soft`: with `through`, each smoke's soft half too, read off what is then behind its strip: a backdrop filter
+///   of the engine's blur and a program over it (shaders/wisp_soft.frag). No picture.
 /// - `noshare`: each smoke strip of a page has a picture of the view of its own, the strip's size, and not the one
 ///   the page's strips share, which is the size of the rectangle that holds them all: a task more a frame for the
 ///   engine against a far smaller picture for the GPU to clear and keep.

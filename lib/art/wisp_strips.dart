@@ -51,7 +51,7 @@ abstract class WispStrip {
 /// A strip that smokes: one of the web app's smoke filters over the part of the view it bends ([WispSmoke]).
 /// [within] is the subregion the web filter gives its bend and blur, which may run past the view.
 class WispSmokeStrip extends WispStrip {
-  const WispSmokeStrip({required this.rect, required this.smoke, required this.within, this.paper});
+  const WispSmokeStrip({required this.rect, required this.smoke, required this.within, this.paper, this.ink});
 
   @override
   final Rect rect;
@@ -61,6 +61,10 @@ class WispSmokeStrip extends WispStrip {
   /// The page's paper behind the view, where whoever lays the strip knows it: what the view fades to when the strip
   /// is read off the backdrop, which has no clear in it (measuring only: shaders/wisp_back.frag).
   final Color? paper;
+
+  /// The page's ink, beside its paper: how far the two stand apart says how much of a blurred pixel behind the
+  /// strip is ink (measuring only: shaders/wisp_soft.frag).
+  final Color? ink;
 
   /// Half the displacement's scale is the furthest a pixel is thrown. The bent view is worked out that far past the
   /// strip (below), and each of its pixels may come from that far again.
@@ -105,11 +109,11 @@ class WispSmokeStrip extends WispStrip {
 /// shows changes only where the band is not nothing or the fade not whole, and past three deviations of the ramp
 /// the band is under a seven-hundredth: the view there is the view, to less than one step of 255, and is left to
 /// paint itself. A third to a half of every strip, and of every picture a strip is drawn through.
-List<WispStrip> wispSmokeStrips({required Rect rect, required WispSmoke smoke, required Rect within, Color? paper}) {
+List<WispStrip> wispSmokeStrips({required Rect rect, required WispSmoke smoke, required Rect within, Color? paper, Color? ink}) {
   if (!wispQuick) return [WispSmokeStrip(rect: rect, smoke: smoke, within: within)];
   return [
     for (final part in smoke.touched(rect))
-      if (!part.isEmpty) WispSmokeStrip(rect: part, smoke: smoke, within: within, paper: paper),
+      if (!part.isEmpty) WispSmokeStrip(rect: part, smoke: smoke, within: within, paper: paper, ink: ink),
   ];
 }
 
@@ -594,6 +598,25 @@ class _WispStripLayer extends OffsetLayer {
       addChildrenToScene(builder);
       builder.pop();
       builder.pop();
+      // Measuring only (`soft`): each smoke's soft half, off what is now behind its strip, the engine's blur first.
+      final place = WispProbe.has('soft') ? _onScreen(reading: true) : null;
+      if (place != null) {
+        for (var i = 0; i < at.length; i++) {
+          final strip = _strips[i];
+          if (strip is! WispSmokeStrip || strip.paper == null || strip.ink == null || at[i].width <= 0 || at[i].height <= 0) continue;
+          final paper = strip.paper!, ink = strip.ink!;
+          final contrast = math.max((ink.r - paper.r).abs(), math.max((ink.g - paper.g).abs(), (ink.b - paper.b).abs()));
+          final soft = WispKit.maybe!.soft(viewAt: place.shift / place.scale, ratio: place.scale, smoke: strip.smoke, paper: paper, contrast: contrast, gain: wispSoftBackGain);
+          if (ghostPerf) Perf.count('wisp.softs');
+          builder.pushClipRect(at[i], clipBehavior: Clip.hardEdge);
+          builder.pushBackdropFilter(
+            ui.ImageFilter.compose(outer: ui.ImageFilter.shader(soft), inner: ui.ImageFilter.blur(sigmaX: strip.smoke.blur, sigmaY: strip.smoke.blur, tileMode: TileMode.clamp)),
+            backdropId: _group,
+          );
+          builder.pop();
+          builder.pop();
+        }
+      }
       builder.pop();
       return;
     }

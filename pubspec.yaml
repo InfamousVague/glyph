@@ -57,6 +57,7 @@ flutter:
     - shaders/wisp_halo.frag
     - shaders/wisp_back.frag
     - shaders/wisp_through.frag
+    - shaders/wisp_soft.frag
   fonts:
     # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
     # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.

@@ -128,3 +128,7 @@ bool footSmokes(bool wanted, {WispDraw? draw, required bool still}) {
 /// backdrop filter; here the halo is drawn from a picture of what is behind it (lib/art/dock_smoke.dart), which
 /// every engine can bend.
 bool dockBends() => wispDraw() == WispDraw.filter && wispHead() == WispHead.smoke;
+
+/// What the ink's share of a blurred pixel is multiplied by to say how near ink is, where a smoke's soft half is
+/// read off the backdrop (shaders/wisp_soft.frag): measuring only, and a test's to try others.
+double wispSoftBackGain = 4;

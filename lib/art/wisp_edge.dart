@@ -397,6 +397,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
   Size _window = Size.zero;
   double _safeTop = 0;
   Color _ground = const Color(0x00000000);
+  Color? _ink;
   late final AnimationController _blur = AnimationController(vsync: this, duration: wispHeaderBlurTurn);
   final ValueNotifier<int> _ready = ValueNotifier(0);
   late WispBand _band = widget.band;
@@ -439,6 +440,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
     final tokens = GlacierTheme.maybeOf(context);
     _safeTop = widget.safeTop ?? (tokens?.raw('app-safe-top') != null ? tokens!.len('app-safe-top') : media.viewPadding.top);
     if (tokens != null) _ground = tokens.color('glacier-bg');
+    if (tokens != null) _ink = tokens.color('glacier-text');
     if (_still) _holdStill(false);
   }
 
@@ -645,6 +647,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
           smoke: wispTopSmoke(under: beneath, lift: _lift, at: at, fade: fade),
           within: wispTopWithin(beneath),
           paper: _ground,
+          ink: _ink,
         ));
       } else if (topFade > 0) {
         strips.add(WispFadeStrip(rect: Rect.fromLTRB(0, 0, width, math.min(height, topFade)), fade: fade));
@@ -657,7 +660,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
         // The foot's own noise drifts with the page's top, so both ends of a view move as one smoke.
         final at = WispDrift.instance.at(WispBand.page);
         final within = wispFootWithin(edge);
-        strips.addAll(wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within, paper: _ground));
+        strips.addAll(wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within, paper: _ground, ink: _ink));
       } else {
         strips.add(WispFadeStrip(rect: Rect.fromLTRB(0, math.max(0, edge - footFade), width, height), fade: fade));
       }

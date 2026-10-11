@@ -184,6 +184,38 @@ void main() {
     final smokedOn = smoked.on(ground), readOn = read.on(ground), bareOn = bare.on(ground);
     await tester.runAsync(() => writePng('build/smoke-compare/back/through.png', beside([smokedOn, readOn, bareOn])));
 
+    // The soft half as `through+soft` lays it: what is then on the screen blurred, and the program over the blur.
+    final screen = (await tester.runAsync(() => imageOf(readOn)))!;
+    Future<Pixels> softened(double gain) async {
+      final blurry = ui.PictureRecorder();
+      final canvasB = Canvas(blurry);
+      final whole = Offset.zero & Size(screen.width.toDouble(), screen.height.toDouble());
+      canvasB.saveLayer(whole, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: wispEdgeBlur * _ratio, sigmaY: wispEdgeBlur * _ratio, tileMode: TileMode.clamp));
+      canvasB.drawImage(screen, Offset.zero, Paint());
+      canvasB.restore();
+      final blurPicture = blurry.endRecording();
+      final blurred = (await tester.runAsync(() => blurPicture.toImage(screen.width, screen.height)))!;
+      final over = ui.PictureRecorder();
+      final canvasO = Canvas(over);
+      canvasO.drawImage(screen, Offset.zero, Paint());
+      for (final strip in strips.cast<WispSmokeStrip>()) {
+        final soft = kit.soft(viewAt: Offset.zero, ratio: _ratio, smoke: strip.smoke, paper: const Color(0xFF0D0D0D), contrast: (0xE8 - 0x0D) / 255, gain: gain)
+          ..setFloat(0, screen.width.toDouble())
+          ..setFloat(1, screen.height.toDouble())
+          ..setImageSampler(0, blurred);
+        canvasO.drawRect(Rect.fromLTRB(strip.rect.left * _ratio, strip.rect.top * _ratio, strip.rect.right * _ratio, strip.rect.bottom * _ratio), Paint()..shader = soft);
+      }
+      final overPicture = over.endRecording();
+      return (await tester.runAsync(() async => pixelsOf(await overPicture.toImage(screen.width, screen.height))))!;
+    }
+
+    for (final gain in [2.0, 3.0, 4.0, 6.0, 9.0, 14.0]) {
+      // ignore: avoid_print
+      print('soft half off the backdrop, gain $gain: ${apart(await softened(gain), smokedOn)} from the smoke');
+    }
+    final withSoft = await softened(wispSoftBackGain);
+    await tester.runAsync(() => writePng('build/smoke-compare/back/soft.png', beside([smokedOn, withSoft, readOn])));
+
     final program = apart(readOn, smokedOn), none = apart(bareOn, smokedOn);
     // ignore: avoid_print
     print('the view: the program is $program from the smoke; no smoke at all is $none');

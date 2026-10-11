@@ -15,9 +15,9 @@ import 'turbulence.dart';
 /// Loaded once, off the first frame: a program is read from the bundle and a table decoded, neither of which can be
 /// had at once. Until [maybe] answers, a wisp draws what the web app draws before its filter exists, the plain edge.
 class WispKit {
-  WispKit._(this._bend, this._merge, this._small, this._field, this._haze, this._smoke, this._halo, this._back, this._through);
+  WispKit._(this._bend, this._merge, this._small, this._field, this._haze, this._smoke, this._halo, this._back, this._through, this._soft);
 
-  final ui.FragmentProgram _bend, _merge, _small, _field, _haze, _smoke, _halo, _back, _through;
+  final ui.FragmentProgram _bend, _merge, _small, _field, _haze, _smoke, _halo, _back, _through, _soft;
   final Map<int, ui.Image> _tables = {};
   final Map<int, Future<ui.Image>> _tablesComing = {};
 
@@ -45,8 +45,9 @@ class WispKit {
       ui.FragmentProgram.fromAsset('shaders/wisp_halo.frag'),
       ui.FragmentProgram.fromAsset('shaders/wisp_back.frag'),
       ui.FragmentProgram.fromAsset('shaders/wisp_through.frag'),
+      ui.FragmentProgram.fromAsset('shaders/wisp_soft.frag'),
     ]);
-    return _kit = WispKit._(programs[0], programs[1], programs[2], programs[3], programs[4], programs[5], programs[6], programs[7], programs[8]);
+    return _kit = WispKit._(programs[0], programs[1], programs[2], programs[3], programs[4], programs[5], programs[6], programs[7], programs[8], programs[9]);
   }
 
   /// The noise table for [seed], made the first time it is asked for.
@@ -134,6 +135,34 @@ class WispKit {
     put(probe);
     // The first sampler is the engine's: the backdrop.
     shader.setImageSampler(1, field);
+    return shader;
+  }
+
+  /// A smoke's soft half off the blurred backdrop (shaders/wisp_soft.frag), a program of its own for one filter:
+  /// measuring only. [viewAt] is the view's corner on the screen in the view's pixels; [contrast] how far the page's
+  /// ink stands from its [paper] at most in a channel, 0 to 1.
+  ui.FragmentShader soft({required Offset viewAt, required double ratio, required WispSmoke smoke, required Color paper, required double contrast, required double gain}) {
+    final shader = _soft.fragmentShader();
+    var i = 2;
+    void put(double value) => shader.setFloat(i++, value);
+    put(viewAt.dx);
+    put(viewAt.dy);
+    put(ratio);
+    put(smoke.lipA ?? 0);
+    put(smoke.lipB ?? 0);
+    put(smoke.soft);
+    put(smoke.axis == Axis.vertical ? 0 : 1);
+    put(smoke.lipA == null ? 0 : 1);
+    put(smoke.lipB == null ? 0 : 1);
+    put(smoke.fade.clearUntil);
+    put(smoke.fade.wholeFrom);
+    put(smoke.fade.wholeUntil);
+    put(smoke.fade.clearFrom);
+    put(paper.r);
+    put(paper.g);
+    put(paper.b);
+    put(contrast);
+    put(gain);
     return shader;
   }
 
