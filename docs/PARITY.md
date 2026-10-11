@@ -446,7 +446,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A query's board: drag a card between lanes; the + on a lane adds a ticket | editor/QueryView.tsx:754-866; App.tsx:1157-1185 | editor/queries/query_board.dart:296-625; editor/queries/lane_carry.dart; root/ghost_root.dart:1133-1168 | match | |
 | A query board's height line: arrow keys | editor/QueryView.tsx:985-1000 | editor/queries/query_board.dart:370 | missing | A keyboard's only. |
 | Calendar: months, Mon to Sun, "Nothing on this day." | editor/QueryView.tsx:1014-1079 | editor/queries/query_view.dart:887-1117 | differs | The month's name is English (core/query/calendar.dart:87-92), where the original asks the phone's language. |
-| Timeline (gantt) | editor/QueryView.tsx:1109-1132 (Mermaid's) | editor/queries/query_gantt.dart:1-181 | differs | The port's own drawing: weeks tick on Monday, names beside the bars, and no "This timeline could not be drawn here." |
+| Timeline (gantt) | editor/QueryView.tsx:1109-1132 (Mermaid's) | editor/queries/query_timeline.dart; editor/diagrams/bridge.dart (`DiagramTimeline`); assets/diagrams/page.css (`.gantt`) | differs | Mermaid's own gantt since 2026-10-10: the text `ganttOf` writes handed to the same Mermaid on the app's diagram page, with the card's rules, so weeks tick where Mermaid ticks them and a bar's name is inside it when it fits; the text until it is drawn, and "This timeline could not be drawn here." under it when it cannot be. What is left is the diagrams' own: a bitmap made for the card's width, fitted to the card, with nothing to scroll sideways. |
 | Count; a table's Total row | editor/QueryView.tsx:606 | editor/queries/query_view.dart:801,1136 | match | |
 
 ## 19. Notebooks
@@ -1180,7 +1180,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     `[[link]]` in the notebook's own words does not open. Small to medium.
 22. ~~**Names for this note** are a strip under the editor, not a block after line 1.~~ Done 2026-10-10
     (lib/editor/items/blank_offers.dart; held by test/root/blank_block_test.dart).
-23. **A query's timeline is the port's own drawing**: weeks tick on Monday, names beside the bars. Medium.
+23. ~~**A query's timeline is the port's own drawing**: weeks tick on Monday, names beside the bars.~~ Done
+    2026-10-10: Mermaid's own gantt, by the diagrams' store and bridge (lib/editor/queries/query_timeline.dart;
+    held by test/editor/queries/query_more_test.dart and test/editor/queries/reference_test.dart).
 24. **An organization's small ends.** The profile's button always says "Open the note" and a canvas is "an
     untitled note"; Edit from home's filters lands on Members under "← Organizations"; leaving or deleting from
     the cog leaves "This organization is not in your list any more." on screen; Back from an opened change in the

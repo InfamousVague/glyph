@@ -97,3 +97,36 @@ body {
   max-inline-size: 100%;
   block-size: auto;
 }
+
+/*
+ * src/app/editor/QueryView.module.css `.gantt`: Mermaid's own drawing, quieted for a query's card. The axis in the
+ * third ink, its lines in the rule, and no band behind a section. Its stylesheet is scoped to the drawing's id, so
+ * these are marked important to be heard over it. The inks arrive as custom properties (page.js `timeline`).
+ *
+ * The block is in the card, and the line its picture stands on is the card's own (`.query { line-height: 1.4 }`),
+ * not a note's: the room under the picture is that line's.
+ */
+.gantt {
+  padding-inline: 0 !important;
+  overflow-x: auto;
+  line-height: 1.4;
+}
+
+.gantt .tick text {
+  fill: var(--timeline-tick) !important;
+}
+
+.gantt .tick line {
+  stroke: var(--timeline-rule) !important;
+}
+
+.gantt .section0,
+.gantt .section1,
+.gantt .section2,
+.gantt .section3 {
+  fill: transparent !important;
+}
+
+.gantt .sectionTitle {
+  fill: var(--timeline-section) !important;
+}

@@ -66,7 +66,7 @@ import 'query_look.dart';
 import 'query_view.dart';
 
 export 'query_builder.dart';
-export 'query_gantt.dart';
+export 'query_timeline.dart';
 export 'query_layout.dart' show Part;
 export 'query_look.dart' show QueryLook;
 export 'query_view.dart';

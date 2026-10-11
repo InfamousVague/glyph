@@ -7,7 +7,11 @@
  * the note's column), and tells the web view's owner where on the page the picture is. The owner then photographs
  * that part of the page.
  *
- *   ask:    { n, code, dark, viewport, room, gutter, em, ui, note, coding, ink }
+ *   ask:    { n, code, dark, viewport, room, gutter, em, ui, note, coding, ink, timeline? }
+ *
+ * `timeline` is a query's gantt (src/app/editor/QueryView.tsx `GanttView`): the block is `.cm-mermaid` and the
+ * card's `.gantt` too, whose rules quiet Mermaid's drawing in the inks it names ({ tick, rule, section }). Its
+ * `day` is not read: Mermaid's line at today is by this page's own clock.
  *   answer: { n, ok: true, block: { width, height }, picture: { x, y, width, height }, ... }
  *           { n, ok: false, failed }        failed is Mermaid's own words; '' is "not the person's mistake"
  *
@@ -118,6 +122,10 @@
       root.style.setProperty('--app-gutter', ask.gutter + 'px');
       root.style.setProperty('--room', ask.room + 'px');
       root.style.setProperty('--ink', ask.ink || '#000');
+      var timeline = ask.timeline || null;
+      root.style.setProperty('--timeline-tick', timeline ? timeline.tick : '');
+      root.style.setProperty('--timeline-rule', timeline ? timeline.rule : '');
+      root.style.setProperty('--timeline-section', timeline ? timeline.section : '');
       root.classList.toggle('coding', !!ask.coding);
       await wide(ask.viewport);
       await faces(ask);
@@ -148,7 +156,7 @@
       }
 
       var wrap = document.createElement('div');
-      wrap.className = 'cm-mermaid';
+      wrap.className = timeline ? 'cm-mermaid gantt' : 'cm-mermaid';
       wrap.setAttribute('role', 'img');
       wrap.innerHTML = made.svg;
       wrap.dataset.drawn = '';

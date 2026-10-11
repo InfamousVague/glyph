@@ -1,16 +1,20 @@
 // Drawn queries held to the web page: every case test/editor/queries/fixtures/reference.mjs measured in Chromium
 // (the web app's own CodeMirror with `queries()` over a fixed library) drawn here, and each line's box, the card's,
 // and every named piece inside it (lib/editor/queries/query_layout.dart `Part`) compared with the page's element of
-// the same class, in order, to half a pixel. The timeline is not held: it is another drawing
-// (lib/editor/queries/query_gantt.dart).
+// the same class, in order, to half a pixel. The timeline is held too: it is Mermaid's own
+// picture, drawn for this test by the app's diagram page in Chromium (test/editor/diagrams/support.dart
+// `PicturedBridge`, tool/diagram_fixtures.mjs), and its block is where the page's `.cm-mermaid.gantt` is
+// (lib/editor/queries/query_timeline.dart; docs/PARITY.md, Differs 23).
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/query/query.dart';
+import 'package:ghost_md/editor/diagrams/diagrams.dart';
 
 import '../../support/render.dart';
+import '../diagrams/support.dart' show PicturedBridge, settleDiagrams;
 import '../view/support.dart' show borderBox;
 import 'support.dart';
 
@@ -36,6 +40,8 @@ String _plain(double value) => value == value.roundToDouble() ? value.toStringAs
 
 void main() {
   setUpAll(loadAppFonts);
+  // A timeline's picture is Mermaid's, kept beside the diagrams' own.
+  setUp(() => diagramStore = DiagramStore(bridge: PicturedBridge()));
 
   final only = Platform.environment['EDITOR_CASE'];
   for (final name in PageFixture.names(queryFixtures)) {
@@ -81,13 +87,15 @@ void main() {
       }
 
       final gantt = fixture.blocks.isNotEmpty && ((fixture.blocks.first['parts'] as List).first as Map)['data'] is Map && (((fixture.blocks.first['parts'] as List).first as Map)['data'] as Map)['data-show'] == 'gantt';
+      if (gantt) {
+        await settleDiagrams(tester);
+        expect(parts('gantt'), findsOneWidget, reason: 'the timeline\'s picture is on the card');
+      }
       final lines = drawnLines(tester);
       expect(lines.length, fixture.lines.length, reason: 'as many lines as the page drew');
       for (var i = 0; i < lines.length; i++) {
         final want = fixture.lines[i];
         expect(lines[i].from, want['from'], reason: 'line $i starts where the page\'s does');
-        // A timeline is as tall as its own drawing, and the lines after it start where that ends.
-        if (gantt && i >= 2) continue;
         hold('line ${want['from']}', borderBox(lines[i]), PageFixture.rect(want['rect']));
       }
 
@@ -96,12 +104,10 @@ void main() {
       for (var n = 0; n < fixture.blocks.length; n++) {
         final block = fixture.blocks[n];
         final under = drawn.at(n);
-        if (!gantt) hold('block $n', boxOf(tester, under), PageFixture.rect(block['rect']));
+        hold('block $n', boxOf(tester, under), PageFixture.rect(block['rect']));
         final page = PageFixture.partsOf(block);
         for (final MapEntry(key: name, value: wanted) in page.entries) {
           if (_notPieces.contains(name) || name.startsWith('_mark') || name.startsWith('lucide')) continue;
-          // The timeline's own drawing is another: only the card round it is held.
-          if (gantt && name == 'gantt') continue;
           final own = name == 'split' || name == 'grip' ? find.descendant(of: under, matching: find.byKey(ValueKey<String>('board-$name'))) : parts(name, under);
           final count = own.evaluate().length;
           if (count == 0) {
@@ -113,7 +119,6 @@ void main() {
             continue;
           }
           for (var i = 0; i < count; i++) {
-            if (gantt && name == 'query') continue;
             hold('$name $i', boxOf(tester, own.at(i)).shift(Offset(_outside.contains(name) ? 0 : slip, 0)), PageFixture.rect(wanted[i]['rect']), across: _acrossOnly.contains(name) || wanted[i]['display'] == 'inline', top: _topOnly.contains(name));
           }
         }

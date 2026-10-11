@@ -1,0 +1,19 @@
+{
+  "timeline": {
+    "tick": "rgba(128,128,128,1.000)",
+    "rule": "rgba(23,23,23,1.000)",
+    "section": "rgba(190,190,190,1.000)",
+    "day": "2026-10-08"
+  },
+  "code": "%%{init: {\"gantt\":{\"leftPadding\":80,\"rightPadding\":16,\"barHeight\":22,\"barGap\":6,\"fontSize\":12,\"sectionFontSize\":12}}}%%\ngantt\n  dateFormat YYYY-MM-DD\n  axisFormat %e %b\n  tickInterval 1week\n  section To do\n  GHO-2 Ship the pricing page :2026-10-12, 2026-10-13\n  section In progress\n  GHO-1 Fix the login loop :active, crit, 2026-10-01, 2026-10-07\n  section In review\n  GHO-4 Draw the icons, every one of them, in the three sizes the phone asks for :active, 2026-10-08, 2026-10-21\n  section Done\n  GHO-3 Write the changelog :done, 2026-09-28, 2026-10-03",
+  "dark": true,
+  "viewport": 390.0,
+  "room": 316.59375,
+  "gutter": 0.0,
+  "em": 13.394829999999999,
+  "ui": "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  "note": "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  "coding": false,
+  "ink": "rgba(243,243,243,1.000)",
+  "ratio": 1.0
+}

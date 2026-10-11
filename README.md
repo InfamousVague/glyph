@@ -96,8 +96,12 @@ half of the channel to be looked at with no library under it.
   made, where the page shows the words in between; one drawn here before waits for its picture as its remembered
   height of nothing; an edge Mermaid animates stands still; a diagram that names a picture on the internet draws
   without it (nothing is fetched); and the pictures kept are bounded (32 MB in memory, 240 in the folder).
-- **Not done**: a query shown as a timeline is still the port's own drawing (PARITY's Differs 23), though the same
-  store would draw Mermaid's (`drawDiagram` on the page). A phone whose Flutter ratio is not its display's density
+- **A query shown as a timeline** is the same store's since 2026-10-10 (PARITY's Differs 23,
+  `lib/editor/queries/query_timeline.dart`): Mermaid's gantt with the card's rules, its picture kept by the day it
+  is of, because Mermaid draws a line at today.
+- **Not done**: a gantt written in a note's own `mermaid` block is kept by its words alone, so the line at today
+  stands where it stood the day the picture was made, for as long as the folder has it (the page draws it again
+  each time the app is opened). A phone whose Flutter ratio is not its display's density
   gets a picture at the density and shows it resampled. The first diagram of a run makes the web view on the main
   thread after loading its library off it; how long that stops a frame on a real phone was not measured.
 

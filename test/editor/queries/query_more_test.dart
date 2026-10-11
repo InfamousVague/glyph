@@ -1,15 +1,17 @@
 // What a drawn query does that the page's own cases do not hold (it has none for `QueryBuilder.tsx`, the switcher
-// or a board's height), and the timeline, which is this app's own drawing (lib/editor/queries/query_gantt.dart):
-// that it places the records `ganttOf` places, on the same days, ticked as `ticksFor` says.
+// or a board's height), and the timeline (lib/editor/queries/query_timeline.dart): that Mermaid is handed the text
+// `ganttOf` writes, with the card's rules, and what stands in the card before, after and in place of its picture.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/query/query.dart';
+import 'package:ghost_md/editor/diagrams/diagrams.dart';
 import 'package:ghost_md/editor/queries/queries.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/sheet/kit.dart';
 import 'package:ghost_md/sheet/sheet.dart';
 
 import '../../support/render.dart';
+import '../diagrams/support.dart';
 import 'support.dart';
 
 const String today = '2026-10-08';
@@ -109,56 +111,87 @@ void main() {
     });
   });
 
+  // docs/PARITY.md, Differs 23. QueryView.tsx `GanttView`: `drawDiagram(result.gantt.code)`, Mermaid's own gantt in
+  // `<div className="cm-mermaid gantt">`; the text in a `<pre>` until it is drawn; "This timeline could not be drawn
+  // here." when it cannot be; and the count of what has no day.
   group('a timeline', () {
     QueryResult run(String lines) => runQuery(readQuery(lines).query!, libraryOf(library), today);
+    late HeldBridge bridge;
 
-    test('places the records the page’s chart places, on the same days', () {
-      final result = run('from: tickets\nshow: gantt\ngroup: status');
-      final chart = ganttChart(result.groups, 'Tickets')!;
-      expect(chart.placed, result.gantt!.placed);
-      expect(chart.placed, 3);
-      expect(chart.named, isTrue);
-      expect(<String>[for (final section in chart.sections) section.label], <String>['To do', 'In progress', 'Done']);
-      final bars = <String, GanttBar>{for (final section in chart.sections) for (final bar in section.bars) bar.name: bar};
-      // From its start to its due day, the due day whole.
-      expect((bars['GHO-1 Fix the login loop']!.start, bars['GHO-1 Fix the login loop']!.end), ('2026-10-01', '2026-10-07'));
-      // Only a due day: a bar of that day.
-      expect((bars['GHO-2 Ship the pricing page']!.start, bars['GHO-2 Ship the pricing page']!.end), ('2026-10-12', '2026-10-13'));
-      // A start written after the due day: the bar still runs between them.
-      expect((bars['GHO-3 Write the changelog']!.start, bars['GHO-3 Write the changelog']!.end), ('2026-09-28', '2026-10-06'));
-      // Under way, overdue, finished: what Mermaid's `active`, `crit` and `done` said.
-      expect((bars['GHO-1 Fix the login loop']!.active, bars['GHO-1 Fix the login loop']!.crit, bars['GHO-1 Fix the login loop']!.done), (true, true, false));
-      expect(bars['GHO-3 Write the changelog']!.done, isTrue);
-      expect((chart.from, chart.to), ('2026-09-28', '2026-10-13'));
-      // Every bar the page's text names is here, by the same words.
-      for (final name in bars.keys) {
-        expect(result.gantt!.code, contains('  $name :'));
-      }
+    setUp(() {
+      bridge = HeldBridge();
+      diagramStore = DiagramStore(bridge: bridge, decode: smallPicture);
     });
 
-    test('has no sections where the query is not grouped, and is nothing where no record has a day', () {
-      final flat = ganttChart(run('from: tickets\nshow: gantt').groups)!;
-      expect(flat.named, isFalse);
-      expect(flat.sections.single.label, '');
-      expect(ganttChart(run('from: tickets\nwhere: id = GHO-4\nshow: gantt').groups), isNull);
-    });
-
-    test('is ticked a day, a week, a month or three apart as its bars span days, weeks or months', () {
-      expect(<String>[for (final tick in ganttTicks('2026-10-05', '2026-10-09')) tick.label], <String>['5', '6', '7', '8', '9']);
-      // A week's tick is its Monday.
-      expect(<String>[for (final tick in ganttTicks('2026-09-28', '2026-10-13')) tick.label], <String>['28 Sep', '5 Oct', '12 Oct']);
-      expect(<String>[for (final tick in ganttTicks('2026-09-28', '2027-01-15')) tick.label], <String>['Oct', 'Nov', 'Dec', 'Jan']);
-      expect(<String>[for (final tick in ganttTicks('2026-01-10', '2027-08-01')) tick.label], <String>['Apr 2026', 'Jul 2026', 'Oct 2026', 'Jan 2027', 'Apr 2027', 'Jul 2027']);
-    });
-
-    testWidgets('is drawn by the app’s own painter, and says what it could not place', (tester) async {
+    testWidgets('hands Mermaid the text the page hands it, drawn for the card: its width, its type, no gutter, and the card\'s three inks', (tester) async {
       await open(tester, fence('from: tickets\nshow: gantt\ngroup: status'));
-      final painted = tester.widget<CustomPaint>(find.descendant(of: parts('gantt'), matching: find.byType(CustomPaint)).first);
-      expect(painted.painter, isA<GanttPainter>());
-      expect((painted.painter! as GanttPainter).chart.placed, 3);
+      final result = run('from: tickets\nshow: gantt\ngroup: status');
+      expect(bridge.asked, hasLength(1));
+      final ask = bridge.asked.single;
+      expect(ask.code, result.gantt!.code);
+      expect(ask.code, startsWith('%%{init: '));
+      expect(ask.code, contains('\ngantt\n'));
+      final look = QueryLook.of(tester.element(drawn), null);
+      expect(ask.gutter, 0, reason: '.gantt { padding-inline: 0 !important }');
+      expect(ask.em, look.em, reason: 'the card\'s own size');
+      expect(ask.note, ask.ui, reason: 'the card is set in the interface\'s face');
+      expect(ask.room, closeTo(boxOf(tester, parts('lines')).width, 0.01), reason: 'as wide as the card\'s room');
+      expect(ask.timeline, isNotNull);
+      expect((ask.timeline!.tick, ask.timeline!.rule, ask.timeline!.section), (look.ink3, look.rule, look.ink2));
+      expect(ask.toJson()['timeline'], isA<Map<String, Object?>>());
+      expect(ask.timeline!.day, today, reason: 'the card\'s own today');
+      // A diagram in a note asks with none, and is never taken for a timeline's picture.
+      expect(askFor(ask.code).key, isNot(ask.key));
+    });
+
+    testWidgets('shows its text until the picture comes, then the picture, called Timeline; and says what it could not place', (tester) async {
+      await open(tester, fence('from: tickets\nshow: gantt\ngroup: status'));
+      expect(parts('lines'), findsOneWidget);
+      expect(wordsOf(tester, parts('lines')), contains('dateFormat YYYY-MM-DD'));
+      expect(parts('gantt'), findsNothing);
+      expect(wordsOf(tester, drawn), isNot(contains('could not be drawn')));
+      bridge.finish(0, block: const Size(300, 150), at: const Rect.fromLTWH(0, 10, 300, 130));
+      await tester.pump();
+      await tester.pump();
+      expect(parts('gantt'), findsOneWidget);
+      expect(parts('lines'), findsNothing);
+      expect(find.bySemanticsLabel('Timeline'), findsOneWidget);
+      expect(tester.getSize(parts('gantt')).height, closeTo(150, 0.01), reason: 'the block Mermaid drew, its padding with it');
       expect(wordsOf(tester, drawn), contains('One has no start or due day, and is not on the timeline.'));
+      expect(find.byType(CustomPaint).evaluate().where((e) => (e.widget as CustomPaint).painter.runtimeType.toString() == 'GanttPainter'), isEmpty, reason: 'no drawing of the app\'s own');
+    });
+
+    // Mermaid draws a line down the bars at today, and the page drew a timeline again each time the app was opened
+    // (mermaid.ts `drawn` is a map in memory). A picture here outlives the app, in the folder, by its key.
+    testWidgets('a picture kept is today\'s only: the same card on another day is drawn again', (tester) async {
+      final doc = fence('from: tickets\nshow: gantt\ngroup: status');
+      await open(tester, doc);
+      bridge.finish(0, block: const Size(300, 150), at: const Rect.fromLTWH(0, 10, 300, 130));
+      await tester.pump();
+      await tester.pump();
+      await open(tester, doc);
+      expect(bridge.asked, hasLength(1), reason: 'the same day: the picture it has');
+      expect(parts('gantt'), findsOneWidget);
+      await pumpQueries(tester, doc, options: optionsOver(() => library, Asked()), today: '2026-10-09');
+      expect(bridge.asked, hasLength(2), reason: 'the next day: asked again');
+      expect(bridge.asked.last.code, bridge.asked.first.code);
+      expect(bridge.asked.last.timeline!.day, '2026-10-09');
+      expect(bridge.asked.last.key, isNot(bridge.asked.first.key));
+    });
+
+    testWidgets('a timeline that cannot be drawn keeps its text and says so, in the page\'s words', (tester) async {
+      await open(tester, fence('from: tickets\nshow: gantt'));
+      bridge.fail(0, '');
+      await tester.pump();
+      await tester.pump();
+      expect(parts('lines'), findsOneWidget);
+      expect(wordsOf(tester, drawn), contains('This timeline could not be drawn here.'));
+    });
+
+    testWidgets('is one sentence where no record has a day, and nothing is asked of Mermaid', (tester) async {
       await open(tester, fence('from: tickets\nwhere: id = GHO-4\nshow: gantt'));
       expect(wordsOf(tester, drawn), contains('Nothing here has a start or a due day to put on a timeline.'));
+      expect(bridge.asked, isEmpty);
     });
   });
 }

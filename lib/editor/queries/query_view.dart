@@ -10,7 +10,7 @@
 /// ([QueryView.onSet]), as a card dragged to another lane is. A to-do's status is its box: To do or Done.
 ///
 /// Its parts: this frame, its head and the list, the table, the month and the count; a record's own pieces
-/// (query_parts.dart); the board (query_board.dart); the timeline (query_gantt.dart); the builder
+/// (query_parts.dart); the board (query_board.dart); the timeline (query_timeline.dart); the builder
 /// (query_builder.dart); things carried between groups (lane_carry.dart); the look (query_look.dart) and the
 /// stylesheet's layouts (query_layout.dart).
 ///
@@ -23,7 +23,7 @@
 /// - **A row carried out of a grouped table** leaves a gap as tall as the row; the copy in the air is the row's
 ///   name and cells at the widths they have in the table.
 /// - **The month's name** is English (lib/core/query/calendar.dart says why).
-/// - **The timeline is another drawing**: see query_gantt.dart.
+/// - **The timeline** is Mermaid's own drawing, as the page's is, photographed (query_timeline.dart).
 library;
 
 import 'dart:math' as math;
@@ -42,7 +42,7 @@ import '../items/field_menu.dart' show DayPicker;
 import 'lane_carry.dart';
 import 'query_board.dart';
 import 'query_builder.dart';
-import 'query_gantt.dart';
+import 'query_timeline.dart';
 import 'query_layout.dart';
 import 'query_look.dart';
 import 'query_parts.dart';

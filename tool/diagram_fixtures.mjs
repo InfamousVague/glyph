@@ -38,7 +38,10 @@ for (const name of asks) {
   // A window as wide as the app's, and tall enough for anything, as the phone's web view is laid out.
   const context = await browser.newContext({ viewport: { width: Math.round(ask.viewport), height: 4000 }, deviceScaleFactor: ratio });
   const page = await context.newPage();
+  // A query's timeline has a line at today: the clock is held at the day the test's card was drawn for.
+  if (ask.timeline?.day) await page.clock.install({ time: new Date(`${ask.timeline.day}T12:00:00`) });
   await page.goto(PAGE);
+  if (ask.timeline?.day) await page.clock.resume();
   await page.waitForFunction(() => (window.ghostSaid ?? []).some((said) => said.ready));
   n += 1;
   await page.evaluate((ask) => window.ghostDiagram.draw(ask), { ...ask, n });

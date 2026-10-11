@@ -4,8 +4,10 @@
 // the logical one, the editor's box at the page's corner, so every rectangle is in the editor's own coordinates.
 //
 // The editor measured is the BASE one of tool/editor_reference.mjs with `drawnBoards()` (for the room it tells a
-// block, boards.ts `boardRoom`), `tags()`, `wikiLinks()`, `queries()` of ../glyph/src/app/editor/queries.ts over the
-// fixed library below, and `tickets()` of editor/tickets.ts over its tickets.
+// block, boards.ts `boardRoom`), `drawnMermaid()` (a note's editor always has it, Editor.tsx, and its theme's
+// `.cm-mermaid` is the timeline's block too: the 0.6em above and under Mermaid's gantt in a card are that rule's),
+// `tags()`, `wikiLinks()`, `queries()` of ../glyph/src/app/editor/queries.ts over the fixed library below, and
+// `tickets()` of editor/tickets.ts over its tickets.
 //
 // For each case it writes <name>.json beside this file (a query's) or in ../../tickets/fixtures (a ticket's):
 //   lines   every `.cm-line`: its document range and rectangle
@@ -122,6 +124,7 @@ await page.evaluate(async () => {
     theme: await import('/src/app/editor/glyphTheme.ts'),
     viewMode: await import('/src/app/editor/viewMode.ts'),
     boards: await import('/src/app/editor/boards.ts'),
+    mermaid: await import('/src/app/editor/mermaid.ts'),
     tags: await import('/src/app/editor/tags.ts'),
     wiki: await import('/src/app/editor/wikiLinks.ts'),
     queries: await import('/src/app/editor/queries.ts'),
@@ -143,7 +146,9 @@ for (const one of CASES) {
     async ({ one, doc, library }) => {
       const { CM, Base, Prefs } = window;
       const theme = one.theme ?? 'light';
-      Prefs.applyPreferences({ ...Prefs.DEFAULT_PREFERENCES, theme });
+      // Chosen, not only painted: a timeline is drawn in the colours `preferences().theme` names (mermaid.ts
+      // `darkNow`), and the app's own default is dark.
+      Prefs.setPreferences({ ...Prefs.DEFAULT_PREFERENCES, theme });
       window.madeView?.destroy();
       window.madeView = null;
       const stage = document.getElementById('stage');
@@ -181,6 +186,7 @@ for (const one of CASES) {
             Base.lines.glyphLines,
             Base.extended.extendedMarkdown(),
             Base.boards.drawnBoards(),
+            Base.mermaid.drawnMermaid(),
             Base.tags.tags(),
             Base.wiki.wikiLinks({ known: (title) => find(title) !== null, open() {} }),
             Base.queries.queries(() => queryOptions),
