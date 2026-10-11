@@ -9,9 +9,14 @@
 /// in turn and maps it over what it has typed meanwhile (lib/live/editor_binding.dart), so the two arrive at the
 /// same words; should they ever not, the binding brings the editor to the document's.
 ///
-/// A splice is one stretch: the common head and foot of the words before and after are kept, and what lies between
-/// went and came. An update that changed two places far apart is one long stretch here, which is still the same
-/// change of the words.
+/// A splice is one stretch of the words. Where the document says what a change did to them (an update that
+/// arrived, lib/team/crdt.dart `CrdtDoc.take`; an undo of the document's own, `CrdtDoc.undo`, which is not the
+/// editor's typing either), each stretch it names is a splice ([TextLog.add]), so the bound editor does exactly
+/// what the document did, as y-codemirror does with a text event's delta, and a key pressed meanwhile is carried
+/// over each like over anything else. Where it does not (a canvas, whose words are read from its types), the
+/// words before and after are compared ([TextLog.record]): the common head and foot are kept, and what lies
+/// between went and came, so a change of two places far apart is one long stretch, which is still the same change
+/// of the words.
 library;
 
 import 'crdt.dart';
@@ -19,15 +24,20 @@ import 'crdt.dart';
 /// One change of the words from elsewhere: [removed] code units gone at [at], then [inserted] put there. [rev] is
 /// the log's number once it was made.
 class TextSplice {
-  const TextSplice({required this.rev, required this.at, required this.removed, required this.inserted});
+  const TextSplice({required this.rev, required this.at, required this.removed, required this.inserted, this.more = false});
 
   final int rev;
   final int at;
   final int removed;
   final String inserted;
 
+  /// Whether another stretch of the same change follows at once: one change of the document's (an update that
+  /// arrived, an undo) may touch the words in several places, and an editor makes one change of them all, as
+  /// y-codemirror makes one transaction of a text event.
+  final bool more;
+
   @override
-  String toString() => 'TextSplice($rev: $removed gone at $at, "$inserted" come)';
+  String toString() => 'TextSplice($rev: $removed gone at $at, "$inserted" come${more ? ', and more' : ''})';
 }
 
 bool _high(int unit) => unit >= 0xD800 && unit < 0xDC00;
@@ -51,6 +61,18 @@ bool _low(int unit) => unit >= 0xDC00 && unit < 0xE000;
   return (at: head, removed: before.length - head - foot, inserted: after.substring(head, after.length - foot));
 }
 
+/// The words after each of [splices] in turn, starting from [words], when they lead to [after]; else null, and the
+/// one stretch between the two is all that is known ([spliceBetween]).
+List<String>? wordsThrough(String words, List<CrdtSplice> splices, String after) {
+  final each = <String>[];
+  for (final splice in splices) {
+    if (splice.at < 0 || splice.removed < 0 || splice.at + splice.removed > words.length) return null;
+    words = words.replaceRange(splice.at, splice.at + splice.removed, splice.inserted);
+    each.add(words);
+  }
+  return words == after ? each : null;
+}
+
 /// How many splices are kept: far more than can pass between a key and the core's answer.
 const int _kept = 256;
 
@@ -72,6 +94,31 @@ class TextLog {
     return splice;
   }
 
+  /// The words took one stretch that is known as it was made (the document's own account of a change), not found
+  /// by comparing: numbered like any other. [more] says another stretch of the same change follows.
+  TextSplice add(int at, int removed, String inserted, {bool more = false}) {
+    rev += 1;
+    final splice = TextSplice(rev: rev, at: at, removed: removed, inserted: inserted, more: more);
+    _splices.add(splice);
+    if (_splices.length > _kept) _splices.removeAt(0);
+    return splice;
+  }
+
+  /// [caret], where an editor's selection stands in the words as they were at [base], in the words as they are
+  /// now: each end stays with its character over every splice the editor has not heard of yet, as the position
+  /// the document is about to make of it will from then on. Null when [base] is older than what is kept.
+  CrdtCaret? carryCaret(CrdtCaret? caret, int base) {
+    if (caret == null || base >= rev) return caret;
+    if (_splices.isEmpty || _splices.first.rev > base + 1) return null;
+    var anchor = caret.anchor, head = caret.head;
+    for (final splice in _splices) {
+      if (splice.rev <= base) continue;
+      anchor = caretOver(anchor, caret.assoc, at: splice.at, removed: splice.removed, inserted: splice.inserted.length);
+      head = caretOver(head, caret.assoc, at: splice.at, removed: splice.removed, inserted: splice.inserted.length);
+    }
+    return CrdtCaret(anchor, head, caret.assoc);
+  }
+
   /// [edits], made against the words as they were at [base], as the same change of the words as they are now.
   /// Throws a [StateError] when [base] is older than what is kept, which a bound editor heals by reading the
   /// document's words again.
@@ -84,6 +131,16 @@ class TextLog {
     }
     return carried;
   }
+}
+
+/// A place between two characters, moved over a splice ([removed] code units gone at [at], [inserted] put there)
+/// the way a position that keeps to one of them moves (`Y.createRelativePositionFromTypeIndex`): with [assoc] below
+/// zero it keeps to the character before it, else to the one after. A place whose character the splice took out is
+/// where that character was, after what was put there.
+int caretOver(int pos, int assoc, {required int at, required int removed, required int inserted}) {
+  if (pos > at + removed) return pos - removed + inserted;
+  if (assoc < 0 ? pos <= at : pos < at) return pos;
+  return at + inserted;
 }
 
 /// [edits] moved over [splice], which happened first. Each edit is against the words as the edits before it left

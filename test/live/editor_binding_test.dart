@@ -21,6 +21,9 @@ void main() {
   late CoreCrypto crypto;
   late Crdt crdt;
 
+  /// The time the documents' undo reads: keys less than half a second apart are one step of it.
+  var clock = 1000;
+
   setUpAll(() async {
     if (!coreBuilt) return;
     core = await openCore();
@@ -42,7 +45,7 @@ void main() {
     final room = TeamRoom('o1', 'n1', Me(name: name, hue: hue), RoomDeps(key: key as dynamic, crypto: crypto, crdt: crdt, doc: doc, hold: hub.holdRoom, release: hub.releaseRoom));
     relay.waits.add(room.sent);
     final view = editor(doc.words);
-    final binding = LiveBinding(view, doc, room: room, positions: doc.crdt)..bind();
+    final binding = LiveBinding(view, doc, room: room, positions: doc.crdt, now: () => clock)..bind();
     return (doc: doc, room: room, view: view, binding: binding);
   }
 
@@ -84,7 +87,9 @@ void main() {
     expect(words(a.view), endsWith('world 👻ABC'));
     expect(RegExp('[<>]').allMatches(words(a.view)), hasLength(6));
 
-    // A key pressed here between an update being handed to the core and its words coming back.
+    // A key pressed here between an update being handed to the core and its words coming back. (A while after
+    // the burst above: another step of matt's undo.)
+    clock += 5000;
     final before = words(a.view);
     type(b.view, 0, 'Oh. ');
     await relay.settled();
@@ -94,10 +99,26 @@ void main() {
     expect(words(a.view), 'Oh. $before!?');
     expect(words(b.view), 'Oh. $before!?');
 
-    // Undo is this person's: sam's "Oh. " stays, and what matt just typed goes, from both.
-    undo(a.view);
+    // Undo is the document's while the editor is bound (the page's `Y.UndoManager`; test/live/undo_beside_others_
+    // test.dart holds it to the page): the history is out of the slot, sam's "Oh. " stays, and what matt just
+    // typed, one step of two keys, goes from both.
+    expect(undoDepth(a.view.state), 0);
+    expect(undo(a.view), isFalse, reason: 'the editor\'s own history is not in a live note');
+    expect(canUndoNote(a.view.state), isTrue);
+    expect(undoNote(a.view), isTrue);
+    await a.binding.undone();
     await quiet(relay);
     expect(words(a.view), 'Oh. $before');
+    expect(words(b.view), 'Oh. $before');
+    // And put in again, from both; then taken back for what follows.
+    expect(canRedoNote(a.view.state), isTrue);
+    redoNote(a.view);
+    await a.binding.undone();
+    await quiet(relay);
+    expect(words(b.view), 'Oh. $before!?');
+    undoNote(a.view);
+    await a.binding.undone();
+    await quiet(relay);
     expect(words(b.view), 'Oh. $before');
 
     // Words that reach the note without the editor (a pass, a capture) arrive in it as a change.
@@ -106,11 +127,14 @@ void main() {
     expect(words(a.view), endsWith('ABC\nadded elsewhere'));
     expect(words(b.view), words(a.view));
 
-    // Unbound, the editor is the note's own again and the document hears no more of it.
+    // Unbound, the editor is the note's own again, with its own undo, and the document hears no more of it.
     b.binding.unbind();
     type(b.view, 0, 'x');
     await quiet(relay);
     expect(words(a.view), isNot(startsWith('x')));
+    expect(undoDepth(b.view.state), 1);
+    expect(undoNote(b.view), isTrue);
+    expect(words(b.view), isNot(startsWith('x')));
     a.binding.unbind();
     a.room.close();
     b.room.close();

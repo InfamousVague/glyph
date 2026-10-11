@@ -28,6 +28,9 @@
 ///   words came back. Everything that changes the document goes one at a time, in the order it was asked.
 /// - What the web hears from `doc.on('update')` is [TeamDoc.onUpdate] (a change made here, for the note's room to
 ///   send as it is made) and [TeamDoc.onSplice] (a change from elsewhere, for the editor bound to it).
+/// - **Undo while an editor is bound is the document's** ([TeamDoc.openUndo], [TeamDoc.undoStep]; docs/PARITY.md,
+///   Differs 26), as `editor/liveBinding.ts` gives the page's editor `Y.UndoManager`. A step taken back is a change
+///   made here like any other: pending for the service, kept to the store, sent to the room as it is made.
 library;
 
 import 'dart:async';
@@ -132,13 +135,27 @@ class TeamDoc implements LiveText {
 
   static Map<String, Object?> _raw(Canvas canvas) => {...(jsonDecode(serializeCanvas(canvas)) as Map).cast<String, Object?>(), if (canvas.comments?.isEmpty ?? true) 'comments': const <Object?>[]};
 
-  /// The words are [after] now, by a change that was not the editor's.
-  void _tell(String after) {
-    final splice = _log.record(_words, after);
-    _words = after;
-    if (splice != null) {
-      for (final listener in _splices.toList()) {
-        listener(splice);
+  /// The words are [after] now, by a change that was not the editor's typing. [splices] is the document's own
+  /// account of the change, where it gave one: told stretch by stretch, so a bound editor does exactly what the
+  /// document did. Without one, or with one that does not lead to [after] (a canvas, whose words are its
+  /// types'), the one stretch between the words before and after is told.
+  void _tell(String after, [List<CrdtSplice>? splices]) {
+    final through = splices == null ? null : wordsThrough(_words, splices, after);
+    if (through != null) {
+      for (var i = 0; i < through.length; i += 1) {
+        final splice = _log.add(splices![i].at, splices[i].removed, splices[i].inserted, more: i + 1 < through.length);
+        _words = through[i];
+        for (final listener in _splices.toList()) {
+          listener(splice);
+        }
+      }
+    } else {
+      final splice = _log.record(_words, after);
+      _words = after;
+      if (splice != null) {
+        for (final listener in _splices.toList()) {
+          listener(splice);
+        }
       }
     }
     for (final listener in _listeners.toList()) {
@@ -173,6 +190,7 @@ class TeamDoc implements LiveText {
         final wrote = given == null || given == _canvas ? null : await crdt.canvasWrite(_raw(given));
         final front = _frontMatterOf(words), had = _frontMatterOf(_text);
         final named = front == had ? null : await crdt.reconcile(front + _text.substring(had.length));
+        _undo = named?.undo ?? wrote?.undo ?? _undo;
         if (!(wrote?.changed ?? false) && !(named?.changed ?? false)) return false;
         _soon();
         _tell(await _read(named?.text ?? _text));
@@ -181,6 +199,7 @@ class TeamDoc implements LiveText {
         return true;
       }
       final change = await crdt.reconcile(words);
+      _undo = change.undo ?? _undo;
       if (!change.changed) {
         _words = _text = change.text;
         return false;
@@ -197,9 +216,10 @@ class TeamDoc implements LiveText {
   /// against the words as they are when their turn comes. Listeners to the words are not told: the editor knows
   /// what it typed.
   @override
-  Future<CrdtChange> edit(List<CrdtEdit> edits, {int? base}) {
+  Future<CrdtChange> edit(List<CrdtEdit> edits, {int? base, int? now}) {
     return _next(() async {
-      final change = await crdt.edit(base == null ? edits : _log.carry(edits, base));
+      final change = await crdt.edit(base == null ? edits : _log.carry(edits, base), now: now);
+      _undo = change.undo ?? _undo;
       _words = _text = change.text;
       if (change.changed) _soon();
       _made(change.update);
@@ -207,17 +227,54 @@ class TeamDoc implements LiveText {
     });
   }
 
+  @override
+  Future<void> keepCaret(CrdtCaret caret, {int? base}) => _next(() async {
+        final carried = base == null ? caret : _log.carryCaret(caret, base);
+        if (carried != null && _undo.open && !_closed) await crdt.keepCaret(carried);
+      });
+
+  UndoState _undo = UndoState.none;
+
+  @override
+  UndoState get undoState => _undo;
+
+  @override
+  Future<UndoState> openUndo() => _next(() async => _undo = await crdt.openUndo());
+
+  @override
+  Future<void> closeUndo() => _next(() async {
+        _undo = UndoState.none;
+        if (!_closed) await crdt.closeUndo();
+      });
+
+  /// The bound editor's last step taken back, or put in again ([LiveText.undoStep]). The change is the document's
+  /// own and an ordinary one: pending for the service, kept soon, sent as it is made ([onUpdate]); and the words'
+  /// account of it is told to [onSplice] and [onWords], since the editor did not type it.
+  @override
+  Future<CrdtUndone> undoStep({required bool redo, int? now}) {
+    return _next(() async {
+      final done = redo ? await crdt.redo(now: now) : await crdt.undo(now: now);
+      _undo = done.undo ?? _undo;
+      if (!done.changed) return done;
+      _soon();
+      _tell(await _read(done.text), done.splices);
+      _made(done.update);
+      return done;
+    });
+  }
+
   /// Updates from the log or the organization's row, applied; the words after, when they changed. Throws the core's
   /// refusal for an update it cannot hold, the document left as it was.
   Future<String?> applyRemote(List<Uint8List> updates, [int? seq]) {
     return _next(() async {
-      final text = updates.isEmpty ? null : await crdt.applyRemote(updates);
+      final took = updates.isEmpty ? null : await crdt.take(updates);
+      _undo = took?.undo ?? _undo;
       if (seq != null && seq > this.seq) this.seq = seq;
       _soon();
       // A canvas's types change under words that do not: read again whenever anything arrived.
-      final after = updates.isEmpty ? _words : await _read(text ?? _text);
+      final after = updates.isEmpty ? _words : await _read(took?.text ?? _text);
       if (after == _words) return null;
-      _tell(after);
+      _tell(after, took?.splices);
       return after;
     });
   }

@@ -67,6 +67,15 @@ class _InputPlugin extends PluginValue {
   }
 }
 
+/// What the undo slot holds for a note on its own: undoSlot.ts `localUndo()`, the history and CodeMirror's keys for
+/// it.
+Extension localUndoWithKeys() => Extension.list(<Extension>[localUndo(), editorKeymap.of(historyKeymap)]);
+
+/// What it holds while the editor is bound to its live document (liveBinding.ts `bindLive`: `yCollab(...)` and
+/// `keymap.of(yUndoManagerKeymap)`): the document's undo and y-codemirror's keys for it. The history is not in
+/// the state then, and comes back with nothing in it when the slot is given [localUndoWithKeys] again.
+Extension liveUndoWithKeys(NoteUndo undo) => Extension.list(<Extension>[noteUndo.of(undo), editorKeymap.of(liveUndoKeymap)]);
+
 /// The input layer's extension. `assist` is the web's prop of that name; `undo: false` leaves the undo history and
 /// its keys out, for a state that fills [undoSlot] itself.
 Extension editorInput({bool assist = true, bool undo = true}) {
@@ -75,7 +84,7 @@ Extension editorInput({bool assist = true, bool undo = true}) {
     editorInputHost.of(host),
     // undoSlot.ts `localUndo`: the history and its keys together in the slot, so whoever swaps the slot for another
     // undo (a note live on two devices) swaps the keys with it.
-    if (undo) undoSlot.of(Extension.list(<Extension>[localUndo(), editorKeymap.of(historyKeymap)])),
+    if (undo) undoSlot.of(localUndoWithKeys()),
     // lang-markdown binds its two keys above everything of ordinary precedence.
     Prec.high(editorKeymap.of(markdownBindings)),
     // And its paste: an address pasted over selected words makes them a link to it (`pasteURLAsLink`).

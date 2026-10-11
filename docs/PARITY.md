@@ -12,19 +12,26 @@ installed for either: every status is what the source shows. "Wired" means reach
 
 ## What is left (2026-10-11)
 
-Of the 687 rows, **625 match**, 25 cannot apply, and **37 do not match**: 31 differ, 6 are missing, and none is
-unwired any more (624, 38 and 32 as re-checked; the Test results row has matched since). Each of the 38 is below
-once, by what it would take.
+Of the 687 rows, **626 match**, 25 cannot apply, and **36 do not match**: 30 differ, 6 are missing, and none is
+unwired any more (624, 38 and 32 as re-checked; the Test results row and the live note's undo have matched since).
+Each of the 38 is below once, by what it would take.
 
 ### (a) Must be built: 4 rows
 
-1. **Undo in a live note beside another member's writing** (section 28). Large. The port keeps the editor's own
-   history and maps it over what arrives; the page swaps it for Yjs's `Y.UndoManager`. Typing taken back is the
-   page's letter for letter and nothing of another member's goes. The two part where a run this person deleted, or
-   typing they took back, is put back at a place the other has written at since: every letter of both is there, in
-   another order (test/live/undo_beside_others_test.dart). To be the page's it needs yrs's `UndoManager` over a live
-   document in the core (native/src/crdt.rs), commands for undo and redo, `undoSlot` given those in a live note, and
-   the core built again for each platform.
+1. **Done 2026-10-11, but for three rare cases: undo in a live note is the document's own** (section 28; its row
+   is `match`). While a note's editor is bound to its live document the undo slot holds the document's undo, yrs's
+   `UndoManager` over the note's text in the core (native/src/crdt.rs `Undo`), with y-codemirror's keys and its
+   selection put back, in place of the editor's history; a note that is not live undoes as before. An undo is an
+   update like any other (test/team_sync/undo_test.dart). Held to the page itself, step for step
+   (test/live/undo_beside_others_test.dart, tool/yjs_undo.mjs: the web app's own editor and `bindLive` under Node):
+   a run deleted, or typing taken back, is put back where its letters stood among what another member wrote since,
+   and 300 drawn interleavings of two members' typing, undoing and redoing are letter for letter the page's.
+   **Left**, each yrs 0.26 not being Yjs and pinned by that test with both answers (Differs 26 says each):
+   words that reach a note while its editor is bound let the steps go; letters of two steps deleted together and
+   put back twice; a run put back after another member wrote into its place. In all three every member holds the
+   same words and no letter of another member's is lost. `native/patches/yrs-0.26.0-undo.patch` closes the first
+   two and is not applied: carrying a patched yrs is the owner's to decide. The core is to be built again for
+   each platform.
 2. **Done 2026-10-11: Settings › Test results has this app's own report** (section 33; its row is `match`).
    `node tool/test_report.mjs` runs the whole suite and writes what every test did to
    `assets/diag/test_report.json`, the build carries it, and the root reads it for Settings once Developer mode
@@ -874,7 +881,7 @@ recovery codes, the password and delete forms was compared and is the same.
 | Live typing (trial): the switch, this device only, from the next note opened | core/live/enabled.ts:13; editor/useLiveNote.ts:15-37 | live/enabled.dart:9; live/open.dart:216-246; root/account_wiring.dart:191-193 | match | |
 | The first one in brings the words; unsent changes kept as a note of their own | core/live/open.ts:28-38 | live/open.dart:229-231; root/ghost_root.dart:304-306 | match | |
 | A dropped device comes back by itself | core/live/transport.ts:80,185-201 | live/transport.dart:54,189,271-281 | differs | The port lets the socket go while the app is behind another, and joins again as it returns. Re-checked 2026-10-11: kept on purpose (Differs 38). |
-| Undo in a live note is this device's alone | editor/undoSlot.ts (`Y.UndoManager`) | live/editor_binding.dart:16-18 | differs | The editor's own history, mapped over what arrives. Asked of Yjs itself 2026-10-10 (test/live/undo_beside_others_test.dart): typing beside another member's is taken back as `Y.UndoManager` takes it back, letter for letter, and nothing of theirs goes. A run this person DELETED, where the other then wrote, is put back whole after what they wrote; Yjs puts it back where it stood, which is before theirs when they wrote after hearing of it. A redo of typing taken back parts the same way. Re-checked 2026-10-11: not built. It needs yrs's `UndoManager` behind the core's CRDT commands (Differs 26). |
+| Undo in a live note is this device's alone | editor/liveBinding.ts:28-31; editor/undoSlot.ts (`Y.UndoManager`) | live/editor_binding.dart (`LiveBinding.undo`); editor/state/undo_slot.dart (`noteUndo`); native/src/crdt.rs (`Undo`) | match | Since 2026-10-11 the document's own undo while the editor is bound (yrs's `UndoManager`, with y-codemirror's keys and its selection put back), and the editor's history when it is not. Held to the page step for step (test/live/undo_beside_others_test.dart: the page's own editor, `bindLive`, Yjs 13 and y-codemirror under Node, beside this app's): a run deleted, or typing taken back, is put back where its letters stood among what another member wrote since, and 300 drawn interleavings of two members' typing, undoing and redoing, each run with either member's client id the lower, are letter for letter the same after every step. Three rare cases where yrs 0.26 is not Yjs still differ, each pinned by that test with both answers: at Differs 26. |
 | Versions: who kept each | core/versions/record.ts:63-65 | core/versions_record.dart (`keeper`); root/ghost_root.dart (`_versions`) | match | Since 679bd95 each version is kept by the account's handle, `me` without one, as record.ts `keeper`. Held by test/root/wiring_test.dart. |
 | Versions: kept on a two-minute pause and on leaving; an organization's notes keep them by default | editor/useVersionKeeping.ts:12-56; core/versions/record.ts:23-47 | note/version_keeping.dart:19-79; core/versions_record.dart:29-57 | match | |
 
@@ -1397,8 +1404,46 @@ left" at the top.
     leaving from the cog, Back from an opened change (1a7cda7; test/orgs_ui/, test/root/wiring_test.dart).
 25. **done for a phone's photographs** A share's JPEGs are drawn smaller as the page draws them (988791a;
     test/sync/share_pictures_test.dart). A PNG stays a PNG, on purpose.
-26. **left** Undo in a live note is the editor's own history. Large: yrs's `UndoManager` behind the core's CRDT
-    commands. Measured against Yjs in test/live/undo_beside_others_test.dart.
+26. **done but for three rare cases** Undo in a live note is the document's own, as the page's is (2026-10-11;
+    test/live/undo_beside_others_test.dart, test/team_sync/undo_test.dart). While an editor is bound to a live
+    document (a team's note, or an account's own with live typing on) the undo slot holds the document's undo and
+    y-codemirror's three keys in place of the history (lib/editor/state/undo_slot.dart `noteUndo`,
+    lib/live/editor_binding.dart); the document's is yrs's `UndoManager` over the note's text, following the
+    editor's own changes and nothing else, half a second to a step (native/src/crdt.rs `Undo`; `crdt_undo_open`,
+    `crdt_undo`, `crdt_redo`, `crdt_undo_caret`, `crdt_undo_close`). An undo is an ordinary update: queued,
+    posted, sent to the room and kept through a restart like a key. What arrives, and what an undo does, now
+    reach the editor as the stretches the document says they were, not as one stretch found by comparing, so a
+    caret beside another member's undo stays on its own side of it. Held to the page itself, step for step
+    (tool/yjs_undo.mjs: the web app's own editor and `bindLive` under Node, Yjs 13.6.32 and y-codemirror 0.3.6):
+    the cases measured on 2026-10-10, the half second, the selection put back, the keys, the steps going with the
+    binding, and 300 drawn interleavings of two members, each run with the first member's client id the lower and
+    again the higher (600 runs of forty steps: 7,039 undos and 4,077 redos, no letter apart). **Left. The first
+    three are yrs 0.26 not being Yjs, said at `Undo` in crdt.rs and pinned by the test with both answers; in
+    each, every member still holds the same words and no letter of another member's is lost:**
+    - Words that reach a note WHILE its editor is bound (a reconcile) let the steps go, where the page keeps
+      them: yrs 0.26 cannot take back a step such words fell inside (it cuts the block wrongly, and in a release
+      build would corrupt it). Nothing in the app does that to a bound note today (a pass leaves its words
+      alone, `TeamDoc.reconcileKept`).
+    - Letters of two steps deleted together and put back twice (type `IJ`, wait, type `KL`, delete `JKL`, undo,
+      redo, undo, undo): the page has taken back `KL` and holds `IJ`; this app holds `I`, the `J` of the step
+      before gone one undo early. This person's own letter, which the next undo would take and a redo puts back.
+      yrs follows a block put in again without its offset. Met by 3 of 2,000 drawn scenarios.
+    - A run put back by an undo after another member wrote "into" its place while it was deleted comes back as
+      two runs where the page's is one, and a letter written before its first letter at that moment can land
+      between them (`abKcdX` for the page's `abcdKX`). yrs leaves a block cut where Yjs joins it again. Met by 1
+      of 4,000 runs.
+    - `native/patches/yrs-0.26.0-undo.patch` closes the first two (measured: the 7 runs of 4,000 that part come
+      down to the 1 of the third); it is not applied, since carrying a patched yrs is the owner's to decide.
+    - One editor a document: a second editor bound to the same note on the same device would share the first's
+      steps, where the page gives each its own `Y.UndoManager`. The binding already took one editor a document
+      for granted (`TeamDoc.editing`).
+    - The document is a call away: an undo is asked for and answered a moment later. Keys pressed meanwhile are
+      carried over it, and the selection is then left where the person put it rather than put back.
+    - A web member's update that cuts a character in two makes the document again (crdt.rs `put_back`), and the
+      steps go with it.
+    - Found on the way, older than this and not the undo's: yrs 0.26 misreads some updates that arrive before
+      what they were written over when a character of two code units is beside them (seven updates, no undo
+      among them: `native/tests/yjs_vectors.rs`, the ignored test, with what would close it).
 27. **done** Blanks: your own city, the phone's own clocks, a redirect followed, a blank being filled breathes
     (c6a52a3; test/core/phone_zones_test.dart, test/ai/fills/page_fetch_test.dart). The lookup still names itself
     as the app, on purpose.

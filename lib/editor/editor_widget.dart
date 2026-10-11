@@ -46,8 +46,8 @@ import 'input/input_sliver.dart';
 import 'input/keymap.dart';
 import 'input/motion.dart';
 import 'looks/look.dart';
-import 'state/history.dart';
 import 'state/state.dart';
+import 'state/undo_slot.dart';
 import 'view/editor_view.dart';
 import 'view/plugin.dart';
 import 'view/sliver.dart';
@@ -408,8 +408,9 @@ class _EditorState extends State<Editor> implements EditorGesturesHost, EditorHa
     SelectAllTextIntent: CallbackAction<SelectAllTextIntent>(onInvoke: (_) => _run(selectAll)),
     CopySelectionTextIntent: CallbackAction<CopySelectionTextIntent>(onInvoke: (intent) => _copy(cut: intent.collapseSelection)),
     PasteTextIntent: CallbackAction<PasteTextIntent>(onInvoke: (_) => _paste(null)),
-    UndoTextIntent: CallbackAction<UndoTextIntent>(onInvoke: (_) => _run(undo)),
-    RedoTextIntent: CallbackAction<RedoTextIntent>(onInvoke: (_) => _run(redo)),
+    // Whichever undo the note has: its live document's while bound to one, else the history (undo_slot.dart).
+    UndoTextIntent: CallbackAction<UndoTextIntent>(onInvoke: (_) => _run(undoNote)),
+    RedoTextIntent: CallbackAction<RedoTextIntent>(onInvoke: (_) => _run(redoNote)),
   };
 
   // -- the clipboard -------------------------------------------------------------------------------------------------

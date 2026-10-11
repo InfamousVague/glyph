@@ -8,6 +8,10 @@
 ///   [CrdtDoc.applyRemote], [CrdtDoc.pending], [CrdtDoc.posted], [CrdtDoc.snapshot]. What doc.ts adds round its
 ///   `Y.Doc` (the store it is kept in, `seq` and `snapshotSeq`, the listeners) is the caller's.
 /// - **[CrdtRoom]** is who is in a room and where: y-protocols' awareness, its states as JSON.
+/// - **Undo in a live note** is the document's own (docs/PARITY.md, Differs 26): `Y.UndoManager` over the note's
+///   text, as `src/app/editor/liveBinding.ts` hands one to y-codemirror. [CrdtDoc.openUndo] makes it when an editor
+///   is bound and [CrdtDoc.closeUndo] lets it go when it is unbound; between the two it follows [CrdtDoc.edit] and
+///   nothing else, and [CrdtDoc.undo] and [CrdtDoc.redo] answer what they changed ([CrdtUndone]).
 ///
 /// **Offsets are UTF-16 code units**, which are a Dart [String]'s own: `text.length`, a selection's offsets and
 /// `substring` all count as the document does.
@@ -32,7 +36,7 @@ const String crdtField = 'body';
 
 /// What a change made here did ([CrdtDoc.reconcile], [CrdtDoc.edit]).
 class CrdtChange {
-  const CrdtChange({required this.update, required this.text});
+  const CrdtChange({required this.update, required this.text, this.undo});
 
   /// The change as an update, already queued in [CrdtDoc.pending]; null when nothing changed.
   final Uint8List? update;
@@ -40,7 +44,71 @@ class CrdtChange {
   /// The words after it.
   final String text;
 
+  /// What the document's undo holds after it, while an editor is bound ([CrdtDoc.openUndo]); null otherwise.
+  final UndoState? undo;
+
   bool get changed => update != null;
+}
+
+/// Whether a bound editor's undo has a step to take back, and one to put in again: y-codemirror's `undoDepth` and
+/// `redoDepth`, as far as a menu asks.
+class UndoState {
+  const UndoState({required this.open, required this.canUndo, required this.canRedo});
+
+  /// Nothing to take back or put in again: an editor just bound, or none bound.
+  static const UndoState none = UndoState(open: false, canUndo: false, canRedo: false);
+
+  /// Whether the document has an undo at all: an editor is bound to it.
+  final bool open;
+  final bool canUndo;
+  final bool canRedo;
+
+  static UndoState of(Object? said) {
+    if (said is! Map) return none;
+    return UndoState(open: said['open'] == true, canUndo: said['canUndo'] == true, canRedo: said['canRedo'] == true);
+  }
+
+  @override
+  String toString() => 'UndoState(${open ? 'open' : 'closed'}${canUndo ? ', can undo' : ''}${canRedo ? ', can redo' : ''})';
+}
+
+/// Where an editor's selection stands in the words: CodeMirror's `SelectionRange` as far as y-codemirror reads it
+/// (`toYRange`). The document keeps it with an undo step as two positions that stay with their characters.
+class CrdtCaret {
+  const CrdtCaret(this.anchor, this.head, [this.assoc = 0]);
+  final int anchor;
+  final int head;
+
+  /// Which character a position between two keeps to: below zero the one before, else the one after.
+  final int assoc;
+
+  Map<String, Object?> toJson() => {'anchor': anchor, 'head': head, 'assoc': assoc};
+
+  @override
+  bool operator ==(Object other) => other is CrdtCaret && other.anchor == anchor && other.head == head && other.assoc == assoc;
+
+  @override
+  int get hashCode => Object.hash(anchor, head, assoc);
+
+  @override
+  String toString() => 'CrdtCaret($anchor to $head${assoc == 0 ? '' : ', assoc $assoc'})';
+}
+
+/// One stretch of the words an undo changed: [removed] code units gone at [at], then [inserted] put there, in the
+/// words as the stretch before it left them.
+typedef CrdtSplice = ({int at, int removed, String inserted});
+
+/// What an undo or a redo did ([CrdtDoc.undo], [CrdtDoc.redo]): a change like any other made here, with the
+/// words' own account of it.
+class CrdtUndone extends CrdtChange {
+  const CrdtUndone({required super.update, required super.text, required UndoState super.undo, required this.splices, required this.caret});
+
+  /// What the step did to the words, in order: exactly what the document did, for a bound editor to do too.
+  final List<CrdtSplice> splices;
+
+  /// Where the selection stood before the step was made, in the words as they are now; null when the step kept
+  /// none, or it can no longer be placed.
+  final CrdtCaret? caret;
 }
 
 /// One change an editor made: [remove] code units gone at [index], then [insert] put there.
@@ -108,22 +176,73 @@ class CrdtDoc {
 
   /// An editor's own changes, in order, as one: each index is against the words as the edits before it left them.
   /// Refused whole, with nothing changed, when one runs past the end or would split a character.
-  Future<CrdtChange> edit(List<CrdtEdit> edits) async {
-    return _change(await _invoke('crdt_edit', {'doc': _handle, 'edits': [for (final edit in edits) edit.toJson()]}));
+  ///
+  /// While the document has an undo ([openUndo]) this is what it follows; [now] is when they were made, in
+  /// milliseconds, by which the undo groups typing into steps: left out, the moment the core is reached.
+  Future<CrdtChange> edit(List<CrdtEdit> edits, {int? now}) async {
+    return _change(await _invoke('crdt_edit', {'doc': _handle, 'edits': [for (final edit in edits) edit.toJson()], 'now': ?now}));
   }
 
   CrdtChange _change(Object? answer) {
     final said = answer as Map;
     final update = said['update'] as String?;
-    return CrdtChange(update: update == null ? null : fromBase64Url(update), text: said['text'] as String);
+    return CrdtChange(update: update == null ? null : fromBase64Url(update), text: said['text'] as String, undo: said['undo'] == null ? null : UndoState.of(said['undo']));
   }
+
+  /// A new undo over the words with nothing in it, in place of any there was: an editor has just been bound
+  /// (`new Y.UndoManager(session.text)` in liveBinding.ts `bindLive`). Changes less than [captureMs] apart are one
+  /// step; left out, Yjs's own half second.
+  Future<UndoState> openUndo({int? captureMs}) async => UndoState.of(await _invoke('crdt_undo_open', {'doc': _handle, 'captureMs': ?captureMs}));
+
+  /// The undo let go, its steps with it: the editor is unbound (`unbindLive`). Answers whether there was one.
+  Future<bool> closeUndo() async => await _invoke('crdt_undo_close', {'doc': _handle}) as bool;
+
+  /// Where the bound editor's selection stands, in the document's words as they are: kept as two positions that
+  /// stay with their characters, for the undo step the next change begins (y-undomanager.js `_storeSelection`).
+  /// Answers whether there is an undo to keep it.
+  Future<bool> keepCaret(CrdtCaret caret) async => await _invoke('crdt_undo_caret', {'doc': _handle, ...caret.toJson()}) as bool;
+
+  /// The last step the bound editor made taken back (`UndoManager.undo`). The change is queued in [pending] like
+  /// any made here; [now] is when it was asked for, as [edit]'s.
+  Future<CrdtUndone> undo({int? now}) => _step('crdt_undo', now);
+
+  /// The last step taken back put in again (`UndoManager.redo`).
+  Future<CrdtUndone> redo({int? now}) => _step('crdt_redo', now);
+
+  Future<CrdtUndone> _step(String command, int? now) async {
+    final said = await _invoke(command, {'doc': _handle, 'now': ?now}) as Map;
+    final update = said['update'] as String?;
+    final at = said['caret'];
+    return CrdtUndone(
+      update: update == null ? null : fromBase64Url(update),
+      text: said['text'] as String,
+      undo: UndoState.of(said['undo']),
+      splices: _splices(said['splices'] as List),
+      caret: at is Map ? CrdtCaret(at['anchor'] as int, at['head'] as int, at['assoc'] as int? ?? 0) : null,
+    );
+  }
+
+  /// Whether the document has an undo, and what it holds.
+  Future<UndoState> undoState() async => UndoState.of(await _invoke('crdt_undo_state', {'doc': _handle}));
 
   /// Updates from the log, a peer or the organization's row, applied (doc.ts `applyRemote`): the words after, when
   /// they changed, else null. Not queued in [pending]. One that arrives before what it builds on waits for it.
-  Future<String?> applyRemote(List<Uint8List> updates) async {
+  Future<String?> applyRemote(List<Uint8List> updates) async => (await take(updates)).text;
+
+  /// [applyRemote], with the words' own account of the change beside the words after it: the stretches the
+  /// document changed, each against the words as the one before left them (what y-codemirror reads off a text
+  /// event and does to its editor). `splices` is null when the words did not change, or gave no account of it,
+  /// and whoever needs one compares the words before and after. `undo` is what the undo holds after it, while an
+  /// editor is bound.
+  Future<({String? text, List<CrdtSplice>? splices, UndoState? undo})> take(List<Uint8List> updates) async {
     final said = await _invoke('crdt_apply', {'doc': _handle, 'updates': [for (final update in updates) toBase64Url(update)]}) as Map;
-    return said['changed'] == true ? said['text'] as String : null;
+    final undo = said['undo'] == null ? null : UndoState.of(said['undo']);
+    if (said['changed'] != true) return (text: null, splices: null, undo: undo);
+    final splices = said['splices'];
+    return (text: said['text'] as String, splices: splices is List ? _splices(splices) : null, undo: undo);
   }
+
+  static List<CrdtSplice> _splices(List<Object?> said) => [for (final splice in said) (at: (splice as Map)['at'] as int, removed: splice['removed'] as int, inserted: splice['inserted'] as String)];
 
   /// The updates made here that the service has not been given yet, in order (doc.ts `pending`).
   Future<List<Uint8List>> pending() async {

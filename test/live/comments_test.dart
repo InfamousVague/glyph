@@ -164,7 +164,9 @@ void main() {
     await quiet(relay);
     expect(words(b.view), '# Plan\n\nBook the barn for Saturday\n');
     expect(rounds(b.view), isEmpty);
-    undo(a.view);
+    // The note is live, so it is the document's undo (lib/live/editor_binding.dart), as on the page.
+    undoNote(a.view);
+    await a.binding.undone();
     await quiet(relay);
     expect(words(b.view), words(a.view));
     expect(readComments(words(b.view)).threads.single.replies, hasLength(3));

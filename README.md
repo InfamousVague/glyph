@@ -1001,8 +1001,15 @@ Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `
 - **The relay's socket** is held only while a room is: an organization's own and its `sync` room once signed in and
   in one, a note's while it is open. It is let go while the app is behind another (`onPause`) and tried again as it
   comes back, its rooms joined again; the page leaves that to the browser.
-- **Undo in a live note is the editor's own history**, with what arrives kept out of it, where the page swaps in
-  `Y.UndoManager`: either takes back this person's typing and leaves the others'.
+- **Undo in a live note is the document's own** since 2026-10-11, as the page's is (`Y.UndoManager` behind
+  y-codemirror; here yrs's `UndoManager` in the core, `native/src/crdt.rs`): it takes back this person's typing
+  and leaves the others', and puts a run back where its letters stood among what they wrote since. The undo slot
+  holds it, with y-codemirror's keys, while an editor is bound (`lib/live/editor_binding.dart`,
+  `lib/editor/state/undo_slot.dart`); a note that is not live keeps the editor's history. An undo is an update
+  like any other. Held to the page's own editor and Yjs, step for step, by
+  `test/live/undo_beside_others_test.dart` (`tool/yjs_undo.mjs`; `GHOST_UNDO_SCENARIOS=4000 GHOST_UNDO_STEPS=60`
+  for a longer look) and through the service by `test/team_sync/undo_test.dart`. What differs is at Differs 26 in
+  `docs/PARITY.md`.
 - **A selection of another member's across lines** washes the lines between its first and its last whole, an empty
   one among them too, as y-codemirror's does on the page (`cm-yLineSelection`, with that rule's own margin), since
   2026-10-09.

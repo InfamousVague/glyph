@@ -11,7 +11,9 @@
 ///   at a time behind it, in the order it was asked, and [LiveSession.sent] settles when all of it has.
 /// - The page's editor is bound to `session.text` by y-codemirror. Here the session is the [LiveText] an editor
 ///   is bound to (lib/live/editor_binding.dart): [LiveSession.edit] is a key pressed here, sent as it is made,
-///   and [LiveSession.onSplice] a change that arrived.
+///   and [LiveSession.onSplice] a change that arrived. Its undo is the document's while it is bound
+///   ([LiveSession.openUndo], [LiveSession.undoStep]), as liveBinding.ts gives the page's `Y.UndoManager`: a step
+///   taken back goes to the room as the update it is, like a key.
 /// - `markShared` is the [SharedLive] the session was given.
 library;
 
@@ -134,14 +136,51 @@ class LiveSession implements RoomListener, LiveText {
 
   /// A key pressed here: into the document, and out to the room as it is made.
   @override
-  Future<Object?> edit(List<CrdtEdit> edits, {int? base}) {
+  Future<Object?> edit(List<CrdtEdit> edits, {int? base, int? now}) {
     return _next((doc) async {
       if (state == SessionState.closed) return null;
-      final change = await doc.edit(base == null ? edits : _log.carry(edits, base));
+      final change = await doc.edit(base == null ? edits : _log.carry(edits, base), now: now);
+      _undo = change.undo ?? _undo;
       _words = change.text;
       final update = change.update;
       if (update != null && state == SessionState.ready) _post(Envelope(Kind.update, update));
       return change;
+    });
+  }
+
+  @override
+  Future<void> keepCaret(CrdtCaret caret, {int? base}) => _next((doc) async {
+        final carried = base == null ? caret : _log.carryCaret(caret, base);
+        if (carried != null && _undo.open && state != SessionState.closed) await doc.keepCaret(carried);
+      });
+
+  UndoState _undo = UndoState.none;
+
+  @override
+  UndoState get undoState => _undo;
+
+  @override
+  Future<UndoState> openUndo() => _next((doc) async => _undo = state == SessionState.closed ? UndoState.none : await doc.openUndo());
+
+  @override
+  Future<void> closeUndo() => _next((doc) async {
+        _undo = UndoState.none;
+        if (state != SessionState.closed) await doc.closeUndo();
+      });
+
+  /// The bound editor's last step taken back, or put in again: the document's own undo, its change sent to the
+  /// room as the update it is and told to the editor as the stretches it was.
+  @override
+  Future<CrdtUndone?> undoStep({required bool redo, int? now}) {
+    return _next((doc) async {
+      if (state == SessionState.closed) return null;
+      final done = redo ? await doc.redo(now: now) : await doc.undo(now: now);
+      _undo = done.undo ?? _undo;
+      final update = done.update;
+      if (update == null) return done;
+      _tell(done.text, done.splices);
+      if (state == SessionState.ready) _post(Envelope(Kind.update, update));
+      return done;
     });
   }
 
@@ -215,25 +254,45 @@ class LiveSession implements RoomListener, LiveText {
   /// Updates from the room, applied; the editor told when the words changed and it is bound.
   Future<void> _apply(Uint8List update) {
     return _next((doc) async {
-      final String? after;
+      final ({String? text, List<CrdtSplice>? splices, UndoState? undo}) took;
       try {
-        after = await doc.applyRemote([update]);
+        took = await doc.take([update]);
       } catch (_) {
         // One the core cannot hold: this copy is left as it was.
         return;
       }
+      _undo = took.undo ?? _undo;
+      final after = took.text;
       if (after == null) return;
       if (state != SessionState.ready) {
         _words = after;
         return;
       }
-      final splice = _log.record(_words, after);
-      _words = after;
-      if (splice == null) return;
-      for (final listener in _splices.toList()) {
-        listener(splice);
-      }
+      _tell(after, took.splices);
     });
+  }
+
+  /// The words are [after] now, by a change that was not the editor's typing: told to a bound editor as the
+  /// stretches the document says it was ([splices]), or, without that account or with one that does not lead to
+  /// [after], as the one stretch between the words before and after.
+  void _tell(String after, List<CrdtSplice>? splices) {
+    final through = splices == null ? null : wordsThrough(_words, splices, after);
+    if (through != null) {
+      for (var i = 0; i < through.length; i += 1) {
+        final splice = _log.add(splices![i].at, splices[i].removed, splices[i].inserted, more: i + 1 < through.length);
+        _words = through[i];
+        for (final listener in _splices.toList()) {
+          listener(splice);
+        }
+      }
+      return;
+    }
+    final splice = _log.record(_words, after);
+    _words = after;
+    if (splice == null) return;
+    for (final listener in _splices.toList()) {
+      listener(splice);
+    }
   }
 
   Future<void> _stateFrom(Uint8List payload) async {

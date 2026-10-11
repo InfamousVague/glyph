@@ -13,9 +13,16 @@
 ///   document carries it over (lib/team/text_log.dart), and the editor maps what arrives over what it has typed
 ///   and is not yet answered for ([LiveBinding], as CodeMirror's own collaboration does). Should the two ever
 ///   differ once nothing is on its way, the editor is brought to the document's words.
-/// - **Undo stays the editor's own** (lib/editor/state/undo_slot.dart `localUndo`), where the page swaps it for
-///   `Y.UndoManager`: what arrives is kept out of the history (`addToHistory` false) and the history maps over
-///   it, so an undo takes back this person's typing and leaves the others' alone, which is what the page's does.
+/// - **Undo is the document's own while the editor is bound**, as the page's is (`new Y.UndoManager(session.text)`
+///   handed to `yCollab`, with `yUndoManagerKeymap`): the undo slot (lib/editor/state/undo_slot.dart) holds the
+///   document's undo and y-codemirror's keys in place of the history, which leaves the state, so nothing typed
+///   before the binding can be taken back after it, and comes back empty when the editor is unbound, when the
+///   document's steps are gone too. The document follows this editor's own changes and no one else's, groups those
+///   less than half a second apart into one step, and puts a run back where its letters stood among what the
+///   others wrote since (native/src/crdt.rs, yrs's `UndoManager`; held to Yjs by test/live/undo_beside_others_
+///   test.dart). An undo is asked of the document and answered a moment later ([LiveBinding.undo]): its change is
+///   put into the editor as the document made it, the way a member's is, and the selection kept with the step is
+///   put back and scrolled to as y-codemirror's is, unless this person has typed or moved the caret meanwhile.
 /// - **A selection across lines** is washed as y-codemirror washes it: the first line from where it starts, the
 ///   last to where it ends, and the lines between whole (an empty one among them too), each of those a line's own
 ///   ground under the member's hue.
@@ -31,6 +38,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
 import '../editor/editor.dart';
+import '../editor/input/input.dart' show liveUndoWithKeys, localUndoWithKeys;
 import '../editor/items/inline_box.dart';
 import '../editor/looks/look.dart';
 import '../editor/looks/sheets.dart';
@@ -233,15 +241,21 @@ class _Flight {
 }
 
 /// One editor bound to one live document.
-class LiveBinding {
+class LiveBinding implements NoteUndo {
   /// [text] is the document; [room] and [positions], a team note's room and its document in the core, bring the
-  /// carets. Nothing is bound until [bind].
-  LiveBinding(this.view, this.text, {this.room, this.positions});
+  /// carets. Nothing is bound until [bind]. [now] is a test's clock, in milliseconds.
+  LiveBinding(this.view, this.text, {this.room, this.positions, int Function()? now}) : _now = now ?? _wallClock;
 
   final EditorViewLike view;
   final LiveText text;
   final TeamRoom? room;
   final CrdtDoc? positions;
+
+  /// The time a key is pressed or an undo asked for, which the document's undo groups typing by (Yjs reads the
+  /// clock as each change is made; here the document is reached a moment later, so the time goes with the change).
+  final int Function() _now;
+
+  static int _wallClock() => DateTime.now().millisecondsSinceEpoch;
 
   bool _bound = false;
   int _base = 0;
@@ -256,7 +270,27 @@ class LiveBinding {
   bool _placeAgain = false;
   Map<String, Object?>? _saidCaret;
 
+  /// The stretches of one change told so far, as one change of the editor's words, until its last is told.
+  ChangeSet? _gathered;
+
+  /// Whether a stretch of the change being told did not fit the editor's words: the rest are passed over, and
+  /// the editor is brought to the document's words at its last.
+  bool _lost = false;
+
+  /// How many changes and moves of this person's own the editor has seen: a caret is put back after an undo only
+  /// if this has not moved since it was asked for.
+  int _moves = 0;
+
+  /// Settles once every undo and redo asked for so far has been answered and put into the editor.
+  Future<void> _steps = Future<void>.value();
+
   bool get bound => _bound;
+
+  @override
+  bool get canUndo => _bound && text.undoState.canUndo;
+
+  @override
+  bool get canRedo => _bound && text.undoState.canRedo;
 
   static final List<Annotation<Object?>> _fromElsewhere = <Annotation<Object?>>[Transaction.remote.of(true), Transaction.addToHistory.of(false)];
 
@@ -270,9 +304,17 @@ class LiveBinding {
     final found = spliceBetween(view.state.doc.toString(), text.words);
     view.dispatch(TransactionSpec(
       changes: found == null ? null : Change(from: found.at, to: found.at + found.removed, insert: found.inserted),
-      effects: liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), if (room != null) remoteCarets])),
+      effects: <StateEffect<Object?>>[
+        liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), if (room != null) remoteCarets])),
+        // liveBinding.ts: CodeMirror's undo swapped for the document's, with its keys.
+        undoSlot.reconfigure(liveUndoWithKeys(this)),
+      ],
       annotations: _fromElsewhere,
     ));
+    // A new undo with nothing in it, before anything typed from here on reaches the document.
+    unawaited(text.openUndo().then<void>((_) {}, onError: (Object _) {}));
+    _gathered = null;
+    _lost = false;
     _stopSplices = text.onSplice(_arrived);
     _stopRoom = room?.onChange(_placeSoon);
     _saySoon();
@@ -290,68 +332,142 @@ class LiveBinding {
     _sayCaret?.cancel();
     _placeCarets?.cancel();
     _inflight.clear();
+    // The document's steps go with the binding, as the page's `Y.UndoManager` does with its editor's plugin.
+    unawaited(text.closeUndo().catchError((Object _) {}));
     try {
-      view.dispatch(TransactionSpec(effects: liveSlot.reconfigure(const Extension.list(<Extension>[]))));
+      // unbindLive: `undoSlot.reconfigure(localUndo())`, a history with nothing in it.
+      view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[liveSlot.reconfigure(const Extension.list(<Extension>[])), undoSlot.reconfigure(localUndoWithKeys())]));
     } catch (_) {
       // The editor went first (its note closed): nothing left to unbind.
     }
+  }
+
+  /// This person's last step taken back: asked of the document (y-undomanager.js `undo`), whose answer is put
+  /// into the editor when it comes. Keys pressed before it was asked are in the document before it, and keys
+  /// pressed after it are carried over it.
+  @override
+  void undo() => _step(false);
+
+  /// The last step taken back put in again (y-undomanager.js `redo`).
+  @override
+  void redo() => _step(true);
+
+  /// Settles once every undo and redo asked for so far is in the editor: what a test waits on.
+  Future<void> undone() => _steps;
+
+  void _step(bool redo) {
+    if (!_bound) return;
+    final asked = _moves;
+    final done = text.undoStep(redo: redo, now: _now()).then<void>((done) {
+      if (done == null || !_bound) return;
+      final caret = done.caret;
+      // y-undomanager.js on `stack-item-popped`: the selection kept with the step is put back and scrolled to.
+      // Not when this person has typed or moved the caret since they asked: the caret is where they put it.
+      if (!done.changed || caret == null || asked != _moves) return;
+      final limit = view.state.doc.length;
+      final anchor = caret.anchor.clamp(0, limit), head = caret.head.clamp(0, limit);
+      // `fromYRange`, dispatched as `{selection: range}`: a caret keeps its side for the scroll alone.
+      final range = anchor == head ? EditorSelection.cursor(head, caret.assoc) : EditorSelection.range(anchor, head);
+      try {
+        view.dispatch(TransactionSpec(selection: EditorSelection.single(anchor, head), effects: EditorViewLike.scrollIntoView(head, range: range)));
+      } catch (_) {
+        // The editor went first: the words are the document's either way.
+      }
+    }, onError: (Object _) {});
+    _steps = _steps.then((_) => done);
   }
 
   /// The editor changed: what was typed here goes into the document, as the edits it was.
   void _heard(ViewUpdate update) {
     if (!_bound) return;
     for (final tr in update.transactions) {
-      if (!tr.docChanged || tr.annotation(Transaction.remote) == true) continue;
-      final edits = <CrdtEdit>[];
-      final made = <Change>[];
-      tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
-        // Only what differs: a change that writes the whole note again (words put in from outside the editor, a
-        // paste over a selection of the same words) is the stretch that changed, as `applyTextDiff` makes it.
-        final found = spliceBetween(tr.startState.doc.sliceString(fromA, toA), inserted.toString());
-        if (found == null) return;
-        edits.add(CrdtEdit(fromB + found.at, remove: found.removed, insert: found.inserted));
-        made.add(Change(from: fromA + found.at, to: fromA + found.at + found.removed, insert: found.inserted));
-      });
-      if (edits.isEmpty) continue;
-      final flight = _Flight(ChangeSet.of(made, tr.startState.doc.length));
-      _inflight.add(flight);
-      unawaited(text.edit(edits, base: _base).then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
-        _inflight.remove(flight);
-        _settled();
-      }));
+      final mine = tr.annotation(Transaction.remote) != true;
+      if (mine && (tr.docChanged || tr.selection != null)) _moves += 1;
+      if (tr.docChanged && mine) _typed(tr);
+    }
+    // y-undomanager.js `update`: the selection is stored, as positions in the document, whenever an update sets one
+    // and is not the binding's own (a change that arrived, an undo's); the step the next change begins keeps it.
+    // After this update's own changes, as the page's undo plugin runs after its sync plugin.
+    if (update.transactions.isNotEmpty && update.transactions.first.annotation(Transaction.remote) != true && update.transactions.any((tr) => tr.selection != null)) {
+      final main = update.state.selection.main;
+      unawaited(text.keepCaret(CrdtCaret(main.anchor, main.head, main.assoc), base: _base).catchError((Object _) {}));
     }
     if (update.docChanged || update.transactions.any((tr) => tr.selection != null) || update.focusChanged) _saySoon();
     if (update.docChanged) _placeSoon();
   }
 
-  /// A change reached the document from elsewhere: into the editor, over what was typed here meanwhile.
+  /// One change of this person's own, into the document as the edits it was.
+  void _typed(Transaction tr) {
+    final edits = <CrdtEdit>[];
+    final made = <Change>[];
+    tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+      // Only what differs: a change that writes the whole note again (words put in from outside the editor, a
+      // paste over a selection of the same words) is the stretch that changed, as `applyTextDiff` makes it.
+      final found = spliceBetween(tr.startState.doc.sliceString(fromA, toA), inserted.toString());
+      if (found == null) return;
+      edits.add(CrdtEdit(fromB + found.at, remove: found.removed, insert: found.inserted));
+      made.add(Change(from: fromA + found.at, to: fromA + found.at + found.removed, insert: found.inserted));
+    });
+    if (edits.isEmpty) return;
+    final flight = _Flight(ChangeSet.of(made, tr.startState.doc.length));
+    _inflight.add(flight);
+    unawaited(text.edit(edits, base: _base, now: _now()).then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      _inflight.remove(flight);
+      _settled();
+    }));
+  }
+
+  /// A change reached the document that is not this editor's typing (an update from elsewhere, an undo of the
+  /// document's own): into the editor, over what was typed here meanwhile. A change of several stretches is told
+  /// one stretch at a time and put into the editor as one change, when its last has come ([TextSplice.more]).
   void _arrived(TextSplice splice) {
     if (!_bound) return;
     _base = splice.rev;
-    // The words the splice was made in: the document's before it, which is the editor's before what is in flight.
-    final length = _inflight.isEmpty ? view.state.doc.length : _inflight.first.made.length;
-    if (length != text.words.length - splice.inserted.length + splice.removed) {
-      // Not the words it was made in: the document's stand, now and again once what is in flight is answered for.
-      _inflight.clear();
-      _heal();
+    if (_lost) {
+      // A stretch before this one did not fit: the document's words stand, once the change is whole.
+      if (!splice.more) _mend();
       return;
     }
-    ChangeSet arrived;
+    final gathered = _gathered;
+    // The words the splice was made in: the document's before it, which is the editor's (with the stretches
+    // gathered so far) before what is in flight.
+    final length = _inflight.isNotEmpty ? _inflight.first.made.length : gathered?.newLength ?? view.state.doc.length;
+    if (length != text.words.length - splice.inserted.length + splice.removed) {
+      // Not the words it was made in: the document's stand, now and again once what is in flight is answered for.
+      _lost = true;
+      if (!splice.more) _mend();
+      return;
+    }
     try {
-      arrived = ChangeSet.of(Change(from: splice.at, to: splice.at + splice.removed, insert: splice.inserted), length);
+      var arrived = ChangeSet.of(Change(from: splice.at, to: splice.at + splice.removed, insert: splice.inserted), length);
       for (final flight in _inflight) {
         final mine = flight.made;
         flight.made = mine.map(arrived, true);
         arrived = arrived.map(mine);
       }
-      view.dispatch(TransactionSpec(changes: arrived, annotations: _fromElsewhere));
+      final whole = gathered == null ? arrived : gathered.compose(arrived);
+      if (splice.more) {
+        _gathered = whole;
+        return;
+      }
+      _gathered = null;
+      view.dispatch(TransactionSpec(changes: whole, annotations: _fromElsewhere));
     } catch (_) {
       // Not the words it was made in after all: the document's stand.
-      _inflight.clear();
-      _heal();
+      _lost = true;
+      if (!splice.more) _mend();
       return;
     }
     _settled();
+  }
+
+  /// A change that did not fit the editor's words: what was gathered of it and what was in flight are let go, and
+  /// the editor is brought to the document's words.
+  void _mend() {
+    _lost = false;
+    _gathered = null;
+    _inflight.clear();
+    _heal();
   }
 
   /// Nothing typed here is on its way: the editor and the document hold the same words, or the editor is brought

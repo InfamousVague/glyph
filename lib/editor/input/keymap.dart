@@ -28,6 +28,7 @@ import '../commands/commands.dart';
 import '../commands/markdown_commands.dart';
 import '../state/history.dart';
 import '../state/state.dart';
+import '../state/undo_slot.dart';
 import '../view/editor_view.dart';
 import 'motion.dart';
 
@@ -43,6 +44,15 @@ final List<KeyBinding> historyKeymap = List<KeyBinding>.unmodifiable(<KeyBinding
   KeyBinding(linux: 'Ctrl-Shift-z', run: redo, preventDefault: true),
   KeyBinding(key: 'Mod-u', run: undoSelection, preventDefault: true),
   KeyBinding(key: 'Alt-u', mac: 'Mod-Shift-u', run: redoSelection, preventDefault: true),
+]);
+
+/// y-codemirror's `yUndoManagerKeymap` (y-undomanager.js), which liveBinding.ts puts in the undo slot with the
+/// live document's undo: Mod-z, Mod-y (Mod-Shift-z on a Mac) and Mod-Shift-z everywhere. No undo of a selection:
+/// Yjs has none.
+final List<KeyBinding> liveUndoKeymap = List<KeyBinding>.unmodifiable(<KeyBinding>[
+  KeyBinding(key: 'Mod-z', run: undoLive, preventDefault: true),
+  KeyBinding(key: 'Mod-y', mac: 'Mod-Shift-z', run: redoLive, preventDefault: true),
+  KeyBinding(key: 'Mod-Shift-z', run: redoLive, preventDefault: true),
 ]);
 
 /// lang-markdown's `markdownKeymap` as bindings: Enter continues a list or a quote, Backspace takes a marker whole.
