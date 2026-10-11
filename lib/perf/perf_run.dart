@@ -398,8 +398,7 @@ Future<void> _ownStep(PhoneTour tour, String name, String arg) async {
       ui.channelBuffers.push('flutter/navigation', const JSONMethodCodec().encodeMethodCall(const MethodCall('popRoute')), (_) {});
       await _frames();
     case 'reach':
-      final at = _worded(arg);
-      if (at == null || !_window().contains(at.center)) await tour.run('seek:$arg');
+      await _reachWords(tour, arg);
     case 'tapkey':
       await _tapKey(tour, arg);
     case 'dragkey':
@@ -429,6 +428,38 @@ Future<void> _frames([int count = 2]) async {
 Rect _window() {
   final view = WidgetsBinding.instance.platformDispatcher.views.first;
   return Offset.zero & (view.physicalSize / view.devicePixelRatio);
+}
+
+/// The words brought to where a finger reaches them: looked for down the page a part at a time and then back up past
+/// where it began, as the tour's `seek` looks; then, once they are on the screen, brought clear of the bars by as far
+/// as they are from the middle, until they are clear or the page will go no further. `seek` wants the words in the
+/// middle three fifths of the window and goes on swiping until they are, so words on a page's last row, which a
+/// phone with a bar of its own under the page never lifts that high, were swiped past and lost: on the Fold the
+/// settings' About, and the cheat sheet under it, were NOT FOUND and their two stretches walked nothing.
+Future<void> _reachWords(PhoneTour tour, String words) async {
+  final clear = _reach(clear: true);
+  final x = clear.center.dx.round(), high = (clear.top + clear.height * 0.3).round(), low = (clear.top + clear.height * 0.7).round();
+  var at = _worded(words);
+  for (var tries = 0; tries < 24 && at == null; tries += 1) {
+    final down = tries < 10;
+    await tour.run('swipe:$x,${down ? low : high},$x,${down ? high : low},320;wait:250');
+    at = _worded(words);
+  }
+  for (var tries = 0; tries < 6 && at != null && !clear.contains(at.center); tries += 1) {
+    // The finger moves the page by as far as the words are from the window's middle, and no further than the
+    // window lets a finger go.
+    final by = (clear.center.dy - at.center.dy).clamp(-clear.height * 0.4, clear.height * 0.4);
+    final from = clear.center.dy - by / 2;
+    await tour.run('swipe:$x,${from.round()},$x,${(from + by).round()},420;wait:250');
+    final now = _worded(words);
+    // The page did not move: it is at its end, and the words are as near as they come.
+    if (now == null || (now.center - at.center).distance < 1) {
+      at = now ?? at;
+      break;
+    }
+    at = now;
+  }
+  debugPrint('[tour] reach "$words" -> ${at == null ? 'NOT FOUND' : '${at.center.dx.round()},${at.center.dy.round()}'}');
 }
 
 /// Where the last text drawn that holds [words] is, as the tour's `taptext` finds it; null when none is drawn.
