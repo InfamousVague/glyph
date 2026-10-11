@@ -177,6 +177,27 @@ class _Block {
   final List<Decoration> _runMark = <Decoration>[];
 }
 
+/// A block as a view drew it: where it stood in the note, and which stretch of its code, from how much of it
+/// read, its runs were of.
+class _Drawn {
+  _Drawn(this.from, this.to, this.block) : codeFrom = block._from, codeTo = block._to, readAt = block._readAt, done = block._doneAt;
+
+  final int from, to;
+  final _Block block;
+  final int codeFrom, codeTo, readAt;
+  final bool done;
+
+  bool sameDrawing(_Drawn other) => codeFrom == other.codeFrom && codeTo == other.codeTo && readAt == other.readAt && done == other.done;
+}
+
+bool _sameRanges(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
+
 final Expando<_Block> _blocks = Expando<_Block>('code block');
 
 /// The HTML read lately, by its words: a tag in a line is a few letters, and the same few in line after line.
@@ -195,8 +216,10 @@ class _CodeHighlighter extends PluginValue {
   final EditorViewLike view;
   late DecorationSet decorations;
 
-  /// The blocks on screen as last drawn: where each started, and what was read of it.
-  List<(int from, _Block block)> _shown = const <(int, _Block)>[];
+  /// The blocks on screen as last drawn: where each started and ended, and which stretch of its code was drawn
+  /// from how much of it read. A block that is the same in all of that at the next drawing has its runs already
+  /// in [decorations], and they are moved with the note, not made again.
+  List<_Drawn> _shown = const <_Drawn>[];
 
   /// Blocks on screen with more to read: how far each is wanted.
   final List<(_Block block, int wanted)> _waiting = <(_Block, int)>[];
@@ -220,21 +243,22 @@ class _CodeHighlighter extends PluginValue {
     final state = view.state, tree = syntaxTreeOrNull(state);
     _waiting.clear();
     if (tree == null) {
-      _shown = const <(int, _Block)>[];
+      _shown = const <_Drawn>[];
       return Decoration.none;
     }
     // A note with no fence and no `<` in it has nothing here, and is not walked.
     final doc = state.doc;
     final noAngles = _angleLines.nowhere(doc);
     if (noAngles && _fenceLines.nowhere(doc)) {
-      _shown = const <(int, _Block)>[];
+      _shown = const <_Drawn>[];
       _timer?.cancel();
       _timer = null;
       return Decoration.none;
     }
-    final builder = RangeSetBuilder<Decoration>();
     final budget = Budget(CodeWorkBudget.apply);
-    final shown = <(int, _Block)>[];
+    // The blocks on screen, each read as far as the screen shows it, in the note's order.
+    final seen = <_Drawn>[];
+    var twice = false;
     for (final range in view.visibleRanges) {
       final from = range.from, to = range.to;
       // The lines on screen with a `<` on them: asked of the leaves the screen's lines are in, not of the note.
@@ -252,22 +276,91 @@ class _CodeHighlighter extends PluginValue {
           }
           if (node.to <= from || node.from >= to) return false;
           final block = _blockFor(state, node, changes);
-          if (block != null) {
-            if (shown.isEmpty || !identical(shown.last.$2, block)) shown.add((node.from, block));
-            _draw(block, node.from, from, to, budget, builder);
+          if (block != null && _read(block, node.from, from, to, budget)) {
+            // A block the screen shows in two pieces has two stretches, and its runs are kept for one.
+            if (seen.isNotEmpty && identical(seen.last.block, block)) twice = true;
+            seen.add(_Drawn(node.from, node.to, block));
           }
           return false;
         },
       );
     }
-    _shown = shown;
     if (_waiting.isNotEmpty) {
       _timer ??= Timer(CodeWorkBudget.pause, _slice);
     } else {
       _timer?.cancel();
       _timer = null;
     }
+    final was = _shown;
+    _shown = seen;
+    if (twice || was.isEmpty || seen.isEmpty) return _all(seen);
+    return _patched(was, seen, changes);
+  }
+
+  /// Every run of the blocks on screen, made from nothing.
+  DecorationSet _all(List<_Drawn> seen) {
+    if (seen.isEmpty) return Decoration.none;
+    final builder = RangeSetBuilder<Decoration>();
+    for (final drawn in seen) {
+      _runs(drawn.block, drawn.from, builder.add);
+    }
     return builder.finish();
+  }
+
+  /// The runs as they were, moved with the note, less those of the blocks that are gone or are not what was
+  /// drawn, and with the runs of the blocks that are new or changed. A letter typed outside every block on
+  /// screen makes no run and looks at none: the set is shifted, a chunk of it at a time.
+  DecorationSet _patched(List<_Drawn> was, List<_Drawn> seen, ChangeDesc? changes) {
+    // Which of what was drawn stands: the same block, where the change left it, the same stretch of it from the
+    // same reading.
+    final stands = List<bool>.filled(was.length, false);
+    final fresh = <_Drawn>[];
+    var next = 0;
+    for (final drawn in seen) {
+      var kept = false;
+      // Both lists are in the note's order: the old one is gone through once.
+      for (var i = next; i < was.length; i++) {
+        final old = was[i];
+        if (!identical(old.block, drawn.block)) continue;
+        kept = (changes == null ? old.from : changes.mapPos(old.from, 1)) == drawn.from && old.sameDrawing(drawn);
+        if (kept) stands[i] = true;
+        next = i + 1;
+        break;
+      }
+      if (!kept) fresh.add(drawn);
+    }
+    // Where the runs to drop are: the blocks that do not stand, as the change left their ends.
+    final gone = <int>[];
+    for (var i = 0; i < was.length; i++) {
+      if (stands[i]) continue;
+      final from = changes == null ? was[i].from : changes.mapPos(was[i].from, -1), to = changes == null ? was[i].to : changes.mapPos(was[i].to, 1);
+      if (gone.isNotEmpty && from <= gone.last) {
+        if (to > gone.last) gone.last = to;
+      } else {
+        gone
+          ..add(from)
+          ..add(to);
+      }
+    }
+    final moved = changes == null ? decorations : decorations.map(changes);
+    if (gone.isEmpty && fresh.isEmpty) return moved;
+    final add = <Range<Decoration>>[];
+    for (final drawn in fresh) {
+      _runs(drawn.block, drawn.from, (from, to, mark) => add.add(mark.range(from, to)));
+    }
+    if (gone.isEmpty) return moved.update(add: add);
+    return moved.update(
+      add: add,
+      filterFrom: gone.first,
+      filterTo: gone.last,
+      filter: (from, to, value) {
+        // A run wholly inside a stretch that is gone goes with it.
+        for (var i = 0; i < gone.length; i += 2) {
+          if (from >= gone[i] && to <= gone[i + 1]) return false;
+        }
+        return true;
+      },
+    );
   }
 
   /// What is read of the fence or the HTML at `node`, reading it if it is new; null where no language reads it.
@@ -297,9 +390,12 @@ class _CodeHighlighter extends PluginValue {
       }
     } else {
       // The block as it was before the change, if this is one that changed: the one that started where this does.
-      for (final (was, block) in _shown) {
-        if ((changes == null ? was : changes.mapPos(was)) == node.from && identical(block.work.language, language)) {
-          work = language.resume(block.work, code);
+      for (final drawn in _shown) {
+        if ((changes == null ? drawn.from : changes.mapPos(drawn.from)) == node.from && identical(drawn.block.work.language, language)) {
+          work = language.resume(drawn.block.work, code);
+          // The note's parser read this stretch again and found the same block (a letter typed in the line
+          // above it): the block that was drawn is this one still, with the runs it has.
+          if (identical(work, drawn.block.work) && _sameRanges(drawn.block.shape.ranges, ranges)) return _blocks[node.tree] = drawn.block;
           break;
         }
       }
@@ -308,8 +404,9 @@ class _CodeHighlighter extends PluginValue {
     return _blocks[node.tree] = _Block(shape, code, work);
   }
 
-  /// Marks the runs of `block`, which starts at `at` in the note, between `from` and `to`.
-  void _draw(_Block block, int at, int from, int to, Budget budget, RangeSetBuilder<Decoration> builder) {
+  /// Reads `block`, which starts at `at` in the note, as far as the screen (`from` to `to`) shows it, and works
+  /// out its runs there if they are not the ones it has. False where none of its code is on screen.
+  bool _read(_Block block, int at, int from, int to, Budget budget) {
     final ranges = block.shape.ranges;
     // The stretch of the code that is on screen.
     var codeFrom = -1, codeTo = -1, offset = 0;
@@ -319,7 +416,7 @@ class _CodeHighlighter extends PluginValue {
       if (to > a) codeTo = offset + (to < b ? to - a : b - a);
       offset += b - a;
     }
-    if (codeFrom < 0 || codeTo <= codeFrom) return;
+    if (codeFrom < 0 || codeTo <= codeFrom) return false;
     final work = block.work;
     if (!work.done) {
       final always = work.parsedTo + CodeWorkBudget.always;
@@ -346,6 +443,12 @@ class _CodeHighlighter extends PluginValue {
       final wanted = codeTo + CodeWorkBudget.ahead;
       _waiting.add((block, wanted < block.code.length ? wanted : block.code.length));
     }
+    return true;
+  }
+
+  /// The runs `block` has, which starts at `at` in the note, each handed to `add` where it is in the note.
+  void _runs(_Block block, int at, void Function(int from, int to, Decoration mark) add) {
+    final ranges = block.shape.ranges;
     // A run is in the code's own numbers: a piece of it for each stretch of the note it crosses.
     final runFrom = block._runFrom, runTo = block._runTo, runMark = block._runMark;
     var piece = 0, pieceStart = 0;
@@ -361,7 +464,10 @@ class _CodeHighlighter extends PluginValue {
         }
         final end = b < pieceStart + length ? b : pieceStart + length;
         final docFrom = at + ranges[piece] + (a - pieceStart), docTo = at + ranges[piece] + (end - pieceStart);
-        if (docTo > docFrom) builder.add(docFrom, docTo, runMark[i]);
+        if (docTo > docFrom) {
+          CodeStats.drawn++;
+          add(docFrom, docTo, runMark[i]);
+        }
         a = end;
       }
     }

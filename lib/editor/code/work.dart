@@ -29,7 +29,11 @@ abstract final class CodeStats {
   /// The times an older mode would not move along its line, and was stepped past a character.
   static int stuck = 0;
 
-  static void reset() => started = resumed = read = stuck = 0;
+  /// The runs of colour made for the screen: a block's are made when it comes onto the screen or changes, and
+  /// kept, moved with the note, while it is what it was.
+  static int drawn = 0;
+
+  static void reset() => started = resumed = read = stuck = drawn = 0;
 }
 
 /// How long a piece of work may take. `null` microseconds is as long as it needs.

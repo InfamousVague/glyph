@@ -3,6 +3,7 @@
 // costs, counted (`CodeStats`), which is the same on a busy machine as on an idle one.
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/code/code_highlight.dart';
@@ -137,6 +138,66 @@ void main() {
       CodeStats.reset();
       insert(view, view.state.doc.toString().indexOf('def f') + 4, ' ');
       expect(tokenised, 1);
+    });
+
+    test('a letter typed outside the blocks on screen makes none of their runs again; one typed in a block, that block\'s', () {
+      // The runs of colour a view shows are kept in a set that moves with the note. A change that did not touch
+      // a block leaves the block's runs in it: they are shifted, a chunk of the set at a time, and not one of
+      // them is made again or looked at.
+      const note = 'Before.\n\n```js\nconst a = 1;\nlet b = "x";\n```\n\nA plain line.\n\n```python\ndef f(x):\n    return x + 1\n```\n\nAfter.\n';
+      CodeStats.reset();
+      final view = viewOf(note);
+      final all = CodeStats.drawn;
+      expect(all, greaterThan(12), reason: 'both blocks\' runs, made as the view was');
+      CodeStats.reset();
+      insert(view, 3, 'x');
+      insert(view, view.state.doc.toString().indexOf('plain'), 'y');
+      insert(view, view.state.doc.toString().indexOf('After'), 'z');
+      view.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: 2)));
+      expect(CodeStats.drawn, 0);
+      expect(tokenised, 0);
+      expect(classesOf(view), classesOf(viewOf(view.state.doc.toString())), reason: 'and they are where a view made from nothing has them');
+      // A letter in the first block: its runs are made again, the second block's are not.
+      CodeStats.reset();
+      viewOf('```js\nconst ab = 1;\nlet b = "x";\n```\n');
+      final one = CodeStats.drawn;
+      CodeStats.reset();
+      insert(view, view.state.doc.toString().indexOf('const a') + 7, 'b');
+      expect(CodeStats.drawn, one);
+      expect(one, lessThan(all));
+      expect(classesOf(view), classesOf(viewOf(view.state.doc.toString())));
+    });
+
+    test('whatever is typed, the runs kept and patched are the runs a view made from nothing has', () {
+      // Two hundred changes by chance in a note of fences, tags and plain lines: a letter, a line, a fence's
+      // mark or a tag put in, a stretch taken out. After each the view's classes on every character are held to
+      // those of a view made of the same note from nothing.
+      var text = 'Intro with <b>bold</b> and <i>slant</i>.\n\n```js\nconst a = 1; // one\nlet b = `t\${a}`;\n```\n\n> A quote.\n>\n> ```css\n> a > b { color: red; }\n> ```\n\n<div class="x">\n  <p>html</p>\n</div>\n\n```python\ndef f(x):\n    return x + 1\n```\n\n- item `code` <span>s</span>\n\n```\nplain\n```\n\nEnd.\n';
+      const pieces = <String>['x', ' ', '\n', '\n\n', '```', '```js\n', '<b>', '</b>', '<', '>', '"', '/*', '# ', '> ', 'a = 1;', '`', '<!--', '-->'];
+      final random = Random(11);
+      final view = viewOf(text);
+      CodeStats.reset();
+      for (var step = 0; step < 200; step++) {
+        final at = random.nextInt(text.length + 1);
+        if (random.nextInt(4) == 0 && at < text.length) {
+          final end = min(text.length, at + 1 + random.nextInt(8));
+          view.dispatch(TransactionSpec(changes: ChangeSpec(from: at, to: end)));
+          text = text.substring(0, at) + text.substring(end);
+        } else {
+          final piece = pieces[random.nextInt(pieces.length)];
+          insert(view, at, piece);
+          text = text.substring(0, at) + piece + text.substring(at);
+        }
+        expect(view.state.doc.toString(), text);
+        final fresh = viewOf(text);
+        final here = classesOf(view), there = classesOf(fresh);
+        for (var i = 0; i < text.length; i++) {
+          if (here[i].length != there[i].length || !here[i].containsAll(there[i])) {
+            fail('step $step: at $i (${jsonEncode(text.substring(max(0, i - 20), min(text.length, i + 20)))}) the view has ${here[i]}, a view made from nothing ${there[i]}');
+          }
+        }
+        fresh.destroy();
+      }
     });
 
     test('a fence nothing reads, and one with no language, are never read', () {
