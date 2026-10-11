@@ -122,11 +122,21 @@ struct Words {
     text: Range<usize>,
 }
 
+/// One block an update puts in: whose, from which clock, how long, and the block it was put before (its right
+/// origin), when it names one.
+pub struct Put {
+    pub client: u64,
+    pub clock: u64,
+    pub length: u64,
+    pub before: Option<(u64, u64)>,
+}
+
 /// What an update holds that matters here.
 #[derive(Default)]
 struct Read {
     cuts: Vec<Cut>,
     words: Vec<Words>,
+    put: Vec<Put>,
 }
 
 fn read(bytes: &[u8]) -> Result<Read, String> {
@@ -150,9 +160,11 @@ fn read(bytes: &[u8]) -> Result<Read, String> {
                 let (of, at) = (r.var()?, r.var()?);
                 out.cuts.push((of, at + 1));
             }
+            let mut before = None;
             if info & 0x40 != 0 {
                 let (of, at) = (r.var()?, r.var()?);
                 out.cuts.push((of, at));
+                before = Some((of, at));
             }
             if info & 0xc0 == 0 {
                 // With neither, it names its parent: a root by name, or a type by the block that made it.
@@ -223,6 +235,7 @@ fn read(bytes: &[u8]) -> Result<Read, String> {
                 }
                 _ => return Err("That document update holds a block of a kind this Ghost.md does not know.".to_string()),
             };
+            out.put.push(Put { client, clock, length, before });
             clock += length;
         }
     }
@@ -236,6 +249,12 @@ fn read(bytes: &[u8]) -> Result<Read, String> {
         }
     }
     Ok(out)
+}
+
+/// Every block `update` puts in, in the order it holds them (crdt.rs `again`: an undo's update puts each block
+/// it restores before the block it restores, and says so).
+pub fn put(update: &[u8]) -> Result<Vec<Put>, String> {
+    Ok(read(update)?.put)
 }
 
 /// Every place `update` cuts, added to `cuts`.

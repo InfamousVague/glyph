@@ -42,8 +42,9 @@ base64 = "0.22"
 # Team notes and live typing (src/crdt.rs): Yjs's documents and wire format, in Rust. Pinned: 0.27 and later use
 # `if let` guards, which the Rust this builds with (1.94) does not have yet; and crdt.rs makes up for two things
 # this version does not do as Yjs does, each held by a fixture, so a newer one is to be tried against
-# tests/yjs_vectors.rs before it is taken.
-yrs = "=0.26.0"
+# tests/yjs_vectors.rs before it is taken. `sync`: what watches a document may be sent between threads, which a
+# document kept in a table for the worker to reach must be, and its undo manager with it (crdt.rs, "undo").
+yrs = { version = "=0.26.0", features = ["sync"] }
 
 # Stage 9C, everything as one zip (export.rs), as ../glyph/src-tauri/Cargo.toml has it: deflate for the words,
 # stored for the media, zip64 past 4 GB, written as a stream so a descriptor Android's picker hands over will do;

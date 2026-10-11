@@ -89,7 +89,8 @@ fn two_members_changes_merge_to_the_words_yjs_arrived_at_in_any_order() {
     assert_eq!(text(&only_c), c["c"]["text"]);
     assert_eq!(ask("crdt_lacks", json!({"mine": vector(&b), "theirs": c["c"]["vector"]})), true);
     // What Yjs answered B's state vector is all B lacked; what it answers a device with nothing is everything.
-    assert_eq!(take(&b, &[&c["diffForB"]]), json!({"changed": true, "text": c["merged"]}));
+    let took = take(&b, &[&c["diffForB"]]);
+    assert_eq!((&took["changed"], &took["text"]), (&json!(true), &c["merged"]));
     assert_eq!(text(&open(8032, &[&c["diffForNobody"]])), c["merged"]);
     assert_eq!(text(&open(8033, &[&c["state"]])), c["merged"]);
 }
