@@ -739,13 +739,16 @@ impl Held {
             return Err(format!("The document was busy: {e}"));
         }
         drop(update_watch);
-        if !changed {
+        // What the document says it did is what counts, whatever yrs answered: an update that was made is queued,
+        // always, or this copy would hold a change no other member is ever told.
+        let made = crate::lock::lock(&made).take();
+        if !changed && made.is_none() {
             return Ok(Undone::default());
         }
         let after = self.words();
         // The update as the transaction made it; were it ever not heard, everything since the step began, which
         // holds it.
-        let update = crate::lock::lock(&made).take().unwrap_or_else(|| self.state(Some(&vector)));
+        let update = made.unwrap_or_else(|| self.state(Some(&vector)));
         self.pending.push(update.clone());
         // Each block the step put in again says which block it was by the one it was put before: itself.
         let me = self.doc.client_id().get();
