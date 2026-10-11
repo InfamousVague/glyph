@@ -32,7 +32,15 @@ import java.util.concurrent.Executors
  *   - `am`, `pm`; `digits`: the ten figures, nought first;
  *   - `calendar`, the calendar a browser writes the locale in ("gregorian", "buddhist", "persian"), `era`, the name of the era now,
  *     and `yearOffset`, what that calendar's year is ahead of the Gregorian one where the months are the same
- *     (543 in the Buddhist calendar). A calendar with months of its own is answered in the Gregorian one.
+ *     (543 in the Buddhist calendar);
+ *   - for the Persian calendar, whose months are its own: everything above is that calendar's (its patterns, its
+ *     twelve months' names, its era), with `firstYear` and `monthStarts`, the day each of its months begins on from
+ *     the first month of `firstYear`, in days since 1 January 1970, and one more for where the table ends: the
+ *     phone's own reckoning of the calendar, which the app reads a date's year, month and day from. Any other
+ *     calendar with months of its own is answered in the Gregorian one;
+ *   - `periods`, where a pattern names the part of the day more finely than two meridiems (`B`, as Taiwan's
+ *     medium date and time does): for each such run of the letter as a pattern has it ("B"), `hours`, the part's
+ *     name at each hour of the day, and `noon`, its name at twelve exactly.
  *
  * - `zone` -> the phone's own time zone by its name, "America/New_York" (the page's
  *   `Intl.DateTimeFormat().resolvedOptions().timeZone`).
@@ -90,6 +98,69 @@ class Dates {
 
     /** The calendars whose months are the Gregorian ones, and what their year is ahead by. */
     private val OFFSETS = mapOf("buddhist" to 543, "roc" to -1911)
+
+    /** The calendars with months of their own that the app writes a date in, from a table of where each begins. */
+    private val OWN_MONTHS = setOf("persian")
+
+    /** The table's first year and how many it has: 1200 to 1599 of the Persian calendar is 1821 to 2221. */
+    private const val FIRST_YEAR = 1200
+    private const val YEARS = 400
+    private const val DAY = 86_400_000L
+
+    /** The day each month of `years` years from `first` begins on, by `locale`'s own calendar, and the day after the last. */
+    private fun monthStarts(locale: ULocale, first: Int, years: Int): List<Int> {
+      val calendar = Calendar.getInstance(android.icu.util.TimeZone.GMT_ZONE, locale)
+      val out = ArrayList<Int>(years * 12 + 1)
+      for (index in 0..years * 12) {
+        calendar.clear()
+        calendar.set(Calendar.EXTENDED_YEAR, first + index / 12)
+        calendar.set(Calendar.MONTH, index % 12)
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        out.add(Math.floorDiv(calendar.timeInMillis, DAY).toInt())
+      }
+      return out
+    }
+
+    /** Each run of `letter` in `pattern` that is a field and not quoted words: "B", "BBBB". */
+    internal fun fieldsOf(pattern: String, letter: Char): Set<String> {
+      val out = HashSet<String>()
+      var quoted = false
+      var at = 0
+      while (at < pattern.length) {
+        val unit = pattern[at]
+        if (unit == '\'') {
+          // `''` is an apostrophe, in or out of quotes.
+          if (at + 1 < pattern.length && pattern[at + 1] == '\'') at += 1 else quoted = !quoted
+          at += 1
+        } else if (!quoted && unit == letter) {
+          var end = at
+          while (end < pattern.length && pattern[end] == letter) end += 1
+          out.add(pattern.substring(at, end))
+          at = end
+        } else {
+          at += 1
+        }
+      }
+      return out
+    }
+
+    /**
+     * The part of the day `run` (a pattern's `B`s) names at each hour, and at noon exactly, as the phone's own
+     * formatter writes it: an hour's part is asked at half past it, since on the hour of twelve a locale may say
+     * "noon"; and noon with no minutes in the pattern, which is how ICU reads twelve o'clock. Null on an Android
+     * whose ICU does not know the letter.
+     */
+    private fun periods(run: String, locale: ULocale): Map<String, Any>? = try {
+      val hourly = SimpleDateFormat("$run'|'m", locale).apply { timeZone = android.icu.util.TimeZone.GMT_ZONE }
+      val exact = SimpleDateFormat(run, locale).apply { timeZone = android.icu.util.TimeZone.GMT_ZONE }
+      mapOf(
+        "hours" to (0..23).map { hour -> hourly.format(java.util.Date(hour * 3_600_000L + 1_800_000L)).substringBefore('|') },
+        "noon" to exact.format(java.util.Date(12 * 3_600_000L)),
+      )
+    } catch (unknown: Exception) {
+      // No names: the app writes the two meridiems there, as it did.
+      null
+    }
 
     /**
      * Each zone's offset at `from` and every change of it before `to`, in minutes; a zone not known is left out.
@@ -154,8 +225,21 @@ class Dates {
         ?: REGIONS[ULocale.addLikelySubtags(asked).country]
         ?: "gregorian"
       val offset = OFFSETS[own]
-      // The locale's own calendar where its months are these months; the Gregorian one otherwise.
-      val calendar = if (own == "gregorian" || offset != null) own else "gregorian"
+      // Where a calendar with months of its own begins each of them, by the phone's reckoning. Worked out before
+      // anything is answered in that calendar: without the table the app could not say which of its months a
+      // day is in, and the Gregorian calendar is answered instead, as before the table.
+      val starts = if (own in OWN_MONTHS) {
+        try {
+          monthStarts(ULocale.Builder().setLocale(asked).setUnicodeLocaleKeyword("ca", own).build(), FIRST_YEAR, YEARS)
+        } catch (failure: Exception) {
+          null
+        }
+      } else {
+        null
+      }
+      // The locale's own calendar where its months are these months, or where the app is told where its own months
+      // begin; the Gregorian one otherwise.
+      val calendar = if (own == "gregorian" || offset != null || starts != null) own else "gregorian"
       val locale = ULocale.Builder().setLocale(asked).setUnicodeLocaleKeyword("ca", if (calendar == "gregorian") "gregory" else calendar).build()
 
       val generator = DateTimePatternGenerator.getInstance(locale)
@@ -172,6 +256,10 @@ class Dates {
       val meridiems = symbols.amPmStrings
       val eras = symbols.eras
       val now = Calendar.getInstance(locale).get(Calendar.ERA)
+      val finer = HashMap<String, Any>()
+      for (run in patterns.values.flatMap { fieldsOf(it, 'B') }.toSet()) {
+        periods(run, locale)?.let { finer[run] = it }
+      }
 
       return mapOf(
         "locale" to asked.toLanguageTag(),
@@ -190,6 +278,9 @@ class Dates {
         "digits" to (NumberingSystem.getInstance(locale).takeIf { !it.isAlgorithmic }?.description ?: "0123456789"),
         "era" to eras.getOrElse(now) { "" },
         "yearOffset" to (offset ?: 0),
+        "periods" to finer,
+        "firstYear" to (if (starts != null) FIRST_YEAR else null),
+        "monthStarts" to starts,
       )
     }
   }

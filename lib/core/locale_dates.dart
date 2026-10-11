@@ -22,10 +22,18 @@
 /// Canada and the Philippines, and English with no country said, is en-US. Anything else is en-GB: the words are
 /// English either way, and the day before the month and a 24-hour clock are how most of the world writes them.
 ///
-/// **What is not carried.** A phone whose language keeps a calendar with months of its own (the Persian one, in
-/// Iran and Afghanistan) is written here in the Gregorian calendar with that language's names and figures, where
-/// the page writes the other calendar's date. And the phone's CLDR is its Android's, the page's its WebView's:
-/// where two versions differ on a comma, so do the two apps.
+/// **A calendar with months of its own.** A phone in Iran or Afghanistan keeps the Persian calendar, and a
+/// browser's `Intl` writes its dates in it: 9 October 2026 is 17 Mehr 1405. The phone answers that calendar's
+/// patterns, months and era, and with them where each of its months begins, by its own reckoning
+/// ([DateWords.monthStarts]); a date's year, month and day are read from that table, and the patterns written as
+/// any other's. And a clock that names the part of the day more finely than two meridiems (Taiwan's medium date
+/// and time: 凌晨 at half past midnight, 中午 at noon) is written with the names the phone gives for each hour
+/// ([DateWords.periods], for a pattern's `B`).
+///
+/// **What is not carried.** Any other calendar with months of its own (a phone told to keep the Islamic or the
+/// Hebrew one by its settings) is written in the Gregorian calendar with the language's names and figures. And
+/// the phone's CLDR is its Android's, the page's its WebView's: where two versions differ on a comma, so do the
+/// two apps.
 ///
 /// **Until the phone has said.** Nothing is told until [useLocaleOf] hears the phone's language and country
 /// (lib/main.dart, once, at launch; as two words and not a `Locale`, so this file imports nothing and the cores that
@@ -155,8 +163,9 @@ const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'J
 /// letters are CLDR's: `y` the year and `G` its era, `M` and `MM` the month in figures, `MMM` and `MMMM` its name
 /// as a date wears it, `LLL` and `LLLL` its name standing alone, `d` and `dd` the day, `EEE` and `EEEE` the weekday
 /// (`ccc` and `cccc` alone), `h` and `hh` the hour of a 12-hour clock (`K` from 0), `H` and `HH` of a 24-hour one
-/// (`k` from 1), `m` and `mm`, `s` and `ss`, and `a` the meridiem (`b` and `B`, a day's finer periods, are written
-/// as the meridiem too). Words between two `'` are written as they are, as is anything that is not a letter.
+/// (`k` from 1), `m` and `mm`, `s` and `ss`, and `a` the meridiem (`b` is written as the meridiem too, and so is
+/// `B`, a day's finer periods, where the words have no names for them). Words between two `'` are written as
+/// they are, as is anything that is not a letter.
 ///
 /// The two English tables are consts of this file. Any other is what the phone answered
 /// ([DateWords.fromJson], lib/core/phone_dates.dart).
@@ -176,6 +185,9 @@ class DateWords {
     this.digits = _latin,
     this.era = '',
     this.yearOffset = 0,
+    this.periods,
+    this.firstYear = 0,
+    this.monthStarts,
     this.tag,
   })  : monthsAlone = monthsAlone ?? months,
         shortMonthsAlone = shortMonthsAlone ?? shortMonths,
@@ -204,6 +216,18 @@ class DateWords {
   final String era;
   final int yearOffset;
 
+  /// The parts of the day a pattern's `B` names, by the letters as the pattern has them ("B"): the part's name at
+  /// each hour, nought to twenty-three, and its name at twelve exactly, which some languages call noon. Null
+  /// where no pattern writes one, or the phone had no names: `B` is then the meridiem.
+  final Map<String, DayPeriods>? periods;
+
+  /// For a calendar with months of its own (the Persian one): the day each of its months begins on, in days
+  /// since 1 January 1970, from the first month of [firstYear], twelve a year, and one more for where the table
+  /// ends. The phone's own reckoning of that calendar; [months] and the rest are then its months' names. Null
+  /// for a calendar whose months are the Gregorian ones.
+  final List<int>? monthStarts;
+  final int firstYear;
+
   /// What the phone answered (android/…/ghost_md/Dates.kt `words`), or null where the answer is not whole: a form
   /// with no pattern, or a list of names that is not twelve or seven long.
   static DateWords? fromJson(Object? json) {
@@ -226,6 +250,28 @@ class DateWords {
     final weekdays = names('weekdays', 7), shortWeekdays = names('shortWeekdays', 7);
     final am = json['am'], pm = json['pm'], digits = json['digits'], era = json['era'], offset = json['yearOffset'], tag = json['locale'];
     if (months == null || shortMonths == null || weekdays == null || shortWeekdays == null || am is! String || pm is! String) return null;
+    // A day's finer periods: a run's names are kept only where they are whole, twenty-four and a noon.
+    Map<String, DayPeriods>? periods;
+    if (json['periods'] case final Map<Object?, Object?> said) {
+      for (final MapEntry(key: run, value: names) in said.entries) {
+        if (run is! String || names is! Map) continue;
+        final hours = names['hours'], noon = names['noon'];
+        if (hours is! List || hours.length != 24 || hours.any((name) => name is! String) || noon is! String) continue;
+        (periods ??= {})[run] = (hours: hours.cast<String>(), noon: noon);
+      }
+    }
+    // A calendar's own months: a table that is whole (twelve a year and its end, each later than the last), or none.
+    List<int>? starts;
+    final first = json['firstYear'];
+    if (json['monthStarts'] case final List<Object?> said when first is int && said.length > 12 && said.length % 12 == 1 && said.every((day) => day is int)) {
+      starts = said.cast<int>();
+      for (var i = 1; i < starts!.length; i += 1) {
+        if (starts[i] <= starts[i - 1]) {
+          starts = null;
+          break;
+        }
+      }
+    }
     return DateWords(
       tag: tag is String ? tag : null,
       patterns: patterns,
@@ -242,9 +288,15 @@ class DateWords {
       digits: digits is String && digits.runes.length == 10 ? digits : _latin,
       era: era is String ? era : '',
       yearOffset: offset is int ? offset : 0,
+      periods: periods,
+      firstYear: starts != null && first is int ? first : 0,
+      monthStarts: starts,
     );
   }
 }
+
+/// The parts of a day as a language names them finely: at each hour, and at twelve exactly.
+typedef DayPeriods = ({List<String> hours, String noon});
 
 const String _latin = '0123456789';
 const List<String> _shortWeekdays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -410,7 +462,30 @@ String _figures(int n, int width, DateWords words) {
   return String.fromCharCodes([for (final unit in plain.codeUnits) unit >= 0x30 && unit <= 0x39 ? own[unit - 0x30] : unit]);
 }
 
-DatePart _part(_Run run, DateTime at, DateWords words) {
+/// The year, the month and the day [at] is in the words' calendar: its own fields with the year's offset where
+/// the months are the Gregorian ones, and read from the calendar's table of months where they are its own. A day
+/// the table does not reach (before 1821 or after 2221, for the Persian one) is left as the Gregorian date.
+typedef _Day = ({int year, int month, int day});
+
+_Day _dayOf(DateTime at, DateWords words) {
+  final starts = words.monthStarts;
+  if (starts == null) return (year: at.year + words.yearOffset, month: at.month, day: at.day);
+  final day = (DateTime.utc(at.year, at.month, at.day).millisecondsSinceEpoch / Duration.millisecondsPerDay).floor();
+  if (day < starts.first || day >= starts.last) return (year: at.year, month: at.month, day: at.day);
+  // The last month that begins on or before the day.
+  var low = 0, high = starts.length - 1;
+  while (high - low > 1) {
+    final middle = (low + high) >> 1;
+    if (starts[middle] <= day) {
+      low = middle;
+    } else {
+      high = middle;
+    }
+  }
+  return (year: words.firstYear + low ~/ 12, month: low % 12 + 1, day: day - starts[low] + 1);
+}
+
+DatePart _part(_Run run, DateTime at, DateWords words, _Day date, List<_Run> runs) {
   final field = run.field;
   if (field == null) return (type: 'literal', value: run.text);
   final n = field.length;
@@ -418,16 +493,15 @@ DatePart _part(_Run run, DateTime at, DateWords words) {
   String name(List<String> full, List<String> short, int index) => n >= 4 ? full[index] : short[index];
   switch (field[0]) {
     case 'y':
-      final year = at.year + words.yearOffset;
-      return (type: 'year', value: n == 2 ? _figures(year % 100, 2, words) : _figures(year, n, words));
+      return (type: 'year', value: n == 2 ? _figures(date.year % 100, 2, words) : _figures(date.year, n, words));
     case 'G':
       return (type: 'era', value: words.era);
     case 'M':
-      return (type: 'month', value: n <= 2 ? _figures(at.month, n, words) : name(words.months, words.shortMonths, at.month - 1));
+      return (type: 'month', value: n <= 2 ? _figures(date.month, n, words) : name(words.months, words.shortMonths, date.month - 1));
     case 'L':
-      return (type: 'month', value: n <= 2 ? _figures(at.month, n, words) : name(words.monthsAlone, words.shortMonthsAlone, at.month - 1));
+      return (type: 'month', value: n <= 2 ? _figures(date.month, n, words) : name(words.monthsAlone, words.shortMonthsAlone, date.month - 1));
     case 'd':
-      return (type: 'day', value: _figures(at.day, n, words));
+      return (type: 'day', value: _figures(date.day, n, words));
     case 'E':
       return (type: 'weekday', value: name(words.weekdays, words.shortWeekdays, at.weekday - 1));
     case 'c':
@@ -444,6 +518,13 @@ DatePart _part(_Run run, DateTime at, DateWords words) {
       return (type: 'minute', value: _figures(at.minute, n, words));
     case 's':
       return (type: 'second', value: _figures(at.second, n, words));
+    case 'B' when words.periods?[field] != null:
+      // The part of the day by its hour; and at twelve exactly, what the language calls it then. ICU reads
+      // "exactly" by what the pattern writes: with no minutes in it every minute of the hour is twelve o'clock.
+      final finer = words.periods![field]!;
+      bool written(String letter) => runs.any((other) => other.field?.startsWith(letter) ?? false);
+      final noon = at.hour == 12 && (!written('m') || at.minute == 0) && (!written('s') || at.second == 0);
+      return (type: 'dayPeriod', value: noon ? finer.noon : finer.hours[at.hour]);
     case 'a' || 'b' || 'B':
       return (type: 'dayPeriod', value: at.hour < 12 ? words.am : words.pm);
     default:
@@ -462,7 +543,8 @@ List<DatePart> localeDateParts(DateTime at, DateForm form, [DateLocale? locale])
   final words = _wordsOf(locale);
   final pattern = words.patterns[form]!;
   final runs = _runs[pattern] ??= _runsOf(pattern);
-  return [for (final run in runs) _part(run, at, words)];
+  final date = _dayOf(at, words);
+  return [for (final run in runs) _part(run, at, words, date, runs)];
 }
 
 /// [at] in [form] as `format` answers it (the same [locale] rule as [localeDateParts]): the parts together, the
@@ -483,7 +565,7 @@ String? toldDayMonth(DateTime at, DateForm form) => toldLocale == null ? null : 
 
 /// The month's short name alone in the phone's words, "Sep" or "Sept" (`{ month: 'short' }`), or null where the
 /// phone has not said.
-String? toldShortMonth(DateTime at) => toldLocale == null ? null : _wordsOf(null).shortMonthsAlone[at.month - 1];
+String? toldShortMonth(DateTime at) => toldLocale == null ? null : _wordsOf(null).shortMonthsAlone[_dayOf(at, _wordsOf(null)).month - 1];
 
 /// The month's name alone in the phone's words (`{ month: 'long' }`), or null where the phone has not said.
-String? toldMonth(DateTime at) => toldLocale == null ? null : _wordsOf(null).monthsAlone[at.month - 1];
+String? toldMonth(DateTime at) => toldLocale == null ? null : _wordsOf(null).monthsAlone[_dayOf(at, _wordsOf(null)).month - 1];

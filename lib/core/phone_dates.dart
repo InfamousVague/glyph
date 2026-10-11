@@ -1,6 +1,8 @@
 /// The phone's own words for a date: what lib/core/locale_dates.dart writes every date from on a phone whose
 /// language is not one of its two English tables. The Dart half of `ghost_md/dates`
-/// (android/…/ghost_md/Dates.kt), which asks Android's ICU for the locale's patterns and names.
+/// (android/…/ghost_md/Dates.kt), which asks Android's ICU for the locale's patterns and names; and, for a phone
+/// that keeps the Persian calendar, where each of that calendar's months begins, and for a clock that names the
+/// part of the day finely, the name at each hour.
 ///
 /// Ghost.md's page never needed this: its WebView's `Intl.DateTimeFormat(undefined, …)` reads the same CLDR in the
 /// phone's language by itself. A Flutter app draws its own text, so the phone is asked once, as the app starts, and

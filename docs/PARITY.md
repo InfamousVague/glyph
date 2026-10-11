@@ -37,10 +37,19 @@ once, by what it would take.
    (test/editor/maths/katex_test.dart, whose list of the unread is empty; packages/flutter_math_fork's README,
    change 20). Found beside and put right with them: a bar, two bars or an arrow at `\big` to `\Bigg` was drawn
    no bigger than a line, and a box given one thing without braces (`\fbox x`) set nothing.
-4. **Dates on a phone that keeps the Persian calendar, or names the parts of the day finely** (section 40). Small,
-   and only for those phones: a Persian date is written in the Gregorian calendar with Persian names and figures,
-   and a Taiwanese clock with two meridiems. The rest of that row is Android's own CLDR against the WebView's
-   (twenty-two forms, each named in test/core/phone_dates_test.dart), and nothing to build.
+4. **Built 2026-10-11, and not yet held to a phone's answer: dates on a phone that keeps the Persian calendar,
+   or names the parts of the day finely** (section 40). The phone is asked for the Persian calendar's own
+   patterns, months and era and for where each of its months begins by its own reckoning, and for the name of the
+   part of the day at each hour where a pattern writes one (android/…/ghost_md/Dates.kt); the app reads a date's
+   year, month and day from that table and the part of the day from those names (lib/core/locale_dates.dart), so
+   9 October 2026 is 17 Mehr 1405 and half past midnight in Taiwan is 凌晨. Held by words written out by hand
+   (test/core/locale_dates_test.dart) and, for the phone's half, by its compiling and a JVM test of its one pure
+   piece. **Left:** test/core/fixtures/phone_dates.json is still what the emulator answered on 2026-10-10, before
+   it was asked either thing, because the emulator was another session's for the whole of this work. One run of
+   lib/main_dates.dart on Android re-reads it; tool/intl_dates.mjs then compares fa-IR in the Persian calendar
+   (one word in its `carried`), and test/core/phone_dates_test.dart's list of known differences is brought up to
+   it. The rest of that row is Android's own CLDR against the WebView's (twenty-two forms, each named in that
+   test), and nothing to build.
 
 ### (b) The owner's decision, or a release's configuration: 20 rows
 
@@ -1130,7 +1139,7 @@ What was noticed on the way, as the code stands on 2026-10-11:
 | The phone's text size | the page's own px and rem (WebView text zoom) | app/ghost_app.dart | n/a | Not compared: neither follows the phone's font scale by rule. |
 | The app's words are English | — | — | match | |
 | The palette's own words in eight languages | the kit's LocaleProvider | packages/glacier/lib/src/components/command_palette.dart:27-40 | match | |
-| Dates in the phone's language and order | core/stamp.ts; core/template.ts:89; book/journalMonths.ts:66; editor/fieldChips.ts:79; core/query/calendar.ts:77 (`Intl`) | core/locale_dates.dart; core/phone_dates.dart; android/…/ghost_md/Dates.kt | differs | On Android the phone's own ICU is asked since 18be87e, and every form is held to a browser's `Intl` in thirty-nine languages (test/core/phone_dates_test.dart). Left: a phone that keeps the Persian calendar is written in the Gregorian one; a clock that names the part of the day more finely than two meridiems (Chinese of Taiwan) is written with two; and twenty-two forms where Android's CLDR and the WebView's differ, each named in the test. |
+| Dates in the phone's language and order | core/stamp.ts; core/template.ts:89; book/journalMonths.ts:66; editor/fieldChips.ts:79; core/query/calendar.ts:77 (`Intl`) | core/locale_dates.dart; core/phone_dates.dart; android/…/ghost_md/Dates.kt | differs | On Android the phone's own ICU is asked since 18be87e, and every form is held to a browser's `Intl` in thirty-nine languages (test/core/phone_dates_test.dart). Since 2026-10-11 a phone that keeps the Persian calendar is written in it (the phone answers that calendar's patterns, months and era and where each of its months begins, `monthStarts`; a date's year, month and day are read from the table), and a clock that names the part of the day more finely than two meridiems (Chinese of Taiwan's medium date and time) is written with the names the phone gives for each hour (`periods`, for a pattern's `B`, with noon at twelve as ICU reads exactly). Held by test/core/locale_dates_test.dart over words written out by hand, and android/…/ghost_md/DatesTest.kt; not yet by a phone's own answer: the fixture is the emulator's of 2026-10-10, from before it was asked either, and one run of lib/main_dates.dart on Android re-reads it (then tool/intl_dates.mjs with the Persian calendar carried, and the test's known list). Any other calendar with months of its own, kept by a phone's settings, is still written in the Gregorian one. Left besides: twenty-two forms where Android's CLDR and the WebView's differ, each named in the test. |
 
 ## 41. A wide window and the Fold
 
