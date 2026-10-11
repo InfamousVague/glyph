@@ -1026,6 +1026,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         for (final line in _lines)
           if (math.min(line.top, line.contentTop) == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent).shift(offset),
     ];
+    List<(List<Rect>, double)>? faded;
     for (var s = 0; s < proj.segments.length; s++) {
       final seg = proj.segments[s], run = _spec.runs[s];
       if (seg.kind != SegmentKind.text || (run.backgrounds.isEmpty && run.painter == null)) continue;
@@ -1037,6 +1038,9 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         }
       }
       run.painter?.paintBehind(canvas, boxes, run);
+      // Words whose painter fades them now (`RunPainter.wordsOpacity`).
+      final opacity = run.painter?.wordsOpacity ?? 1;
+      if (opacity < 1 && boxes.isNotEmpty) (faded ??= <(List<Rect>, double)>[]).add((boxes, opacity));
     }
 
     // The selection's ground.
@@ -1053,7 +1057,36 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     if (marker != null) {
       marker.paint(canvas, Offset(offset.dx + _contentLeft - look.hang, _snap(offset.dy + _lines.first.top) + _lines.first.above - marker.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
     }
-    _paintParagraph(canvas, offset, words);
+    if (faded == null) {
+      _paintParagraph(canvas, offset, words);
+    } else {
+      // A run that fades its words: the paragraph is drawn once without them and once for each of them, through
+      // a layer of its opacity, so no word is laid out again for a frame of a fade.
+      final rest = Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRect(Rect.fromLTRB(offset.dx - 4096, offset.dy - 4096, offset.dx + size.width + 4096, offset.dy + size.height + 4096));
+      for (final (boxes, _) in faded) {
+        for (final box in boxes) {
+          rest.addRect(box);
+        }
+      }
+      canvas.save();
+      canvas.clipPath(rest, doAntiAlias: false);
+      _paintParagraph(canvas, offset, words);
+      canvas.restore();
+      for (final (boxes, opacity) in faded) {
+        var bounds = boxes.first;
+        final own = Path();
+        for (final box in boxes) {
+          bounds = bounds.expandToInclude(box);
+          own.addRect(box);
+        }
+        canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0)));
+        canvas.clipPath(own, doAntiAlias: false);
+        _paintParagraph(canvas, offset, words);
+        canvas.restore();
+      }
+    }
     for (final raised in _raised) {
       raised.painter.paint(canvas, Offset(offset.dx + raised.offset.dx, _snap(offset.dy + raised.offset.dy)));
     }

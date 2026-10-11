@@ -4,13 +4,19 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'ai/support/time_zones.dart';
+import 'core/fill_facts.dart';
 import 'core/locale_dates.dart';
 import 'core/phone_dates.dart';
+import 'core/phone_zones.dart';
 
 /// The phone's words for a date, alone, with no library under them: `flutter run -t lib/main_dates.dart` on an
 /// Android phone. For each of a list of languages the phone is asked what its own ICU writes a date from
 /// (`ghost_md/dates`, android/…/ghost_md/Dates.kt, with the language named, so the phone's own language is never
 /// changed to look), and every form the app writes is written from the answer at one moment, down the screen.
+///
+/// The first line says the phone's own language and zone, and how its own time-zone database stands beside the
+/// table the blanks' solver read before it could ask (lib/core/phone_zones.dart).
 ///
 /// What was answered is also said in the log, whole, in base64 between `GHOST_DATES<` and `>GHOST_DATES`, a line at
 /// a time: test/core/fixtures/phone_dates.json is that, and test/core/phone_dates_test.dart holds this app's writing of it
@@ -57,7 +63,31 @@ Future<void> main() async {
   toldWords = null;
   // The phone's own, as the app asks for it at launch.
   final own = await phoneDateWords();
-  lines.insert(0, 'this phone: ${own?.tag ?? 'no words'}');
+  // And its zone and clocks (lib/core/phone_zones.dart), held against the table the solver read before: every
+  // zone a city is in, at noon on the first and the fifteenth of each month from 2025 to the end of 2040.
+  await usePhoneZones();
+  final phone = deviceOffsets;
+  var compared = 0;
+  final apart = <String>[];
+  if (phone != null) {
+    deviceOffsets = null;
+    for (final zone in cityZones.values.toSet()) {
+      for (var year = 2025; year <= 2040; year += 1) {
+        for (var month = 1; month <= 12; month += 1) {
+          for (final day in const [1, 15]) {
+            final moment = DateTime.utc(year, month, day, 12);
+            final theirs = phone(zone, moment), table = offsetMinutes(zone, moment);
+            compared += 1;
+            if (theirs != table && apart.length < 12) apart.add('$zone $year-$month-$day: phone $theirs, table $table');
+          }
+        }
+      }
+    }
+    deviceOffsets = phone;
+  }
+  final zones = 'zone ${deviceZone ?? 'not said'}; ${phone == null ? 'no clocks' : '$compared offsets against the table, ${apart.isEmpty ? 'all the same' : 'apart: ${apart.join('; ')}'}'}';
+  debugPrint('GHOST_ZONES $zones');
+  lines.insert(0, 'this phone: ${own?.tag ?? 'no words'}; $zones');
   runApp(
     Directionality(
       textDirection: TextDirection.ltr,

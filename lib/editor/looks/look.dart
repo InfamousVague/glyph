@@ -233,6 +233,11 @@ abstract class RunPainter {
 
   /// Whether the words themselves are drawn.
   bool get drawsWords => true;
+
+  /// How much of the words' ink is drawn, read at each painting: 1 unless the painter fades them (CSS `opacity`
+  /// animated on the run's element: a blank that breathes while it is filled). Under 1, the line paints the run's
+  /// words through a layer of that opacity, so the same paragraph serves every frame.
+  double get wordsOpacity => 1;
 }
 
 /// The properties a rule sets: the ones a line's or a span's rules in the editor's stylesheets declare. Text

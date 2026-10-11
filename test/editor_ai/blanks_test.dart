@@ -18,8 +18,10 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/editor/ai/blanks.dart';
 import 'package:ghost_md/editor/ai/blanks_paint.dart';
 import 'package:ghost_md/editor/editor.dart';
+import 'package:ghost_md/editor/marks/run_paint.dart' show MarkClock;
 import 'package:ghost_md/editor/media/inline_box.dart';
 import 'package:ghost_md/editor/tables/tables.dart';
+import 'package:ghost_md/editor/view/line.dart' show EditorLine, RenderEditorLine;
 import 'package:ghost_md/editor/view/view_mode.dart';
 import 'package:glacier/glacier.dart';
 
@@ -237,6 +239,74 @@ void main() {
       view.destroy();
       expect(openNoteBlanks.value, isNull);
     });
+
+    // docs/PARITY.md, Differs 27. editor/blanks.ts: `.cm-blank[data-busy] { animation: cm-blank-breathe 1.6s
+    // ease-in-out infinite alternate }`, from `opacity: 0.45` to `0.8`; `animation: none; opacity: 0.6` under
+    // `prefers-reduced-motion`.
+    test('the breath is 0.45 to 0.8 and back, 1.6 s each way, eased', () {
+      expect(blankBreath(0), closeTo(0.45, 1e-9));
+      expect(blankBreath(0.8), closeTo(0.625, 1e-9));
+      expect(blankBreath(1.6), closeTo(0.8, 1e-9));
+      expect(blankBreath(2.4), closeTo(0.625, 1e-9));
+      expect(blankBreath(3.2), closeTo(0.45, 1e-9));
+      expect(blankBreath(0.4), lessThan(0.45 + 0.35 * 0.25), reason: 'eased in: slower than a straight line at first');
+    });
+
+    for (final still in [false, true]) {
+      testWidgets('a blank being filled ${still ? 'stands at 0.6 under reduced motion' : 'breathes: its words are painted through the breath, frame by frame'}', (tester) async {
+        if (still) {
+          tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+          addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+        }
+        addTearDown(() => MarkClock.hold = null);
+        final fills = FakeFills()..start();
+        final view = await pumpBlanks(tester, 'Cheapest on {?which day}', given: fills.given());
+        final landing = FillLanding('n1', view, wisp: () => false, owner: () => null);
+        addTearDown(landing.dispose);
+        // The words of the square, and what their painter fades them to now.
+        List<double> fades() => [
+              for (final run in tester.renderObject<RenderEditorLine>(find.byType(EditorLine).first).spec.runs)
+                if (run.painter != null) run.painter!.wordsOpacity,
+            ];
+        // The faintest ink among the line's words: the square's braces.
+        double ink() => [for (final run in tester.renderObject<RenderEditorLine>(find.byType(EditorLine).first).spec.runs) run.color.a].reduce((a, b) => a < b ? a : b);
+        expect(fades().where((fade) => fade < 1), isEmpty, reason: 'a blank at rest is drawn in full');
+        final rest = ink();
+        widgets<PillWidget>(view).first.press(view);
+        for (var i = 0; i < 50 && fills.models.isEmpty; i++) {
+          await tester.pump();
+        }
+        await tester.pump();
+        expect(squares(view).single.value.spec.attributes!.containsKey('data-busy'), isTrue);
+        if (still) {
+          expect(fades().where((fade) => fade < 1), isEmpty, reason: 'no breath');
+          expect(ink(), closeTo(rest * 0.6, 0.01), reason: 'opacity: 0.6');
+        } else {
+          MarkClock.hold = 0;
+          expect(fades().where((fade) => fade < 1), everyElement(closeTo(0.45, 1e-9)));
+          expect(fades().where((fade) => fade < 1), isNotEmpty);
+          MarkClock.hold = 1.6;
+          expect(fades().where((fade) => fade < 1), everyElement(closeTo(0.8, 1e-9)));
+          expect(ink(), rest, reason: 'the ink itself is whole: the breath is put on as it is painted');
+          // And the line is painted again as the clock runs, with no word laid out for it.
+          MarkClock.hold = null;
+          final line = tester.renderObject<RenderEditorLine>(find.byType(EditorLine).first);
+          await tester.pump(const Duration(milliseconds: 40));
+          expect(line.debugNeedsLayout, isFalse);
+          await tester.pump(const Duration(milliseconds: 40));
+          expect(tester.takeException(), isNull);
+        }
+        fills.models.single.finish('[1] UNKNOWN');
+        for (var i = 0; i < 50 && fillOutcome('n1', 'which day\u00000') == null; i++) {
+          await tester.pump();
+        }
+        await tester.pump();
+        expect(fades().where((fade) => fade < 1), isEmpty, reason: 'filled or not, it is still again');
+        fills.stop();
+        await closeBlanks(tester);
+        await tester.pump(const Duration(seconds: 5));
+      });
+    }
 
     testWidgets('a square redraws when the queue speaks: Waiting, then Filling, then what came of it', (tester) async {
       final fills = FakeFills()..start();
@@ -526,6 +596,9 @@ void main() {
       });
 
       testWidgets('blanks being filled, one waiting behind, $theme', (tester) async {
+        // Mid-breath: a busy square is drawn at 0.625 of its ink here (it stood at 0.6 before it breathed).
+        MarkClock.hold = 0.8;
+        addTearDown(() => MarkClock.hold = null);
         final fills = FakeFills()..start();
         const doc = 'Flights are cheapest on {?what day / time?}\n\nThe capital of Portugal is {?}.\n\nUntouched: {?which airport}\n';
         final view = await pumpBlanks(tester, doc, theme: theme, given: fills.given());

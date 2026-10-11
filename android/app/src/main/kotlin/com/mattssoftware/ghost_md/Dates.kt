@@ -7,6 +7,7 @@ import android.icu.text.NumberingSystem
 import android.icu.text.SimpleDateFormat
 import android.icu.util.Calendar
 import android.icu.util.ULocale
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import io.flutter.plugin.common.BinaryMessenger
@@ -33,6 +34,13 @@ import java.util.concurrent.Executors
  *     and `yearOffset`, what that calendar's year is ahead of the Gregorian one where the months are the same
  *     (543 in the Buddhist calendar). A calendar with months of its own is answered in the Gregorian one.
  *
+ * - `zone` -> the phone's own time zone by its name, "America/New_York" (the page's
+ *   `Intl.DateTimeFormat().resolvedOptions().timeZone`).
+ * - `offsets {zones, from, to}` -> for each zone the phone's time-zone database knows, a list: its offset from UTC
+ *   in minutes at `from`, then pairs, the minute a change of it takes hold and the offset from then on, up to
+ *   `to` (minutes since 1970). What the page asks `Intl` for a moment at a time (`timeZoneName: 'shortOffset'`),
+ *   for a blank's "what time is it in Tokyo" (lib/core/phone_zones.dart).
+ *
  * Worked out off the main thread: a pattern generator reads the locale's data the first time it is asked, and the
  * app is starting.
  */
@@ -55,6 +63,20 @@ class Dates {
             main.post { result.success(answer) }
           }
         }
+        "zone" -> result.success(java.util.TimeZone.getDefault().id)
+        "offsets" -> {
+          val zones = call.argument<List<String>>("zones") ?: emptyList()
+          val from = (call.argument<Number>("from") ?: 0).toLong()
+          val to = (call.argument<Number>("to") ?: 0).toLong()
+          worker.execute {
+            val answer = try {
+              offsets(zones, from, to)
+            } catch (failure: Exception) {
+              null
+            }
+            main.post { result.success(answer) }
+          }
+        }
         else -> result.notImplemented()
       }
     }
@@ -68,6 +90,60 @@ class Dates {
 
     /** The calendars whose months are the Gregorian ones, and what their year is ahead by. */
     private val OFFSETS = mapOf("buddhist" to 543, "roc" to -1911)
+
+    /**
+     * Each zone's offset at `from` and every change of it before `to`, in minutes; a zone not known is left out.
+     * By the phone's time-zone rules (`java.time`, Android 8 and after); on an older Android, by asking its
+     * offset a day at a time and closing in on each change to the minute.
+     */
+    fun offsets(zones: List<String>, from: Long, to: Long): Map<String, List<Int>> {
+      val out = HashMap<String, List<Int>>()
+      for (id in zones) {
+        val table = ArrayList<Int>()
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+          val rules = try {
+            java.time.ZoneId.of(id).rules
+          } catch (unknown: Exception) {
+            continue
+          }
+          var at = java.time.Instant.ofEpochSecond(from * 60L)
+          table.add(rules.getOffset(at).totalSeconds / 60)
+          while (true) {
+            val change = rules.nextTransition(at) ?: break
+            if (change.instant.epochSecond >= to * 60L) break
+            table.add((change.instant.epochSecond / 60L).toInt())
+            table.add(change.offsetAfter.totalSeconds / 60)
+            at = change.instant
+          }
+        } else {
+          val zone = java.util.TimeZone.getTimeZone(id)
+          // A name it does not know is answered as GMT.
+          if (zone.id != id) continue
+          val minute = 60_000L
+          var at = from * minute
+          var offset = zone.getOffset(at) / 60_000
+          table.add(offset)
+          while (at < to * minute) {
+            val next = minOf(at + 1440L * minute, to * minute)
+            val then = zone.getOffset(next) / 60_000
+            if (then != offset) {
+              var before = at
+              var after = next
+              while (after - before > minute) {
+                val middle = before + (after - before) / 2 / minute * minute
+                if (zone.getOffset(middle) / 60_000 == offset) before = middle else after = middle
+              }
+              table.add((after / minute).toInt())
+              table.add(then)
+              offset = then
+            }
+            at = next
+          }
+        }
+        out[id] = table
+      }
+      return out
+    }
 
     fun words(skeletons: Map<String, String>, tag: String?): Map<String, Any?> {
       val asked = if (tag.isNullOrEmpty()) ULocale.getDefault(ULocale.Category.FORMAT) else ULocale.forLanguageTag(tag)

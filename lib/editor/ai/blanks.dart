@@ -59,9 +59,11 @@
 ///   follow the square.
 /// - `.cm-blank[data-short] { white-space: nowrap }` is not kept: the mark says `data-short` as on the page, and the
 ///   view has no property that keeps a mark's words on one line (the same as a tag's, lib/editor/items/tags.dart).
-/// - A blank being filled does not breathe (`cm-blank-breathe`, 0.45 to 0.8 over 1.6 s): it stands at the 0.6 the
-///   stylesheet gives it under `prefers-reduced-motion`, since a run's ink is resolved once, not per frame. The
-///   loading icon does turn.
+/// - A blank being filled breathes as the page's does (`cm-blank-breathe`, 0.45 to 0.8 and back, 1.6 s each way),
+///   and stands at 0.6 under reduced motion. `opacity` on the page is one property of the square's element; here
+///   the square is words the line paints and widgets beside them, so the breath is put on each as it is painted:
+///   the words through the line's own layer ([_Breath], `RunPainter.wordsOpacity`: no word is laid out again for a
+///   frame), the border and the icon by their widgets ([_Breathing]), all from one clock. The loading icon turns.
 /// - A press on the words after a square or on the pill is the widget's alone (`takesPointer`), where the page
 ///   stopped a pointer, a mouse and a touch press each its own way (`keepFromEditor`). The icon lets the press
 ///   through to the editor (`ignoreEvent: false`), as on the page.
@@ -100,6 +102,7 @@ import '../items/suggestions.dart' show SuggestWidget, SuggestWord;
 import '../items/sums.dart' show AnswerWidget;
 import '../looks/look.dart';
 import '../looks/sheets.dart';
+import '../marks/run_paint.dart' show MarkClock, MarkPaint, PaintLayer, markMotion;
 import '../media/inline_box.dart';
 import '../syntax/syntax.dart';
 import '../syntax/tree.dart' show Tree;
@@ -481,6 +484,56 @@ Color _edgeColor(Tokens t, Color current, {bool busy = false}) {
 /// '@media (prefers-reduced-motion: reduce)': { '.cm-blank[data-busy]': { animation: 'none', opacity: '0.6' } }
 const double _busyOpacity = 0.6;
 
+/// '.cm-blank[data-busy]': { animation: 'cm-blank-breathe 1.6s ease-in-out infinite alternate' }
+/// '@keyframes cm-blank-breathe': { from: { opacity: '0.45' }, to: { opacity: '0.8' } }
+/// The square's opacity `now` seconds into the clock the moving marks read: up for 1.6 s, back for 1.6 s.
+double blankBreath(double now) {
+  final at = (now % 3.2) / 1.6;
+  return 0.45 + 0.35 * Curves.easeInOut.transform(at <= 1 ? at : 2 - at);
+}
+
+/// The breath on a busy square's words: the line paints them through a layer of this opacity, thirty times a
+/// second (a fade of 1.6 s is the same to the eye at thirty as at sixty, and the line is painted half as often).
+class _Breath extends PaintLayer {
+  const _Breath();
+
+  @override
+  bool get moves => true;
+
+  @override
+  double get step => 1 / 30;
+
+  @override
+  double get wordsOpacity => blankBreath(MarkClock.now);
+}
+
+/// A busy square's widget, built again each frame with the breath: its border and its icon, which no line paints.
+class _Breathing extends StatefulWidget {
+  const _Breathing({required this.builder});
+
+  final Widget Function(BuildContext context, double breath) builder;
+
+  @override
+  State<_Breathing> createState() => _BreathingState();
+}
+
+class _BreathingState extends State<_Breathing> with SingleTickerProviderStateMixin {
+  // Only what calls for a frame: the breath is read off the marks' clock, so the words and the border keep time.
+  late final AnimationController _frames = AnimationController(vsync: this, duration: const Duration(seconds: 1))..repeat();
+
+  @override
+  void dispose() {
+    _frames.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AnimatedBuilder(animation: _frames, builder: (context, _) => widget.builder(context, blankBreath(MarkClock.frame)));
+}
+
+/// Whether a busy square breathes here: not under reduced motion, where it stands at [_busyOpacity].
+bool _breathes(BuildContext context, bool busy) => busy && !context.tokens.reducedMotion;
+
 /// The square's ends: `padding: 0 0.25em` and the border as the room each takes, and at the start the border itself,
 /// drawn round the whole square with `borderRadius: '0.2em'` (blanks_paint.dart).
 class BlankEndWidget extends EditorWidget {
@@ -507,18 +560,21 @@ class BlankEndWidget extends EditorWidget {
     final look = around.look;
     final busy = EditorRunScope.maybeOf(context)?.look.props.element?.attrs.containsKey('data-busy') ?? false;
     final area = look == null ? contentArea(around.style) : (ascent: look.ascent, descent: look.descent);
-    return InlineFlat(
-      child: BlankPiece(
-        key: ValueKey<String>('cm-blank-${end.name}'),
-        end: end,
-        ascent: area.ascent,
-        descent: area.descent,
-        color: _edgeColor(t, look?.color ?? around.style.color ?? t.color('app-ink'), busy: busy),
-        width: _hairline(context),
-        room: layoutUnitFloor(around.em * 0.25),
-        radius: around.em * 0.2,
-      ),
-    );
+    final breathes = _breathes(context, busy);
+    final edge = _edgeColor(t, look?.color ?? around.style.color ?? t.color('app-ink'), busy: busy && !breathes);
+    final hair = _hairline(context);
+    Widget piece(Color color) => BlankPiece(
+          key: ValueKey<String>('cm-blank-${end.name}'),
+          end: end,
+          ascent: area.ascent,
+          descent: area.descent,
+          color: color,
+          width: hair,
+          room: layoutUnitFloor(around.em * 0.25),
+          radius: around.em * 0.2,
+        );
+    // Only the start draws the border; the end is room alone.
+    return InlineFlat(child: breathes && end == BlankEnd.start ? _Breathing(builder: (context, breath) => piece(edge.withValues(alpha: edge.a * breath))) : piece(edge));
   }
 }
 
@@ -552,7 +608,12 @@ class IconWidget extends EditorWidget {
   bool takesPointer(_) => false;
 
   @override
-  Widget build(BuildContext context) => BlankIcon(icon, spin: spin, brace: brace, busy: busy, whole: whole, heading: heading);
+  Widget build(BuildContext context) {
+    if (!_breathes(context, busy)) return BlankIcon(icon, spin: spin, brace: brace, busy: busy, whole: whole, heading: heading);
+    // Breathing, the icon, its brace and a whole square's border are drawn in full and the breath put over them.
+    final drawn = BlankIcon(icon, spin: spin, brace: brace, whole: whole, heading: heading);
+    return _Breathing(builder: (context, breath) => Opacity(opacity: breath, child: drawn));
+  }
 }
 
 /// `.cm-blankIcon`: the icon as it is drawn, at the end of the editor's own square, as the whole of an empty one,
@@ -1081,9 +1142,15 @@ final LookSheet _theme = LookSheet('editor/blanks.ts', <LookRule>[
   // '.cm-blank[data-busy]': { animation: 'cm-blank-breathe 1.6s ease-in-out infinite alternate' }
   // '@keyframes cm-blank-breathe': { from: { opacity: '0.45' }, to: { opacity: '0.8' } }
   // '@media (prefers-reduced-motion: reduce)': { '.cm-blank[data-busy]': { animation: 'none', opacity: '0.6' } }
-  // The square stands at the second of these, whatever the motion (see the header): `opacity` on the square
-  // reaches the words inside it, whatever ink their own mark gave them, and its widgets read it from the mark.
-  LookRule.under('cm-blank', classes: 3, when: _busy, (p, e) => p.color = p.color.withValues(alpha: p.color.a * _busyOpacity)),
+  // `opacity` on the square reaches the words inside it, whatever ink their own mark gave them: breathing, as a
+  // layer the line paints them through; still, in their ink, which the square's widgets read from the mark.
+  LookRule.under('cm-blank', classes: 3, when: _busy, (p, e) {
+    if (e.t.reducedMotion) {
+      p.color = p.color.withValues(alpha: p.color.a * _busyOpacity);
+    } else {
+      p.painter = MarkPaint.add(p.painter, const _Breath());
+    }
+  }),
   // '.cm-blankMark': { color: 'var(--app-ink-4, currentColor)' }
   LookRule('cm-blankMark', classes: 2, (p, e) => p.color = e.t.color('app-ink-4')),
   // '.cm-blankQuestion': { color: 'var(--app-ink-3, currentColor)' }
@@ -1309,7 +1376,7 @@ Widget? tablePill(EditorViewLike view, int from, int to) {
 }
 
 /// The squares, the tracked ranges and their look, with `hooks` where a note is the person's to fill.
-Extension blanks(BlankHooks? hooks, {bool still = false}) => Extension.list(<Extension>[blankHooks.of(hooks), _stillSquares.of(still), blanksField, blankStamp, _plugin, baseTheme(_theme)]);
+Extension blanks(BlankHooks? hooks, {bool still = false}) => Extension.list(<Extension>[blankHooks.of(hooks), _stillSquares.of(still), blanksField, blankStamp, _plugin, baseTheme(_theme), markMotion]);
 
 /// A class and a sample for the brisk setup's line, so a change of look reaches it (docs/DESIGN.md §146)
 /// (`BLANK_CLASS`).

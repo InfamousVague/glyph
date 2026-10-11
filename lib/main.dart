@@ -14,6 +14,7 @@ import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/locale_dates.dart';
 import 'core/phone_dates.dart';
+import 'core/phone_zones.dart';
 import 'core/geocode.dart';
 import 'core/iphone_app.dart';
 import 'core/keep_keyboard.dart';
@@ -63,6 +64,9 @@ Future<void> main() async {
   // phone's language is heard now, and its own words for a date asked for below (core/phone_dates.dart).
   final locale = PlatformDispatcher.instance.locale;
   useLocaleOf(locale.languageCode, locale.countryCode);
+  // The phone's own time zone and clocks, for a blank that asks the time somewhere (core/phone_zones.dart): asked
+  // now and waited for by nothing.
+  unawaited(usePhoneZones());
   // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.
   MacWindow.instance.attach();
   DesktopKeys.attach();

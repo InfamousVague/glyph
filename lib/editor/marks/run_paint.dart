@@ -43,6 +43,10 @@ abstract final class MarkClock {
   static double? hold;
 
   static double get now => hold ?? _now;
+
+  /// The frame being drawn now, on the same clock, for a widget that moves with a mark's layer and must not wait
+  /// for a line to be painted to know the time.
+  static double get frame => hold ?? SchedulerBinding.instance.currentFrameTimeStamp.inMicroseconds / 1e6;
 }
 
 /// A layer of a run's painting.
@@ -57,6 +61,9 @@ abstract class PaintLayer {
 
   /// Whether the layer changes with [MarkClock].
   bool get moves => false;
+
+  /// How much of the run's own words is drawn now (`opacity` on the mark's element): see [RunPainter.wordsOpacity].
+  double get wordsOpacity => 1;
 
   /// How long a moving layer shows one thing, in seconds: its line is painted again no oftener ([markMotion]). The
   /// screen's own rate unless the layer says slower: a smoke that poses itself thirty times a second is the same
@@ -80,6 +87,15 @@ class MarkPaint extends RunPainter {
 
   @override
   bool get drawsWords => !layers.any((layer) => layer.replacesWords);
+
+  @override
+  double get wordsOpacity {
+    var all = 1.0;
+    for (final layer in layers) {
+      all *= layer.wordsOpacity;
+    }
+    return all;
+  }
 
   @override
   void paintBehind(Canvas canvas, List<Rect> boxes, RunLook look) {

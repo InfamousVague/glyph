@@ -730,16 +730,18 @@ class Found {
 /// (`Fetcher`).
 typedef FillFetcher = Future<({int status, Object? json})> Function(String url);
 
-/// The app's own fetch (`pageFetch`), ten seconds at most, no cookies, nothing but the address and the app's name,
-/// and no redirect followed: a 3xx is answered as it came, with whatever JSON it carried. [client] is the one to use,
-/// or one made here and kept.
+/// The app's own fetch (`pageFetch`), ten seconds at most, no cookies, nothing but the address and the app's name.
+/// A redirect is followed, as the page's `fetch` follows one (its default, twenty at most), and what is answered is
+/// where it led: a source that has moved its address still answers. [client] is the one to use, or one made here
+/// and kept.
 FillFetcher pageFetcher({HttpClient? client, Duration timeout = const Duration(seconds: 10), String? userAgent}) {
   HttpClient? kept = client;
   return (url) async {
     HttpClientRequest? sent;
     Future<({int status, Object? json})> ask() async {
       final asked = sent = await (kept ??= HttpClient()).getUrl(Uri.parse(url));
-      asked.followRedirects = false;
+      asked.followRedirects = true;
+      asked.maxRedirects = 20;
       asked.headers.set(HttpHeaders.acceptHeader, 'application/json');
       asked.headers.set(HttpHeaders.userAgentHeader, userAgent ?? geocodeUserAgent());
       final answer = await asked.close();

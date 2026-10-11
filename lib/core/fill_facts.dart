@@ -16,15 +16,17 @@
 /// Pure, and the clock is passed in, so every date here is a test.
 ///
 /// What differs:
-/// - The page asks `Intl` for a zone's offset. Dart has no time-zone database without a package, so [offsetMinutes]
-///   reads a table of every zone the solver's cities are in (ai/support/time_zone_table.dart, written by
-///   tool/ai_fixtures.mjs from the page's own `offsetMinutes`). From the start of 2000 to the start of 2041 it
-///   answers exactly as the page does; before, it gives the offset 2000 began with, and after, the one 2040 ended
-///   with, so past 2040 a zone that keeps summer time is an hour out for half the year. A zone not in the table is
-///   0, where the page throws. The clock carries the function ([FactClock.offsetOf]), so a caller with a real
-///   database passes its own.
-/// - The device's own zone: the page asks `Intl` for its name. Here a clock with no [FactClock.zone], or with one
-///   the table does not have, takes the device's offset from the `DateTime` itself and is called "here".
+/// - The page asks `Intl` for a zone's offset, which is the device's own time-zone database. Dart has none without
+///   a package, so the phone is asked for its own once, off to one side as the app starts
+///   (lib/core/phone_zones.dart sets [deviceOffsets]): every change of every zone the solver's cities are in, and
+///   of the phone's own, from last year for forty years on. Where the phone has not answered (an iPhone, a Mac, a
+///   test, a moment outside those years) [offsetMinutes] reads a table of the same zones
+///   (ai/support/time_zone_table.dart, written by tool/ai_fixtures.mjs from the page's own `offsetMinutes`),
+///   which answers exactly as the page does from the start of 2000 to the start of 2041. A zone neither has is 0,
+///   where the page throws. The clock carries the function ([FactClock.offsetOf]), so a test passes its own.
+/// - The device's own zone: the page asks `Intl` for its name (`clock.zone ?? Intl…timeZone`). Here it is what
+///   the phone said ([deviceZone]); a clock with no [FactClock.zone] on a device that has not said, or one in a
+///   zone nothing knows, takes the device's offset from the `DateTime` itself and is called "here".
 /// - Dates and weekdays are written in English, in the phone's own order once it has said which ("Monday, September
 ///   28, 2026" and "October 25" on an American phone, "Monday 28 September 2026" and "25 October" on a British one),
 ///   and the day first until then, where the page writes the device's language (ai/support/stamp.dart says why).
@@ -823,10 +825,21 @@ String _round(double value, [int places = 1]) {
 
 // ---- the time -------------------------------------------------------------------------------------------------------
 
-/// A zone's offset from UTC at a moment, in minutes, read from the table of the solver's own zones
-/// (ai/support/time_zone_table.dart). From 2000 to the end of 2040 it is what the page's `Intl` answers, to the
-/// minute; before and after, the nearest offset the table has. 0 for a zone the table does not have ([knowsZone]).
+/// The device's own zone, as the phone said it ("Europe/London"), or null where it has not
+/// (lib/core/phone_zones.dart): what the page has from `Intl.DateTimeFormat().resolvedOptions().timeZone`.
+String? deviceZone;
+
+/// A zone's offset by the device's own time-zone database, where the phone gave it: null for a zone or a moment
+/// it did not answer for, and the table is read.
+int? Function(String zone, DateTime at)? deviceOffsets;
+
+/// A zone's offset from UTC at a moment, in minutes: the device's own database's where the phone gave it
+/// ([deviceOffsets]), else read from the table of the solver's own zones (ai/support/time_zone_table.dart). The
+/// table is what the page's `Intl` answers from 2000 to the end of 2040, to the minute; before and after, the
+/// nearest offset it has. 0 for a zone neither has ([knowsZone]).
 int offsetMinutes(String zone, DateTime at) {
+  final own = deviceOffsets?.call(zone, at);
+  if (own != null) return own;
   final table = zoneTable[zone];
   if (table == null) return 0;
   final minute = (at.millisecondsSinceEpoch / 60000).floor();
@@ -844,8 +857,9 @@ int offsetMinutes(String zone, DateTime at) {
   return low == 0 ? table[0] : table[low * 2];
 }
 
-/// Whether [offsetMinutes] has this zone: the zones of the solver's cities, and no others.
-bool knowsZone(String zone) => zoneTable.containsKey(zone);
+/// Whether [offsetMinutes] has this zone: the zones of the solver's cities, and the device's own where the phone
+/// answered for it.
+bool knowsZone(String zone, [DateTime? at]) => zoneTable.containsKey(zone) || deviceOffsets?.call(zone, at ?? DateTime.now()) != null;
 
 final List<({String city, RegExp pattern})> _cityPatterns = [
   for (final city in cities) (city: city, pattern: RegExp('\\b${city.replaceAll(' ', r'\s+')}\\b', caseSensitive: false)),
@@ -960,8 +974,9 @@ Worked? _time(Asking asking, FactClock clock) {
     final zone = zoneOf(found[0])!;
     // The device's own zone: by its name where the clock gives one the offsets are known for, else by the offset the
     // device itself keeps at that moment, which has no city's name.
-    final here = clock.zone;
-    final known = here != null && (clock.offsetOf != offsetMinutes || knowsZone(here));
+    // `clock.zone ?? Intl.DateTimeFormat().resolvedOptions().timeZone`.
+    final here = clock.zone ?? deviceZone;
+    final known = here != null && (clock.offsetOf != offsetMinutes || knowsZone(here, clock.now));
     final hereMinutes = known ? clock.offsetOf(here, clock.now) : clock.now.toLocal().timeZoneOffset.inMinutes;
     final diff = clock.offsetOf(zone, clock.now) - hereMinutes;
     final hereName = (known ? cityOf(here) : null) ?? 'here';

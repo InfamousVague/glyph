@@ -653,12 +653,12 @@ the editor's, the tape's Summarize in Tapes', the spoken asks in Voice's: they a
 | The AI's words arrive out of smoke (Ghostly typing) | editor/wispArrivals.ts | editor/ai/wisp_arrivals.dart; ai/note_ai.dart:445 | match | Drawn a letter at a time by a shader; not seen on a device. |
 | A card's dot, "Changes from the AI are marked in this note" | notes/NoteCard.tsx:82-83 | home/note_card.dart:91,236-240 | unwired | `marked` is never given; `hasMarks` (ai/marks.dart:51) has no caller. |
 | A card's spinner while its line is written | notes/NoteCard.tsx:80-81 | home/note_card.dart:88,235 | unwired | `working` is never given; `activeGist` (format/gist.dart:168) has no caller. |
-| A blank, `{?…}`: the dashed square, its icon (calculator, calendar, globe, a question), and the words after it in each of ten states | editor/blanks.ts:21-283 | editor/ai/blanks.dart:334-386; editor/ai/blanks_paint.dart | match | One being filled does not breathe. |
+| A blank, `{?…}`: the dashed square, its icon (calculator, calendar, globe, a question), and the words after it in each of ten states | editor/blanks.ts:21-283 | editor/ai/blanks.dart:334-386; editor/ai/blanks_paint.dart | match | One being filled breathes since 2026-10-10 (`blankBreath`, `RunPainter.wordsOpacity`). |
 | Worked out by the app itself: a total, an average, a count, days between, a weekday, a date, units, the time in a city; moving feasts refused | core/fillFacts.ts:28,318,613 | core/fill_facts.dart:390-898 | match | |
-| The time in a city, said against your own: "Tokyo is 8 hours ahead of London today." | core/fillFacts.ts:607,665 | core/fill_facts.dart:955-963; editor/ai/blanks.dart:228 | differs | Always "…ahead of here today.": `BlankHooks.zone` is never given (ai/note_ai.dart:144-151). |
-| Worked-out dates and weekdays in the phone's language; a zone's offset | core/fillFacts.ts:570-602 | core/fill_facts.dart:19-33,827-843 | differs | English. Offsets from a table exact for 2000 to 2040. |
+| The time in a city, said against your own: "Tokyo is 8 hours ahead of London today." | core/fillFacts.ts:607,665 | core/fill_facts.dart (`deviceZone`); core/phone_zones.dart | match | Since 2026-10-10 the phone says its zone (`ghost_md/dates` `zone`), as `Intl` told the page; `BlankHooks.zone` is given by neither app. |
+| Worked-out dates and weekdays in the phone's language; a zone's offset | core/fillFacts.ts:570-602 | core/fill_facts.dart (`deviceOffsets`); core/phone_zones.dart; core/phone_dates.dart | match | Since 2026-10-10 in the phone's language (Differs 9), and offsets from the phone's own time-zone database, last year to forty years on; the table stands behind it. |
 | Looked up online: nine kinds, the same six addresses, "Look up blanks online" | core/fillLive.ts:23-52; ai/fills/web.ts:357-364 | core/fill_live.dart:28-62; ai/fills/web.dart:776-788 | match | |
-| The asking itself | ai/fills/web.ts:339 (the browser's `fetch`) | ai/fills/web.dart:736-744 | differs | Follows no redirect (one reads as "Not found online"), gives up after ten seconds, names itself as the app. |
+| The asking itself | ai/fills/web.ts:339 (the browser's `fetch`) | ai/fills/web.dart (`pageFetcher`) | differs | Names itself as the app. A redirect is followed since 2026-10-10; ten seconds at most is the page's own (`pageFetch`'s `AbortController`). |
 | "Waiting for a connection" ends when one is back | ai/fills/queue.ts:165-176,478-479 | ai/fills/queue.dart:381-415,713-714 | unwired | `startFills` is given no `onLine` or `onOnline` (root/ghost_root.dart:635-656): a parked blank is tried again only by the one-minute timer or when Local only goes off. |
 | The Fill pill: Fill, Fill N, Filling, Waiting; filled by itself two and a half seconds after you pause | editor/blanks.ts:486-541 | editor/ai/blanks.dart:905-963 | match | |
 | An answer kept as `??answer??(who, when, what was asked)`; its source decided by code; one from the web only if it stands in what came back | core/blanks.ts:24-341; ai/fills/source.ts:54-71; ai/fills/queue.ts:465 | core/blanks_syntax.dart:22-441; ai/fills/source.dart:66-84; ai/fills/queue.dart:700 | match | |
@@ -1188,9 +1188,10 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     (lib/sync/device.dart:56-96). Medium. Needs a JPEG read and written.
 26. **Undo in a live note is the editor's own history**: after another member wrote at the same place it can take
     out the wrong letters. Large. An undo that knows whose change it was.
-27. **Blanks**: the time in a city is said against "here", not your city (`BlankHooks.zone` is never given); zone
+27. ~~**Blanks**: the time in a city is said against "here", not your city (`BlankHooks.zone` is never given); zone
     offsets come from a table good to 2040; a lookup follows no redirect and gives up after ten seconds; one being
-    filled does not breathe. Small to medium.
+    filled does not breathe.~~ Done 2026-10-10, but the ten seconds, which are the page's own
+    (ai/fills/web.ts `pageFetch` aborts at 10,000 ms): the audit read that one wrong.
 28. **The AI's changes**: words taken out inside a line are one unbroken box; the + is not held back while the AI
     writes. Small.
 29. ~~Heat and Frost are drawn another way.~~ Done 2026-10-10 (fa793ec, e946375): drawn as the page draws them and held to Chromium's pictures; pairs in build/smoke-compare/effects/.
