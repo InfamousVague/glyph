@@ -337,12 +337,31 @@ class CanvasViewState extends State<CanvasView> {
   /// The canvas's lines, worked out together and once for each canvas drawn.
   List<DrawnLine> get lines {
     if (!identical(_linesOf, _live)) {
+      final was = _linesOf;
       _linesOf = _live;
+      // The same cards in the same places joined by the same lines (a letter written in a card, a card's colour):
+      // the lines are the lines they were, the very list, so they are neither worked out nor painted again. Each
+      // letter typed in a card routed every line afresh and drew them all.
+      if (was != null && _lines != null && _sameShape(was, _live)) return _lines!;
       final began = ghostPerf ? Perf.now() : 0;
       _lines = drawnLines(_live);
       if (ghostPerf) Perf.add('canvas.lines', began);
     }
     return _lines!;
+  }
+
+  /// Whether two canvases have the same lines between boxes that stand where they stood.
+  static bool _sameShape(Canvas a, Canvas b) {
+    if (a.nodes.length != b.nodes.length || a.edges.length != b.edges.length) return false;
+    for (var i = 0; i < a.edges.length; i += 1) {
+      if (!identical(a.edges[i], b.edges[i])) return false;
+    }
+    for (var i = 0; i < a.nodes.length; i += 1) {
+      final was = a.nodes[i], now = b.nodes[i];
+      if (identical(was, now)) continue;
+      if (was.id != now.id || was.x != now.x || was.y != now.y || was.width != now.width || was.height != now.height) return false;
+    }
+    return true;
   }
 
   PreferencesStore get _prefs => widget.preferences ?? preferences;

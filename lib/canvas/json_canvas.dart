@@ -453,6 +453,9 @@ Canvas? canvasOf(String body) {
 /// built for each asking, and a list asks it of every note (test/canvas/canvas_body_test.dart holds the two
 /// answers to one).
 bool isCanvasBody(String body) {
+  // The body the canvas's own view has just written ([withCanvas]) is one, and is asked about at once by the
+  // note's screen, at every letter typed in a card: read through again each time, a twentieth of that letter's work.
+  if (identical(body, _written)) return true;
   var from = frontMatterOffset(body);
   var to = body.length;
   // `trim()`, where the text lies.
@@ -639,5 +642,8 @@ String canvasNoteBody(String title, Canvas canvas) => '---\ntitle: ${quotedTitle
 String withCanvas(String body, Canvas canvas) {
   final lines = body.split('\n');
   final end = frontMatterEnd(lines);
-  return end == 0 ? serializeCanvas(canvas) : '${lines.sublist(0, end).join('\n')}\n${serializeCanvas(canvas)}';
+  return _written = end == 0 ? serializeCanvas(canvas) : '${lines.sublist(0, end).join('\n')}\n${serializeCanvas(canvas)}';
 }
+
+/// The last body [withCanvas] wrote: a canvas's, by its making ([isCanvasBody]).
+String? _written;

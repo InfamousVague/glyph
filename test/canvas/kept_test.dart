@@ -187,6 +187,33 @@ void main() {
     await shown.done();
   });
 
+  testWidgets('a card that changes where nothing moves leaves the lines the lines they were', (tester) async {
+    final shown = Shown(tester);
+    await shown.show();
+    final lines = shown.state.lines;
+    expect(lines, isNotEmpty);
+    final layer = tester.renderObject<RenderRepaintBoundary>(find.ancestor(of: find.byWidgetPredicate((w) => w is CustomPaint && w.painter is LinesPainter), matching: find.byType(RepaintBoundary)).first);
+    // A card's colour: another canvas, the same boxes joined by the same lines.
+    await shown.tapCard('n', kind: mouse);
+    await tester.tap(find.bySemanticsLabel('Colour'));
+    await tester.pump();
+    layer.debugResetMetrics();
+    await tester.tap(find.bySemanticsLabel('Sea'));
+    await tester.pump();
+    expect(shown.node('n').color, '5');
+    expect(identical(shown.state.lines, lines), isTrue, reason: 'the lines were not worked out again');
+    expect(layer.debugSymmetricPaintCount, 0, reason: 'nor painted again');
+    // A card moved: the lines that end on it go with it.
+    final at = shown.card('n');
+    final gesture = await tester.startGesture(at, kind: mouse);
+    await gesture.moveTo(at + const Offset(40, 30));
+    await tester.pump();
+    await gesture.up();
+    await tester.pump();
+    expect(identical(shown.state.lines, lines), isFalse);
+    await shown.done();
+  });
+
   test('a line’s path is read from its string once, and is the same path each time it is asked for', () {
     const d = 'M0 0C30 0 70 40 100 40';
     final first = linePath(d);
