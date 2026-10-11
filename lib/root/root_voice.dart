@@ -37,9 +37,9 @@ extension _RootVoice on _GhostRootState {
               : null);
     } catch (failure) {
       debugPrint('[ghost] voice could not be made: $failure');
-      return;
+      return _voiceKnown.complete();
     }
-    if (voice == null) return;
+    if (voice == null) return _voiceKnown.complete();
     if (!mounted) return voice.dispose();
     final models = voice.models;
     final recorder = voice.recorder;
@@ -83,6 +83,7 @@ extension _RootVoice on _GhostRootState {
       _voice = voice;
       _capture = capture;
     });
+    _voiceKnown.complete();
     // The phone's write-up changed a note: the note's own screen, if it is open, takes it.
     _unhearRecordings = voice.summaries?.onRecordingChanged((id) {
       for (final heard in _recordingHeard.toList()) {

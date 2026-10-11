@@ -527,6 +527,11 @@ class _GhostRootState extends State<GhostRoot> {
   AppLifecycleListener? _voiceLife;
   final Completer<void> _notesRead = Completer<void>();
 
+  /// Done once this run's voice is known: made and held ([_voice]), or never to be (a build with none, a phone half
+  /// that did not attach, a making that failed). What must go through voice's queues before it does anything waits
+  /// here: a link to a note, whose write-up is put in before the note opens (lib/root/root_commands.dart).
+  final Completer<void> _voiceKnown = Completer<void>();
+
   /// The meeting's state, whether the phone may notify or whether the AI can run here changed: the parts that read
   /// voice are told (the home page's recording, Settings' rows, the + sheet's meeting), after the frame where one
   /// is being built (lib/root/selected.dart).

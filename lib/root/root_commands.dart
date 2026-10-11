@@ -93,7 +93,16 @@ extension _RootCommands on _GhostRootState {
   /// `ghostmd://note/<id>` (`openNoteFromLink`), the tap on "written up": a result still waiting is put into the
   /// note first, so the tap opens a note with its summary; then the notes are read again, and the note opened where
   /// it was left.
+  ///
+  /// The page's `landNativeResult` is its module's, there as soon as the page is. Here the summaries are voice's,
+  /// made a moment after the notes are read, and a tap that started the app is in hand before them: the link waits
+  /// for voice to be known ([_voiceKnown]), so the result is not skipped for want of something to land it with.
+  /// Three seconds and no longer, which is what the app's start gives a phone to attach its half of voice
+  /// (lib/root/voice_wiring.dart `inTime`): a phone slower than that opens the note as it is, and the write-up is
+  /// put into it, open, when the queue is there (lib/ai/summaries.dart).
   Future<void> _openNoteFromLink(String id) async {
+    await _voiceKnown.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+    if (!mounted) return;
     await _voice?.summaries?.landNativeResult(id).then<void>((_) {}, onError: (Object _) {});
     await _library.refresh();
     final shell = _shell.currentState;

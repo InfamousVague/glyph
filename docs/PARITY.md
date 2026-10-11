@@ -113,7 +113,8 @@ app is for, and each is a thing only a phone shows:
 - Dates on a phone that is not in English (the emulator's Android 16 answered for the test; no phone was read).
 - A meeting's other-apps consent and the write-up with the app closed; the hinge unfolding a note; heat and frost
   at the phone's own pixel ratio. As the first audit said.
-- A cold start by a link to a note, which can run ahead of voice (see Regressions, found beside).
+- A cold start by a link to a note, which ran ahead of voice until 2026-10-11 (Regressions, found beside 1 and 2:
+  fixed, and held by test/root/before_voice_test.dart; not tried on a phone).
 
 No regression was found among the rows that matched (see "Regressions found on 2026-10-11", which also writes down
 three small bugs that are no rewrite's doing, and a few comments the code has left behind).
@@ -1172,7 +1173,8 @@ Each of these is a row above, marked by what the code says. A phone would settle
   the band; a screen reader through a note.
 - The bridges of 2026-10-10 that were tested against fakes: the battery, the connection, the notification
   prompt's answer.
-- A cold start by a link to a note, which by the code can open the note before voice is made (below).
+- A cold start by a link to a note, which by the code could open the note before voice was made (below: fixed
+  2026-10-11, and still not tried on a phone).
 
 No longer on this list: a finger landing on a link, a box or a choice acts on a finished tap since 5441ce0; a note
 opened before the engine is up takes its AI when it comes since 3755947; a lookup follows a redirect since c6a52a3.
@@ -1232,11 +1234,14 @@ is no rewrite's doing. None was fixed here.
    hands the desks both itself (`TapeIds(_stored)`, the same memory the recorder names its tapes in, and the
    library's own writing of a recording), so no note waits for voice to have them. Held by
    test/root/before_voice_test.dart, where voice comes after the note is open. Not seen on a phone.
-2. **A tap on "Written up" with the app stopped can open the note before its summary is put in.**
-   lib/root/root_commands.dart:96-98: `_openNoteFromLink` waits on `_voice?.summaries?.landNativeResult(id)`, which
-   is nothing while `_voice` is still null, and the link is followed as soon as the notes are read. The page's
-   `landNativeResult` is always there to wait on (App.tsx:422-426). To see it: let a meeting be written up with
-   the app closed, and tap its notification. By the code only; not tried.
+2. **A tap on "Written up" with the app stopped can open the note before its summary is put in.** **Fixed
+   2026-10-11.** `_openNoteFromLink` waited on `_voice?.summaries?.landNativeResult(id)`, which is nothing while
+   `_voice` is still null, and the link is followed as soon as the notes are read. The page's `landNativeResult`
+   is always there to wait on (App.tsx `openNoteFromLink`: land, read, open). The link now waits for this run's
+   voice to be known (lib/root/ghost_root.dart `_voiceKnown`: made, or never to be), lands the result, reads and
+   opens, as the page does; three seconds and no longer, which is what the start gives a phone to attach its half
+   of voice, so a phone slower than that opens the note as it is and takes the write-up, open, when the queue is
+   there. Held by test/root/before_voice_test.dart. Not seen on a phone.
 3. **Settings › Notifications' "Allow notifications" is the meeting host's asking.**
    lib/settings/panes/notifications_pane.dart:79-84 and :181, lib/root/root_voice.dart:322 and :358: the row is
    shown where Android blocks the app's notifications, and it cannot be pressed until voice is made, nor ever on a

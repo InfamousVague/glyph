@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/summaries.dart';
 import 'package:ghost_md/capture/engine.dart';
 import 'package:ghost_md/capture/recorder.dart';
 import 'package:ghost_md/core/note.dart';
@@ -22,11 +23,31 @@ import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
+import 'package:ghost_md/share/app_links.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/tapes/note_tape.dart';
 
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
+
+/// The link the app was opened with, held by the activity until it is asked for (lib/core/phone_links.dart).
+class _Tapped implements LinkSource {
+  _Tapped(String link) : _kept = [link];
+  final List<String> _kept;
+
+  @override
+  Future<List<String>> take() async {
+    final all = [..._kept];
+    _kept.clear();
+    return all;
+  }
+
+  @override
+  String? takeActivityLink() => null;
+
+  @override
+  Stream<void> get arrived => const Stream<void>.empty();
+}
 
 void main() {
   setUpAll(() async {
@@ -56,7 +77,8 @@ void main() {
 
   /// Voice as the app makes it over [kept]: the recorder names its tapes in this device's own memory
   /// (lib/root/voice_wiring.dart `tapes: TapeIds(kept)`).
-  Voice voiceOver(SampleLibrary notes, Stored kept) => Voice(
+  Voice voiceOver(SampleLibrary notes, Stored kept, {Summaries? summaries}) => Voice(
+        summaries: summaries,
         recorder: Recorder(
           engine: CaptureEngine(backend: null, hasNativeGeneration: (_) async => true),
           store: LibraryRecorderStore(notes),
@@ -170,6 +192,123 @@ void main() {
     await settle(tester);
     expect(TapeIds(kept).tapeId(note.id), 'take-7');
     expect(library.noteOf(note.id)!.recordingMs, 4000);
+    await close(tester);
+  });
+
+  // Found beside, 2. `_openNoteFromLink` waited on `_voice?.summaries?.landNativeResult(id)`, which is nothing while
+  // voice is not made yet, and the link is followed as soon as the notes are read: started by a tap on "Written up",
+  // the app opened the note before the write-up waiting on the phone was put into it. The page's `landNativeResult`
+  // is a function of its module, always there to wait on (App.tsx `openNoteFromLink`: land, then read, then open).
+  testWidgets('started by a tap on "Written up", the app opens the note with its summary: the result waiting on the phone is put in first', (tester) async {
+    final library = SampleLibrary.seeded();
+    final kept = MemoryStored();
+    final made = Completer<void>();
+    final meeting = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    // The write-up the phone's service made while the app was stopped, taken once.
+    final waiting = <String, RecordingResult>{meeting.id: const RecordingResult(summary: '# Packing settled\nWhat the call settled.\n\n- The long lens comes.', model: 'qwen3.5-2b', transcriptChars: 60, finishedAt: 1)};
+    final taken = <String>[];
+    final summaries = Summaries(
+      isTauri: () => true,
+      preferences: () => preferences.value,
+      stored: kept,
+      refineHeld: () => false,
+      refinePending: (_) => false,
+      onRefineHold: (_) => () {},
+      canNotifyNow: () => true,
+      recordingJobState: () async => const [],
+      takeRecordingResult: (id) async {
+        taken.add(id);
+        return waiting.remove(id);
+      },
+      writeUpOnHost: (_, _) => false,
+      answerHost: (_, _) => () {},
+      getNote: library.get,
+      updateNote: library.update,
+      isTrashed: (_) => false,
+      syncNow: () async {},
+      syncSettled: () async {},
+      record: (_, _) async {},
+      visible: () => true,
+      onVisible: (_) => () {},
+      onNotesChanged: (_) => () {},
+      sendJobConfig: () async {},
+    );
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(
+        launch: false,
+        library: library,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        clock: () => seedNow,
+        stored: kept,
+        links: _Tapped('ghostmd://note/${meeting.id}'),
+        voice: voiceOver(library, kept, summaries: summaries),
+        voiceWhen: made.future,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    // The notes are read and the link is in hand; voice is not made yet, so there is nothing to land the result with.
+    await settle(tester);
+    expect(taken, isEmpty);
+    expect(shellOf(tester).shown, isNull, reason: 'the note is not opened ahead of its summary');
+
+    made.complete();
+    await settle(tester, 8);
+    expect(taken, [meeting.id], reason: 'the phone is asked for the write-up before the note opens');
+    expect(shellOf(tester).shown, meeting.id);
+    final view = tester.state<NoteScreenState>(find.byType(NoteScreen)).view!;
+    expect(view.state.doc.toString(), contains('## Summary\nWhat the call settled.'), reason: 'the note opens with its summary in it');
+    await close(tester);
+  });
+
+  // A phone whose half of voice does not attach is not waited for past the three seconds the app's start gives it.
+  testWidgets('a link to a note is not held for a voice that does not come: three seconds, and the note opens as it is', (tester) async {
+    final library = SampleLibrary.seeded();
+    final kept = MemoryStored();
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(
+        launch: false,
+        library: library,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        clock: () => seedNow,
+        stored: kept,
+        links: _Tapped('ghostmd://note/${note.id}'),
+        voice: voiceOver(library, kept),
+        voiceWhen: Completer<void>().future,
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await settle(tester);
+    expect(shellOf(tester).shown, isNull);
+    await tester.pump(const Duration(seconds: 3));
+    await settle(tester);
+    expect(shellOf(tester).shown, note.id);
+    await close(tester);
+  });
+
+  // A build with no voice at all (an iPhone, a test's root) has nothing to wait for: the link opens the note.
+  testWidgets('a link to a note in an app that will have no voice opens it at once', (tester) async {
+    final library = SampleLibrary.seeded();
+    final note = library.value.firstWhere((note) => noteTitle(note.body) == 'Packing');
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(
+        launch: false,
+        library: library,
+        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        clock: () => seedNow,
+        stored: MemoryStored(),
+        links: _Tapped('ghostmd://note/${note.id}'),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+    await settle(tester);
+    expect(shellOf(tester).shown, note.id);
     await close(tester);
   });
 }
