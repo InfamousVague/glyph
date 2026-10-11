@@ -90,6 +90,28 @@ class WispKit {
     return shader;
   }
 
+  /// The noise of a table in its own space, set up for one draw whose canvas counts in the noise's cells from
+  /// [origin] (shaders/wisp_field.frag with a frequency of one and no slide): what every smoke of that seed reads
+  /// its bend from, whatever its frequency and wherever it has slid ([wispNoiseField]).
+  ui.FragmentShader noise({required Offset origin, required ui.Image table}) {
+    final shader = _fieldShader ??= _field.fragmentShader();
+    var i = 0;
+    void put(double value) => shader.setFloat(i++, value);
+    // The program adds half a pixel to where it stands, for a smoke's own pixels: taken off here.
+    put(origin.dx - 0.5);
+    put(origin.dy - 0.5);
+    put(1);
+    put(1);
+    put(0);
+    put(0);
+    put(-1e9);
+    put(-1e9);
+    put(1e9);
+    put(1e9);
+    shader.setImageSampler(0, table);
+    return shader;
+  }
+
   /// The bend pass, set up for one draw: [source] thrown about by the noise of [smoke], drawn at [origin] in the
   /// view. The one shader is used again for every draw; a draw takes its own copy of what was set.
   ///
@@ -175,8 +197,8 @@ class WispKit {
 
   /// A smoke in one pass, set up for one draw at [origin]: the view bent where it stands and merged with [haze],
   /// its soft half lying over [hazeRect] (shaders/wisp_smoke.frag). [bentRect] is where the bent view is worked out
-  /// at all, the filter's own subregion; [field] is the smoke's noise as a picture ([WispKit.field]) over
-  /// [fieldRect].
+  /// at all, the filter's own subregion; [field] is the noise of the smoke's seed in its own space
+  /// ([wispNoiseField]) over [fieldRect] of it.
   ui.FragmentShader smoke({
     required ui.Image source,
     required Rect sourceRect,
@@ -201,6 +223,14 @@ class WispKit {
     }
     put(field.width.toDouble());
     put(field.height.toDouble());
+    put(smoke.frequency.dx);
+    put(smoke.frequency.dy);
+    put(smoke.slide.dx);
+    put(smoke.slide.dy);
+    put(smoke.noiseRect.left);
+    put(smoke.noiseRect.top);
+    put(smoke.noiseRect.right);
+    put(smoke.noiseRect.bottom);
     put(smoke.lipA ?? 0);
     put(smoke.lipB ?? 0);
     put(smoke.soft);

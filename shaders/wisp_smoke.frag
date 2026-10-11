@@ -5,8 +5,9 @@
 //
 // The three-pass drawing made two pictures the size of the strip on every frame (the view bent, and that blurred)
 // and then read the bent one forty-nine times a pixel to find the ink near it. Here the bent view is not a picture:
-// a pixel reads the view where the noise throws it. The noise comes in as a picture of its own, made when the
-// smoke last moved (shaders/wisp_field.frag), and what is soft in the smoke - the blur of the bent view, kept to
+// a pixel reads the view where the noise throws it. The noise comes in as a picture of the noise's own space, made
+// once for a seed (shaders/wisp_field.frag) and read where this pixel's place, the drift's slide and its frequency
+// put it, so a smoke that drifts makes no picture for it; and what is soft in the smoke - the blur of the bent view, kept to
 // within a little of its strokes - comes in already made, small (shaders/wisp_haze.frag), and is read once.
 
 #include <flutter/runtime_effect.glsl>
@@ -21,9 +22,16 @@ uniform vec4 uSourceRect;
 uniform vec4 uBentRect;
 // Where uHaze lies in the view.
 uniform vec4 uHazeRect;
-// Where uField lies in the view, and how many pixels it has across and down.
+// The stretch of the noise's own space uField holds (left, top, width, height, in the noise's cells), and how many
+// pixels it has across and down.
 uniform vec4 uFieldRect;
 uniform vec2 uFieldSize;
+// `baseFrequency`, per pixel.
+uniform vec2 uFrequency;
+// `feOffset` on the noise: the drift's slide.
+uniform vec2 uSlide;
+// The turbulence's own subregion: left, top, right, bottom. Slid out of it, the noise is black.
+uniform vec4 uNoiseRect;
 // The band: lip A (white before it), lip B (white after it), the ramp's sigma, and the axis the lips lie along.
 uniform vec4 uBand;
 uniform vec2 uBandOn;
@@ -47,11 +55,11 @@ vec2 wispFieldPixel(vec2 pixel) {
   return vec2(t.r * 16.0 + high, low * 256.0 + t.b) / 4095.0;
 }
 
-// The noise at a point of the view: the four pixels of its picture round the point, weighed by where it lies
+// The noise at a point of its own space: the four pixels of its picture round the point, weighed by where it lies
 // between them. Unpacked first and weighed after; the engine's own reading between pixels would weigh the packed
 // bytes, which mean nothing apart.
-vec2 wispField(vec2 p) {
-  vec2 at = (p - uFieldRect.xy) / uFieldRect.zw * uFieldSize - vec2(0.5);
+vec2 wispField(vec2 v) {
+  vec2 at = (v - uFieldRect.xy) / uFieldRect.zw * uFieldSize - vec2(0.5);
   vec2 corner = floor(at);
   vec2 f = at - corner;
   vec2 upper = mix(wispFieldPixel(corner), wispFieldPixel(corner + vec2(1.0, 0.0)), f.x);
@@ -103,7 +111,14 @@ void main() {
   // `bent`: the view read where the noise throws this pixel, inside the filter's subregion and clear outside it.
   vec4 bent = vec4(0.0);
   if (!outside((p - uBentRect.xy) / uBentRect.zw)) {
-    bent = sourceAt(p + uBend * band * (wispField(p) - vec2(0.5)));
+    // The noise where the filter has it for this pixel: slid by the drift, at the drift's frequency, and black
+    // outside its own subregion. Chromium works it out half a pixel on from the pixel's own middle.
+    vec2 q = p - uSlide;
+    vec2 noise = vec2(0.0);
+    if (q.x >= uNoiseRect.x && q.y >= uNoiseRect.y && q.x < uNoiseRect.z && q.y < uNoiseRect.w) {
+      noise = wispField((q + vec2(0.5)) * uFrequency);
+    }
+    bent = sourceAt(p + uBend * band * (noise - vec2(0.5)));
   }
 
   // `soft` kept to `near`, made small and read between its pixels.

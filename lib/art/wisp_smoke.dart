@@ -49,7 +49,7 @@ void paintWispSmoke(
   }
   // The soft half as it was made with a page's others ([wispSoftSheet]), or made here for this smoke alone.
   final haze = soft ?? wispHaze(kit: kit, table: table, source: source, sourceRect: sourceRect, bentRect: bentRect, ratio: ratio, smoke: smoke);
-  final field = wispNoiseField(kit: kit, table: table, bentRect: bentRect, ratio: ratio, smoke: smoke);
+  final field = wispNoiseField(kit: kit, table: table, bentRect: bentRect, smoke: smoke);
   final shader = kit.smoke(source: source, sourceRect: sourceRect, bentRect: bentRect, haze: haze.image, hazeRect: haze.rect, field: field.image, fieldRect: field.rect, origin: rect.topLeft, smoke: smoke);
   canvas.save();
   canvas.translate(rect.left, rect.top);
@@ -59,35 +59,50 @@ void paintWispSmoke(
   if (soft == null) haze.image.dispose();
 }
 
-/// The noise of [smoke] over [bentRect], as the picture the one-pass drawing reads its bend from
-/// (shaders/wisp_field.frag): one pixel to two of the screen's each way, lying over the answer's rectangle.
+/// The noise of [smoke]'s seed as the picture the one-pass drawing reads its bend from (shaders/wisp_field.frag):
+/// a stretch of the noise's own space, in its cells, wide enough for [smoke] over [bentRect]. The answer's rectangle
+/// is the stretch the picture holds.
 ///
-/// Kept, and not made again while the same noise is asked for over the same rectangle: the noise is the same on
-/// every frame of a scroll until the drift steps it (lib/art/wisp_edge.dart `WispDrift`, at most thirty-five times a
-/// second), and it is the same for ever on a page that has come to rest. The few last asked for are kept (a page's
-/// top and foot, a column's, a board's lanes, which are alike and share one); the picture is the caller's to read
-/// and not to let go.
-({ui.Image image, Rect rect}) wispNoiseField({required WispKit kit, required ui.Image table, required Rect bentRect, required double ratio, required WispSmoke smoke}) {
-  final key = (smoke.seed, smoke.frequency, smoke.slide, smoke.noiseRect, bentRect, ratio);
-  final had = _fields.remove(key);
-  if (had != null) return _fields[key] = had;
+/// One picture for a seed, whatever the smoke's frequency and wherever its drift has slid it: a smoke reads the
+/// noise at its pixel's place less the slide, times the frequency, and that is a place in the noise's own space
+/// (shaders/wisp_smoke.frag), so a drift that slides the noise and breathes its frequency moves where the picture
+/// is read and makes no picture. The first drawing of this made the noise over each strip in the strip's own
+/// pixels and so made it again at every step of the drift, for each strip: on the phone, 182 pictures in the 242
+/// frames of a drag down the home page, each a task of its own before the frame. Made again only when a smoke
+/// asks for a stretch it does not hold (a wider window, a page's first smoke), and then with room to spare.
+({ui.Image image, Rect rect}) wispNoiseField({required WispKit kit, required ui.Image table, required Rect bentRect, required WispSmoke smoke}) {
+  // The stretch [smoke] reads: its bent rectangle (inside the noise's own subregion), slid and at its frequency.
+  final over = bentRect.intersect(smoke.noiseRect).shift(-smoke.slide + const Offset(0.5, 0.5));
+  final need = Rect.fromLTRB(over.left * smoke.frequency.dx, over.top * smoke.frequency.dy, over.right * smoke.frequency.dx, over.bottom * smoke.frequency.dy).inflate(1);
+  final had = _fields[smoke.seed];
+  if (had != null && had.rect.left <= need.left && had.rect.top <= need.top && had.rect.right >= need.right && had.rect.bottom >= need.bottom) return had;
   if (ghostPerf) Perf.count('wisp.fields');
-  final texel = 2 / ratio;
-  final wide = math.max(1, (bentRect.width / texel - 1e-4).ceil()), tall = math.max(1, (bentRect.height / texel - 1e-4).ceil());
-  final rect = bentRect.topLeft & Size(wide * texel, tall * texel);
+  debugWispFields += 1;
+  // What is held already and what is asked, out to whole eights of a cell and a fifth more each way: a frequency
+  // that breathes a sixth and a slide of a few pixels stay inside it.
+  final both = had == null ? need : had.rect.expandToInclude(need);
+  final grown = both.inflate(math.max(both.width, both.height) * 0.2);
+  final rect = Rect.fromLTRB((grown.left / 8).floor() * 8.0, (grown.top / 8).floor() * 8.0, (grown.right / 8).ceil() * 8.0, (grown.bottom / 8).ceil() * 8.0);
+  // Twenty-five pixels to a cell, the finer octave's cell being half of one: as fine down a page as the first
+  // drawing's picture was on a phone, and no bigger than 2048 either way.
+  final texel = math.max(0.04, math.max(rect.width, rect.height) / 2048);
+  final wide = math.max(1, (rect.width / texel).ceil()), tall = math.max(1, (rect.height / texel).ceil());
+  final held = rect.topLeft & Size(wide * texel, tall * texel);
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(recorder);
   canvas.scale(1 / texel);
-  canvas.drawRect(Offset.zero & rect.size, Paint()..shader = kit.field(origin: rect.topLeft, smoke: smoke, table: table)..isAntiAlias = false..blendMode = BlendMode.src);
+  canvas.drawRect(Offset.zero & held.size, Paint()..shader = kit.noise(origin: held.topLeft, table: table)..isAntiAlias = false..blendMode = BlendMode.src);
   final picture = recorder.endRecording();
   final image = picture.toImageSync(wide, tall);
   picture.dispose();
-  if (_fields.length >= _fieldsKept) _fields.remove(_fields.keys.first)!.image.dispose();
-  return _fields[key] = (image: image, rect: rect);
+  had?.image.dispose();
+  return _fields[smoke.seed] = (image: image, rect: held);
 }
 
-final Map<Object, ({ui.Image image, Rect rect})> _fields = {};
-const int _fieldsKept = 8;
+final Map<int, ({ui.Image image, Rect rect})> _fields = {};
+
+/// How many times a noise's picture was made: for a test.
+int debugWispFields = 0;
 
 /// Lets every kept noise go: for a test that counts them.
 @visibleForTesting

@@ -191,6 +191,48 @@ void main() {
     expect(strips.debugPainted.first.rect.top, 100 - wispEdgeCoveredKeep);
   });
 
+  testWidgets('a smoke that drifts makes no picture of its noise: one for the seed, read where the drift has it', (tester) async {
+    tester.view.devicePixelRatio = 2;
+    tester.view.physicalSize = const Size(800, 1600);
+    addTearDown(tester.view.reset);
+    debugWispQuick = true;
+    addTearDown(() => debugWispQuick = null);
+    await tester.runAsync(() => WispKit.load(seeds: [3]));
+    debugClearWispFields();
+    Widget page(double t) {
+      final at = WispDriftAt.at(t);
+      final fade = wispEdgeFade(height: 800, footFade: wispFootFadeSmoke);
+      final within = wispFootWithin(800);
+      return Directionality(
+        textDirection: TextDirection.ltr,
+        child: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 400,
+            height: 800,
+            child: WispStrips(
+              strips: [
+                ...wispSmokeStrips(rect: const Rect.fromLTRB(0, 0, 400, 56 + wispEdgeDrop + wispEdgeReach), smoke: wispTopSmoke(under: 56, at: at, fade: fade), within: wispTopWithin(56)),
+                ...wispSmokeStrips(rect: Rect.fromLTRB(0, within.top, 400, 800), smoke: wispFootSmoke(height: 800, at: at, fade: fade), within: within),
+              ],
+              child: const ColoredBox(color: Color(0xFF336699), child: SizedBox.expand()),
+            ),
+          ),
+        ),
+      );
+    }
+
+    await tester.pumpWidget(page(0));
+    final made = debugWispFields;
+    expect(made, greaterThan(0));
+    // Forty steps of the drift, the slide going up and down and the frequency breathing: the top and the foot
+    // read the one picture throughout.
+    for (var step = 1; step <= 40; step++) {
+      await tester.pumpWidget(page(step * 280.0));
+    }
+    expect(debugWispFields - made, lessThanOrEqualTo(1), reason: 'the noise was made again as the smoke drifted');
+  });
+
   test('a smoke\'s small pictures: a quarter of the screen each way from a blur of five of its pixels, a half from two and a half', () {
     // A page's edge (3.4) on a Mac, the Fold and an iPhone; a lane's foot (2.4) and the tabs (1.6) on a Mac and the Fold.
     expect([for (final ratio in [2.0, 2.625, 3.0]) wispSmallStep(wispEdgeBlur * ratio)], [4, 4, 4]);
