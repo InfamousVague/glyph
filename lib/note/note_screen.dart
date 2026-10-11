@@ -1547,7 +1547,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           _isJournal ? SliverToBoxAdapter(child: _view0(context)) : PageHead(height: padTop + (seams.headRoom?.value ?? 0), child: _view0(context)),
         // The editor stays mounted behind a canvas or an index, hidden, so its caret keeps its place.
         // And behind the transcript while the tape plays (`hidden={shown !== 'raw' || drawing || paging}`).
-        SliverOffstage(offstage: !_words || _listening, sliver: widget.editorBuilder(context, spec)),
+        // Behind a canvas or an index it is made the frame after the note's screen is: nobody sees it, and the
+        // frame a canvas or a notebook opens in made the canvas or the index and this editor too, its state and
+        // every extension of the note's resolved (tool/perf.sh mac, canvas-open and notebook-open: 3 to 4 ms of the
+        // opening frame's 12).
+        _EditorBehind(hidden: !_words || _listening, later: !_words, builder: (context) => widget.editorBuilder(context, spec)),
         // `{shown === 'transcript' ? <div className={styles.body}><TranscriptWords tape={tape} /></div> : null}`:
         // the rest of the page, `.body { flex: 1; min-block-size: 0; padding-block-end: var(--app-safe-bottom) }`,
         // arriving as a body does (`noteRise`).
@@ -2035,6 +2039,40 @@ class _OtherView extends StatelessWidget {
       case _OtherKind.book:
         return seams.book?.call(context, body, write) ?? const SliverToBoxAdapter(child: SizedBox.shrink());
     }
+  }
+}
+
+/// The note's editor in the page: as itself where the words are shown, and kept out of sight behind a canvas, an
+/// index or a transcript ([hidden]). [later], it is made a frame after this is, and from then on is there: what a
+/// note opens to is drawn first, and the editor nobody sees is made while that is looked at. Shown, it is made at
+/// once.
+class _EditorBehind extends StatefulWidget {
+  const _EditorBehind({required this.hidden, required this.later, required this.builder});
+
+  final bool hidden;
+  final bool later;
+  final WidgetBuilder builder;
+
+  @override
+  State<_EditorBehind> createState() => _EditorBehindState();
+}
+
+class _EditorBehindState extends State<_EditorBehind> {
+  late bool _made = !widget.later;
+
+  @override
+  void initState() {
+    super.initState();
+    if (_made) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && !_made) setState(() => _made = true);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.later) _made = true;
+    return SliverOffstage(offstage: widget.hidden, sliver: _made ? widget.builder(context) : const SliverToBoxAdapter(child: SizedBox.shrink()));
   }
 }
 
