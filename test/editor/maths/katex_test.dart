@@ -141,6 +141,29 @@ void main() {
     expect(differs, isEmpty);
   });
 
+  testWidgets('a formula drawn again at another size is as large as that size (one tree, kept, as the note keeps it)', (tester) async {
+    // The words pinched larger, or a card's small drawing of a note and then the note: the same reading drawn at
+    // two sizes. The package as published built a letter once and kept it (README, change 20).
+    final read = formulaOf(r'\sum_{i=1}^{n} i = \frac{n(n+1)}{2}', true);
+    Future<Size> at(double em) async {
+      await tester.pumpWidget(
+        Directionality(
+          textDirection: TextDirection.ltr,
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: SingleChildScrollView(child: _Probe(child: Math(ast: read.tree, options: optionsFor(display: true, size: em, color: const Color(0xff000000))))),
+          ),
+        ),
+      );
+      return tester.renderObject<_RenderProbe>(find.byType(_Probe)).size;
+    }
+
+    final small = await at(20), large = await at(40), again = await at(20);
+    expect(large.width, closeTo(small.width * 2, 0.5));
+    expect(large.height, closeTo(small.height * 2, 0.5));
+    expect(again, small);
+  });
+
   test('${reach.length} families of the commands KaTeX has: which of them the reader cannot read is this list', () {
     final unread = <String>[
       for (final formula in reach)

@@ -1026,6 +1026,111 @@
    "depth": 0.6468
   },
   {
+   "tex": "\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+   "display": false,
+   "ok": true,
+   "height": 1.0395,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{\\sqrt{x}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{\\sqrt{b^2}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.0686,
+   "depth": 0.345
+  },
+  {
+   "tex": "x^{\\sqrt{y}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8591,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\sqrt{b^2 - 4ac}}",
+   "display": false,
+   "ok": true,
+   "height": 1.0085,
+   "depth": 0
+  },
+  {
+   "tex": "\\frac{\\sqrt{\\pi}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{1}{\\sqrt{2}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8451,
+   "depth": 0.538
+  },
+  {
+   "tex": "e^{\\sqrt{\\frac{a}{b}}}",
+   "display": false,
+   "ok": true,
+   "height": 1.1274,
+   "depth": 0
+  },
+  {
+   "tex": "\\frac{\\sqrt[3]{x}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "x_{\\sqrt{y^2}}",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.6748
+  },
+  {
+   "tex": "\\sum_{\\sqrt{n}}^{\\sqrt{n^2}}",
+   "display": true,
+   "ok": true,
+   "height": 2.0247,
+   "depth": 1.544
+  },
+  {
+   "tex": "x^{y^{\\sqrt{z}}}",
+   "display": false,
+   "ok": true,
+   "height": 1.0677,
+   "depth": 0
+  },
+  {
+   "tex": "\\scriptstyle \\sqrt{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 0.6725,
+   "depth": 0.3471
+  },
+  {
+   "tex": "\\scriptscriptstyle \\sqrt{x^2 + y^2}",
+   "display": true,
+   "ok": true,
+   "height": 0.5795,
+   "depth": 0.1488
+  },
+  {
+   "tex": "\\tfrac{\\sqrt{x}}{\\sqrt{y^2}}",
+   "display": true,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.8296
+  },
+  {
    "tex": "\\Big( x \\Big)",
    "display": false,
    "ok": true,

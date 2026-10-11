@@ -1,6 +1,5 @@
 import 'dart:math' as math;
 
-import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
 
@@ -9,7 +8,6 @@ import '../../render/layout/custom_layout.dart';
 import '../../render/layout/layout_builder_baseline.dart';
 import '../../render/layout/min_dimension.dart';
 import '../../render/layout/reset_baseline.dart';
-import '../../render/svg/delimiter.dart';
 import '../../render/svg/svg_geomertry.dart';
 import '../../render/svg/svg_string.dart';
 import '../../render/utils/render_box_offset.dart';
@@ -248,173 +246,98 @@ class SqrtLayoutDelegate extends CustomLayoutDelegate<_SqrtPos> {
   }
 }
 
-const sqrtDelimieterSequence = [
-  // DelimiterConf(mainRegular, MathStyle.scriptscript),
-  // DelimiterConf(mainRegular, MathStyle.script),
-  DelimiterConf(mainRegular, MathStyle.text),
-  DelimiterConf(size1Regular, MathStyle.text),
-  DelimiterConf(size2Regular, MathStyle.text),
-  DelimiterConf(size3Regular, MathStyle.text),
-  DelimiterConf(size4Regular, MathStyle.text),
-];
-
 const vbPad = 80;
 const emPad = vbPad / 1000;
 
-// We use a different strategy of picking \\surd font than KaTeX
-// KaTeX chooses the style and font of the \\surd to cover inner at *normalsize*
-// We will use a highly similar strategy while sticking to the strict meaning
-// of TexBook Rule 11. We do not choose the style at *normalsize*
-double getSqrtAdvanceWidth(
-    double minDelimiterHeight, double baseWidth, MathOptions options) {
-  // final newOptions = options.havingBaseSize();
-  final delimConf = sqrtDelimieterSequence.firstWhereOrNull(
-    (element) =>
-        getHeightForDelim(
-          delim: '\u221A', // √
-          fontName: element.font.fontName,
-          style: element.style,
-          options: options,
-        ) >
-        minDelimiterHeight,
-  );
-  if (delimConf != null) {
-    final delimOptions = options.havingStyle(delimConf.style);
-    if (delimConf.font.fontName == 'Main-Regular') {
-      final advanceWidth = 0.833.cssEm.toLpUnder(delimOptions);
-      return advanceWidth;
-    } else {
-      // We will directly apply corresponding font
+/// What KaTeX's `sqrtImage` (delimiter.js) makes for a root that must reach [minDelimiterHeight], in logical
+/// pixels, where [options] are in force.
+///
+/// Changed from 0.7.4 (README.md, 21). The published package chose the surd "at a strategy of its own": the first
+/// of KaTeX_Main's and the four sizes, each at TEXT size, that is taller than the body. That is KaTeX's answer
+/// where the root stands in text, and not where the type is smaller (over a fraction's bar in a line, in a
+/// script, under a sum): there KaTeX sets a surd no taller than an em of the smaller type if that reaches
+/// (`sizeMultiplier = 1.0`, "mimic a \textfont radical"), and the package set one an em of the text's, a half
+/// taller, and as much wider. This is `sqrtImage` line for line, in the units it works in: ems of the type the
+/// root stands in.
+class Surd {
+  const Surd._(this.path, this.em, this.fontHeight, this.height, this.advance, this.rule, this.viewBoxHeight);
 
-      final advanceWidth = 1.0.cssEm.toLpUnder(delimOptions);
+  /// Which of svg_geomertry.dart's pictures: `sqrtMain`, `sqrtSize1` to `sqrtSize4`, `sqrtTall`.
+  final String path;
 
-      return advanceWidth;
+  /// How many logical pixels a thousand units of the picture are.
+  final double em;
+
+  /// The picture's own height in its ems (1 for KaTeX_Main's, 1.2 to 3 for the sizes); null for the tall one,
+  /// which is as tall as it is asked to be.
+  final double? fontHeight;
+
+  /// `texHeight`: the surd's height, in logical pixels, without the room left over its rule.
+  final double height;
+
+  /// How far along the body starts, and KaTeX's `ruleWidth`, in logical pixels.
+  final double advance, rule;
+  final double viewBoxHeight;
+
+  factory Surd.of(double minDelimiterHeight, MathOptions options) {
+    // An em of the type the root stands in, and how large that type is beside the text's where no size was said
+    // (`options.havingBaseSizing().sizeMultiplier`: 1, 0.7 in a script, 0.5 in a script's script).
+    final cur = 1.0.cssEm.toLpUnder(options);
+    final base = MathSize.normalsize.underStyle(options.style).sizeMultiplier;
+    final height = cur <= 0 ? 0.0 : minDelimiterHeight / cur;
+    final thickness = options.fontMetrics.sqrtRuleThickness;
+    // `traverseSequence("\\surd", height * newOptions.sizeMultiplier, stackLargeDelimiterSequence, newOptions)`.
+    // `newOptions` is in text style whatever the root's was, so the sequence is entered at its third place:
+    // KaTeX_Main's surd at text size (an em), then the four sizes, then the one that is drawn to measure.
+    final sought = height * base;
+    if (1.0 > sought) {
+      // "mimic a \textfont radical", "mimic a \scriptfont radical", or the style's own.
+      final by = height < 1.0 ? 1.0 : (height < 1.4 ? 0.7 : base);
+      return Surd._('sqrtMain', cur / by, 1.0, cur / by, 0.833 * cur / by, thickness * by * cur, 1000.0 + vbPad);
     }
-  } else {
-    final advanceWidth = 1.056.cssEm.toLpUnder(options);
-    return advanceWidth;
+    const sizes = <double>[1.2, 1.8, 2.4, 3.0];
+    for (var n = 0; n < sizes.length; n++) {
+      if (sizes[n] > sought) {
+        return Surd._('sqrtSize${n + 1}', cur / base, sizes[n], sizes[n] * cur / base, cur / base, thickness * base * cur, (1000 + vbPad) * sizes[n]);
+      }
+    }
+    return Surd._('sqrtTall', cur, null, minDelimiterHeight, 1.056 * cur, thickness * base * cur, (1000 * height).floorToDouble() + vbPad);
   }
 }
 
-// We use a different strategy of picking \\surd font than KaTeX
-// KaTeX chooses the style and font of the \\surd to cover inner at *normalsize*
-// We will use a highly similar strategy while sticking to the strict meaning
-// of TexBook Rule 11. We do not choose the style at *normalsize*
+double getSqrtAdvanceWidth(
+        double minDelimiterHeight, double baseWidth, MathOptions options) =>
+    Surd.of(minDelimiterHeight, options).advance;
+
 Widget sqrtSvg({
   required double minDelimiterHeight,
   required double baseWidth,
   required MathOptions options,
 }) {
-  // final newOptions = options.havingBaseSize();
-  final delimConf = sqrtDelimieterSequence.firstWhereOrNull(
-    (element) =>
-        getHeightForDelim(
-          delim: '\u221A', // √
-          fontName: element.font.fontName,
-          style: element.style,
-          options: options,
-        ) >
-        minDelimiterHeight,
-  );
-
-  final extraViniculum = 0.0; //math.max(0.0, options)
-  // final ruleWidth =
-  //     options.fontMetrics.sqrtRuleThickness.cssEm.toLpUnder(options);
+  final surd = Surd.of(minDelimiterHeight, options);
+  const extraViniculum = 0.0;
   // TODO: support Settings.minRuleThickness.
-
-  // These are the known height + depth for \u221A
-  if (delimConf != null) {
-    final fontHeight = const {
-      'Main-Regular': 1.0,
-      'Size1-Regular': 1.2,
-      'Size2-Regular': 1.8,
-      'Size3-Regular': 2.4,
-      'Size4-Regular': 3.0,
-    }[delimConf.font.fontName]!;
-    final delimOptions = options.havingStyle(delimConf.style);
-    final viewPortHeight =
-        (fontHeight + extraViniculum + emPad).cssEm.toLpUnder(delimOptions);
-    if (delimConf.font.fontName == 'Main-Regular') {
-      // We will be vertically stretching the sqrtMain path (by viewPort vs
-      // viewBox) to mimic the height of \u221A under Main-Regular font and
-      // corresponding Mathstyle.
-      final advanceWidth = 0.833.cssEm.toLpUnder(delimOptions);
-      final viewPortWidth = advanceWidth + baseWidth;
-      final viewBoxHeight = 1000 + 1000 * extraViniculum + vbPad;
-      final viewBoxWidth = viewPortWidth.lp.toCssEmUnder(delimOptions) * 1000;
-      final svgPath = sqrtPath('sqrtMain', extraViniculum, viewBoxHeight);
-      return ResetBaseline(
-        height: (options.fontMetrics.sqrtRuleThickness + extraViniculum)
-            .cssEm
-            .toLpUnder(delimOptions),
-        child: MinDimension(
-          topPadding: -emPad.cssEm.toLpUnder(delimOptions),
-          child: svgWidgetFromPath(
-            svgPath,
-            Size(viewPortWidth, viewPortHeight),
-            Rect.fromLTWH(0, 0, viewBoxWidth, viewBoxHeight),
-            options.color,
-            align: Alignment.topLeft,
-            fit: BoxFit.fill,
-          ),
-        ),
-      );
-    } else {
-      // We will directly apply corresponding font
-
-      final advanceWidth = 1.0.cssEm.toLpUnder(delimOptions);
-      final viewPortWidth = math.max(
-        advanceWidth + baseWidth,
-        1.02.cssEm.toCssEmUnder(delimOptions),
-      );
-      final viewBoxHeight = (1000 + vbPad) * fontHeight;
-      final viewBoxWidth = viewPortWidth.lp.toCssEmUnder(delimOptions) * 1000;
-      final svgPath = sqrtPath('sqrt${delimConf.font.fontName.substring(0, 5)}',
-          extraViniculum, viewBoxHeight);
-      return ResetBaseline(
-        height: (options.fontMetrics.sqrtRuleThickness + extraViniculum)
-            .cssEm
-            .toLpUnder(delimOptions),
-        child: MinDimension(
-          topPadding: -emPad.cssEm.toLpUnder(delimOptions),
-          child: svgWidgetFromPath(
-            svgPath,
-            Size(viewPortWidth, viewPortHeight),
-            Rect.fromLTWH(0, 0, viewBoxWidth, viewBoxHeight),
-            options.color,
-            align: Alignment.topLeft,
-            fit: BoxFit
-                .cover, // BoxFit.fitHeight, // For DomCanvas compatibility
-          ),
-        ),
-      );
-    }
-  } else {
-    // We will use the viewBoxHeight parameter in sqrtTall path
-    final viewPortHeight =
-        minDelimiterHeight + (extraViniculum + emPad).cssEm.toLpUnder(options);
-    final viewBoxHeight = 1000 * minDelimiterHeight.lp.toCssEmUnder(options) +
-        extraViniculum +
-        vbPad;
-    final advanceWidth = 1.056.cssEm.toLpUnder(options);
-    final viewPortWidth = advanceWidth + baseWidth;
-    final viewBoxWidth = viewPortWidth.lp.toCssEmUnder(options) * 1000;
-    final svgPath = sqrtPath('sqrtTall', extraViniculum, viewBoxHeight);
-    return ResetBaseline(
-      height: (options.fontMetrics.sqrtRuleThickness + extraViniculum)
-          .cssEm
-          .toLpUnder(options),
-      child: MinDimension(
-        topPadding: -emPad.cssEm.toLpUnder(options),
-        child: svgWidgetFromPath(
-          svgPath,
-          Size(viewPortWidth, viewPortHeight),
-          Rect.fromLTWH(0, 0, viewBoxWidth, viewBoxHeight),
-          options.color,
-          align: Alignment.topLeft,
-          fit: BoxFit.cover, // BoxFit.fitHeight, // For DomCanvas compatibility
-        ),
+  final pad = emPad * surd.em;
+  // `span.style.minWidth`: 0.853em, 1.02em or 0.742em of the picture's own.
+  final least = (surd.path == 'sqrtMain' ? 0.853 : (surd.path == 'sqrtTall' ? 0.742 : 1.02)) * surd.em;
+  final viewPortWidth = math.max(surd.advance + baseWidth, least);
+  final viewPortHeight = surd.height + pad;
+  final viewBoxWidth = viewPortWidth / surd.em * 1000;
+  final svgPath = sqrtPath(surd.path, extraViniculum, surd.viewBoxHeight);
+  return ResetBaseline(
+    height: surd.rule,
+    child: MinDimension(
+      topPadding: -pad,
+      child: svgWidgetFromPath(
+        svgPath,
+        Size(viewPortWidth, viewPortHeight),
+        Rect.fromLTWH(0, 0, viewBoxWidth, surd.viewBoxHeight),
+        options.color,
+        align: Alignment.topLeft,
+        // KaTeX_Main's surd is stretched to its box, which is its own shape; the others keep theirs and are
+        // cut at the box (`preserveAspectRatio="xMinYMin slice"`).
+        fit: surd.path == 'sqrtMain' ? BoxFit.fill : BoxFit.cover,
       ),
-    );
-  }
+    ),
+  );
 }
