@@ -317,10 +317,17 @@ class _NoteTreeState extends State<NoteTree> {
     /// Notes' rows one under another, `margin-block` apart, the first [first] under what is over it.
     Widget rowsOf(List<Note> notes, {required double first}) => SliverList(
           delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              final top = i == 0 ? first : rowGap;
-              return top == 0 ? row(notes[i]) : Padding(padding: EdgeInsets.only(top: top), child: row(notes[i]));
-            },
+            // A row is made when it is laid out, not when the list is: a list made again (names only and back, a
+            // folder shut or opened, a note changed) has every row it had built before any is laid out, and those
+            // that turn out to be past the screen then, as most are when names give way to cards, were made, their
+            // previews with them, and let go without being drawn (tool/perf.sh sidebar: of 25 to 29 cards made at
+            // the switch back, about 7 are on the screen).
+            (context, i) => LayoutBuilder(
+              builder: (context, _) {
+                final top = i == 0 ? first : rowGap;
+                return top == 0 ? row(notes[i]) : Padding(padding: EdgeInsets.only(top: top), child: row(notes[i]));
+              },
+            ),
             childCount: notes.length,
             addAutomaticKeepAlives: false,
             // No layer of its own for a row: with one, the open note's row and a row whose preview opens with a

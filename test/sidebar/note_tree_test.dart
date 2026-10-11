@@ -127,6 +127,32 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('back from names only, draws small the notes on the screen and no others', (tester) async {
+      // Two hundred notes: names only, some thirty of their rows are near the screen; drawn small, some ten.
+      final asked = <String>[];
+      Widget? peek(BuildContext context, String body) {
+        asked.add(body);
+        return const SizedBox(height: 80);
+      }
+
+      await show(tester, tree(notes: [for (var i = 0; i < 200; i += 1) makeNote('n$i', body: '# Note $i\n\nWords.', updatedAt: 1000 - i)], peek: peek));
+      // The rows the list has built: those on the screen and those it keeps ready just past it.
+      int built() => find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('note-row-'), skipOffstage: false).evaluate().length;
+      final small = built();
+      await tester.tap(button('Show names only'));
+      await tester.pump();
+      final names = built();
+      expect(names, greaterThan(small * 2));
+      asked.clear();
+      await tester.tap(button('Show each note drawn small'));
+      await tester.pump();
+      // The rows names only had built are the list's still as it is made again, every one of them, before any is
+      // laid out: only those laid out are drawn small.
+      expect(built(), small);
+      expect(asked.length, small, reason: 'of the $names rows names only had, $small are near the screen drawn small');
+      await away(tester);
+    });
+
     testWidgets('opens as it was left: names only, where the device said so', (tester) async {
       writeCompact(true, local);
       await show(tester, tree(notes: [makeNote('a', body: '# Apples\n\nRed ones.')]));
