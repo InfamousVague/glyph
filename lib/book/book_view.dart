@@ -1103,6 +1103,7 @@ class BookViewState extends State<BookView> {
       _reading = on;
       _readTo = 0;
     });
+    _readMade.clear();
     if (!on) _keepLazy(const <String>{});
     _syncWatch();
   }
@@ -1113,6 +1114,9 @@ class BookViewState extends State<BookView> {
   /// as long as a book (measured on a Mac, tool/perf.sh, sixteen written pages, two of them of twelve thousand
   /// letters: one frame of 213 ms): what is under the window's foot is now made while the top is read.
   int _readTo = 0;
+
+  /// Each page's widgets as the read-through last made them, by the page's place, and what they were made from.
+  final Map<int, ({Object made, List<Widget> pieces})> _readMade = <int, ({Object made, List<Widget> pieces})>{};
 
   /// How much the next frame adds, in letters to lay out ([_readCost]): twice as much after a frame that was quick,
   /// half after a slow one. It was a number of pages, twice as many after a quick frame and eight at the most, and
@@ -1165,10 +1169,13 @@ class BookViewState extends State<BookView> {
         } else if (took > 8000) {
           _readStep = math.max(_readStep ~/ 2, _readLeast);
         }
+        // A page at the least, and as many more as fit in what the frame may add.
         final pages = _chapters;
         var to = _readTo, cost = 0;
-        while (to < pages.length && (to == _readTo || cost < _readStep)) {
-          cost += _readCost(pages[to].title);
+        while (to < pages.length) {
+          final next = _readCost(pages[to].title);
+          if (to > _readTo && cost + next > _readStep) break;
+          cost += next;
           to += 1;
         }
         setState(() => _readTo = to);
@@ -1539,8 +1546,8 @@ class BookViewState extends State<BookView> {
     }
 
     final lazy = <String>{};
+    if (_readMade.length > soFar) _readMade.removeWhere((i, _) => i >= soFar);
     for (final (i, chapter) in chapters.indexed.take(soFar)) {
-      if (ghostPerf) Perf.count('book.read.page');
       final read = _pageOf(chapter.title);
       final there = read.there;
       final words = there ? read.words : null;
@@ -1548,11 +1555,29 @@ class BookViewState extends State<BookView> {
       // `[data-depth='1'] { padding-inline-start: 1.6em }`
       final inset = chapter.depth == 1 ? 1.6 * em : 0.0;
       // The page the book was left in is drawn whole, so the line it was left at is where it was measured to be.
-      if (words != null && !canvas && _isLong(read, chapter.title) && !lazy.contains(chapter.title) && !(left != null && sameTitle(chapter.title, left.title))) {
+      final long = words != null && !canvas && _isLong(read, chapter.title) && !lazy.contains(chapter.title) && !(left != null && sameTitle(chapter.title, left.title));
+      final view = long ? _lazyView(chapter.title, read.untitled(chapter.title)) : null;
+      // A page's widgets are the ones it had while everything they are made from is what it was: the pages come a
+      // few to a frame, and each of those frames made every page before them again, title, words and all.
+      final made = (title: chapter.title, depth: chapter.depth, number: numbers[i], read: read, section: _sections[i], view: view, tokens: t, em: em, line: line, ratio: ratio, side: side);
+      final had = _readMade[i];
+      if (had != null && had.made == made) {
+        if (view == null) {
+          run.addAll(had.pieces);
+        } else {
+          endRun(last: false);
+          runKey = '${i + 1}';
+          lazy.add(chapter.title);
+          pieces.addAll(had.pieces);
+        }
+        continue;
+      }
+      if (ghostPerf) Perf.count('book.read.page');
+      if (view != null) {
         endRun(last: false);
         runKey = '${i + 1}';
         lazy.add(chapter.title);
-        final view = _lazyView(chapter.title, read.untitled(chapter.title));
+        final from = pieces.length;
         pieces
           ..add(
             SliverToBoxAdapter(
@@ -1585,9 +1610,10 @@ class BookViewState extends State<BookView> {
               child: heard(Padding(padding: EdgeInsets.symmetric(horizontal: side), child: DecoratedBox(decoration: border, child: SizedBox(height: t.space(4) + line)))),
             ),
           );
+        _readMade[i] = (made: made, pieces: pieces.sublist(from));
         continue;
       }
-      run.add(
+      final section =
         Semantics(
           key: _sections[i],
           container: true,
@@ -1616,8 +1642,9 @@ class BookViewState extends State<BookView> {
               ),
             ),
           ),
-        ),
-      );
+        );
+      _readMade[i] = (made: made, pieces: <Widget>[section]);
+      run.add(section);
     }
     endRun(last: true);
     _keepLazy(lazy);

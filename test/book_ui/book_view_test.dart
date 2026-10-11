@@ -452,6 +452,7 @@ void main() {
       await show(tester, body: bookNoteBody('Long', titles), title: 'Long', bodyOf: (t) => bodies[t]);
       await read();
       expect(drawn(), [0, 1]);
+      final first = tester.widget(find.byKey(const ValueKey('book-read-title-0'), skipOffstage: false));
       // The rail names every page from the first frame.
       expect(find.byKey(const ValueKey('book-rail-19'), skipOffstage: false), findsOneWidget);
       // At least a page more each frame (how many more is by the clock: more after a quick frame), in order.
@@ -462,8 +463,11 @@ void main() {
         had = drawn().length;
       }
       expect(drawn().length, 20);
+      // The pages already drawn are not made again by the frames that add to them: the first's title is the widget
+      // it was.
+      expect(identical(tester.widget(find.byKey(const ValueKey('book-read-title-0'), skipOffstage: false)), first), isTrue);
       // Back at the index and in again: the rail is asked for the last page while the pages are still coming, and
-      // every page up to it is drawn the frame after (a frame draws eight more at the most).
+      // every page up to it is drawn the frame after (a frame draws as many as it has time for, by their letters).
       await tester.ensureVisible(find.text('Index', skipOffstage: false));
       await tester.pump();
       await press(tester, 'Index');
