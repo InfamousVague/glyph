@@ -57,9 +57,19 @@ class BlockFixture {
     return Color.fromARGB(l[3].toInt(), l[0].toInt(), l[1].toInt(), l[2].toInt());
   }
 
-  /// Every case the tool wrote, or those whose name has `only` in it.
-  static List<String> names([String? only]) =>
-      Directory(folder).listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => f.uri.pathSegments.last.replaceAll('.json', '')).where((name) => only == null || only.isEmpty || name.contains(only)).toList()..sort();
+  /// The device pixels to a CSS one the page was LAID OUT in: 1 for a browser told a scale to paint at (it lays
+  /// out in whole CSS pixels), the phone's own for a case in `phone/` (Chromium launched at the scale). And the
+  /// pixels to one its picture is in: 2, or the phone's.
+  double get ratio => ((json['ratio'] ?? 1) as num).toDouble();
+  double get pictureRatio => json['ratio'] == null ? 2 : ratio;
+
+  /// Every case the tool wrote and after them those in a phone's own pixels (`phone/<name>`), or those of them
+  /// whose name has `only` in it.
+  static List<String> names([String? only]) => <String>[
+    for (final under in const <String>['', 'phone/'])
+      if (Directory('$folder/$under').existsSync())
+        ...(Directory('$folder/$under').listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => '$under${f.uri.pathSegments.last.replaceAll('.json', '')}').where((name) => only == null || only.isEmpty || name.contains(only)).toList()..sort()),
+  ];
 }
 
 /// The fixture's note drawn as the page drew it: the same side of the page, code themes and text size, in a window
@@ -84,12 +94,13 @@ Future<EditorView> pumpBlocks(WidgetTester tester, BlockFixture fixture, {requir
     tester,
     size: Size(fixture.width, tall),
     prefs: prefs,
-    ratio: 2,
+    ratio: fixture.pictureRatio,
+    measuredAt: fixture.ratio,
     home: Builder(
       // One device pixel to the logical one for the layout, as the page's was (test/editor/view/support.dart): a
       // browser emulating two device pixels lays a border out in whole CSS pixels.
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(devicePixelRatio: 1),
+        data: MediaQuery.of(context).copyWith(devicePixelRatio: fixture.ratio),
         child: RepaintBoundary(
           key: boundary,
           child: ColoredBox(

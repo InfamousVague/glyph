@@ -121,12 +121,21 @@ for (const [suffix, more] of [['', {}], ['-dark', { theme: 'dark' }], ['-fold', 
 }
 CASES.push({ name: 'mermaid-caret', doc: 'mermaid', theme: 'light', caret: DOCS.mermaid.indexOf('graph TD') + 3 });
 
+// IN A PHONE'S OWN PIXELS. `GLYPH_RATIO=2.625 node tool/blocks_reference.mjs` draws the cases marked `phone` again
+// as a phone lays them out (Chromium launched at that scale lays out in device pixels; told a scale by Playwright
+// it lays out in whole CSS ones: docs/REFERENCES.md) and writes them to fixtures/phone/, a window of 475, the
+// Fold's cover screen.
+const RATIO = Number(process.env.GLYPH_RATIO ?? 0);
+const PHONE_PIXELS = { width: Math.floor(1248 / (RATIO || 1)), height: 2600 };
+if (RATIO) mkdirSync(`${OUT}phone`, { recursive: true });
+/** The cases drawn again in a phone's pixels: each kind of note, light, and one dark. */
+const PHONE_CASES = new Set(['code-light-pastel', 'code-dark-pastel', 'code-places', 'long-words', 'maths', 'maths-rows', 'mermaid-missing']);
 const only = process.argv.slice(2);
-const browser = await chromium.launch();
+const browser = await chromium.launch(RATIO ? { args: [`--force-device-scale-factor=${RATIO}`, `--window-size=${PHONE_PIXELS.width},${PHONE_PIXELS.height}`] } : {});
 
 /** A page of the dev server's own origin with nothing on it, the app's modules loaded and the app not started. */
 async function open(size, mermaid) {
-  const context = await browser.newContext({ viewport: size, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+  const context = await browser.newContext(RATIO ? { viewport: null, hasTouch: true } : { viewport: size, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
   const page = await context.newPage();
   page.on('pageerror', (error) => console.log('page error:', error.message));
   await page.route('**/__blocks_reference', (route) =>
@@ -188,8 +197,9 @@ async function pageFor(one) {
 
 for (const one of CASES) {
   if (only.length && !only.includes(one.name)) continue;
+  if (RATIO && !PHONE_CASES.has(one.name)) continue;
   const doc = DOCS[one.doc];
-  const size = one.size ?? PHONE;
+  const size = RATIO ? PHONE_PIXELS : (one.size ?? PHONE);
   const { page } = await pageFor(one);
   const result = await page.evaluate(
     async ({ one, doc, size }) => {
@@ -447,8 +457,10 @@ for (const one of CASES) {
     { one, doc, size },
   );
   const { clip, ...kept } = result;
-  writeFileSync(`${OUT}${one.name}.json`, `${JSON.stringify(kept)}\n`);
-  writeFileSync(`${OUT}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, Math.min(size.height, clip.height)) } }));
+  const out = RATIO ? `${OUT}phone/` : OUT;
+  if (RATIO) Object.assign(kept, { ratio: RATIO });
+  writeFileSync(`${out}${one.name}.json`, `${JSON.stringify(kept)}\n`);
+  writeFileSync(`${out}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, Math.min(size.height, clip.height)) } }));
   console.log(one.name, kept.lines.length, 'lines,', kept.blocks.map((b) => `${b.classes[0]}${b.drawn ? '' : b.failed ? ' (failed)' : ' (words)'}`).join(', ') || 'no blocks', `, ${kept.maths.length} in lines`);
 }
 

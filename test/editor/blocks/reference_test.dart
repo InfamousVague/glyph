@@ -58,6 +58,18 @@ const int groundLimit = 60, runLimit = 24;
 
 /// Cases the page drew that are not held, and why.
 const Map<String, String> _notHeld = <String, String>{
+  // In a phone's own pixels (fixtures/phone/, Chromium launched at 2.625), three of the seven are not held yet.
+  // A heading of four visual lines is a device pixel taller a line on the page drawn there (182.87 against
+  // 181.34): a line made of two boxes (the line's own and the heading's tighter one) depends on how a face's
+  // descent is rounded, and the instrument is a Mac's Chromium, which rounds it to the nearest, where a phone's
+  // gives a descent rounded down a pixel from the ascent (looks/look.dart `_box`, measured beside a phone).
+  // Which is the phone's for this line can only be told on a phone.
+  'phone/long-words': 'a Mac\'s Chromium rounds a face\'s descent another way than a phone\'s',
+  // A formula that does not fit what is left of its line (see `maths-larger`).
+  'phone/maths': 'the page ends a line between two pieces of a formula',
+  // A diagram's words and reason are set in whole CSS pixels (lib/editor/media/inline_box.dart): every box is
+  // within 0.37px, and the letters a device pixel from the page's, which the ink says (43 at its worst place).
+  'phone/mermaid-missing': 'words in a box are set in CSS pixels, not the phone\'s',
   // A formula in a line that does not fit in what is left of its line. KaTeX's markup is a box for each piece of
   // a formula (up to and with a relation or an operator), and a line may end between two: at the larger text
   // size `## Energy, $E = mc^2$` keeps `E =` on the heading's first line and puts `mc²` on its second. Here a
@@ -103,8 +115,8 @@ void main() {
     final pictured = PicturedBridge();
     diagramStore = DiagramStore(bridge: fixture.mermaid == null ? pictured : held);
     final boundary = GlobalKey();
-    if (ratio != null) debugPaintPixelRatio = ratio;
-    final view = await pumpBlocks(tester, fixture, tall: page.height / 2, boundary: boundary, sheets: sheets, codeLight: codeLight);
+    debugPaintPixelRatio = ratio ?? fixture.pictureRatio;
+    final view = await pumpBlocks(tester, fixture, tall: page.height / fixture.pictureRatio, boundary: boundary, sheets: sheets, codeLight: codeLight);
     if (fixture.mermaid == 'refused') {
       // Nothing to draw it: each ask, as it comes (one diagram is drawn at a time), is told so.
       for (var answered = 0, tries = 0; tries < 8; tries++) {
@@ -413,7 +425,7 @@ void main() {
     // has none; where it stands is held by test/editor/view's `coordsAtPos`.
     view.caretOpacity.value = 0;
     await tester.pump();
-    final mine = await ownPicture(tester, boundary);
+    final mine = await ownPicture(tester, boundary, ratio: fixture.pictureRatio);
     final laid = lay(page, mine);
     if (Platform.environment['EDITOR_LAID'] != null) await writeLaid(tester, 'build/blocks-compare/${shot ?? name}.png', page, mine);
     debugDisableShadows = true;
@@ -434,7 +446,8 @@ void main() {
       final laid = held.laid;
       expect(held.missing, isEmpty, reason: 'a diagram with no picture kept for it: DIAGRAM_FIXTURES=want, then node tool/diagram_fixtures.mjs');
       expect(held.problems, isEmpty, reason: held.problems.take(10).join('\n'));
-      expect(held.size, held.pageSize, reason: 'the picture is the page\'s size');
+      // (To a pixel, where the screen is not a whole number of them across: 475 at 2.625 is 1246.875.)
+      expect((held.size.$1 - held.pageSize.$1).abs() <= 1 && (held.size.$2 - held.pageSize.$2).abs() <= 1, isTrue, reason: 'the picture is the page\'s size: ${held.size}, the page ${held.pageSize}');
       expect(laid.off, lessThanOrEqualTo(groundLimit), reason: 'ground in another colour than the page\'s: $laid');
       expect(laid.worstRun, lessThanOrEqualTo(runLimit), reason: 'ground in another colour than the page\'s, in a run: $laid');
       expect(laid.ink, lessThan(inkLimit), reason: 'the picture\'s ink, over the page\'s: $laid');
