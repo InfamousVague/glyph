@@ -19,6 +19,8 @@
 /// the web does, so a sign inside code or a redaction is no priority here either.
 library;
 
+import 'dart:typed_data';
+
 import 'blanks_syntax.dart';
 import 'front_matter.dart';
 import 'item_syntax.dart';
@@ -152,8 +154,21 @@ String _priorityWords(String body) {
   return fieldsIn(body).where((span) => span.kind == FieldKind.priority).map((span) => '${span.value} priority').join(' ');
 }
 
-/// What a search looks through for each note, by the note's id, for the body it was read from.
-final Map<String, ({String body, String text})> _searched = <String, ({String body, String text})>{};
+/// What a search looks through for each note, by the note's id, for the body it was read from: its words as a
+/// search reads them, and which pairs of letters stand side by side anywhere in them ([_pairsOf]).
+final Map<String, ({String body, String text, Uint32List pairs})> _searched = <String, ({String body, String text, Uint32List pairs})>{};
+
+({String body, String text, Uint32List pairs}) _searchedOf(Note note) {
+  final body = note.body;
+  final had = _searched[note.id];
+  if (had != null) {
+    if (identical(had.body, body)) return had;
+    if (had.body == body) return _searched[note.id] = (body: body, text: had.text, pairs: had.pairs);
+  }
+  if (_searched.length >= 32768) _searched.clear();
+  final text = '${plainFills(body)} ${_priorityWords(body)}'.toLowerCase();
+  return _searched[note.id] = (body: body, text: text, pairs: _pairsOf(text));
+}
 
 /// What a search reads of [note]: its words with a filled blank's hidden bracket taken out (blanks_syntax.dart:
 /// "memory" or "Asked" finds no note), then its to-dos' priorities in words, all in lower case. The page makes it
@@ -161,27 +176,60 @@ final Map<String, ({String body, String text})> _searched = <String, ({String bo
 /// it is read once for the body the note has now, and kept: at most one reading for each note there is (and where
 /// the library hands back the same words in a new string, the reading takes the new string and lets the old go).
 /// The home page's search and All notes' both look through it ([matches], [hasWords]).
-String searchText(Note note) {
-  final body = note.body;
-  final had = _searched[note.id];
-  if (had != null) {
-    if (identical(had.body, body)) return had.text;
-    if (had.body == body) {
-      _searched[note.id] = (body: body, text: had.text);
-      return had.text;
+String searchText(Note note) => _searchedOf(note).text;
+
+/// How many bits say which pairs a note's words hold: 4096, half a kilobyte a note. A long note has six or seven
+/// hundred different pairs, a sixth of them, so a word of three letters no note holds is taken for one it might in
+/// about one note of forty.
+const int _pairBits = 4096;
+
+int _pair(int first, int second) => (first * 131 + second * 31 + (first ^ second)) & (_pairBits - 1);
+
+/// Every pair of letters side by side in [text], and every letter (as a pair with nothing before it), each as one
+/// bit of 4096. A word a note holds has all of its pairs among the note's, so a word with a pair the note has not
+/// is not in it, and the note's words need not be looked through to say so: a search looked through every letter
+/// of every note that did not hold the word, at each letter typed (most of what a letter cost the lists: on the
+/// Fold 4.5 ms over 354 notes).
+Uint32List _pairsOf(String text) {
+  final bits = Uint32List(_pairBits >> 5);
+  var before = 0;
+  for (var i = 0; i < text.length; i += 1) {
+    final unit = text.codeUnitAt(i);
+    final alone = _pair(0, unit);
+    bits[alone >> 5] |= 1 << (alone & 31);
+    if (i > 0) {
+      final two = _pair(before, unit);
+      bits[two >> 5] |= 1 << (two & 31);
     }
+    before = unit;
   }
-  if (_searched.length >= 32768) _searched.clear();
-  final text = '${plainFills(body)} ${_priorityWords(body)}'.toLowerCase();
-  _searched[note.id] = (body: body, text: text);
-  return text;
+  return bits;
+}
+
+/// Whether words with these [pairs] may hold [word]: false only where they cannot.
+bool _mayHold(Uint32List pairs, String word) {
+  var before = 0;
+  for (var i = 0; i < word.length; i += 1) {
+    final unit = word.codeUnitAt(i);
+    final bit = _pair(i == 0 ? 0 : before, unit);
+    if (pairs[bit >> 5] & (1 << (bit & 31)) == 0) return false;
+    before = unit;
+  }
+  return true;
 }
 
 /// The words of a query as a search reads them: lower case, split at any run of white space. None for a blank one.
 List<String> queryWords(String query) => query.isEmpty ? const <String>[] : query.toLowerCase().split(_spaces).where((word) => word.isNotEmpty).toList();
 
 /// Whether a note has every one of [words] ([queryWords]); none asked for is every note, with nothing of it read.
-bool hasWords(Note note, List<String> words) => words.isEmpty || words.every(searchText(note).contains);
+bool hasWords(Note note, List<String> words) {
+  if (words.isEmpty) return true;
+  final kept = _searchedOf(note);
+  for (final word in words) {
+    if (!_mayHold(kept.pairs, word) || !kept.text.contains(word)) return false;
+  }
+  return true;
+}
 
 /// Whether a note has every word of the query, in its title or its body, whatever the case. Words rather than the
 /// whole phrase, so "trip packing" finds a note with those two words anywhere in it.
