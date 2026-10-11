@@ -3,8 +3,8 @@
 /// What CodeMirror gets from a `contenteditable` (the browser tells the keyboard what the text is, and CodeMirror
 /// reads the DOM back, @codemirror/view domobserver.ts and input.ts), Flutter has to do by hand: the keyboard holds
 /// a copy of some text, sends its edits as deltas against that copy, and is told when the copy changed under it.
-/// The eight rules this keeps were found by experiment on Android (docs/STAGE4.md, "Piece 0, the keyboard";
-/// lib/spike/ime_spike.dart):
+/// The eight rules this keeps were found by experiment on Android (docs/STAGE4.md, "Piece 0, the keyboard"; the
+/// throwaway app the experiment was made with, lib/spike/ime_spike.dart, is in git's history up to 2026-10-10):
 ///
 /// 1. **The keyboard's value is always a real range of the document**: [windowFrom]-[windowTo], and [held] is what
 ///    the keyboard is believed to hold of it. A value is pushed only when the range, or the selection in it, is not

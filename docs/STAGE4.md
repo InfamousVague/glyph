@@ -45,7 +45,7 @@ parallel; J after I; L's frame once C reads, finished after D.
 fixture note per feature, writes each `.cm-line` rectangle, chosen ranges' client rects and widgets' rectangles, plus a
 picture; Dart tests assert line boxes and `coordsAtPos` to half a pixel.
 
-## Piece 0, the keyboard (run on the emulator, Gboard 15.1, 2026-10-07; lib/spike/ime_spike.dart)
+## Piece 0, the keyboard (run on the emulator, Gboard 15.1, 2026-10-07; lib/spike/ime_spike.dart, removed 2026-10-10 and in git's history)
 A windowed delta client works for typing, suggestions, glide, Enter, Backspace across the window's start, caret moves
 and cross-line selections. Composing and autocorrect could not be exercised (the emulator's Gboard never composes):
 still to see on the Fold, with Samsung Keyboard and a CJK keyboard.
