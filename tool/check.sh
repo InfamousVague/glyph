@@ -412,7 +412,7 @@ analyze() {
 server() {
   take_turn
   build_turn
-  tool/local-server.sh build >"$out/server-build.log" 2>&1
+  CARGO_BUILD_JOBS="$jobs" tool/local-server.sh build >"$out/server-build.log" 2>&1
   code=$?
   built
   if [ "$code" -ne 0 ]; then
