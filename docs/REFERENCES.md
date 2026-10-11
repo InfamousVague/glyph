@@ -188,3 +188,28 @@ that, and says so. Where the two disagree, only the phone can say; the port keep
    home any text can ask.
 9. **Pictures as tests for the references that have them only to look at.** `test/support/page_picture.dart` and a
    repaint boundary round the host are all a reference test needs; the `fixtures/*.png` are there already.
+10. **Words placed by what a paragraph says of its baseline, outside the editor.** A paragraph inks a line's
+    baseline on the whole pixel nearest the line's ascent; it says something else twice over (`LineMetrics.baseline`
+    is the rounded height less the descent, a painter's distance to its baseline is the ascent unrounded), and
+    words set on the page's baseline by either stand up to three quarters of a logical pixel off it, with their
+    boxes right. The editor's own places are put right (`lib/editor/looks/look.dart` `inkBaseline`: a line's words,
+    its marker, raised runs, a table's cell, a chip's words, an effect's letter; held by
+    test/editor/view/ink_rows_test.dart and test/editor/tables/ink_rows_test.dart against the page's pictures).
+    The same error is still in `packages/glacier/lib/src/tokens/exact_lines.dart` and `line_height.dart` (every
+    label the kit sets on the page's line), `lib/sheet/css.dart`, the queries' `PageWords`
+    (`lib/editor/queries/query_layout.dart`, which says itself it is a fraction of a pixel off),
+    `lib/canvas/minimap.dart` and `lib/tapes/tape_art.dart`. None has been measured against a page's picture.
+11. **Inter and a block of code at a phone's density, by ink.** test/editor/view/fixtures/device is the page drawn
+    by a desktop's browser truly at 2.625 (`GLYPH_DSF=2.625 node tool/editor_reference.mjs`), and holds Maple
+    Mono's lines to within 0.27 of a device pixel. Where a face's descent rounds down, Android gives it a pixel of
+    the ascent and a desktop's browser does not, so a line in Inter, or in the code face at its size, stands a
+    pixel higher on the phone than in that picture: the test leaves such a line out and counts it. Only the
+    phone's own WebView can say they are right (the side-by-side walk, with the note's face set to Inter).
+12. **The rule under a link.** It is drawn a device row from where the page draws it (the three `inline-*` cases'
+    link line: the letters on the page's rows, the ink's centre 0.8 off).
+13. **The pictures only drawn when asked.** `EDITOR_SHOTS` and `FIND_SHOTS` gate the pictures of the view's, the
+    tables', the queries', the boards', the tickets' and the find bar's reference tests; no ordinary run holds
+    them, and 26 were not what main drew on 2026-10-11 (the caret cases, the find bar's). They are recorded again
+    as of the baseline's fix and will drift the same way until a run holds them.
+14. **A table's baseline on a logical pixel.** `lib/editor/tables/table_layout.dart` `paint` rounds a line's
+    baseline to a whole logical pixel where a phone's page puts it on a device pixel.
