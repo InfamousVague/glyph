@@ -2,6 +2,24 @@
  "katex": "0.16.47",
  "formulas": [
   {
+   "tex": "\\begin{align} a &= b \\end{align}",
+   "display": false,
+   "ok": false,
+   "error": "{align} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{equation*} a \\end{equation*}",
+   "display": false,
+   "ok": false,
+   "error": "{equation*} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{split} a \\end{split}",
+   "display": false,
+   "ok": false,
+   "error": "{split} can be used only in display mode."
+  },
+  {
    "tex": "x^2 + y",
    "display": false,
    "ok": true,
@@ -964,6 +982,48 @@
    "ok": true,
    "height": 0.9468,
    "depth": 0
+  },
+  {
+   "tex": "\\begin{aligned} a &= b \\\\ c &= d \\\\ \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{align} a &= b \\tag{x} \\\\ c &= \\frac{d}{e} \\nonumber \\\\ f \\notag \\\\ g \\end{align}",
+   "display": true,
+   "ok": true,
+   "height": 3.5287,
+   "depth": 3.0287
+  },
+  {
+   "tex": "\\begin{gather} a \\\\ b \\tag*{B} \\end{gather}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{alignat}{2} a &= b &\\quad c &= d \\\\ e &= f \\end{alignat}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{align*} a &= b \\tag{1} \\\\ c \\end{align*}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{equation} \\frac{a}{b} \\end{equation}",
+   "display": true,
+   "ok": true,
+   "height": 1.1468,
+   "depth": 0.6468
   },
   {
    "tex": "\\Big( x \\Big)",

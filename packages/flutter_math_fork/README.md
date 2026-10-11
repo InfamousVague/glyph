@@ -1,7 +1,7 @@
 # flutter_math_fork, as Ghost.md keeps it
 
 This is [flutter_math_fork](https://pub.dev/packages/flutter_math_fork) 0.7.4 (Apache 2.0, see `LICENSE`; the
-parser and the layout are ported from KaTeX, MIT, and each file says so), with the eighteen changes named below. The app
+parser and the layout are ported from KaTeX, MIT, and each file says so), with the nineteen changes named below. The app
 reads it by path (`pubspec.yaml`: `flutter_math_fork: path: packages/flutter_math_fork`) and draws a note's
 formulas with it (`lib/editor/maths`).
 
@@ -92,17 +92,29 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
     `vmatrix*`, `Vmatrix*`, with `[l]`, `[c]` or `[r]` for how their columns are set. And `Vmatrix` has its
     double bars: the published package gave it `vmatrix`'s single ones.
 
+19. **The rows of `align`, `gather`, `equation` and `alignat` say what stands beside them**
+    (`parser/tex/environments/eqn_array.dart`, `lib/src/ast/nodes/equation_array.dart`, `parser/tex/namespace.dart`,
+    `parser/tex/macros.dart`, `render/layout/eqn_array.dart`). As KaTeX's `parseArray` gathers it (`beginRow`,
+    `endRow`, `getAutoTag`): each row's own `\tag{…}`, or, in an unstarred environment, that the row takes the
+    next equation number unless it says `\nonumber` or `\notag` (`EquationArrayNode.tags`). The package draws
+    none of it: the app sets each at the far side of the line, on its row's baseline, and knows the number
+    (`RenderEqnArray.rowBaselines`, exported for it). These environments, and `split`, are refused in a line
+    of text with KaTeX's words (`validateAmsEnvironmentContext`). And the empty row a last `\\` leaves is no row:
+    the published package tested for a kind of node a cell never is, and kept it.
+
 `\tag{…}` is not a change here: the package's macros already keep a tag aside (`\df@tag`), and the app reads it
 from there and sets it at the right of the formula (`lib/editor/maths/formula.dart`, `maths.dart`).
 
 ## What still differs from KaTeX
 
-`test/editor/maths/katex_test.dart` holds thirty-four formulas and a hundred and nine pieces of them to KaTeX's heights
+`test/editor/maths/katex_test.dart` holds the formulas it reads and a hundred and fifteen pieces of them to KaTeX's heights
 and depths, to a hundredth of an em, and all agree. What that does not say:
 
-- **Equation numbers.** KaTeX numbers the rows of `align`, `gather`, `equation` and `alignat` at the right
-  (`(1)`, `(2)`, counted down the page by a CSS counter); nothing is drawn here. The starred forms and `aligned`
-  have none in either. A formula's own `\tag{…}` is drawn.
+- **Which number an equation has.** KaTeX counts with a counter of the page's stylesheet: a row's number is
+  one more than the numbered rows in the page before it, and the web editor keeps only the lines near the
+  screen in the page, so there a number changes as a note is scrolled. The app counts through the note from
+  its top (`lib/editor/maths/maths.dart`). An environment that is only part of a formula
+  (`x = \begin{align}…`) has its numbers beside its table in KaTeX; here it has none.
 - **Widths, and the shape of a glyph.** There is no browser on either side of the comparison, so only what the
   two layouts work out is compared: how far above and below its baseline a formula reaches.
 - **What KaTeX reads and this reader does not.** Of eighty-three families of KaTeX's commands, each tried the
@@ -116,6 +128,6 @@ and depths, to a hundredth of an em, and all agree. What that does not say:
 
 ## Taking a newer one
 
-Copy the new `lib/` over this one, then make the eighteen changes again: `git log -p -- packages/flutter_math_fork`
+Copy the new `lib/` over this one, then make the nineteen changes again: `git log -p -- packages/flutter_math_fork`
 shows each, and `diff -r` against the published 0.7.4 in the pub cache is the whole of them (about four hundred
 lines). `test/editor/maths/katex_test.dart` then says which of them the new version still needs.

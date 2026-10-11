@@ -10,13 +10,13 @@
 library;
 
 import 'package:flutter/painting.dart' show Color;
-import 'package:flutter_math_fork/ast.dart' show MathOptions, MathStyle, SyntaxTree, SyntaxTreeTexStyleBreakExt;
+import 'package:flutter_math_fork/ast.dart' show EquationArrayNode, MathOptions, MathStyle, SyntaxTree, SyntaxTreeTexStyleBreakExt;
 import 'package:flutter_math_fork/flutter_math.dart' show ParseException, Strict, TexParserSettings;
 import 'package:flutter_math_fork/tex.dart' show TexParser;
 
 /// What a formula is drawn as: its tree, or what is wrong with it.
 class Formula {
-  Formula._(this.tex, this.display, this.tree, this.failed, [this.tag]);
+  Formula._(this.tex, this.display, this.tree, this.failed, [this.tag, this.rowTags, this.rowNumbered]);
 
   final String tex;
   final bool display;
@@ -24,6 +24,18 @@ class Formula {
 
   /// What `\tag{…}` named the formula, to be set at the right of its line.
   final SyntaxTree? tag;
+
+  /// For a formula that is one of the environments whose rows may be named (`align`, `gather`, `equation`,
+  /// `alignat`, and their starred forms), each row's own `\tag{…}`, null where it has none; null for any other
+  /// formula.
+  final List<SyntaxTree?>? rowTags;
+
+  /// And which of its rows take the next equation number: the rows of an unstarred one, less those that say
+  /// `\nonumber` or `\notag` or have a tag of their own.
+  final List<bool>? rowNumbered;
+
+  /// How many numbers the formula takes.
+  late final int numbered = rowNumbered == null ? 0 : rowNumbered!.where((row) => row).length;
 
   /// What the reader said, when it could not read the formula.
   final String? failed;
@@ -63,7 +75,22 @@ Formula _parse(String tex, bool display) {
     // KaTeX's parseTree: a `\tag` is kept by the parse (as the macro `\df@tag`) and set beside the formula
     // when it is done; only a formula on lines of its own has the room.
     final tagged = parser.macroExpander.expandMacro(r'\df@tag');
-    if (tagged == null) return Formula._(tex, display, root, null);
+    if (tagged == null) {
+      // KaTeX's buildHTML: the numbers of an environment that is the whole formula are set at the far side of
+      // its line (`expression.length === 2 && expression[1].hasClass('tag')`).
+      final only = root.greenRoot.children.length == 1 ? root.greenRoot.children[0] : null;
+      final tags = only is EquationArrayNode ? only.tags : null;
+      if (tags == null) return Formula._(tex, display, root, null);
+      return Formula._(
+        tex,
+        display,
+        root,
+        null,
+        null,
+        <SyntaxTree?>[for (final tag in tags) tag == null || identical(tag, EquationArrayNode.numbered) ? null : SyntaxTree(greenRoot: tag)],
+        <bool>[for (final tag in tags) identical(tag, EquationArrayNode.numbered)],
+      );
+    }
     if (!display) return Formula._(tex, display, null, r'\tag works only in display equations');
     final words = StringBuffer();
     for (final token in tagged) {
@@ -78,6 +105,10 @@ Formula _parse(String tex, bool display) {
     return Formula._(tex, display, null, '$error');
   }
 }
+
+/// An equation's number as KaTeX's stylesheet writes it (`.eqn-num::before { content: '(' counter(katexEqnNo)
+/// ')' }`), to be drawn: a tree of its own each time, for the one place on screen that draws it.
+SyntaxTree numberTag(int number) => SyntaxTree(greenRoot: TexParser('\\text{($number)}', const TexParserSettings(displayMode: true)).parse());
 
 List<Formula> _readings(String tex, bool display) {
   final key = '${display ? 'D' : 'I'}$tex';

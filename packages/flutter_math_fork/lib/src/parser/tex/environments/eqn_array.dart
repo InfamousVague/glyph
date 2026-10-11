@@ -114,10 +114,32 @@ GreenNode _casesHandler(TexParser parser, EnvContext context) {
   }
 }
 
-GreenNode _alignedHandler(TexParser parser, EnvContext context) =>
+/// `validateAmsEnvironmentContext`: the environments that are a displayed formula by themselves are refused in
+/// a line of text, with KaTeX's words.
+///
+/// Added to 0.7.4 (README.md, 19).
+void _displayOnly(TexParser parser, EnvContext context) {
+  if (!parser.settings.displayMode) {
+    throw ParseException(
+        '{${context.envName}} can be used only in display mode.');
+  }
+}
+
+/// `getAutoTag`: null for an environment that is part of a formula (`aligned`, `split`), false for a starred
+/// one, whose rows have only the tags they are given, true for one whose rows are numbered.
+bool? _autoTag(String name) =>
+    name.contains('ed') || name == 'split' ? null : !name.contains('*');
+
+GreenNode _alignedHandler(TexParser parser, EnvContext context) {
+  if (!context.envName.contains('ed')) _displayOnly(parser, context);
+  return _alignedRows(parser, context);
+}
+
+GreenNode _alignedRows(TexParser parser, EnvContext context) =>
     parseEqnArray(
       parser,
       addJot: true,
+      autoTag: _autoTag(context.envName),
       concatRow: (cells) {
         final expanded = cells
             .expand((cell) => [...cell.children, SpaceNode.alignerOrSpacer()])
@@ -127,23 +149,36 @@ GreenNode _alignedHandler(TexParser parser, EnvContext context) =>
     );
 
 /// Rows each centred, a jot between them: `gathered`.
-GreenNode _gatheredHandler(TexParser parser, EnvContext context) =>
+GreenNode _gatheredHandler(TexParser parser, EnvContext context) {
+  if (context.envName != 'gathered') _displayOnly(parser, context);
+  return _gatheredRows(parser, context);
+}
+
+GreenNode _gatheredRows(TexParser parser, EnvContext context) =>
     parseEqnArray(
       parser,
       addJot: true,
+      autoTag: _autoTag(context.envName),
       concatRow: (cells) => EquationRowNode(
           children: cells.expand((cell) => cell.children).toList()),
     );
 
 /// One row, as it is: `equation`.
-GreenNode _equationHandler(TexParser parser, EnvContext context) =>
+GreenNode _equationHandler(TexParser parser, EnvContext context) {
+  _displayOnly(parser, context);
+  return _equationRows(parser, context);
+}
+
+GreenNode _equationRows(TexParser parser, EnvContext context) =>
     parseEqnArray(
       parser,
+      autoTag: _autoTag(context.envName),
       concatRow: (cells) => EquationRowNode(
           children: cells.expand((cell) => cell.children).toList()),
     );
 
 GreenNode _alignedAtHandler(TexParser parser, EnvContext context) {
+  if (!context.envName.contains('ed')) _displayOnly(parser, context);
   final arg = parser.parseArgNode(mode: null, optional: false);
   final numNode = assertNodeType<EquationRowNode>(arg);
   final string = numNode.children
@@ -156,6 +191,7 @@ GreenNode _alignedAtHandler(TexParser parser, EnvContext context) {
   return parseEqnArray(
     parser,
     addJot: true,
+    autoTag: _autoTag(context.envName),
     concatRow: (cells) {
       if (cells.length > 2 * cols) {
         throw ParseException('Too many math in a row: '
@@ -173,8 +209,44 @@ EquationArrayNode parseEqnArray(
   TexParser parser, {
   bool addJot = false,
   double? arrayStretch,
+  bool? autoTag,
   required EquationRowNode Function(List<EquationRowNode> cells) concatRow,
 }) {
+  // Added to 0.7.4 (README.md, 19): what stands at the right of each row, as KaTeX's parseArray gathers it
+  // (`beginRow`, `endRow`): the row's own `\tag`, or, in an environment that numbers its rows, a number unless
+  // the row said `\nonumber`.
+  final tags = <EquationRowNode?>[];
+  void beginRow() {
+    if (autoTag == true) {
+      parser.macroExpander.macros
+          .set('\\@eqnsw', MacroDefinition.fromString('1'), global: true);
+    }
+  }
+
+  void endRow() {
+    if (autoTag == null) return;
+    final tagged = parser.macroExpander.expandMacro('\\df@tag');
+    if (tagged != null) {
+      parser.macroExpander.macros.unset('\\df@tag');
+      final words = StringBuffer();
+      for (final token in tagged) {
+        // A control word and a letter after it are two things: kept apart as they were written.
+        if (words.isNotEmpty &&
+            RegExp('^[A-Za-z]').hasMatch(token.text) &&
+            RegExp(r'\\[A-Za-z]+$').hasMatch(words.toString())) {
+          words.write(' ');
+        }
+        words.write(token.text);
+      }
+      tags.add(TexParser(words.toString(), parser.settings).parse());
+    } else {
+      tags.add(autoTag &&
+              parser.macroExpander.expandMacroAsText('\\@eqnsw') == '1'
+          ? EquationArrayNode.numbered
+          : null);
+    }
+  }
+
   final givenStretch = arrayStretch;
   // Parse body of array with \\ temporarily mapped to \cr
   parser.macroExpander.beginGroup();
@@ -202,6 +274,7 @@ EquationArrayNode parseEqnArray(
 
   var row = <EquationRowNode>[];
   final body = [row];
+  beginRow();
   final rowGaps = <Measurement>[];
   final hLinesBeforeRow = <MatrixSeparatorStyle>[];
 
@@ -226,8 +299,12 @@ EquationArrayNode parseEqnArray(
       // Arrays terminate newlines with `\crcr` which consumes a `\cr` if
       // the last line is empty.
       // NOTE: Currently, `cell` is the last item added into `row`.
-      if (row.length == 1 && cell is StyleNode && cell.children.isEmpty) {
+      endRow();
+      // Changed from 0.7.4 (README.md, 19): the test was for a kind of node a cell never is, so the empty row
+      // a last `\\\\` leaves was kept, a row taller than KaTeX's and here a number more.
+      if (row.length == 1 && cell.children.isEmpty && body.length > 1) {
         body.removeLast();
+        if (tags.length > body.length) tags.removeLast();
       }
       if (hLinesBeforeRow.length < body.length + 1) {
         hLinesBeforeRow.add(MatrixSeparatorStyle.none);
@@ -241,8 +318,10 @@ EquationArrayNode parseEqnArray(
       hLinesBeforeRow
           .add(getHLines(parser).lastOrNull ?? MatrixSeparatorStyle.none);
 
+      endRow();
       row = [];
       body.add(row);
+      beginRow();
     } else {
       throw ParseException(
           'Expected & or \\\\ or \\cr or \\end', parser.nextToken);
@@ -262,5 +341,6 @@ EquationArrayNode parseEqnArray(
     rowSpacings: rowGaps,
     addJot: addJot,
     body: rows,
+    tags: tags.any((tag) => tag != null) ? tags : null,
   );
 }

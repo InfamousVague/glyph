@@ -113,6 +113,11 @@ class RenderEqnArray extends RenderBox
 
   List<double> hlinePos = [];
 
+  /// Each row's baseline, from the top of this box, as last laid out.
+  ///
+  /// Added to 0.7.4 (README.md, 19), for a row's number to be set on the row's line.
+  List<double> rowBaselines = [];
+
   double width = 0.0;
 
   @override
@@ -175,6 +180,7 @@ class RenderEqnArray extends RenderBox
     var vPos = 0.0;
     if (!dry) {
       hlinePos.add(vPos);
+      rowBaselines = [];
     }
     index++;
     child = firstChild;
@@ -203,6 +209,7 @@ class RenderEqnArray extends RenderBox
           hPos,
           vPos - child.layoutHeight,
         );
+        rowBaselines.add(vPos);
       }
       // Changed from 0.7.4 (README.md, 5): the jot is between rows, not under the last one, as KaTeX 0.16
       // has it (environments/array.js: "adding \jot depth to each row except the last").

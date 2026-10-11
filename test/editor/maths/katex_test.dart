@@ -120,9 +120,14 @@ void main() {
     // ignore: avoid_print
     print('${formulas.length - differs.length} of ${formulas.length} as KaTeX has them\n${report.join('\n')}');
     expect(differs, isEmpty);
-    // The four that are not formulas are read by neither, and the four the published package could not read
+    // The seven that are not formulas are read by neither, and the four the published package could not read
     // are read: a name before a subscript and a space, `align`, `\tag`, `\def` and `\newcommand`.
-    expect(formulas.where((formula) => formula['ok'] == false).length, 4);
+    expect(formulas.where((formula) => formula['ok'] == false).length, 7);
+    // Three of them are environments that stand only as a displayed formula: refused in a line, in KaTeX's words.
+    for (final formula in formulas.where((formula) => (formula['error'] as String?)?.contains('display mode') ?? false)) {
+      expect(formulaOf(formula['tex'] as String, false).failed, formula['error'], reason: formula['tex'] as String);
+    }
+    expect(formulas.where((formula) => (formula['error'] as String?)?.contains('display mode') ?? false), hasLength(3));
     for (final tex in <String>[r'\mathbf{A}\mathrm{d}x + \operatorname{argmax}_\theta \, \hat{\theta}', r'\begin{align} a &= b \\ c &= d \end{align}', r'\cancel{x} + \tag{1}', r'\def\x{y}\x + \newcommand{\z}{w}\z']) {
       expect(formulas.any((formula) => formula['tex'] == tex), isTrue, reason: tex);
       expect(formulaOf(tex, tex.contains('align') || tex.contains('tag')).tree, isNotNull, reason: tex);

@@ -31,9 +31,21 @@ class EquationArrayNode extends SlotableNode<EquationRowNode?> {
   /// Spacings between rows;
   final List<Measurement> rowSpacings;
 
+  /// What stands at the right of each row of an environment that numbers its rows (`align`, `gather`,
+  /// `equation`, `alignat`): null for nothing, [numbered] for the equation's number, and otherwise the row's own
+  /// `\tag`. Null where no row has anything. This draws none of it: whoever sets the formula on its line
+  /// does, at the line's far side, and knows the number.
+  ///
+  /// Added to 0.7.4 (README.md, 19). KaTeX: `tags` of environments/array.js.
+  final List<EquationRowNode?>? tags;
+
+  /// The tag of a row that takes the next number.
+  static final EquationRowNode numbered = EquationRowNode.empty();
+
   EquationArrayNode({
     this.addJot = false,
     required this.body,
+    this.tags,
     this.arrayStretch = 1.0,
     List<MatrixSeparatorStyle>? hlines,
     List<Measurement>? rowSpacings,
@@ -107,6 +119,7 @@ class EquationArrayNode extends SlotableNode<EquationRowNode?> {
         arrayStretch: arrayStretch ?? this.arrayStretch,
         addJot: addJot ?? this.addJot,
         body: body ?? this.body,
+        tags: tags,
         hlines: hlines ?? this.hlines,
         rowSpacings: rowSpacings ?? this.rowSpacings,
       );

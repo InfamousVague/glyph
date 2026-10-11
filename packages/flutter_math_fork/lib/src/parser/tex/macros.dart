@@ -419,6 +419,9 @@ final Map<String, MacroDefinition> builtinMacros = {
     throw ParseException('Invalid token after macro prefix');
   }),
   '\\long': MacroDefinition.fromString(''),
+  // Added to 0.7.4 (README.md, 19): a row of a numbered environment asks for no number.
+  '\\nonumber': MacroDefinition.fromString('\\gdef\\@eqnsw{0}'),
+  '\\notag': MacroDefinition.fromString('\\nonumber'),
   '\\llap': MacroDefinition.fromString('\\mathllap{\\textrm{#1}}'),
   '\\rlap': MacroDefinition.fromString('\\mathrlap{\\textrm{#1}}'),
   '\\clap': MacroDefinition.fromString('\\mathclap{\\textrm{#1}}'),

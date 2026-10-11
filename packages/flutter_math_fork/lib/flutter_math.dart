@@ -12,3 +12,5 @@ export 'src/parser/tex/settings.dart';
 export 'src/widgets/exception.dart';
 export 'src/widgets/math.dart';
 export 'src/widgets/selectable.dart' show SelectableMath;
+// Added to 0.7.4 (README.md, 19): where an equation array's rows are, for whoever sets a number beside each.
+export 'src/render/layout/eqn_array.dart' show RenderEqnArray;

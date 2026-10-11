@@ -26,6 +26,10 @@ if (!source.includes("katex.renderToString(tex, { displayMode: display, throwOnE
 
 /** The formulas: ordinary ones first, then harder, then ones one or other cannot read. `display` is a `$$` block. */
 const FORMULAS = [
+  // The environments that are a displayed formula by themselves, in a line of text: refused, and why.
+  ["\\begin{align} a &= b \\end{align}", false],
+  ["\\begin{equation*} a \\end{equation*}", false],
+  ["\\begin{split} a \\end{split}", false],
   ['x^2 + y', false],
   ['E = mc^2', false],
   ['a_1 + a_2 = a_{n+1}', false],
@@ -84,6 +88,8 @@ const PARTS = [
   ['\\stackrel{a}{=}', false], ['\\overset{a}{b}', false], ['\\underset{a}{b}', false], ['\\not=', false], ['\\ldots', false], ['\\dfrac{1}{2}', false], ['\\tfrac{1}{2}', true],
   // What the package was taught after the first comparison: boxes, laps, choices, the untrusted, `\\let`, starred matrices.
   ["\\smash{\\frac{a}{b}} x", true], ["\\smash[t]{\\frac{a}{b}}", true], ["\\smash[b]{\\frac{a}{b}}", true], ["\\smash{y}", false], ["x \\mathclap{\\frac{a}{b}} y", true], ["\\sum_{\\mathclap{1 \\le i \\le n}} x_i", true], ["\\mathllap{a} b \\mathrlap{c}", false], ["\\rlap{a} \\llap{b} \\clap{c}", false], ["\\vcenter{\\frac{a}{b}} + \\vcenter{x}", true], ["\\hbox{abc $x^2$}", false], ["\\mathchoice{\\frac{a}{b}}{T}{S}{s}", true], ["\\mathchoice{\\frac{a}{b}}{T}{S}{s}", false], ["x^{\\mathchoice{D}{T}{\\frac{S}{S}}{s}}", false], ["\\pmb{x} + \\pmb{\\frac{a}{b}}", true], ["\\href{http://a.example}{\\frac{x}{y}}", true], ["\\url{http://a.example}", false], ["\\includegraphics[width=1em]{a.png}", false], ["\\htmlClass{a}{\\frac{x}{y}}", true], ["\\let\\a=\\frac \\a{1}{2}", true], ["\\global\\let\\b\\alpha \\b + \\long\\def\\c#1{#1^2}\\c{x}", false], ["\\begin{pmatrix*}[r] a & -b \\\\ -c & d \\end{pmatrix*}", true], ["\\begin{Vmatrix*} a \\\\ b \\end{Vmatrix*}", true], ["\\begin{Vmatrix} a \\\\ b \\end{Vmatrix}", true], ["\\varlimsup_{n} x_n", true], ["\\varinjlim_{n} x_n", true], ["\\varinjlim_{n} x_n", false], ["\\varliminf x + \\varprojlim y", false], ["\\text{\\aa \\AA}", false],
+  // The numbered environments, and a last `\\\\` with nothing after it.
+  ["\\begin{aligned} a &= b \\\\ c &= d \\\\ \\end{aligned}", true], ["\\begin{align} a &= b \\tag{x} \\\\ c &= \\frac{d}{e} \\nonumber \\\\ f \\notag \\\\ g \\end{align}", true], ["\\begin{gather} a \\\\ b \\tag*{B} \\end{gather}", true], ["\\begin{alignat}{2} a &= b &\\quad c &= d \\\\ e &= f \\end{alignat}", true], ["\\begin{align*} a &= b \\tag{1} \\\\ c \\end{align*}", true], ["\\begin{equation} \\frac{a}{b} \\end{equation}", true],
   ['\\Big( x \\Big)', false], ['\\bigg\\{ x \\bigg\\}', false], ['\\lvert x \\rvert', false], ['\\| v \\|', false], ['\\langle a, b \\rangle', false],
 ];
 

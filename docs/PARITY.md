@@ -267,7 +267,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A backslash makes a mark mean itself | editor/viewMode.ts:35-41 | editor/view/view_mode.dart:47-55 | match | |
 | Emoji `:name:`, 150 names | core/emoji.ts:13 | core/emoji.dart | match | |
 | Maths `$…$` set as code where it cannot be drawn | editor/extended.ts:258,373 | editor/view/extended.dart:302,458-463 | match | The original's fallback is the port's only look. |
-| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | editor/maths/maths.dart; editor/maths/formula.dart; packages/flutter_math_fork | differs | Drawn by flutter_math_fork, a port of KaTeX with KaTeX's faces, kept in the repo (packages/flutter_math_fork: its README names the eighteen places it was changed to agree with KaTeX). Thirty-four formulas and a hundred and nine pieces of them, held against KaTeX 0.16 (test/editor/maths/katex_test.dart), are as tall and as deep to a hundredth of an em, every one. Of eighty-three families of KaTeX's commands seven are not read (the test holds the list: `\phase`, `\angl`, `\edef`, `\set`, `CD`, `\copyright`) and a formula with one is shown as its source; the rows of `align` and `equation` are not numbered. A formula that cannot be read says so on a long press, in a panel, not a browser's tooltip. |
+| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | editor/maths/maths.dart; editor/maths/formula.dart; packages/flutter_math_fork | differs | Drawn by flutter_math_fork, a port of KaTeX with KaTeX's faces, kept in the repo (packages/flutter_math_fork: its README names the nineteen places it was changed to agree with KaTeX). Thirty formulas and a hundred and fifteen pieces of them, held against KaTeX 0.16 (test/editor/maths/katex_test.dart), are as tall and as deep to a hundredth of an em, every one, and the seven KaTeX refuses are refused. Of eighty-three families of KaTeX's commands seven are not read (the test holds the list: `\phase`, `\angl`, `\edef`, `\set`, `CD`, `\copyright`) and a formula with one is shown as its source. The rows of `align`, `gather`, `equation` and `alignat` are numbered at the right of their line, counted through the note from its top, where the web's number is counted through what is drawn (Differs 41). A formula that cannot be read says so on a long press, in a panel, not a browser's tooltip. |
 | A `$$` block on lines of its own, set in the middle of the page | editor/mathsDrawn.ts:141-157 | editor/maths/maths.dart | match | |
 | Lists `-`, `*`, `+`, `1.`, `1)`, nested, with a hanging indent | core/itemSyntax.ts:31-33; editor/glyphLines.ts:44-93 | core/item_syntax.dart; editor/view/glyph_lines.dart:47-70 | match | |
 | To-do boxes | editor/glyphHighlight.ts:52 | editor/view/glyph_highlight.dart:80 | match | |
@@ -1216,9 +1216,14 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     followed. A long block being read is coloured down to where the reading has got, as on the web, and never
     one frame in the original's own in-between states.
 41. **A formula is drawn by `flutter_math_fork`, not KaTeX 0.16.** The copy in packages/flutter_math_fork is
-    held to KaTeX's heights and depths (test/editor/maths/katex_test.dart: all 143 agree). What is left: seven
-    families of KaTeX's commands it does not read (the test's list; such a formula is shown as its source), no
-    equation numbers on the rows of `align`, `gather` and `equation`, and widths and glyphs, which no test here
-    can compare. A formula that cannot be read
+    held to KaTeX's heights and depths (test/editor/maths/katex_test.dart: all 145 agree). What is left: seven
+    families of KaTeX's commands it does not read (the test's list; such a formula is shown as its source), and
+    widths and glyphs, which no test here can compare. And one difference kept on purpose: **an equation's
+    number is its place in the note.** KaTeX numbers the rows of `align`, `gather`, `equation` and `alignat`
+    with a counter of the page's stylesheet, which counts the numbered rows that are in the page; the web
+    editor keeps only the lines near the screen in the page, so by those two a number there depends on what is
+    drawn above it (read from the stylesheet and the editor's way of drawing, not watched in the web app). Here they are counted through the
+    note from its top, drawn or not (test/editor/maths/numbers_test.dart), so a number never depends on what
+    happens to be drawn. A formula that cannot be read
     says why in a panel on a long press, where a browser shows a tooltip; the dots under it sit where Flutter
     puts an underline; a screen reader is told the formula's TeX, where the web gives it MathML. Small each.

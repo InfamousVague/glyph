@@ -54,6 +54,16 @@ class Namespace<T> {
     this.current[name] = value;
   }
 
+  /// Forgets what `name` was set to, in every group: only what it is built in as is left.
+  ///
+  /// Added to 0.7.4 (README.md, 19): a row's `\tag` is taken and forgotten before the next row is read.
+  void unset(String name) {
+    for (final undef in undefStack) {
+      undef.remove(name);
+    }
+    this.current.remove(name);
+  }
+
   bool has(String name) =>
       this.current.containsKey(name) || this.builtins.containsKey(name);
 

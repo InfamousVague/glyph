@@ -21,9 +21,11 @@
 ///   `text-underline-offset: 0.25em` has no word here.
 library;
 
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/rendering.dart' hide Decoration;
 import 'package:flutter/widgets.dart' hide Decoration;
-import 'package:flutter_math_fork/flutter_math.dart' show Math, MathOptions;
+import 'package:flutter_math_fork/ast.dart' show SyntaxTree;
+import 'package:flutter_math_fork/flutter_math.dart' show Math, MathOptions, RenderEqnArray;
 import 'package:glacier/glacier.dart';
 
 import '../../core/maths.dart';
@@ -73,7 +75,11 @@ const String mathsPanel = 'cm-mathsPanel';
 
 /// A formula in place of its source.
 class MathsWidget extends EditorWidget implements ClassedBlockWidget {
-  const MathsWidget(this.tex, this.source, this.display, {this.opens = false, this.block = false});
+  const MathsWidget(this.tex, this.source, this.display, {this.opens = false, this.block = false, this.first = 0});
+
+  /// The number of the formula's first numbered row, counted through the note from its top; 0 for a formula
+  /// that numbers none.
+  final int first;
 
   /// The formula, without its dollar signs.
   final String tex;
@@ -97,13 +103,13 @@ class MathsWidget extends EditorWidget implements ClassedBlockWidget {
   /// when that moves, so every formula below a letter typed is drawn again for the letter. Here where it is is
   /// asked when it is pressed ([_placeOf]), and a formula that only moved is the formula it was.
   @override
-  bool eq(MathsWidget other) => other.tex == tex && other.display == display && other.opens == opens && other.block == block && other.source == source;
+  bool eq(MathsWidget other) => other.tex == tex && other.display == display && other.opens == opens && other.block == block && other.first == first && other.source == source;
 
   @override
   double get estimatedHeight => display ? 64 : -1;
 
   @override
-  Widget build(BuildContext context) => DrawnMaths(tex: tex, source: source, display: display, opens: opens, block: block);
+  Widget build(BuildContext context) => DrawnMaths(tex: tex, source: source, display: display, opens: opens, block: block, first: first);
 
   /// `ignoreEvent(event) { return event.type !== 'mousedown' }`: a wide formula scrolled sideways is the
   /// formula's. Where the note can be changed the formula answers a press itself (`openOnPress`); where it
@@ -143,10 +149,14 @@ const TextStyle _katexMain = TextStyle(fontFamily: 'packages/flutter_math_fork/K
 
 /// The formula as a widget: drawn, or its source where it cannot be.
 class DrawnMaths extends StatefulWidget {
-  const DrawnMaths({super.key, required this.tex, required this.source, required this.display, this.opens = false, this.block = false});
+  const DrawnMaths({super.key, required this.tex, required this.source, required this.display, this.opens = false, this.block = false, this.first = 0});
 
   final String tex, source;
   final bool display, opens, block;
+
+  /// The number of the formula's first numbered row ([MathsWidget.first]); 0 where nobody counted, and then
+  /// its rows are numbered from one.
+  final int first;
 
   @override
   State<DrawnMaths> createState() => _DrawnMathsState();
@@ -155,6 +165,9 @@ class DrawnMaths extends StatefulWidget {
 class _DrawnMathsState extends State<DrawnMaths> {
   /// The reading this place on screen draws: its own while it is here.
   late Formula _formula = takeFormula(widget.tex, widget.display);
+
+  /// The numbers this place draws, each read once.
+  final Map<int, SyntaxTree> _numbers = <int, SyntaxTree>{};
 
   String get tex => widget.tex;
   String get source => widget.source;
@@ -233,6 +246,24 @@ class _DrawnMathsState extends State<DrawnMaths> {
       // Set apart, a formula is one piece that scrolls sideways if it is wider than the page; in a line it is
       // broken where it may be if it will not fit, as its pieces wrap on the page.
       final options = optionsFor(display: display, size: size, color: ink);
+      // What stands at the right of each row of `align`, `gather`, `equation` and `alignat`: the row's own
+      // `\tag`, or the next equation number.
+      final rowOf = <int>[];
+      final rowTags = <Widget>[];
+      final tags = formula.rowTags, numbered = formula.rowNumbered;
+      if (display && tags != null && numbered != null && formula.tag == null) {
+        var number = widget.first > 0 ? widget.first : 1;
+        for (var row = 0; row < tags.length; row++) {
+          if (tags[row] != null) {
+            rowOf.add(row);
+            rowTags.add(Math(ast: tags[row], options: options));
+          } else if (numbered[row]) {
+            rowOf.add(row);
+            rowTags.add(Math(ast: _numbers[number] ??= numberTag(number), options: options));
+            number++;
+          }
+        }
+      }
       child = display || formula.parts.length < 2
           ? _MathsLine(
               above: box.above,
@@ -240,7 +271,9 @@ class _DrawnMathsState extends State<DrawnMaths> {
               // '.katex-display > .katex > .katex-html > .tag { position: absolute; right: 0 }': a formula's
               // `\tag` at the right of its line, on the formula's baseline.
               tagged: formula.tag != null,
-              children: <Widget>[Math(ast: tree, options: options), if (formula.tag != null) Math(ast: formula.tag, options: options)],
+              // And the numbers and tags of an environment's rows, each on its row's line.
+              rows: rowOf.isEmpty ? null : rowOf,
+              children: <Widget>[Math(ast: tree, options: options), if (formula.tag != null) Math(ast: formula.tag, options: options), ...rowTags],
             )
           : _InlineMaths(formula: formula, options: options, above: box.above, below: box.below);
     }
@@ -263,7 +296,7 @@ class _DrawnMathsState extends State<DrawnMaths> {
                 child: ConstrainedBox(
                   constraints: BoxConstraints(minWidth: inner > 0 ? inner : 0),
                   // A tagged formula takes the whole width itself, to put its tag at the far side of it.
-                  child: formula.tag != null ? formulaBox : Center(widthFactor: 1, child: formulaBox),
+                  child: formula.tag != null || formula.rowTags != null ? formulaBox : Center(widthFactor: 1, child: formulaBox),
                 ),
               ),
             ),
@@ -314,7 +347,11 @@ class _InlineMaths extends StatelessWidget {
 /// A formula on its line: no shorter above or below its baseline than the boxes it is in ([_inlineBox]), however
 /// small it is; and, in pieces, broken onto another row of the same where the pieces do not fit the width.
 class _MathsLine extends MultiChildRenderObjectWidget {
-  const _MathsLine({required this.above, required this.below, this.tagged = false, required super.children});
+  const _MathsLine({required this.above, required this.below, this.tagged = false, this.rows, required super.children});
+
+  /// For a formula whose rows have numbers or tags: the row each child after the first stands beside. Each is
+  /// set at the right of the width given, on its row's baseline, the formula in the middle.
+  final List<int>? rows;
 
   final double above, below;
 
@@ -323,13 +360,16 @@ class _MathsLine extends MultiChildRenderObjectWidget {
   final bool tagged;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)..tagged = tagged;
+  RenderObject createRenderObject(BuildContext context) => _RenderMathsLine(above, below)
+    ..tagged = tagged
+    ..rows = rows;
 
   @override
   void updateRenderObject(BuildContext context, _RenderMathsLine renderObject) => renderObject
     ..above = above
     ..below = below
-    ..tagged = tagged;
+    ..tagged = tagged
+    ..rows = rows;
 }
 
 class _MathsLineParentData extends ContainerBoxParentData<RenderBox> {}
@@ -358,6 +398,29 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     markNeedsLayout();
   }
 
+  List<int>? _rows;
+  set rows(List<int>? value) {
+    if (listEquals(value, _rows)) return;
+    _rows = value;
+    markNeedsLayout();
+  }
+
+  /// The first equation array inside `box`, which is the formula's own when the formula is one environment.
+  static RenderEqnArray? _arrayIn(RenderObject box) {
+    RenderEqnArray? found;
+    void visit(RenderObject child) {
+      if (found != null) return;
+      if (child is RenderEqnArray) {
+        found = child;
+        return;
+      }
+      child.visitChildren(visit);
+    }
+
+    visit(box);
+    return found;
+  }
+
   /// The first row's baseline, from the top.
   double _up = 0;
   bool _clipped = false;
@@ -376,6 +439,44 @@ class _RenderMathsLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       child.layout(const BoxConstraints(), parentUsesSize: true);
       pieces.add(child);
       baselines.add(child.getDistanceToBaseline(TextBaseline.alphabetic, onlyReal: true) ?? child.size.height);
+    }
+    final rows = _rows;
+    if (rows != null && pieces.length == rows.length + 1) {
+      // '.katex-display > .katex > .katex-html > .tag { position: absolute; right: 0 }', the tag a column of
+      // them: the formula in the middle of the width, each row's number at the right on the row's baseline.
+      final formula = pieces[0];
+      final array = _arrayIn(formula);
+      // Where the array's top is in the formula's box: the boxes between them say where each put its child.
+      var arrayTop = 0.0;
+      for (RenderObject? box = array; box != null && !identical(box, formula); box = box.parent) {
+        final data = box.parentData;
+        if (data is BoxParentData) arrayTop += data.offset.dy;
+      }
+      final tops = <double>[
+        for (var i = 0; i < rows.length; i++)
+          // A row that is not there (the reader laid out fewer): on the formula's own baseline.
+          (array != null && rows[i] < array.rowBaselines.length ? arrayTop + array.rowBaselines[rows[i]] : baselines[0]) - baselines[i + 1],
+      ];
+      // The formula's top in this box: low enough for the tallest number above it and for the line's own box.
+      var top = _above - baselines[0];
+      if (top < 0) top = 0;
+      var bottom = formula.size.height;
+      for (var i = 0; i < rows.length; i++) {
+        if (-tops[i] > top) top = -tops[i];
+        final end = tops[i] + pieces[i + 1].size.height;
+        if (end > bottom) bottom = end;
+      }
+      if (baselines[0] + _below > bottom) bottom = baselines[0] + _below;
+      final wide = constraints.minWidth > formula.size.width ? constraints.minWidth : formula.size.width;
+      (formula.parentData! as _MathsLineParentData).offset = Offset((wide - formula.size.width) / 2, top);
+      for (var i = 0; i < rows.length; i++) {
+        final tag = pieces[i + 1];
+        (tag.parentData! as _MathsLineParentData).offset = Offset(wide - tag.size.width, top + tops[i]);
+      }
+      _up = top + baselines[0];
+      _clipped = false;
+      size = constraints.constrain(Size(wide, top + bottom));
+      return;
     }
     if (_tagged && pieces.length == 2) {
       // The formula in the middle of the width, its tag at the right, both on one baseline.
@@ -486,6 +587,20 @@ String _touched(EditorState state, List<int> blocks) {
   return out.toString();
 }
 
+final RegExp _numbering = RegExp(r'\\begin\{(?:align|gather|equation|alignat)\}');
+final Map<String, int> _rowsNumbered = <String, int>{};
+
+/// How many equation numbers the formula `tex`, set apart, takes: the rows of an unstarred `align`, `gather`,
+/// `equation` or `alignat` that do not say otherwise. A formula with none of those words in it is not read to
+/// find out, and one that has is read once for what it says, on screen or not.
+int _numbersOf(String tex) {
+  if (!tex.contains(r'\begin{')) return 0;
+  final known = _rowsNumbered[tex];
+  if (known != null) return known;
+  if (_rowsNumbered.length > 400) _rowsNumbered.clear();
+  return _rowsNumbered[tex] = _numbering.hasMatch(tex) ? formulaOf(tex, true).numbered : 0;
+}
+
 _Maths _build(EditorState state) {
   final doc = state.doc;
   final lines = _dollars.of(doc);
@@ -495,6 +610,14 @@ _Maths _build(EditorState state) {
   final editable = state.facet(EditorViewLike.editable);
   final ranges = <Range<Decoration>>[];
   final blocks = <int>[];
+  // Equation numbers are counted through the note from its top, formula by formula, row by row. KaTeX counts
+  // with a counter of the page's stylesheet (`.eqn-num::before { counter-increment: katexEqnNo }`), which
+  // counts the numbered rows that are in the page as it stands; the web editor keeps only the lines near the
+  // screen in the page, so by those two a formula's number there is one more than however many numbered rows
+  // happen to be drawn above it (read from the stylesheet and the editor, not watched in the web app). Here a
+  // number is the formula's place in the note and nothing else: a deliberate difference (docs/PARITY.md,
+  // Differs 41).
+  var numbers = 0;
   var skipTo = front;
   for (var i = 0; i < lines.length; i++) {
     final line = lines[i];
@@ -514,8 +637,13 @@ _Maths _build(EditorState state) {
         blocks
           ..add(line.from)
           ..add(last.to);
-        if (tex.trim().isNotEmpty && !caretIn(state, line.from, last.to)) {
-          ranges.add(Decoration.replace(widget: MathsWidget(tex, doc.sliceString(line.from, last.to), true, opens: editable, block: true), block: true).range(line.from, last.to));
+        if (tex.trim().isNotEmpty) {
+          // Counted whether or not it is drawn: the caret in a formula does not renumber the ones below it.
+          final takes = _numbersOf(tex), first = takes > 0 ? numbers + 1 : 0;
+          numbers += takes;
+          if (!caretIn(state, line.from, last.to)) {
+            ranges.add(Decoration.replace(widget: MathsWidget(tex, doc.sliceString(line.from, last.to), true, opens: editable, block: true, first: first), block: true).range(line.from, last.to));
+          }
         }
         skipTo = last.number;
         continue;
@@ -523,9 +651,11 @@ _Maths _build(EditorState state) {
     }
     if (line.fact.maths.isEmpty) continue;
     // The caret on the line: what was typed, to edit.
-    if (caretIn(state, line.from, line.to)) continue;
+    final shown = caretIn(state, line.from, line.to);
     for (final maths in line.fact.maths) {
       final from = line.from + maths.from, to = line.from + maths.to;
+      // A line the caret is on, with no `$$` on it, has nothing to count either.
+      if (shown && !line.text.contains(r'$$')) break;
       if (_inCode(state, from)) continue;
       final source = line.text.substring(maths.from, maths.to);
       final wide = source.startsWith(r'$$');
@@ -533,7 +663,10 @@ _Maths _build(EditorState state) {
       if (tex.trim().isEmpty) continue;
       // `$$…$$` alone on its line is set as a formula of its own; inside a sentence, it stays in the line.
       final alone = wide && line.text.trim() == source;
-      ranges.add(Decoration.replace(widget: MathsWidget(tex, source, alone, opens: editable)).range(from, to));
+      final takes = alone ? _numbersOf(tex) : 0, first = takes > 0 ? numbers + 1 : 0;
+      numbers += takes;
+      if (shown) continue;
+      ranges.add(Decoration.replace(widget: MathsWidget(tex, source, alone, opens: editable, first: first)).range(from, to));
     }
   }
   final set = ranges.isEmpty ? Decoration.none : Decoration.set(ranges);
