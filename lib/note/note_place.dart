@@ -24,6 +24,7 @@ import 'package:flutter/widgets.dart';
 
 import '../core/stored.dart';
 import '../editor/view/editor_view.dart';
+import '../perf/frame_log.dart' show ghostPerf;
 
 /// A line of the note and how far past its top (`Place`).
 @immutable
@@ -167,7 +168,9 @@ void scrollToPlace(EditorView view, ScrollPosition page, Place place) {
 /// hidden, and when the note closes (from the last scroll: by then the page is gone).
 class NotePlaceKeeper {
   NotePlaceKeeper({required this.noteId, required this.view, required this.page, this.places = const NotePlaces(), this.writtenBookmark, bool lifecycle = true}) {
-    _place = places.readBookmark(noteId) ?? places.readPlace(noteId);
+    // A build made to be measured opens a note at its top every time: where the walk before left it would make
+    // "the note opened" a different page from one walk to the next (lib/perf/).
+    _place = ghostPerf ? null : places.readBookmark(noteId) ?? places.readPlace(noteId);
     _latest = _place;
     _waiting = Timer.periodic(const Duration(milliseconds: 16), (_) => _wait());
     page.addListener(_onScroll);
