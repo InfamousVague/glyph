@@ -151,9 +151,14 @@ LookEnv noteLookEnv(BuildContext context, {double zoom = 1, String? look, String
 
 /// Makes and keeps the `EditorView` for a note's screen, as `Editor.tsx` makes CodeMirror's, and has it drawn.
 class NoteEditorHost extends StatefulWidget {
-  const NoteEditorHost({super.key, required this.spec, this.draw, this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[]});
+  const NoteEditorHost({super.key, required this.spec, this.draw, this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[], this.onView});
 
   final NoteEditorSpec spec;
+
+  /// The editor's view, told to whoever wires the host just before the screen is told ([NoteEditorSpec.onView]):
+  /// the screen builds itself again when it has the view, and what belongs to the view (who types in it with the
+  /// person, the AI, a bookmark) is in place for that build, not made in the middle of it.
+  final ValueChanged<EditorView>? onView;
 
   /// The marks the parser and the highlighter read (`noteExtensions(formats:)`): lib/plugins/marks.dart's list,
   /// from whoever wires the app. The same list each build, or the view is made again.
@@ -209,6 +214,8 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
   void _tell() {
     final view = _view;
     WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !identical(view, _view)) return;
+      widget.onView?.call(view);
       if (mounted && identical(view, _view)) widget.spec.onView(view);
     });
   }

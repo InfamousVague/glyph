@@ -533,8 +533,21 @@ class NoteDeskState extends State<NoteDesk> {
         reviewHost: world.reviewHost,
         openForSummaries: world.openForSummaries,
       )
-        ..addListener(_redraw)
+        ..addListener(_aiSaid)
         ..addListener(_aiRan);
+
+  /// What the desk's own seams draw of the AI, as the desk was last built: the run that is on (the dot on its row
+  /// in More) and whether the AI can run here (the tape's Summarize word). The AI tells its listeners of more than
+  /// those - its marks' count, a review, the editor's view it was just given, which it says once as every note
+  /// opens - and all of that is drawn by its own layer, which listens for itself (lib/ai/note_ai.dart
+  /// `NoteAiLayer`). Built again at every word of the AI's, the desk built the note's screen a third time at
+  /// every opening, and its canvas or its notebook's index with it.
+  (RunKind?, bool)? _aiDrawn;
+
+  void _aiSaid() {
+    final ai = _ai;
+    if ((ai?.runningKind, ai?.canSummarize ?? false) != _aiDrawn) _redraw();
+  }
 
   /// The AI's part of the editor, in a slot of its own so that it can be put in an editor that was made before
   /// there was an engine: the blanks, the arrivals out of smoke and the tracked changes with an AI; without one,
@@ -1160,7 +1173,7 @@ class NoteDeskState extends State<NoteDesk> {
     if (_ai case final ai?) {
       _aiWorld?.opened?.call(widget.noteId, null);
       ai.attach(null);
-      ai.removeListener(_redraw);
+      ai.removeListener(_aiSaid);
       ai.removeListener(_aiRan);
       ai.dispose();
     }
@@ -1185,7 +1198,11 @@ class NoteDeskState extends State<NoteDesk> {
     super.dispose();
   }
 
-  /// The view the seams were last handed: what belongs to a view is made again for another.
+  /// The view the editor's host made, or the seams were last handed: what belongs to a view is made again for
+  /// another. Taken from the host the moment it has one ([_buildEditor]), before the note's screen is told of it
+  /// and builds itself: what the seams read of the view (the tape's memos, a spot to go to, the bookmark) is then
+  /// there for that build. It was taken in the middle of that build, after the screen had already asked the
+  /// seams, and what they read was put right only because the AI, given the view, told the desk to build again.
   void _adopt(EditorView view) {
     if (identical(view, _view)) return;
     _view = view;
@@ -1203,7 +1220,12 @@ class NoteDeskState extends State<NoteDesk> {
     // Where the note was opened at (the dashboard's Jump to cursor): a member's caret, which the live note puts the
     // selection at, or their spot on a canvas, which the canvas is centred on.
     final jump = widget.readOnly ? null : _world.takeJump?.call(widget.noteId);
-    if (jump != null && jump['x'] is num && jump['y'] is num) _goTo = (x: (jump['x']! as num).toDouble(), y: (jump['y']! as num).toDouble());
+    if (jump != null && jump['x'] is num && jump['y'] is num) {
+      _goTo = (x: (jump['x']! as num).toDouble(), y: (jump['y']! as num).toDouble());
+      // The canvas is drawn by the desk's seams and was built before there was a view to adopt: built again, it
+      // is centred on the spot.
+      _redraw();
+    }
     // Live in this editor from here on: a note in the Trash is read, not typed in with anyone.
     _live?.close();
     _live = widget.readOnly
@@ -1264,6 +1286,7 @@ class NoteDeskState extends State<NoteDesk> {
         spec: spec,
         formats: _formats,
         extensions: _extensions,
+        onView: _adopt,
         draw: (context, view, env) => Editor(
           view: view,
           controller: _editor,
@@ -1607,6 +1630,7 @@ class NoteDeskState extends State<NoteDesk> {
   Widget build(BuildContext context) {
     final services = _world.services;
     final ai = _ai;
+    _aiDrawn = (ai?.runningKind, ai?.canSummarize ?? false);
     final seams = NoteSeams(
       saving: (flush) => _flush = flush,
       // A note that wears its tape is talked into from the tape's Add: its own mic steps out.
