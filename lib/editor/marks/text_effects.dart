@@ -34,13 +34,17 @@
 ///   shimmer's glow on a dark page is two blurred copies of the letter where the page has `text-shadow`.
 /// - **Heat** is the wisp's shader (`feTurbulence` into `feDisplacementMap`, then the blur) with the page's
 ///   numbers: the frequencies breathing every 2.4 s, the seed re-rolled six times in 0.9 s, the bend and the blur by
-///   the strength. The page bends a whole `<span>` through one field anchored to it; here each letter is bent
-///   through a field anchored to the page, so neighbours bend together but the field is not the one Chromium
-///   draws: the same weather, another sky. A ligature across heated letters is set as its letters.
-/// - **Frost** has no shader of its own yet. The cooling is the page's colour matrix; the rime is the letter's
-///   shape grown by the creeping radius (`ImageFilter.dilate`), kept where the SVG noise of the same seed and
-///   frequency is bright enough, flooded with the page's ice and softened. The noise is the specification's, worked
-///   out in Dart for a tile 96 pixels square and repeated, where the page's field does not repeat.
+///   the strength. The page bends a whole `<span>` through one field; here each letter is bent by itself through
+///   that same field, read where the letter stands in it, which comes to the same picture (a bend and a blur of
+///   several letters is the sum of each one's). The field starts at the corner of the span's paragraph, the
+///   `.cm-line`, not of the span, and is drawn by Chromium's own blur ([_inLine], [chromiumBlur]). A ligature
+///   across heated letters is set as its letters.
+/// - **Frost** is the page's filter primitive by primitive: the cooling is its colour matrix; the rime is the
+///   letter's shape grown by the creeping radius (`ImageFilter.dilate`), kept where the noise of the same seed and
+///   frequency is bright enough ([_grain]: the specification's noise worked out in Dart for every pixel of the
+///   screen from the paragraph's corner, as the page's is), flooded with the page's ice and softened as Chromium
+///   softens it, which on most screens is not at all.
+/// - Both are held to the page's own pictures, stretch by stretch (test/editor/marks/effects_parity_test.dart).
 /// - `prefers-reduced-motion` is the tokens' `reducedMotion`.
 library;
 
@@ -57,6 +61,7 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import '../../art/turbulence.dart';
 import '../../art/wisp_kept.dart';
 import '../../art/wisp_kit.dart';
+import '../../art/wisp_probe.dart';
 import '../../art/wisp_settings.dart';
 import '../../art/wisp_text.dart' show paintWispLetter;
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
@@ -349,41 +354,137 @@ double hauntFade(double seconds, int delayMs) {
 /// What moves one letter: a letter effect and its delay, the heat on its own words or over the text above at a
 /// strength, or the frost.
 class _Fx {
-  const _Fx(this.name, this.value);
+  const _Fx(this.name, this.value, [this.span = '', this.index = 0]);
   final String name;
   final double value;
 
+  /// For an effect that is one filter over a stretch of words (heat, its haze, frost): which stretch this letter
+  /// is of, and which of its letters, the first being 0. The page's filter is one field over the stretch's box; a
+  /// letter drawn by itself has to know where in that box it stands ([_inSpan]).
+  final String span;
+  final int index;
+
+  /// `name@value`, or `name@value@span@index`, with `|` between.
   static List<_Fx> parse(String said) => <_Fx>[
     for (final part in said.split('|'))
-      if (part.isNotEmpty) _Fx(part.split('@').first, part.contains('@') ? double.parse(part.split('@').last) : 0),
+      if (part.isNotEmpty) _of(part.split('@')),
   ];
+
+  static _Fx _of(List<String> said) =>
+      _Fx(said.first, said.length > 1 ? double.tryParse(said[1]) ?? 0 : 0, said.length > 2 ? said[2] : '', said.length > 3 ? int.tryParse(said[3]) ?? 0 : 0);
 }
 
-/// The frost's specks for a seed: `feTurbulence` (fractal noise, two octaves) through `0 0 0 5 -1.9` on its alpha,
-/// as a tile to lay over the grown letters.
-const int _grainTile = 96;
-final Map<String, ui.Image> _grains = <String, ui.Image>{};
+/// A stretch as it was last painted and measured: where its first letter's box stood on the canvas in this painting
+/// of its line, and where that box stands in the line's own box, as the view last laid the line out.
+class _SpanSeen {
+  Offset first = Offset.zero;
+  Offset? origin;
+}
 
-ui.Image _grain(int seed, double frequency) {
-  final key = '$seed|${frequency.toStringAsFixed(3)}';
+final Map<String, _SpanSeen> _spansSeen = <String, _SpanSeen>{};
+
+String _spanKey(String name, String span) => '${name == 'haze' ? 'a' : name}$span';
+
+/// Where a letter's box stands in its line's box (the paragraph's own, `.cm-line` on the page), which is where the
+/// page's filters start their noise from. Found by bending the plain words through the specification's noise from
+/// every corner near and scoring each against Chromium's picture: from the paragraph's corner the heat's haze is
+/// 0.3 of 255 from the page's, from the span's own corner 10, from its filter's room 12
+/// (test/editor/marks/effects_parity_test.dart holds it now). A `<span>` with a filter has its paragraph for its
+/// user space, whatever its own box.
+///
+/// A painter is told one run's rectangles on the canvas and nothing of the line they are in, so the place is put
+/// together from two things: the stretch's first letter says where it stands on the canvas as the line is painted
+/// (letters are painted in order, `index` 0 first), and the view says where that same letter stands in its line
+/// once the line is laid out ([_TextEffects._measure]). A letter is then as far from the line's corner as it is
+/// from the first letter, and the first letter from the corner. Nothing in it is where the line stands on the
+/// screen: a page that scrolls bends and frosts its letters the same wherever they are, as the page's own does.
+/// Until the view has measured (the first frame a stretch is seen), the first letter is taken for the corner.
+Offset _inLine(_Fx fx, Offset corner) {
+  if (_spansSeen.length > 512) _spansSeen.clear();
+  final seen = _spansSeen[_spanKey(fx.name, fx.span)] ??= _SpanSeen();
+  if (fx.index == 0) seen.first = corner;
+  return corner - seen.first + (seen.origin ?? Offset.zero);
+}
+
+/// The frost's specks for a seed, as the page's filter works them out: `feTurbulence` (fractal noise, two octaves,
+/// its alpha) through `0 0 0 5 -1.9`, for every pixel of the screen from the corner of the stretch's box. A picture
+/// [ratio] pixels to the logical one, as big as the stretch's room asks ([atLeast], grown to a step so a longer word
+/// does not make it again), and repeated past that. Kept by its seed, its frequency and the screen's ratio.
+///
+/// The first drawing read the noise once for each logical pixel of a tile. The noise turns over in under two of
+/// them, so that was a different speck at every reading, and blurred it came out an even haze round the letters
+/// where the page has crystals: the page reads it for every pixel of the screen, two or three to each turn.
+final Map<(int, double, double), ({ui.Image image, Size size})> _grains = <(int, double, double), ({ui.Image image, Size size})>{};
+
+({ui.Image image, Size size}) _grain(int seed, double frequency, double ratio, Size atLeast) {
+  final key = (seed, frequency, ratio);
   final had = _grains[key];
-  if (had != null) return had;
+  if (had != null && had.size.width >= atLeast.width && had.size.height >= atLeast.height) return had;
+  double grown(double length) => (length / 48).ceil() * 48.0;
+  final size = Size(math.max(had?.size.width ?? 96, grown(atLeast.width)), math.max(had?.size.height ?? 48, grown(atLeast.height)));
+  final wide = (size.width * ratio).ceil(), tall = (size.height * ratio).ceil();
   final noise = Turbulence(seed);
-  final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final paint = Paint();
-  for (var y = 0; y < _grainTile; y++) {
-    for (var x = 0; x < _grainTile; x++) {
-      final alpha = noise.sample(3, x + 0.5, y + 0.5, baseFrequencyX: frequency, baseFrequencyY: frequency, octaves: 2);
+  // One square a pixel, in the one draw: its alpha is the speck's.
+  final positions = Float32List(wide * tall * 12), colors = Int32List(wide * tall * 6);
+  var n = 0;
+  for (var y = 0; y < tall; y++) {
+    for (var x = 0; x < wide; x++) {
+      // Chromium works the noise out half a pixel on from the pixel's own middle (shaders/wisp_bend.frag).
+      final alpha = noise.sample(3, (x + 0.5) / ratio + 0.5, (y + 0.5) / ratio + 0.5, baseFrequencyX: frequency, baseFrequencyY: frequency, octaves: 2);
       final kept = (alpha * 5 - 1.9).clamp(0.0, 1.0);
       if (kept <= 0) continue;
-      canvas.drawRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1), paint..color = Color.fromRGBO(0, 0, 0, kept));
+      final color = (kept * 255).round() << 24;
+      final p = n * 12, c = n * 6;
+      final l = x.toDouble(), t = y.toDouble(), r = l + 1, bottom = t + 1;
+      positions
+        ..[p] = l
+        ..[p + 1] = t
+        ..[p + 2] = r
+        ..[p + 3] = t
+        ..[p + 4] = l
+        ..[p + 5] = bottom
+        ..[p + 6] = r
+        ..[p + 7] = t
+        ..[p + 8] = r
+        ..[p + 9] = bottom
+        ..[p + 10] = l
+        ..[p + 11] = bottom;
+      for (var i = 0; i < 6; i++) {
+        colors[c + i] = color;
+      }
+      n += 1;
     }
   }
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  if (n > 0) {
+    final squares = ui.Vertices.raw(ui.VertexMode.triangles, Float32List.sublistView(positions, 0, n * 12), colors: Int32List.sublistView(colors, 0, n * 6));
+    canvas.drawVertices(squares, BlendMode.dst, Paint()..isAntiAlias = false);
+    squares.dispose();
+  }
   final picture = recorder.endRecording();
-  final image = picture.toImageSync(_grainTile, _grainTile);
+  final image = picture.toImageSync(wide, tall);
   picture.dispose();
-  return _grains[key] = image;
+  had?.image.dispose();
+  return _grains[key] = (image: image, size: Size(wide / ratio, tall / ratio));
+}
+
+/// For a test: 2 lays every filter's noise from where the letter stands on the canvas, which is not the page's field
+/// (the drawing a right one must beat).
+@visibleForTesting
+int debugEffectAnchor = 0;
+
+/// A blur of [sigma] logical pixels as Chromium draws `feGaussianBlur` at [ratio] pixels to one: three box blurs,
+/// each as wide as the deviation says in whole pixels of the screen (`floor(s * 3 * sqrt(2 pi) / 4 + 0.5)`; an
+/// even width is two boxes of it and one a pixel wider), and nothing at all where that width is one. So a filter
+/// that says 0.35 softens nothing on a screen of two pixels to one, and the frost's crystals and the haze over the
+/// second line up are crisp on the page, where a true Gaussian of that size softened them here. The answer is the
+/// deviation of the Gaussian nearest those three boxes, in logical pixels: 0 where the page blurs nothing.
+double chromiumBlur(double sigma, double ratio) {
+  final wide = (sigma * ratio * 3 * math.sqrt(2 * math.pi) / 4 + 0.5).floor();
+  if (wide <= 1) return 0;
+  final spread = wide.isOdd ? 3 * (wide * wide - 1) / 12 : 2 * (wide * wide - 1) / 12 + ((wide + 1) * (wide + 1) - 1) / 12;
+  return math.sqrt(spread) / ratio;
 }
 
 /// `feColorMatrix`: `0.82 0 0 0 0.02  0 0.92 0 0 0.04  0 0 1 0 0.1  0 0 0 1 0`, the offsets as Flutter counts
@@ -419,12 +520,32 @@ class _EffectLetter extends LetterLayer {
     final em = look.fontSize;
     final region = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
 
+    // Where the letter stands in its line, for the filters that lie over a stretch: the heat's (the strongest of
+    // what reaches it) and the frost's. Every such stretch is told of the letter, drawn through it or not
+    // ([_inLine]). `hotAt` and `coldAt` are the letter's own corner from the line's.
+    final lift = look.ascent - glyph.baseline;
+    final corner = Offset(at.dx, at.dy - lift);
+    _Fx? hot, cold;
+    for (final one in fx) {
+      if ((one.name == 'heat' || one.name == 'haze') && one.value > (hot?.value ?? 0)) hot = one;
+      if (one.name == 'frost') cold = one;
+    }
+    var hotAt = at, coldAt = at;
+    for (final one in fx) {
+      if (one.span.isEmpty) continue;
+      final inLine = _inLine(one, corner) + Offset(0, lift);
+      if (debugEffectAnchor == 2) continue;
+      if (identical(one, hot)) hotAt = inLine;
+      if (identical(one, cold)) coldAt = inLine;
+    }
+    final ratio = _screenRatio();
+
     // A wave: `position: relative; top`, the letter moved and nothing round it.
     final wave = _of('wave');
     if (wave != null && !still) canvas.translate(0, waveLift(now, wave.round()) * em);
 
     // While frames follow one another, a letter with one effect on it is laid down from what is kept of it.
-    if (wispQuick && WispFlow.now && _fromKept(canvas, glyph, look, now)) return;
+    if (wispQuick && WispFlow.now && _fromKept(canvas, glyph, look, now, region, cold == null ? null : coldAt, ratio)) return;
 
     // A haunting: the whole letter, glint and rime and all, faded and softened.
     final haunt = _of('haunt');
@@ -465,46 +586,23 @@ class _EffectLetter extends LetterLayer {
     }
 
     // Frost: the rime under the cooled letter.
-    final frost = _of('frost') != null;
-    if (frost) {
-      final filter = frostFilter(now, fontPx, still: still);
-      final ice = (dark ? const Color(0xFFCDEAFF) : const Color(0xFF5AA6DA)).withValues(alpha: 0.95);
-      final room = region.inflate(filter.radius + filter.blur * 3);
-      canvas.saveLayer(room, Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: filter.blur, sigmaY: filter.blur, tileMode: TileMode.decal));
-      canvas.saveLayer(
-        room,
-        Paint()
-          ..imageFilter = ui.ImageFilter.dilate(radiusX: filter.radius, radiusY: filter.radius)
-          ..colorFilter = ColorFilter.mode(ice, BlendMode.srcIn),
-      );
-      glyph.painter.paint(canvas, Offset.zero);
-      canvas.restore();
-      // Kept where the grain is bright: the field stays with the page while the letter may move.
-      final grain = _grain(filter.seed, filter.frequency);
-      canvas.drawRect(
-        room,
-        Paint()
-          ..blendMode = BlendMode.dstIn
-          ..shader = ui.ImageShader(grain, TileMode.repeated, TileMode.repeated, Float64List.fromList(<double>[1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, -at.dx, -at.dy, 0, 1])),
-      );
-      canvas.restore();
-    }
+    final frost = cold != null;
+    if (frost) _rime(canvas, glyph, region, coldAt, now, ratio);
 
     // Heat: the letter through the hot air, at the strongest of what reaches it.
-    var heat = 0.0;
-    for (final one in fx) {
-      if ((one.name == 'heat' || one.name == 'haze') && one.value > heat) heat = one.value;
-    }
+    final heat = hot?.value ?? 0.0;
     final kit = WispKit.maybe;
     final filter = heat > 0 ? heatFilter(now, fontPx, heat, still: still) : null;
     final table = filter == null ? null : kit?.tableNow(filter.seed);
+    // The softening as the page's engine draws it at this screen's pixels: often none at all.
+    final soft = filter == null ? 0.0 : chromiumBlur(filter.blur, ratio);
     final paint = Paint();
     // A sheen over the frost is the sheen: the letter is one flat colour either way.
     if (frost || sheen != null) paint.colorFilter = sheen ?? _cold;
     if (filter != null && kit != null && table != null && paint.colorFilter == null) {
-      // The heat alone: the wisp's own letter, its field laid from the page (lib/art/wisp_text.dart), which while
-      // frames follow one another comes off the one sheet every letter in smoke is drawn on, and is otherwise the
-      // layer and the blur below, line for line.
+      // The heat alone: the wisp's own letter, its field laid from its stretch's box (lib/art/wisp_text.dart), which
+      // while frames follow one another comes off the one sheet every letter in smoke is drawn on, and is otherwise
+      // the layer and the blur below, line for line.
       paintWispLetter(
         canvas,
         kit: kit,
@@ -512,27 +610,27 @@ class _EffectLetter extends LetterLayer {
         glyph: glyph.image(),
         glyphRect: glyph.imageRect,
         box: box,
-        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: filter.blur),
-        at: at,
+        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: soft),
+        at: hotAt,
       );
     } else if (filter != null && kit != null && table != null) {
-      if (filter.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: filter.blur, sigmaY: filter.blur, tileMode: TileMode.decal);
+      if (soft >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal);
       final image = glyph.image();
-      canvas.saveLayer(region.inflate(filter.blur * 3), paint);
+      canvas.saveLayer(region.inflate(soft * 3), paint);
       canvas.translate(region.left, region.top);
-      // The field is the page's, not the letter's: neighbours bend together.
+      // One field over the stretch: neighbours bend together.
       final shader = kit.bend(
         source: image,
-        sourceRect: glyph.imageRect.shift(at),
-        origin: at + region.topLeft,
-        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: filter.blur),
+        sourceRect: glyph.imageRect.shift(hotAt),
+        origin: hotAt + region.topLeft,
+        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: soft),
         table: table,
       );
       canvas.drawRect(Offset.zero & region.size, Paint()..shader = shader);
       canvas.restore();
     } else if (paint.colorFilter != null || filter != null) {
       // No shader yet: the haze is its softness alone.
-      if (filter != null && filter.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: filter.blur, sigmaY: filter.blur, tileMode: TileMode.decal);
+      if (filter != null && soft >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal);
       canvas.saveLayer(region, paint);
       glyph.painter.paint(canvas, Offset.zero);
       canvas.restore();
@@ -540,6 +638,37 @@ class _EffectLetter extends LetterLayer {
       glyph.painter.paint(canvas, Offset.zero);
     }
     if (layered) canvas.restore();
+  }
+
+  /// The frost's rime round a letter: the letter's shape grown by the creeping radius (`feMorphology`), kept where
+  /// the grain is bright enough (`feTurbulence` through `0 0 0 5 -1.9`, `feComposite in`), flooded with the page's
+  /// ice and softened (`feGaussianBlur`). The grain is the line's, laid from the line's corner: [coldAt] is
+  /// the letter's corner from there.
+  void _rime(Canvas canvas, LetterGlyph glyph, Rect region, Offset coldAt, double now, double ratio) {
+    final filter = frostFilter(now, fontPx, still: still);
+    final ice = (dark ? const Color(0xFFCDEAFF) : const Color(0xFF5AA6DA)).withValues(alpha: 0.95);
+    final room = region.inflate(filter.radius + filter.blur * 3);
+    // The softening as the page's engine draws it: none on most screens, and the crystals are crisp.
+    final soft = chromiumBlur(filter.blur, ratio);
+    canvas.saveLayer(room, soft >= 0.05 ? (Paint()..imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal)) : Paint());
+    canvas.saveLayer(
+      room,
+      Paint()
+        ..imageFilter = ui.ImageFilter.dilate(radiusX: filter.radius, radiusY: filter.radius)
+        ..colorFilter = ColorFilter.mode(ice, BlendMode.srcIn),
+    );
+    glyph.painter.paint(canvas, Offset.zero);
+    canvas.restore();
+    // Kept where the grain is bright: the grain's own pixels are the screen's, from the stretch's corner.
+    final grain = _grain(filter.seed, filter.frequency, ratio, Size(coldAt.dx + room.right, coldAt.dy + room.bottom));
+    final matrix = Float64List.fromList(<double>[1 / ratio, 0, 0, 0, 0, 1 / ratio, 0, 0, 0, 0, 1, 0, -coldAt.dx, -coldAt.dy, 0, 1]);
+    canvas.drawRect(
+      room,
+      Paint()
+        ..blendMode = BlendMode.dstIn
+        ..shader = ui.ImageShader(grain.image, TileMode.repeated, TileMode.repeated, matrix),
+    );
+    canvas.restore();
   }
 }
 
@@ -558,16 +687,40 @@ class _EffectLetter extends LetterLayer {
 /// Answers whether it drew the letter. A letter with more than one effect on it, a frost, a heat (which has the
 /// sheet, in [drawLetter]) and reduced motion are drawn as they always were.
 extension on _EffectLetter {
-  bool _fromKept(Canvas canvas, LetterGlyph glyph, RunLook look, double now) {
-    if (still) return false;
+  bool _fromKept(Canvas canvas, LetterGlyph glyph, RunLook look, double now, Rect region, Offset? coldAt, double ratio) {
     final haunt = _of('haunt'), shimmer = _of('shimmer');
-    final glint = shimmer == null ? 0.0 : shimmerGlint(now, shimmer.round());
+    final glint = shimmer == null || still ? 0.0 : shimmerGlint(now, shimmer.round());
     for (final one in fx) {
-      if (one.name == 'frost' || one.name == 'heat' || one.name == 'haze') return false;
+      if (one.name == 'heat' || one.name == 'haze') return false;
     }
+    if (coldAt != null) {
+      // Measuring only: the frost by its own layers on every frame, as it was before it was kept.
+      if (WispProbe.has('frostlayers')) return false;
+      // A frost alone: the rime and the cooled letter over it, one picture for as long as the rime reaches as far
+      // (its radius is whole pixels of the screen, as the engine's dilate rounds it), its grain is the same seed's,
+      // and the letter stands where it did in its line. The page under it may scroll: the grain is the
+      // line's, and goes with it.
+      if (haunt != null || glint > 0) return false;
+      final filter = frostFilter(now, fontPx, still: still);
+      final room = region.inflate(filter.radius + filter.blur * 3);
+      WispKept.paint(
+        canvas,
+        (glyph, 'frost', filter.seed, (filter.radius * ratio).round(), (coldAt.dx * 8).round(), (coldAt.dy * 8).round(), dark, fontPx),
+        over: room,
+        ratio: ratio,
+        sharp: true,
+        draw: (into) {
+          _rime(into, glyph, region, coldAt, now, ratio);
+          into.saveLayer(region, Paint()..colorFilter = _cold);
+          glyph.painter.paint(into, Offset.zero);
+          into.restore();
+        },
+      );
+      return true;
+    }
+    if (still) return false;
     if (haunt != null && glint > 0) return false;
     final em = look.fontSize;
-    final ratio = _screenRatio();
     // The letter's ink, with room for what overhangs its box.
     final pad = (glyph.painter.preferredLineHeight * 0.3).ceilToDouble();
     final ink = Rect.fromLTWH(-pad, -pad, glyph.painter.width + 2 * pad, glyph.painter.height + 2 * pad);
@@ -676,6 +829,8 @@ class _Above {
 @visibleForTesting
 int debugEffectsMade = 0, debugEffectsKept = 0;
 
+int _editors = 0;
+
 class _TextEffects extends PluginValue {
   _TextEffects(this.view, this.looks, this.marked) {
     _redraw(first: true);
@@ -707,6 +862,10 @@ class _TextEffects extends PluginValue {
 
   /// A mark on every letter an effect touches, which is where it is drawn.
   DecorationSet letters = Decoration.none;
+
+  /// Which editor's stretches these are, in the names their letters are told ([_Fx.span]): two editors on one
+  /// screen each count their stretches from nothing.
+  final int _id = _editors++;
 
   /// The text above heated words, as last measured: drawn through the haze on the next draw.
   List<_Above> _above = const <_Above>[];
@@ -793,7 +952,7 @@ class _TextEffects extends PluginValue {
       _drawn = found;
       debugEffectsKept += 1;
       if (ghostPerf) Perf.count('effects.kept');
-      _measureAbove(<EffectRange>[
+      _measure(<EffectRange>[
         for (final stretch in found)
           if (textEffectsByName[stretch.effect] is RisingEffect) stretch,
       ]);
@@ -811,17 +970,21 @@ class _TextEffects extends PluginValue {
       cells[from] = (to: to, fx: <String>[...?had?.fx, fx], names: <String>[...?had?.names, ?name], delay: had == null ? delay : null);
     }
 
-    void everyLetter(int from, int to, String fx) {
-      var pos = from;
+    // Each letter of a stretch one filter lies over: what moves it, which stretch (`span`) and which letter of it.
+    void everyLetter(int from, int to, String fx, String span) {
+      var pos = from, index = 0;
       for (final rune in state.doc.sliceString(from, to).runes) {
         final ch = String.fromCharCode(rune);
-        if (!_space.hasMatch(ch)) touch(pos, pos + ch.length, fx);
+        if (!_space.hasMatch(ch)) touch(pos, pos + ch.length, '$fx@$span@${index++}');
         pos += ch.length;
       }
     }
 
     final rising = <EffectRange>[];
+    // A stretch is named by its place among those on screen: the same after a change elsewhere in the note.
+    var nth = 0;
     for (final stretch in found) {
+      final span = '$_id.${nth++}';
       final effect = textEffectsByName[stretch.effect];
       switch (effect) {
         case RisingEffect():
@@ -830,11 +993,11 @@ class _TextEffects extends PluginValue {
             to: stretch.to,
             mark: _mark('cm-textEffect cm-effect-${stretch.effect}', <String, String>{'data-effect': stretch.effect, 'style': 'filter:url(#glyph-effect-${stretch.effect}-own)'}),
           ));
-          everyLetter(stretch.from, stretch.to, '${stretch.effect}@${effect.own}');
+          everyLetter(stretch.from, stretch.to, '${stretch.effect}@${effect.own}', span);
           rising.add(stretch);
         case FilterEffect():
           marks.add((from: stretch.from, to: stretch.to, mark: _mark('cm-textEffect', <String, String>{'data-effect': stretch.effect, 'style': 'filter:url(#glyph-effect-${stretch.effect})'})));
-          everyLetter(stretch.from, stretch.to, stretch.effect);
+          everyLetter(stretch.from, stretch.to, '${stretch.effect}@0', span);
         case LetterEffect():
           for (final letter in effectLetters(state, stretch.from, stretch.to, effect)) {
             touch(letter.from, letter.to, '${stretch.effect}@${letter.delayMs}', stretch.effect, letter.delayMs);
@@ -844,7 +1007,9 @@ class _TextEffects extends PluginValue {
       }
     }
     // The haze over the text above heated words, as last measured, where it is still text outside the heat itself.
+    var over = 0;
     for (final above in _above) {
+      final span = '$_id.${over++}';
       if (above.to > state.doc.length || rising.any((r) => above.from < r.to && above.to > r.from)) continue;
       marks.add((
         from: above.from,
@@ -852,7 +1017,7 @@ class _TextEffects extends PluginValue {
         mark: _mark('cm-textEffectAbove', <String, String>{'data-effect': '${above.effect}-above', 'style': 'filter:url(#glyph-effect-${above.effect}-above-${(above.strength * 100).round()})'}),
       ));
       // A range of one line: its letters, the break aside.
-      everyLetter(above.from, above.to, 'haze@${above.strength}');
+      everyLetter(above.from, above.to, 'haze@${above.strength}', span);
     }
     // Nested effects give marks out of order (the outer stretch, then the inner one); the set wants them sorted.
     final order = <int>[for (var i = 0; i < marks.length; i++) i]
@@ -882,30 +1047,65 @@ class _TextEffects extends PluginValue {
       );
     }
     letters = perLetter.finish();
-    _measureAbove(rising);
+    _measure(rising);
   }
 
-  /// Where the text above the heated words is, read once the view is laid out, and drawn on the next update when
-  /// it has moved. A haze changes no layout, so this settles after one round: the second measure finds what the
-  /// first did and dispatches nothing.
-  void _measureAbove(List<EffectRange> rising) {
-    if (rising.isEmpty && _above.isEmpty) return;
-    view.requestMeasure<List<_Above>>(
-      MeasureRequest<List<_Above>>(
+  /// What is read once the view is laid out. Where the text above the heated words is, drawn on the next update
+  /// when it has moved (a haze changes no layout, so this settles after one round: the second measure finds what
+  /// the first did and dispatches nothing). And where the first letter of every stretch a filter lies over stands in
+  /// its own line, which is where the letters' painters take the filter's noise from ([_inLine]); a line whose
+  /// letters were painted before that was known, or with what it was, is painted again.
+  void _measure(List<EffectRange> rising) {
+    final filtered = <(String, int)>[
+      for (var nth = 0; nth < _drawn.length; nth++)
+        if (textEffectsByName[_drawn[nth].effect] case RisingEffect() || FilterEffect()) (_spanKey(_drawn[nth].effect, '$_id.$nth'), _firstLetter(_drawn[nth].from, _drawn[nth].to)),
+    ];
+    if (rising.isEmpty && _above.isEmpty && filtered.isEmpty) return;
+    view.requestMeasure<({List<_Above> above, Map<String, Offset> origins})>(
+      MeasureRequest<({List<_Above> above, Map<String, Offset> origins})>(
         key: this,
         read: (view) {
           final own = view;
           final lineHeight = own is EditorView ? own.heights.lineHeight : 0.0;
-          if (lineHeight <= 0) return _above;
+          if (lineHeight <= 0 || own is! EditorView) return (above: _above, origins: const <String, Offset>{});
           final probe = _probeOf(view);
-          return <_Above>[
+          final above = <_Above>[
             for (final stretch in rising)
               if (textEffectsByName[stretch.effect] case final RisingEffect effect)
                 for (final segment in _segmentsOf(view, stretch.from, stretch.to))
                   for (final above in textAbove(segment, lineHeight, effect.strengths, probe)) _Above(above.from, above.to, stretch.effect, above.strength),
           ];
+          // Each stretch's first letter in its own line's box: the corner of the text there, as the line's painter
+          // hands it to the letter's.
+          final origins = <String, Offset>{};
+          void place(String key, int pos) {
+            final line = own.lineAt(pos);
+            final at = line == null || !line.hasSize ? null : line.coordsAtPos(pos - line.from, 1);
+            if (at != null) origins[key] = at.topLeft;
+          }
+
+          for (final (key, pos) in filtered) {
+            place(key, pos);
+          }
+          for (var nth = 0; nth < above.length; nth++) {
+            if (above[nth].to <= own.state.doc.length) place(_spanKey('haze', '$_id.$nth'), _firstLetter(above[nth].from, above[nth].to));
+          }
+          return (above: above, origins: origins);
         },
-        write: (next, view) {
+        write: (read, view) {
+          var moved = false;
+          for (final entry in read.origins.entries) {
+            final seen = _spansSeen[entry.key] ??= _SpanSeen();
+            if (seen.origin == entry.value) continue;
+            seen.origin = entry.value;
+            moved = true;
+          }
+          if (moved && view is EditorView) {
+            for (final line in view.lines) {
+              line.markNeedsPaint();
+            }
+          }
+          final next = read.above;
           var same = next.length == _above.length;
           for (var i = 0; same && i < next.length; i++) {
             same = next[i].from == _above[i].from && next[i].to == _above[i].to && next[i].strength == _above[i].strength;
@@ -920,6 +1120,17 @@ class _TextEffects extends PluginValue {
         },
       ),
     );
+  }
+
+  /// The first letter of `from`-`to` that is not a space: the one its stretch's letters count from.
+  int _firstLetter(int from, int to) {
+    var pos = from;
+    for (final rune in view.state.doc.sliceString(from, math.min(to, view.state.doc.length)).runes) {
+      final ch = String.fromCharCode(rune);
+      if (!_space.hasMatch(ch)) return pos;
+      pos += ch.length;
+    }
+    return from;
   }
 }
 

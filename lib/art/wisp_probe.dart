@@ -24,6 +24,8 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   and `nomerge`, the bent view is drawn and nothing after it. Of the quick one: `nonear`, no search for ink near
 ///   a point.
 /// - `nodock`, `noedge`: no halo round the dock; no strips at a page's own edges.
+/// - `frostlayers`: a frosted letter is drawn by its own layers on every frame, as it was before its picture was
+///   kept (lib/editor/marks/text_effects.dart).
 /// - `noletter`: a letter in smoke (a spoiler's, a typed headline's) is drawn as the letter itself.
 /// - `first`: the first drawing of every smoke, three passes a strip and a layer a letter, where a build draws the
 ///   quick one (lib/art/wisp_settings.dart `wispQuick`), to walk the two beside each other in one build: `phone`

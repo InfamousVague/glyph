@@ -213,7 +213,10 @@ void main() {
       final letters = marksOf(on, 'cm-effectLetter');
       expect([for (final l in letters) l.attrs['data-text']], ['h', 'o', 't']);
       expect([for (final l in letters) doc.substring(l.from, l.to)], ['h', 'o', 't']);
-      expect(letters.every((l) => l.attrs['data-fx'] == 'heat@${rising.own}'), isTrue);
+      // What moves each: the heat at its own strength, and which letter of which stretch it is.
+      // (The stretch is named by its editor and its place among the editor's stretches.)
+      final said = [for (final l in letters) RegExp(r'^heat@([\d.]+)@\d+\.(\d+)@(\d+)$').firstMatch(l.attrs['data-fx']!)!];
+      expect([for (final m in said) (double.parse(m.group(1)!), m.group(2), m.group(3))], [(rising.own, '0', '0'), (rising.own, '0', '1'), (rising.own, '0', '2')]);
       expect(heatFilter(0, 16, rising.own).bend, 1.65);
       expect(heatFilter(0, 16, rising.own).blur, 0.18);
       // One haze per line above, nearest the strongest (`-heat-above-100`, `-heat-above-55`).

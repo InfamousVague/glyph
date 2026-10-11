@@ -37,7 +37,8 @@ List<String> marksOf(EditorView view) {
   for (final set in view.decorations) {
     set.between(0, view.state.doc.length, (from, to, value) {
       if (value is MarkDecoration && (value.attrs['class'] ?? '').contains('cm-textEffect') || value is MarkDecoration && (value.attrs['class'] ?? '').contains('cm-effectLetter')) {
-        found.add('$from-$to ${(value.attrs.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}=${e.value}').join(' ')}');
+        // Less the editor's own number in a stretch's name (`data-fx`: `heat@0.3@<editor>.<stretch>@<letter>`).
+        found.add('$from-$to ${(value.attrs.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}=${e.value.replaceAll(RegExp(r'@\d+\.(\d+@\d+)'), r'@$1')}').join(' ')}');
       }
       return null;
     });
