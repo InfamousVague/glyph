@@ -65,6 +65,37 @@ void main() {
     expect(t.lenOf('calc(var(--glacier-space-10) * 0.74)'), closeTo(32.922, 0.02));
   });
 
+  test('an expression is read once for the tokens it is asked of: asked again, it is remembered', () {
+    final read = <String>[];
+    Tokens.debugOnRead = read.add;
+    addTearDown(() => Tokens.debugOnRead = null);
+    final t = root('light');
+    const mix = 'color-mix(in oklch, var(--glacier-text) 40%, transparent)';
+    const sum = 'calc(var(--glacier-space-10) * 0.74)';
+    final colour = t.colorOf(mix);
+    final length = t.lenOf(sum);
+    expect(read, ['color', 'len']);
+    for (var i = 0; i < 5; i += 1) {
+      expect(t.colorOf(mix), colour);
+      expect(t.lenOf(sum), length);
+    }
+    expect(read, ['color', 'len'], reason: 'asked again, neither is read again');
+    // In ems of a size of the caller's own, or of a colour of its own, it is theirs: read each time, kept for no one.
+    expect(t.lenOf('2em', em: 10), 20);
+    expect(t.lenOf('2em', em: 12), 24);
+    expect(read, ['color', 'len']);
+    // Other tokens (a scope with its own values, another theme) have their own answers.
+    final dark = root('dark');
+    expect(dark.colorOf(mix), isNot(colour));
+    expect(read, ['color', 'len', 'color']);
+    // No more than a couple of thousand are held: a caller that writes a new expression each time fills nothing up.
+    for (var i = 0; i < 5000; i += 1) {
+      t.lenOf('calc(${i}px + 1px)');
+    }
+    expect(t.lenOf('calc(4999px + 1px)'), 5000);
+    expect(t.lenOf(sum), length);
+  });
+
   test('follows density and reduced motion', () {
     final compact = Tokens.root(sheet, attrs: {...attrs, 'theme': 'light', 'density': 'compact'}, css: css);
     expect(compact.len('glacier-control-height-md'), 36);

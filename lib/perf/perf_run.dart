@@ -25,6 +25,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart' show Tokens;
 
 import '../book/book_view.dart' show BookView;
 import '../core/book.dart' show chaptersOf;
@@ -238,6 +239,9 @@ Future<void> runPerf() async {
   if (!ghostPerf) return;
   final asked = ghostPerfTour.isNotEmpty ? ghostPerfTour : (Platform.environment['GHOST_PERF_TOUR'] ?? '');
   final log = FrameLog.instance..install();
+  // Each expression of the stylesheet's that is read rather than remembered (the kit's `Tokens.lenOf`/`colorOf`):
+  // counted by stretch, so a stretch that reads the same few at every frame says so.
+  Tokens.debugOnRead = (kind) => Perf.count('tokens.read.$kind');
   await WidgetsBinding.instance.waitUntilFirstFrameRasterized;
   PerfLaunch.step('firstFrame');
   // The launch screen is the app opening: the walk begins when it has gone, and how long that took is the launch.

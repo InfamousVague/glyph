@@ -224,11 +224,37 @@ class Tokens {
 
   // --- by value --------------------------------------------------------------------------------------------------
 
-  /// A CSS expression worked out here, for a rule that computes its own: `calc(var(--glacier-space-10) * 0.74)`.
-  double lenOf(String expression, {double? em}) => evalNumber(resolve(expression), em == null ? css : css.withEm(em));
+  /// What [lenOf] and [colorOf] have worked out so far, by the expression as it was written. An expression is
+  /// resolved (every `var()` in it) and read (a `calc()`, a `color-mix()`) to be answered, and a widget asks for
+  /// its own at every build and a painter at every paint: the same few strings, with the same answer for as long
+  /// as these tokens stand (a theme or a sheet that changes is other tokens, with nothing kept). Some callers write
+  /// the expression themselves (a share that moves, a hex someone chose), so no more than [_mostKept] are held.
+  final Map<String, double> _lengths = <String, double>{};
+  final Map<String, Color> _colors = <String, Color>{};
+  static const int _mostKept = 2048;
 
-  Color colorOf(String expression, {Color? current}) =>
-      evalColor(resolve(expression), ctx: css, current: current == null ? null : Oklch.fromColor(current)).toColor();
+  /// Told each time an expression is read rather than remembered, with `len` or `color`: for a build that measures
+  /// itself to count. Null otherwise.
+  static void Function(String kind)? debugOnRead;
+
+  /// A CSS expression worked out here, for a rule that computes its own: `calc(var(--glacier-space-10) * 0.74)`.
+  double lenOf(String expression, {double? em}) {
+    if (em != null) return evalNumber(resolve(expression), css.withEm(em));
+    final had = _lengths[expression];
+    if (had != null) return had;
+    debugOnRead?.call('len');
+    if (_lengths.length >= _mostKept) _lengths.clear();
+    return _lengths[expression] = evalNumber(resolve(expression), css);
+  }
+
+  Color colorOf(String expression, {Color? current}) {
+    if (current != null) return evalColor(resolve(expression), ctx: css, current: Oklch.fromColor(current)).toColor();
+    final had = _colors[expression];
+    if (had != null) return had;
+    debugOnRead?.call('color');
+    if (_colors.length >= _mostKept) _colors.clear();
+    return _colors[expression] = evalColor(resolve(expression), ctx: css).toColor();
+  }
 
   List<BoxShadow> shadowOf(String expression, {Color? current}) =>
       evalShadows(resolve(expression), ctx: css, current: current == null ? null : Oklch.fromColor(current)).where((s) => !s.inset).map((s) => s.toBoxShadow()).toList();
