@@ -711,7 +711,7 @@ recovery codes, the password and delete forms was compared and is the same.
 | Live typing (trial): the switch, this device only, from the next note opened | core/live/enabled.ts:13; editor/useLiveNote.ts:15-37 | live/enabled.dart:9; live/open.dart:216-246; root/account_wiring.dart:191-193 | match | |
 | The first one in brings the words; unsent changes kept as a note of their own | core/live/open.ts:28-38 | live/open.dart:229-231; root/ghost_root.dart:304-306 | match | |
 | A dropped device comes back by itself | core/live/transport.ts:80,185-201 | live/transport.dart:54,189,271-281 | differs | The port lets the socket go while the app is behind another, and joins again as it returns. |
-| Undo in a live note is this device's alone | editor/undoSlot.ts (`Y.UndoManager`) | live/editor_binding.dart:16-18 | differs | The editor's own history; an undo after another member wrote at the very same place can take out the wrong letters (README). |
+| Undo in a live note is this device's alone | editor/undoSlot.ts (`Y.UndoManager`) | live/editor_binding.dart:16-18 | differs | The editor's own history, mapped over what arrives. Asked of Yjs itself 2026-10-10 (test/live/undo_beside_others_test.dart): typing beside another member's is taken back as `Y.UndoManager` takes it back, letter for letter, and nothing of theirs goes. A run this person DELETED, where the other then wrote, is put back whole after what they wrote; Yjs puts it back where it stood, which is before theirs when they wrote after hearing of it. A redo of typing taken back parts the same way. |
 | Versions: who kept each | core/versions/record.ts:63-65 | core/versions_record.dart:36-42,91-92; root/ghost_root.dart:282 | unwired | `VersionsRecord` is made without `keeper`, so every version is written by "me" and reads "You" for everyone. |
 | Versions: kept on a two-minute pause and on leaving; an organization's notes keep them by default | editor/useVersionKeeping.ts:12-56; core/versions/record.ts:23-47 | note/version_keeping.dart:19-79; core/versions_record.dart:29-57 | match | |
 
@@ -1190,7 +1190,18 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 25. **A share's pictures are drawn smaller only if they are PNGs**: a phone's JPEGs are left out of the link
     (lib/sync/device.dart:56-96). Medium. Needs a JPEG read and written.
 26. **Undo in a live note is the editor's own history**: after another member wrote at the same place it can take
-    out the wrong letters. Large. An undo that knows whose change it was.
+    out the wrong letters. Large. An undo that knows whose change it was. Measured 2026-10-10
+    (test/live/undo_beside_others_test.dart, each case asked of Yjs 13 too): in the cases tried no letter of
+    another member's is taken out, and typing is taken back exactly as `Y.UndoManager` does. The two part where a
+    run this person deleted (or typing they took back) is put back at a place the other has written at since:
+    every letter of both is there, in another order. The editor hears "X at 3" whether X was written before,
+    inside or after the run, and Yjs answers each differently, so no rule for the history's ties can be the
+    page's: giving this person's run the first place would match what Yjs does when the other wrote after
+    hearing of the deletion (the usual way) and a redo, and lose the one case that matches now. To be the page's
+    it needs Yjs's own: yrs's `UndoManager` over a live document's text in the core (native/src/crdt.rs, yrs
+    0.26: one per open document, this device's origin tracked; commands to undo, redo and say whether either
+    can), `undoSlot` given those in a live note in place of the history (lib/editor/state/undo_slot.dart,
+    lib/live/editor_binding.dart), and the core built again for each platform.
 27. ~~**Blanks**: the time in a city is said against "here", not your city (`BlankHooks.zone` is never given); zone
     offsets come from a table good to 2040; a lookup follows no redirect and gives up after ten seconds; one being
     filled does not breathe.~~ Done 2026-10-10, but the ten seconds, which are the page's own
