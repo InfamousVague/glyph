@@ -79,7 +79,12 @@ void scenarios(World Function() world, GhostCore Function() core, {required bool
     devices.add(again);
     await again.account.resume();
     expect(again.account.session, isNotNull, reason: 'the device key did not sign it back in');
-    expect(again.account.session!.token, isNot(anyOf(lapsed.token, 'a-token-the-service-never-gave')));
+    // No longer the token it was left with, which the service never gave: nothing but the device's key gets it
+    // another, and the sync below is the service taking that one. (Not "a token other than the one that lapsed":
+    // the service's token is the account and the second it was made in, server/src/accounts.rs, so signing in
+    // within a second of the last sign-in gives the same token again, and on a quiet Mac this scenario gets
+    // here inside the second.)
+    expect(again.account.session!.token, isNot('a-token-the-service-never-gave'));
     expect(again.account.value.unlocked, isTrue);
     again.write('n2', 'written after signing in by the device key');
     await again.sync();
