@@ -205,17 +205,23 @@ class NoteCard extends StatelessWidget {
         children.add(
           Padding(
             padding: EdgeInsetsDirectional.only(top: dense ? t.space(1) : 0, end: dense ? t.space(8) : 0),
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  if (hasTape(note)) ...[TextSpan(text: counter(note.recordingMs ?? 0), style: tabular(pageText(t, xs, color: subtle))), const TextSpan(text: ' · ')],
-                  TextSpan(text: when(note.updatedAt, now)),
-                ],
+            // `.when` is a line of `line-height: normal`: 35 device pixels for its 11.16px words on a phone at
+            // 2.625 (13.33px), where the engine's whole pixel is 14 and every card stood 1.75 device pixels tall.
+            child: ExactLines.of(
+              Text.rich(
+                TextSpan(
+                  children: [
+                    if (hasTape(note)) ...[TextSpan(text: counter(note.recordingMs ?? 0), style: tabular(pageText(t, xs, color: subtle))), const TextSpan(text: ' · ')],
+                    TextSpan(text: when(note.updatedAt, now)),
+                  ],
+                ),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+                style: pageText(t, xs, color: subtle),
               ),
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
-              style: pageText(t, xs, color: subtle),
+              normal: true,
+              dpr: t.css.lineDpr,
             ),
           ),
         );

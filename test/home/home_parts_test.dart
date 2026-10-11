@@ -3,11 +3,13 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/ai_changes.dart' show AiChange;
 import 'package:ghost_md/ai/marks.dart' show forgetMarks, saveMarks;
+import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/format/gist.dart' show gistWorking;
+import 'package:ghost_md/home/home_organizations.dart';
 import 'package:ghost_md/home/home_parts.dart';
 import 'package:ghost_md/home/home_rows.dart';
 import 'package:ghost_md/home/marks.dart';
@@ -249,6 +251,39 @@ void main() {
       await tester.pump();
       expect(said(ring, 'b'), findsOneWidget);
       expect(said(dot, 'b'), findsNothing);
+      await away(tester);
+    });
+
+    // docs/AB_FINDINGS.json home-1, measured in Ghost.md's page on a phone at 2.625 (2026-10-11): `.when` is 35 device
+    // pixels (13.33px) and a section's `.heading` 43 (16.38px), each a line of `line-height: normal` rounded in the
+    // phone's own pixels. The engine's whole logical pixels were 14 and 16: every card stood 1.75 device pixels
+    // tall and every section's first card one high.
+    testWidgets('keeps the page’s lines on a phone: the time under a card 35 device pixels, a section’s heading 43', (tester) async {
+      await pumpApp(
+        tester,
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 430,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const HomeHeading(words: 'Recent', count: 3),
+                NoteCard(note: makeNote('a', body: '# First\n\nWords.', updatedAt: seedNow), index: 0, onOpen: (_) {}, now: seedNow),
+              ],
+            ),
+          ),
+        ),
+        size: const Size(476, 752),
+        prefs: const AppPreferences(theme: 'dark', textSize: 'large'),
+        ratio: 2.625,
+        measuredAt: 2.625,
+      );
+      await settle(tester);
+      expect(tester.getSize(find.byType(HomeHeading)).height * 2.625, closeTo(43, 0.01));
+      final when = find.ancestor(of: find.textContaining('Just now', findRichText: true), matching: find.byType(ExactLines)).first;
+      expect(tester.getSize(when).height * 2.625, closeTo(35, 0.01));
       await away(tester);
     });
 

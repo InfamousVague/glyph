@@ -94,8 +94,13 @@ class HomeHeading extends StatelessWidget {
       child: Row(
         children: [
           if (mark != null) ...[mark!, SizedBox(width: t.space(2))],
-          Text(words, style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-          if (count != null) ...[SizedBox(width: t.space(2)), Text('$count', style: tabular(pageText(t, sm, color: t.color('app-ink-3'))))],
+          // `.heading` is a line of `line-height: normal`: 43 device pixels for its 13.47px words on a phone at
+          // 2.625 (16.38px), where the engine's whole pixel is 16 and every section's notes stood a device pixel high.
+          ExactLines.of(Text(words, style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))), normal: true, dpr: t.css.lineDpr),
+          if (count != null) ...[
+            SizedBox(width: t.space(2)),
+            ExactLines.of(Text('$count', style: tabular(pageText(t, sm, color: t.color('app-ink-3')))), normal: true, dpr: t.css.lineDpr),
+          ],
         ],
       ),
     );
