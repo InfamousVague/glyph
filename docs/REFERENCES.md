@@ -135,9 +135,19 @@ phone's own pixels is not held by any of them yet (see 1 below).
 0. **The phone's own pixels.** Every reference is drawn with Chromium told two device pixels to one by Playwright,
    which lays out in whole CSS pixels; a phone's page is laid out in its own (2.625 on the Fold's emulator: a
    border is a whole number of THEM, a line's leading a sixty-fourth of one). `lib/editor/looks/look.dart` has the
-   arithmetic for it (`lineDpr`, measured beside the emulator), and nothing made by a tool holds it. Chromium
-   started with `--force-device-scale-factor=2.625` lays out as the phone does; a tool that takes a `ratio` and
-   a test that says `measuredAt: 2.625` (test/support/render.dart) would hold the rows above.
+   arithmetic for it (`lineDpr`, measured beside the emulator), and nothing made by a tool holds it. The
+   instrument is there, measured 2026-10-11 on one page (`font-size: 10.8px; border-top: 0.35em solid`, and a
+   line of 14.9385 px at 1.6):
+
+   | Chromium | the border | the line |
+   | --- | --- | --- |
+   | Playwright's `deviceScaleFactor: 2` | 3px | 23.890625 |
+   | Playwright's `deviceScaleFactor: 2.625` | 3px | 23.890625 |
+   | launched with `--force-device-scale-factor=2.625 --window-size=475,751`, `viewport: null` | 3.42857px (nine device pixels) | 23.904762 (4016 sixty-fourths of a device pixel) |
+
+   The third is the phone's layout. A tool that takes a ratio that way, fixtures named for it, and a test that
+   says `measuredAt: 2.625` (test/support/render.dart) and takes its picture at 2.625 would hold the rows above;
+   `tool/blocks_reference.mjs` is the place to begin, then the tables', the queries' and the boards'.
 
 1. **The Fold's width for everything but the note's blocks and the aside.** Each editor reference would take the
    Fold as `tool/blocks_reference.mjs` takes it: a second window of 704, the same notes. The `-inter` and `-larger`
