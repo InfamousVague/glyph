@@ -493,10 +493,15 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
     }
   }
 
-  Size? get _size {
-    final box = context.findRenderObject();
-    return box is RenderBox && box.hasSize ? box.size : null;
-  }
+  /// The view's size as its last layout gave it ([build]'s `LayoutBuilder`), kept so that asking does not read a
+  /// box in the middle of a layout: a scroller that ends a drag while it is laid out (a pull to refresh takes its
+  /// physics away, and the framework cancels the drag from `applyNewDimensions`) says so to this view there and
+  /// then, and a debug build refuses `RenderBox.size` to anyone but the box's parent at that moment. The refusal
+  /// came up through the scroller's own cancel, which left it in its drag for good: the home page took no touch
+  /// after a pull until the app was started again.
+  Size? _laid;
+
+  Size? get _size => _laid;
 
   /// How far above its place the top band's lip is at this scroll: the page's never; the column's while it eases in.
   double get _lift => widget.band == WispBand.column ? math.max(0, wispEdgeEase - _pixels.roundToDouble()) : 0;
@@ -679,8 +684,12 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
         onNotification: (notification) => notification.depth == 0 && _metrics(notification.metrics, scrolled: notification is ScrollUpdateNotification),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return widget.child;
+            if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+              _laid = null;
+              return widget.child;
+            }
             final size = constraints.biggest;
+            _laid = size;
             return ListenableBuilder(
               listenable: Listenable.merge([WispDrift.instance.of(widget.band), WispDrift.instance.of(WispBand.page), _blur, _ready]),
               builder: (context, child) => WispStrips(strips: _strips(size), repaint: _ready, child: child),
