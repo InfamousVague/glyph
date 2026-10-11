@@ -157,7 +157,12 @@ void main() {
     room.close();
   }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
 
-  test('an emoji swapped for a near one by a web member (the web\'s applyTextDiff cuts it in two): the Flutter app takes the update, reads what every other member reads, and goes on typing with the team', () async {
+  // The web app cut such a character in two until its own d97b62b1 (2026-10-09, "Team text diffs keep to whole
+  // characters"): 😀 made 😁, which share their first half, left U+FFFD and a lone low surrogate in the device that
+  // made it and U+FFFD twice in everyone else. An update cut that way is still read as Yjs reads it, held by the
+  // web's recorded updates (test/team/crdt_test.dart, native/tests/yjs_vectors.rs); this is the web's client as it
+  // is now, and what it sends is whole.
+  test('an emoji swapped for a near one by a web member is whole in every member, the Flutter app among them, which swaps it back and goes on typing with the team', () async {
     final handle = freshHandle('emoji');
     final ada = device('ada');
     await ada.account.signUp(handle, 'correct horse');
@@ -173,22 +178,20 @@ void main() {
     await until(() => room.others == 2, 'both web devices in the room');
 
     // Words reach the note on the web without its editor (a capture, the connector, a sync of the library): 😀
-    // made 😁, which share their first half. core/team/textDiff.ts keeps that half and swaps the second.
+    // made 😁, which share their first half. core/team/textDiff.ts swaps the whole character.
     final made = await writer.ask({'do': 'reconcile', 'words': 'mood 😁 today'});
-    // The web device that made it holds half a character: U+FFFD, then a lone low surrogate.
-    expect((made['text'] as String).codeUnits.sublist(5, 7), [0xFFFD, 0xDE01]);
-    // Every other member reads U+FFFD twice: the other web device, by its own Yjs...
-    const heard = 'mood \uFFFD\uFFFD today';
-    await hearer.until({'words': heard}, 'the cut emoji as Yjs reads it');
-    // ...and the Flutter app, which used to refuse the update and stop following the note.
-    await until(() => doc.words == heard, 'the cut emoji in the Flutter app');
+    expect((made['text'] as String).codeUnits.sublist(5, 7), '😁'.codeUnits);
+    // Every other member reads it whole: the other web device, by its own Yjs, and the Flutter app.
+    const heard = 'mood 😁 today';
+    await hearer.until({'words': heard}, 'the swapped emoji on the web device that heard');
+    await until(() => doc.words == heard, 'the swapped emoji in the Flutter app');
 
-    // The note is still one note: Flutter types into it, a whole emoji where the broken one is, and both web
-    // devices follow; the web types, and Flutter follows.
-    await doc.edit([const CrdtEdit(5, remove: 2, insert: '😁')], base: doc.rev);
-    await hearer.until({'words': 'mood 😁 today'}, 'Flutter\'s mending on the web device that heard');
+    // Flutter swaps it back, a near one again and whole again, and both web devices follow; the web types, and
+    // Flutter follows.
+    await doc.edit([const CrdtEdit(5, remove: 2, insert: '😀')], base: doc.rev);
+    await hearer.until({'words': 'mood 😀 today'}, 'Flutter\'s swap on the web device that heard');
     await hearer.ask({'do': 'type', 'at': 0, 'insert': 'My '});
-    await until(() => doc.words == 'My mood 😁 today', 'the web\'s typing after the cut');
+    await until(() => doc.words == 'My mood 😀 today', 'the web\'s typing after the swaps');
     // What Flutter holds is a document the web reads whole: a web device signing in afresh, by the service.
     doc.onUpdate((_) {});
     ada.write('t1', doc.words, at: 9);
@@ -197,7 +200,7 @@ void main() {
     await ada.sync();
     await ada.sync();
     final fresh = await web({'handle': handle, 'password': 'correct horse', 'team': {'note': 't1'}});
-    expect(fresh.hello['words'], 'My mood 😁 today');
+    expect(fresh.hello['words'], 'My mood 😀 today');
     room.close();
   }, skip: skip, timeout: const Timeout(Duration(minutes: 3)));
 
