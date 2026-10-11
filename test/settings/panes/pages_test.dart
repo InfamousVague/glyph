@@ -433,7 +433,7 @@ void main() {
     });
 
     testWidgets('is the page’s over the web app’s own report, rect for rect', (tester) async {
-      final json = webTestReport()!;
+      final json = webTestReport();
       await openPane(tester, 'test-results', developer: true, features: SettingsFeatures(testReport: json, testBuildSource: json['sourceHash'] as String?));
       // The card's edge is `--app-line`, 1.5px. The page was measured in a desktop browser told to draw at 2, which
       // snaps a border to whole CSS pixels and drew it 1px; a phone snaps it to device pixels, three of them at 2,
@@ -450,7 +450,7 @@ void main() {
       expect(tester.getRect(find.text('Version')).topLeft, offsetMoreOrLessEquals(const Offset(35.7, 296.97 + 1), epsilon: 0.75));
       expect(tester.getRect(find.text('FIND', skipOffstage: false)).top, closeTo(762.89 + 1, 1.5));
       await endSettings(tester);
-    }, skip: webTestReport() == null);
+    });
   });
 }
 

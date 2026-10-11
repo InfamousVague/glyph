@@ -27,11 +27,13 @@ WorkspaceStore seededSpaces() => WorkspaceStore(
 /// The build the web page said it was when About was measured inside the app.
 SettingsUpdates measuredUpdates({VoidCallback? onCheck}) => SettingsUpdates(version: '1.15.0', built: 'Oct 8, 02:55 AM', onCheck: onCheck ?? () {});
 
-/// The web app's own test report, where its checkout is beside this one; null elsewhere.
-Map<String, Object?>? webTestReport() {
-  final file = File('../glyph/src/app/diag/testReport.generated.json');
-  return file.existsSync() ? (jsonDecode(file.readAsStringSync()) as Map).cast<String, Object?>() : null;
-}
+/// The web app's own test report, as its build of 2026-10-09 baked it in (../glyph
+/// src/app/diag/testReport.generated.json at its commit 05dd0efc: 6084 passed, 149 skipped), kept in this
+/// repository. It was read from the web app's checkout, which writes that file again every time its tests are run:
+/// the picture drawn over it was red against its own reference the day after it was drawn, and both tests were
+/// skipped wherever that checkout was not beside this one. Every suite's counts, which are what the page adds up,
+/// are the report's own; each suite's list of tests is cut to its first six, all a shut card needs.
+Map<String, Object?> webTestReport() => (jsonDecode(File('test/settings/panes/fixtures/web_test_report.json').readAsStringSync()) as Map).cast<String, Object?>();
 
 /// Settings open at [page] (and through About for a sub-page, which is how a person gets there), over the real
 /// sheet, on [size].

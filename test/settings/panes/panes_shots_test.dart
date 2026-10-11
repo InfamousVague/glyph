@@ -52,10 +52,10 @@ void main() {
     testWidgets('test results on a phone, $theme', (tester) async {
       final report = webTestReport();
       // A clock of the picture's own, eight hours after the report was made: "Ran 8 hr ago" whenever this runs.
-      final ran = DateTime.parse(report!['generatedAt'] as String);
+      final ran = DateTime.parse(report['generatedAt'] as String);
       await open(tester, 'test-results', theme, developer: true, features: SettingsFeatures(testReport: report, testBuildSource: report['sourceHash'] as String?, testNow: ran.add(const Duration(hours: 8))));
       await shot(tester, 'pane-tests-$theme');
-    }, skip: webTestReport() == null);
+    });
 
     testWidgets('test results with no report, $theme', (tester) async {
       await open(tester, 'test-results', theme, developer: true);
