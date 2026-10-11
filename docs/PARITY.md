@@ -1241,11 +1241,12 @@ is no rewrite's doing. None was fixed here.
    phone with no meeting service, where the page asks the phone itself (NotificationsPane.tsx
    `requestNotifications`). To see it: block the app's notifications in Android's settings, and open Settings ›
    Notifications in the first moment of a run. By the code only; not tried.
-4. **Comments that now say the opposite of the code beside them**, each from before its row was closed:
-   lib/root/note_desk.dart:44 (a picture's trouble "is said as a toast") and :65-66 ("A canvas has no comments",
-   "not framed in a note from the +"); lib/editor/items/bookmark_line.dart:20-23 (no edge line with the caret at
-   the signs); lib/capture/ui/live_page.dart:30 (the ripples "are not ported"); lib/commands/app_commands.dart:114
-   (`setView` "still to port").
+4. **Comments that said the opposite of the code beside them**, each from before its row was closed. **Corrected
+   2026-10-11**, each to what the code does: lib/root/note_desk.dart (a picture's trouble is said on the note's
+   own line; a canvas has its comments, and is framed in a note from the +'s A canvas);
+   lib/editor/items/bookmark_line.dart (the edge line is drawn by a box of its own where no ribbon stands in the
+   line); lib/capture/ui/live_page.dart (the ripples are lib/editor/ai/wisp_ripples.dart's);
+   lib/commands/app_commands.dart (`setView` is the root's, the preference every editor reads).
 
 ---
 

@@ -27,7 +27,9 @@
 ///   word bent and blurred until it sets: its letters, without the mark's own characters round them (`**bold`),
 ///   which the formatted view hides. A word with none of its own (a list's dash, a to-do's box) or with more round
 ///   it (a link's address) simply appears. When the editor has its own, this one goes.
-/// - The ripples the voice sends through the newest lines (`editor/wispRipples.ts`) are not ported.
+/// - The ripples the voice sends through the newest lines (`editor/wispRipples.ts`) are
+///   lib/editor/ai/wisp_ripples.dart's, given the voice's level as it comes ([LivePage.ripples]); with none
+///   given (the recorder's ripples switched off), the words arrive without them.
 /// - The top line is a height ([LivePage.under]), not an element measured (`--wisp-under`).
 /// - [LivePageState.document] is the page's Markdown as it reads now, for a test, where the web's test reads
 ///   `.cm-content`, and [LivePageState.lineRects] its lines' boxes, where the measuring script reads `.cm-line`.

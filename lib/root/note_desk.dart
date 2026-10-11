@@ -41,8 +41,9 @@
 /// What differs from the page:
 /// - **A picture is added from the phone's chooser** ([NoteDeskWorld.pickPicture], lib/core/phone_pictures.dart):
 ///   the band's Add image, the +'s Picture and a canvas's picture card, each offered only where there is a
-///   chooser. What goes wrong is said as a toast, where the page says it on the note's own line. A picture copied
-///   to the clipboard is pasted in by the band's Paste, read by the phone's own reader ([PhoneClipboard]).
+///   chooser. What goes wrong is said on the note's own line, as the page says it (`_sayOnNote`, the screen's
+///   `problem`), and goes after six seconds. A picture copied to the clipboard is pasted in by the band's Paste,
+///   read by the phone's own reader ([PhoneClipboard]).
 /// - **A film is added from the phone's picker** ([NoteDeskWorld.films], lib/core/phone_films.dart): the +'s A
 ///   video, offered only where there is a picker, its place kept from the tap, "Adding the video." said a moment
 ///   after its copy starts, and a film copied for a note that was left thrown away (`addVideo`). Its card plays
@@ -62,8 +63,11 @@
 /// - **Pick a date is the phone's own calendar** ([NoteDeskWorld.dayPicker], lib/core/phone_day.dart), as the
 ///   page's was the WebView's: on a list item's date page, in a ticket's panel and in a query. Without one the row
 ///   is not offered, and Today, Tomorrow and Next week are.
-/// - **A canvas has no comments**. A team's canvas is drawn from and edited through its structure in the team's
-///   document, the other members' pointers over its cards (lib/live/team_canvas.dart). A canvas is not framed in a note from the + (`AddConfig.canvases` is not given).
+/// - **A canvas has its comments** where it can be changed: its threads in the note's own sheet, a round on each
+///   card in its author's colour ([CanvasComments], lib/canvas/canvas_comments.dart); one that cannot be changed
+///   draws none. A team's canvas is drawn from and edited through its structure in the team's document, the other
+///   members' pointers over its cards (lib/live/team_canvas.dart). A canvas is framed in a note from the +'s A
+///   canvas, which lists every canvas among the notes (`AddConfig.canvases`).
 /// - **The strip's room is kept clear by the page** (`NoteAiLayer.onRoom`, the page's `--ai-strip-room`): the desk
 ///   keeps what the layer says ([NoteSeams.headRoom]) and the note's page starts that much lower while the strip
 ///   is up, told after the frame it was measured in.

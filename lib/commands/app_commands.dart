@@ -111,8 +111,9 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
 /// store unless given) the theme. The root gives the rest: [newNote] and [removeNote] as it
 /// already makes and deletes one, [settings], and [settingsPage] to open Settings at a section by its id
 /// (lib/settings/settings_sections.dart), which the Organizations command and, unless [cheatSheet] is given, the
-/// cheat sheet use. Each of the others is a feature still to port, null until it is; [setView] among them, which
-/// is `(view) => preferences.update((now) => now.copyWith(noteView: view))` once an editor reads that preference.
+/// cheat sheet use. Each of the others is the root's to give and left out of the palette while it is null;
+/// [setView] among them, which the root gives as the preference every note's editor reads
+/// (`(view) => preferences.update((now) => now.copyWith(noteView: view))`, lib/root/root_parts.dart).
 PaletteDoing paletteDoingFor({
   required AppShellState shell,
   required NoteLibrary library,

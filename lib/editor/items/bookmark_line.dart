@@ -18,9 +18,10 @@
 /// - The ribbon is the kit's own bookmark icon (`lib/art`, the path Lucide draws and the wash the app gives a
 ///   closed silhouette), so there is no path to copy here and none to drift.
 /// - `.cm-bookmarked::before`, the gold line down the edge, is drawn by the ribbon's own box, reaching out over
-///   its line: a line's look has a ground and corners but no place for a bar set in from its edge. So a bookmark
-///   kept on the device, which has no ribbon in the words, and a line whose signs the caret is at, show the tint
-///   without the edge line.
+///   its line: a line's look has a ground and corners but no place for a bar set in from its edge. Where no ribbon
+///   stands in the line (a bookmark kept on the device, which has no signs, and a line whose signs the caret is
+///   at) a box of no size at the line's end draws it instead ([BookmarkEdgeWidget]), so the edge line is there
+///   whatever stands in the line, as the page's is.
 library;
 
 import 'package:flutter/rendering.dart' hide Decoration;
