@@ -15,7 +15,7 @@
 ///   database and Make this a ticket;
 /// - what takes the page for a note that is not words: the canvas (lib/canvas), a notebook's index and a journal's
 ///   entries (lib/book), and the bar and the foot a notebook's page wears;
-/// - a tapped chip's menu (lib/editor/items `FieldMenuHost`);
+/// - a tapped chip's page: the band at the chip, on that field's choices (`useFieldTaps`, ContextMenu.tsx);
 /// - find and replace (lib/editor/find_bar), from the More sheet and from the band, resting on the keyboard;
 /// - the bookmark (lib/editor/items `NoteBookmark`), the cheat sheet's page, and a note's sharing where the build
 ///   has an account.
@@ -1331,12 +1331,33 @@ class NoteDeskState extends State<NoteDesk> {
         ),
       );
 
+  /// A chip of a to-do's field tapped (a day, a priority, a person): the note's band opens at the chip on that
+  /// field's page, as the page's menu does (`setFields({ page, line, back: false, refocus })`, `setOpen` at the
+  /// chip), with no Back, since nothing led to it.
+  void _chipTapped(EditorViewLike view, FieldTap tap) {
+    if (!mounted || _leaving) return;
+    _plus.close();
+    _band.openFields(
+      view,
+      page: switch (tap.page) {
+        DatePage(:final key) => band.FieldDatePage(key),
+        PriorityPage() => const band.FieldPriorityPage(),
+        PersonPage(:final name) => band.FieldPersonPage(name),
+        AssignPage() => const band.FieldAssignPage(),
+      },
+      line: tap.line,
+      at: Offset(tap.x, tap.y),
+    );
+  }
+
   /// The page inside the layers that hear it scroll. The same widgets with a view and without, so the page keeps
   /// its place in the tree (and its scroll position) when the editor's view arrives.
   Widget _around(BuildContext context, EditorView? view, Widget page) {
     if (view != null) _adopt(view);
     return FieldMenuHost(
       view: view,
+      // The note has its band: a chip's page is the band's, at the chip.
+      onTap: _chipTapped,
       child: PlusLayer(
         view: view,
         controller: _plus,

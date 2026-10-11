@@ -312,7 +312,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A person `@name` with an initial in a ring | editor/fieldChips.ts:137-140 | editor/items/field_chips.dart:158-161 | match | |
 | Due date chip: Tomorrow, Sat 3 Oct, red when passed, amber on the day | editor/fieldChips.ts:72-117 | editor/items/field_chips.dart:89-146 | differs | English day and month names whatever the phone's language. |
 | Start, scheduled, done, repeat, the five priorities, `[key:: value]` | editor/fieldChips.ts:54-147 | editor/items/field_chips.dart:77-168 | match | |
-| A tap on a date, priority or person chip opens its choices | editor/taskFields.ts:81-89; editor/ContextMenu.tsx:88-94 | editor/items/field_items.dart:170-253 | differs | A menu hung from the chip, where the original turns the band to that field's page (`openFields`, editor/band/context_band.dart:209, is never called). |
+| A tap on a date, priority or person chip opens its choices | editor/taskFields.ts:81-89; editor/ContextMenu.tsx:88-94 | editor/items/field_items.dart (`FieldMenuHost.onTap`); root/note_desk.dart (`_chipTapped`) | match | Since 2026-10-10 the band opens at the chip on the field's page (`openFields`), with no Back. |
 | Date page: Today, Tomorrow, Next week, Pick a date (the phone's calendar), Remove | editor/FieldItems.tsx:83-109 | editor/items/field_items.dart:82-106; core/phone_day.dart | match | |
 | Priority page: Highest to Lowest and None; Person: Remove; Assign: people the note names, Someone new | editor/FieldItems.tsx:118-178 | editor/items/field_items.dart:107-158 | match | |
 | Counter `[3/8]`: a tap adds one, a hold takes one away | editor/counters.ts:58-163 | editor/items/counters.dart:94-247 | match | |
@@ -420,10 +420,10 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | --- | --- | --- | --- | --- |
 | `type: ticket` drawn as a card of properties over the words | editor/tickets.ts:181-280 | editor/tickets/tickets.dart:168-308; root/note_desk.dart:569 | match | |
 | The `{}` button and the caret show the front matter as written | editor/TicketPanel.tsx:157-160 | editor/tickets/ticket_panel.dart:575 | match | |
-| Status | editor/TicketPanel.tsx:89-95,335-346 | editor/tickets/ticket_panel.dart:280; editor/fields/field_picker.dart:207-218 | differs | The shared field sheet: icons for dots, and a "No status" row the original has not. |
+| Status | editor/TicketPanel.tsx:89-95,335-346 | editor/tickets/ticket_panel.dart (`StatusSheet`) | match | Since 2026-10-10 the panel's own sheet: the workflow with its dots, and no more. |
 | Assignee, Priority | editor/TicketPanel.tsx:96-115 | editor/tickets/ticket_panel.dart:299-320 | match | |
-| Due, Start | editor/TicketPanel.tsx:116-120,234-271 | editor/tickets/ticket_panel.dart:321-335; editor/fields/field_picker.dart:266-296 | differs | A sheet (Today, Tomorrow, Next week, Pick a date, Remove) comes first; the original opens the calendar from the chip. |
-| Estimate, Labels | editor/TicketPanel.tsx:121-124,274-308 | editor/tickets/ticket_panel.dart:337-356,729-772 | differs | Typed in a sheet, where the original types in place. |
+| Due, Start | editor/TicketPanel.tsx:116-120,234-271 | editor/tickets/ticket_panel.dart (`_pickDay`) | match | Since 2026-10-10 the tap asks the phone's calendar at the chip; the day's sheet only where the app has no calendar. |
+| Estimate, Labels | editor/TicketPanel.tsx:121-124,274-308 | editor/tickets/ticket_panel.dart (`TypedField`) | match | Typed in place since 2026-10-10: written as the field is left, Escape puts back what it had. |
 | Blocked by, Parent, found by key or title | editor/TicketPanel.tsx:125-143,378-405 | editor/tickets/ticket_panel.dart:364-389,796-840 | match | |
 | The line of fields still to add; the lock for a ticket waiting on another | editor/TicketPanel.tsx:163-194 | editor/tickets/ticket_panel.dart:589-704 | match | |
 | New ticket in a notebook's index: just the title, Bug report, Feature | book/BookView.tsx:352-471 | book/book_view.dart:1044,1444-1545; root/ghost_root.dart:1104-1108 | match | Reached only once the notebook has a key (see More sheet). |
@@ -1167,9 +1167,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     (lib/root/ghost_root.dart:763-770,875-883). Small to medium. Needs the phone's real answer.
 17. ~~**The tape and its voice memos share one player**: after a memo, Play goes on from where the memo stopped.~~
     Done 2026-10-10: a second player for the memos on Android, the Mac and the iPhone.
-18. **A chip's tap opens a menu, not the band's page; a ticket's Status, Due, Estimate and Labels go through a
-    sheet.** Medium, or a decision to keep the port's way. `openFields` (lib/editor/band/context_band.dart:209) is
-    never called.
+18. ~~**A chip's tap opens a menu, not the band's page; a ticket's Status, Due, Estimate and Labels go through a
+    sheet.**~~ Done 2026-10-10: the band at the chip on its field's page; a status in the panel's own sheet of
+    dots; a day by the phone's calendar from the chip; an estimate and labels typed in place.
 19. **No band over a drawn table or any drawn block; a board's fence is not reached by a tap between its cards.**
     Medium.
 20. **The bookmark**: with no caret it marks line 1, not the top line in view (`caretPlace`,

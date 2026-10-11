@@ -4,11 +4,11 @@
 // `src/app/editor/TicketPanel.test.tsx`, case for case.
 //
 // What is asked differently (the library says why each differs):
-// - A status, a person, a priority and a day are picked in the app's one field sheet, so a status's row wears its
-//   mark where the page's wore a dot, and a day is picked from the sheet's days and its calendar where the page
-//   typed into the phone's own date field.
-// - An estimate and labels are typed in a sheet and written as it is left, where the page typed in place and wrote
-//   as the field was left.
+// - A person and a priority are picked in the app's one field sheet. A status has the panel's own, with dots, as
+//   the page's has; a day's tap asks the calendar the panel was given, where the page laid the phone's own date
+//   field over the chip; and an estimate and labels are typed in place and written as the field is left, as on
+//   the page (docs/PARITY.md, Differs 18).
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/app_icon.dart';
@@ -16,7 +16,6 @@ import 'package:ghost_md/book/tickets.dart' show TicketChoice;
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/properties.dart';
 import 'package:ghost_md/editor/fields/field_picker.dart';
-import 'package:ghost_md/editor/fields/field_picks.dart';
 import 'package:ghost_md/editor/items/field_chips.dart' show priorityIcon;
 import 'package:ghost_md/editor/queries/query_look.dart';
 import 'package:ghost_md/editor/tickets/tickets.dart';
@@ -121,12 +120,15 @@ void main() {
   });
 
   group('a value picked', () {
-    testWidgets('writes a status from the notebook’s workflow, each in its category’s colour', (tester) async {
+    testWidgets('writes a status from the notebook’s workflow, each with its category’s dot, and offers nothing else', (tester) async {
       await draw(tester, statuses: const <String>['Ideas', 'Building', 'Live']);
       await press(tester, said(RegExp('^Status: ')));
-      final marks = <StatusLook>[for (final mark in tester.widgetList<StatusIcon>(find.descendant(of: find.byType(Sheet), matching: find.byType(StatusIcon)))) mark.look];
-      // The workflow's three, and the status the ticket has, which that workflow does not name.
-      expect(marks.take(3), <StatusLook>[StatusLook.todo, StatusLook.doing, StatusLook.done]);
+      // TicketPanel.tsx `Picker`: `statuses.map(…)` with `DOTS[statusCategory(status, statuses)]`, and no more rows.
+      final dots = <StatusCategory>[for (final dot in tester.widgetList<StatusDot>(find.descendant(of: find.byType(Sheet), matching: find.byType(StatusDot)))) dot.category];
+      expect(dots, <StatusCategory>[StatusCategory.todo, StatusCategory.doing, StatusCategory.done]);
+      expect(tester.widgetList<SheetRow>(find.byType(SheetRow)), hasLength(3), reason: 'the workflow and no more: no "No status", and not the status it has from another workflow');
+      expect(find.descendant(of: find.byType(Sheet), matching: find.byType(StatusIcon)), findsNothing);
+      expect(sheetRowCalled('No status'), findsNothing);
       await press(tester, sheetRowCalled('Live'));
       expect(asked.written, <(String, Object?)>[('status', 'Live')]);
       expect(find.byType(Sheet), findsNothing);
@@ -171,33 +173,66 @@ void main() {
       expect(asked.written.last, ('assignee', 'Kit'));
     });
 
-    testWidgets('writes a day from its sheet and the calendar, and takes it off from its cross', (tester) async {
+    // `DayValue`: the phone's own date field under the chip, opened by the tap (`showPicker`), written by its
+    // `onChange`; and the cross.
+    testWidgets('a tap on a day asks the calendar at the chip and writes what is picked, with no sheet between; the cross takes it off', (tester) async {
       await draw(tester, picksDay: '2026-10-03');
       await press(tester, said(RegExp('^Due: ')));
-      await press(tester, sheetRowCalled('Tomorrow'));
-      expect(asked.written.last, ('due', '2026-10-02'));
-      await press(tester, said(RegExp('^Due: ')));
-      await press(tester, sheetRowCalled('Pick a date'));
+      expect(find.byType(Sheet), findsNothing, reason: 'the calendar, straight from the chip');
       expect(asked.written.last, ('due', '2026-10-03'));
       await tester.tap(said('Take due off'));
       expect(asked.written.last, ('due', null));
     });
 
-    testWidgets('writes an estimate and labels when the field is left, and nothing for a field left as it was', (tester) async {
+    testWidgets('with no calendar to ask, a day is picked from its sheet', (tester) async {
+      await draw(tester);
+      await press(tester, said(RegExp('^Due: ')));
+      await press(tester, sheetRowCalled('Tomorrow'));
+      expect(asked.written.last, ('due', '2026-10-02'));
+    });
+
+    // `TypedValue`: an `<input>` in the panel, `onBlur={commit}`, Enter blurs, Escape puts back what it had.
+    testWidgets('an estimate and labels are typed in place, written when the field is left, and nothing for a field left as it was', (tester) async {
       await draw(tester, front: '${front.substring(0, front.length - 3)}estimate: 3\nlabels: [bug]\n---');
-      await press(tester, said(RegExp('^Estimate: ')));
+      expect(valueOf(tester, 'Estimate'), '3');
+      await press(tester, find.bySemanticsLabel('Estimate'));
+      expect(find.byType(Sheet), findsNothing, reason: 'typed in the panel, not in a sheet');
+      final field = find.descendant(of: find.byType(TicketPanel), matching: find.byType(EditableText));
+      expect(field, findsOneWidget);
+      expect(tester.widget<EditableText>(field).controller.text, '3');
+      expect(tester.widget<EditableText>(field).focusNode.hasFocus, isTrue);
+      expect(tester.testTextInput.isVisible, isTrue);
+      // Left as it was: nothing written, and the words are back.
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
       expect(asked.written, isEmpty);
-      await press(tester, said(RegExp('^Estimate: ')));
-      await tester.enterText(find.byType(EditableText), '5');
+      expect(field, findsNothing);
+      expect(valueOf(tester, 'Estimate'), '3');
+      // Changed, and the done key pressed.
+      await press(tester, find.bySemanticsLabel('Estimate'));
+      await tester.enterText(field, '5');
       await tester.testTextInput.receiveAction(TextInputAction.done);
       await settle(tester);
       expect(asked.written.last, ('estimate', '5'));
-      expect(valueOf(tester, 'Labels'), 'bug');
-      await press(tester, said(RegExp('^Labels: ')));
-      await tester.enterText(find.byType(EditableText), 'bug, ui');
+      // Emptied: the property is taken off.
+      await press(tester, find.bySemanticsLabel('Estimate'));
+      await tester.enterText(field, '');
       await tester.testTextInput.receiveAction(TextInputAction.done);
+      await settle(tester);
+      expect(asked.written.last, ('estimate', null));
+      // Escape puts back what it had.
+      final before = asked.written.length;
+      await press(tester, find.bySemanticsLabel('Estimate'));
+      await tester.enterText(field, '8');
+      await tester.sendKeyEvent(LogicalKeyboardKey.escape);
+      await settle(tester);
+      expect(asked.written, hasLength(before));
+      expect(valueOf(tester, 'Estimate'), '3');
+      // Labels, a list with commas, written when the field is left for somewhere else.
+      expect(valueOf(tester, 'Labels'), 'bug');
+      await press(tester, find.bySemanticsLabel('Labels'));
+      await tester.enterText(field, 'bug, ui');
+      FocusManager.instance.primaryFocus?.unfocus();
       await settle(tester);
       expect(asked.written.last.$1, 'labels');
       expect(asked.written.last.$2, <String>['bug', 'ui']);

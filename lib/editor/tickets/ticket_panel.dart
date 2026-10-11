@@ -8,35 +8,38 @@
 /// edited.
 ///
 /// What differs:
-/// - **A status, a person, a priority and a day are picked in the app's one field sheet** (fields/field_picker.dart
-///   [FieldPicker]), the sheet a query's cell and a notebook's index open, where the page's panel had three sheets
-///   of its own with dots for marks. So a status is offered with its mark (a ring, a dot, an eye, a tick) and
-///   "No status" after the workflow, a person with their initial in their hue, and a day as Today, Tomorrow, Next
-///   week, Pick a date and Remove. Each pick is one write.
-/// - **A day** had the phone's own date field laid unseen over its words on the page. Here a tap on the day opens
-///   the day's sheet, whose Pick a date is the app's calendar ([TicketPanel.dayPicker]); the cross beside it still
-///   takes the day off.
-/// - **An estimate and labels** were typed in place, in a field in the panel. A field of its own inside the
-///   editor has to be hung beside the editor's keyboard (boards/composer.dart says how); here a tap on the value
-///   opens a sheet with the field in it, and the keyboard's done key, or leaving the sheet, writes what was typed,
-///   and nothing for a field left as it was.
+/// - **A person and a priority are picked in the app's one field sheet** (fields/field_picker.dart [FieldPicker]),
+///   the sheet a query's cell and a notebook's index open, where the page's panel had sheets of its own: a person
+///   with their initial in their hue. A status has the panel's own sheet, as on the page: the workflow and no
+///   more, each status with its category's dot ([StatusSheet]). Each pick is one write.
+/// - **A day** had the phone's own date field laid unseen over its words on the page, so a tap on the day opened
+///   the phone's calendar. Here the tap asks the app's calendar ([TicketPanel.dayPicker], the phone's own date
+///   picker on Android) for a day at the chip, and writes what is picked; the cross beside it takes the day off.
+///   Only where the app has no calendar to ask does the day's sheet open instead (Today, Tomorrow, Next week,
+///   Remove).
+/// - **An estimate and labels** are typed in place, as on the page ([TypedField]): a field in the panel, written
+///   when it is left or the keyboard's done key is pressed, nothing for a field left as it was, and Escape puts
+///   back what it had. A field of its own inside the editor is hung beside the editor's keyboard, not under it
+///   (boards/composer.dart says why and how). Until it is tapped it is drawn as the page's words are.
 /// - `:hover` grounds and `title=` tooltips are a pointer's and are left out.
 library;
 
 import 'dart:math' as math;
 
-import 'package:flutter/services.dart' show TextInputAction, TextInputType;
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
+import 'package:glacier/glacier.dart' show GlacierTextSelectionControls, GlacierTextSelectionToolbar, HapticKind, fireMotor;
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../book/tickets.dart' show TicketChoice, waitingOn;
+import '../../core/days.dart' show isIsoDay;
 import '../../core/properties.dart';
 import '../../core/task_fields.dart' show priorityOf;
 import '../../sheet/css.dart' show snapBorder;
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
+import '../boards/composer.dart' show ownTextKeys;
 import '../fields/field_picker.dart';
 import '../fields/field_picks.dart';
 import '../items/field_chips.dart' show priorityIcon;
@@ -101,7 +104,7 @@ class TicketPanel extends StatefulWidget {
   final String today;
   final String? locale;
 
-  /// The app's calendar, for a day's sheet's Pick a date.
+  /// The app's calendar, which a tap on a day asks (the page's `<input type="date">` and its `showPicker`).
   final DayPicker? dayPicker;
 
   @override
@@ -127,6 +130,20 @@ class _TicketPanelState extends State<TicketPanel> {
   void _pick(String key) {
     fireMotor(HapticKind.selection);
     setState(() => _picking = key);
+  }
+
+  /// A day's chip pressed: the phone's calendar at the chip, and what is picked written (`DayValue`'s date field,
+  /// `showPicker` on its click, `onChange` its write). With no calendar to ask, the day's sheet.
+  void _pickDay(BuildContext chip, String key, String? day) {
+    final picker = widget.dayPicker;
+    if (picker == null) return _pick(key);
+    fireMotor(HapticKind.selection);
+    final box = chip.findRenderObject();
+    final at = box is RenderBox && box.attached ? box.localToGlobal(box.size.center(Offset.zero)) : MediaQuery.sizeOf(context).center(Offset.zero);
+    final write = widget.write;
+    picker(at, day != null && isIsoDay(day) ? day : null).then<void>((picked) {
+      if (picked != null && isIsoDay(picked) && picked != day) write(key, picked);
+    }, onError: (Object _) {});
   }
 
   Widget _tap({required String label, required VoidCallback? onTap, required Widget child, bool button = true}) {
@@ -330,7 +347,7 @@ class _TicketPanelState extends State<TicketPanel> {
         return _stepped(gap: look.space(1), <Widget>[
           // Alone in its `.day`, the page's chip is no wider than that box, which its own negative margin made a
           // padding narrower: its words run to its edge.
-          _chip(said, empty: empty, due: state, property: label, onPress: () => _pick(key), tight: empty),
+          Builder(builder: (chip) => _chip(said, empty: empty, due: state, property: label, onPress: () => _pickDay(chip, key, day), tight: empty)),
           // `<X size={12} />`
           if (!empty) _round('clear', Lucide.x, 12, label: 'Take ${label.toLowerCase()} off', onTap: () => widget.write(key, null)),
         ]);
@@ -338,25 +355,13 @@ class _TicketPanelState extends State<TicketPanel> {
         final value = key == 'estimate' ? _raw('estimate') : propertyList(_raw('labels')).join(', ');
         final label = labelOf(key);
         if (!editable) return _stepped(<Widget>[_chip(value.isEmpty ? 'Empty' : value, empty: value.isEmpty)]);
-        // .typed { inline-size: 100%; min-block-size: 1.9em; margin: 0 0 0 calc(var(--glacier-space-2) * -1);
-        //   padding: 0 var(--glacier-space-2); border-radius: var(--glacier-radius-md) }
-        // .typed::placeholder { color: var(--app-ink-4) }
-        return _tap(
-          label: '$label: ${value.isEmpty ? 'Empty' : value}. Change it',
-          onTap: () => _pick(key),
-          child: Transform.translate(
-            offset: Offset(-look.space(2), 0),
-            child: Part(
-              'typed',
-              child: Container(
-                width: double.infinity,
-                constraints: BoxConstraints(minHeight: layoutUnitFloor(1.9 * look.em)),
-                padding: EdgeInsets.symmetric(horizontal: look.space(2)),
-                alignment: Alignment.centerLeft,
-                child: PageWords(value.isEmpty ? 'Empty' : value, look.sans(look.em, color: value.isEmpty ? look.ink4 : look.ink), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis),
-              ),
-            ),
-          ),
+        return TypedField(
+          key: ValueKey<String>('typed:$key'),
+          look: look,
+          label: label,
+          value: value,
+          number: key == 'estimate',
+          onCommit: (typed) => widget.write(key, key == 'estimate' ? (typed.isEmpty ? null : typed) : propertyList(typed)),
         );
       default:
         // Blocked by, and Parent: other tickets.
@@ -402,7 +407,7 @@ class _TicketPanelState extends State<TicketPanel> {
     final record = ticket.id ?? '';
     switch (key) {
       case 'status':
-        return FieldPicker(pick: StatusPick(value: ticket.status, workflow: statuses), label: 'Status', record: record, onClose: close, onPick: (value) => widget.write('status', value));
+        return StatusSheet(look: look, value: ticket.status, statuses: statuses, onClose: close, onPick: (value) => widget.write('status', value));
       case 'priority':
         return FieldPicker(pick: PriorityPick(value: ticket.priority), label: 'Priority', record: record, onClose: close, onPick: (value) => widget.write('priority', value));
       case 'assignee':
@@ -410,10 +415,6 @@ class _TicketPanelState extends State<TicketPanel> {
       case 'due' || 'start':
         final day = key == 'due' ? ticket.due : ticket.start;
         return FieldPicker(pick: DayPick(value: day, today: widget.today), label: labelOf(key), record: record, dayPicker: widget.dayPicker, onClose: close, onPick: (value) => widget.write(key, value));
-      case 'estimate':
-        return TypedSheet(label: 'Estimate', value: _raw('estimate'), number: true, onClose: close, onCommit: (typed) => widget.write('estimate', typed.isEmpty ? null : typed));
-      case 'labels':
-        return TypedSheet(label: 'Labels', value: propertyList(_raw('labels')).join(', '), number: false, onClose: close, onCommit: (typed) => widget.write('labels', propertyList(typed)));
       default:
         return TicketsSheet(what: key, ticket: ticket, options: options, write: widget.write, onClose: close);
     }
@@ -724,50 +725,242 @@ class _TicketPanelState extends State<TicketPanel> {
   }
 }
 
-/// A value typed in a sheet, a number or a list with commas, written when the keyboard's done key is pressed or
-/// the sheet is left, and nothing for a field left as it was (`TypedValue`, which typed in place on the page).
-class TypedSheet extends StatefulWidget {
-  const TypedSheet({super.key, required this.label, required this.value, required this.number, required this.onCommit, required this.onClose});
+/// The sheet a status is picked from (the page's `Picker`, `what === 'status'`): the workflow and no more, each
+/// status with its category's dot, the one the ticket has ticked.
+class StatusSheet extends StatelessWidget {
+  const StatusSheet({super.key, required this.look, required this.value, required this.statuses, required this.onPick, required this.onClose});
 
-  final String label;
-  final String value;
-  final bool number;
-  final void Function(String typed) onCommit;
+  final QueryLook look;
+  final String? value;
+  final List<String> statuses;
+  final void Function(String status) onPick;
   final VoidCallback onClose;
 
   @override
-  State<TypedSheet> createState() => _TypedSheetState();
+  Widget build(BuildContext context) {
+    final has = value?.toLowerCase();
+    return Sheet(
+      label: 'Status',
+      onClose: onClose,
+      children: <Widget>[
+        SheetTitle.text('Status'),
+        SheetGroup(
+          children: <Widget>[
+            for (final status in statuses)
+              SheetRow(
+                key: ValueKey<String>('status:$status'),
+                icon: StatusDot(look: look, category: statusCategory(status, statuses)),
+                label: status,
+                chosen: has != null && has.isNotEmpty && has == status.toLowerCase(),
+                onPress: () {
+                  // The callbacks as they are now: closing may take this sheet down before the choice is written.
+                  final pick = onPick;
+                  onClose();
+                  pick(status);
+                },
+              ),
+          ],
+        ),
+      ],
+    );
+  }
 }
 
-class _TypedSheetState extends State<TypedSheet> {
-  late String _draft = widget.value;
+/// `.dot`: a status's colour, as a dot (`TodoDot`, `DoingDot`, `DoneDot`).
+// .dot { flex: none; inline-size: 0.6em; block-size: 0.6em; border-radius: 50%; background: var(--app-ink-4) }
+// .dot[data-category='doing'] { background: var(--glacier-blue-9) }  [data-category='done'] { … green-9 }
+class StatusDot extends StatelessWidget {
+  const StatusDot({super.key, required this.look, required this.category});
 
-  void _leave() {
-    final onCommit = widget.onCommit;
-    final typed = _draft.trim();
-    widget.onClose();
-    if (typed != widget.value.trim()) onCommit(typed);
+  final QueryLook look;
+  final StatusCategory category;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = layoutUnitFloor(0.6 * look.em);
+    final color = switch (category) {
+      StatusCategory.doing => look.t.color('glacier-blue-9'),
+      StatusCategory.done => look.t.color('glacier-green-9'),
+      StatusCategory.todo => look.ink4,
+    };
+    return Part('dot', child: Container(width: size, height: size, decoration: ShapeDecoration(color: color, shape: const CircleBorder())));
+  }
+}
+
+/// A value typed in place, a number or a list with commas, written when the field is left or the keyboard's done
+/// key is pressed, and nothing for a field left as it was; Escape puts back what it had (`TypedValue`).
+///
+/// Until it is tapped it is the page's words on the page's box (`.typed`), drawn as every other value's are. The
+/// tap puts the field in their place, focused, with the keyboard: a field of its own inside the editor, hung from
+/// the page's focus scope and not from the editor's, for the reasons boards/composer.dart gives.
+class TypedField extends StatefulWidget {
+  const TypedField({super.key, required this.look, required this.label, required this.value, required this.number, required this.onCommit});
+
+  final QueryLook look;
+  final String label;
+  final String value;
+
+  /// `inputMode="decimal"`: an estimate's keyboard.
+  final bool number;
+  final void Function(String typed) onCommit;
+
+  @override
+  State<TypedField> createState() => TypedFieldState();
+}
+
+class TypedFieldState extends State<TypedField> implements TextSelectionGestureDetectorBuilderDelegate {
+  final TextEditingController controller = TextEditingController();
+  final FocusNode focusNode = FocusNode(debugLabel: 'A ticket\'s value');
+  late final TextSelectionGestureDetectorBuilder _gestures = TextSelectionGestureDetectorBuilder(delegate: this);
+
+  /// The page's `draft !== null`: the field is being typed in.
+  bool _typing = false;
+
+  @override
+  final GlobalKey<EditableTextState> editableTextKey = GlobalKey<EditableTextState>();
+
+  @override
+  bool get forcePressEnabled => false;
+
+  @override
+  bool get selectionEnabled => true;
+
+  @override
+  void initState() {
+    super.initState();
+    focusNode.addListener(_focusMoved);
   }
 
   @override
-  Widget build(BuildContext context) => Sheet(
-    label: widget.label,
-    onClose: _leave,
-    children: <Widget>[
-      SheetTitle.text(widget.label),
-      SheetField(
+  void dispose() {
+    controller.dispose();
+    focusNode.dispose();
+    super.dispose();
+  }
+
+  /// The tap: the field in the words' place, with what it has to be changed, and the keyboard.
+  void _begin() {
+    if (_typing) return;
+    fireMotor(HapticKind.selection);
+    controller.value = TextEditingValue(text: widget.value, selection: TextSelection.collapsed(offset: widget.value.length));
+    setState(() => _typing = true);
+    focusNode.requestFocus();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _typing) editableTextKey.currentState?.requestKeyboard();
+    });
+  }
+
+  /// `onBlur={commit}`: what was typed is written where it is not what was there, and the words are back.
+  void _focusMoved() {
+    if (focusNode.hasFocus || !_typing) return;
+    final typed = controller.text.trim();
+    if (mounted) setState(() => _typing = false);
+    if (typed != widget.value.trim()) widget.onCommit(typed);
+  }
+
+  KeyEventResult _key(FocusNode node, KeyEvent event) {
+    if (event is! KeyDownEvent) return KeyEventResult.ignored;
+    if (event.logicalKey == LogicalKeyboardKey.escape) {
+      // `setDraft(null)` and a blur: left as it was.
+      setState(() => _typing = false);
+      focusNode.unfocus();
+      return KeyEventResult.handled;
+    }
+    if (event.logicalKey == LogicalKeyboardKey.enter || event.logicalKey == LogicalKeyboardKey.numpadEnter) {
+      focusNode.unfocus();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final look = widget.look;
+    final value = widget.value;
+    final style = look.sans(look.em, color: look.ink);
+    // .typed { inline-size: 100%; min-block-size: 1.9em; margin: 0 0 0 calc(var(--glacier-space-2) * -1);
+    //   padding: 0 var(--glacier-space-2); border-radius: var(--glacier-radius-md) }
+    // .typed::placeholder { color: var(--app-ink-4) }
+    Widget box(Widget child) => Transform.translate(
+          offset: Offset(-look.space(2), 0),
+          child: Part(
+            'typed',
+            child: Container(
+              width: double.infinity,
+              constraints: BoxConstraints(minHeight: layoutUnitFloor(1.9 * look.em)),
+              padding: EdgeInsets.symmetric(horizontal: look.space(2)),
+              alignment: Alignment.centerLeft,
+              child: child,
+            ),
+          ),
+        );
+    if (!_typing) {
+      return Semantics(
+        container: true,
+        textField: true,
         label: widget.label,
-        value: _draft,
-        placeholder: 'Empty',
-        autoFocus: true,
-        // `inputMode="decimal"`, `enterKeyHint="done"`
-        inputMode: widget.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
-        enterKeyHint: TextInputAction.done,
-        onChange: (text) => setState(() => _draft = text),
-        onSubmitted: (_) => _leave(),
+        value: value,
+        hint: value.isEmpty ? 'Empty' : null,
+        onTap: _begin,
+        excludeSemantics: true,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _begin,
+          child: box(PageWords(value.isEmpty ? 'Empty' : value, look.sans(look.em, color: value.isEmpty ? look.ink4 : look.ink), line: look.line, softWrap: false, maxLines: 1, overflow: TextOverflow.ellipsis)),
+        ),
+      );
+    }
+    final t = look.t;
+    final field = EditableText(
+      key: editableTextKey,
+      controller: controller,
+      focusNode: focusNode,
+      style: style.copyWith(height: look.line / look.em, leadingDistribution: TextLeadingDistribution.even),
+      cursorColor: look.ink,
+      cursorWidth: 1,
+      backgroundCursorColor: look.ink3,
+      selectionColor: t.color('glacier-selection'),
+      selectionControls: GlacierTextSelectionControls(color: t.color('glacier-accent-solid')),
+      contextMenuBuilder: (context, editable) => GlacierTextSelectionToolbar(tokens: t, editable: editable),
+      // `inputMode`, `enterKeyHint="done"`, `autoComplete="off"`
+      keyboardType: widget.number ? const TextInputType.numberWithOptions(decimal: true) : TextInputType.text,
+      textInputAction: TextInputAction.done,
+      autocorrect: false,
+      enableSuggestions: false,
+      autofillHints: null,
+      maxLines: 1,
+      // The done key leaves the field, and leaving it writes.
+      onEditingComplete: focusNode.unfocus,
+      onTapOutside: (_) => focusNode.unfocus(),
+      rendererIgnoresPointer: true,
+      keyboardAppearance: t.isDark ? Brightness.dark : Brightness.light,
+      textScaler: TextScaler.noScaling,
+    );
+    return Semantics(
+      container: true,
+      textField: true,
+      label: widget.label,
+      child: box(
+        // Hung from the page's focus scope, not from the editor the panel is built in (boards/composer.dart).
+        Focus(
+          parentNode: FocusScope.of(context),
+          canRequestFocus: false,
+          skipTraversal: true,
+          onKeyEvent: _key,
+          child: _gestures.buildGestureDetector(
+            behavior: HitTestBehavior.opaque,
+            child: Stack(
+              alignment: Alignment.centerLeft,
+              children: <Widget>[
+                if (controller.text.isEmpty) IgnorePointer(child: PageWords('Empty', look.sans(look.em, color: look.ink4), line: look.line, softWrap: false, maxLines: 1)),
+                Actions(actions: ownTextKeys, child: field),
+              ],
+            ),
+          ),
+        ),
       ),
-    ],
-  );
+    );
+  }
 }
 
 /// The sheet another ticket, or several, is picked from: found by its key or its title as it is typed (the last

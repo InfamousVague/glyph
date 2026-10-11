@@ -13,10 +13,11 @@
 /// note being read must not raise the keyboard.
 ///
 /// What differs: on the web these are rows of the note's own press-and-hold band (`ContextMenu.tsx`,
-/// `MenuBand.tsx`), which is the band's piece to port. [fieldItems] is the page as data - each choice's icon,
-/// word, name, whether it is lit, its priority's tone and its press - for that band to draw as its rows; until
-/// then [FieldMenuHost] draws a tapped chip's page in the kit's menu, hung from the chip. Lit is said with the
-/// kit's own selected row; a priority's mark wears its chip's colour, as `FieldItems.module.css` gives it.
+/// `MenuBand.tsx`). [fieldItems] is the page as data - each choice's icon, word, name, whether it is lit, its
+/// priority's tone and its press - for the band to draw as its rows (lib/editor/band). [FieldMenuHost] is what
+/// hears a chip's tap (`useFieldTaps`): in a note it hands the tap to the band ([FieldMenuHost.onTap]), which
+/// opens at the chip on that field's page, as the page's does; a view given no band draws the page in the kit's
+/// menu, hung from the chip, lit said with the kit's own selected row and a priority's mark in its chip's colour.
 library;
 
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -165,14 +166,18 @@ Color? fieldToneColor(Tokens t, String? tone) => switch (tone) {
   _ => null,
 };
 
-/// Draws a tapped chip's page in the kit's menu, hung from the chip, over `child` (the editor). The band takes
-/// this over when it is ported; the rows are [fieldItems] either way.
+/// Hears a chip's tap in `view` (`useFieldTaps`). With [onTap], the tap is handed over (to the note's band, which
+/// opens at the chip on the field's page) and nothing is drawn here. Without, the chip's page is drawn in the
+/// kit's menu, hung from the chip, over `child` (the editor); the rows are [fieldItems] either way.
 class FieldMenuHost extends StatefulWidget {
-  const FieldMenuHost({super.key, required this.view, required this.child});
+  const FieldMenuHost({super.key, required this.view, required this.child, this.onTap});
 
   /// The editor; null while there is none yet, when [child] is drawn alone.
   final EditorViewLike? view;
   final Widget child;
+
+  /// What takes a tapped chip in place of this host's own menu: the band.
+  final void Function(EditorViewLike view, FieldTap tap)? onTap;
 
   @override
   State<FieldMenuHost> createState() => _FieldMenuHostState();
@@ -186,7 +191,15 @@ class _FieldMenuHostState extends State<FieldMenuHost> {
 
   void _changed() {
     if (!mounted) return;
-    if (_tap?.value != null) _refocus = widget.view?.hasFocus ?? false;
+    final view = widget.view, tap = _tap?.value, hand = widget.onTap;
+    if (hand != null) {
+      // The band's: handed over, and forgotten here so the same chip tapped again is a tap again.
+      if (view == null || tap == null) return;
+      _tap?.value = null;
+      hand(view, tap);
+      return;
+    }
+    if (tap != null) _refocus = view?.hasFocus ?? false;
     setState(() {});
   }
 

@@ -28,7 +28,7 @@
 /// is what the page's `updateDOM` was for. One way to the editor is left by the focus alone: a text field's own
 /// answers to the app's text shortcuts (delete a character, move by a word, select all, undo) are made to be
 /// overridden by whoever stands above it in the page, and the editor stands above it with answers of its own to
-/// every one of them, each of which edits the note. So the field is given back its own ([_ownKeys]): an answer to
+/// every one of them, each of which edits the note. So the field is given back its own ([ownTextKeys]): an answer to
 /// each of those, between the field and the editor, that only passes it on to the field's. Add is pressed without taking the focus (nothing here takes focus unless
 /// it asks), so the keyboard does not drop between cards. A tap on the note gives the focus, and the keyboard, back
 /// to the editor, and the field, left empty, closes.
@@ -66,7 +66,7 @@ class _Own extends Action<Intent> {
 
 /// The intents the editor answers for the note (editor_widget.dart `_actions`), and the rest a text field makes
 /// overridable: each handed back to the field.
-final Map<Type, Action<Intent>> _ownKeys = <Type, Action<Intent>>{
+final Map<Type, Action<Intent>> ownTextKeys = <Type, Action<Intent>>{
   DeleteCharacterIntent: _Own(),
   DeleteToNextWordBoundaryIntent: _Own(),
   DeleteToLineBreakIntent: _Own(),
@@ -253,7 +253,7 @@ class BoardComposerState extends State<BoardComposer> implements TextSelectionGe
                       children: <Widget>[
                         // '.cm-boardComposeField::placeholder': { color: 'var(--app-ink-3, …)' }
                         if (empty) IgnorePointer(child: Text('New card', maxLines: 1, softWrap: false, textScaler: TextScaler.noScaling, style: style.copyWith(color: look.ink3))),
-                        Actions(actions: _ownKeys, child: field),
+                        Actions(actions: ownTextKeys, child: field),
                       ],
                     ),
                   ),
