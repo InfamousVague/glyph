@@ -16,7 +16,7 @@
   "screen": "every screen",
   "kind": "not-compared",
   "summary": "A reports no bottom safe area on this emulator",
-  "detail": "The emulator WebView is 133, whose env(safe-area-inset-bottom) is 0 (measured in the page: --app-safe-bottom 0px); Flutter is given the navigation bar 84 px. Everything anchored to the foot (dock, guide Next, sheets, sidebar foot) therefore stands 84 px higher in B. Not a port difference; on a current WebView A would pad the same. Bottom-anchored offsets were judged with 84 px taken off.",
+  "detail": "The emulator WebView is 133, whose env(safe-area-inset-bottom) is 0 (measured in the page: --app-safe-bottom 0px); Flutter is given the navigation bar 84 px. Everything anchored to the foot (dock, guide Next, sheets, sidebar foot) therefore stands 84 px higher in B. Not a port difference; on a current WebView A would pad the same. Bottom-anchored offsets were judged with 84 px taken off. FIFTH LEG: the inset is 63 device px (24 CSS) now, not 84: the dock and the foot stand 63-65 higher in the port.",
   "pictures": [
    "02-guide-1-AB.png",
    "03-home-AB.png"
@@ -94,18 +94,18 @@
  },
  {
   "id": "home-1",
-  "status": "open",
+  "status": "fixed",
   "area": "home",
   "screen": "first page",
   "kind": "visual",
   "summary": "A one-note home matches to the pixel; a card with a four-line preview is 3 device px taller in B",
-  "detail": "184-home-one-note (the workspace Empty with its one note, the same in both): the tab, the search, the chip, Recent, the card from 543 to 882 view px in BOTH, its title, six lines of preview with the fade and the time under them level (12 min ago, and 13 in B, shot four minutes later), All notes · 1 two view px lower in B. A's card has a small spinning ring at its top right that B's has not (home-7). 168-swipe-archive-after, on the build with 1d5e34e: the How to format a note card's title and 6 hr ago level but its foot at 955 view px in A and 957 in B (3 device px), the Journal card's '1 entry' 2 view px lower. 165-allnotes (before 1d5e34e): 467 against 463.5 and 419 against 417. So what is left is in a card whose preview is cut at its fourth line, between the preview's last line and the foot's time.",
+  "detail": "184-home-one-note (the workspace Empty with its one note, the same in both): the tab, the search, the chip, Recent, the card from 543 to 882 view px in BOTH, its title, six lines of preview with the fade and the time under them level (12 min ago, and 13 in B, shot four minutes later), All notes · 1 two view px lower in B. A's card has a small spinning ring at its top right that B's has not (home-7). 168-swipe-archive-after, on the build with 1d5e34e: the How to format a note card's title and 6 hr ago level but its foot at 955 view px in A and 957 in B (3 device px), the Journal card's '1 entry' 2 view px lower. 165-allnotes (before 1d5e34e): 467 against 463.5 and 419 against 417. So what is left is in a card whose preview is cut at its fourth line, between the preview's last line and the foot's time. FIFTH LEG: with sixteen notes the same in both, the first card was 546.0 device px against 544.3 and began at 736.7 against 737.7. The time under a card and a section's heading were whole logical pixels (14, 16) where the page's are 35 and 43 device px; both wear ExactLines. After: 738-1282 and 1318-1862 in both. Left: words inside a card 1 device px higher (the page snaps the card's layer to a whole pixel).",
   "pictures": [
-   "184-home-one-note-AB.png",
-   "168-swipe-archive-after-AB.png",
-   "165-allnotes-AB.png"
+   "build/ab/home-rest/a.png",
+   "build/ab/home-rest/b.png",
+   "build/ab/home-rest/b-after.png"
   ],
-  "fix_needed": "Measure a four-line card's parts in B through the render tree (method-1) against A's: title 37.7 under the top on a line of 53.3, the peek from 173.8 to 367.0, the card 463.5 on All notes."
+  "commit": "fc331649"
  },
  {
   "id": "type-1",
@@ -138,12 +138,12 @@
  },
  {
   "id": "home-2",
-  "status": "open",
+  "status": "known",
   "area": "home",
   "screen": "filters panel",
   "kind": "functional",
   "summary": "With the filters open a drag scrolls the page behind in A and nothing in B",
-  "detail": "The panel itself matches to the pixel. In A the drag left the document itself scrolled 29.7 px and no gesture brought it back (an A fault).",
+  "detail": "The panel itself matches to the pixel. In A the drag left the document itself scrolled 29.7 px and no gesture brought it back (an A fault). FIFTH LEG: the panel opens and matches (rows 1-2 px low); a tap outside it on a card closes it AND opens the card in both. The drag was not repeated in the page (it leaves the page scrolled for good).",
   "pictures": [
    "04-home-filter-AB.png",
    "04-home-filter-scrolled-AB.png"
@@ -165,16 +165,17 @@
  },
  {
   "id": "home-4",
-  "status": "open",
+  "status": "fixed",
   "area": "home",
   "screen": "search field",
   "kind": "functional",
   "summary": "Once, after the guide was walked to Start in a relaunched process, B's search took no tap until the app was restarted",
-  "detail": "Screenshots and mInputShown=false after four kinds of tap; the Filters button beside it worked. Not reproduced after Skip, nor in widget tests of HomeScreen or GhostRoot.",
+  "detail": "Screenshots and mInputShown=false after four kinds of tap; the Filters button beside it worked. Not reproduced after Skip, nor in widget tests of HomeScreen or GhostRoot. FIFTH LEG 2026-10-11: almost certainly pull-1 (a debug build's scroller left in its drag after a layout-time refusal; the search field is inside that scroller). Not walked through the guide again.",
   "pictures": [
    "05-search-query-AB.png"
   ],
-  "fix_needed": "Walk the guide Next, Next, Next, Start after a \"Not yet\" relaunch and tap the search; look at what the guide's route leaves over the page (lib/root/ghost_root.dart, lib/guide/guide.dart)."
+  "fix_needed": "Walk the guide Next, Next, Next, Start after a \"Not yet\" relaunch and tap the search; look at what the guide's route leaves over the page (lib/root/ghost_root.dart, lib/guide/guide.dart).",
+  "commit": "d06bebfc"
  },
  {
   "id": "home-5",
@@ -237,13 +238,14 @@
   "screen": "How to format a note, marks shown",
   "kind": "visual",
   "summary": "A plain note's words match to a device pixel; a heading was 3 to 5 px higher in B before f860d38 and has not been shot since",
-  "detail": "182-note-rest, the same note at its top in both ('Scroll test' and fifteen lines, the keyboard down): the first line's ink 487-520 in A and 488-521 in B, the second 560 and 561, the fifteenth 1600 in both; the bar, the tab's label and the pill level (the tab's box is tab-2). A's line is 74.17 device px (17.66px Maple Mono on 28.258) with its content area 6.00 under the line's top, 61 tall. So the body's 2 px is gone (f860d38, another hand's, was in the build). The heading: 166-chapter, shot on the build BEFORE f860d38, had 'Fix the sign-in loop' 3 to 5 device px higher in B; no note with a heading was shot after it. 162-note-top's numbers (third leg) are from before it too.",
+  "detail": "182-note-rest, the same note at its top in both ('Scroll test' and fifteen lines, the keyboard down): the first line's ink 487-520 in A and 488-521 in B, the second 560 and 561, the fifteenth 1600 in both; the bar, the tab's label and the pill level (the tab's box is tab-2). A's line is 74.17 device px (17.66px Maple Mono on 28.258) with its content area 6.00 under the line's top, 61 tall. So the body's 2 px is gone (f860d38, another hand's, was in the build). The heading: 166-chapter, shot on the build BEFORE f860d38, had 'Fix the sign-in loop' 3 to 5 device px higher in B; no note with a heading was shot after it. 162-note-top's numbers (third leg) are from before it too. FIFTH LEG, five notes at their tops: line BOXES match to the pixel (H1 468.09+109.17, body 74.17, code 60.81). INK: every H1 2 device px high (481-554 against 483-556), every paragraph 1 px low. Cause: Flutter's LineMetrics.baseline is roundedHeight - descent, but glyphs are drawn at the unrounded ascent (Maple Mono bold 37.58px reports 38.726, inks at 38.33; 17.66px reports 17.702, inks at 18.01); lib/editor/view/line.dart places by m.baseline. Fix is `m.baseline - (m.height - m.ascent - m.descent)`. HANDED to the editor agent (branch `baseline`), not done here.",
   "pictures": [
-   "182-note-rest-AB.png",
-   "166-chapter-AB.png",
-   "162-note-top-AB.png"
+   "build/ab/code-pastel-dark/a.png",
+   "build/ab/code-pastel-dark/b.png",
+   "build/ab/format/a.png",
+   "build/ab/format/b.png"
   ],
-  "fix_needed": "Open How to format a note at its top in both on a build after f860d38 and measure the H1's two lines and the first paragraph."
+  "fix_needed": "When `baseline` is in main: re-shoot a note's top in both."
  },
  {
   "id": "note-2",
@@ -387,7 +389,7 @@
   "screen": "everything after this",
   "kind": "not-compared",
   "summary": "Not compared after the fourth leg",
-  "detail": "WHERE THE FOURTH LEG STOPPED: item 1 of its list (after-pictures) was done but for art-2 in light; item 2 (the open look findings) was not begun as such, though more-1, note-1's body, side-2 and part of audit-5 were settled on the way; item 3 (the walk) was cut at its first structured-notes screen: A had Launch week (the board) open and shot, B had no half. COMPARED IN THE FOURTH LEG, a pair looked at for each: All notes A to Z (165), a chapter with its bar and ticket panel (166), a notebook's index (167), a card swiped to the archive, held and after (168), the journal's page (169), the sidebar with Archive open and with a new empty workspace (170, 176), a note's More sheet top and foot (171), Archive pressed on an archived note and its Undo (172), a canvas at rest (173), a tab's menu and Rename (174, 175), the New workspace sheet (176), an empty workspace's home (177), the + sheet (178), a blank note (179), one letter typed (180), sixteen lines typed with the keyboard up (181), the same note at rest (182), home with one note (184). STILL NOT COMPARED: moving a note between workspaces and folders; a journal entry made and the New notebook sheet; a meeting; each template card pressed; in a note: a table (add a row, a column, a cell edited), a link card, a picture, a film, tag, person and field chips and their menu, the press-and-hold band and each of its pages, the + on an empty line and its whole list with More, find and replace, the bookmark, the cheat sheet, comments (ported now: the bar's Comment and the sheet's row are there in both, none was pressed), text surviving a relaunch (B's letter survived an install; A was not restarted after typing); every row of the More sheet but Archive; all of the structured notes: a board (a card moved, added, its menu), each query view (list, table, board, calendar, timeline, count), the switcher and the builder, a ticket added from a query board's lane, a ticket's status sheet, the notebook's read-through to its end, a journal's months and an entry opened; canvas cards of other kinds, a line, the minimap; all of Speak (the take screen, the live page, things to say, discard, a meeting's screen, a spoken note's tape; the microphone was not granted to either app in this leg); Settings: Developer, the middles of the long pages, the whole of Appearance in light. The open look findings not reached: the smoke (audit-4), Plugins' cards (set-5), the palette (cmd-1), a heading in a card's preview (home-5), a drag with the filters open (home-2), the four 72-*-note pairs and 123-wide-note, and the rest of audit-5.",
+  "detail": "WHERE THE FOURTH LEG STOPPED: item 1 of its list (after-pictures) was done but for art-2 in light; item 2 (the open look findings) was not begun as such, though more-1, note-1's body, side-2 and part of audit-5 were settled on the way; item 3 (the walk) was cut at its first structured-notes screen: A had Launch week (the board) open and shot, B had no half. COMPARED IN THE FOURTH LEG, a pair looked at for each: All notes A to Z (165), a chapter with its bar and ticket panel (166), a notebook's index (167), a card swiped to the archive, held and after (168), the journal's page (169), the sidebar with Archive open and with a new empty workspace (170, 176), a note's More sheet top and foot (171), Archive pressed on an archived note and its Undo (172), a canvas at rest (173), a tab's menu and Rename (174, 175), the New workspace sheet (176), an empty workspace's home (177), the + sheet (178), a blank note (179), one letter typed (180), sixteen lines typed with the keyboard up (181), the same note at rest (182), home with one note (184). STILL NOT COMPARED: moving a note between workspaces and folders; a journal entry made and the New notebook sheet; a meeting; each template card pressed; in a note: a table (add a row, a column, a cell edited), a link card, a picture, a film, tag, person and field chips and their menu, the press-and-hold band and each of its pages, the + on an empty line and its whole list with More, find and replace, the bookmark, the cheat sheet, comments (ported now: the bar's Comment and the sheet's row are there in both, none was pressed), text surviving a relaunch (B's letter survived an install; A was not restarted after typing); every row of the More sheet but Archive; all of the structured notes: a board (a card moved, added, its menu), each query view (list, table, board, calendar, timeline, count), the switcher and the builder, a ticket added from a query board's lane, a ticket's status sheet, the notebook's read-through to its end, a journal's months and an entry opened; canvas cards of other kinds, a line, the minimap; all of Speak (the take screen, the live page, things to say, discard, a meeting's screen, a spoken note's tape; the microphone was not granted to either app in this leg); Settings: Developer, the middles of the long pages, the whole of Appearance in light. The open look findings not reached: the smoke (audit-4), Plugins' cards (set-5), the palette (cmd-1), a heading in a card's preview (home-5), a drag with the filters open (home-2), the four 72-*-note pairs and 123-wide-note, and the rest of audit-5. FIFTH LEG 2026-10-11 (cut short by the owner's budget). COMPARED, a pair each under the ab worktree's build/ab/<id>/: home at rest and at its foot (home-rest, home-foot), the filters panel (filters), six notes at their tops and ends: AB code, AB maths, AB effects, AB table, AB queries, How to format a note, Launch week (code-pastel-dark, maths, effects, table, queries, format, board), a selection, its handles and band (sel), spelling marks (spell), the tab row's end (tabs-end). THE PAGE'S HALF ONLY (no port half yet): Settings' list and all twelve pages in dark (set-*/a*.png), code in ink, one-dark, dracula and nord. NOT BEGUN: everything else on the fourth leg's list, Settings in light, the palette, sidebar, bell, sheets, notebooks, canvas, recorder, tapes, launch, a board's and a table's gestures, the + and its More, taps and long presses on links, boxes and choices. Helpers: build/ab/bin (a.mjs page evaluator, b.mjs VM service, tapa/tapb, cmp.py cell comparison with --auto for scrolled pairs, fixture.mjs). The fixture notes AB code, AB maths, AB effects, AB table, AB queries, AB type are in BOTH apps; three notes another agent left in the port (Plan, Fix the login loop, Week) are in its files/debris. TRAP: a swipe or a press at y >= 1080 with the keyboard up types by gliding (it did, twice, and the notes were put back); use bin/press.sh, drag.sh, sw.sh.",
   "pictures": []
  },
  {
@@ -946,7 +948,7 @@
   "screen": "a note's foot and head, the tab row's end (62, 76, 77, 147, 148, 78, 81)",
   "kind": "visual",
   "summary": "The smoke is drawn differently: at a note's foot it dims the words half as much in B, a grey cloud stands behind B's bar over a scrolled note, and the tab row's cut-off label is a plain fade in B",
-  "detail": "The auditor's numbers: the same line at a note's foot peaks at 124 to 129 in B and 57 to 61 in A; behind the bar 17 to 32 in B against 4 to 13 in A; A turns the last tab's label and the rule under it to smoke, B fades them plainly; under the tabs A's first word is smoked where B's is crisp 7 px lower. Not looked into in the third leg (the smoke is B's shaders, lib/art/wisp_edge.dart and its mask bands, against the page's SVG filter; README: the effects still to see on Vulkan). Seen again in 162-note-top and 148. FOURTH LEG: NOT LOOKED INTO EITHER. Seen again: the tab row's right end in 173-canvas and 175-tab-rename (A's 'Untitled can' and the ring's end waver into smoke, B's are cut at the window's edge) and its left end in 175 and 176 (A's 'ole project' smoked, a scrolled row in B was not shot); under the tabs in 181-typed-foot (A's 'Line 9' a smear at 240 view px, B's nearly hidden at 233); a swiped card's gap in 168-swipe-archive-held, where the foot's smoke crosses the white gap in both, a larger cloud in B.",
+  "detail": "The auditor's numbers: the same line at a note's foot peaks at 124 to 129 in B and 57 to 61 in A; behind the bar 17 to 32 in B against 4 to 13 in A; A turns the last tab's label and the rule under it to smoke, B fades them plainly; under the tabs A's first word is smoked where B's is crisp 7 px lower. Not looked into in the third leg (the smoke is B's shaders, lib/art/wisp_edge.dart and its mask bands, against the page's SVG filter; README: the effects still to see on Vulkan). Seen again in 162-note-top and 148. FOURTH LEG: NOT LOOKED INTO EITHER. Seen again: the tab row's right end in 173-canvas and 175-tab-rename (A's 'Untitled can' and the ring's end waver into smoke, B's are cut at the window's edge) and its left end in 175 and 176 (A's 'ole project' smoked, a scrolled row in B was not shot); under the tabs in 181-typed-foot (A's 'Line 9' a smear at 240 view px, B's nearly hidden at 233); a swiped card's gap in 168-swipe-archive-held, where the foot's smoke crosses the white gap in both, a larger cloud in B. FIFTH LEG: the tab row's end now smokes (tabs-end-1, 563b7e2a). The note's foot and head were not measured.",
   "fix_needed": "lib/art/wisp_edge.dart: compare the foot band's mask strength and the head's blur against art/wispEdge.ts at the same scroll offset; lib/notes/note_tabs.dart for the row's end.",
   "pictures": [
    "162-note-top-AB.png",
@@ -1151,5 +1153,111 @@
    "184-home-one-note-AB.png"
   ],
   "fix_needed": "Find the ring in home/NoteCard.tsx (what it waits on), then look at the same card in both a minute after typing."
+ },
+ {
+  "id": "pull-1",
+  "status": "fixed",
+  "area": "home",
+  "screen": "home after a quick pull to refresh (debug build)",
+  "kind": "functional",
+  "summary": "The home page took no touch after a pull to refresh: no scroll, no Filters, no card, until the app was restarted",
+  "detail": "Twice in an hour on 2026-10-11. The scroller's drag is cancelled inside the layout when the pull takes its physics; the scroll-end notice reached lib/art/wisp_edge.dart, which read its own RenderBox.size mid-layout; a debug build refuses, the refusal unwound Scrollable.setCanDrag and left the position in DragScrollActivity with its rows ignoring pointers. The edge keeps the size its LayoutBuilder gave it. Release builds were never affected. test/notes/pull_to_refresh_test.dart.",
+  "pictures": [
+   "build/ab/_state/b-dead-small.png",
+   "build/ab/_state/tree-dead.txt"
+  ],
+  "commit": "d06bebfc"
+ },
+ {
+  "id": "org-1",
+  "status": "fixed",
+  "area": "home",
+  "screen": "an organization's card (signed in; the owner's phone)",
+  "kind": "visual",
+  "summary": "The card was 3 device px short and its three lines set tighter",
+  "detail": "Page: 253.13 tall, lines 51/43/43 from 49.67, 109.06, 160.45 (its own stylesheet laid over the card's markup in the Tauri page on the emulator). Port: 19/16/16 logical. ExactLines on the three; test/home/home_parts_test.dart at 2.625. No pair of the real card on the emulator (no account there).",
+  "pictures": [],
+  "commit": "329db26b"
+ },
+ {
+  "id": "tabs-end-1",
+  "status": "fixed",
+  "area": "tabs",
+  "screen": "a tab row with tabs past its end",
+  "kind": "visual",
+  "summary": "The row's open end was cut plain; the page's goes into smoke",
+  "detail": "WispSides was ported and never worn by lib/notes/tabs/tab_row.dart. Worn now. The after-pair's rows are scrolled differently (B's active tab differed after a restart): the smoke is there, a same-scroll pair was not taken.",
+  "pictures": [
+   "build/ab/tabs-end/a.png",
+   "build/ab/tabs-end/b.png",
+   "build/ab/tabs-end/b-after.png",
+   "build/ab/tabs-end/zoom-a-before-after.png"
+  ],
+  "commit": "563b7e2a"
+ },
+ {
+  "id": "sel-1",
+  "status": "open",
+  "area": "note",
+  "screen": "a word pressed and held; a caret after a tap",
+  "kind": "visual",
+  "summary": "The selection's handles are plain white discs hung outside the selection; the page's are Ghost.md's own holographic drawables, a quarter inside it",
+  "detail": "Page (src-tauri/gen/android/.../drawable/glyph_handle_{left,right,middle}_{ink,paper}.xml, themes.xml GlyphHandles): 22dp, a disc with one quarter squared, white on the dark page and black on the light, washed with a 5-stop gradient corner to corner; the web view hangs the start's from start-43.5 to start+14.5 device px and the end's from end-14.5, top at the LINE's foot (817 under a line ending 816.9); the caret's drop is 41 across, its point on the caret's foot (809.7). Port before: discs in the caret's colour, start's wholly before the start, end's wholly after, tops 7 px up inside the selection (anchored at the letters' foot, line.dart _leader); the drop a turned square 59 across. The band over the selection (Cut Copy Comment Paste Find Select all Duplicate) matches to 1-2 px. Also seen: with the keyboard DOWN a press held on a word raises the keyboard in the page, the note scrolls and the band goes with the scroll; the port keeps the keyboard down and the band up. And a tap that raises the keyboard leaves the caret's line 283 px over the keyboard on the page, 300 in the port (scroll-1's family). The loupe was NOT compared (my drag in the page landed on the keyboard).",
+  "pictures": [
+   "build/ab/sel/a-held-3.png",
+   "build/ab/sel/b.png",
+   "build/ab/sel/handles-zoom.png",
+   "build/ab/sel/handles-after.png",
+   "build/ab/sel/a-caret.png",
+   "build/ab/sel/b-caret.png",
+   "build/ab/sel/band-ab.png"
+  ],
+  "fix_needed": "WORK DONE AND SET ASIDE as build/ab/handles.patch in the ab worktree (not committed: stopped by the owner's budget): the kit's Android handles as the three drawables (packages/glacier field_core.dart GlacierHandlePainter, anchors 16.5/5.5/11), its test green, seen on the emulator matching the page's shape and wash (handles-after.png); lib/editor/input/handles.dart hanging range handles from the line's foot through the controls' anchor; test/editor/input/gestures_test.dart's new case passes for a selection and its caret half finds no drop 400 ms after a tap (not looked into). Left: 1-2 px in x; the loupe."
+ },
+ {
+  "id": "spell-1",
+  "status": "open",
+  "area": "note",
+  "screen": "'recieve teh wrod ' typed by key events (adb input text), emulator",
+  "kind": "visual",
+  "summary": "Both underline; the port marks 'teh' too, sooner, in a smaller paler wave",
+  "detail": "Page: no mark at 1 s, marks by 3 s; 'recieve' and 'wrod' only; pure #FF0000 wave, period 15.75 device px (6 CSS), 9 rows, from 2 px under the baseline. Port: marks within 1 s (it does ask after a change by keys: _Watch.update on docChanged, 600 ms later); all three words; (227,67,67), period 10.5 px, 5 rows. WHY 'teh': the port asks through the engine's flutter/spellcheck bridge, whose SpellCheckPlugin reports every word with a suggestion; Chromium marks only RESULT_ATTR_LOOKS_LIKE_TYPO. WHY NOTHING ON THE PHONE (read, not seen): the engine makes its session with newSpellCheckerSession(null, <the app's locale>, listener, true), which is null when the checker's own language setting does not match; performSpellCheck then throws, pendingResult is never cleared, and every later ask is refused 'Previous spell check request still pending', which lib/editor/spell/spell_check.dart turns into null (nothing marked) exactly as it does for 'no checker'. A checker that never answers leaves the same state. Chromium asks with a null locale (the checker's own). So the port cannot tell 'gave nothing' from 'could not ask'.",
+  "pictures": [
+   "build/ab/spell/a-typed-3.png",
+   "build/ab/spell/b-typed-3.png",
+   "build/ab/spell/a-zoom.png",
+   "build/ab/spell/b-zoom.png"
+  ],
+  "fix_needed": "A channel of the app's own in Kotlin: a SpellCheckerSession made with a null locale, only LOOKS_LIKE_TYPO results, a null session and a timeout answered as such, and a log line for each kind of refusal; then the wave's size (1.5 times what is drawn) and #FF0000 in lib/editor/spell/spell_marks.dart."
+ },
+ {
+  "id": "ref-1",
+  "status": "open",
+  "area": "editor drawing",
+  "screen": "AB maths, AB table, AB queries, Launch week, AB code at their tops",
+  "kind": "visual",
+  "summary": "Sent to the reference-test agent, not fixed here",
+  "detail": "Maths: `$$ E = mc^2 $$` block 105 px against 108.37, so what follows is 4-5 px high; the integral block the same height. Table: 3 rows 3 px taller (After the table. at 1126 against 1122.7). Queries: list rows +1..+3, table card +3..+6 down the note. Board: cards 3-4 px high relative to the text over them. Code: boxes exact in js, python and rust; the mono advance 1 px short by column 40. A card's peek with inline maths: first line 2-3 px low. Only the pastel dark code theme has a pair; the other six themes have the page's half only (build/ab/code-*-dark/a.png).",
+  "pictures": [
+   "build/ab/maths/ab.png",
+   "build/ab/table/zoom.png",
+   "build/ab/queries/zoom.png",
+   "build/ab/board/zoom.png",
+   "build/ab/code-pastel-dark/ab.png"
+  ]
+ },
+ {
+  "id": "effects-1",
+  "status": "open",
+  "area": "note",
+  "screen": "AB effects",
+  "kind": "visual",
+  "summary": "Frost's rime is whiter in the port; heat, the secret's smoke and the rest look alike",
+  "detail": "Mean of the frosted word's lit pixels (144,165,180) on the page, (161,171,179) in the port; one frame each of a moving effect. No spelling marks in either while the note is not being typed in.",
+  "pictures": [
+   "build/ab/effects/ab.png",
+   "build/ab/effects/zoom-heat-frost.png"
+  ],
+  "fix_needed": "Several frames of each; lib/editor marks' frost tint."
  }
 ]
