@@ -364,7 +364,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | Which note? / Which canvas? pickers | editor/AddList.tsx:588-616 | editor/plus/add_list.dart:884-891 | match | |
 | `/` on an empty line opens everything to filter (a hardware keyboard) | editor/insertPlus.ts:242-263,519-531 | editor/plus/insert_plus.dart:297-320,529-555 | match | |
 | Press and hold opens the band over the words | editor/pressAndHold.ts:50-85 | editor/input/gestures.dart:278-308; root/note_desk.dart:931 | match | |
-| The band over a drawn table | editor/drawnBlock.ts:62-71 | editor/input/gestures.dart:284 | differs | The port opens no band over any drawn block. |
+| The band over a drawn table | editor/drawnBlock.ts:62-71 | editor/input/gestures.dart (`_holdStart`, `_onDrawn`); editor/view/drawn_block.dart (`DrawnBlock`) | match | Since 2026-10-10 a press held on anything drawn that is not one of the page's five (a board, a diagram, a place's map, a film's card, a query's answer) asks for the band over the caret as it stands: a table, a canvas's frame, a ticket's panel, the list of comments, a chip. |
 | Band: Cut, Copy, Comment, Paste, Copy board, Find, Select all, Duplicate, Delete, Move up, Move down, Due date, Priority, Assign, Add to board, Board from list, Style, Add image | editor/ContextMenu.tsx:259-313 | editor/band/context_band.dart:518-572 | match | Labels and order identical. |
 | Band: the plugin's send row (Notion, GitHub) on a list item | editor/ContextMenu.tsx:304; editor/NoteScreen.tsx:1465 | editor/band/context_band.dart:147,562 (`BandSend` built nowhere) | unwired | The swipe and the quiet word still send. |
 | Style page: Bold, Italic, Struck, Code; the twelve marks; Heading, Quote, List, Numbered, To-do; Link, Table, Rule | editor/StyleItems.tsx:25-82 | editor/band/style_items.dart:55-117 | match | |
@@ -400,7 +400,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | Feature | Original (file:line) | Port (file:line or —) | Status | Note |
 | --- | --- | --- | --- | --- |
 | A `board` fence drawn as columns of cards | editor/boards.ts:40-48 | editor/boards/boards.dart:112-120; root/note_desk.dart:567 | match | |
-| Tap the board between its cards to show the fence | editor/boards/widget.ts:234-236 | editor/boards/boards.dart:41-44,107-109 | differs | A press on a board never moves the caret: the fence is reached from the lines round it. |
+| Tap the board between its cards to show the fence | editor/boards/widget.ts:234-236 | editor/boards/boards.dart (`BoardWidget.takesPointer`); editor/boards/board_press.dart | match | Since 2026-10-10: only what answers a press on a board keeps it (a card's words, tick, arrows, More and chips, a column's +, the + field, the line under it); a tap anywhere else puts the caret in the fence. |
 | Anchors `^name`, named from the first three words that carry meaning | core/boards/items.ts:112-130 | core/boards/items.dart:117-130 | match | |
 | A card: three lines at most, a box or a dot, chips for due, priority and people | editor/boards/widget.ts:149-218; editor/boards/fields.ts:22-52 | editor/boards/board_card.dart:49-251 | match | |
 | Tick moves it to Done; untick, back to the first column | editor/boards/cardEdits.ts:26-71 | editor/boards/card_edits.dart:50-88 | match | |
@@ -1170,8 +1170,9 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
 18. ~~**A chip's tap opens a menu, not the band's page; a ticket's Status, Due, Estimate and Labels go through a
     sheet.**~~ Done 2026-10-10: the band at the chip on its field's page; a status in the panel's own sheet of
     dots; a day by the phone's calendar from the chip; an estimate and labels typed in place.
-19. **No band over a drawn table or any drawn block; a board's fence is not reached by a tap between its cards.**
-    Medium.
+19. ~~**No band over a drawn table or any drawn block; a board's fence is not reached by a tap between its cards.**~~
+    Done 2026-10-10 (lib/editor/input/gestures.dart, lib/editor/boards/board_press.dart; held by
+    test/editor/input/gestures_test.dart).
 20. **The bookmark**: with no caret it marks line 1, not the top line in view (`caretPlace`,
     lib/note/note_place.dart:143, is never called); its button is not re-read after an undo; no line down the
     edge for one kept on the device. Small.

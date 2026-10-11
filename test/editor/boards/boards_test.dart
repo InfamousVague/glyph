@@ -819,11 +819,15 @@ void main() {
       await rest(tester);
     });
 
-    testWidgets('keeps its pointers from the note: a drawn board answers a press itself', (tester) async {
+    testWidgets('keeps a press on a card\'s words, its tick and its More from the note: a drawn board answers those itself', (tester) async {
       final view = await pumpBoards(tester, boardNote);
       final hit = view.hitAt(boxOf(tester, cardOf('ship-page')).center)!;
       expect(isDrawnBlock(hit.block), isTrue);
-      expect(hit.block!.takesPointer(const PointerDownEvent()), isTrue);
+      for (final part in <Finder>[inCard('ship-page', 'words'), said('Tick Ship the pricing page'), said('More for Ship the pricing page'), said('Add a card to To do')]) {
+        expect(hit.block!.takesPointer(PointerDownEvent(position: boxOf(tester, part).center)), isTrue, reason: '$part');
+      }
+      // Anything that is not a press landing is the board's too: a scroll, a pointer hovering.
+      expect(hit.block!.takesPointer(const PointerHoverEvent()), isTrue);
     });
   });
 

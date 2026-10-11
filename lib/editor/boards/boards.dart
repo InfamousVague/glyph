@@ -38,10 +38,12 @@
 ///   with the tick it settles (commands/task_toggle.dart). Both are handed on from here under their own file's
 ///   name, and [drawnBoards] lists the anchors as the page's does: a note that has them from its items already
 ///   holds them once (a state keeps one of an extension given twice).
-/// - `ignoreEvent` let the + field and the line under the board keep their events; here the whole board keeps its
-///   pointers ([BoardWidget.takesPointer]), since every part of it answers a press itself or leaves it alone. A
-///   press on a board never moves the caret: the fence's lines are reached with the caret from the lines round it,
-///   or from the band's rows.
+/// - `ignoreEvent` let the + field and the line under the board keep their events, and each card's words, tick,
+///   arrows, More and chips, and a column's +, took their own press from the editor (boards/press.ts). Here those
+///   wear a mark ([BoardPress]) and the board keeps the presses that land on one ([BoardWidget.takesPointer]). A
+///   press anywhere else on a board in a note that can be changed is the editor's, as on the page: the caret goes
+///   to the fence and the board steps aside for its lines. In a view that cannot be edited the board keeps every
+///   press, since there the page's editor takes no caret at all.
 /// - `cardMenuGoes` closed a menu whose button a redraw took off the page a microtask after the update; the
 ///   board's widget does that as it is rebuilt.
 library;
@@ -53,6 +55,7 @@ import '../items/anchors.dart' show itemAnchors;
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import 'board_box.dart';
+import 'board_press.dart';
 import 'card_menu.dart';
 import 'drawn.dart';
 import 'height.dart';
@@ -63,6 +66,7 @@ export 'board_actions.dart';
 export 'board_box.dart' show DrawnBoardBox, LaneSnap, LaneSnapPhysics;
 export 'board_card.dart' show BoardCard, BoardEmpty, BoardGap, CardDoes, cardChips, cardSaid, chipPage, onCard;
 export 'board_look.dart' show BoardLook, buttonType;
+export 'board_press.dart';
 export 'board_words.dart' show BoardWords, LaidWords, RenderBoardWords;
 export 'card_edits.dart';
 export 'card_menu.dart';
@@ -75,9 +79,13 @@ export 'navigate.dart';
 
 /// A board drawn in place of its fence.
 class BoardWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock {
-  const BoardWidget(this.board, this.face);
+  const BoardWidget(this.board, this.face, {this.canEdit = false});
 
   final DrawnBoard board;
+
+  /// Whether the note can be changed here (the name `editable` is taken: [EditorWidget.editable]): only then is a
+  /// press between the cards the editor's.
+  final bool canEdit;
 
   /// What the board shows ([faceOf]).
   final String face;
@@ -90,7 +98,7 @@ class BoardWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock
   /// redrawn in place, its lanes' scroll, its + field and its held height kept ([DrawnBoardBox]'s state).
   @override
   bool eq(BoardWidget other) {
-    if (other.face != face || other.board.from != board.from || other.board.to != board.to || other.board.cards.length != board.cards.length) return false;
+    if (other.face != face || other.canEdit != canEdit || other.board.from != board.from || other.board.to != board.to || other.board.cards.length != board.cards.length) return false;
     for (var index = 0; index < board.cards.length; index += 1) {
       if (other.board.cards[index] != board.cards[index]) return false;
     }
@@ -104,17 +112,22 @@ class BoardWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock
   @override
   Widget build(BuildContext context) => DrawnBoardBox(board: board, face: face);
 
-  /// Every pointer on a board is the board's: a control's, a card's to be lifted by, a lane's to scroll.
+  /// A pointer that lands on something of the board's that answers a press (a card's words, its tick, its arrows,
+  /// its More, a chip, a column's +, the + field, the line under the board) is the board's. One that lands between
+  /// the cards is the editor's where the note can be changed: its tap puts the caret in the fence, which shows the
+  /// board's lines (boards/widget.ts `ignoreEvent`, boards/press.ts). A card is still lifted by a finger resting
+  /// on it, and a lane still scrolls: neither waits on who has the press.
   @override
-  bool takesPointer(PointerEvent event) => true;
+  bool takesPointer(PointerEvent event) => !canEdit || event is! PointerDownEvent || onBoardPress(event);
 }
 
 DecorationSet _decorate(EditorState state) {
   final ranges = <Range<Decoration>>[];
+  final editable = state.facet(EditorViewLike.editable) && !state.readOnly;
   for (final board in boardsOn(state)) {
     // The caret in the fence: the lines themselves, to edit. Elsewhere, and in a view with no caret, the board.
     if (caretIn(state, board.from, board.to)) continue;
-    ranges.add(Decoration.replace(widget: BoardWidget(board, faceOf(board)), block: true).range(board.from, board.to));
+    ranges.add(Decoration.replace(widget: BoardWidget(board, faceOf(board), canEdit: editable), block: true).range(board.from, board.to));
   }
   return ranges.isEmpty ? Decoration.none : Decoration.set(ranges);
 }

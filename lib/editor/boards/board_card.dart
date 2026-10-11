@@ -35,6 +35,7 @@ import '../items/field_menu.dart';
 import '../looks/look.dart';
 import '../view/line.dart' show EditorRunScope;
 import 'board_look.dart';
+import 'board_press.dart';
 import 'board_words.dart';
 import 'icons.dart';
 
@@ -137,9 +138,11 @@ class BoardCard extends StatelessWidget {
     label: label,
     onTap: enabled ? onTap : null,
     excludeSemantics: true,
-    child: Listener(
-      onPointerDown: (event) => onControl?.call(event.pointer),
-      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: enabled ? onTap : null, child: child),
+    child: BoardPress(
+      child: Listener(
+        onPointerDown: (event) => onControl?.call(event.pointer),
+        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: enabled ? onTap : null, child: child),
+      ),
     ),
   );
 
@@ -187,10 +190,12 @@ class BoardCard extends StatelessWidget {
       label: gone ? '${card.id}: this item is not in the note' : 'Go to $said in the note',
       onTap: does.goTo,
       excludeSemantics: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: does.goTo,
-        child: BoardWords(said, key: const ValueKey<String>('words'), face: look.wordsFace(done: done, quiet: gone || empty), maxLines: 3),
+      child: BoardPress(
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: does.goTo,
+          child: BoardWords(said, key: const ValueKey<String>('words'), face: look.wordsFace(done: done, quiet: gone || empty), maxLines: 3),
+        ),
       ),
     );
 
@@ -215,7 +220,7 @@ class BoardCard extends StatelessWidget {
               maxWidth: double.infinity,
               fit: OverflowBoxFit.deferToChild,
               alignment: AlignmentDirectional.centerStart,
-              child: FieldChip(chip.look, lineHeight: chipButtons ? 1.6 : 1.35, onTap: live == null ? null : (box) => live(chip.span, box)),
+              child: BoardPress(child: FieldChip(chip.look, lineHeight: chipButtons ? 1.6 : 1.35, onTap: live == null ? null : (box) => live(chip.span, box))),
             ),
         ],
       );

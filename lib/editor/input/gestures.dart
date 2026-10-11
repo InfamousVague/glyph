@@ -6,7 +6,10 @@
 /// - `pressAndHold.ts`: where the menu is asked for. A press held on a word selects it and the menu opens over
 ///   the caret a frame later; held [longPress] on empty paper (an empty line, the space past a line's last word)
 ///   within eight pixels of where it began, the caret goes to the finger, the phone ticks, and the menu opens
-///   there. Never over something drawn in place of its lines (a board, a diagram).
+///   there. Never over something drawn that answers a press itself (`isDrawnBlock`: a board, a diagram, a place's
+///   map, a film's card, a query's answer). Over anything else the note draws in place of its words (a table, a
+///   canvas's frame, a formula, a chip) a press held is still the note's: the page hears its `contextmenu`
+///   wherever it lands, and the menu opens over the caret as it stands, the selection left alone.
 /// - `boxTaps.ts` and `taskToggle.ts`: a plain tap on a to-do's box, or within eight pixels of it, turns the box
 ///   and leaves the caret (and the keyboard) where it was.
 /// - a widget that keeps its pointers (`ignoreEvent`, here `EditorWidget.takesPointer`) is left to itself: the
@@ -39,6 +42,7 @@ import '../commands/task_toggle.dart';
 import '../state/char.dart';
 import '../state/selection.dart';
 import '../state/state.dart';
+import '../view/drawn_block.dart' show isDrawnBlock;
 import '../view/editor_view.dart';
 import '../view/plugin.dart';
 import 'motion.dart';
@@ -178,9 +182,17 @@ class EditorGestures {
         // A mouse's press is its `mousedown`. A finger's comes when its tap has finished ([_tapped]).
         final mouse = event.kind == PointerDeviceKind.mouse;
         if (mouse && _handled((h) => h.mouseDown?.call(event, _view) ?? false)) return;
-        // A widget that keeps its pointers is left to itself.
+        // A widget that keeps its pointers is left to itself. A finger held on it still asks for the note's menu,
+        // unless it is one that answers a press held itself (drawnBlock.ts `isDrawnBlock`).
         final hit = _view.hitAt(event.position);
-        if (hit != null && hit.inside && ((hit.widget?.takesPointer(event) ?? false) || (hit.block?.takesPointer(event) ?? false))) return;
+        if (hit != null && hit.inside && ((hit.widget?.takesPointer(event) ?? false) || (hit.block?.takesPointer(event) ?? false))) {
+          if (!mouse && !isDrawnBlock(hit.block) && !isDrawnBlock(hit.widget)) {
+            _onDrawn = true;
+            _long.addPointer(event);
+          }
+          return;
+        }
+        _onDrawn = false;
         if (mouse && event.buttons == kPrimaryMouseButton) {
           _shift = HardwareKeyboard.instance.isShiftPressed;
           _drag.addPointer(event);
@@ -293,13 +305,24 @@ class EditorGestures {
   Offset _finger = Offset.zero;
   bool _holding = false;
 
+  /// Whether the press being held landed on a widget that keeps its pointers.
+  bool _onDrawn = false;
+
   void _holdStart(Offset global) {
     _heldWord = null;
     final tap = _tapAt(global, _kind);
     if (_handled((h) => h.longPress?.call(tap, _view) ?? false)) return;
     final hit = _view.hitAt(global);
-    // Not over something the note draws in place of its words.
-    if (hit == null || (hit.block != null && hit.inside)) return;
+    if (hit == null) return;
+    if (_onDrawn || (hit.block != null && hit.inside)) {
+      // Over something the note draws in place of its words. One that answers a press itself keeps it; on any
+      // other (a table, a canvas's frame) the menu is asked for as the page's `contextmenu` asks: over the caret
+      // where it is, nothing selected and the focus where it was.
+      if (isDrawnBlock(hit.block) || isDrawnBlock(hit.widget)) return;
+      fireMotor(HapticKind.selection);
+      _ask(global);
+      return;
+    }
     // An empty note has no text under the finger; the nearest place in the note is what a press means anyway.
     final pos = skipAtoms(_view, tap.pos ?? hit.pos);
     final state = _view.state;

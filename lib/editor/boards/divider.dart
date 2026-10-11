@@ -28,6 +28,7 @@ import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../../core/boards.dart';
 import 'board_look.dart';
+import 'board_press.dart';
 
 class BoardSplit extends StatefulWidget {
   const BoardSplit({super.key, required this.look, required this.now, this.onDrag, this.onDone, this.onReset, this.onStep});
@@ -177,14 +178,17 @@ class _BoardSplitState extends State<BoardSplit> {
               onFocusChange: (on) => setState(() => _focused = on),
               child: Listener(
                 onPointerCancel: (_) => _calledOff = true,
-                child: GestureDetector(
-                  behavior: HitTestBehavior.opaque,
-                  onVerticalDragStart: _start,
-                  onVerticalDragUpdate: _update,
-                  onVerticalDragEnd: (_) => _done(true),
-                  onVerticalDragCancel: () => _done(false),
-                  onDoubleTap: widget.onReset,
-                  child: line,
+                // The line answers its own press: none of it is the editor's (board_press.dart).
+                child: BoardPress(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onVerticalDragStart: _start,
+                    onVerticalDragUpdate: _update,
+                    onVerticalDragEnd: (_) => _done(true),
+                    onVerticalDragCancel: () => _done(false),
+                    onDoubleTap: widget.onReset,
+                    child: line,
+                  ),
                 ),
               ),
             )

@@ -103,7 +103,7 @@ Canvas? _canvasIn(String body) {
   return _parsed[body] = canvas;
 }
 
-class FrameWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock {
+class FrameWidget extends EditorWidget implements ClassedBlockWidget {
   const FrameWidget({required this.title, required this.body, required this.from, required this.options});
 
   final String title;

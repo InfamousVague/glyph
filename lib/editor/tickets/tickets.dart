@@ -108,7 +108,7 @@ bool _ticketNote(EditorState state) {
 }
 
 /// A ticket's panel, drawn in place of its front matter.
-class PanelWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock {
+class PanelWidget extends EditorWidget implements ClassedBlockWidget {
   const PanelWidget({required this.text, required this.at, required this.version, required this.canEdit, required this.options});
 
   final String text;

@@ -67,6 +67,7 @@ import '../view/editor_view.dart';
 import '../view/plugin.dart';
 import 'board_card.dart';
 import 'board_look.dart';
+import 'board_press.dart';
 import 'board_words.dart';
 import 'card_edits.dart';
 import 'card_menu.dart';
@@ -586,7 +587,7 @@ class _DrawnBoardBoxState extends State<DrawnBoardBox> with TickerProviderStateM
       label: 'Add a card to $name',
       onTap: _editable ? () => _compose(column) : null,
       excludeSemantics: true,
-      child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _editable ? () => _compose(column) : null, child: add),
+      child: BoardPress(child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: _editable ? () => _compose(column) : null, child: add)),
     );
     return SizedBox(
       key: ValueKey<String>('head$column'),
@@ -768,7 +769,7 @@ class _DrawnBoardBoxState extends State<DrawnBoardBox> with TickerProviderStateM
             _head(look, column, held.length),
             SizedBox(height: look.gap),
             if (composing) ...<Widget>[
-              BoardComposer(key: _composerKey, look: look, name: name, onAdd: (words) => _add(column, words), onClose: () => setState(() => _composing = null)),
+              BoardPress(child: BoardComposer(key: _composerKey, look: look, name: name, onAdd: (words) => _add(column, words), onClose: () => setState(() => _composing = null))),
               SizedBox(height: look.gap),
             ],
             stack,

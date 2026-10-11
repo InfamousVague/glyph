@@ -5,6 +5,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/editor/boards/boards.dart';
 import 'package:ghost_md/editor/editor.dart' hide Decoration;
 import 'package:ghost_md/editor/input/caret.dart';
 import 'package:ghost_md/editor/input/gestures.dart';
@@ -13,6 +14,8 @@ import 'package:ghost_md/editor/items/choices.dart';
 import 'package:ghost_md/editor/items/counters.dart';
 import 'package:ghost_md/editor/items/task_toggle.dart';
 import 'package:ghost_md/editor/items/wiki_links.dart';
+import 'package:ghost_md/editor/tables/tables.dart';
+import 'package:ghost_md/editor/view/editor_view.dart';
 import 'package:ghost_md/editor/view/decoration.dart' as cm;
 
 import '../../support/render.dart';
@@ -48,6 +51,19 @@ class _Chip extends EditorWidget {
           child: const SizedBox(key: ValueKey('chip'), width: 40, height: 16),
         )
       : const SizedBox(key: ValueKey('chip'), width: 40, height: 16);
+}
+
+/// A point of the drawn board that none of its own controls answers: between its cards.
+Offset _between(WidgetTester tester, EditorView view) {
+  final board = tester.getRect(find.byType(DrawnBoardBox));
+  for (var y = board.bottom - 6; y > board.top; y -= 6) {
+    for (var x = board.left + 6; x < board.right; x += 12) {
+      final at = Offset(x, y);
+      final hit = view.hitAt(at);
+      if (hit != null && hit.inside && hit.block is BoardWidget && !hit.block!.takesPointer(PointerDownEvent(position: at))) return at;
+    }
+  }
+  throw StateError('every point of the board is a control\'s');
 }
 
 Future<void> hold(WidgetTester tester, Offset at, {Offset? dragTo, int frames = 1}) async {
@@ -274,6 +290,75 @@ void main() {
       }
       await finish(tester);
     }
+  });
+
+  // docs/PARITY.md, Differs 19. The page hears a press held wherever it lands (`contextmenu` on the editor's own
+  // element) and opens the note's menu over the caret, unless it landed on one of the five things that answer a
+  // press held themselves (drawnBlock.ts `isDrawnBlock`: a board, a diagram, a place's map, a film's card, a
+  // query's answer). "A table and a canvas's frame are not asked about: a press on them is the note's."
+  testWidgets('a press held on a drawn table asks for the note\'s menu over the caret as it stands; held on a board it asks for nothing', (tester) async {
+    const doc = 'First words\n\n| a | b |\n| - | - |\n| 1 | 2 |\n\n```board\nTo do: one\nDone:\n```\n\n- [ ] One ^one\n';
+    final rig = await pumpEditor(tester, doc, focus: false, more: [drawnTables(), drawnBoards()]);
+    await rig.place(3);
+    rig.events.clear();
+    expect(find.byType(DrawnTable), findsOneWidget);
+    expect(find.byType(DrawnBoardBox), findsOneWidget);
+
+    await hold(tester, tester.getCenter(find.byType(DrawnTable)));
+    expect(rig.held, hasLength(1), reason: 'the note\'s menu, over a table');
+    expect((rig.held.single.from, rig.held.single.to), (3, 3), reason: 'for the caret as it stands');
+    final caret = rig.view.coordsAtPos(3)!;
+    expect(rig.held.single.x, closeTo(caret.center.dx, 1));
+    expect(rig.held.single.y, closeTo(caret.top, 1));
+    expect(rig.head, 3, reason: 'nothing was selected, and the caret did not go to the table');
+    expect(rig.events, isEmpty);
+    expect(find.byType(DrawnTable), findsOneWidget, reason: 'the table is still drawn');
+    expect(rig.view.hasFocus, isFalse);
+
+    // On a card, and between the cards: the board is one of the five, and nothing is asked for.
+    await tester.pump(const Duration(milliseconds: 400));
+    await hold(tester, tester.getCenter(find.byType(BoardCard)));
+    final between = _between(tester, rig.view);
+    await tester.pump(const Duration(milliseconds: 400));
+    await hold(tester, between);
+    expect(rig.held, hasLength(1));
+    expect(rig.head, 3);
+    await finish(tester);
+  });
+
+  // boards/widget.ts `ignoreEvent`, boards/press.ts: only what answers a press on a board keeps it from the editor.
+  testWidgets('a tap between a board\'s cards puts the caret in its fence, and the board steps aside for its lines; a tap on a card is the card\'s', (tester) async {
+    const doc = 'First words\n\n```board\nTo do: one\nDone:\n```\n\n- [ ] One ^one\n';
+    final rig = await pumpEditor(tester, doc, focus: false, more: [drawnBoards()]);
+    final from = doc.indexOf('```board'), to = doc.indexOf('```\n\n- [ ]') + 3;
+    // The card's words go to its item in the note, and the board stays drawn.
+    await tester.tapAt(tester.getCenter(find.byKey(const ValueKey<String>('words'))));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.byType(DrawnBoardBox), findsOneWidget);
+    expect(rig.view.state.doc.lineAt(rig.head).text, startsWith('- [ ] One'));
+    // Between the cards.
+    final between = _between(tester, rig.view);
+    await tester.tapAt(between);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(rig.view.hasFocus, isTrue);
+    expect(rig.head, inInclusiveRange(from, to), reason: 'the caret is in the fence');
+    expect(find.byType(DrawnBoardBox), findsNothing, reason: 'the board\'s lines, to be typed in');
+    await finish(tester);
+  });
+
+  testWidgets('a board in a note that cannot be changed keeps every press', (tester) async {
+    const doc = 'First words\n\n```board\nTo do: one\nDone:\n```\n\n- [ ] One ^one\n';
+    final rig = await pumpEditor(tester, doc, focus: false, readOnly: true, more: [drawnBoards()]);
+    final board = tester.getRect(find.byType(DrawnBoardBox));
+    for (var y = board.top + 4; y < board.bottom; y += 12) {
+      for (var x = board.left + 4; x < board.right; x += 24) {
+        final hit = rig.view.hitAt(Offset(x, y));
+        if (hit?.block is BoardWidget && hit!.inside) expect(hit.block!.takesPointer(PointerDownEvent(position: Offset(x, y))), isTrue);
+      }
+    }
+    await finish(tester);
   });
 
   testWidgets('a plugin\'s handlers are asked first', (tester) async {

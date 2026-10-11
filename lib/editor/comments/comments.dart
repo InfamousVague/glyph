@@ -125,7 +125,7 @@ class RoundWidget extends EditorWidget {
 }
 
 /// The fence drawn as the list of threads.
-class ListWidget extends EditorWidget implements ClassedBlockWidget, DrawnBlock {
+class ListWidget extends EditorWidget implements ClassedBlockWidget {
   ListWidget({required this.threads, required this.at, required this.colours, required this.canEdit, required this.hooks}) : key = '$colours|${_keyOf(threads)}';
 
   final List<Thread> threads;

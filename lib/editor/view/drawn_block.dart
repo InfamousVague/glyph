@@ -57,7 +57,10 @@ bool openOnPress(EditorViewLike view, int at) {
 }
 
 /// A block widget that answers a press itself (a board, a diagram, a place's map card, a film's card, a query's
-/// answer) rather than standing for lines of text, which the note's own press-and-hold menu is about.
+/// answer) rather than standing for lines of text, which the note's own press-and-hold menu is about. The page's
+/// five and no others (`.cm-board, .cm-boardWrap, .cm-mermaid, .cm-placeCard, .cm-videoCard, .cm-query`): "a table
+/// and a canvas's frame are not asked about: a press on them is the note's", and so is one on a ticket's panel or
+/// the list of comments, whose classes the page does not name either.
 abstract interface class DrawnBlock {}
 
 /// Whether a press landed on a drawn block that answers it itself.
