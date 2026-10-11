@@ -119,6 +119,15 @@ class PhoneNotices extends ChangeNotifier {
     return state;
   }
 
+  /// Android asked to let Ghost.md notify, from Settings › Notifications' Allow (the page's `requestNotifications`),
+  /// and what it says of the notices read again. The phone itself is asked, through the notices' own channel: no
+  /// recorder and no meeting service has to be there. False where no prompt can change it.
+  Future<bool> allow() async {
+    final asked = await host.allow();
+    await read();
+    return asked;
+  }
+
   String? _lastWatch;
   Future<void>? _door;
   bool _disposed = false;

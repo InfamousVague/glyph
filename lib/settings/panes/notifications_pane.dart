@@ -46,11 +46,12 @@ const Map<String, (String, String)> _switches = {
 ///   page drew it: on a phone whose app can raise them. Here that is a build with an account service on Android
 ///   ([phone], the account's own [PhoneNotices], whose phone has answered); a build with no service has no feed to
 ///   post, and a desktop, an iPhone or a test answers nothing, so the card is not drawn, as on the Mac or in a
-///   browser. "Allow notifications" raises Android's prompt through [onAllow], the same asking the meeting screen
-///   and Recording's row use (the page's `requestNotifications`); what Android answered is read again every second
-///   while it is keeping them from showing, as the page does.
+///   browser. "Allow notifications" raises Android's prompt by asking the phone itself ([PhoneNotices.allow], the
+///   page's `requestNotifications`): wherever the row is drawn it can be pressed, with or without a recorder or a
+///   meeting service. What Android answered is read again every second while it is keeping them from showing, as
+///   the page does.
 class NotificationsPane extends StatelessWidget {
-  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount, this.phone, this.onAllow});
+  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount, this.phone});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -69,19 +70,13 @@ class NotificationsPane extends StatelessWidget {
   /// With none, or on a device whose binary has none, "On this phone" is not drawn.
   final PhoneNotices? phone;
 
-  /// Raises Android's prompt to allow notifications; without it "Allow notifications" is drawn and cannot be
-  /// pressed.
-  final VoidCallback? onAllow;
-
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
-    final allow = host?.features.onAllowMeetingNotices;
     return NotificationsPane(
       signedIn: host?.features.signedIn ?? false,
       orgs: host?.features.orgs ?? const [],
       services: AccountScope.maybeOf(context),
       onOpenAccount: host == null ? null : () => host.go('account'),
-      onAllow: allow == null ? null : () => allow(),
     );
   }
 
@@ -178,7 +173,7 @@ class NotificationsPane extends StatelessWidget {
             if (phone != null && state == NoticesState.blocked)
               PaneActions(
                 children: [
-                  RowAction(onPress: onAllow ?? () {}, disabled: onAllow == null, child: const Text('Allow notifications')),
+                  RowAction(onPress: () => unawaited(phone.allow()), child: const Text('Allow notifications')),
                 ],
               ),
             const SettingsFootnote(child: Text('Ghost.md looks when it opens; the bell shows what arrived.')),

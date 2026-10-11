@@ -1,5 +1,6 @@
 /// The phone's half of its own notifications for the bell's rows: the three calls the web app made on
-/// `window.GlyphHost` (`watchNotices`, `postNotice`, `noticesState`; `src/app/core/host.ts`), over the channel
+/// `window.GlyphHost` (`watchNotices`, `postNotice`, `noticesState`; `src/app/core/host.ts`), and the one
+/// Settings › Notifications asks Android's prompt with (`requestNotifications`), over the channel
 /// `ghost_md/notices` (android/…/ghost_md/Notices.kt, with ../glyph's `notices/NoticeAlerts.kt` and
 /// `NoticeWorker.kt` behind it). What is watched and posted, and when, is lib/sync/phone.dart.
 ///
@@ -51,6 +52,11 @@ abstract interface class NoticesHost {
   /// The phone's notices as Android has them now: whether anything is watched, and whether the permission, the
   /// app's switch and the channel would let one show. Null where the binary has none (`noticesStateOnHost`).
   Future<NoticesState?> state();
+
+  /// Asks Android to let Ghost.md notify (`requestNotifications`): true where it already may or its prompt is now
+  /// up, false where no prompt can change it (refused twice, or turned off in the phone's settings) and where the
+  /// binary cannot ask. The prompt's own answer is not told: [state] is read again.
+  Future<bool> allow();
 }
 
 /// The channel the phone's notices answer on.
@@ -87,4 +93,10 @@ class PhoneNoticesHost implements NoticesHost {
 
   @override
   Future<NoticesState?> state() async => _stateOf(await _ask('state'));
+
+  @override
+  Future<bool> allow() async {
+    final answer = await _ask('allow');
+    return answer == 'allowed' || answer == 'asked';
+  }
 }

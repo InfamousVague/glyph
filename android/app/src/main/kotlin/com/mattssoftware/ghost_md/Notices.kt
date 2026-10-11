@@ -21,13 +21,17 @@ import java.util.concurrent.Executors
  * - `post {json}` -> "posted" | "seen" | "blocked" | a reason. One row, from the app while it runs in the background:
  *   `{ id, title, text?, link }`.
  * - `state` -> "off" | "on" | "blocked": whether anything is watched, and whether Android would show it (the
- *   permission, the app's switch and the channel, read now). This is the phone's real answer; raising the prompt is
- *   MeetingBridge's `requestNotifications`, as it was the Tauri activity's.
+ *   permission, the app's switch and the channel, read now). This is the phone's real answer.
+ * - `allow` -> "allowed" | "asked" | "blocked": Android asked to let the app notify, for Settings › Notifications'
+ *   Allow (`GlyphHost.requestNotifications`, which the page's NotificationsPane calls). The one asking the activity
+ *   has ([ask], MeetingBridge's `requestNotifications`, as it was the Tauri activity's one method for the meeting
+ *   screen and this page alike), reached here so that the page needs nothing of the meeting's channel: it is there
+ *   as soon as the engine is, whether or not Dart has made its recorder. The prompt's answer is read by `state`.
  *
  * The Tauri bridge answered on the WebView's own thread; a channel answers on the main one, so the two that write
  * (the preferences, WorkManager's queue, the notification) go through one thread of their own, in the order asked.
  */
-class Notices(private val context: Context) {
+class Notices(private val context: Context, private val ask: () -> String) {
   fun register(messenger: BinaryMessenger) {
     val main = android.os.Handler(android.os.Looper.getMainLooper())
     MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
@@ -47,6 +51,8 @@ class Notices(private val context: Context) {
           }
         }
         "state" -> result.success(NoticeAlerts.state(context))
+        // On the main thread, as a channel answers: only an activity can raise the dialog.
+        "allow" -> result.success(try { ask() } catch (error: Throwable) { "blocked" })
         else -> result.notImplemented()
       }
     }

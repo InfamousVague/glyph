@@ -974,7 +974,7 @@ one-line readings are the same (settings/SettingsSheet.tsx:166-422; settings/set
 | **Workspaces**: Your workspaces, New workspace, Organizations' workspaces | settings/WorkspacesPane.tsx:32-41 | settings/panes/workspaces_pane.dart:14-103 | match | |
 | **Notifications**: Team, Claude, Summaries, Conflicts, with their hints and footnotes | settings/NotificationsPane.tsx:32-77 | settings/panes/notifications_pane.dart:14-16,114 | match | |
 | Notifications: Mute an organization | settings/NotificationsPane.tsx:79-89 | settings/panes/notifications_pane.dart:17 | match | |
-| Notifications › On this phone: Phone notifications, and Allow notifications when Android blocks them | settings/NotificationsPane.tsx:90-108; core/notifications/phone.ts | settings/panes/notifications_pane.dart; sync/phone.dart | match | Since df37b2c, where the build has an account and the phone the bridge. Held by test/settings/panes/phone_notices_pane_test.dart. Allow notifications is the meeting host's asking, so it cannot be pressed until voice is made (see Regressions, found beside). |
+| Notifications › On this phone: Phone notifications, and Allow notifications when Android blocks them | settings/NotificationsPane.tsx:90-108; core/notifications/phone.ts | settings/panes/notifications_pane.dart; sync/phone.dart | match | Since df37b2c, where the build has an account and the phone the bridge. Held by test/settings/panes/phone_notices_pane_test.dart. Allow notifications asks the phone itself since 2026-10-11, through the notices' own channel (`PhoneNotices.allow`; android/…/ghost_md/Notices.kt `allow`), so it can be pressed wherever it is drawn: it was the meeting host's asking, and could not be until voice was made (Regressions, found beside 3). |
 | **Library folder**: Where your notes are, Choose a folder…, Use this folder, Use Ghost.md's own folder, Bring a copy back / Start empty / Stay in the folder, Good to know | settings/LibraryFolderPane.tsx:109-168 | settings/panes/library_folder_pane.dart:15-264; root/ghost_root.dart:796-798 | match | |
 | **Backup**: Plug in a drive, Back up to …, Backing up, the tree of what a drive holds, Eject | settings/BackupPane.tsx:173-231; settings/BackupTree.tsx | settings/panes/backup_pane.dart:214-294; settings/panes/backup_tree.dart; root/ghost_root.dart:799 | match | Not walked to its end on any device (README). |
 | **Export**: Export everything, its progress and Stop | settings/ExportCard.tsx:66-79 | settings/panes/export_pane.dart:15,142; root/ghost_root.dart:800 | match | |
@@ -1242,12 +1242,15 @@ is no rewrite's doing. None was fixed here.
    opens, as the page does; three seconds and no longer, which is what the start gives a phone to attach its half
    of voice, so a phone slower than that opens the note as it is and takes the write-up, open, when the queue is
    there. Held by test/root/before_voice_test.dart. Not seen on a phone.
-3. **Settings › Notifications' "Allow notifications" is the meeting host's asking.**
-   lib/settings/panes/notifications_pane.dart:79-84 and :181, lib/root/root_voice.dart:322 and :358: the row is
-   shown where Android blocks the app's notifications, and it cannot be pressed until voice is made, nor ever on a
-   phone with no meeting service, where the page asks the phone itself (NotificationsPane.tsx
-   `requestNotifications`). To see it: block the app's notifications in Android's settings, and open Settings ›
-   Notifications in the first moment of a run. By the code only; not tried.
+3. **Settings › Notifications' "Allow notifications" is the meeting host's asking.** **Fixed 2026-10-11.** The
+   row is shown where Android blocks the app's notifications, and it could not be pressed until voice was made,
+   nor ever on a phone with no meeting service, where the page asks the phone itself (NotificationsPane.tsx
+   `requestNotifications`). It asks the phone itself now, through the notices' own channel (`ghost_md/notices`
+   `allow`, android/…/ghost_md/Notices.kt, which reaches the activity's one asking; lib/core/phone_notices.dart
+   `NoticesHost.allow`, lib/sync/phone.dart `PhoneNotices.allow`): there as soon as the engine is, on every
+   phone, and pressable wherever the row is drawn. Recording's row and the meeting's screen ask as before. Held
+   by test/settings/panes/phone_notices_pane_test.dart and test/sync/phone_test.dart. Not seen on a phone: the row
+   is drawn only in a build with `GHOST_API`.
 4. **Comments that said the opposite of the code beside them**, each from before its row was closed. **Corrected
    2026-10-11**, each to what the code does: lib/root/note_desk.dart (a picture's trouble is said on the note's
    own line; a canvas has its comments, and is framed in a note from the +'s A canvas);

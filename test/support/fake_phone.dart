@@ -33,4 +33,15 @@ class FakePhone implements NoticesHost {
     asked += 1;
     return there ? current : null;
   }
+
+  /// How many times it was asked to let the app notify, and what it answers: whether a prompt could change it.
+  int allows = 0;
+  bool prompts = true;
+
+  @override
+  Future<bool> allow() async {
+    if (!there) return false;
+    allows += 1;
+    return prompts;
+  }
 }

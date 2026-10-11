@@ -160,8 +160,9 @@ class MainActivity : FlutterActivity() {
         hinge.register(messenger)
         // A ```mermaid fence drawn as its diagram (DiagramRenderer.kt; lib/editor/diagrams/bridge.dart).
         diagrams = DiagramRenderer(this).also { it.register(messenger) }
-        // The bell's rows as the phone's own notifications (Notices.kt; lib/core/phone_notices.dart).
-        Notices(applicationContext).register(messenger)
+        // The bell's rows as the phone's own notifications, and the prompt that allows them (Notices.kt;
+        // lib/core/phone_notices.dart).
+        Notices(applicationContext) { meeting?.requestNotifications() ?: "blocked" }.register(messenger)
         // Whether there is a connection, and its coming back (Connection.kt; lib/core/phone_connection.dart).
         connection.register(messenger)
         // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).

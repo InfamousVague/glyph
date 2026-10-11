@@ -261,7 +261,8 @@ class MeetingBridge(private val activity: Activity) {
     say("meeting", JSONObject().put("event", "permission").put("noteId", noteId ?: JSONObject.NULL).put("elapsedMs", 0).put("granted", granted).toString())
   }
 
-  private fun requestNotifications(): String {
+  /** Also Settings › Notifications' Allow, through the notices' own channel (Notices.kt `allow`). */
+  fun requestNotifications(): String {
     if (RecordingAlerts.canNotify(activity)) return "allowed"
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return "blocked"
     val permission = Manifest.permission.POST_NOTIFICATIONS

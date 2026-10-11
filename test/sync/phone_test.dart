@@ -232,6 +232,23 @@ void main() {
       await notices.read();
       expect(notices.shown.value, NoticesState.on);
     });
+
+    test('asks the phone to let it notify, and reads what Android says again', () async {
+      phone.current = NoticesState.blocked;
+      await notices.read();
+      // Android may already show them by the time the ask has answered (a prompt answered at once, a permission
+      // given in the phone's settings meanwhile): the row follows without waiting for its next look.
+      phone.current = NoticesState.on;
+      expect(await notices.allow(), isTrue);
+      expect(phone.allows, 1);
+      expect(notices.shown.value, NoticesState.on);
+      // Where no prompt can change it, it says so.
+      phone
+        ..current = NoticesState.blocked
+        ..prompts = false;
+      expect(await notices.allow(), isFalse);
+      expect(notices.shown.value, NoticesState.blocked);
+    });
   });
 
   group('a whole engine against the service in memory', () {
@@ -391,6 +408,25 @@ void main() {
       expect(await host.post((id: 'a', title: 't', text: 'under', link: '')), isFalse);
       answer = 'something this build does not know';
       expect(await host.state(), isNull);
+    });
+
+    // Settings › Notifications' Allow (docs/PARITY.md, found beside 3): the phone's own prompt, asked for on the
+    // notices' channel, which is there whether or not a recorder or a meeting's host has been made.
+    test('is asked for Android’s prompt on the same channel: allowed and asked are a yes, blocked is not', () async {
+      const host = PhoneNoticesHost(android: true);
+      answer = 'asked';
+      expect(await host.allow(), isTrue);
+      expect(calls.last.method, 'allow');
+      answer = 'allowed';
+      expect(await host.allow(), isTrue);
+      answer = 'blocked';
+      expect(await host.allow(), isFalse);
+      // Anywhere else, and on a build whose phone has no half, nothing is asked and nothing can be allowed.
+      final before = calls.length;
+      expect(await const PhoneNoticesHost(android: false).allow(), isFalse);
+      expect(calls, hasLength(before));
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(noticesChannel, null);
+      expect(await host.allow(), isFalse);
     });
 
     test('answers nothing anywhere else, and asks nothing', () async {

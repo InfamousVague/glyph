@@ -6,16 +6,20 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/session.dart';
+import 'package:ghost_md/account/ui_state.dart';
 import 'package:ghost_md/core/phone_notices.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/notifications_pane.dart';
 import 'package:ghost_md/settings/panes/pane_parts.dart';
+import 'package:ghost_md/settings/panes/settings_host.dart';
 import 'package:ghost_md/sync/feed.dart';
 import 'package:ghost_md/sync/phone.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account_ui/support.dart' show Device;
 import '../../feed/signed.dart' show SignedAccount;
 import '../../support/fake_crypto.dart';
 import '../../support/fake_phone.dart';
@@ -53,8 +57,8 @@ void main() {
     });
   });
 
-  Future<void> open(WidgetTester tester, {VoidCallback? onAllow, PhoneNotices? given}) async {
-    await pumpSettings(tester, SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: NotificationsPane(signedIn: true, phone: given ?? notices, onAllow: onAllow))));
+  Future<void> open(WidgetTester tester, {PhoneNotices? given}) async {
+    await pumpSettings(tester, SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: NotificationsPane(signedIn: true, phone: given ?? notices))));
   }
 
   Finder theSwitch() => find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Phone notifications', skipOffstage: false);
@@ -104,8 +108,7 @@ void main() {
 
   testWidgets('says when Android is keeping them from showing, offers Allow, and takes the answer within a second', (tester) async {
     phone.current = NoticesState.blocked;
-    var asked = 0;
-    await open(tester, onAllow: () => asked += 1);
+    await open(tester);
     expect(hintOf(tester, 'Phone notifications'), _blocked);
     final allow = find.text('Allow notifications', skipOffstage: false);
     expect(allow, findsOneWidget);
@@ -113,7 +116,7 @@ void main() {
     await tester.ensureVisible(allow);
     await tester.tap(allow);
     await tester.pump();
-    expect(asked, 1);
+    expect(phone.allows, 1, reason: 'the phone itself is asked for its prompt');
     // Still refused: still said, however long the prompt is up.
     await tester.pump(const Duration(seconds: 3));
     expect(hintOf(tester, 'Phone notifications'), _blocked);
@@ -130,12 +133,52 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('Allow with nobody to ask is drawn and cannot be pressed', (tester) async {
+  // docs/PARITY.md, "Regressions found on 2026-10-11", found beside, 3. Allow was the meeting screen's asking,
+  // handed to Settings by voice (`SettingsFeatures.onAllowMeetingNotices`): until voice was made, and for good on a
+  // phone with no meeting service, the row was drawn and could not be pressed. The page asks the phone itself
+  // (NotificationsPane.tsx `requestNotifications()`), and so does this: the notices' own channel, as soon as the
+  // app is up.
+  testWidgets('Allow can be pressed wherever it is drawn: in Settings with no voice and no meeting service, the phone is asked', (tester) async {
     phone.current = NoticesState.blocked;
-    await open(tester);
+    // An account as the app has one (signed out here: the row is this phone's, whoever is in), with its notices.
+    final device = (await tester.runAsync(() => Device.make(signedIn: false, engine: false, shares: false)))!;
+    final services = AccountServices(account: device.account, phoneNotices: notices, prefs: preferences, kept: kept);
+    // Settings as the root hands it before voice is made: nothing of a meeting, nothing to ask a meeting's host with.
+    await pumpSettings(
+      tester,
+      AccountScope(
+        services: services,
+        child: SettingsHost(
+          features: const SettingsFeatures(),
+          go: (_, {setting}) {},
+          workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage()),
+          child: Builder(builder: (context) => SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: NotificationsPane.hosted(context)))),
+        ),
+      ),
+    );
     final allow = find.text('Allow notifications', skipOffstage: false);
     expect(allow, findsOneWidget);
-    expect(tester.widget<RowAction>(find.ancestor(of: allow, matching: find.byType(RowAction, skipOffstage: false))).disabled, isTrue);
+    expect(tester.widget<RowAction>(find.ancestor(of: allow, matching: find.byType(RowAction, skipOffstage: false))).disabled, isFalse);
+    await tester.ensureVisible(allow);
+    await tester.tap(allow);
+    await tester.pump();
+    expect(phone.allows, 1);
+    await endSettings(tester);
+  });
+
+  testWidgets('Allow where no prompt can change it (refused twice, or off in the phone’s settings) asks, and the page goes on saying so', (tester) async {
+    phone
+      ..current = NoticesState.blocked
+      ..prompts = false;
+    await open(tester);
+    final allow = find.text('Allow notifications', skipOffstage: false);
+    await tester.ensureVisible(allow);
+    await tester.tap(allow);
+    await tester.pump();
+    expect(phone.allows, 1);
+    await tester.pump(const Duration(seconds: 2));
+    expect(hintOf(tester, 'Phone notifications'), _blocked);
+    expect(allow, findsOneWidget);
     await endSettings(tester);
   });
 }
