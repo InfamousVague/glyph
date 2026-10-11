@@ -259,6 +259,12 @@ if (manifest.entry !== built) fail(`ota.json names ${manifest.entry} but index.h
 ok(`web build ${manifest.version} (${manifest.build}), ${manifest.files.length} files`);
 
 let apkInfo = null;
+// Since 2026-10-11 the Android app is the Flutter one (../ghost-flutter, docs/CUTOVER.md): its APK is glyph.apk on
+// the box, published by scripts/deploy-flutter-apk.mjs. A Tauri APK built here and placed over it would be a version
+// behind what phones hold and of another code base: refused, unless said twice.
+if (withApk && !process.argv.includes('--tauri-apk-over-flutter')) {
+  fail('--apk is refused: the Android app on the box is the Flutter one (scripts/deploy-flutter-apk.mjs publishes it).');
+}
 if (withApk) {
   step('Building the APK');
   /*
@@ -591,7 +597,7 @@ box.ssh(
    # placed into it below by rename, so it is never half-written where a person downloads it from.
    sudo rsync -a --delete \\
      --filter 'P /models/' --filter 'P /glyph.apk' --filter 'P /glyph.dmg' --filter 'P /glyph-setup.exe' --filter 'P /mcp/' \\
-     --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' \\
+     --exclude '/ota.json' --exclude '/ota.json.sig' --exclude '/apk.json' --exclude '/apk.json.sig' --exclude '/apk.json.flutter.sig' \\
      --exclude '/desktop.json' --exclude '/windows.json' --exclude '/glyph-mcp.mjs' \\
      ${STAGE}/ ${REMOTE}/
    sudo chown -R root:root ${REMOTE}
