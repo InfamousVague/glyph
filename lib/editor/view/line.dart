@@ -18,12 +18,24 @@
 /// - **`vertical-align: super` and `sub`** have no counterpart in a Flutter text style: a raised run keeps its
 ///   place in the paragraph, drawn clear, and is painted again above or below the baseline.
 ///
+/// THE WORDS ARE DRAWN ONCE AND KEPT. Putting a paragraph on the canvas is the dear part of a line's paint (the
+/// engine walks every run of it, and a wrapped paragraph is put there once for each of its lines), and a line is
+/// painted whenever anything in its page is: at every frame of a scroll, at every turn of a caret some other line
+/// draws, at every frame of an effect elsewhere. So what each visual line's words drew is kept as a picture
+/// ([_Kept]) and put on the canvas again while the line is laid out as it was. Each visual line has a picture
+/// of its own because each is put on a device pixel of its own (`_snap`): a picture of several would hold them
+/// a fixed distance apart, where on the page they close up and open by a pixel as the page moves. Carried along
+/// a scroll, a picture is moved by whole device pixels, which is where drawing the line afresh would put it; at
+/// rest it is drawn afresh wherever it is not where it was drawn, so that a page standing still is, op for op,
+/// what it always was ([_AtRest]). The grounds, the selection, the caret and what a mark's painter draws are
+/// cheap and are drawn each time, as before.
+///
 /// Not here: bidirectional lines are laid out by the paragraph but the hang and the gutters are left-to-right, as
 /// the web app's own layout is in practice; nothing of the keyboard, gestures or the IME (the input layer's).
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui show LineMetrics, PlaceholderAlignment, PlatformDispatcher;
+import 'dart:ui' as ui show LineMetrics, Picture, PictureRecorder, PlaceholderAlignment, PlatformDispatcher;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -296,6 +308,42 @@ class _InlineWidgetHostState extends State<InlineWidgetHost> {
   }
 }
 
+/// What a visual line's words drew, and where on its canvas: the canvas's own `x` of the line and the device
+/// pixel its top fell on.
+class _Kept {
+  _Kept(this.picture, this.x, this.y);
+
+  final ui.Picture picture;
+  final double x;
+  final double y;
+}
+
+/// The lines a scroll carried are drawn afresh when it comes to rest. A picture moved by whole device pixels
+/// stands where drawing its line afresh would stand it, but it is not the same instruction to the engine (a
+/// place added to a move, where it was one place), and the page at rest is held to being exactly what it always
+/// was: so the scroll's ending paints its view once more, and each line that is not where its picture was drawn
+/// draws itself there.
+class _AtRest {
+  _AtRest(this.position) {
+    position.isScrollingNotifier.addListener(_heard);
+  }
+
+  static final Expando<_AtRest> _of = Expando<_AtRest>('lines carried by a scroll');
+
+  static void owe(ScrollPosition position, RenderObject view) => (_of[position] ??= _AtRest(position))._owed.add(view);
+
+  final ScrollPosition position;
+  final Set<RenderObject> _owed = <RenderObject>{};
+
+  void _heard() {
+    if (position.isScrollingNotifier.value || _owed.isEmpty) return;
+    for (final view in _owed) {
+      if (view.attached) view.markNeedsPaint();
+    }
+    _owed.clear();
+  }
+}
+
 /// The line's render object.
 class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderBox, EditorInlineParentData>, RenderBoxContainerDefaultsMixin<RenderBox, EditorInlineParentData> {
   RenderEditorLine({required LineSpec spec, this.from = 0, LineSelection selection = LineSelection.none, EditorLineHost? host})
@@ -309,6 +357,17 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   /// How many paragraphs of a line's words were made and laid out, for a test to count: one for a line, whether
   /// its height was asked for before it was laid out or not.
   static int paragraphs = 0;
+
+  /// How many times a visual line's words were put on a canvas afresh, and how many times from the picture kept of
+  /// them (and of those, how many times moved from where the picture was drawn: carried by a scroll), for a test
+  /// to count.
+  static int wordsDrawn = 0;
+  static int wordsKept = 0;
+  static int wordsCarried = 0;
+
+  /// Whether the words are kept as pictures (the header's note). Off, every paint draws them afresh, as the line
+  /// did before it kept anything: for a test to hold the two drawings against each other.
+  static bool keepsWords = true;
 
   LineSpec _spec;
   LineSpec get spec => _spec;
@@ -442,6 +501,8 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     PaintingBinding.instance.systemFonts.removeListener(_fontsChanged);
     _host?.lineDetached(this);
     _deafToBlink();
+    _scrollerKnown = false;
+    _scroller = null;
     super.detach();
   }
 
@@ -462,6 +523,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     }
     _words = _marker = _selected = null;
     _raised = const <_Raised>[];
+    _forget();
     _laidOutWidth = -1;
     _dry?.dispose();
     _dry = null;
@@ -523,6 +585,8 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   void performLayout() {
     layouts += 1;
     if (ghostPerf) Perf.count('editor.lines.laidOut');
+    // What was drawn was drawn for the layout before.
+    _forget();
     final look = _spec.look, proj = _spec.projection;
     final width = _width(constraints);
     _contentLeft = look.marginStart + look.borderStart + look.paddingStart;
@@ -976,25 +1040,134 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   bool get alwaysNeedsCompositing => _selection.startHandle != null || _selection.endHandle != null;
 
-  void _paintParagraph(Canvas canvas, Offset offset, TextPainter painter) {
-    if (_spec.projection.display.isEmpty || _paint!.text.length == _split) return;
+  // -- the words, kept (the header's note) ---------------------------------------------------------------------------
+
+  /// What each visual line's words drew, and the marker before them.
+  List<_Kept?> _kept = const <_Kept?>[];
+  _Kept? _keptMarker;
+
+  /// Where each run's words are, for the grounds and the painters of the runs that have them (`paint`).
+  List<List<Rect>?>? _runBoxes;
+
+  void _forget() {
+    for (final kept in _kept) {
+      kept?.picture.dispose();
+    }
+    _kept = const <_Kept?>[];
+    _keptMarker?.picture.dispose();
+    _keptMarker = null;
+    _runBoxes = null;
+  }
+
+  /// The scroll view the line moves in: the nearest above it with nothing between that keeps a layer of its own
+  /// (a line under such a thing never moves on its canvas when the page does). Looked for once a stay in the tree.
+  RenderViewportBase? _scroller;
+  bool _scrollerKnown = false;
+
+  /// Whether the page is being moved now: by a finger, a fling or an animation of its own. Nothing else moves a
+  /// line for long (a jump, a keyboard coming up), and then it is drawn afresh as it always was.
+  bool _carried() {
+    if (!_scrollerKnown) {
+      _scrollerKnown = true;
+      _scroller = null;
+      for (RenderObject? up = parent; up != null; up = up.parent) {
+        if (up is RenderViewportBase) {
+          _scroller = up;
+          break;
+        }
+        if (up.isRepaintBoundary) break;
+      }
+    }
+    final scroller = _scroller;
+    if (scroller == null) return false;
+    final position = scroller.offset;
+    if (position is! ScrollPosition || !position.isScrollingNotifier.value) return false;
+    _AtRest.owe(position, scroller);
+    return true;
+  }
+
+  /// Puts `kept` on the canvas where its line now stands, `y` being the device pixel the line's top falls on:
+  /// as it is where the line has not moved, moved by the whole pixels the line has while the page is being moved
+  /// ([moving], asked only then). False where it has to be drawn afresh.
+  bool _put(Canvas canvas, _Kept? kept, double x, double y) {
+    if (kept == null || kept.x != x) return false;
+    final by = y - kept.y;
+    if (by == 0) {
+      canvas.drawPicture(kept.picture);
+    } else {
+      if (!_carried()) return false;
+      canvas.save();
+      canvas.translate(0, by);
+      canvas.drawPicture(kept.picture);
+      canvas.restore();
+      wordsCarried += 1;
+    }
+    wordsKept += 1;
+    return true;
+  }
+
+  /// One visual line of `painter`, clipped to itself where the paragraph has more than one, on the baseline the
+  /// page's line boxes put it on. `top` is the device pixel the line's top falls on.
+  void _drawLine(Canvas canvas, Offset offset, TextPainter painter, VisualLine line, double top, {required bool alone}) {
     final x = offset.dx + _contentLeft;
-    if (_lines.length == 1) {
-      painter.paint(canvas, Offset(x, _snap(offset.dy + _lines.first.top) + _lines.first.above - _lines.first.fBaseline));
+    final dy = top + line.above - line.fBaseline;
+    if (alone) {
+      painter.paint(canvas, Offset(x, dy));
       return;
     }
-    for (final line in _lines) {
-      final dy = _snap(offset.dy + line.top) + line.above - line.fBaseline;
-      canvas.save();
-      canvas.clipRect(Rect.fromLTRB(offset.dx - 4096, line.fTop + dy, offset.dx + size.width + 4096, line.fBottom + dy));
-      painter.paint(canvas, Offset(x, dy));
-      canvas.restore();
+    canvas.save();
+    canvas.clipRect(Rect.fromLTRB(offset.dx - 4096, line.fTop + dy, offset.dx + size.width + 4096, line.fBottom + dy));
+    painter.paint(canvas, Offset(x, dy));
+    canvas.restore();
+  }
+
+  void _paintParagraph(Canvas canvas, Offset offset, TextPainter painter) {
+    if (_spec.projection.display.isEmpty || _paint!.text.length == _split) return;
+    final alone = _lines.length == 1;
+    // The words themselves are kept; the same words in the selection's paper are a few lines for a moment.
+    if (!keepsWords || !identical(painter, _words)) {
+      for (final line in _lines) {
+        _drawLine(canvas, offset, painter, line, _snap(offset.dy + line.top), alone: alone);
+      }
+      if (identical(painter, _words)) wordsDrawn += _lines.length;
+      return;
     }
+    if (_kept.length != _lines.length) {
+      _forget();
+      _kept = List<_Kept?>.filled(_lines.length, null);
+    }
+    for (var i = 0; i < _lines.length; i++) {
+      final line = _lines[i];
+      final top = _snap(offset.dy + line.top);
+      if (_put(canvas, _kept[i], offset.dx, top)) continue;
+      _kept[i]?.picture.dispose();
+      final recorder = ui.PictureRecorder();
+      _drawLine(Canvas(recorder), offset, painter, line, top, alone: alone);
+      final kept = _kept[i] = _Kept(recorder.endRecording(), offset.dx, top);
+      canvas.drawPicture(kept.picture);
+      wordsDrawn += 1;
+    }
+  }
+
+  /// The marker of a list item, at the gutter, on the first line's baseline.
+  void _paintMarker(Canvas canvas, Offset offset, TextPainter marker) {
+    final top = _snap(offset.dy + _lines.first.top);
+    if (keepsWords && _put(canvas, _keptMarker, offset.dx, top)) return;
+    final at = Offset(offset.dx + _contentLeft - _spec.look.hang, top + _lines.first.above - marker.computeDistanceToActualBaseline(TextBaseline.alphabetic));
+    if (!keepsWords) {
+      marker.paint(canvas, at);
+      return;
+    }
+    _keptMarker?.picture.dispose();
+    final recorder = ui.PictureRecorder();
+    marker.paint(Canvas(recorder), at);
+    final kept = _keptMarker = _Kept(recorder.endRecording(), offset.dx, top);
+    canvas.drawPicture(kept.picture);
   }
 
   @override
   void paint(PaintingContext context, Offset offset) {
-    if (ghostPerf) Perf.count('editor.lines.painted');
+    final drawnBefore = wordsDrawn;
     final look = _spec.look;
     final canvas = context.canvas;
     final words = _words;
@@ -1021,16 +1194,23 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
     // The runs' own grounds, and what a format's painter draws behind the words.
     final proj = _spec.projection;
-    List<Rect> boxesOf(Segment seg, RunLook run) => <Rect>[
-      for (final rect in rectsForRange(seg.from, seg.to))
-        for (final line in _lines)
-          if (math.min(line.top, line.contentTop) == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent).shift(offset),
-    ];
+    // Where a run's words are, a box to each visual line it is on: asked of the paragraph once for a layout, not
+    // at every paint (twice, for a run with a painter).
+    List<Rect> boxesOf(int s, Segment seg, RunLook run) {
+      final all = _runBoxes ??= List<List<Rect>?>.filled(proj.segments.length, null);
+      final own = all[s] ??= <Rect>[
+        for (final rect in rectsForRange(seg.from, seg.to))
+          for (final line in _lines)
+            if (math.min(line.top, line.contentTop) == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent),
+      ];
+      return <Rect>[for (final box in own) box.shift(offset)];
+    }
+
     List<(List<Rect>, double)>? faded;
     for (var s = 0; s < proj.segments.length; s++) {
       final seg = proj.segments[s], run = _spec.runs[s];
       if (seg.kind != SegmentKind.text || (run.backgrounds.isEmpty && run.painter == null)) continue;
-      final boxes = boxesOf(seg, run);
+      final boxes = boxesOf(s, seg, run);
       for (final ground in run.backgrounds) {
         final paint = Paint()..color = ground;
         for (final box in boxes) {
@@ -1054,9 +1234,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
     // The words.
     final marker = _marker;
-    if (marker != null) {
-      marker.paint(canvas, Offset(offset.dx + _contentLeft - look.hang, _snap(offset.dy + _lines.first.top) + _lines.first.above - marker.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
-    }
+    if (marker != null) _paintMarker(canvas, offset, marker);
     if (faded == null) {
       _paintParagraph(canvas, offset, words);
     } else {
@@ -1090,6 +1268,8 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     for (final raised in _raised) {
       raised.painter.paint(canvas, Offset(offset.dx + raised.offset.dx, _snap(offset.dy + raised.offset.dy)));
     }
+    // A line whose words were put on the canvas afresh, or one whose words were there to be put back.
+    if (ghostPerf) Perf.count(wordsDrawn != drawnBefore ? 'editor.lines.painted' : 'editor.lines.kept');
 
     // The selected words again, in paper, where the ground is.
     if (selected.isNotEmpty && proj.display.isNotEmpty) {
@@ -1136,7 +1316,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
     for (var s = 0; s < proj.segments.length; s++) {
       final seg = proj.segments[s], run = _spec.runs[s];
-      if (seg.kind == SegmentKind.text && run.painter != null) run.painter!.paintOver(canvas, boxesOf(seg, run), run);
+      if (seg.kind == SegmentKind.text && run.painter != null) run.painter!.paintOver(canvas, boxesOf(s, seg, run), run);
     }
 
     // The inline widgets.
