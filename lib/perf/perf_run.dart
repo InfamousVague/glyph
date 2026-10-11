@@ -17,6 +17,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' show Service;
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui show channelBuffers;
 
 import 'package:flutter/foundation.dart';
@@ -469,16 +470,32 @@ Rect? _keyed(String key, {bool anywhere = false}) {
   return found;
 }
 
+/// The part of the window a finger reaches a page in: over the keyboard while one is up (the window goes on behind
+/// it), and, when [clear], under the bar at the window's top and over the phone's own at its foot as well.
+Rect _reach({required bool clear}) {
+  final view = WidgetsBinding.instance.platformDispatcher.views.first;
+  final ratio = view.devicePixelRatio;
+  final window = _window();
+  final keys = view.viewInsets.bottom / ratio;
+  final top = clear ? view.padding.top / ratio + 64 : 12.0;
+  final foot = math.max(keys, clear ? view.padding.bottom / ratio + 24 : 0.0) + 12;
+  return Rect.fromLTRB(window.left + 12, window.top + top, window.right - 12, math.max(window.top + top + 1, window.bottom - foot));
+}
+
 /// A tap in the middle of what wears [key]. Its middle is brought into the window first, by the finger, a part of
 /// a page at a time: a thing half over the window's foot is found there, and a tap on its middle lands on nothing.
+/// So does a tap on a thing behind the keyboard, which a phone's window goes on under: found in the window, its
+/// middle was pressed where the keys are, and the walk went on as if it had been (on the emulator the notebook's
+/// picker ticked nothing, and the notebook was walked with the three pages it began with).
 Future<bool> _tapKey(PhoneTour tour, String key, {bool quiet = false}) async {
-  final window = _window();
-  // In the window, a finger's width from its edges: a page at its foot cannot bring its last button any higher.
-  bool reachable(Rect at) => window.deflate(12).contains(at.center);
+  // Clear of the bars is where it is brought to; a page at its end cannot bring its last button any higher, and
+  // there a finger's width inside the window (and over the keyboard) will do.
+  final clear = _reach(clear: true);
+  bool reachable(Rect at) => clear.contains(at.center);
   var at = _keyed(key, anywhere: true);
   for (var tries = 0; tries < 12 && at != null && !reachable(at); tries += 1) {
-    final x = (window.width / 2).round(), high = (window.height * 0.35).round(), low = (window.height * 0.65).round();
-    final down = at.center.dy >= window.height / 2;
+    final x = clear.center.dx.round(), high = (clear.top + clear.height * 0.3).round(), low = (clear.top + clear.height * 0.7).round();
+    final down = at.center.dy >= clear.center.dy;
     await tour.run('swipe:$x,${down ? low : high},$x,${down ? high : low},320;wait:200');
     final now = _keyed(key, anywhere: true);
     // The page did not move: it is at its end, and what is not in reach will not be.
@@ -488,7 +505,7 @@ Future<bool> _tapKey(PhoneTour tour, String key, {bool quiet = false}) async {
     }
     at = now;
   }
-  if (at == null || !reachable(at)) {
+  if (at == null || !_reach(clear: false).contains(at.center)) {
     if (!quiet) debugPrint('[tour] tapkey "$key" -> NOT FOUND');
     return false;
   }
@@ -554,51 +571,62 @@ List<String> _benchPageTitles() {
 /// notes nobody wrote, and an index of three rows that say so, with nothing to read straight through, is no
 /// notebook to measure. Done once for a library; after that it finds the pages there and touches nothing.
 Future<void> _benchChapters(PhoneTour tour) async {
-  String? body;
-  void visit(Element element) {
-    if (body != null) return;
-    final widget = element.widget;
-    if (widget is BookView) {
-      body = widget.body;
-      return;
+  String? shown() {
+    String? body;
+    void visit(Element element) {
+      if (body != null) return;
+      final widget = element.widget;
+      if (widget is BookView) {
+        body = widget.body;
+        return;
+      }
+      element.visitChildren(visit);
     }
-    element.visitChildren(visit);
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    return body;
   }
 
-  WidgetsBinding.instance.rootElement?.visitChildren(visit);
-  final index = body;
+  final index = shown();
   if (index == null) {
     debugPrint('[tour] fixture chapters: NOT FOUND, no notebook on screen');
     return;
   }
+  final titles = _benchPageTitles();
+  // How many of the pages the notebook has, as it is on the screen now.
+  int there() {
+    final chapters = chaptersOf(shown() ?? '');
+    return titles.where((title) => chapters.any((chapter) => sameTitle(chapter.title, title))).length;
+  }
+
   final chapters = chaptersOf(index);
   final missing = [
-    for (final title in _benchPageTitles())
+    for (final title in titles)
       if (!chapters.any((chapter) => sameTitle(chapter.title, title))) title,
   ];
   if (missing.isEmpty) return;
   // A page at a time: the picker opened, the page's whole title typed into its field, its row ticked, and Add. (Not
   // every title into one opening of it: a field that has given up the keyboard to a row's press has no caret to
-  // take the last title out from, and the next was typed after it.)
-  var picked = 0;
+  // take the last title out from, and the next was typed after it.) The keyboard, where there is one, is let up
+  // before the title is typed and put away before the row is pressed.
   for (final title in missing) {
+    final had = there();
     // A picker left open by a walk that was cut short is the picker.
     if (_keyed('book-find', anywhere: true) == null && !await _tapKey(tour, 'book-add-existing')) break;
     await tour.run('wait:400');
     if (!await _tapKey(tour, 'book-find')) break;
-    await tour.run('wait:200;type:$title;wait:200');
-    if (await _tapKey(tour, 'book-pick:$title', quiet: true) && await _tapKey(tour, 'book-add-picked')) {
-      picked += 1;
-      await tour.run('unfocus;wait:400');
-    } else {
-      // Not offered: the picker is put away (its foot brought into the window first, by its Add, which adds
-      // nothing with nothing ticked), and the next page tried; a picker that will not go is given up on.
-      await tour.run('unfocus;wait:200');
-      await _tapKey(tour, 'book-add-picked', quiet: true);
-      if (_keyed('book-find', anywhere: true) != null) await tour.run('taptext:Cancel;wait:300');
-      if (_keyed('book-find', anywhere: true) != null) break;
-    }
+    await tour.run('wait:500;type:$title;wait:200;unfocus;wait:500');
+    if (await _tapKey(tour, 'book-pick:$title', quiet: true) && await _tapKey(tour, 'book-add-picked')) await tour.run('wait:400');
+    if (there() > had) continue;
+    // Not offered, or not added: the picker is put away (its foot brought into the window first, by its Add, which
+    // adds nothing with nothing ticked), and the next page tried; a picker that will not go is given up on.
+    await tour.run('unfocus;wait:200');
+    await _tapKey(tour, 'book-add-picked', quiet: true);
+    if (_keyed('book-find', anywhere: true) != null) await tour.run('taptext:Cancel;wait:300');
+    if (_keyed('book-find', anywhere: true) != null) break;
   }
-  debugPrint('[tour] fixture chapters: $picked pages added to the notebook');
+  // Said by what the notebook holds, not by how many rows were pressed: a press that landed on nothing added none.
+  final now = there();
+  debugPrint('[tour] fixture chapters: ${now == titles.length ? '' : 'NOT FOUND, only '}$now of ${titles.length} pages in the notebook');
 }
 
