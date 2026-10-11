@@ -44,7 +44,7 @@ void main() {
               return TicketChoice(key: ticket.id, title: noteTitle(note.body), status: ticket.status, category: ticket.category);
             }(),
       ];
-      await pumpTickets(tester, fixture.doc, options: optionsWith(choices, nextId: 'GHO-14', byTitle: true), theme: fixture.theme, readOnly: fixture.readOnly, caret: fixture.caret, today: fixture.today, locale: fixture.locale, shadows: true);
+      await pumpTickets(tester, fixture.doc, options: optionsWith(choices, nextId: 'GHO-14', byTitle: true), theme: fixture.theme, readOnly: fixture.readOnly, caret: fixture.caret, today: fixture.today, locale: fixture.locale, shadows: true, screen: fixture.screen, layoutRatio: fixture.ratio);
       if (fixture.more) {
         await tester.tap(parts('more'));
         await tester.pump();

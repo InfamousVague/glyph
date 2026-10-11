@@ -51,7 +51,7 @@ void main() {
       // With the open note at the fixture's own day, not the day this runs (support.dart `PageFixture.open`).
       final library = <QueryNote>[...fixture.library, fixture.open];
       final asked = Asked();
-      await pumpQueries(tester, fixture.doc, options: optionsOver(() => library, asked, adds: fixture.add ? false : null), theme: fixture.theme, readOnly: fixture.readOnly, caret: fixture.caret, today: fixture.today, locale: fixture.locale, shadows: true);
+      await pumpQueries(tester, fixture.doc, options: optionsOver(() => library, asked, adds: fixture.add ? false : null), theme: fixture.theme, readOnly: fixture.readOnly, caret: fixture.caret, today: fixture.today, locale: fixture.locale, shadows: true, screen: fixture.screen, layoutRatio: fixture.ratio);
       final problems = <String>[];
       var slip = 0.0;
       var worst = 0.0;

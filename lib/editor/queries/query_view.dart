@@ -183,7 +183,7 @@ class QueryViewState extends State<QueryView> {
             // The padding at the sides is each piece's own, so a table and a board can run out to the card's edge
             // and scroll there (`margin-inline: calc(-1 * var(--glacier-space-3))` on the page).
             padding: EdgeInsets.only(top: look.space(2), bottom: look.space(3)),
-            decoration: BoxDecoration(color: look.paper2, border: Border.all(color: look.rule), borderRadius: BorderRadius.circular(look.cardRadius)),
+            decoration: BoxDecoration(color: look.paper2, border: Border.all(color: look.rule, width: look.hair), borderRadius: BorderRadius.circular(look.cardRadius)),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -517,7 +517,7 @@ class QueryRowLine extends StatelessWidget {
       child: Container(
         constraints: BoxConstraints(minHeight: look.space(10)),
         padding: EdgeInsets.symmetric(vertical: look.space(1)),
-        decoration: first ? null : BoxDecoration(border: Border(top: BorderSide(color: look.rule))),
+        decoration: first ? null : BoxDecoration(border: Border(top: BorderSide(color: look.rule, width: look.hair))),
         child: Stack(
           children: <Widget>[
             Row(
@@ -708,7 +708,7 @@ class _QueryTableState extends State<QueryTable> {
     final result = widget.result;
     final acts = widget.acts;
     final totals = <String, String>{for (final total in result.totals) total.field: total.text};
-    final rule = BorderSide(color: look.rule);
+    final rule = BorderSide(color: look.rule, width: look.hair);
     final keyed = result.columns.any((column) => column.field == 'id');
     final rows = <TableRow>[
       // .table thead th { padding-block: var(--glacier-space-1); font-size: var(--glacier-font-size-xs);
@@ -720,7 +720,7 @@ class _QueryTableState extends State<QueryTable> {
             Part(
               'th',
               child: Padding(
-                padding: EdgeInsets.fromLTRB(0, look.space(1), look.space(3), look.space(1) + 0.5),
+                padding: EdgeInsets.fromLTRB(0, look.space(1), look.space(3), look.space(1) + look.hair / 2),
                 child: Part('thWords', child: PageWords(column.label, look.sans(look.xs, weight: 'semibold', color: look.ink3, tabular: true), line: look.lineXs, softWrap: false)),
               ),
             ),
@@ -754,8 +754,8 @@ class _QueryTableState extends State<QueryTable> {
                 ),
               ),
               ends: look.space(2),
-              above: 0.5,
-              below: last ? 0 : 0.5,
+              above: look.hair / 2,
+              below: last ? 0 : look.hair / 2,
               fills: true,
             )
           else
@@ -770,8 +770,8 @@ class _QueryTableState extends State<QueryTable> {
                 child: cellView(look, row.cells[index], field: column.field, acts: acts, quiet: quiet, brief: false, workflow: row.workflow, parent: look.em) ?? const SizedBox.shrink(),
               ),
               ends: look.space(2),
-              above: 0.5,
-              below: last ? 0 : 0.5,
+              above: look.hair / 2,
+              below: last ? 0 : look.hair / 2,
             ),
       ];
       rows.add(
@@ -800,7 +800,7 @@ class _QueryTableState extends State<QueryTable> {
                     ? PageWords(totals[column.field]!, look.sans(look.em, weight: 'bold', color: look.ink3, tabular: true), line: look.line, softWrap: false)
                     : (index == 0 ? PageWords('Total', look.sans(look.em, color: look.ink3), line: look.line, softWrap: false) : null),
                 ends: look.space(2),
-                above: 0.5,
+                above: look.hair / 2,
                 below: 0,
               ),
           ],

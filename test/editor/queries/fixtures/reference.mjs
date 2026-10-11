@@ -23,7 +23,7 @@
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.
 import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.GLYPH_DEV ?? 'http://127.0.0.1:5280/';
 const OUT = new URL('./', import.meta.url).pathname;
@@ -88,9 +88,16 @@ CASES.push({ name: 'board-add', doc: 'board', add: true });
 CASES.push({ name: 'board-end', doc: 'board', scroll: 99999 });
 CASES.push({ name: 'table-end', doc: 'table', scroll: 99999 });
 
+// IN A PHONE'S OWN PIXELS. `GLYPH_RATIO=2.625 node …/reference.mjs` draws each note again as a phone lays it out
+// (Chromium launched at that scale lays out in device pixels; told a scale by Playwright it lays out in whole CSS
+// ones: test/editor/tables/fixtures/reference.mjs, docs/REFERENCES.md) and writes them to fixtures/phone/, a
+// window of 475, the Fold's cover screen.
+const RATIO = Number(process.env.GLYPH_RATIO ?? 0);
+const WIDTH = RATIO ? Math.floor(1248 / RATIO) : 390;
+if (RATIO) for (const out of [OUT, TICKETS_OUT]) mkdirSync(`${out}phone`, { recursive: true });
 const only = process.argv.slice(2);
-const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const browser = await chromium.launch(RATIO ? { args: [`--force-device-scale-factor=${RATIO}`, `--window-size=${WIDTH},2400`] } : {});
+const context = await browser.newContext(RATIO ? { viewport: null, hasTouch: true } : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await context.newPage();
 page.on('pageerror', (error) => console.log('page error:', error.message));
 await page.route('**/__queries_reference', (route) =>
@@ -141,9 +148,11 @@ await page.evaluate(async () => {
 
 for (const one of CASES) {
   if (only.length && !only.includes(one.name)) continue;
+  // In a phone's pixels: each note as it is, and the timeline left (its picture is Mermaid's, made for a width).
+  if (RATIO && (one.name !== one.doc || one.doc === 'gantt')) continue;
   const doc = DOCS[one.doc];
   const result = await page.evaluate(
-    async ({ one, doc, library }) => {
+    async ({ one, doc, library, WIDTH }) => {
       const { CM, Base, Prefs } = window;
       const theme = one.theme ?? 'light';
       // Chosen, not only painted: a timeline is drawn in the colours `preferences().theme` names (mermaid.ts
@@ -155,7 +164,7 @@ for (const one of CASES) {
       stage.replaceChildren();
       document.body.style.background = 'var(--glacier-bg)';
       const host = document.createElement('div');
-      host.style.cssText = 'inline-size: 390px; display: flex; flex-direction: column;';
+      host.style.cssText = `inline-size: ${WIDTH}px; display: flex; flex-direction: column;`;
       stage.append(host);
       const readOnly = one.readOnly || false;
       const editorHost = document.createElement('div');
@@ -320,16 +329,17 @@ for (const one of CASES) {
         lines,
         blocks,
         titles,
-        clip: { x: 0, y: 0, width: 390, height: Math.min(844, Math.ceil(view.dom.getBoundingClientRect().bottom - origin.top)) },
+        clip: { x: 0, y: 0, width: WIDTH, height: Math.min(2300, Math.ceil(view.dom.getBoundingClientRect().bottom - origin.top)) },
       };
     },
-    { one, doc, library: LIBRARY },
+    { one, doc, library: LIBRARY, WIDTH },
   );
   const { clip, ...kept } = result;
   kept.today = TODAY;
   kept.library = LIBRARY;
   kept.locale = await page.evaluate(() => navigator.language);
-  const out = one.doc.startsWith('ticket') ? TICKETS_OUT : OUT;
+  const out = `${one.doc.startsWith('ticket') ? TICKETS_OUT : OUT}${RATIO ? 'phone/' : ''}`;
+  if (RATIO) Object.assign(kept, { ratio: RATIO, screen: WIDTH });
   writeFileSync(`${out}${one.name}.json`, `${JSON.stringify(kept)}\n`);
   const last = Math.max(...kept.lines.map((l) => l.rect.bottom), ...kept.blocks.map((b) => b.rect.bottom), 1);
   writeFileSync(`${out}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, Math.min(clip.height, Math.ceil(last) + 24)) } }));

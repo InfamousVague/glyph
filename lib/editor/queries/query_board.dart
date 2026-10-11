@@ -194,7 +194,7 @@ class _QueryBoardState extends State<QueryBoard> {
       'card',
       child: Container(
         padding: EdgeInsets.symmetric(horizontal: look.space(3), vertical: look.space(2)),
-        decoration: BoxDecoration(color: done ? null : look.paper, border: Border.all(color: look.rule), borderRadius: BorderRadius.circular(look.t.radius('md'))),
+        decoration: BoxDecoration(color: done ? null : look.paper, border: Border.all(color: look.rule, width: look.hair), borderRadius: BorderRadius.circular(look.t.radius('md'))),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,

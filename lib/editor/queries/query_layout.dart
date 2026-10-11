@@ -22,9 +22,15 @@ class Part extends MetaData {
   String get name => metaData as String;
 }
 
+/// The device pixels to a CSS one the page is laid out in: 1 on a desktop, a phone's own on a phone (2.625 on the
+/// Fold's cover screen), where a line's leading is a sixty-fourth of a DEVICE pixel and a face's ascent a whole
+/// one. One for the whole app, as the screen is; said by whoever makes a look for what is drawn
+/// (`QueryLook`, from the tokens' `css.lineDpr`) before anything here is asked.
+double pageRatio = 1;
+
 /// A face's ascent and descent at a size, each rounded to a whole pixel, as Blink rounds them before it sets a line.
 ({double ascent, double descent}) glyphBox(TextStyle style) {
-  final key = (style.fontFamily, style.fontSize, style.fontWeight, style.fontVariations?.join(','));
+  final key = (style.fontFamily, style.fontSize, style.fontWeight, style.fontVariations?.join(','), pageRatio);
   return _glyphs[key] ??= () {
     // The face alone, with no line height of its own: the ascent and descent are the font's.
     final face = TextStyle(inherit: false, fontFamily: style.fontFamily, fontFamilyFallback: style.fontFamilyFallback, fontSize: style.fontSize, fontWeight: style.fontWeight, fontVariations: style.fontVariations);
@@ -34,7 +40,19 @@ class Part extends MetaData {
       textScaler: TextScaler.noScaling,
     )..layout();
     final line = painter.computeLineMetrics().first;
-    final box = (ascent: line.ascent.roundToDouble(), descent: line.descent.roundToDouble());
+    final ratio = pageRatio;
+    var box = (ascent: line.ascent.roundToDouble(), descent: line.descent.roundToDouble());
+    if (ratio != 1) {
+      // In the phone's own pixels, and a descent rounded down takes a pixel from the ascent (looks/look.dart
+      // `_box`, measured beside a phone's page).
+      final exact = line.descent * ratio;
+      var up = (line.ascent * ratio).roundToDouble(), down = exact.roundToDouble();
+      if (down < exact - 1e-4) {
+        down += 1;
+        up -= 1;
+      }
+      box = (ascent: up / ratio, descent: down / ratio);
+    }
     painter.dispose();
     return box;
   }();
@@ -46,13 +64,24 @@ final Map<Object, ({double ascent, double descent})> _glyphs = <Object, ({double
 /// the whole pixel below, then the ascent.
 double pageBaseline(TextStyle style, double line) {
   final glyph = glyphBox(style);
-  return ((line - glyph.ascent - glyph.descent) / 2).floorToDouble() + glyph.ascent;
+  return ((line - glyph.ascent - glyph.descent) * pageRatio / 2 + 1e-6).floorToDouble() / pageRatio + glyph.ascent;
 }
 
 /// How tall Blink makes a line of `line-height: [multiple]` at [px]: the type's size to the nearest sixty-fourth,
 /// times the multiple, down to the sixty-fourth below. 1.4 at 13.3948px is 18.734, where the two multiplied are
 /// 18.753; over the rows of a table the difference shows.
-double pageLine(double px, double multiple) => ((multiple + 1e-9) * (px * 64).roundToDouble()).floorToDouble() / 64;
+/// On a phone both sixty-fourths are of the phone's own pixels ([pageRatio]).
+double pageLine(double px, double multiple) => ((multiple + 1e-9) * (px * pageRatio * 64).roundToDouble()).floorToDouble() / 64 / pageRatio;
+
+/// A length of CSS pixels as the page has it: down to the sixty-fourth of one of the pixels it is laid out in.
+double pageFloor(double value) => (value * pageRatio * 64 + 1e-6).floorToDouble() / 64 / pageRatio;
+
+/// A border [width] CSS pixels wide as the page draws it: a whole number of the pixels it is laid out in, down,
+/// and never under one. `1px` is 1 on a desktop and 0.762 (two device pixels) on a phone at 2.625.
+double pageRule([double width = 1]) {
+  final device = (width * pageRatio + 1e-6).floorToDouble();
+  return (device < 1 ? 1 : device) / pageRatio;
+}
 
 /// Words set as the page sets them: each line [line] tall to the fraction (`font-size` times `line-height`), and
 /// the first line's baseline where Blink has it ([pageBaseline]), which is what a row that lines its items up on

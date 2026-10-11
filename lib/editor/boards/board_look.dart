@@ -317,7 +317,9 @@ class BoardLook {
   // '.cm-boardSplit:focus-visible, .cm-boardSplit[data-dragging]': { background: 'var(--glacier-accent-solid, …)' }
   double get splitAbove => _fl(0.3 * note);
   double get splitBelow => _fl(note);
-  double get splitLine => t.len('glacier-hairline');
+  // A height, not a border's width: one CSS pixel on any screen, where the tokens answer `--glacier-hairline` as a
+  // rule is drawn (two device pixels of a phone's 2.625, 0.762px).
+  double get splitLine => 1;
   double get splitReachAbove => 0.7 * note;
   Color get splitInk => t.color('glacier-border-subtle');
   Color get splitInkHeld => t.color('glacier-accent-solid');

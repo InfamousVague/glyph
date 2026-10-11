@@ -16,7 +16,7 @@ import 'package:glacier/glacier.dart';
 import '../boards/board_look.dart' show BoardLook;
 import '../looks/look.dart' show Look, LookElement, layoutUnitFloor;
 import '../tables/table_layout.dart' show WordsFace, blinkLineHeight;
-import 'query_layout.dart' show pageLine;
+import 'query_layout.dart' show pageFloor, pageLine, pageRatio, pageRule;
 
 export '../boards/board_look.dart' show buttonType;
 
@@ -30,7 +30,10 @@ class QueryLook {
       ink4 = t.color('app-ink-4'),
       paper = t.color('app-paper'),
       paper2 = t.color('app-paper-2'),
-      rule = t.color('app-rule');
+      rule = t.color('app-rule') {
+    // The pixels this page is laid out in, for every length worked out after this (query_layout.dart).
+    pageRatio = t.css.lineDpr > 0 ? t.css.lineDpr : 1;
+  }
 
   /// The look for the editor [context] is in: its gutter and its note's type ([Look.env]), or the page's own.
   factory QueryLook.of(BuildContext context, Look? look) {
@@ -75,7 +78,7 @@ class QueryLook {
   final Color rule;
 
   /// `var(--glacier-space-n)`, as Blink takes a padding: down to the sixty-fourth below.
-  double space(int step) => layoutUnitFloor(t.space(step));
+  double space(int step) => pageFloor(t.space(step));
 
   /// `line-height: 1.4`, the card's.
   static const double leading = 1.4;
@@ -102,7 +105,10 @@ class QueryLook {
   TextStyle mono(double px, {String weight = 'regular', Color? color, double tracking = 0}) => t.textAt(px, weight: weight, mono: true, color: color ?? ink, height: leading, tracking: coding ? 0 : tracking);
 
   // '.cm-query': { paddingBlock: '0.4em', paddingInline: 'var(--cm-board-bleed, var(--app-gutter, 1rem))' }
-  double get blockEnds => layoutUnitFloor(0.4 * note);
+  double get blockEnds => pageFloor(0.4 * note);
+
+  /// `border: 1px solid`, as wide as the page draws it.
+  double get hair => pageRule();
 
   // .query { margin-block: var(--glacier-space-1) var(--glacier-space-3);
   //   padding: var(--glacier-space-2) var(--glacier-space-3) var(--glacier-space-3);
@@ -110,7 +116,7 @@ class QueryLook {
   double get cardRadius => t.radius('lg');
 
   /// The room inside the card, across: the block's width less the note's indent, the card's border and its padding.
-  double inner(double block) => block - 2 * bleed - 2 - 2 * space(3);
+  double inner(double block) => block - 2 * bleed - 2 * hair - 2 * space(3);
 }
 
 /// The ```board's own look ([BoardLook]) for the parts a query's board borrows from it whole: the line under the

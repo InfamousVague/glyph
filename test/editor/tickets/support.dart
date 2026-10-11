@@ -50,6 +50,8 @@ Future<EditorView> pumpTickets(
   String locale = 'en-US',
   List<Extension> more = const <Extension>[],
   bool shadows = false,
+  double screen = 390,
+  double layoutRatio = 1,
 }) async {
   final view = EditorView(
     wholeDocument: true,
@@ -72,17 +74,19 @@ Future<EditorView> pumpTickets(
   view.focusRequest = () => view.setFocused(true);
   await pumpApp(
     tester,
+    size: Size(screen, layoutRatio == 1 ? 844 : 2300),
     prefs: AppPreferences(theme: theme),
-    ratio: 2,
+    ratio: layoutRatio == 1 ? 2 : layoutRatio,
+    measuredAt: layoutRatio,
     home: Builder(
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(devicePixelRatio: 1),
+        data: MediaQuery.of(context).copyWith(devicePixelRatio: layoutRatio),
         child: BackScope(
           child: ColoredBox(
             color: context.tokens.color('glacier-bg'),
             child: Align(
               alignment: Alignment.topLeft,
-              child: SizedBox(width: 390, child: SingleChildScrollView(child: EditorColumn(view: view))),
+              child: SizedBox(width: screen, child: SingleChildScrollView(child: EditorColumn(view: view))),
             ),
           ),
         ),

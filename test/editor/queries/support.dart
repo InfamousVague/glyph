@@ -73,8 +73,17 @@ class PageFixture {
     return Rect.fromLTRB((m['left'] as num).toDouble(), (m['top'] as num).toDouble(), (m['right'] as num).toDouble(), (m['bottom'] as num).toDouble());
   }
 
-  static List<String> names(String folder) =>
-      Directory(folder).listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => f.uri.pathSegments.last.replaceAll('.json', '')).toList()..sort();
+  /// Every case of `folder`, and after them those drawn in a phone's own pixels (`phone/<name>`).
+  static List<String> names(String folder) => <String>[
+    for (final under in const <String>['', 'phone/'])
+      if (Directory('$folder/$under').existsSync())
+        ...(Directory('$folder/$under').listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => '$under${f.uri.pathSegments.last.replaceAll('.json', '')}').toList()..sort()),
+  ];
+
+  /// The screen the page was drawn on, and the device pixels to a CSS one it was LAID OUT in: 390 and 1 for a
+  /// browser told a scale to paint at, the phone's own for a case in `phone/` (Chromium launched at the scale).
+  double get screen => ((json['screen'] ?? 390) as num).toDouble();
+  double get ratio => ((json['ratio'] ?? 1) as num).toDouble();
 }
 
 const String queryFixtures = 'test/editor/queries/fixtures';
@@ -114,6 +123,8 @@ Future<EditorView> pumpQueries(
   String locale = 'en-US',
   List<Extension> more = const <Extension>[],
   bool shadows = false,
+  double screen = 390,
+  double layoutRatio = 1,
 }) async {
   rememberBoardHeights = false;
   queriesWatchMidnight = false;
@@ -131,18 +142,20 @@ Future<EditorView> pumpQueries(
   view.focusRequest = () => view.setFocused(true);
   await pumpApp(
     tester,
+    size: Size(screen, layoutRatio == 1 ? 844 : 2300),
     prefs: AppPreferences(theme: theme),
-    ratio: 2,
+    ratio: layoutRatio == 1 ? 2 : layoutRatio,
+    measuredAt: layoutRatio,
     home: Builder(
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(devicePixelRatio: 1),
+        data: MediaQuery.of(context).copyWith(devicePixelRatio: layoutRatio),
         // A sheet a query opens (the builder, a field's picker) answers the phone's back through this.
         child: BackScope(
           child: ColoredBox(
             color: context.tokens.color('glacier-bg'),
             child: Align(
               alignment: Alignment.topLeft,
-              child: SizedBox(width: 390, child: SingleChildScrollView(child: EditorColumn(view: view))),
+              child: SizedBox(width: screen, child: SingleChildScrollView(child: EditorColumn(view: view))),
             ),
           ),
         ),
