@@ -77,18 +77,22 @@ void main() {
       home: Align(alignment: Alignment.topLeft, child: SingleChildScrollView(child: EditorColumn(view: view))),
     );
     expect(tester.takeException(), isNull);
+    // Each piece is a widget of its own in the line, a `Math` each, and the line sets them: more than one row of
+    // them, none past the page's edge.
+    final count = formulaOf(note.substring(1, note.indexOf(r'$', 1)), false).parts.length;
     final drawn = find.byType(DrawnMaths);
-    expect(drawn, findsNWidgets(2));
-    final wide = tester.getSize(drawn.first), short = tester.getSize(drawn.last);
-    // In pieces, each a `Math` of its own, and more than one row of them: at least twice the height of a formula
-    // on one row, and no wider than the page.
-    expect(find.descendant(of: drawn.first, matching: find.byType(Math)), findsNWidgets(formulaOf(note.substring(1, note.indexOf(r'$', 1)), false).parts.length));
-    expect(wide.height, greaterThan(short.height * 1.9));
-    expect(wide.width, lessThanOrEqualTo(390));
+    expect(drawn, findsNWidgets(count + 2));
+    final boxes = <Rect>[for (var i = 0; i < count; i++) tester.getRect(find.descendant(of: drawn.at(i), matching: find.byType(Math)))];
+    final tops = <double>{for (final box in boxes) box.top.roundToDouble()};
+    expect(tops.length, greaterThan(1), reason: 'the pieces are on more than one row');
+    expect(boxes.every((box) => box.right <= 390), isTrue);
+    for (var i = 1; i < boxes.length; i++) {
+      expect(boxes[i].top >= boxes[i - 1].top - 20, isTrue, reason: 'in order, down the page');
+    }
     // And it is so at once: another frame moves nothing.
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
-    expect(tester.getSize(drawn.first), wide);
+    expect(<Rect>[for (var i = 0; i < count; i++) tester.getRect(find.descendant(of: drawn.at(i), matching: find.byType(Math)))], boxes);
     // `pumpApp` lets shadows be drawn, and a test must leave them as it found them.
     debugDisableShadows = true;
   });

@@ -48,7 +48,7 @@ two lines (6,156, in runs of 684), a bar that should not be there (336, in a run
 | 10 | Editor: Markdown (headings, lists, quotes, callouts, front matter, definitions, inline marks) | R `test/editor/view/reference_test.dart` (`tool/editor_reference.mjs`, 53 cases: lines, runs, `coordsAtPos`, `posAtCoords`) | L; D for five notes | 390 | Pictures only to look at. 704. Four `-inter` cases wait on JetBrains Mono. |
 | 10 | **Fenced code**: the card, its ground, corners, padding, lines, where it wraps, the seven themes on both sides | **R P** `test/editor/blocks/reference_test.dart` (`tool/blocks_reference.mjs`, `code-*`: 19 cases); tokens by the web's parsers `test/editor/code/conformance_test.dart` | L, D | 390, 704 | There is no language label on the page and no sideways scroll: a block wraps. Nothing left. |
 | 10 | **A word too long for its line** (an address, a long string): where it wraps, where the caret stands | **R P** the same (`long-words*`, `code-places*`, with `coordsAtPos` at every position) | L | 390, 704 | Dark (nothing in it is a colour). |
-| 10 | **Maths**: in a line, set apart, alone on its line, numbered rows, a tag, the source with the caret in it, one that cannot be read | **R P** the same (`maths*`: 13 cases held); heights by KaTeX `test/editor/maths/katex_test.dart` (130 pieces) | L, D | 390, 704 | `maths-larger`: a formula that does not fit what is left of its line (the page ends the line between two pieces of it; here it goes down whole). `maths-overwide`: not copied, see below. A long press's panel. |
+| 10 | **Maths**: in a line, set apart, alone on its line, numbered rows, a tag, the source with the caret in it, one that cannot be read | **R P** the same (`maths*`: 14 cases held, and two in a phone's pixels); heights by KaTeX `test/editor/maths/katex_test.dart` (130 pieces) | L, D | 390, 704 | `maths-overwide`: not copied, see below. A long press's panel. |
 | 10 | **A diagram's box**: its words before its picture, its mistake, nothing to draw it, its picture's place | **R P** the same (`mermaid-*`: 10 cases); the picture itself against the web's, by hand, `tool/diagram_reference.mjs` | L, D | 390, 704 | The picture's own pixels are compared by the tool when it is run, and by no test. |
 | 10 | A table drawn | R `test/editor/tables/reference_test.dart` (26 cases) | L, D | 390 | 704; "+ Column", "+ Row" pressed. Pictures to look at. |
 | 11 | The twelve marks, the five effects, the smoke | R `test/editor/marks/reference_test.dart`; P heat, haze and frost `effects_parity_test.dart`; the smoke `test/art/wisp_parity_test.dart` (`tool/wisp_reference.mjs`) | L, D | 390 | Wave, shimmer and haunt by picture (they are held at three moments by rectangles only); a mark's note panel; 704. |
@@ -97,6 +97,7 @@ What it found, each fixed from the page's own rule and not by its numbers:
 | A block of code in a quote had the quote's bar down its card. | a bar 3 px wide | none (`background` is the shorthand) | `lib/editor/looks/markdown_look.dart` |
 | A diagram's words stood on whole-pixel lines, and its reason a pixel and a quarter low. | four lines 92 px | 90, each line's letters where the page's are | `lib/editor/diagrams/diagrams.dart`, `looks/note_face.dart` |
 | A line box's height: the type to the nearest sixty-fourth, times the leading, down. | a sixty-fourth out for two sizes in five (forty lines of code at 704: half a pixel) | Blink's rule, 836 sizes of 836 | `lib/editor/looks/look.dart` `lineBoxHeight` |
+| A formula in a line that does not fit what is left of the line went to the next line whole. The page ends the line between two pieces of it (after a relation or an operator). | `## Energy, $E = mc^2$` at the larger size: the formula on the second line | `E =` on the first, `mc²` on the second, to 0.10px (`maths-larger`, `phone/maths`) | `lib/editor/maths/maths.dart` `MathsWidget.piece` (second batch) |
 | The faces a formula is drawn in are KaTeX 0.16's, as the page's. | an earlier cut | the page's twenty files | `packages/flutter_math_fork` (README 23) |
 
 And one thing about the tests themselves: a test's window is at three device pixels to one whatever the test says
@@ -116,44 +117,62 @@ port against itself.
   the page's `body` (mermaid.ts asks `mermaid.render` without `suppressErrorRendering`). The tool cuts its picture
   above it. Also `../glyph`'s to mend.
 
+## In a phone's own pixels (2026-10-11, the second batch)
+
+Every reference was Chromium told two device pixels to one by Playwright, which only PAINTS at that scale: the page
+is laid out in whole CSS pixels (a border of 0.35em at 10.8px is 3px at any factor). A phone's page is laid out in
+the phone's pixels: `border: 1px` is two of them at 2.625 (0.762px), a line's leading a sixty-fourth of one, a
+face's ascent a whole one. Chromium LAUNCHED at a scale lays out that way:
+
+| Chromium | `border-top: 0.35em` at 10.8px | a line of 14.9385px at 1.6 |
+| --- | --- | --- |
+| Playwright's `deviceScaleFactor: 2` or `2.625` | 3px | 23.890625 |
+| launched with `--force-device-scale-factor=2.625 --window-size=475,…`, `viewport: null` | 3.42857px (nine device pixels) | 23.904762 (4016 sixty-fourths of a device pixel) |
+
+Five tools take it (`GLYPH_RATIO=2.625 node <tool>`: a window of 475, the Fold's cover screen, 1248 across at
+2.625) and write to `fixtures/phone/`; their tests draw those at 2.625 (`measuredAt`, test/support/render.dart).
+The Fold unfolded is 1848 across at the same 2.625 (704), so the ratio is one; only the width differs.
+
+| Tool | Cases in `phone/` | Before | After |
+| --- | --- | --- | --- |
+| `test/editor/tables/fixtures/reference.mjs` | 18 | 0.88 to 1.58px out; a table of four rows 1.13px tall | worst 0.079px |
+| `test/editor/queries/fixtures/reference.mjs` (queries) | 15 | a list card 0.60px tall, a table card 0.96; pieces 1.16 to 1.97px out | both cards to 0.01px; worst piece 0.40px |
+| the same (tickets) | 3 | within half a pixel already (0.48) | the same |
+| `test/editor/boards/fixtures/reference.mjs` | 9 | a card's and a lane's words 0.55 to 0.87px out | worst 0.025px |
+| `tool/blocks_reference.mjs` | 7, 5 held | code and short formulas held as they stood | boxes to 0.40px, carets to 0.10 |
+
+What was wrong was the same in each: a rule one CSS pixel wide, lengths to a sixty-fourth of a CSS pixel, and a
+face's ascent and half-leading in whole CSS pixels (`WordsFace`, `blinkLineHeight`, `pageLine`, `glyphBox`, each
+look's own lengths). They are the pixels the page is laid out in now (the tokens' `css.lineDpr`).
+
+**What the instrument is not.** It is a Mac's Chromium. A phone's (Android's, and Linux's) rounds a face's
+ascent and descent another way where subpixel text is on: a descent rounded down gets a pixel from the ascent
+(`lib/editor/looks/look.dart` `_box`, measured beside the emulator); a Mac's rounds each to the nearest. A line
+made of two boxes of different sizes (a heading's tight box in the line's own, wrapped onto several visual lines)
+can be a device pixel a visual line different between the two: `phone/long-words` is measured and not held for
+that, and says so. Where the two disagree, only the phone can say; the port keeps the phone's rule.
+
 ## Measured beside the page on a phone, and where each stands
 
-The side-by-side walk (an emulator at 1248 x 1972, 2.625 device pixels to one) measured these inside a note. A
-reference here is Chromium at two pixels to one with its layout in whole CSS pixels, so what is a matter of the
-phone's own pixels is not held by any of them yet (see 1 below).
-
-| Measured on the phone | Stands |
+| Measured on the phone (1248 x 1972 at 2.625) | Stands |
 | --- | --- |
-| `$$ E = mc^2 $$` set apart: 105 px here, 108.37 on the page, and everything under it 4 or 5 px high | **Fixed and held**: the line of a short formula is two faces' boxes (`maths-rows`, to 0.03 px at a phone's width and the Fold's). Not yet seen again on the phone. |
-| A home card of a note with maths in a line: its first line 2 or 3 px low | **Probably the formula's size** (a tree first drawn at the note's size and then on the card, or the other way: fixed, held by `katex_test.dart`). No reference draws a card with maths in it. |
-| A table of three rows 3 px taller | Not held. `test/editor/tables` agrees to half a CSS pixel at two to one; this is the phone's pixels. |
-| A query's list rows +1 to +3 px, its table +3 to +6 down four queries; a board's cards 3 or 4 px high | Not held, the same. |
-| Code: the lines' boxes right, the letters a pixel short by column 40 | Not held. Here a letter's advance is 0.009 px LONG a letter at two to one (a third of a pixel by column 40, `long-words-fold`), so this too is the phone's: an advance rounded there. |
+| A table of three rows 3 device px taller | **Fixed, held** (`tables/fixtures/phone/three`: 0.019px). |
+| A query's list rows +1 to +3, its table +3 to +6 down four queries | **Fixed, held** (`queries/fixtures/phone/`: the cards' heights to 0.01px). |
+| A board's cards 3 or 4 px high against the text above | **Fixed, held** (`boards/fixtures/phone/`: 0.025px). |
+| `$$ E = mc^2 $$` 105 against 108.37, everything under it 4 or 5 px high | **Fixed, held** at two to one and in the phone's pixels (`maths-rows`, `phone/maths-rows`). |
+| Code: the letters a pixel short by column 40 | **Not this engine's advances.** In the phone's pixels a line of code's last letter is where the page's is to a tenth of a pixel (`phone/code-places`, the caret at every position). What was seen is the phone's own drawing of the face (Android's WebView against Flutter's on the same glyphs: hinting, or where a glyph's pixels are put), and wants measuring on the phone. |
+| A home card of a note with maths in a line: its first line 2 or 3 px low | **Probably fixed** (a formula kept the size it was first drawn at: batch 1); no reference draws a card with maths in it yet. |
 
 ## Still unheld, most seen first
 
-0. **The phone's own pixels.** Every reference is drawn with Chromium told two device pixels to one by Playwright,
-   which lays out in whole CSS pixels; a phone's page is laid out in its own (2.625 on the Fold's emulator: a
-   border is a whole number of THEM, a line's leading a sixty-fourth of one). `lib/editor/looks/look.dart` has the
-   arithmetic for it (`lineDpr`, measured beside the emulator), and nothing made by a tool holds it. The
-   instrument is there, measured 2026-10-11 on one page (`font-size: 10.8px; border-top: 0.35em solid`, and a
-   line of 14.9385 px at 1.6):
-
-   | Chromium | the border | the line |
-   | --- | --- | --- |
-   | Playwright's `deviceScaleFactor: 2` | 3px | 23.890625 |
-   | Playwright's `deviceScaleFactor: 2.625` | 3px | 23.890625 |
-   | launched with `--force-device-scale-factor=2.625 --window-size=475,751`, `viewport: null` | 3.42857px (nine device pixels) | 23.904762 (4016 sixty-fourths of a device pixel) |
-
-   The third is the phone's layout. A tool that takes a ratio that way, fixtures named for it, and a test that
-   says `measuredAt: 2.625` (test/support/render.dart) and takes its picture at 2.625 would hold the rows above;
-   `tool/blocks_reference.mjs` is the place to begin, then the tables', the queries' and the boards'.
-
+0. **The phone's own pixels for the rest of the editor.** Tables, queries, tickets, boards and a note's blocks
+   are drawn that way; the base editor's own cases (`tool/editor_reference.mjs`), the marks, the items, the media
+   (whose words in a box are still set in whole CSS pixels: `lib/editor/media/inline_box.dart`, and with them a
+   diagram's words, `phone/mermaid-missing`), the +, the band and the find bar are not. Each tool takes the same
+   dozen lines.
 1. **The Fold's width for everything but the note's blocks and the aside.** Each editor reference would take the
    Fold as `tool/blocks_reference.mjs` takes it: a second window of 704, the same notes. The `-inter` and `-larger`
    cases show the tools already carry such variants.
-2. **A formula that does not fit what is left of its line.** It needs each piece of a formula to be a thing of its
-   own in the line (`Formula.parts` are the pieces already), so the line can end between two.
 3. **Comments.** No tool draws the fence's threads, a thread's card or the sheet.
 4. **More's pages, a ticket's field pages, a chip's page in the band, a query's builder.** Each is a sheet over a
    note; `test/note/reference/note_reference.mjs` opens More and measures its first page, and is where the others

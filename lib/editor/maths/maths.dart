@@ -74,7 +74,15 @@ const String mathsPanel = 'cm-mathsPanel';
 
 /// A formula in place of its source.
 class MathsWidget extends EditorWidget implements ClassedBlockWidget {
-  const MathsWidget(this.tex, this.source, this.display, {this.opens = false, this.block = false, this.first = 0});
+  const MathsWidget(this.tex, this.source, this.display, {this.opens = false, this.block = false, this.first = 0, this.piece});
+
+  /// Which piece of the formula this draws, where a formula in a line is drawn piece by piece; null for the whole.
+  ///
+  /// KaTeX's markup is a box for each piece of a formula (up to and with a relation or an operator at its top
+  /// level: `Formula.parts`), and a line may end between two of them: `E = mc^2` at a line's end keeps `E =`
+  /// there and takes `mc^2` down. So a formula of more than one piece in a line is as many widgets, the first in
+  /// the source's place and the rest after it, and the line that sets them ends where it must.
+  final int? piece;
 
   /// The number of the formula's first numbered row, counted through the note from its top; 0 for a formula
   /// that numbers none.
@@ -102,13 +110,13 @@ class MathsWidget extends EditorWidget implements ClassedBlockWidget {
   /// when that moves, so every formula below a letter typed is drawn again for the letter. Here where it is is
   /// asked when it is pressed ([_placeOf]), and a formula that only moved is the formula it was.
   @override
-  bool eq(MathsWidget other) => other.tex == tex && other.display == display && other.opens == opens && other.block == block && other.first == first && other.source == source;
+  bool eq(MathsWidget other) => other.tex == tex && other.display == display && other.opens == opens && other.block == block && other.first == first && other.source == source && other.piece == piece;
 
   @override
   double get estimatedHeight => display ? 64 : -1;
 
   @override
-  Widget build(BuildContext context) => DrawnMaths(tex: tex, source: source, display: display, opens: opens, block: block, first: first);
+  Widget build(BuildContext context) => DrawnMaths(tex: tex, source: source, display: display, opens: opens, block: block, first: first, piece: piece);
 
   /// `ignoreEvent(event) { return event.type !== 'mousedown' }`: a wide formula scrolled sideways is the
   /// formula's. Where the note can be changed the formula answers a press itself (`openOnPress`); where it
@@ -156,7 +164,10 @@ const FaceMetrics _katexMain = FaceMetrics(0.903, 0.272), _katexMath = FaceMetri
 
 /// The formula as a widget: drawn, or its source where it cannot be.
 class DrawnMaths extends StatefulWidget {
-  const DrawnMaths({super.key, required this.tex, required this.source, required this.display, this.opens = false, this.block = false, this.first = 0});
+  const DrawnMaths({super.key, required this.tex, required this.source, required this.display, this.opens = false, this.block = false, this.first = 0, this.piece});
+
+  /// Which piece of the formula this is ([MathsWidget.piece]); null for the whole of it.
+  final int? piece;
 
   final String tex, source;
   final bool display, opens, block;
@@ -287,7 +298,10 @@ class _DrawnMathsState extends State<DrawnMaths> {
           }
         }
       }
-      child = display || formula.parts.length < 2
+      final piece = widget.piece;
+      child = piece != null && piece < formula.parts.length
+          ? _MathsLine(above: box.above, below: box.below, children: <Widget>[Math(ast: formula.parts[piece], options: options)])
+          : display || formula.parts.length < 2
           ? _MathsLine(
               above: box.above,
               below: box.below,
@@ -336,7 +350,8 @@ class _DrawnMathsState extends State<DrawnMaths> {
       // own box (measured: a line 131.625 high round a formula 75.781 high in lines of 27.922).
       child = _BufferLines(line: run.above + run.below, below: run.below, child: child);
     }
-    child = Semantics(label: tex, child: ExcludeSemantics(child: child));
+    // A formula in pieces is read once, at its first.
+    child = (widget.piece ?? 0) == 0 ? Semantics(label: tex, child: ExcludeSemantics(child: child)) : ExcludeSemantics(child: child);
     if (opens && view is EditorView) {
       // `openOnPress`: a press puts the caret on the formula, and its source is there to edit.
       child = MouseRegion(
@@ -852,7 +867,17 @@ _Maths _build(EditorState state) {
       final takes = alone ? _numbersOf(tex) : 0, first = takes > 0 ? numbers + 1 : 0;
       numbers += takes;
       if (shown) continue;
-      ranges.add(Decoration.replace(widget: MathsWidget(tex, source, alone, opens: editable, first: first)).range(from, to));
+      // In a line, piece by piece where it has pieces: the first in the source's place, the rest before whatever
+      // follows it (and before the caret there, which stands after the whole formula).
+      final pieces = alone ? 1 : formulaOf(tex, false).parts.length;
+      if (pieces < 2) {
+        ranges.add(Decoration.replace(widget: MathsWidget(tex, source, alone, opens: editable, first: first)).range(from, to));
+      } else {
+        ranges.add(Decoration.replace(widget: MathsWidget(tex, source, false, opens: editable, piece: 0)).range(from, to));
+        for (var piece = 1; piece < pieces; piece++) {
+          ranges.add(Decoration.widget(widget: MathsWidget(tex, source, false, opens: editable, piece: piece), side: piece - pieces).range(to));
+        }
+      }
     }
   }
   final set = ranges.isEmpty ? Decoration.none : Decoration.set(ranges);

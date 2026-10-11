@@ -34,7 +34,8 @@ One that cannot be read: $\frac{a$ here.
 /// The formulas drawn, in the note's order: each one's own drawing (the first `Math` under it; the others are
 /// its pieces, for a line it does not fit).
 List<Math> formulas(WidgetTester tester) => <Math>[
-  for (final element in find.byType(DrawnMaths).evaluate())
+  // (A formula in a line is a widget for each of its pieces; a formula is counted at its first.)
+  for (final element in find.byType(DrawnMaths).evaluate().where((element) => ((element.widget as DrawnMaths).piece ?? 0) == 0))
     if (find.descendant(of: find.byWidget(element.widget), matching: find.byType(Math)).evaluate().isNotEmpty)
       find.descendant(of: find.byWidget(element.widget), matching: find.byType(Math)).evaluate().first.widget as Math,
 ];
@@ -67,7 +68,7 @@ void main() {
     final look = view.look!;
     final body = look.env.body, ink = look.env.t.color('glacier-text');
     final drawn = formulas(tester);
-    expect(find.byType(DrawnMaths), findsNWidgets(7));
+    expect(find.byType(DrawnMaths).evaluate().where((element) => ((element.widget as DrawnMaths).piece ?? 0) == 0), hasLength(7));
     expect(drawn, hasLength(6), reason: 'every one but the one that cannot be read');
     // In the heading: 1.05 of the note's size, not the heading's. The heading's size is the highlighter's class
     // on its words, and the highlighter's marks are inside every other decoration (`Prec.high`), so they are not

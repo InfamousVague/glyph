@@ -19,7 +19,19 @@ List<(int from, int to, MathsWidget widget, bool block)> drawn(EditorView view) 
   final out = <(int, int, MathsWidget, bool)>[];
   drawnMathsIn(view.state).between(0, view.state.doc.length, (from, to, value) {
     final widget = value.widget;
-    if (widget is MathsWidget) out.add((from, to, widget, value is PointDecoration && value.block));
+    // A formula in a line is a widget for each of its pieces; it is counted at its first ([pieces] has the rest).
+    if (widget is MathsWidget && (widget.piece ?? 0) == 0) out.add((from, to, widget, value is PointDecoration && value.block));
+    return null;
+  });
+  return out;
+}
+
+/// The pieces of formulas in lines after each one's first: where each stands, and which piece it is.
+List<(int at, int piece)> pieces(EditorView view) {
+  final out = <(int, int)>[];
+  drawnMathsIn(view.state).between(0, view.state.doc.length, (from, to, value) {
+    final widget = value.widget;
+    if (widget is MathsWidget && (widget.piece ?? 0) > 0) out.add((from, widget.piece!));
     return null;
   });
   return out;
@@ -29,6 +41,18 @@ void main() {
   // A view asks the painting layer for its caches as it is made.
   TestWidgetsFlutterBinding.ensureInitialized();
   group('maths, drawn', () {
+    test('draws a formula in a line piece by piece, so a line can end between two as the page\'s does', () {
+      // `x^2 +` and `y`: the first where the source was, the second after it, before whatever follows.
+      final view = viewOf(r'when $x^2 + y$ holds');
+      expect(drawn(view).single.$3.piece, 0);
+      expect(pieces(view), <(int, int)>[(14, 1)]);
+      // One piece is the formula whole, and so is a formula set apart.
+      final whole = viewOf('a \$x\$ b\n\n\$\$a + b\$\$\n');
+      expect(drawn(whole).map((found) => found.$3.piece), <int?>[null, null]);
+      expect(pieces(whole), isEmpty);
+    });
+
+
     test('draws a formula in a line as the formula, its dollar signs gone', () {
       final found = drawn(viewOf(r'when $x^2 + y$ holds'));
       expect(found, hasLength(1));
