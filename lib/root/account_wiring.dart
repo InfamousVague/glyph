@@ -1,11 +1,14 @@
 /// The account, made for this device: what `App.tsx` gets by importing `core/account`, `core/sync`, `core/orgs`,
 /// `core/notifications` and `share/`, put together once by whoever starts the app.
 ///
-/// **Off unless the build is told where its service is.** There is no default base (docs/STAGE7.md: a development
-/// build never talks to ghostmarkdown.com). A build is given one with `--dart-define=GHOST_API=http://…`
-/// ([ghostApiDefine]); with none, [accountBase] answers null, nothing here is made, and the app has no account
-/// object at all: the signed-out screens, whose way in says so ([noServiceWayIn]). A base that names the real
-/// service is refused in a debug build here, before an [Api] is made, and by the [Api]'s own assert after.
+/// **A release build talks to the real service, and no other build ever does.** A release with nothing said is on
+/// [realServiceBase], the address the Tauri app's page was built with (`src/app/core/account/api.ts`, `API_BASE`):
+/// it is the app people sign in to (Matt, 2026-10-11: "release builds always talk to the real service"). A build
+/// that is not a release has no default (docs/STAGE7.md: a development build never talks to ghostmarkdown.com): it
+/// is given a base with `--dart-define=GHOST_API=http://…` ([ghostApiDefine]), and with none [accountBase] answers
+/// null, nothing here is made, and the app has no account object at all: the signed-out screens, whose way in says
+/// so ([noServiceWayIn]). A base that names the real service is refused in a build that is not a release here,
+/// before an [Api] is made, and by the [Api]'s own assert after.
 ///
 /// What is made ([WiredAccount.make]), each the real one: the crypto in the Rust core on a lane of its own for the
 /// long calls ([CoreCrypto.withLane], made by `main`), the keys under the phone's Keystore ([DeviceKeyStore]), the
@@ -60,11 +63,16 @@ import '../team/sync.dart';
 /// that was not.
 const String ghostApiDefine = String.fromEnvironment('GHOST_API');
 
-/// The service's base for this build, or null for a build with no account: none given, one that is not an
-/// address, or, in a build that is not a release ([debug]), one that names the real service.
+/// The real service, as the Tauri app's page names it (`API_BASE`): what a release build is on when it is told
+/// nothing else.
+const String realServiceBase = 'https://ghostmarkdown.com/api';
+
+/// The service's base for this build, or null for a build with no account. A release ([debug] false) with none
+/// given is on [realServiceBase]. Null: none given in a build that is not a release, one that is not an address,
+/// or, in a build that is not a release, one that names the real service.
 String? accountBase(String given, {bool debug = !kReleaseMode}) {
   final base = given.trim();
-  if (base.isEmpty) return null;
+  if (base.isEmpty) return debug ? null : realServiceBase;
   final uri = Uri.tryParse(base);
   if (uri == null || uri.host.isEmpty || (uri.scheme != 'http' && uri.scheme != 'https')) return null;
   if (debug && isProductionHost(uri.host)) return null;

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
@@ -89,9 +91,20 @@ void main() {
   }
 
   group('the base a build is given', () {
-    test('none is no account', () {
+    test('none is no account, in a build that is not a release', () {
       expect(accountBase(''), isNull);
       expect(accountBase('   '), isNull);
+      expect(accountBase('', debug: true), isNull);
+    });
+
+    test('a release told nothing is on the real service, the address the Tauri app\'s page names', () {
+      expect(accountBase('', debug: false), 'https://ghostmarkdown.com/api');
+      expect(accountBase('  ', debug: false), realServiceBase);
+      final page = File('../glyph/src/app/core/account/api.ts');
+      if (page.existsSync()) expect(page.readAsStringSync(), contains("|| '$realServiceBase'"));
+      // Told another, a release is on that one; told rubbish, it has no account rather than the real one by mistake.
+      expect(accountBase('http://10.0.2.2:4010/api', debug: false), 'http://10.0.2.2:4010/api');
+      expect(accountBase('ghostmarkdown', debug: false), isNull);
     });
 
     test('a local server is taken, without its last slash', () {
