@@ -8,6 +8,13 @@ version on my fold".
 It installs beside the real app, never over it: Android id `com.mattssoftware.glyph.flutter`, named "Ghost Flutter",
 with data of its own.
 
+**Since 2026-10-11 it is to replace the real app** (Matt: the Flutter app ships as the next update over the Tauri
+app, for everyone, when it is ready). The ordinary build is still the one above. The build that replaces Ghost.md
+is made with `tool/cutover-build.sh <version>`: the Tauri app's id, name, certificate and update address, and on its
+first launch what the Tauri app kept on the phone is carried into this app's stores (`lib/carry/`).
+`docs/CUTOVER.md` is the whole of it: what is carried and how it was proven, the signing, what an update is for a
+Flutter app, what to publish and in which order, and the plan for the repository.
+
 ## How it is put together
 
 - `packages/glacier/` is the Glacier UI kit in Flutter.

@@ -1,5 +1,12 @@
 # What a release must build, sign and upload
 
+**Decided 2026-10-11, and this file is older than the decision.** This app replaces the Tauri app as its next
+version: it is signed with the Tauri app's certificate, its updates are signed with the Tauri app's update key and
+live at the Tauri app's address, and its id becomes `com.mattssoftware.glyph`. `docs/CUTOVER.md` says how, and
+`tool/cutover-build.sh` and `tool/release_apk.mjs` are the build and the packing. The four questions below are
+answered there; what follows still describes what the client checks, with two changes: the signature this app reads
+is `apk.json.flutter.sig`, and `apk.json` carries `native` and `build` for the Tauri installs that read it too.
+
 For the app's own updates (lib/core/updates.dart, native/src/kept/updates.rs, android/…/ghost_md/UpdateInstaller.kt)
 to find a release and trust it. **No script does this yet, nothing has been published, and no key has been made:**
 this is what one has to do, written from what the client checks. The Tauri app's own equivalent, for reference, is
