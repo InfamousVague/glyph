@@ -136,7 +136,9 @@ abstract final class WispProbe {
         final view = RendererBinding.instance.renderViews.first;
         // ignore: invalid_use_of_protected_member
         final layer = view.layer! as OffsetLayer;
-        final image = await layer.toImage(Offset.zero & view.size, pixelRatio: view.flutterView.devicePixelRatio);
+        // The root layer already scales logical pixels to the screen's: the picture is of the screen's own pixels, one
+        // to one, the whole window, so a strip that counts in the screen's pixels is drawn in it as on the screen.
+        final image = await layer.toImage(Offset.zero & (view.size * view.flutterView.devicePixelRatio), pixelRatio: 1);
         final png = await image.toByteData(format: ui.ImageByteFormat.png);
         image.dispose();
         dir.createSync(recursive: true);

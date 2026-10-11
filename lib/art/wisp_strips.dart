@@ -394,7 +394,6 @@ class RenderWispStrips extends RenderProxyBox {
       ..strips = drawn
       ..ratio = _ratio
       ..corner = -phase
-      ..global = localToGlobal(Offset.zero)
       ..view = Offset.zero & size;
     context.pushLayer(stripLayer, super.paint, Offset.zero);
     layer = stripLayer;
@@ -422,14 +421,6 @@ class _WispStripLayer extends OffsetLayer {
     markNeedsAddToScene();
   }
 
-  /// Where the view's corner is on the screen: for a strip read off the backdrop, whose pixels are the screen's.
-  Offset _global = Offset.zero;
-  set global(Offset value) {
-    if (value == _global) return;
-    _global = value;
-    if (WispProbe.has('backdrop')) markNeedsAddToScene();
-  }
-
   /// The view's own rectangle: what a filter over its layers is given a picture of.
   Rect _view = Rect.zero;
   set view(Rect value) {
@@ -438,12 +429,80 @@ class _WispStripLayer extends OffsetLayer {
     if (WispProbe.has('through')) markNeedsAddToScene();
   }
 
+  /// Measuring only: a strip drawn by a filter is told where it stands on the screen, and whatever holds this view
+  /// may move it without painting it; so the scene has this layer anew whenever it is built at all.
+  @override
+  bool get alwaysNeedsAddToScene => WispProbe.has('backdrop') || WispProbe.has('through');
+
+  /// Whether this layer's children went through a program of its own the last time it was added to a scene.
+  bool _filters = false;
+
+  /// Where this layer's own space falls on the screen, read off the layers above it as they are now (the place a
+  /// render object was painted at is the place it had then: a view under a repaint boundary is moved without being
+  /// painted). [scale] is the screen's pixels to one of this layer's, [shift] its corner in them, and [clip] what of
+  /// it the layers above let through, in the screen's pixels (null: nothing above clips it).
+  ///
+  /// Null where the screen's pixels are not the pixels this layer is drawn on: a layer above draws its children
+  /// into a picture of its own first (a fade, a filter, a mask, a clip that is smoothed), or turns them.
+  ({double scale, Offset shift, Rect? clip})? _onScreen({required bool reading}) {
+    final chain = <ContainerLayer>[this];
+    for (var above = parent; above != null; above = above.parent) {
+      chain.add(above);
+    }
+    // The root of a view scales its logical pixels to the screen's; a tree with none is not on a screen.
+    if (chain.length < 2 || chain.last is! TransformLayer) return null;
+    final to = Matrix4.identity();
+    Rect? clip;
+    for (var i = chain.length - 1; i > 0; i--) {
+      final layer = chain[i];
+      Rect? own;
+      if (layer is ClipRectLayer) {
+        if (layer.clipBehavior == Clip.antiAliasWithSaveLayer) return null;
+        if (layer.clipBehavior != Clip.none) own = layer.clipRect;
+      } else if (layer is ClipRRectLayer) {
+        if (layer.clipBehavior == Clip.antiAliasWithSaveLayer) return null;
+        if (layer.clipBehavior != Clip.none) own = layer.clipRRect?.outerRect;
+      } else if (layer is ClipPathLayer) {
+        if (layer.clipBehavior == Clip.antiAliasWithSaveLayer) return null;
+        if (layer.clipBehavior != Clip.none) own = layer.clipPath?.getBounds();
+      } else if (layer is OpacityLayer) {
+        if ((layer.alpha ?? 255) != 255) return null;
+      } else if (layer is ImageFilterLayer || layer is ColorFilterLayer || layer is ShaderMaskLayer || layer is BackdropFilterLayer) {
+        return null;
+      } else if (layer is _WispStripLayer && layer._filters) {
+        // A view above that goes through a program of its own: what is behind this one is that view's picture.
+        if (reading) return null;
+        own = snapOut(layer._view, layer._corner, layer._ratio);
+      }
+      // A clip is in the space its layer is composited in; an offset or a transform moves that layer's children.
+      if (layer is _WispStripLayer) to.translateByDouble(layer.offset.dx, layer.offset.dy, 0, 1);
+      if (own != null) {
+        final seen = MatrixUtils.transformRect(to, own);
+        clip = clip == null ? seen : clip.intersect(seen);
+      }
+      if (layer is! _WispStripLayer) layer.applyTransform(chain[i - 1], to);
+    }
+    to.translateByDouble(offset.dx, offset.dy, 0, 1);
+    final m = to.storage;
+    if (m[1].abs() > 1e-9 || m[4].abs() > 1e-9 || (m[0] - m[5]).abs() > 1e-9 || m[0] <= 0) return null;
+    return (scale: m[0], shift: Offset(m[12], m[13]), clip: clip);
+  }
+
   /// Measuring only (GHOST_PERF_SMOKE=through): the program this view's layers go through for its smokes, where
   /// every strip of it is a smoke one program can say and the engine can filter a layer with a program; else null.
   ui.FragmentShader? _through(List<Rect> at, Rect view) {
     if (!WispProbe.has('through') || !wispQuick || !ui.ImageFilter.isShaderFilterSupported) return null;
     final kit = WispKit.maybe;
     if (kit == null || view.isEmpty) return null;
+    final place = _onScreen(reading: false);
+    if (place == null) return null;
+    // The picture the engine hands the program is of what of the view the screen and the clips above let through,
+    // and its pixels count from that part's corner.
+    final screen = ui.PlatformDispatcher.instance.views.first.physicalSize;
+    var seen = Rect.fromLTRB(view.left * place.scale + place.shift.dx, view.top * place.scale + place.shift.dy, view.right * place.scale + place.shift.dx, view.bottom * place.scale + place.shift.dy).intersect(Offset.zero & screen);
+    if (place.clip != null) seen = seen.intersect(place.clip!);
+    if (seen.width <= 0 || seen.height <= 0) return null;
+    final corner = Offset((seen.left - place.shift.dx) / place.scale, (seen.top - place.shift.dy) / place.scale);
     final smokes = <({Rect at, WispSmoke smoke, Rect within})>[];
     for (var i = 0; i < _strips.length; i++) {
       final strip = _strips[i];
@@ -451,23 +510,25 @@ class _WispStripLayer extends OffsetLayer {
       if (at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0) continue;
       smokes.add((at: at[i], smoke: strip.smoke, within: strip.within));
     }
-    if (WispProbe.has('backsay') && _saidOf.add('through ${smokes.length} ${smokes.isEmpty ? 0 : smokes.first.at.top}') && _saidOf.length < 16) {
+    if (WispProbe.has('backsay') && _saidOf.add('through ${identityHashCode(this)} ${[for (final each in smokes) _ltrb(each.at)].join(' ')} ${_ltrb(seen)}') && _saidOf.length < 48) {
       // ignore: avoid_print
-      print('[through] view ${_ltrb(view)} (layer offset ${offset.dx},${offset.dy}), ratio $_ratio, ${[for (final each in smokes) 'strip ${_ltrb(each.at)} lips ${each.smoke.lipA}/${each.smoke.lipB} soft ${each.smoke.soft} bend ${each.smoke.bend}'].join('; ')}');
+      print('[through] layer ${identityHashCode(this)} view ${_ltrb(view)} seen ${_ltrb(seen)} on the screen, its corner ${corner.dx},${corner.dy} of the view, scale ${place.scale}, ${[for (final each in smokes) 'strip ${_ltrb(each.at)} lips ${each.smoke.lipA}/${each.smoke.lipB} soft ${each.smoke.soft} bend ${each.smoke.bend}'].join('; ')}');
     }
-    return wispThrough(kit: kit, view: view, smokes: smokes, probe: _probe);
+    return wispThrough(kit: kit, corner: corner, ratio: place.scale, smokes: smokes, probe: _probe);
   }
 
   static double get _probe => WispProbe.has('backred') ? 1.0 : (WispProbe.has('backheavy') ? 2.0 : (WispProbe.has('backshow') ? 3.0 : (WispProbe.has('backplace') ? 4.0 : 0.0)));
   static String _ltrb(Rect rect) => '${rect.left},${rect.top},${rect.right},${rect.bottom}';
   static final Set<String> _saidOf = {};
+  /// Where this layer stands on the screen in the scene being built, for the strips read off the backdrop.
+  ({double scale, Offset shift, Rect? clip})? _place;
   static int _groups = 1 << 24;
   final int _group = _groups++;
 
   /// Measuring only (GHOST_PERF_SMOKE=backdrop): whether strip [i] is read off what is already drawn behind it,
   /// where the engine can filter its own backdrop with a program, and not through a picture of the view.
   bool _reads(int i) {
-    if (!WispProbe.has('backdrop') || !wispQuick || !ui.ImageFilter.isShaderFilterSupported) return false;
+    if (!WispProbe.has('backdrop') || !wispQuick || !ui.ImageFilter.isShaderFilterSupported || _place == null) return false;
     final strip = _strips[i];
     return strip is WispSmokeStrip && strip.paper != null && WispKit.maybe != null;
   }
@@ -505,9 +566,20 @@ class _WispStripLayer extends OffsetLayer {
     engineLayer = builder.pushOffset(offset.dx, offset.dy, oldLayer: engineLayer as ui.OffsetEngineLayer?);
     if (WispProbe.has('layers')) _census();
 
+    _place = WispProbe.has('backdrop') ? _onScreen(reading: true) : null;
+    if (WispProbe.has('backsay')) {
+      final here = _onScreen(reading: false);
+      final said = 'layer ${identityHashCode(this)} at ${here == null ? 'nowhere' : '${here.shift.dx},${here.shift.dy} x${here.scale} clip ${here.clip == null ? 'none' : _ltrb(here.clip!)}'} view ${_ltrb(_view)}: ${[for (var i = 0; i < _strips.length; i++) '${_strips[i].runtimeType} ${_ltrb(at[i])}${_strips[i] is WispSmokeStrip ? ' lips ${(_strips[i] as WispSmokeStrip).smoke.lipA}/${(_strips[i] as WispSmokeStrip).smoke.lipB} paper ${(_strips[i] as WispSmokeStrip).paper != null}' : ''}'].join('; ')}';
+      if (_saidOf.add(said) && _saidOf.length < 60) {
+        // ignore: avoid_print
+        print('[strips] $said');
+      }
+    }
+
     // Measuring only: the view's layers through one program, which bends and fades its strips as they are drawn.
     final view = snapOut(_view, _corner, _ratio);
     final through = _through(at, view);
+    _filters = through != null;
     if (through != null) {
       if (ghostPerf) Perf.count('wisp.throughs');
       builder.pushClipRect(view, clipBehavior: Clip.hardEdge);
@@ -544,12 +616,13 @@ class _WispStripLayer extends OffsetLayer {
       if (at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0 || !_reads(i)) continue;
       final strip = _strips[i] as WispSmokeStrip;
       final probe = _probe;
-      final shader = wispBack(kit: WispKit.maybe!, at: at[i], smoke: strip.smoke, within: strip.within, viewAt: _global, ratio: _ratio, paper: strip.paper!, probe: probe);
+      final place = _place!;
+      final shader = wispBack(kit: WispKit.maybe!, at: at[i], smoke: strip.smoke, within: strip.within, viewAt: place.shift / place.scale, ratio: place.scale, paper: strip.paper!, probe: probe);
       if (shader == null) continue;
       if (ghostPerf) Perf.count('wisp.backdrops');
-      if (WispProbe.has('backsay') && _saidOf.add('back ${at[i].top} ${at.length}') && _saidOf.length < 16) {
+      if (WispProbe.has('backsay') && _saidOf.add('back ${identityHashCode(this)} ${_ltrb(at[i])} ${place.shift.dx},${place.shift.dy}') && _saidOf.length < 48) {
         // ignore: avoid_print
-        print('[back] strip ${_ltrb(at[i])} of a view at ${_global.dx},${_global.dy} (layer offset ${offset.dx},${offset.dy}; view ${_ltrb(_view)}), ratio $_ratio, lips ${strip.smoke.lipA}/${strip.smoke.lipB} soft ${strip.smoke.soft}, bend ${strip.smoke.bend}, noise in ${_ltrb(strip.smoke.noiseRect)}, slide ${strip.smoke.slide.dx},${strip.smoke.slide.dy}, fade ${strip.smoke.fade.clearUntil}/${strip.smoke.fade.wholeFrom}/${strip.smoke.fade.wholeUntil}/${strip.smoke.fade.clearFrom}');
+        print('[back] layer ${identityHashCode(this)} strip ${_ltrb(at[i])} of a view at ${place.shift.dx},${place.shift.dy} of the screen (scale ${place.scale}; view ${_ltrb(_view)}), lips ${strip.smoke.lipA}/${strip.smoke.lipB} soft ${strip.smoke.soft}, bend ${strip.smoke.bend}, noise in ${_ltrb(strip.smoke.noiseRect)}, slide ${strip.smoke.slide.dx},${strip.smoke.slide.dy}, fade ${strip.smoke.fade.clearUntil}/${strip.smoke.fade.wholeFrom}/${strip.smoke.fade.wholeUntil}/${strip.smoke.fade.clearFrom}');
       }
       builder.pushClipRect(at[i], clipBehavior: Clip.hardEdge);
       builder.pushBackdropFilter(ui.ImageFilter.shader(shader), backdropId: _group);

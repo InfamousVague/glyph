@@ -13,8 +13,10 @@ precision highp float;
 
 // Set by the engine: the size of the view's picture, in its own pixels.
 uniform vec2 uSize;
-// The rectangle of the view that picture is of, in the view's own pixels: its corner and its size.
-uniform vec4 uView;
+// The point of the view that picture's first pixel is of, in the view's own pixels, and the picture's pixels to one
+// of them. The picture is of what of the view is seen, which is not all of it where the screen or a clip cuts it.
+uniform vec2 uViewAt;
+uniform float uRatio;
 uniform vec4 uFieldRect;
 uniform vec2 uFieldSize;
 uniform vec4 uFade;
@@ -87,7 +89,7 @@ float wispFade(vec2 p) {
 
 // The view at a point of its own, clear outside its picture.
 vec4 viewAt(vec2 p) {
-  vec2 uv = (p - uView.xy) / uView.zw;
+  vec2 uv = (p - uViewAt) * uRatio / uSize;
   if (uv.x < 0.0 || uv.y < 0.0 || uv.x >= 1.0 || uv.y >= 1.0) {
     return vec4(0.0);
   }
@@ -112,7 +114,7 @@ bool within(vec2 p, vec4 strip) {
 
 void main() {
   vec2 px = FlutterFragCoord().xy;
-  vec2 p = uView.xy + px / uSize * uView.zw;
+  vec2 p = uViewAt + px / uRatio;
   vec4 color = texture(uSource, px / uSize);
   if (within(p, uStripA)) {
     color = wispSmoke(p, color, uFrequencyA, uSlideA, uNoiseRectA, uBandA, uBandOnA, uBendA);

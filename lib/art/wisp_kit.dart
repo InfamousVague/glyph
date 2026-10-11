@@ -138,17 +138,17 @@ class WispKit {
   }
 
   /// A view's smokes as one filter over the view's own layers (shaders/wisp_through.frag), a program of its own for
-  /// the one filter: measuring only. [view] is the rectangle of the view the engine's picture of it is of; [smokes]
-  /// are one or two, each over its own strip, of one seed, one axis and one fade.
-  ui.FragmentShader through({required Rect view, required List<({Rect strip, WispSmoke smoke})> smokes, required ui.Image field, required Rect fieldRect, double probe = 0}) {
+  /// the one filter: measuring only. [corner] is the point of the view the first pixel of the engine's picture is
+  /// of, [ratio] that picture's pixels to one of the view's; [smokes] are one or two, each over its own strip, of
+  /// one seed, one axis and one fade.
+  ui.FragmentShader through({required Offset corner, required double ratio, required List<({Rect strip, WispSmoke smoke})> smokes, required ui.Image field, required Rect fieldRect, double probe = 0}) {
     final shader = _through.fragmentShader();
     // The first two are the engine's: the picture's size.
     var i = 2;
     void put(double value) => shader.setFloat(i++, value);
-    put(view.left);
-    put(view.top);
-    put(view.width);
-    put(view.height);
+    put(corner.dx);
+    put(corner.dy);
+    put(ratio);
     put(fieldRect.left);
     put(fieldRect.top);
     put(fieldRect.width);

@@ -166,7 +166,8 @@ void main() {
     final source = (await tester.runAsync(() => imageOf(Pixels(bare.width, bare.height, multiplied))))!;
     final shader = wispThrough(
       kit: kit,
-      view: Offset.zero & _view,
+      corner: Offset.zero,
+      ratio: _ratio,
       smokes: [for (final strip in strips.cast<WispSmokeStrip>()) (at: strip.rect, smoke: strip.smoke, within: strip.within)],
     )!;
     shader

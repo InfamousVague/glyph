@@ -101,10 +101,11 @@ void paintWispSmoke(
 
 final Map<int, ({ui.Image image, Rect rect})> _fields = {};
 
-/// The program a view's layers go through for its smokes (shaders/wisp_through.frag): measuring only. [view] is the
-/// rectangle of the view the filter is given a picture of. Null where one program cannot say them: more than two,
-/// or of two seeds, axes or fades, or the seed's table not made yet.
-ui.FragmentShader? wispThrough({required WispKit kit, required Rect view, required List<({Rect at, WispSmoke smoke, Rect within})> smokes, double probe = 0}) {
+/// The program a view's layers go through for its smokes (shaders/wisp_through.frag): measuring only. [corner] is
+/// the point of the view the first pixel of the filter's picture is of, and [ratio] that picture's pixels to one of
+/// the view's. Null where one program cannot say them: more than two, or of two seeds, axes or fades, or the seed's
+/// table not made yet.
+ui.FragmentShader? wispThrough({required WispKit kit, required Offset corner, required double ratio, required List<({Rect at, WispSmoke smoke, Rect within})> smokes, double probe = 0}) {
   if (smokes.isEmpty || smokes.length > 2) return null;
   final first = smokes.first.smoke;
   for (final other in smokes.skip(1)) {
@@ -117,7 +118,7 @@ ui.FragmentShader? wispThrough({required WispKit kit, required Rect view, requir
   for (final other in smokes.skip(1)) {
     field = wispNoiseField(kit: kit, table: table, bentRect: other.at.inflate((other.smoke.bend / 2).ceilToDouble()).intersect(other.within), smoke: other.smoke);
   }
-  return kit.through(view: view, smokes: [for (final each in smokes) (strip: each.at, smoke: each.smoke)], field: field.image, fieldRect: field.rect, probe: probe);
+  return kit.through(corner: corner, ratio: ratio, smokes: [for (final each in smokes) (strip: each.at, smoke: each.smoke)], field: field.image, fieldRect: field.rect, probe: probe);
 }
 
 /// The program a strip [at] of a view is read off the backdrop with (shaders/wisp_back.frag): measuring only.
