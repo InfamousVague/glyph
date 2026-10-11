@@ -1,9 +1,10 @@
-# Ghost.md for Windows: the installer, built on a Windows runner (docs/DESIGN.md §208).
+# Ghost.md for Windows: the installer, built on a Windows runner (tauri/docs/DESIGN.md §208).
 #
-# The Mac app and the APK are built on Matt's Mac by scripts/deploy-ota.mjs; a Mac cannot build the Windows app (the
-# speech and language engines are C++ built with MSVC), so this does, by hand (Run workflow) or on a push to the
-# `windows` branch. What it makes is the NSIS installer as an artifact; scripts/deploy-windows.mjs fetches it and puts
-# it on the site. Signed only where the repository holds a certificate (WINDOWS_CERTIFICATE, a base64 .pfx, and
+# The Windows app is the Tauri app, which lives in tauri/ since the repository's root became the Flutter app
+# (docs/CUTOVER.md §5): every step below runs there. The Mac app is built on Matt's Mac by tauri/scripts/deploy-ota.mjs;
+# a Mac cannot build the Windows app (the speech and language engines are C++ built with MSVC), so this does, by hand
+# (Run workflow) or on a push to the `windows` branch. What it makes is the NSIS installer as an artifact;
+# tauri/scripts/deploy-windows.mjs fetches it and puts it on the site. Signed only where the repository holds a certificate (WINDOWS_CERTIFICATE, a base64 .pfx, and
 # WINDOWS_CERTIFICATE_PASSWORD): without one the installer is unsigned and Windows asks before running it.
 name: Windows build
 
@@ -16,6 +17,10 @@ concurrency:
   group: windows-${{ github.ref }}
   cancel-in-progress: true
 
+defaults:
+  run:
+    working-directory: tauri
+
 jobs:
   installer:
     runs-on: windows-latest
@@ -27,12 +32,14 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          # `uses:` steps do not take the working directory above: the lockfile is named.
+          cache-dependency-path: tauri/package-lock.json
 
       - uses: dtolnay/rust-toolchain@stable
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: src-tauri
+          workspaces: tauri/src-tauri
           # The engines' C++ takes a quarter of an hour: kept even when the app's own code then fails to build.
           cache-on-failure: true
 
@@ -70,11 +77,11 @@ jobs:
         if: always()
         with:
           name: ghost-md-windows-first-launch
-          path: windows-first-launch.png
+          path: tauri/windows-first-launch.png
           if-no-files-found: warn
 
       - uses: actions/upload-artifact@v4
         with:
           name: ghost-md-windows
-          path: src-tauri/target/release/bundle/nsis/*.exe
+          path: tauri/src-tauri/target/release/bundle/nsis/*.exe
           if-no-files-found: error

@@ -1,5 +1,5 @@
-import { GHOST_MARK, GHOST_MARK_BOX } from '../src/app/art/ghostMark.ts';
-import { ROUNDS } from '../src/app/core/sync/crypto.ts';
+import { GHOST_MARK, GHOST_MARK_BOX } from '../tauri/src/app/art/ghostMark.ts';
+import { ROUNDS } from '../tauri/src/app/core/sync/crypto.ts';
 // The app's typeface, for the sign-in page: scripts/build-mcp.mjs folds the file into the bundle as a data URL.
 import INTER from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2';
 

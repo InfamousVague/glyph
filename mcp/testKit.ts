@@ -2,11 +2,11 @@ import type { OAuthClientProvider } from '@modelcontextprotocol/sdk/client/auth.
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
-import type { Details } from '../src/app/core/notifications/kinds.ts';
-import type { Note } from '../src/app/core/store.ts';
-import { derive, open, passwordSalt, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
-import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
-import { makeNote } from '../src/test/notes.ts';
+import type { Details } from '../tauri/src/app/core/notifications/kinds.ts';
+import type { Note } from '../tauri/src/app/core/store.ts';
+import { derive, open, passwordSalt, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
+import { fakeService, FAST, type FakeService } from '../tauri/src/test/fakeService.ts';
+import { makeNote } from '../tauri/src/test/notes.ts';
 import { GlyphAccount, type Hooks } from './glyph.ts';
 import { buildServer, type HostedHooks } from './server.ts';
 

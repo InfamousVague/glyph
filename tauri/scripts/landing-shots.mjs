@@ -22,7 +22,7 @@ const { chromium } = await import('playwright').catch(async () => {
 });
 
 const BASE = process.argv[2] ?? 'http://localhost:4173';
-const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'landing', 'shots');
+const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'landing', 'shots');
 mkdirSync(OUT, { recursive: true });
 
 const now = Date.now();

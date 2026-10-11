@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 /**
- * Ships ghostmarkdown.com, the download page (landing/, docs/LANDING.md), to the box in one ssh session.
+ * Ships ghostmarkdown.com, the download page (landing/, tauri/docs/LANDING.md), to the box in one ssh session.
  *
  *   node scripts/deploy-landing.mjs            the page's files into /opt/ghostmarkdown-site
  *   node scripts/deploy-landing.mjs --caddy    that, and the site's block written to /etc/caddy/Caddyfile: added, or put in place of the one there
  *
  * The page's downloads and the manifests it reads its versions from are the release's own files, served from
- * /opt/attackfm-site/glyph by the site block, so a release (deploy-ota.mjs) updates this page with nothing to do here.
+ * /opt/attackfm-site/glyph by the site block, so a release (tauri/scripts/deploy-ota.mjs) updates this page with nothing to do here.
  *
  * The reader page for shared notes is the release's too (/read.html, /assets/*, /favicon.svg): share links are
  * `https://ghostmarkdown.com/read.html#…` (share/share.ts READER_URL), and the page they open is whatever the last
@@ -19,8 +19,8 @@
  * fails, or any site answering differently after, puts the backup back and reloads it. Caddy then gets the
  * certificate from Let's Encrypt by itself, and retries on its own while the domain's DNS is still settling.
  *
- * The box counts connections, not deploys (deploy-ota.mjs): this spends ONE, or none after a deploy that left its
- * connection open (`deploy-ota.mjs --keep-connection`, `deploy-windows.mjs --keep-connection`), which it rides; pass
+ * The box counts connections, not deploys (tauri/scripts/deploy-ota.mjs): this spends ONE, or none after a deploy that left its
+ * connection open (`tauri/scripts/deploy-ota.mjs --keep-connection`, `tauri/scripts/deploy-windows.mjs --keep-connection`), which it rides; pass
  * --keep-connection here to leave it open in turn. The password reaches sshpass through SSHPASS, read from .env,
  * never an argument.
  */
@@ -28,10 +28,10 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from '../tauri/scripts/lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { ROOT } from './lib/paths.mjs';
-import { fail } from './lib/say.mjs';
+import { fail } from '../tauri/scripts/lib/say.mjs';
 
 const LANDING = join(ROOT, 'landing');
 const SITE = '/opt/ghostmarkdown-site';
@@ -129,7 +129,7 @@ echo "ok ${DOMAIN}'s block written and live"
 `;
 
 const site = tarball(LANDING, 64 * 1024 * 1024);
-// The shared connection (lib/box.mjs): after `deploy-ota.mjs --keep-connection` this rides that deploy's login, and
+// The shared connection (lib/box.mjs): after `tauri/scripts/deploy-ota.mjs --keep-connection` this rides that deploy's login, and
 // alone it opens one of its own. It had a connection to itself until 2026-10-06, so a chain thought to be one login
 // was two, which the box counts.
 const SSH_OPTS = boxSshOptions({ connectTimeout: 20, knownHosts: join(homedir(), '.ssh', 'known_hosts') });

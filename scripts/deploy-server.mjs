@@ -33,13 +33,13 @@
  * writes it to /opt/glyph-api/glyph-api.env on the box (root-owned, 0600) on
  * every run, so rotating it is "change .env, run this". It guards the format
  * route alone, and the app no longer carries it (nothing in the page reads it;
- * deploy-ota.mjs still blanks it for a public build). The rate limit and the
+ * tauri/scripts/deploy-ota.mjs still blanks it for a public build). The rate limit and the
  * single model slot in the server are the route's real protection.
  *
  * It still stays out of every argument list and every file on this Mac: it
  * travels on ssh's STDIN, because an argument is visible to `ps` for as long
  * as ssh runs. The password reaches sshpass through SSHPASS, as in
- * deploy-ota.mjs.
+ * tauri/scripts/deploy-ota.mjs.
  *
  * NOT done here, deliberately: the Caddy route. It was added once, by hand,
  * with a backup, a `caddy validate` and before/after checks of every site on
@@ -51,23 +51,23 @@
  *   node scripts/deploy-server.mjs      (or: npm run deploy:server)
  *
  * The box runs fail2ban and it counts CONNECTIONS, not deploys (see
- * deploy-ota.mjs). This spends ONE.
+ * tauri/scripts/deploy-ota.mjs). This spends ONE.
  */
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox, tarball } from '../tauri/scripts/lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { ROOT } from './lib/paths.mjs';
-import { run } from './lib/run.mjs';
-import { dim, fail, ok, step } from './lib/say.mjs';
+import { run } from '../tauri/scripts/lib/run.mjs';
+import { dim, fail, ok, step } from '../tauri/scripts/lib/say.mjs';
 
 const SERVER = join(ROOT, 'server');
 const TARGET = 'x86_64-unknown-linux-gnu.2.35';
 const BIN = join(SERVER, 'target/x86_64-unknown-linux-gnu/release/glyph-api');
 const UNIT = join(SERVER, 'glyph-api.service');
-/** Claude's hosted MCP server (docs/MCP.md): one file, run by the box's Node as glyph-mcp.service, reached through glyph-api. */
+/** Claude's hosted MCP server (tauri/docs/MCP.md): one file, run by the box's Node as glyph-mcp.service, reached through glyph-api. */
 const MCP_BUNDLE = join(ROOT, 'mcp/dist/glyph-mcp-hosted.mjs');
 const MCP_UNIT = join(SERVER, 'glyph-mcp.service');
 const BUILD_MCP = join(ROOT, 'scripts/build-mcp.mjs');
@@ -109,14 +109,14 @@ const curl = (args) => spawnSync('curl', ['-s', '-m', '25', ...args], { encoding
  * glyph-api on the box is not touched, restarted or backed up. For a change
  * to the sign-in page or a tool, which is most of them. Either way, glyph-mcp
  * is restarted only when its file or unit actually changed: a restart keeps
- * everyone signed in (docs/MCP.md), but a glyph-api deploy is no reason for
+ * everyone signed in (tauri/docs/MCP.md), but a glyph-api deploy is no reason for
  * one.
  */
 const MCP_ONLY = process.argv.includes('--mcp-only');
 
 /*
- * The same control socket deploy-ota.mjs uses. Run straight after
- * `deploy-ota.mjs --keep-connection`, this rides that deploy's login and
+ * The same control socket tauri/scripts/deploy-ota.mjs uses. Run straight after
+ * `tauri/scripts/deploy-ota.mjs --keep-connection`, this rides that deploy's login and
  * spends none of its own; on its own it logs in once, as before. One password
  * prompt, so a refused login is one strike against the lockout, not three.
  */
@@ -344,7 +344,7 @@ const unauthorised = curl([
 if (unauthorised !== '401') fail(`a POST without the token answered ${unauthorised}, expected 401.`);
 ok('a request without the token is refused (401)');
 
-// Organizations and notifications (docs/TEAMS.md): a signed-in route, so with no token it answers 401 once it is
+// Organizations and notifications (tauri/docs/TEAMS.md): a signed-in route, so with no token it answers 401 once it is
 // there, and "no such route" 404 from a binary that predates it - the one the page reads as "not yet".
 const orgsUnsigned = curl(['-o', '/dev/null', '-w', '%{http_code}', `${API}/v1/orgs`]).stdout;
 if (orgsUnsigned !== '401') fail(`GET ${API}/v1/orgs without a token answered ${orgsUnsigned}, expected 401: the organizations routes are not up.`);

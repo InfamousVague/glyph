@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 /**
- * Publishes the Android app that replaced the Tauri one: the Flutter app's release, made and signed in ../ghost-flutter
- * (tool/cutover-build.sh, tool/release_apk.mjs; its docs/CUTOVER.md says why and what was proven).
+ * Publishes the Android app that replaced the Tauri one: the Flutter app's release, made and signed in this
+ * repository, whose root is that app (tool/cutover-build.sh, tool/release_apk.mjs; docs/CUTOVER.md says why and what
+ * was proven).
  *
- *   node scripts/deploy-flutter-apk.mjs [--from ../ghost-flutter/build/cutover] [--keep-connection]
+ *   node scripts/deploy-flutter-apk.mjs [--from build/cutover] [--keep-connection]
  *
  *   /glyph/glyph.apk              the APK every install and the download page fetch
  *   /glyph/apk.json               what an installed app reads to know of it
@@ -13,24 +14,26 @@
  * Nothing is built or signed here. The files are checked against each other, the live three are kept beside them on
  * the box (`.before-<stamp>`), and they are placed in the order that is the safety: the APK first, whole, by rename;
  * the Flutter signature; then apk.json and apk.json.sig last, so no installed app is told of an APK that is still
- * arriving. One ssh session (the box counts logins: deploy-ota.mjs).
+ * arriving. One ssh session (the box counts logins: tauri/scripts/deploy-ota.mjs).
  */
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { BOX_ENV_KEYS, boxSshOptions, openBox } from './lib/box.mjs';
+import { BOX_ENV_KEYS, boxSshOptions, openBox } from '../tauri/scripts/lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
-import { fail } from './lib/say.mjs';
+import { ROOT } from './lib/paths.mjs';
+import { fail } from '../tauri/scripts/lib/say.mjs';
 
 const RELEASE = '/opt/attackfm-site/glyph';
 const args = process.argv.slice(2);
 const at = args.indexOf('--from');
-const from = resolve(at >= 0 ? args[at + 1] : '../ghost-flutter/build/cutover');
+// The default is the root's own build/cutover wherever this is run from; a --from is relative to where it is run.
+const from = at >= 0 ? resolve(args[at + 1]) : join(ROOT, 'build/cutover');
 const keepConnection = args.includes('--keep-connection');
 
 const names = ['glyph.apk', 'apk.json', 'apk.json.sig', 'apk.json.flutter.sig'];
-for (const name of names) if (!existsSync(join(from, name))) fail(`No ${name} in ${from}: run ../ghost-flutter/tool/release_apk.mjs first.`);
+for (const name of names) if (!existsSync(join(from, name))) fail(`No ${name} in ${from}: run tool/release_apk.mjs first.`);
 const info = JSON.parse(readFileSync(join(from, 'apk.json'), 'utf8'));
 const apk = readFileSync(join(from, 'glyph.apk'));
 const sha = createHash('sha256').update(apk).digest('hex');

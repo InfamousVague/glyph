@@ -65,7 +65,7 @@ function cargoSuite(id, title, manifest, extra) {
 const SUITES = [
   { id: 'vitest', run: vitestSuite },
   { id: 'cargo:app', run: () => cargoSuite('cargo:app', 'App (Rust)', 'src-tauri/Cargo.toml', ['--lib']) },
-  { id: 'cargo:server', run: () => cargoSuite('cargo:server', 'glyph-api (Rust)', 'server/Cargo.toml', []) },
+  { id: 'cargo:server', run: () => cargoSuite('cargo:server', 'glyph-api (Rust)', '../server/Cargo.toml', []) },
 ];
 
 const previous = (() => {

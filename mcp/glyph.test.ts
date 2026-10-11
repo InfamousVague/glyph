@@ -1,9 +1,9 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { imageNames } from '../src/app/core/imageRefs.ts';
-import { noteTitle } from '../src/app/core/noteTitle.ts';
-import { toBase64Url } from '../src/app/core/sync/crypto.ts';
-import { fakeService, FAST } from '../src/test/fakeService.ts';
+import { imageNames } from '../tauri/src/app/core/imageRefs.ts';
+import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
+import { toBase64Url } from '../tauri/src/app/core/sync/crypto.ts';
+import { fakeService, FAST } from '../tauri/src/test/fakeService.ts';
 import { Conflict, GlyphAccount, GlyphApiError, importAccountKey, type StoredSession } from './glyph.ts';
 import { aNote, API, asText, connected } from './testKit.ts';
 

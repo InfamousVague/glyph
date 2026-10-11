@@ -10,7 +10,7 @@ import type { OAuthServerProvider } from '@modelcontextprotocol/sdk/server/auth/
 import type { AuthInfo } from '@modelcontextprotocol/sdk/server/auth/types.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import type { OAuthTokenRevocationRequest } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { failureText } from '../src/app/core/failure.ts';
+import { failureText } from '../tauri/src/app/core/failure.ts';
 import { GlyphAccount, GlyphApiError, importAccountKey } from './glyph.ts';
 import { CODE_MS, hostedStore, type Issued, newToken, REQUEST_MS, SCOPE, type Session } from './hostedStore.ts';
 import { loginPage } from './loginPage.ts';

@@ -17,7 +17,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LANDING = join(ROOT, 'landing');
+// landing/ is at the repository's root, one above this app's (tauri/).
+const LANDING = join(ROOT, '..', 'landing');
 const copy = (from, to) => {
   mkdirSync(dirname(join(LANDING, to)), { recursive: true });
   copyFileSync(join(ROOT, from), join(LANDING, to));

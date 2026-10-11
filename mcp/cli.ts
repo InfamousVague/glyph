@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
-import { failureText } from '../src/app/core/failure.ts';
+import { failureText } from '../tauri/src/app/core/failure.ts';
 import { DEFAULT_API, GlyphAccount, GlyphApiError, type StoredSession } from './glyph.ts';
 import { buildServer, DEFAULT_RULES, ensureRulesNote, rulesInstructions, VERSION } from './server.ts';
 import { ensureWebCrypto } from './webcrypto.ts';

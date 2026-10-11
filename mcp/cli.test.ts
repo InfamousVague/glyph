@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { fakeService, FAST, type FakeService } from '../src/test/fakeService.ts';
+import { fakeService, FAST, type FakeService } from '../tauri/src/test/fakeService.ts';
 import { askPassword, failureWords, readStored, runCli, sessionFileIn, writeStored, type CliIo } from './cli.ts';
 import { GlyphApiError, type StoredSession } from './glyph.ts';
 import { VERSION } from './server.ts';

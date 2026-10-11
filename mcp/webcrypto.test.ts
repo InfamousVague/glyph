@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from 'vitest';
-import { toBase64Url } from '../src/app/core/sync/crypto.ts';
+import { toBase64Url } from '../tauri/src/app/core/sync/crypto.ts';
 import { importAccountKey } from './glyph.ts';
 import { ensureWebCrypto } from './webcrypto.ts';
 

@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
  * or if the page or its built parts ever reach for a way to play one.
  */
 
-const SITE = join(__dirname, '..', '..', 'landing');
+const SITE = join(__dirname, '..', '..', '..', 'landing');
 const SOUND = /\.(wav|mp3|m4a|aac|ogg|oga|opus|flac|webm|weba|aiff?|caf)$/i;
 const PLAYS = /<audio\b|new Audio\(|AudioContext|HTMLAudioElement|createMediaElementSource|data:audio\//;
 

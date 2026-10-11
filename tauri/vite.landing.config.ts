@@ -11,7 +11,8 @@ export default defineConfig({
   publicDir: false,
   base: './',
   build: {
-    outDir: 'landing/parts',
+    // landing/ is at the repository's root, one above this app's (tauri/).
+    outDir: '../landing/parts',
     emptyOutDir: true,
     cssCodeSplit: false,
     sourcemap: false,

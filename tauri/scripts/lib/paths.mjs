@@ -11,5 +11,15 @@
 import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/** The repository root: the directory holding package.json. */
+/**
+ * The Tauri app's root: the directory holding package.json. Since the repository's root became the Flutter app
+ * (docs/CUTOVER.md §5 there) this is `tauri/`, not the repository: every script under tauri/scripts/ still reads
+ * package.json, .env, dist/ and src-tauri/ from here.
+ */
 export const ROOT = dirname(dirname(dirname(fileURLToPath(import.meta.url))));
+
+/**
+ * The repository: one up. The service (server/), the connector (mcp/), the landing page (landing/) and the scripts
+ * that deploy them (scripts/) stayed there when this tree moved into tauri/.
+ */
+export const REPO = dirname(ROOT);

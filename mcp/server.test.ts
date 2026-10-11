@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
-import { noteTitle } from '../src/app/core/noteTitle.ts';
+import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
 import { GlyphAccount } from './glyph.ts';
 import { ensureRulesNote, lineDiff } from './server.ts';
 import { aNote, connected, told, WRITTEN } from './testKit.ts';
@@ -640,7 +640,7 @@ describe('workspaces', () => {
       if (!raced && init?.method === 'PUT' && String(input).endsWith('/prefs')) {
         raced = true;
         const { rev, prefs } = await account.readPrefs();
-        const { seal } = await import('../src/app/core/sync/crypto.ts');
+        const { seal } = await import('../tauri/src/app/core/sync/crypto.ts');
         await real(String(input), { ...init, body: JSON.stringify({ base: rev, blob: await seal(service.accountKey, { ...prefs, theme: 'light' }, 'prefs') }) });
       }
       return real(input, init);

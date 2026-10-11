@@ -10,10 +10,16 @@ export default defineConfig({
     __GLYPH_SOURCE__: JSON.stringify('test-source'),
     __GLYPH_STAGING__: JSON.stringify(false),
   },
+  /*
+   * The MCP server's tests run with the page's and its sources are at the repository's root, one above this app's
+   * (tauri/): outside what Vite serves by default, which a jsdom test of them meets as "Cannot find module
+   * /@fs/…/mcp/loginPage.test.ts" (the node ones are not served, and passed without this).
+   */
+  server: { fs: { allow: ['..'] } },
   test: {
     environment: 'jsdom',
     // The test report's parsers are tested with the page (scripts/testReport).
-    include: ['src/**/*.test.{ts,tsx}', 'mcp/**/*.test.ts', 'scripts/**/*.test.mjs'],
+    include: ['src/**/*.test.{ts,tsx}', '../mcp/*.test.ts', 'scripts/**/*.test.mjs'],
     setupFiles: ['src/test/setup.ts'],
     css: false,
     /*
@@ -32,8 +38,8 @@ export default defineConfig({
      */
     coverage: {
       provider: 'v8',
-      include: ['src/app/**/*.{ts,tsx}', 'src/read/**/*.{ts,tsx}', 'mcp/*.ts'],
-      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', 'mcp/dist/**'],
+      include: ['src/app/**/*.{ts,tsx}', 'src/read/**/*.{ts,tsx}', '../mcp/*.ts'],
+      exclude: ['**/*.test.{ts,tsx}', '**/*.d.ts', '../mcp/dist/**'],
       reporter: ['text-summary', 'json-summary', 'json'],
       reportsDirectory: 'coverage',
     },

@@ -9,7 +9,7 @@
     "build": "tsc --noEmit && vite build",
     "build:landing": "vite build --config vite.landing.config.ts",
     "preview": "vite preview",
-    "typecheck": "tsc --noEmit && tsc -p mcp --noEmit",
+    "typecheck": "tsc --noEmit && tsc -p ../mcp --noEmit",
     "test": "vitest run",
     "icons:wash": "UPDATE_ICON_WASH=1 vitest run src/app/art/iconWash.test.ts",
     "test:watch": "vitest",
@@ -34,9 +34,9 @@
     "voice:check": "GLYPH_VOICE=1 vitest run src/app/capture/voiceSuite",
     "voice:suite": "npm run voice:hear && npm run voice:check",
     "deploy:ota": "node scripts/deploy-ota.mjs",
-    "deploy:server": "node scripts/deploy-server.mjs",
-    "mcp:build": "node scripts/build-mcp.mjs",
-    "mcp": "node scripts/build-mcp.mjs && node mcp/dist/glyph-mcp.mjs"
+    "deploy:server": "node ../scripts/deploy-server.mjs",
+    "mcp:build": "node ../scripts/build-mcp.mjs",
+    "mcp": "node ../scripts/build-mcp.mjs && node ../mcp/dist/glyph-mcp.mjs"
   },
   "dependencies": {
     "@codemirror/commands": "^6.11.0",

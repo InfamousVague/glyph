@@ -1,13 +1,13 @@
-import type { SignedIn } from '../src/app/core/account/account.ts';
-import { notYet } from '../src/app/core/account/notYet.ts';
-import { failureText } from '../src/app/core/failure.ts';
-import { randomId, shortId } from '../src/app/core/ids.ts';
-import { imageNames } from '../src/app/core/imageRefs.ts';
-import type { Details, DetailsOf, SelfKind } from '../src/app/core/notifications/kinds.ts';
-import { noteTitle } from '../src/app/core/noteTitle.ts';
-import type { Note } from '../src/app/core/store.ts';
-import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../src/app/core/sync/crypto.ts';
-import type { FeedItem, NotePayload } from '../src/app/core/sync/notes.ts';
+import type { SignedIn } from '../tauri/src/app/core/account/account.ts';
+import { notYet } from '../tauri/src/app/core/account/notYet.ts';
+import { failureText } from '../tauri/src/app/core/failure.ts';
+import { randomId, shortId } from '../tauri/src/app/core/ids.ts';
+import { imageNames } from '../tauri/src/app/core/imageRefs.ts';
+import type { Details, DetailsOf, SelfKind } from '../tauri/src/app/core/notifications/kinds.ts';
+import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
+import type { Note } from '../tauri/src/app/core/store.ts';
+import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
+import type { FeedItem, NotePayload } from '../tauri/src/app/core/sync/notes.ts';
 
 /**
  * A Glyph account from outside the app: the sync service (docs/SYNC.md) as a client that signs in, reads the

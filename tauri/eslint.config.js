@@ -33,6 +33,9 @@ import reactRefresh from 'eslint-plugin-react-refresh';
    there is overwritten the next time the kit is rebuilt and copied in. It
    must never be linted, because a lint finding there invites exactly that
    lost edit. `src-tauri/vendor` is the Rust equivalent: vendored crates. */
+/* `mcp/` in the patterns below: the MCP server's sources stayed at the repository's root when this app moved into
+   tauri/, which is outside this file's base path, so `eslint .` from here no longer reaches them. The patterns are
+   kept for the day mcp/ has a config of its own to extend this one. */
 const IGNORED = [
   'node_modules/**',
   'dist/**',

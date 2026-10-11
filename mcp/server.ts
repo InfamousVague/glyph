@@ -1,19 +1,19 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
-import { isBookBody, isJournalBody } from '../src/app/book/book.ts';
-import { entryBody, entryTitle, isEntryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../src/app/book/journal.ts';
-import { fillTemplate, openEnd } from '../src/app/core/template.ts';
-import { placeWords } from '../src/app/capture/listAppend.ts';
-import { placeTake } from '../src/app/capture/place.ts';
-import { aiName, authorsOf, withAuthor } from '../src/app/core/authors.ts';
-import { failureText } from '../src/app/core/failure.ts';
-import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../src/app/core/frontMatter.ts';
-import { geoTagOf, withGeoTag } from '../src/app/core/geotag.ts';
-import { plainFills } from '../src/app/core/blanks.ts';
-import { noteTitle, withoutFrontMatter } from '../src/app/core/noteTitle.ts';
-import { isOrgWorkspace } from '../src/app/core/orgs/types.ts';
-import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../src/app/core/properties.ts';
-import { titleKey } from '../src/app/core/titleKey.ts';
+import { isBookBody, isJournalBody } from '../tauri/src/app/book/book.ts';
+import { entryBody, entryTitle, isEntryTitle, localStamp, templateOf, uniqueTitle, withEntry } from '../tauri/src/app/book/journal.ts';
+import { fillTemplate, openEnd } from '../tauri/src/app/core/template.ts';
+import { placeWords } from '../tauri/src/app/capture/listAppend.ts';
+import { placeTake } from '../tauri/src/app/capture/place.ts';
+import { aiName, authorsOf, withAuthor } from '../tauri/src/app/core/authors.ts';
+import { failureText } from '../tauri/src/app/core/failure.ts';
+import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../tauri/src/app/core/frontMatter.ts';
+import { geoTagOf, withGeoTag } from '../tauri/src/app/core/geotag.ts';
+import { plainFills } from '../tauri/src/app/core/blanks.ts';
+import { noteTitle, withoutFrontMatter } from '../tauri/src/app/core/noteTitle.ts';
+import { isOrgWorkspace } from '../tauri/src/app/core/orgs/types.ts';
+import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../tauri/src/app/core/properties.ts';
+import { titleKey } from '../tauri/src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 
 /**

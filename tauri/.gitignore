@@ -1,7 +1,5 @@
 node_modules
 /dist
-# The MCP server as one file (scripts/build-mcp.mjs).
-/mcp/dist
 .DS_Store
 src-tauri/target
 # The host-test harness is its own Cargo workspace.

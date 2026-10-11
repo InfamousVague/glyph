@@ -90,7 +90,7 @@ import { BOX_ENV_KEYS, boxSshOptions, openBox } from './lib/box.mjs';
 import { loadEnv } from './lib/env.mjs';
 import { sha256Hex } from './lib/hash.mjs';
 import { rustU32Const } from './lib/otaRs.mjs';
-import { ROOT } from './lib/paths.mjs';
+import { REPO, ROOT } from './lib/paths.mjs';
 import { run } from './lib/run.mjs';
 import { dim, fail, ok, step } from './lib/say.mjs';
 import { isNewerVersion } from './lib/version.mjs';
@@ -157,7 +157,7 @@ function notaryCredentials() {
 
 // The flags, and the checks on --release and --notes, are read by deployOta/flags.mjs.
 const { withApk, withDesktop, withMcp, sameVersion, isPublic, keepConnection, skipTests, askedRelease, notes } = deployFlags(process.argv);
-const MCP_FILE = join(ROOT, 'mcp/dist/glyph-mcp.mjs');
+const MCP_FILE = join(REPO, 'mcp/dist/glyph-mcp.mjs');
 const SERVICES_FILE = join(ROOT, 'src-tauri/ota-services.json');
 
 const curl = (args) => String(spawnSync('curl', args, { encoding: 'utf8' }).stdout ?? '').trim();
@@ -259,11 +259,11 @@ if (manifest.entry !== built) fail(`ota.json names ${manifest.entry} but index.h
 ok(`web build ${manifest.version} (${manifest.build}), ${manifest.files.length} files`);
 
 let apkInfo = null;
-// Since 2026-10-11 the Android app is the Flutter one (../ghost-flutter, docs/CUTOVER.md): its APK is glyph.apk on
+// Since 2026-10-11 the Android app is the Flutter one (the root of this repository, docs/CUTOVER.md there): its APK is glyph.apk on
 // the box, published by scripts/deploy-flutter-apk.mjs. A Tauri APK built here and placed over it would be a version
 // behind what phones hold and of another code base: refused, unless said twice.
 if (withApk && !process.argv.includes('--tauri-apk-over-flutter')) {
-  fail('--apk is refused: the Android app on the box is the Flutter one (scripts/deploy-flutter-apk.mjs publishes it).');
+  fail('--apk is refused: the Android app on the box is the Flutter one (scripts/deploy-flutter-apk.mjs at the root of the repository publishes it).');
 }
 if (withApk) {
   step('Building the APK');
@@ -461,7 +461,7 @@ if (withDesktop) {
 let mcpInfo = null;
 if (withMcp) {
   step('Building the MCP server');
-  run('node', [join(ROOT, 'scripts/build-mcp.mjs')]);
+  run('node', [join(REPO, 'scripts/build-mcp.mjs')]);
   if (!existsSync(MCP_FILE)) fail(`The MCP build left nothing at ${MCP_FILE}.`);
   const mcpBytes = readFileSync(MCP_FILE);
   mcpInfo = { bytes: mcpBytes.length, sha256: sha256Hex(mcpBytes) };

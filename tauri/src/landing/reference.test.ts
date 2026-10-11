@@ -9,7 +9,7 @@ import { referencePage, referenceSections } from './reference.ts';
  * WRITE_REFERENCE=1 this writes the page; without it, it fails while the page is not what the lessons say.
  */
 
-const PAGE = join(__dirname, '..', '..', 'landing', 'reference.html');
+const PAGE = join(__dirname, '..', '..', '..', 'landing', 'reference.html');
 
 describe('the formatting reference', () => {
   it('lists every lesson once: standard Markdown first, then Ghost.md’s own', () => {

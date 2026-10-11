@@ -16,7 +16,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const LANDING = join(ROOT, 'landing');
+// landing/ is at the repository's root, one above this app's (tauri/).
+const LANDING = join(ROOT, '..', 'landing');
 const ICONS = join(ROOT, 'node_modules', 'lucide-react', 'dist', 'esm', 'icons');
 
 const names = new Set();

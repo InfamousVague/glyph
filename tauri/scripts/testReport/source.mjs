@@ -16,7 +16,8 @@ import { join, relative, sep } from 'node:path';
  */
 
 export const REPORT_PATH = 'src/app/diag/testReport.generated.json';
-const ROOTS = ['src', 'src-tauri/src', 'server/src', 'scripts', 'mcp'];
+// The service, the connector and their deploy scripts are at the repository's root, one above this app's (tauri/).
+const ROOTS = ['src', 'src-tauri/src', '../server/src', 'scripts', '../scripts', '../mcp'];
 const SKIP = /(^|\/)(node_modules|target|dist|\.DS_Store)(\/|$)/;
 
 function* walk(dir) {

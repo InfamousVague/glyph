@@ -1,6 +1,6 @@
 import { webcrypto } from 'node:crypto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { derive, newAccountKey, passwordSalt, ROUNDS, toBase64Url, wrap } from '../src/app/core/sync/crypto.ts';
+import { derive, newAccountKey, passwordSalt, ROUNDS, toBase64Url, wrap } from '../tauri/src/app/core/sync/crypto.ts';
 import { loginPage } from './loginPage.ts';
 
 /**

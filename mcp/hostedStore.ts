@@ -3,7 +3,7 @@ import { existsSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { OAuthRegisteredClientsStore } from '@modelcontextprotocol/sdk/server/auth/clients.js';
 import type { AuthorizationParams } from '@modelcontextprotocol/sdk/server/auth/provider.js';
 import type { OAuthClientInformationFull, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
-import { failureText } from '../src/app/core/failure.ts';
+import { failureText } from '../tauri/src/app/core/failure.ts';
 import type { GlyphAccount } from './glyph.ts';
 import { newSealKey, open, seal, tokenId, unwrapWith, wrapFor } from './hostedSeal.ts';
 
