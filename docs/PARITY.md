@@ -297,8 +297,8 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A note on a mark `(…)`, hidden, shown on a tap | editor/markNotes.ts:40-152 | editor/marks/mark_notes.dart:44-150 | match | |
 | A note's or a footnote's panel closes when the page scrolls | editor/textPanel.ts:57 | editor/view/text_panel.dart:46-49 | differs | Nothing closes it on a scroll. |
 | Hidden line `>\|` | editor/wispFormat.ts:73-79 | editor/marks/wisp_format.dart:85-115 | match | |
-| Heat | plugins/marks/index.tsx:142-150; editor/textEffects.ts | plugins/marks.dart:150-157; editor/marks/text_effects.dart:35-39 | differs | Each letter bent through a field anchored to the page, not one field over the span. |
-| Frost | plugins/marks/index.tsx:151-158 | plugins/marks.dart:158-165; editor/marks/text_effects.dart:40-43 | differs | No shader of its own yet: a dilated letter shape and tiled noise. |
+| Heat | plugins/marks/index.tsx:142-150; editor/textEffects.ts | plugins/marks.dart:150-157; editor/marks/text_effects.dart:35-39 | match | Since fa793ec: one field over the span, starting at the corner of the span's paragraph as the page's filter does, and Chromium's box blurs; held to Chromium's own pictures by test/editor/marks/effects_parity_test.dart (haze 1.9–2.7 of 255, heated words 2.5). |
+| Frost | plugins/marks/index.tsx:151-158 | plugins/marks.dart:158-165; editor/marks/text_effects.dart:40-43 | match | Since fa793ec: the grain worked out per screen pixel from the paragraph's corner, and no blur where Chromium draws none; held by the same parity test (1.0–1.7 of 255 moving, 3.6 at rest). At the phone's 2.625 ratio it follows Chromium's box-blur rule, not yet compared by a picture. |
 | Wave, Shimmer, Haunt | plugins/marks/index.tsx:159-182 | plugins/marks.dart:166-189 | match | |
 | Two on each side; they nest; they lift at the caret; they hold still under reduced motion | editor/language.ts:55-88; editor/textEffects.ts:161-490 | editor/syntax/language.dart:66-100; editor/marks/text_effects.dart:123-604 | match | |
 | With the Marks plugin off they are plain characters | editor/Editor.tsx:317 | root/note_desk.dart:167,541 | match | |
@@ -1185,7 +1185,7 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
     filled does not breathe. Small to medium.
 28. **The AI's changes**: words taken out inside a line are one unbroken box; the + is not held back while the AI
     writes. Small.
-29. **Heat and Frost are drawn another way.** Medium to large. Shaders; judge them side by side, not by counting.
+29. ~~Heat and Frost are drawn another way.~~ Done 2026-10-10 (fa793ec, e946375): drawn as the page draws them and held to Chromium's pictures; pairs in build/smoke-compare/effects/.
 30. **A note's menu opens on a long press**, which the original leaves to the swipe; the palette's Archive also
     closes the tab and its Pin gives no tick. Small, or a decision.
 31. **Typing**: the handles, the loupe and composing are the app's own and were never run with Samsung Keyboard;
