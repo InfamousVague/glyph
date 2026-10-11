@@ -19,8 +19,6 @@
 /// the web does, so a sign inside code or a redaction is no priority here either.
 library;
 
-import 'dart:typed_data';
-
 import 'blanks_syntax.dart';
 import 'front_matter.dart';
 import 'item_syntax.dart';
@@ -156,9 +154,9 @@ String _priorityWords(String body) {
 
 /// What a search looks through for each note, by the note's id, for the body it was read from: its words as a
 /// search reads them, and which pairs of letters stand side by side anywhere in them ([_pairsOf]).
-final Map<String, ({String body, String text, Uint32List pairs})> _searched = <String, ({String body, String text, Uint32List pairs})>{};
+final Map<String, ({String body, String text, List<int> pairs})> _searched = <String, ({String body, String text, List<int> pairs})>{};
 
-({String body, String text, Uint32List pairs}) _searchedOf(Note note) {
+({String body, String text, List<int> pairs}) _searchedOf(Note note) {
   final body = note.body;
   final had = _searched[note.id];
   if (had != null) {
@@ -190,8 +188,8 @@ int _pair(int first, int second) => (first * 131 + second * 31 + (first ^ second
 /// is not in it, and the note's words need not be looked through to say so: a search looked through every letter
 /// of every note that did not hold the word, at each letter typed (most of what a letter cost the lists: on the
 /// Fold 4.5 ms over 354 notes).
-Uint32List _pairsOf(String text) {
-  final bits = Uint32List(_pairBits >> 5);
+List<int> _pairsOf(String text) {
+  final bits = List<int>.filled(_pairBits >> 5, 0);
   var before = 0;
   for (var i = 0; i < text.length; i += 1) {
     final unit = text.codeUnitAt(i);
@@ -207,7 +205,7 @@ Uint32List _pairsOf(String text) {
 }
 
 /// Whether words with these [pairs] may hold [word]: false only where they cannot.
-bool _mayHold(Uint32List pairs, String word) {
+bool _mayHold(List<int> pairs, String word) {
   var before = 0;
   for (var i = 0; i < word.length; i += 1) {
     final unit = word.codeUnitAt(i);
