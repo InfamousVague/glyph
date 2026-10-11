@@ -87,9 +87,16 @@ String benchScript(Size size, {Set<String>? only}) {
   final high = (size.height * 0.30).round(), low = (size.height * 0.72).round(), middle = (size.height * 0.5).round();
   String flings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$x,$from,$x,$to,140;wait:1100'].join(';');
   String again(String steps, int times) => [for (var i = 0; i < times; i += 1) steps].join(';');
-  // The notes' card hangs at the window's left, twenty rems wide: a finger down its middle.
+  // The notes' card hangs at the window's left, twenty rems wide: a finger down its middle. In a short window (a
+  // phone's cover screen on its side, 475 tall) the card's list is the 150 between its tools and its foot, and a
+  // finger put down where a tall window's fling begins is on the foot, which moves nothing: the fling is kept
+  // inside the list.
   const card = 172;
-  String cardFlings(int from, int to, int times) => [for (var i = 0; i < times; i += 1) 'flick:$card,$from,$card,$to,140;wait:1100'].join(';');
+  final cardLow = math.min(low, (size.height - 160).round()), cardHigh = math.max(high, 200);
+  String cardFlings(int from, int to, int times) {
+    final a = from == low ? cardLow : cardHigh, b = to == low ? cardLow : cardHigh;
+    return [for (var i = 0; i < times; i += 1) 'flick:$card,$a,$card,$b,140;wait:1100'].join(';');
+  }
   // Settings in two panes, its sections always beside the page, or one page at a time (lib/settings/settings_screen.dart).
   final split = splitFits(size, mouse: mousePointer);
   // A canvas's zoom buttons are a wide window's (lib/canvas/canvas_view.dart `_tools`).
@@ -440,9 +447,13 @@ Future<void> _reachWords(PhoneTour tour, String words) async {
   final clear = _reach(clear: true);
   final x = clear.center.dx.round(), high = (clear.top + clear.height * 0.3).round(), low = (clear.top + clear.height * 0.7).round();
   var at = _worded(words);
-  for (var tries = 0; tries < 24 && at == null; tries += 1) {
-    final down = tries < 10;
-    await tour.run('swipe:$x,${down ? low : high},$x,${down ? high : low},320;wait:250');
+  // As far down as a tall window's ten swipes go, however short this one's are (a phone's cover screen on its side
+  // moves a page a hundred pixels a swipe, and a notebook's way to its read-through is a thousand down), and as
+  // far back up past where it began.
+  final each = math.max(1, low - high), down = (2600 / each).ceil().clamp(10, 40);
+  for (var tries = 0; tries < down * 2 + 4 && at == null; tries += 1) {
+    final under = tries < down;
+    await tour.run('swipe:$x,${under ? low : high},$x,${under ? high : low},320;wait:250');
     at = _worded(words);
   }
   for (var tries = 0; tries < 6 && at != null && !clear.contains(at.center); tries += 1) {
@@ -512,7 +523,10 @@ Rect _reach({required bool clear}) {
   final ratio = view.devicePixelRatio;
   final window = _window();
   final keys = view.viewInsets.bottom / ratio;
-  final top = clear ? view.padding.top / ratio + 64 : 12.0;
+  // Clear of the bar and of what a page keeps under it (Settings' own head and its search field are 135 of a
+  // window 475 tall, a phone's cover screen on its side: a row brought to just under the bar was pressed through
+  // that field, and the walk went on as if its page had opened), and never more than half the window.
+  final top = clear ? math.min(view.padding.top / ratio + 150, window.height * 0.5) : 12.0;
   final foot = math.max(keys, clear ? view.padding.bottom / ratio + 24 : 0.0) + 12;
   return Rect.fromLTRB(window.left + 12, window.top + top, window.right - 12, math.max(window.top + top + 1, window.bottom - foot));
 }
