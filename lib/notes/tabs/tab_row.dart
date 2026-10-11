@@ -7,6 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../art/wisp_sides.dart';
 import '../../core/tabs.dart';
 
 /// Which shape a tab takes (`data-shape`, notes/NoteTabs.tsx): a tab on a line (Classic and the Ledger), a word on an
@@ -64,8 +65,6 @@ class TabRowEntry {
 /// - The page panned the row by hand, because a finger on it might be about to pick a tab up; the gesture arena
 ///   tells the two apart here, so the row is a scroller of the platform's own, which a sideways pull takes over
 ///   after the platform's touch slop rather than 6px. A flick still slows by `coasted`.
-/// - The smoke at a fading end (art/wispSides.ts) is not ported: the fade is the whole of it, as on the web's
-///   desktop.
 /// - The outline's line, its sides and its curves are one stroked path where the page drew a gradient, a border and
 ///   two radial gradients that met.
 /// - The page's row clipped whatever stood above it, which in the Ledger cut the top of the outline off a tab that
@@ -388,19 +387,11 @@ class _TabRowState extends State<TabRow> with TickerProviderStateMixin {
     final frame = widget.frame;
     if (frame != null) row = frame(row);
     if (_fadeStart || _fadeEnd) {
-      // `mask-image: linear-gradient(to right, transparent 0, #000 start, #000 calc(100% - end), transparent 100%)`
-      final start = _fadeStart ? widget.fade : 0.0, end = _fadeEnd ? widget.fade : 0.0;
-      row = ShaderMask(
-        blendMode: BlendMode.dstIn,
-        shaderCallback: (bounds) {
-          final w = math.max(bounds.width, 1.0);
-          return LinearGradient(
-            colors: const [Color(0x00000000), Color(0xFF000000), Color(0xFF000000), Color(0x00000000)],
-            stops: [0, (start / w).clamp(0.0, 1.0), (1 - end / w).clamp(0.0, 1.0), 1],
-          ).createShader(bounds);
-        },
-        child: row,
-      );
+      // An end with tabs past it goes into smoke on a phone (art/wispSides.ts, set by notes/useTabOutline.ts), over
+      // the row's own short fade (`mask-image: linear-gradient(to right, transparent 0, #000 start, #000 calc(100%
+      // - end), transparent 100%)`); the fade alone, and longer, where there is no smoke: a desktop, reduced motion,
+      // the wisp switched off.
+      row = WispSides(start: _fadeStart, end: _fadeEnd, fade: widget.fade, plainFade: widget.fade, child: row);
     }
     return Semantics(
       container: true,

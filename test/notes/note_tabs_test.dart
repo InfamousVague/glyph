@@ -4,6 +4,7 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/live_titles.dart';
 import 'package:ghost_md/core/tabs.dart';
@@ -343,7 +344,7 @@ void main() {
       expect(tab(tester, 2), boxAt(469.69, 58.09, 267.31, 45.58));
       expect(named(tester, 'New note in a new tab'), boxAt(744.27, 65.08, 31.61, 31.61));
       // The row fits, so neither end fades.
-      expect(find.byType(ShaderMask), findsNothing);
+      expect(find.byType(WispSides), findsNothing);
       await away(tester);
       // With nothing open the bar keeps its hairline and the air over it.
       await pumpBar(tester, atHome: true, size: const Size(1280, 800), split: true, fine: true);
@@ -648,19 +649,29 @@ void main() {
   });
 
   group('the outline of the tab being read', () {
-    testWidgets('fades whichever end of the row has tabs past it, and never the start at the start', (tester) async {
+    // The ends go into smoke on a phone, as the page's do (art/wispSides.ts over NoteTabs.module.css's 12px fade):
+    // seen beside Ghost.md on the owner's phone, 2026-10-11, the last tab's letters bent and faded at the window's
+    // edge there ("HelloTr") and cut plain here ("HelloTra"), the row having worn the fade alone.
+    testWidgets('sends whichever end of the row has tabs past it into smoke, and never the start at the start', (tester) async {
+      List<WispSmokeStrip> smoke() => tester.renderObject<RenderWispStrips>(find.descendant(of: find.byType(WispSides), matching: find.byType(WispStrips))).strips.whereType<WispSmokeStrip>().toList();
       await pumpBar(tester, open: three, active: 'groceries');
-      // Three tabs are more than a phone's width: the end fades, twelve pixels under a finger.
-      expect(find.byType(ShaderMask), findsOneWidget);
+      // Three tabs are more than a phone's width: the end smokes over a fade of twelve pixels under a finger.
+      expect(find.byType(WispSides), findsOneWidget);
       final row = tester.widget<TabRow>(find.byType(TabRow));
       expect(row.fade, 12);
+      expect(smoke(), isNotEmpty);
+      expect(smoke().first.smoke.lipA, isNull, reason: 'nothing is out of sight at the start');
+      expect(smoke().first.smoke.lipB, isNotNull);
+      expect(smoke().first.smoke.fade.clearFrom - smoke().first.smoke.fade.wholeUntil, 12);
       await tester.drag(find.bySemanticsLabel('Groceries, in Home'), const Offset(-2000, 0));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.byType(ShaderMask), findsOneWidget);
+      expect(find.byType(WispSides), findsOneWidget);
+      expect(smoke().first.smoke.lipA, isNotNull, reason: 'scrolled to its end, the row goes on past its start');
+      expect(smoke().first.smoke.lipB, isNull);
       await away(tester);
       // A row that fits fades at neither end.
       await pumpBar(tester, open: const ['weekend']);
-      expect(find.byType(ShaderMask), findsNothing);
+      expect(find.byType(WispSides), findsNothing);
       await away(tester);
     });
 
