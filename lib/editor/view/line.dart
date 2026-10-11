@@ -366,8 +366,9 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   static int wordsCarried = 0;
 
   /// Whether the words are kept as pictures (the header's note). Off, every paint draws them afresh, as the line
-  /// did before it kept anything: for a test to hold the two drawings against each other.
-  static bool keepsWords = true;
+  /// did before it kept anything: for a test to hold the two drawings against each other, and for a walk to be
+  /// measured both ways from one tree (`--dart-define=GHOST_WORDS_AFRESH=true`).
+  static bool keepsWords = !const bool.fromEnvironment('GHOST_WORDS_AFRESH');
 
   LineSpec _spec;
   LineSpec get spec => _spec;
@@ -1065,8 +1066,11 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   bool _scrollerKnown = false;
 
   /// Whether the page is being moved now: by a finger, a fling or an animation of its own. Nothing else moves a
-  /// line for long (a jump, a keyboard coming up), and then it is drawn afresh as it always was.
+  /// line for long (a jump, a keyboard coming up), and then it is drawn afresh as it always was. Asked once a
+  /// paint, of the first picture that is not where it was drawn.
   bool _carried() {
+    if (_carriedKnown) return _carriedNow;
+    _carriedKnown = true;
     if (!_scrollerKnown) {
       _scrollerKnown = true;
       _scroller = null;
@@ -1079,29 +1083,43 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       }
     }
     final scroller = _scroller;
-    if (scroller == null) return false;
+    if (scroller == null) return _carriedNow = false;
     final position = scroller.offset;
-    if (position is! ScrollPosition || !position.isScrollingNotifier.value) return false;
+    if (position is! ScrollPosition || !position.isScrollingNotifier.value) return _carriedNow = false;
     _AtRest.owe(position, scroller);
-    return true;
+    return _carriedNow = true;
+  }
+
+  bool _carriedKnown = false;
+  bool _carriedNow = false;
+
+  /// How far down the canvas has been moved for the pictures being put back ([_put]), until [_unmoved].
+  double _movedBy = 0;
+
+  void _unmoved(Canvas canvas) {
+    if (_movedBy == 0) return;
+    canvas.restore();
+    _movedBy = 0;
   }
 
   /// Puts `kept` on the canvas where its line now stands, `y` being the device pixel the line's top falls on:
   /// as it is where the line has not moved, moved by the whole pixels the line has while the page is being moved
-  /// ([moving], asked only then). False where it has to be drawn afresh.
+  /// (the canvas is left moved for the next picture, which has most often moved as far: [_unmoved] puts it back).
+  /// False where it has to be drawn afresh.
   bool _put(Canvas canvas, _Kept? kept, double x, double y) {
     if (kept == null || kept.x != x) return false;
     final by = y - kept.y;
-    if (by == 0) {
-      canvas.drawPicture(kept.picture);
-    } else {
-      if (!_carried()) return false;
-      canvas.save();
-      canvas.translate(0, by);
-      canvas.drawPicture(kept.picture);
-      canvas.restore();
-      wordsCarried += 1;
+    if (by != 0 && !_carried()) return false;
+    if (by != _movedBy) {
+      _unmoved(canvas);
+      if (by != 0) {
+        canvas.save();
+        canvas.translate(0, by);
+        _movedBy = by;
+      }
     }
+    canvas.drawPicture(kept.picture);
+    if (by != 0) wordsCarried += 1;
     wordsKept += 1;
     return true;
   }
@@ -1140,6 +1158,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       final line = _lines[i];
       final top = _snap(offset.dy + line.top);
       if (_put(canvas, _kept[i], offset.dx, top)) continue;
+      _unmoved(canvas);
       _kept[i]?.picture.dispose();
       final recorder = ui.PictureRecorder();
       _drawLine(Canvas(recorder), offset, painter, line, top, alone: alone);
@@ -1147,12 +1166,13 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       canvas.drawPicture(kept.picture);
       wordsDrawn += 1;
     }
+    _unmoved(canvas);
   }
 
   /// The marker of a list item, at the gutter, on the first line's baseline.
   void _paintMarker(Canvas canvas, Offset offset, TextPainter marker) {
     final top = _snap(offset.dy + _lines.first.top);
-    if (keepsWords && _put(canvas, _keptMarker, offset.dx, top)) return;
+    if (keepsWords && _put(canvas, _keptMarker, offset.dx, top)) return _unmoved(canvas);
     final at = Offset(offset.dx + _contentLeft - _spec.look.hang, top + _lines.first.above - marker.computeDistanceToActualBaseline(TextBaseline.alphabetic));
     if (!keepsWords) {
       marker.paint(canvas, at);
@@ -1168,6 +1188,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   @override
   void paint(PaintingContext context, Offset offset) {
     final drawnBefore = wordsDrawn;
+    _carriedKnown = false;
     final look = _spec.look;
     final canvas = context.canvas;
     final words = _words;

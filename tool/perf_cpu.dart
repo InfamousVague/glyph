@@ -31,9 +31,12 @@ int _numberOf(String name) => _numbers[name] ??= () {
       return _names.length - 1;
     }();
 
+final RegExp _ownLib = RegExp(r'/ghost-flutter[^/]*/lib/');
+
 String _where(String url) {
-  final lib = url.indexOf('/ghost-flutter/lib/');
-  if (lib >= 0) return 'app:${url.substring(lib + '/ghost-flutter/lib/'.length)}';
+  // The tree's own files, in the main checkout or in a worktree beside it (ghost-flutter-paint and the like).
+  final lib = _ownLib.firstMatch(url);
+  if (lib != null) return 'app:${url.substring(lib.end)}';
   final kit = url.indexOf('/packages/glacier/lib/src/');
   if (kit >= 0) return 'kit:${url.substring(kit + '/packages/glacier/lib/src/'.length)}';
   final flutter = url.indexOf('/packages/flutter/lib/src/');
