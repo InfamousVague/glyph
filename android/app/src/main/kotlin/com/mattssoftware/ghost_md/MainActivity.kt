@@ -101,6 +101,9 @@ class MainActivity : FlutterActivity() {
         // class. The tidy lets go of grants for folders that are not the library any more.
         LibraryTree.install(applicationContext, tidy = true)
         super.onCreate(savedInstanceState)
+        // A build made to be measured (the app of its own, `….flutter.perf`: tool/perf.sh android) walks itself for
+        // minutes with no finger on the glass, and a phone that dims and locks under it ends the walk half way.
+        if (packageName.endsWith(".perf")) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
