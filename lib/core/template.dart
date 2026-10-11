@@ -30,11 +30,12 @@
 /// Pure.
 ///
 /// What differs:
-/// - **The names of days and months are English, in the phone's own order** ("Monday 28 September" and "Sept" on a
-///   British phone, "Monday, September 28" and "Sep" on an American one: core/locale_dates.dart, the page's own
-///   answers for the two), where the page asks the device's language through `Intl`; "1st" either way. Until the
-///   phone has said, they are as en-GB orders them: the web's own tests pin en-GB, and those are the cases ported
-///   (test/book_core/template_test.dart).
+/// - **The names of days and months are the phone's language's, in its own order**, as the page's `Intl` has them
+///   ("Monday 28 September" and "Sept" on a British phone, "Monday, September 28" and "Sep" on an American one,
+///   "lundi 28 septembre" on a French one: core/locale_dates.dart, from its two tables or from the words the phone
+///   gave); the ordinal is "1st" in English and "1." in any other language, and the meridiem the language's own.
+///   Until the phone has said, they are English as en-GB orders them: the web's own tests pin en-GB, and those are
+///   the cases ported (test/book_core/template_test.dart).
 /// - The web's `FillFor` object is [fillTemplate]'s named parameters; `said` is a record of the three words.
 /// - [Placing] is `capture/place.ts`'s type, written here since the recorder is a later stage of the port (8G); its
 ///   own file should hand this one on when it lands. What a take does with a placing (`placeTake`) is the recorder's.
@@ -59,17 +60,17 @@ String _two(int n) => n.toString().padLeft(2, '0');
 /// year (`longDay`).
 String longDay(DateTime at) => toldDate(at, DateForm.MMMMEEEEd) ?? '${_weekdays[at.weekday - 1]} ${at.day} ${_months[at.month - 1]}';
 
-/// "14:05": the time on a 24-hour clock (`clockTime`).
-String clockTime(DateTime at) => '${_two(at.hour)}:${_two(at.minute)}';
+/// "14:05": the time on a 24-hour clock, in the phone's own figures (`clockTime`).
+String clockTime(DateTime at) => toldDate(at, DateForm.Hm23) ?? '${_two(at.hour)}:${_two(at.minute)}';
 
-/// "Monday": the day of the week, whole.
-String weekdayName(DateTime at) => _weekdays[at.weekday - 1];
+/// "Monday": the day of the week, whole, in the phone's language (`{ weekday: 'long' }`).
+String weekdayName(DateTime at) => toldDate(at, DateForm.EEEE) ?? _weekdays[at.weekday - 1];
 
-/// "Mon": the day of the week, short.
-String shortWeekday(DateTime at) => _weekdays[at.weekday - 1].substring(0, 3);
+/// "Mon": the day of the week, short (`{ weekday: 'short' }`).
+String shortWeekday(DateTime at) => toldDate(at, DateForm.E) ?? _weekdays[at.weekday - 1].substring(0, 3);
 
-/// "September": the month, whole.
-String longMonth(DateTime at) => _months[at.month - 1];
+/// "September": the month, whole (`{ month: 'long' }`).
+String longMonth(DateTime at) => toldMonth(at) ?? _months[at.month - 1];
 
 /// "Sept": the month, short, as en-GB writes it and as it is until the phone has said; "Sep" on an American phone
 /// (`{ month: 'short' }`).
@@ -123,7 +124,15 @@ String fillTemplate(String text, {required DateTime at, String title = '', Strin
 }
 
 /// "1st", "22nd", "11th".
+/// The meridiem as the phone's language says it on a 12-hour clock: "PM" in English (`meridiem`).
+String _meridiem(DateTime at) => toldMeridiem(at) ?? (at.hour < 12 ? 'AM' : 'PM');
+final RegExp _amPm = RegExp(r'^[ap]\.?m\.?$', caseSensitive: false);
+
 String _ordinal(int n) {
+  // "1st", "22nd", "11th" in English; the number and a full stop, as German and the Nordic languages write it,
+  // elsewhere (`ordinal`).
+  final language = toldLanguage;
+  if (language != null && language != 'en') return '$n.';
   final tens = n % 100;
   final suffix = tens >= 11 && tens <= 13 ? 'th' : (const {1: 'st', 2: 'nd', 3: 'rd'}[n % 10] ?? 'th');
   return '$n$suffix';
@@ -146,22 +155,26 @@ String _token(String token, DateTime at) => switch (token) {
       'W' => '${_isoWeek(at).week}',
       'YYYY' => at.year.toString().padLeft(4, '0'),
       'YY' => _two(at.year % 100),
-      'MMMM' => _months[at.month - 1],
+      'MMMM' => longMonth(at),
       'MMM' => shortMonth(at),
       'MM' => _two(at.month),
       'M' => '${at.month}',
       'Do' => _ordinal(at.day),
       'DD' => _two(at.day),
       'D' => '${at.day}',
-      'dddd' => _weekdays[at.weekday - 1],
-      'ddd' => _weekdays[at.weekday - 1].substring(0, 3),
+      'dddd' => weekdayName(at),
+      'ddd' => shortWeekday(at),
       'HH' => _two(at.hour),
       'H' => '${at.hour}',
       'hh' => _two(at.hour % 12 == 0 ? 12 : at.hour % 12),
       'h' => '${at.hour % 12 == 0 ? 12 : at.hour % 12}',
       'mm' => _two(at.minute),
-      'A' => at.hour < 12 ? 'AM' : 'PM',
-      'a' => at.hour < 12 ? 'am' : 'pm',
+      // Moment's A is upper case and its a lower case; a language with a meridiem of its own keeps its own.
+      'A' => () {
+          final said = _meridiem(at);
+          return _amPm.hasMatch(said) ? said.toUpperCase() : said;
+        }(),
+      'a' => _meridiem(at).toLowerCase(),
       _ => token,
     };
 

@@ -33,7 +33,7 @@ What the counts say, in four lines:
   here and never walked), the account service, and updates (on in no build at all).
 - **The words are the same.** Every Settings label and footnote, palette command, + row, More row and toast was
   compared; the differences are listed in their tables and come to about a dozen sentences, apart from dates,
-  whose month and day names are English everywhere.
+  whose month and day names were English everywhere (in the phone's language since 2026-10-10: Differs 9).
 
 The port's tree moved while this was written (peers were committing): most of it was read at `931a7d8`, and the
 root's wiring was checked again at `976690e` (2026-10-10 13:10). Line numbers are those commits'.
@@ -202,7 +202,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 
 | Feature | Original (file:line) | Port (file:line or —) | Status | Note |
 | --- | --- | --- | --- | --- |
-| Four names under line 1 (the day in words, the date, date and time, the week), "Names for this note" | core/noteNames.ts:57-68; editor/nameChips.ts:107-130 | core/note_names.dart:56-69; editor/items/blank_offers.dart; note/note_screen.dart (`_offersBlock`) | differs | A block after line 1 inside the editor since 2026-10-10, as on the page. The day in words is English whatever the phone's language (core/note_names.dart:10-15). |
+| Four names under line 1 (the day in words, the date, date and time, the week), "Names for this note" | core/noteNames.ts:57-68; editor/nameChips.ts:107-130 | core/note_names.dart:56-69; editor/items/blank_offers.dart; note/note_screen.dart (`_offersBlock`) | match | A block after line 1 inside the editor since 2026-10-10, as on the page, and the day in words in the phone's language since the same day (core/phone_dates.dart). |
 | A name another note has is not offered | core/noteNames.ts:68 | core/note_names.dart:69; note/note_builder.dart:85-88 | match | |
 | The names wait for the keyboard and go at the first letter | core/keyboard.ts; editor/nameChips.ts | note/note_screen.dart:1368-1376 | match | Timing not compared on a device. |
 | Eight template cards: A day, A meeting, A checklist, Notes on a book, A map at the top, A page to read, Bug report, Feature | notes/noteTemplates.ts:56-82; notes/TemplateCards.tsx:61 | notes/note_templates.dart:90-114; notes/template_cards.dart:47 | match | Names, sentences and bodies identical. |
@@ -476,7 +476,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | An entry nobody wrote in is taken back | App.tsx:933-970 | root/take_back.dart; root/ghost_root.dart:373-388 | match | |
 | Speak an entry | App.tsx:731-765,843-885 | root/ghost_root.dart:715-750,1195-1231 | match | |
 | Where each entry was written | book/journal.ts (`entryPlaceOf`) | root/ghost_root.dart:1187-1190 | match | |
-| The months: three newest open, older ones a row each; an entry's day, time, place, first words | book/JournalView.tsx:49-137; book/journalMonths.ts:66-310 | book/journal_view.dart:51-277; book/journal_months.dart:15-18 | differs | Month and day names are English only. |
+| The months: three newest open, older ones a row each; an entry's day, time, place, first words | book/JournalView.tsx:49-137; book/journalMonths.ts:66-310 | book/journal_view.dart:51-277; book/journal_months.dart:15-18 | match | In the phone's language since 2026-10-10 (core/phone_dates.dart). |
 | An entry's bar walks the entries in the order they were written | book/BookNav.tsx:14-36; book/journalMonths.ts | book/book_nav.dart:51; root/library_reads.dart:127-130 | match | |
 | Keep a notebook as a journal, change a journal's template, make it a notebook again | editor/NoteSettings.tsx:251-282,456-462 | — | missing | See the note's screen. |
 
@@ -695,7 +695,7 @@ recovery codes, the password and delete forms was compared and is the same.
 | Password and recovery codes: Change password, Make new recovery codes instead, Make new codes | settings/AccountPane.tsx:219-265 | settings/panes/account_pane.dart:472-546 | match | |
 | Sign out: "Your notes stay on this device." | settings/AccountPane.tsx:399; core/sync/engine.ts:132-150 | settings/panes/account_pane.dart:446; sync/engine.dart:368-389 | match | |
 | Delete account: what goes, the password, Delete my account, the service's refusal, the words after | settings/AccountPane.tsx:290-336 | settings/panes/account_pane.dart:351,591-605 | match | |
-| The hero's status: Syncing, Synced just now, Synced 4 min ago, Waiting to sync, Sign in again to sync | settings/AccountPane.tsx:338-351; core/sync/engine.ts:82-87 | settings/panes/account_pane.dart:379-399; sync/engine.dart:105-111 | differs | After an hour the date is written "9 Oct, 16:05", not in the phone's own words. |
+| The hero's status: Syncing, Synced just now, Synced 4 min ago, Waiting to sync, Sign in again to sync | settings/AccountPane.tsx:338-351; core/sync/engine.ts:82-87 | settings/panes/account_pane.dart:379-399; sync/engine.dart:105-111 | match | In the phone's own words since 2026-10-10 (core/phone_dates.dart). |
 | "A note was changed on two devices at once…"; the unsent line | settings/AccountPane.tsx:353-362 | settings/panes/account_pane.dart:403-405 | match | |
 | A device stays signed in by its own key; a 401 renews | core/account/account.ts:202-225; core/sync/engine.ts:496-499 | account/account.dart:232-250; sync/engine.dart:700-703 | match | |
 | The kind of device the service is told | core/account/account.ts:73-80 ("Android", "Mac") | root/account_wiring.dart:149 | differs | Every device registers as "Ghost Flutter". Seen only by the service. |
@@ -739,7 +739,7 @@ recovery codes, the password and delete forms was compared and is the same.
 | A team's note: live with no switch, the others' carets with their handles, their selections washed | editor/useTeamNote.ts:41-148; editor/liveBinding.ts | live/open.dart:141-213; live/editor_binding.dart:93-210 | match | |
 | The audit log: the filter, Everything / Notes / Team, a change opened, Open the note, Only this note | notes/OrganizationLog.tsx:50-346 | orgs/ui/organization_log.dart:256-844; root/ghost_root.dart:1553 | match | |
 | The audit log: whose change it was | core/versions/record.ts:63-65 | core/versions_record.dart:92 | differs | Every version is "me" (see Account), so the log says "You" for other members' changes. |
-| The audit log: days and times; Back from an opened change | editor/versionWords.ts; notes/OrganizationLog.tsx:96 | orgs/ui/organization_log.dart:70-88; shell/app_shell.dart:523-527 | differs | English days in the phone's order; Back goes straight to the dashboard. |
+| The audit log: days and times; Back from an opened change | editor/versionWords.ts; notes/OrganizationLog.tsx:96 | orgs/ui/organization_log.dart:70-88; shell/app_shell.dart:523-527 | differs | The days are in the phone's language since 2026-10-10; Back goes straight to the dashboard. |
 | Home's cards and "Recent in X" | home/HomeOrganizations.tsx:17-66; home/HomeOrgEvents.tsx:22-80 | home/home_organizations.dart:156-180; home/home_org_events.dart:60-170 | match | A news line wears a dot of its hue where the original draws the kind's mark. |
 
 ## 30. Shared links and the reader
@@ -1142,10 +1142,16 @@ Size is the work in the port: **small** is a seam handed over or a few lines, **
    medium. The desk's AI is `late final`.
 8. ~~**While a tape plays the transcript does not take the page**: the port lists the phrases under the note all the
    time.~~ Done 2026-10-10 (lib/note/note_screen.dart `_listening`; held by test/root/rest_test.dart).
-9. **The names of months and days are always English**: due chips, the names under line 1, a journal's months,
+9. ~~**The names of months and days are always English**: due chips, the names under line 1, a journal's months,
    templates, the calendar, the +'s date row, a meeting's title, the audit log, version history, "Synced" after an
-   hour, a blank's "Asked on" and its worked-out dates. Medium. One place (lib/core/locale_dates.dart), and it
-   needs the names for each language.
+   hour, a blank's "Asked on" and its worked-out dates.~~ Done 2026-10-10 on Android: the phone's own ICU is asked
+   once for its language's patterns and names (lib/core/phone_dates.dart, android/…/ghost_md/Dates.kt) and every
+   form is written from them, held to a browser's `Intl` in thirty-nine languages
+   (test/core/phone_dates_test.dart). Left: a phone that keeps the Persian calendar is written in the Gregorian
+   one; a clock that names the part of the day more finely than morning and afternoon (Chinese of Taiwan) is
+   written with its two meridiems; an iPhone and a Mac still read the two English tables; and the en-GB table is
+   WebView 133's CLDR ("Friday 9 October 2026"), where Android 16's own and a newer browser's put a comma after
+   the weekday.
 10. **Two Motion switches do less than they say.** Ghostly typing is not followed by a hand's deletions in a note
     (lib/root/note_desk.dart:549), and Ripples while recording does nothing. Small.
 11. **A note's mic stays when the note has a tape, and the tape's Add does not save what is typed first.** Small.

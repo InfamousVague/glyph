@@ -13,6 +13,7 @@ import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/locale_dates.dart';
+import 'core/phone_dates.dart';
 import 'core/geocode.dart';
 import 'core/iphone_app.dart';
 import 'core/keep_keyboard.dart';
@@ -58,8 +59,10 @@ Future<void> main() async {
   installErrorLog();
   // The keyboard that was up when the app was left is up again when it is come back to (core/keep_keyboard.dart).
   KeepKeyboard.install();
-  // Every date in the phone's own words and order, as the page's Intl writes them (core/locale_dates.dart).
-  useLocaleOf(PlatformDispatcher.instance.locale.languageCode, PlatformDispatcher.instance.locale.countryCode);
+  // Every date in the phone's own words and order, as the page's Intl writes them (core/locale_dates.dart): the
+  // phone's language is heard now, and its own words for a date asked for below (core/phone_dates.dart).
+  final locale = PlatformDispatcher.instance.locale;
+  useLocaleOf(locale.languageCode, locale.countryCode);
   // The Mac app's window (its menu bar, its three lights) and a desktop's keys: nothing on a phone.
   MacWindow.instance.attach();
   DesktopKeys.attach();
@@ -71,14 +74,17 @@ Future<void> main() async {
   // your notes" while it opens, and the app is put under it as soon as it has (lib/root/opening.dart). It opens in
   // an isolate of its own, so the launch screen's first frames are not held by it.
   final opening = _opened();
-  // Three things the first frame does wait for, and none of them for another: begun together.
-  final (_, _, locator) = await (
+  // The things the first frame does wait for, and none of them for another: begun together.
+  final (_, _, locator, _) = await (
     // Edge to edge, as the web app's page is under Android's bars: the page pads itself by the safe areas.
     SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge).whenComplete(() => PerfLaunch.step('chrome')),
     _remembered(),
     // Where the phone is, for a note keeping its place: asked only from a press, or for a new note with tagging on.
     // The place's name is OpenStreetMap's, asked once as the app itself; so are a tagged note's tiles.
     PhoneLocator().attach().whenComplete(() => PerfLaunch.step('located')),
+    // The phone's words for a date, where its language is not American or British English: asked of the phone's
+    // own ICU, and waited for a moment at most. Those two are not asked at all.
+    usePhoneDates(locale.languageCode, locale.countryCode),
   ).wait;
   // Whether the phone has a connection, and the moment one comes back (Android's own; anywhere else there is
   // always one as far as the app can tell). Not waited for: it answers when the phone does.

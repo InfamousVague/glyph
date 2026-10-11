@@ -217,7 +217,7 @@ EntryRow _rowOf(_Written page, String filled) {
   final first = firstWords(page.note.body, filled);
   final time = clockTime(at);
   final label = '${[longDay(at), time, if (place != null && place.isNotEmpty) place].join(', ')}.${first.isNotEmpty ? ' $first' : ''}';
-  return EntryRow(title: page.title, id: page.note.id, wall: page.wall, day: '${at.day}', weekday: shortWeekday(at), time: time, place: place, first: first, label: label);
+  return EntryRow(title: page.title, id: page.note.id, wall: page.wall, day: toldDate(at, DateForm.d) ?? '${at.day}', weekday: shortWeekday(at), time: time, place: place, first: first, label: label);
 }
 
 /// The written entries, newest first, and the names planned with no note yet, in the index's order: only the order,
@@ -257,7 +257,7 @@ List<JournalPage> pagesOf(String body, Note? Function(String title) noteOf) =>
     if (months.isNotEmpty && months.last.key == key) {
       months.last.entries.add(row);
     } else {
-      months.add(JournalMonth(key: key, label: '${longMonth(at)} ${at.year}', entries: [row]));
+      months.add(JournalMonth(key: key, label: toldDate(at, DateForm.yMMMM) ?? '${longMonth(at)} ${at.year}', entries: [row]));
     }
   }
   return (months: months, unwritten: unwritten);
@@ -312,7 +312,7 @@ const List<String> _usMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul',
 /// Each note is read through its kept facts (lib/core/note_facts.dart), and the cards themselves are kept by the
 /// notes they were made from and the order the phone writes a date in: asked again for the very same notes, they
 /// are the ones already made. Not to be changed.
-Map<String, JournalCard> journalCards(List<Note> notes, [int newest = 4]) => _cards.of(notes, () => _journalCards(notes, newest), also: (newest, toldLocale));
+Map<String, JournalCard> journalCards(List<Note> notes, [int newest = 4]) => _cards.of(notes, () => _journalCards(notes, newest), also: (newest, toldDates));
 
 final NotesMemo<Map<String, JournalCard>> _cards = NotesMemo<Map<String, JournalCard>>();
 

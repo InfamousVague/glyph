@@ -23,6 +23,6 @@ String when(int ms, [int? now]) {
   if (delta < day) return '${delta ~/ hour} hr ago';
   if (delta < 2 * day) return 'Yesterday';
   final at = DateTime.fromMillisecondsSinceEpoch(ms);
-  if (delta < 7 * day) return _weekdays[at.weekday - 1];
+  if (delta < 7 * day) return toldDate(at, DateForm.EEEE) ?? _weekdays[at.weekday - 1];
   return toldDate(at, DateForm.MMMMd) ?? '${_months[at.month - 1]} ${at.day}';
 }

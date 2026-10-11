@@ -23,8 +23,12 @@ const List<String> _shortMonths = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Ju
 
 String _two(int n) => n.toString().padLeft(2, '0');
 
-/// A weekday's name in full: "Monday".
-String weekdayName(DateTime date) => _weekdays[date.weekday - 1];
+/// A weekday's name in full, in the phone's language: "Monday" (`{ weekday: 'long' }`).
+String weekdayName(DateTime date) => toldDate(date, DateForm.EEEE) ?? _weekdays[date.weekday - 1];
+
+/// A weekday's name in English whatever the phone's language, where the page asks for English by name
+/// (`toLocaleDateString('en-GB', { weekday: 'long' })`: a forecast's days, ai/fills/web.ts).
+String englishWeekday(DateTime date) => _weekdays[date.weekday - 1];
 
 /// A month's name in full, by its number from 1: "September". A number outside 1 to 12 wraps round, as a JavaScript
 /// `Date` made with it does.
@@ -34,8 +38,8 @@ String monthName(int month) => _months[(month - 1) % 12];
 /// one), the year, and the time.
 String stamp(DateTime date) => '${toldDayMonth(date, DateForm.MMMd) ?? '${date.day} ${_shortMonths[date.month - 1]}'} ${date.year}, ${clockTime(date)}';
 
-/// "14:05": the time on a 24-hour clock.
-String clockTime(DateTime date) => '${_two(date.hour)}:${_two(date.minute)}';
+/// "14:05": the time on a 24-hour clock, in the phone's own figures.
+String clockTime(DateTime date) => toldDate(date, DateForm.Hm23) ?? '${_two(date.hour)}:${_two(date.minute)}';
 
 /// "Monday 28 September", or "Monday, September 28" on an American phone: the weekday, the day and the month, no
 /// year, as the home page greets the day.

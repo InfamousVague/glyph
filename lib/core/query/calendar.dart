@@ -4,12 +4,13 @@
 /// else in the app (day_words.dart `nextWeek`), and the days of the weeks either side of the month are there to fill
 /// the rows, marked as not in it. Pure, so the drawing only draws.
 ///
-/// What differs: [monthName] writes the month in English, "October 2026", whatever language is asked: the page asks
-/// `Intl` for the device's, and this app has no table of other languages' months yet (lib/core/template.dart says
-/// the same of a template's).
+/// What differs: [monthName] writes the month in the phone's language, as the page's `Intl` does, from the words
+/// the phone gave at launch (lib/core/locale_dates.dart); a language named to it is not read, and its words are
+/// then English.
 library;
 
 import '../days.dart' show dateOfDay, isoDayAfter;
+import '../locale_dates.dart';
 import 'read.dart' show QueryData;
 import 'run.dart' show QueryRow;
 
@@ -86,8 +87,9 @@ int inMonth(List<QueryRow> rows, String month) => rows.where((row) => row.day !=
 
 const List<String> _months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
-/// The month's name as a heading says it: "October 2026". [locale] is taken and not read (see above).
+/// The month's name as a heading says it, in the phone's language: "October 2026"
+/// (`{ month: 'long', year: 'numeric' }`). A [locale] named is not read (see above): its words are English.
 String monthName(String month, [String? locale]) {
   final at = dateOfDay('$month-01');
-  return at != null ? '${_months[at.month - 1]} ${at.year}' : month;
+  return at != null ? (locale == null ? toldDate(at, DateForm.yMMMM) : null) ?? '${_months[at.month - 1]} ${at.year}' : month;
 }

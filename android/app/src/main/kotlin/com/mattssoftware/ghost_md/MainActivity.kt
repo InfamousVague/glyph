@@ -149,6 +149,8 @@ class MainActivity : FlutterActivity() {
         film = FilmPlayer(applicationContext, flutterEngine.renderer).also { it.register(messenger) }
         // Told when the activity leaves the front and comes back (lib/app/front_frames.dart).
         front = MethodChannel(messenger, "ghost_md/front")
+        // A date's words in the phone's language, from its own ICU (Dates.kt; lib/core/phone_dates.dart).
+        Dates().register(messenger)
         // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
         DayPick(this).register(messenger)
         // A folding phone's hinge, as it opens (Hinge.kt; lib/core/unfold.dart).

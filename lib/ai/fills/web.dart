@@ -49,7 +49,7 @@ import '../../core/blanks.dart';
 import '../../core/fill_live.dart';
 import '../../core/geocode.dart' show geocodeUserAgent;
 import '../../core/item_syntax.dart' show jsTrim;
-import '../support/stamp.dart' show weekdayName;
+import '../support/stamp.dart' show englishWeekday;
 import '../support/unaccent.dart';
 import 'message.dart';
 
@@ -414,7 +414,7 @@ String? forecastAnswer(Object? json, ({int from, int to}) days) {
     final text = '$words$temps';
     if (days.to > days.from) {
       final date = _dayOf(_at(time, d));
-      final weekday = date == null ? 'Invalid Date' : weekdayName(date);
+      final weekday = date == null ? 'Invalid Date' : englishWeekday(date);
       parts.add('$weekday $text');
     } else {
       parts.add(text);
