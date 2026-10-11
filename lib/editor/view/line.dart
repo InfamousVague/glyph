@@ -40,6 +40,8 @@ import 'dart:ui' as ui show LineMetrics, Picture, PictureRecorder, PlaceholderAl
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
+import 'package:glacier/glacier.dart' show debugFixturePixelRatio;
+
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import '../semantics/line_semantics.dart' show assembleLine, describeLine;
@@ -816,7 +818,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       }
       final m = i < metrics.length ? metrics[i] : null;
       final fHeight = m?.height ?? 0;
-      lines.add(VisualLine(start: start, end: end, top: y, above: above, below: below, ascent: ascent, descent: descent, fTop: fTop, fBottom: fTop + fHeight, fBaseline: m?.baseline ?? 0));
+      lines.add(VisualLine(start: start, end: end, top: y, above: above, below: below, ascent: ascent, descent: descent, fTop: fTop, fBottom: fTop + fHeight, fBaseline: m == null ? 0 : fTop + inkBaseline(m.ascent)));
       y += above + below;
       fTop += fHeight;
       start = end;
@@ -855,7 +857,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         if (to <= from) continue;
         final painter = TextPainter(text: TextSpan(text: paint.text.substring(from + _base, to + _base), style: run.style), textDirection: TextDirection.ltr)..layout();
         final x = words.getOffsetForCaret(TextPosition(offset: from), Rect.zero).dx;
-        raised.add(_Raised(painter, Offset(_contentLeft + x, line.baseline - run.shift - painter.computeDistanceToActualBaseline(TextBaseline.alphabetic))));
+        raised.add(_Raised(painter, Offset(_contentLeft + x, line.baseline - run.shift - inkBaseline(painter.computeDistanceToActualBaseline(TextBaseline.alphabetic)))));
       }
     }
     _raised = raised;
@@ -1157,8 +1159,16 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   // -- paint -------------------------------------------------------------------------------------------------------
 
   /// A position down the canvas on a whole device pixel: where the page puts a box's edge and a line of text, so
-  /// two grounds that meet leave no seam and letters are not drawn between two rows of pixels.
-  static double _snap(double value) => snapToDevicePixel(value);
+  /// two grounds that meet leave no seam and letters are not drawn between two rows of pixels. The pixel is the
+  /// one the page is laid out in: in a test the one its fixture's page had (`debugFixturePixelRatio`, which is
+  /// what the lines' boxes are rounded at there too: a page measured in a browser at one pixel to one stood its
+  /// words on whole pixels, whatever its picture was taken at), and otherwise the screen's own
+  /// (`snapToDevicePixel`).
+  static double _snap(double value) {
+    final ratio = debugFixturePixelRatio;
+    if (ratio == null) return snapToDevicePixel(value);
+    return (value * ratio).roundToDouble() / ratio;
+  }
 
   static Rect _snapRect(Rect rect) => Rect.fromLTRB(_snap(rect.left), _snap(rect.top), _snap(rect.right), _snap(rect.bottom));
 
@@ -1175,7 +1185,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   _Kept? _keptMarker;
 
   /// Where each run's words are, for the grounds and the painters of the runs that have them (`paint`).
-  List<List<Rect>?>? _runBoxes;
+  List<List<(Rect, VisualLine)>?>? _runBoxes;
 
   void _forget() {
     for (final kept in _kept) {
@@ -1300,7 +1310,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   void _paintMarker(Canvas canvas, Offset offset, TextPainter marker) {
     final top = _snap(offset.dy + _lines.first.top);
     if (keepsWords && _put(canvas, _keptMarker, offset.dx, top)) return _unmoved(canvas);
-    final at = Offset(offset.dx + _contentLeft - _spec.look.hang, top + _lines.first.above - marker.computeDistanceToActualBaseline(TextBaseline.alphabetic));
+    final at = Offset(offset.dx + _contentLeft - _spec.look.hang, top + _lines.first.above - inkBaseline(marker.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
     if (!keepsWords) {
       marker.paint(canvas, at);
       return;
@@ -1343,15 +1353,18 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     // The runs' own grounds, and what a format's painter draws behind the words.
     final proj = _spec.projection;
     // Where a run's words are, a box to each visual line it is on: asked of the paragraph once for a layout, not
-    // at every paint (twice, for a run with a painter).
+    // at every paint (twice, for a run with a painter). Each box goes down the canvas with its visual line, which
+    // is put on a device pixel of its own (`_paintParagraph`): a ground stays under its words and a letter a
+    // painter draws by itself stands where the paragraph would have drawn it, wherever the page has scrolled to.
+    // (Moved by the line's own place, as they were, both stood up to half a device pixel off the words.)
     List<Rect> boxesOf(int s, Segment seg, RunLook run) {
-      final all = _runBoxes ??= List<List<Rect>?>.filled(proj.segments.length, null);
-      final own = all[s] ??= <Rect>[
+      final all = _runBoxes ??= List<List<(Rect, VisualLine)>?>.filled(proj.segments.length, null);
+      final own = all[s] ??= <(Rect, VisualLine)>[
         for (final rect in rectsForRange(seg.from, seg.to))
           for (final line in _lines)
-            if (math.min(line.top, line.contentTop) == rect.top) Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent),
+            if (math.min(line.top, line.contentTop) == rect.top) (Rect.fromLTRB(rect.left, line.baseline - run.shift - run.ascent, rect.right, line.baseline - run.shift + run.descent), line),
       ];
-      return <Rect>[for (final box in own) box.shift(offset)];
+      return <Rect>[for (final (box, line) in own) box.translate(offset.dx, _snap(offset.dy + line.top) - line.top)];
     }
 
     List<(List<Rect>, double)>? faded;
@@ -1432,7 +1445,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         final over = TextPainter(text: TextSpan(children: _spans(paint, 0, _split, ink: selection.paper)), textDirection: TextDirection.ltr);
         over.setPlaceholderDimensions(<PlaceholderDimensions>[for (final _ in marker.inlinePlaceholderBoxes ?? const <TextBox>[]) PlaceholderDimensions.empty]);
         over.layout();
-        over.paint(canvas, Offset(offset.dx + _contentLeft - look.hang, _snap(offset.dy + _lines.first.top) + _lines.first.above - over.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
+        over.paint(canvas, Offset(offset.dx + _contentLeft - look.hang, _snap(offset.dy + _lines.first.top) + _lines.first.above - inkBaseline(over.computeDistanceToActualBaseline(TextBaseline.alphabetic))));
         over.dispose();
       }
       if (paint.text.length > _split) {

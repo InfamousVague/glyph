@@ -48,7 +48,12 @@ class Fixture {
 
 /// The fixture's note drawn as the page drew it: the same theme, face and text size, on a screen 390 x 844 at two
 /// device pixels, the editor's box at the screen's corner. Answers the view.
-Future<EditorView> pumpFixture(WidgetTester tester, Fixture fixture) async {
+///
+/// `ratio` is the screen's own, and `measuredAt` the device pixels to one the fixture's page was LAID OUT at: one
+/// for the cases a browser drew emulating a screen of two (their layout is a desktop's, their picture twice the
+/// size), and the screen's own for the cases under fixtures/device, which a browser really at that density drew,
+/// as a phone's WebView does.
+Future<EditorView> pumpFixture(WidgetTester tester, Fixture fixture, {double ratio = 2, double measuredAt = 1}) async {
   final view = EditorView(
     wholeDocument: true,
     state: EditorState.create(
@@ -75,14 +80,15 @@ Future<EditorView> pumpFixture(WidgetTester tester, Fixture fixture) async {
   await pumpApp(
     tester,
     prefs: prefs,
-    ratio: 2,
+    ratio: ratio,
+    measuredAt: measuredAt,
     home: Builder(
       // The page was measured in a browser emulating two device pixels to one: its layout is in whole CSS pixels
       // where a border is concerned (0.35em of 10.8px is drawn 3px, not 3.5), where a real phone's is in device
       // pixels. So the editor is told one device pixel to the logical one here, and the picture is still taken at
       // two.
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(devicePixelRatio: 1),
+        data: MediaQuery.of(context).copyWith(devicePixelRatio: measuredAt),
         child: ColoredBox(
           color: context.tokens.color('glacier-bg'),
           child: Align(

@@ -184,16 +184,17 @@ class SetWords {
       final top = line.lineNumber * face.lineHeight + face.lead;
       // A line's words, the space a wrap left hanging at its end aside: what a `Range` over them answers.
       boxes.add(Rect.fromLTWH(line.left, top, line.width, face.ascent + face.descent));
-      // The paragraph's own lines are a whole number of pixels tall and its baseline the font's unrounded one;
-      // the page's are the face's line height apart, the ascent rounded and the half-leading floored. So where
-      // there are several, each line is set again by itself, to be drawn where the page has it.
+      // The paragraph's own lines are a whole number of pixels tall; the page's are the face's line height apart,
+      // the ascent rounded and the half-leading floored. So where there are several, each line is set again by
+      // itself, to be drawn where the page has it: by where the paragraph inks its baseline, which is not where
+      // it says its baseline is (`inkBaseline`).
       if (metrics.length == 1) {
-        _lines.add((painter: _painter, left: 0, baseline: line.baseline, to: top + face.ascent));
+        _lines.add((painter: _painter, left: 0, baseline: inkBaseline(line.ascent), to: top + face.ascent));
       } else {
         final range = _painter.getLineBoundary(TextPosition(offset: start));
         final one = TextPainter(text: TextSpan(text: shown.substring(range.start, range.end), style: face.style), textDirection: TextDirection.ltr, textScaler: TextScaler.noScaling, maxLines: 1)..layout();
         final own = one.computeLineMetrics();
-        _lines.add((painter: one, left: line.left, baseline: own.isEmpty ? face.ascent : own.first.baseline, to: top + face.ascent));
+        _lines.add((painter: one, left: line.left, baseline: own.isEmpty ? face.ascent : inkBaseline(own.first.ascent), to: top + face.ascent));
         start = range.end;
       }
     }

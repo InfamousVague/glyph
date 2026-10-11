@@ -13,8 +13,9 @@
 //            same colour wherever either has ground, and the ink within a limit
 //
 // THE LIMITS. Drawn right (2026-10-11) the forty-four cases measure no more than 4 pixels of ground in another
-// colour than the page's (the limit is [groundLimit]), in runs no longer than 4 ([runLimit]); ink 0.10 to 1.67
-// ([inkLimit]) and 12 to 32 at its worst place ([inkWorstLimit]). The group at the foot draws a note wrong on
+// colour than the page's (the limit is [groundLimit]), in runs no longer than 4 ([runLimit]); ink 0.02 to 0.36
+// ([inkLimit]; 0.10 to 1.67 and a limit of 2 while a line's words were placed by what the paragraph said of its
+// baseline, a mean of 0.52 over the cases where it is now 0.19) and 12 to 32 at its worst place ([inkWorstLimit]). The group at the foot draws a note wrong on
 // purpose nine ways and holds that each is caught, and says by what: a picture does not see everything (a corner
 // four pixels tighter, a word in bold, a sloped line), and what it does not see the boxes, grounds and inks do.
 //
@@ -32,6 +33,8 @@ import 'package:flutter_math_fork/flutter_math.dart' show Math;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/code/code_highlight.dart';
 import 'package:ghost_md/editor/diagrams/diagrams.dart';
+import 'package:ghost_md/editor/view/line.dart' show EditorLine, RenderEditorLine;
+import 'package:glacier/glacier.dart' show debugFixturePixelRatio;
 import 'package:ghost_md/editor/looks/look.dart' show LineContext, LookElement, LookEnv, LookRule, LookSheet, Props, debugPaintPixelRatio;
 import 'package:ghost_md/editor/maths/maths.dart';
 import 'package:ghost_md/editor/media/inline_box.dart';
@@ -47,7 +50,7 @@ import 'support.dart';
 final double tolerance = double.tryParse(Platform.environment['EDITOR_TOLERANCE'] ?? '') ?? 0.5;
 
 /// The most a picture's ink may differ from the page's, of 255 (test/support/page_picture.dart `Laid.ink`).
-const double inkLimit = 2.0;
+const double inkLimit = 0.6;
 
 /// And the most it may differ at any one place.
 const double inkWorstLimit = 40;
@@ -108,6 +111,16 @@ void main() {
     final boundary = GlobalKey();
     debugPaintPixelRatio = ratio ?? fixture.pictureRatio;
     final view = await pumpBlocks(tester, fixture, tall: page.height / fixture.pictureRatio, boundary: boundary, sheets: sheets, codeLight: codeLight);
+    if (ratio != null) {
+      // A line puts its edges on the pixels its fixture's page was laid out in (lib/editor/view/line.dart `_snap`),
+      // which is what keeps a test's lines off the window's own thirds: drawn wrong on purpose, the lines are
+      // painted again with no fixture to go by, on the pixel this case names.
+      debugFixturePixelRatio = null;
+      for (final line in tester.renderObjectList<RenderEditorLine>(find.byType(EditorLine))) {
+        line.markNeedsPaint();
+      }
+      await tester.pump();
+    }
     if (fixture.mermaid == 'refused') {
       // Nothing to draw it: each ask, as it comes (one diagram is drawn at a time), is told so.
       for (var answered = 0, tries = 0; tries < 8; tries++) {

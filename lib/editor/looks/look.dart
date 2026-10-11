@@ -70,6 +70,17 @@ double snapToDevicePixel(double value) {
   return (value * ratio).roundToDouble() / ratio;
 }
 
+/// Where a paragraph draws the glyphs of a line whose ascent is `ascent`, down from the line's own top: on the
+/// whole pixel nearest it. What the paragraph SAYS of its baseline is two other things. `LineMetrics.baseline` is
+/// the line's height (ascent and descent, rounded as one) less its descent; a painter's distance to its baseline
+/// is the ascent as it stands. Neither is where the ink goes: Maple Mono at 37.58 px has an ascent of 38.33 and a
+/// descent of 11.27, says 38.73 and 38.33, and draws on 38. Placing a line by either stood a heading's words two
+/// device pixels over the page's on a phone and a paragraph's one under, with the lines' boxes right to the
+/// pixel (test/editor/view/ink_rows_test.dart holds the ink to the page's own picture). Whoever sets a paragraph
+/// on a baseline of the page's takes this from it: a line of the note, a table's cell, a chip's words, a letter
+/// an effect draws by itself.
+double inkBaseline(double ascent) => (ascent + 0.5).floorToDouble();
+
 /// An element a rule may match: a line, or the span of one mark decoration. Its classes and its attributes, as
 /// the decoration gave them.
 class LookElement {

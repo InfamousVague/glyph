@@ -77,7 +77,9 @@ Future<({EditorView view, ScrollController scroll})> pumpPage(WidgetTester teste
   final scroll = ScrollController();
   addTearDown(view.destroy);
   addTearDown(scroll.dispose);
-  await pumpApp(tester, prefs: const AppPreferences(theme: 'light'), ratio: ratio, home: Page(view, scroll));
+  // Laid out and snapped at the screen's own pixels, as a phone's page is (`measuredAt`): each visual line is put
+  // on a device pixel, and at 2.625 none of them is a whole logical one.
+  await pumpApp(tester, prefs: const AppPreferences(theme: 'light'), ratio: ratio, measuredAt: ratio, home: Page(view, scroll));
   tester.view.padding = FakeViewPadding.zero;
   tester.view.viewPadding = FakeViewPadding.zero;
   await tester.pump();

@@ -160,7 +160,8 @@ class RenderInlineWords extends RenderBox {
     if (painter == null) return;
     final canvas = context.canvas;
     if (!_wraps || _lines.length <= 1) {
-      painter.paint(canvas, offset + Offset(0, _top + _ascent - painter.computeDistanceToActualBaseline(TextBaseline.alphabetic)));
+      // By where the paragraph inks its baseline, not where it says it is (`inkBaseline`).
+      painter.paint(canvas, offset + Offset(0, _top + _ascent - inkBaseline(painter.computeDistanceToActualBaseline(TextBaseline.alphabetic))));
       return;
     }
     // Each line of the paragraph set on a line box of this box's own height: the paragraph's lines are as tall
@@ -168,9 +169,12 @@ class RenderInlineWords extends RenderBox {
     for (var i = 0; i < _lines.length; i++) {
       final line = _lines[i];
       final top = line.baseline - line.ascent, bottom = line.baseline + line.descent;
+      // The line's own top in the paragraph (what it says its baseline is, is its height less its descent down
+      // from there), and from it where its baseline is inked.
+      final inked = line.baseline - line.height + line.descent + inkBaseline(line.ascent);
       canvas
         ..save()
-        ..translate(offset.dx, offset.dy + i * _each + _top + _ascent - line.baseline)
+        ..translate(offset.dx, offset.dy + i * _each + _top + _ascent - inked)
         ..clipRect(Rect.fromLTRB(-1, top - 1, size.width + 1, bottom + 1));
       painter.paint(canvas, Offset.zero);
       canvas.restore();

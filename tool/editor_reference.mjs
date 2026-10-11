@@ -35,7 +35,7 @@ import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/pl
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.GLYPH_DEV ?? 'http://127.0.0.1:5270/';
-const OUT = new URL('../test/editor/view/fixtures/', import.meta.url).pathname;
+const OUT = process.env.GLYPH_OUT ?? new URL('../test/editor/view/fixtures/', import.meta.url).pathname;
 mkdirSync(`${OUT}full`, { recursive: true });
 
 const LONG = 'The quick brown fox jumps over the lazy dog, then turns round and does it again for the sign-in page.';
@@ -122,8 +122,13 @@ for (const at of [0, 0.7, 1.9]) CASES.push({ name: `marks-at-${String(at).replac
 CASES.push({ name: 'marks-dark-at-0', doc: 'marks', display: 'formatted', theme: 'dark', full: true, out: MARKS_OUT, at: 0 });
 
 const only = process.argv.slice(2);
-const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+// GLYPH_DSF=2.625 draws the page as a PHONE's WebView does, for test/editor/view/fixtures/device: the browser itself
+// is at that many device pixels to one (not emulating it), so the page is laid out in device pixels, a face's
+// ascent and a line's top rounded to them, as on a screen of that density. The emulated two of the other cases
+// scales the picture of a page laid out at one. GLYPH_OUT says where the base cases are written.
+const DSF = Number(process.env.GLYPH_DSF ?? 0);
+const browser = await chromium.launch(DSF ? { args: [`--force-device-scale-factor=${DSF}`, '--window-size=390,844'] } : {});
+const context = await browser.newContext(DSF ? { viewport: null, hasTouch: true } : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await context.newPage();
 page.on('pageerror', (error) => console.log('page error:', error.message));
 // A page of the dev server's own origin with nothing on it, so the app's modules load and the app does not start.
@@ -442,6 +447,7 @@ for (const one of CASES) {
         marks,
         today,
         locale: navigator.language,
+        ratio: window.devicePixelRatio,
         at: one.at ?? null,
         coords,
         hits,

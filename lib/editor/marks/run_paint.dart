@@ -434,7 +434,8 @@ class LetterGlyph {
     painter.dispose();
   }
 
-  double get baseline => painter.computeDistanceToActualBaseline(TextBaseline.alphabetic);
+  /// How far down its painter the letter's baseline is inked (`inkBaseline`: not where the painter says it is).
+  double get baseline => inkBaseline(painter.computeDistanceToActualBaseline(TextBaseline.alphabetic));
 
   /// The letter as a picture, with room round its box for ink that overhangs it, for a shader to read.
   ui.Image image() {
