@@ -49,9 +49,9 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   read, the bend and the fade only and not the soft half (shaders/wisp_through.frag).
 /// - `soft`: with `through`, each smoke's soft half too, read off what is then behind its strip: a backdrop filter
 ///   of the engine's blur and a program over it (shaders/wisp_soft.frag). No picture.
-/// - `noshare`: each smoke strip of a page has a picture of the view of its own, the strip's size, and not the one
-///   the page's strips share, which is the size of the rectangle that holds them all: a task more a frame for the
-///   engine against a far smaller picture for the GPU to clear and keep.
+/// - `share`: a page's smoke strips share one picture of the view, the size of the rectangle that holds them all,
+///   as they did until the phone said what that picture cost: a task less a frame for the engine, against a target
+///   as tall as the page for it to allocate, clear and keep.
 /// - `backred`, `backheavy`, `backshow`, `backplace`, `backsay`: with `backdrop` or `through`, the strip drawn plain
 ///   red (is the filter drawn at all), the backdrop read a hundred times more for nothing (does the frame pay for
 ///   it), the strip drawn as its band and noise, or as the place the program takes each pixel to have, and what

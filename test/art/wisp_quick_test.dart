@@ -142,7 +142,7 @@ void main() {
     expect(identical(strips.debugPainted, first), isFalse, reason: 'and the next paints it where it now stands');
   });
 
-  testWidgets('a page smoking at its top and its foot asks the engine for three pictures a frame, and behind a header that hides it draws no smoke', (tester) async {
+  testWidgets('a page smoking at its top and its foot asks the engine for four pictures a frame, and behind a header that hides it draws no smoke', (tester) async {
     tester.view.devicePixelRatio = 2;
     tester.view.physicalSize = const Size(800, 1600);
     addTearDown(tester.view.reset);
@@ -172,12 +172,13 @@ void main() {
     expect(strips.debugPainted, hasLength(2), reason: 'the top band and the foot');
     expect(strips.debugPainted.first.rect.top, 0);
 
-    // One more frame of scrolling: one picture of the view for both strips, and the two small ones their soft
-    // halves are made on together. (A picture each, and a pair each, was six.)
+    // One more frame of scrolling: a picture of the view for each strip, the strip's size, and the two small ones
+    // their soft halves are made on together. (A pair each was six; one shared picture as tall as the page made
+    // it three, and cost the phone a third of its frames.)
     final before = debugWispPictures;
     controller.jumpTo(310);
     await tester.pump();
-    expect(debugWispPictures - before, 3);
+    expect(debugWispPictures - before, 4);
 
     // The header said to hide its smoke: the top band begins a little above the header's foot, and ends where it did.
     final bottom = strips.debugPainted.first.rect.bottom;

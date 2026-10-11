@@ -78,8 +78,13 @@ class WispSmokeStrip extends WispStrip {
   /// pixels thrown out of the view, which the page's own mask then hides.
   Rect _bentRect(Rect at, double ratio) => snapOut(at.inflate((smoke.bend / 2).ceilToDouble()).intersect(within), at.topLeft, ratio);
 
+  // A picture of its own, the strip's size, and not one shared with the view's other strips: a page's top and its
+  // foot stand at the two ends of it, the one picture that holds both is as tall as the page, and the engine makes
+  // every picture it is asked for in a target it has just allocated (Impeller keeps none for `toImageSync`). On
+  // the Fold, twelve flings of Home: 64% of frames on the 120 Hz beat with the shared picture, 97% with two small
+  // ones, 99% with no smoke. A measured build can ask for the shared one again (`share`).
   @override
-  bool get shares => wispQuick && !WispProbe.has('noshare');
+  bool get shares => wispQuick && WispProbe.has('share');
 
   @override
   WispSoftAsk? softAsk(Rect at, ui.Image view, Rect viewRect, double ratio) =>
