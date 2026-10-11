@@ -16,6 +16,8 @@
 /// that small would take no taps, so this one fills the canvas and answers for its children wherever they are.
 library;
 
+import 'dart:ui' as ui;
+
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 
@@ -204,5 +206,184 @@ class RenderCanvasWorld extends RenderBox with ContainerRenderObjectMixin<Render
       child = (child.parentData! as WorldPlace).previousSibling;
     }
     return false;
+  }
+}
+
+/// A card held still while the view is zoomed by a hand ([CanvasCamera.zooming]): drawn once into a picture at the
+/// size it has on the screen as the zoom begins, and that picture stretched for as long as the hand moves; drawn as
+/// itself again, sharp, when the hand rests. What the page's own engine does with a layer under a transform that is
+/// changing. Not [on] for a card that changes while it is looked at (one being written in, one lifted).
+///
+/// The picture is taken again where the zoom has gone far from the size it was taken at (half as close again, or
+/// under half), so a long zoom in is never much softer than the screen; and a card too large on the screen to keep
+/// as a picture is drawn as itself throughout.
+class ZoomStill extends SingleChildRenderObjectWidget {
+  const ZoomStill({super.key, required this.camera, this.on = true, required Widget super.child});
+
+  final CanvasCamera camera;
+  final bool on;
+
+  @override
+  RenderZoomStill createRenderObject(BuildContext context) => RenderZoomStill(camera, on: on, ratio: MediaQuery.devicePixelRatioOf(context));
+
+  @override
+  void updateRenderObject(BuildContext context, RenderZoomStill renderObject) {
+    renderObject
+      ..camera = camera
+      ..on = on
+      ..ratio = MediaQuery.devicePixelRatioOf(context);
+  }
+}
+
+class RenderZoomStill extends RenderProxyBox {
+  RenderZoomStill(this._camera, {required bool on, required double ratio}) : _on = on, _ratio = ratio;
+
+  /// How far outside its box a card held still may draw: the ring round the card a line is being drawn from.
+  static const double margin = 8;
+
+  /// The most of the screen's own pixels a card's picture may be, each way and in all: past it the card is drawn as
+  /// itself.
+  static const double mostSide = 4096;
+  static const double mostPixels = 4096 * 1024;
+
+  /// How many pictures have been taken, for a test.
+  static int debugTaken = 0;
+
+  CanvasCamera _camera;
+  set camera(CanvasCamera value) {
+    if (identical(value, _camera)) return;
+    if (attached) _unlisten();
+    _camera = value;
+    if (attached) _listen();
+    _letGo();
+    markNeedsPaint();
+  }
+
+  bool _on;
+  set on(bool value) {
+    if (value == _on) return;
+    _on = value;
+    _letGo();
+    markNeedsPaint();
+  }
+
+  double _ratio;
+  set ratio(double value) {
+    if (value == _ratio) return;
+    _ratio = value;
+    _letGo();
+    markNeedsPaint();
+  }
+
+  ui.Image? _picture;
+
+  /// The view's scale the picture was taken at.
+  double _takenAt = 0;
+  bool _following = false;
+
+  bool get _still => _on && _camera.zooming.value;
+
+  /// Whether a picture stands in for the card just now, for a test.
+  bool get debugStill => _picture != null;
+
+  void _listen() => _camera.zooming.addListener(_zooming);
+
+  void _unlisten() {
+    _camera.zooming.removeListener(_zooming);
+    if (_following) _camera.removeListener(_moved);
+    _following = false;
+  }
+
+  void _zooming() {
+    final now = _camera.zooming.value;
+    if (now != _following) {
+      _following = now;
+      if (now) {
+        _camera.addListener(_moved);
+      } else {
+        _camera.removeListener(_moved);
+      }
+    }
+    if (!now) _letGo();
+    if (_on) markNeedsPaint();
+  }
+
+  /// The view moved while the card is held still: its picture is taken again once the zoom is far from it.
+  void _moved() {
+    if (_picture == null) return;
+    final scale = _camera.view.scale;
+    if (scale > _takenAt * 1.5 || scale < _takenAt * 0.4) markNeedsPaint();
+  }
+
+  void _letGo() {
+    _picture?.dispose();
+    _picture = null;
+  }
+
+  @override
+  void attach(PipelineOwner owner) {
+    super.attach(owner);
+    _listen();
+    _zooming();
+  }
+
+  @override
+  void detach() {
+    _unlisten();
+    _letGo();
+    super.detach();
+  }
+
+  @override
+  void dispose() {
+    _letGo();
+    super.dispose();
+  }
+
+  void _take(double scale) {
+    final bounds = (Offset.zero & size).inflate(margin);
+    final by = _ratio * scale;
+    final wide = bounds.width * by, tall = bounds.height * by;
+    if (wide < 1 || tall < 1 || wide > mostSide || tall > mostSide || wide * tall > mostPixels) return;
+    final layer = OffsetLayer();
+    final into = PaintingContext(layer, bounds);
+    super.paint(into, Offset.zero);
+    // As the framework's own snapshot of a child does (widgets/snapshot_widget.dart).
+    // ignore: invalid_use_of_protected_member
+    into.stopRecordingIfNeeded();
+    if (!layer.supportsRasterization()) {
+      layer.dispose();
+      return;
+    }
+    _picture = layer.toImageSync(bounds, pixelRatio: by);
+    layer.dispose();
+    _takenAt = scale;
+    debugTaken += 1;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (child == null) return;
+    if (!_still || size.isEmpty) {
+      _letGo();
+      super.paint(context, offset);
+      return;
+    }
+    final scale = _camera.view.scale;
+    if (_picture == null || scale > _takenAt * 1.5 || scale < _takenAt * 0.4) {
+      _letGo();
+      _take(scale);
+    }
+    final picture = _picture;
+    if (picture == null) {
+      super.paint(context, offset);
+      return;
+    }
+    context.canvas.drawImageRect(
+      picture,
+      Offset.zero & Size(picture.width.toDouble(), picture.height.toDouble()),
+      (Offset.zero & size).inflate(margin).shift(offset),
+      Paint()..filterQuality = FilterQuality.low,
+    );
   }
 }

@@ -51,6 +51,7 @@ import '../editor/view/view_mode.dart';
 import '../home/note_peek.dart';
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
+import 'camera.dart';
 import 'card_looks.dart';
 import 'geometry.dart';
 import 'json_canvas.dart';
@@ -135,9 +136,14 @@ class CanvasCard {
     this.onWrite,
     this.onName,
     this.own,
+    this.camera,
   });
 
   final CanvasNode node;
+
+  /// The view's camera, where the card is in a view that is moved by hand: the card is held still while the view is
+  /// zoomed (world.dart `ZoomStill`).
+  final CanvasCamera? camera;
   final CanvasWiki? wiki;
   final PictureStore? pictures;
 
@@ -189,17 +195,17 @@ class CanvasCard {
           ),
       ];
     }
+    final Widget box = _Lift(
+      lifted: lifted,
+      child: _CardBox(node: node, lineFrom: lineFrom, table: !editing && node.type == NodeType.text && isOnlyTable(node.text), child: _content(context)),
+    );
+    final camera = this.camera;
     return [
       Placed(
         key: key,
         at: at,
         size: size,
-        child: RepaintBoundary(
-          child: _Lift(
-            lifted: lifted,
-            child: _CardBox(node: node, lineFrom: lineFrom, table: !editing && node.type == NodeType.text && isOnlyTable(node.text), child: _content(context)),
-          ),
-        ),
+        child: RepaintBoundary(child: camera == null ? box : ZoomStill(camera: camera, on: !lifted && !editing, child: box)),
       ),
     ];
   }

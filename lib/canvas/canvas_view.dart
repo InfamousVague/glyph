@@ -315,6 +315,7 @@ class CanvasViewState extends State<CanvasView> {
       onWrite: editable ? _writeCard : null,
       onName: editable ? _nameGroup : null,
       own: _own,
+      camera: _camera,
     ).build(context);
     _cards[node.id] = (node: node, worn: worn, tokens: t, pictures: widget.pictures, known: known, words: words, drawn: drawn);
     return drawn;
@@ -386,6 +387,8 @@ class CanvasViewState extends State<CanvasView> {
     if (!identical(oldWidget.camera, widget.camera) && widget.camera != null) {
       _camera.removeListener(_moved);
       _camera = widget.camera!..addListener(_moved);
+      // The cards kept were built for the camera there was.
+      _cards.clear();
     }
     if (widget.goTo != oldWidget.goTo) _centreOnSpot();
     // The note reloaded: its canvas is the canvas, and the view is fitted to it again (not a team's, whose every

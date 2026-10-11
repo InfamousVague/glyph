@@ -1,8 +1,11 @@
+import 'dart:typed_data';
+import 'dart:ui' as ui show ImageByteFormat;
 import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart' hide Canvas;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/canvas/camera.dart';
 import 'package:ghost_md/canvas/paint.dart';
 import 'package:ghost_md/canvas/viewport.dart';
 import 'package:ghost_md/canvas/world.dart';
@@ -102,6 +105,72 @@ void main() {
     shown.state.camera.moveTo(CameraView(x: -(t.x + t.width) - 20, y: 32, scale: 1));
     await tester.pump();
     expect(world.debugPainted, greaterThan(all - ids.length));
+    await shown.done();
+  });
+
+  testWidgets('a view zoomed by a hand draws each card as a picture of itself until the hand rests, and one change of scale never does', (tester) async {
+    final shown = Shown(tester);
+    await shown.show();
+    final camera = shown.state.camera;
+    // The cards of words and notes and the link; a group's box is drawn as itself throughout.
+    Iterable<RenderZoomStill> stills() => tester.allRenderObjects.whereType<RenderZoomStill>();
+    final cards = stills().length;
+    expect(cards, ids.length - 1);
+    Future<Uint8List> picture() async {
+      final boundary = tester.allRenderObjects.whereType<RenderRepaintBoundary>().first;
+      return (await tester.runAsync(() async {
+        final image = await boundary.toImage(pixelRatio: tester.view.devicePixelRatio);
+        final data = await image.toByteData(format: ui.ImageByteFormat.rawStraightRgba);
+        return data!.buffer.asUint8List();
+      }))!;
+    }
+
+    // Past the rest of whatever scale the view opened to.
+    await tester.pump(CanvasCamera.zoomRest * 2);
+    final taken = RenderZoomStill.debugTaken;
+    // One change alone (Fit, the zoom buttons, a zoom to a card): no hand at it, no picture, the cards themselves.
+    camera.zoomBy(1.1);
+    await tester.pump();
+    expect(camera.zooming.value, isFalse);
+    expect(RenderZoomStill.debugTaken, taken);
+    await tester.pump(CanvasCamera.zoomRest * 2);
+    // Two fingers moving: a change at every frame. From the second each card is its picture, taken once.
+    camera.zoomBy(1.05);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(camera.zooming.value, isFalse);
+    camera.zoomBy(1.05);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(camera.zooming.value, isTrue);
+    expect(RenderZoomStill.debugTaken, taken + cards);
+    expect(stills().every((still) => still.debugStill), isTrue);
+    for (final id in ids) {
+      layerOf(tester, id).debugResetMetrics();
+    }
+    for (var i = 0; i < 4; i += 1) {
+      camera.zoomBy(1.03);
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    expect(RenderZoomStill.debugTaken, taken + cards, reason: 'the pictures taken as the zoom began are the ones stretched');
+    for (final id in ids) {
+      expect(layerOf(tester, id).debugSymmetricPaintCount, 0, reason: 'card $id was not drawn again while the hand moved');
+    }
+    // Far from the size the pictures were taken at, they are taken again: a long zoom in is not a soft one.
+    camera.zoomBy(1.6);
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(RenderZoomStill.debugTaken, taken + cards * 2);
+    // The hand rests: every card is drawn as itself, and the screen is the one a view put there at once shows.
+    final rested = shown.view;
+    await tester.pump(CanvasCamera.zoomRest + const Duration(milliseconds: 20));
+    await tester.pump();
+    expect(camera.zooming.value, isFalse);
+    expect(stills().any((still) => still.debugStill), isFalse);
+    final after = await picture();
+    camera.moveTo(home);
+    await tester.pump(CanvasCamera.zoomRest * 2);
+    camera.moveTo(rested);
+    await tester.pump();
+    expect(camera.zooming.value, isFalse);
+    expect(await picture(), after);
     await shown.done();
   });
 

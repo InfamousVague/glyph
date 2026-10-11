@@ -47,8 +47,36 @@ class CanvasCamera extends ChangeNotifier {
 
   void _apply(CameraView next) {
     if (next == _view) return;
+    final scaled = next.scale != _view.scale;
     _view = next;
+    if (scaled) _scaled();
     notifyListeners();
+  }
+
+  /// Whether the view is being zoomed by a hand still at it: its scale has changed twice within a tenth of a second
+  /// (two fingers moving, a wheel turned with the modifier held) and has not yet rested for as long again. While it
+  /// is, a card is drawn as the picture of itself it was when the zoom began, stretched (world.dart `ZoomStill`),
+  /// and when the hand rests it is drawn sharp at the size it has come to: a card's letters are drawn anew for
+  /// every size they are asked at, and a zoom asked for another at every frame (tool/perf.sh canvas, canvas-zoom:
+  /// the engine's half of a frame was three times a pan's). One change of scale alone (Fit, a zoom to a card, the
+  /// zoom buttons) is not a zoom in hand: the cards are drawn at their new size at once, never soft.
+  final ValueNotifier<bool> zooming = ValueNotifier<bool>(false);
+
+  /// Running since the scale last changed: while it runs, another change is the same hand's, and when it ends the
+  /// hand is at rest. One clock for both, a timer's, so a test's time is the test's.
+  Timer? _rest;
+
+  /// How long between two changes of scale is one hand's doing, and how long without one is the hand at rest.
+  static const Duration zoomRest = Duration(milliseconds: 140);
+
+  void _scaled() {
+    final again = _rest?.isActive ?? false;
+    _rest?.cancel();
+    _rest = Timer(zoomRest, () {
+      _rest = null;
+      if (!_gone) zooming.value = false;
+    });
+    if (again) zooming.value = true;
   }
 
   /// The canvas as it opened, or as the note reloaded it: fitted again.
@@ -84,6 +112,8 @@ class CanvasCamera extends ChangeNotifier {
   @override
   void dispose() {
     _gone = true;
+    _rest?.cancel();
+    zooming.dispose();
     super.dispose();
   }
 
