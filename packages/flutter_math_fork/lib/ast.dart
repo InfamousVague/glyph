@@ -11,6 +11,7 @@ import 'src/ast/syntax_tree.dart';
 
 export 'src/ast/nodes/accent.dart';
 export 'src/ast/nodes/accent_under.dart';
+export 'src/ast/nodes/box.dart';
 export 'src/ast/nodes/enclosure.dart' show EnclosureNode;
 export 'src/ast/nodes/equation_array.dart';
 export 'src/ast/nodes/frac.dart' show FracNode;

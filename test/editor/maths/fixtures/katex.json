@@ -770,6 +770,202 @@
    "depth": 0.345
   },
   {
+   "tex": "\\smash{\\frac{a}{b}} x",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "\\smash[t]{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 0,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\smash[b]{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0
+  },
+  {
+   "tex": "\\smash{y}",
+   "display": false,
+   "ok": true,
+   "height": 0,
+   "depth": 0
+  },
+  {
+   "tex": "x \\mathclap{\\frac{a}{b}} y",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sum_{\\mathclap{1 \\le i \\le n}} x_i",
+   "display": true,
+   "ok": true,
+   "height": 1.0501,
+   "depth": 1.3728
+  },
+  {
+   "tex": "\\mathllap{a} b \\mathrlap{c}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\rlap{a} \\llap{b} \\clap{c}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\vcenter{\\frac{a}{b}} + \\vcenter{x}",
+   "display": true,
+   "ok": true,
+   "height": 1.1468,
+   "depth": 0.6468
+  },
+  {
+   "tex": "\\hbox{abc $x^2$}",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "\\mathchoice{\\frac{a}{b}}{T}{S}{s}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\mathchoice{\\frac{a}{b}}{T}{S}{s}",
+   "display": false,
+   "ok": true,
+   "height": 0.6833,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\mathchoice{D}{T}{\\frac{S}{S}}{s}}",
+   "display": false,
+   "ok": true,
+   "height": 0.9735,
+   "depth": 0
+  },
+  {
+   "tex": "\\pmb{x} + \\pmb{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\href{http://a.example}{\\frac{x}{y}}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\url{http://a.example}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\includegraphics[width=1em]{a.png}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\htmlClass{a}{\\frac{x}{y}}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\let\\a=\\frac \\a{1}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\global\\let\\b\\alpha \\b + \\long\\def\\c#1{#1^2}\\c{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0.0833
+  },
+  {
+   "tex": "\\begin{pmatrix*}[r] a & -b \\\\ -c & d \\end{pmatrix*}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\begin{Vmatrix*} a \\\\ b \\end{Vmatrix*}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\begin{Vmatrix} a \\\\ b \\end{Vmatrix}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\varlimsup_{n} x_n",
+   "display": true,
+   "ok": true,
+   "height": 0.8944,
+   "depth": 0.7
+  },
+  {
+   "tex": "\\varinjlim_{n} x_n",
+   "display": true,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 1.222
+  },
+  {
+   "tex": "\\varinjlim_{n} x_n",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.5717
+  },
+  {
+   "tex": "\\varliminf x + \\varprojlim y",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.522
+  },
+  {
+   "tex": "\\text{\\aa \\AA}",
+   "display": false,
+   "ok": true,
+   "height": 0.9468,
+   "depth": 0
+  },
+  {
    "tex": "\\Big( x \\Big)",
    "display": false,
    "ok": true,

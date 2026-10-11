@@ -111,6 +111,30 @@ const digitToNumber = {
 };
 
 // ignore: avoid_positional_boolean_parameters
+/// `\let\name=token`: the name means what the token means now (KaTeX's `letCommand`, functions/def.js).
+String _let(MacroContext context, bool global) {
+  final name = context.popToken().text;
+  if (RegExp(r'^(?:[\\{}$&#^_]|EOF)$').hasMatch(name)) {
+    throw ParseException('Expected a control sequence');
+  }
+  while (context.future().text == ' ') {
+    context.popToken();
+  }
+  var token = context.popToken();
+  if (token.text == '=') {
+    token = context.popToken();
+    if (token.text == ' ') token = context.popToken();
+  }
+  final meant = context.macros.get(token.text);
+  context.macros.set(
+      name,
+      meant ??
+          MacroDefinition.fromMacroExpansion(
+              MacroExpansion(tokens: [token], numArgs: 0)),
+      global: global);
+  return '';
+}
+
 String _def(MacroContext context, bool global) {
   final name = context.popToken().text;
   if (RegExp(r'^(?:[\\{}$&#^_]|EOF)$').hasMatch(name)) {
@@ -386,6 +410,24 @@ final Map<String, MacroDefinition> builtinMacros = {
 // Added to 0.7.4 (README.md, 8): `\def` and `\gdef`, as KaTeX's functions/def.js reads them where a macro
 // has no text between its parameters: a name, `#1#2…`, a body. (`\tag` is written with `\gdef`.)
   '\\def': MacroDefinition.fromCtxString((context) => _def(context, false)),
+  // Added to 0.7.4 (README.md, 17): `\let`, and `\global` and `\long` before a definition.
+  '\\let': MacroDefinition.fromCtxString((context) => _let(context, false)),
+  '\\global': MacroDefinition.fromCtxString((context) {
+    final next = context.popToken().text;
+    if (next == '\\def' || next == '\\gdef') return _def(context, true);
+    if (next == '\\let') return _let(context, true);
+    throw ParseException('Invalid token after macro prefix');
+  }),
+  '\\long': MacroDefinition.fromString(''),
+  '\\llap': MacroDefinition.fromString('\\mathllap{\\textrm{#1}}'),
+  '\\rlap': MacroDefinition.fromString('\\mathrlap{\\textrm{#1}}'),
+  '\\clap': MacroDefinition.fromString('\\mathclap{\\textrm{#1}}'),
+  '\\varlimsup': MacroDefinition.fromString('\\DOTSB\\operatorname*{\\overline{lim}}'),
+  '\\varliminf': MacroDefinition.fromString('\\DOTSB\\operatorname*{\\underline{lim}}'),
+  '\\varinjlim': MacroDefinition.fromString('\\DOTSB\\operatorname*{\\underrightarrow{lim}}'),
+  '\\varprojlim': MacroDefinition.fromString('\\DOTSB\\operatorname*{\\underleftarrow{lim}}'),
+  '\\aa': MacroDefinition.fromString('\\r a'),
+  '\\AA': MacroDefinition.fromString('\\r A'),
   '\\gdef': MacroDefinition.fromCtxString((context) => _def(context, true)),
 
 // \newcommand{\macro}[args]{definition}

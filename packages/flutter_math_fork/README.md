@@ -1,7 +1,7 @@
 # flutter_math_fork, as Ghost.md keeps it
 
 This is [flutter_math_fork](https://pub.dev/packages/flutter_math_fork) 0.7.4 (Apache 2.0, see `LICENSE`; the
-parser and the layout are ported from KaTeX, MIT, and each file says so), with the fifteen changes named below. The app
+parser and the layout are ported from KaTeX, MIT, and each file says so), with the eighteen changes named below. The app
 reads it by path (`pubspec.yaml`: `flutter_math_fork: path: packages/flutter_math_fork`) and draws a note's
 formulas with it (`lib/editor/maths`).
 
@@ -77,12 +77,27 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
 
 15. **`\mathstrut` and `\underbar`** (`parser/tex/macros.dart`): two of KaTeX's own macros that were left out.
 
+16. **Boxes measured otherwise than by what is in them** (`lib/src/ast/nodes/box.dart`, new;
+    `parser/tex/functions/katex_base/box.dart`, new). `\smash` and `\smash[t]`, `\smash[b]` (no height, no
+    depth); `\mathllap`, `\mathrlap`, `\mathclap` (no width); `\vcenter` (the middle on the axis); `\hbox`;
+    `\mathchoice` (one of four by the style it is built in); `\pmb` (drawn twice a hair apart, as KaTeX's
+    `text-shadow` draws it). And the commands KaTeX draws only for a page it trusts, which a note is not:
+    `\href`, `\url`, `\includegraphics`, `\htmlClass`, `\htmlId`, `\htmlStyle`, `\htmlData` are the command's own
+    name in KaTeX's error red and nothing of what they were given, as on the web. (A link with a `%` in it is
+    not read: the reader takes the `%` for a comment's start.) KaTeX: `functions/smash.js`, `lap.js`,
+    `vcenter.js`, `hbox.js`, `mathchoice.js`, `pmb.js`, `Parser.formatUnsupportedCmd`.
+17. **More of TeX's and KaTeX's macros** (`parser/tex/macros.dart`): `\let`, and `\global` and `\long` before a
+    definition; `\llap`, `\rlap`, `\clap`; `\varlimsup`, `\varliminf`, `\varinjlim`, `\varprojlim`; `\aa`, `\AA`.
+18. **The starred matrices** (`parser/tex/environments/array.dart`): `matrix*`, `pmatrix*`, `bmatrix*`, `Bmatrix*`,
+    `vmatrix*`, `Vmatrix*`, with `[l]`, `[c]` or `[r]` for how their columns are set. And `Vmatrix` has its
+    double bars: the published package gave it `vmatrix`'s single ones.
+
 `\tag{…}` is not a change here: the package's macros already keep a tag aside (`\df@tag`), and the app reads it
 from there and sets it at the right of the formula (`lib/editor/maths/formula.dart`, `maths.dart`).
 
 ## What still differs from KaTeX
 
-`test/editor/maths/katex_test.dart` holds thirty-four formulas and eighty-one pieces of them to KaTeX's heights
+`test/editor/maths/katex_test.dart` holds thirty-four formulas and a hundred and nine pieces of them to KaTeX's heights
 and depths, to a hundredth of an em, and all agree. What that does not say:
 
 - **Equation numbers.** KaTeX numbers the rows of `align`, `gather`, `equation` and `alignat` at the right
@@ -91,17 +106,16 @@ and depths, to a hundredth of an em, and all agree. What that does not say:
 - **Widths, and the shape of a glyph.** There is no browser on either side of the comparison, so only what the
   two layouts work out is compared: how far above and below its baseline a formula reaches.
 - **What KaTeX reads and this reader does not.** Of eighty-three families of KaTeX's commands, each tried the
-  plainest way, twenty-five are not read (the test holds the list): `\smash`, `\vcenter`, `\hbox`,
-  `\mathchoice`; `\phase`, `\angl`; `\href`, `\url`, `\includegraphics`, `\htmlClass` (which KaTeX, untrusting
-  as the app has it, writes as the command's name in red); `\let`, `\global`, `\edef`; `\pmb`; `\set` and
-  `\Set`; `\mathclap`, `\mathllap`, `\mathrlap` and `\clap`, `\llap`, `\rlap`; `matrix*` and its like with an
-  alignment; `CD`; `\varinjlim` and its like; the text letters `\aa`, `\ss`, `\o`; `\copyright` and
-  `\textregistered`. A formula that uses one is shown as its source, in the note's error ink, as KaTeX shows what
-  it cannot read. Each wants a node of its own in `lib/src/ast/nodes` (a box with no height, a box that takes no
-  width) or a little more of TeX's macro machinery in `parser/tex/macros.dart`.
+  plainest way, seven are not read (the test holds the list): `\phase` and `\angl`; `\edef`; `\set` and `\Set`;
+  the `CD` environment; `\copyright`, `\textregistered` and `\minuso`. A formula that uses one is shown as its
+  source, in the note's error ink, as KaTeX shows what it cannot read. `\phase`, `\angl` and the circled
+  letters each want a way of drawing in `lib/src/ast/nodes` (an angle, a border on two sides, a ring round a
+  letter); `\edef` wants the expander asked to expand a definition's words as it is made; `\set` wants KaTeX's
+  `\bra@set`, which reads its braces with `|` meaning something else; `CD` is a parser of its own
+  (`environments/cd.js`).
 
 ## Taking a newer one
 
-Copy the new `lib/` over this one, then make the fifteen changes again: `git log -p -- packages/flutter_math_fork`
+Copy the new `lib/` over this one, then make the eighteen changes again: `git log -p -- packages/flutter_math_fork`
 shows each, and `diff -r` against the published 0.7.4 in the pub cache is the whole of them (about four hundred
 lines). `test/editor/maths/katex_test.dart` then says which of them the new version still needs.

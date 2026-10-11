@@ -52,6 +52,13 @@ const arrayEntries = {
     'Bmatrix',
     'vmatrix',
     'Vmatrix',
+    // Added to 0.7.4 (README.md, 18): mathtools' starred forms, which may say how their columns are set.
+    'matrix*',
+    'pmatrix*',
+    'bmatrix*',
+    'Bmatrix*',
+    'vmatrix*',
+    'Vmatrix*',
   ]: EnvSpec(
     numArgs: 0,
     handler: _matrixHandler,
@@ -276,13 +283,38 @@ GreenNode _matrixHandler(TexParser parser, EnvContext context) {
     'bmatrix': ['[', ']'],
     'Bmatrix': ['{', '}'],
     'vmatrix': ['|', '|'],
-    'Vmatrix': ['\u2223', '\u2223'],
-  }[context.envName];
-  final res = parseArray(
+    // Changed from 0.7.4 (README.md, 18): `\Vert`, the double bar; this had the single one.
+    'Vmatrix': ['\u2225', '\u2225'],
+  }[context.envName.replaceAll('*', '')];
+  // `\begin{pmatrix*}[r]`: every column set to the left, the middle or the right.
+  MatrixColumnAlign? align;
+  if (context.envName.endsWith('*')) {
+    parser.consumeSpaces();
+    if (parser.fetch().text == '[') {
+      parser.consume();
+      parser.consumeSpaces();
+      align = const {
+        'l': MatrixColumnAlign.left,
+        'c': MatrixColumnAlign.center,
+        'r': MatrixColumnAlign.right,
+      }[parser.fetch().text];
+      if (align == null) {
+        throw ParseException('Expected l or c or r');
+      }
+      parser.consume();
+      parser.consumeSpaces();
+      parser.expect(']');
+    }
+  }
+  var res = parseArray(
     parser,
     hskipBeforeAndAfter: false,
     style: _dCellStyle(context.envName),
   );
+  if (align != null) {
+    res = res.copyWith(
+        columnAligns: List.filled(res.cols, align, growable: false));
+  }
   return delimiters == null
       ? res
       : LeftRightNode(

@@ -1,7 +1,10 @@
 library katex_base;
 
+import 'package:flutter/rendering.dart' show CrossAxisAlignment;
+
 import '../../../ast/nodes/accent.dart';
 import '../../../ast/nodes/accent_under.dart';
+import '../../../ast/nodes/box.dart';
 import '../../../ast/nodes/enclosure.dart';
 import '../../../ast/nodes/frac.dart';
 import '../../../ast/nodes/function.dart';
@@ -33,6 +36,7 @@ import '../symbols.dart';
 part 'katex_base/accent.dart';
 part 'katex_base/accent_under.dart';
 part 'katex_base/array.dart';
+part 'katex_base/box.dart';
 part 'katex_base/arrow.dart';
 part 'katex_base/break.dart';
 part 'katex_base/char.dart';
@@ -66,6 +70,7 @@ const katexBaseFunctionEntries = {
   ..._breakEntries,
   ..._charEntries,
   ..._colorEntries,
+  ..._boxEntries,
   ..._crEntries,
   ..._delimSizingEntries,
   ..._encloseEntries,

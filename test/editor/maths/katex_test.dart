@@ -6,7 +6,7 @@
 // measured the same way.
 //
 // They agree, all of them, to a hundredth of an em. They did not with the package as published: its README
-// names the fifteen places it was changed, each found by a line of this test's output.
+// names the places it was changed, each found by a line of this test's output.
 //
 // There is no browser on either side, so widths and the look of a glyph are not compared: only what the two
 // layouts work out, which is where one would stand a fraction of a line off the other.
@@ -152,34 +152,16 @@ void main() {
 /// is shown as its source, in the error's ink. Held here so that the list is known, and so that one coming
 /// right is taken off it.
 const List<String> _unread = <String>[
-  // A box moved or measured otherwise: no height, set on the axis, a plain box, one of four by the style.
-  r'\smash{x}',
-  r'\vcenter{x}',
-  r'\hbox{x}',
-  r'\mathchoice{a}{b}{c}{d}',
-  // Two marks.
+  // Two marks: an angle under and beside, and the actuary's.
   r'\phase{x}',
   r'\angl{n}',
-  // What KaTeX itself draws only when told to trust the note (it is not): on the web the command's name in red.
-  r'\href{http://a.example}{x}',
-  r'\url{http://a.example}',
-  r'\includegraphics{a.png}',
-  r'\htmlClass{a}{x}',
-  // TeX's own ways of naming a thing, beside `\def` and `\newcommand`, which are read.
-  r'\let\a=b \a',
-  r'\global\def\a{b}\a',
+  // A definition whose words are worked out as it is made.
   r'\edef\a{b}\a',
-  r'\pmb{x}',
+  // A set with a bar in it that grows with the braces.
   r'\Set{x | y}',
   r'\set{x}',
-  // Something set over its neighbour, taking no room.
-  r'\mathclap{x}',
-  r'\mathllap{x}',
-  r'\mathrlap{x}',
-  r'\begin{matrix*}[r] a \\ b \end{matrix*}',
+  // A diagram of arrows.
   r'\begin{CD} A @>a>> B \end{CD}',
-  r'\varinjlim x',
-  r'\text{\aa \AA \ss \o \O \i \j}',
-  r'\llap{a} \rlap{b} \clap{c}',
+  // A letter in a circle.
   r'\degree \copyright \textregistered \minuso',
 ];
