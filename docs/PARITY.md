@@ -9,6 +9,30 @@ shows. "Wired" means reachable from `lib/main.dart` through `lib/root/`.
   `packages/`.
 - The target is **Android**. Mac and iPhone are noted only where they differ.
 
+## Where it stood at the end of 2026-10-10
+
+The same day's work closed most of the three lists below. The tables' rows were updated by whoever closed them
+where they said so; this is the count by the lists' own numbers, at main `5ebbc80`.
+
+- **Missing, 15:** 13 are in (code coloured by a port of the web's own parsers, 142 of its 143 languages; maths by
+  a vendored KaTeX port held to KaTeX's heights; Mermaid by mermaid.js in a web view off screen; notifications with
+  the app closed; More › Journal, Ticket key and AI; pull to refresh in a note; a pasted address over a selection;
+  a voice command's Undo after a restart; spell-check; a screen reader's lines; a board's height by keys). **Left:**
+  13 and 14 (update alerts, What's new, a moved model mirror), which wait on the updater being given its keys.
+- **Unwired, 25:** all in.
+- **Differs, 39:** 32 are in (1, 4–25, 27–35; 1 is the original's main, on by default, and can be built off with
+  `GHOST_ASSISTANT=0`; 32 less the test report; 33 less two sentences kept on purpose). The audit was wrong about 39.
+  37 is by design and 38 is kept on purpose. **Left:** 2, 3 and 36, which are a release's configuration and the
+  owner's to decide; and **26**, undo in a live note beside another member's writing: measured against Yjs (no
+  letter of anyone's is lost in any case tried; a run restored where another has since written comes back in
+  another order), and it needs yrs's `UndoManager` behind the core's CRDT commands, which was not built.
+- **New, known differences** (Differs 40 and 41 below): one language no fence can name; seven families of KaTeX's
+  commands not read; a formula's number is counted through the note, not by what is drawn.
+- **Seen on a device:** the emulator only, and not for everything (each branch's report says what). Nothing of the
+  day was seen on the Fold; the phone-side bridges added for the battery, the connection, the notification
+  permission's answer, the clip player on Apple's platforms and the iPhone's diagrams were compiled or tested
+  against fakes, not run.
+
 ## Summary
 
 | Features enumerated | match | differs | unwired | missing | n/a |
