@@ -21,7 +21,7 @@ import 'package:glacier/glacier.dart';
 import '../../core/item_syntax.dart';
 import '../../core/task_fields.dart';
 import '../editor.dart';
-import '../looks/look.dart' show FaceMetrics, layoutUnit;
+import '../looks/look.dart' show FaceMetrics, layoutUnit, lineBoxHeight;
 import '../view/line.dart' show EditorRunScope;
 import '../view/lines.dart';
 import 'inline_box.dart';
@@ -142,7 +142,7 @@ class CountWidget extends EditorWidget {
     // leading (1.6, inherited as a number) with the upper half floored.
     final face = FaceMetrics.of(style);
     final ascent = (face.ascent * small).roundToDouble(), descent = (face.descent * small).roundToDouble();
-    final leading = layoutUnit((base?.props.lineHeight ?? 1.6) * small);
+    final leading = lineBoxHeight(base?.props.lineHeight ?? 1.6, small);
     final above = ascent + ((leading - ascent - descent) / 2).floorToDouble(), below = leading - above;
     // `vertical-align: middle`: the box's middle on the line's baseline plus half the parent's x-height.
     final em = base?.fontSize ?? t.len('app-body');

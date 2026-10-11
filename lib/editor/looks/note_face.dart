@@ -19,6 +19,10 @@ TextStyle noteFace(Tokens t, Look? look, double px, {String weight = 'regular', 
   final sized = Tokens.resized(base, px);
   return sized.copyWith(
     height: height,
+    // A stylesheet's leading is half above the words and half below. The line's own style says nothing of it
+    // (a line of the editor works its box out itself), and the text engine's own way gives the ascent the larger
+    // share, which set these words a pixel and a quarter low in a line of 24.
+    leadingDistribution: TextLeadingDistribution.even,
     color: color,
     fontWeight: FontWeight.values[((heavy / 100).round() - 1).clamp(0, 8)],
     fontVariations: <FontVariation>[for (final variation in sized.fontVariations ?? const <FontVariation>[]) variation.axis == 'wght' ? FontVariation('wght', heavy) : variation],

@@ -22,6 +22,8 @@
 /// What is not: anything not listed. A property the editor's sheets never set has no field here.
 library;
 
+import 'dart:ui' as ui show PlatformDispatcher;
+
 import 'package:flutter/painting.dart';
 import 'package:glacier/glacier.dart';
 
@@ -31,12 +33,42 @@ import 'code_themes.dart';
 /// taken to.
 double layoutUnit(double value) => (value * 64).roundToDouble() / 64;
 
+/// How tall a line box is where `line-height` is the number [lineHeight] and the type [fontSize] pixels, as Blink
+/// makes it: the size to the nearest sixty-fourth of a pixel first, and that many times the number down to the
+/// sixty-fourth below. Not the product to the nearest sixty-fourth, which is a sixty-fourth out for two sizes in
+/// five (14.94 px at 1.6 is 23.890625, not 23.90625: a block of forty such lines stood half a pixel tall).
+/// Measured in Chromium over 836 sizes from 9 to 40 px, every one as this says (2026-10-11, with the page's own
+/// faces: a `div` of one line, its `getBoundingClientRect().height`).
+double lineBoxHeight(double lineHeight, double fontSize) => (lineHeight * (fontSize * 64).roundToDouble() + 1e-4).floorToDouble() / 64;
+
 /// A padding, a margin or a gutter as Blink takes it: down to the sixty-fourth below (measured: four headings'
 /// paddings rounded to the nearest put the fifth a sixteenth of a pixel low).
 double layoutUnitFloor(double value) => (value * 64 + 1e-6).floorToDouble() / 64;
 
 /// A width of text as Blink takes it: up to the next sixty-fourth.
 double layoutUnitCeil(double value) => (value * 64 - 1e-6).ceilToDouble() / 64;
+
+/// The device pixels to a logical one of the picture being drawn, where it is not the window's own: a test that
+/// lays its picture over the page's says the picture's. Under a test the window (`dart:ui`'s own, which a test's
+/// `tester.view` does not change) is at three to one whatever the test said, so an edge put on a whole pixel of
+/// it is on a third of a pixel of a picture taken at two, and two grounds that meet there show a seam no phone
+/// draws.
+double? debugPaintPixelRatio;
+
+/// The device pixels to a logical one that a painted edge is put on whole pixels of ([snapToDevicePixel]).
+double paintPixelRatio() {
+  final said = debugPaintPixelRatio;
+  if (said != null) return said;
+  final views = ui.PlatformDispatcher.instance.views;
+  return views.isEmpty ? 1.0 : views.first.devicePixelRatio;
+}
+
+/// A position on a whole device pixel: where the page puts a box's edge and a line of text, so two grounds that
+/// meet leave no seam and letters are not drawn between two rows of pixels.
+double snapToDevicePixel(double value) {
+  final ratio = paintPixelRatio();
+  return (value * ratio).roundToDouble() / ratio;
+}
 
 /// An element a rule may match: a line, or the span of one mark decoration. Its classes and its attributes, as
 /// the decoration gave them.
@@ -632,7 +664,7 @@ class Look {
     final ratio = env.t.css.lineDpr > 0 ? env.t.css.lineDpr : 1.0;
     if (ratio == 1) {
       final ascent = (face.ascent * p.fontSize).roundToDouble(), descent = (face.descent * p.fontSize).roundToDouble();
-      final leading = layoutUnit(p.lineHeight * p.fontSize);
+      final leading = lineBoxHeight(p.lineHeight, p.fontSize);
       final above = ascent + ((leading - (ascent + descent)) / 2).floorToDouble();
       return (above: above, below: leading - above, ascent: ascent, descent: descent);
     }
@@ -642,7 +674,7 @@ class Look {
       down += 1;
       up -= 1;
     }
-    final leading = layoutUnit(p.lineHeight * p.fontSize * ratio);
+    final leading = lineBoxHeight(p.lineHeight, p.fontSize * ratio);
     final above = up + ((leading - (up + down)) / 2).floorToDouble();
     return (above: above / ratio, below: (leading - above) / ratio, ascent: up / ratio, descent: down / ratio);
   }

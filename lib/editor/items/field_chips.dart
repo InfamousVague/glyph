@@ -33,7 +33,7 @@ import '../../art/lucide.g.dart';
 import '../../core/days.dart';
 import '../../core/locale_dates.dart';
 import '../../core/task_fields.dart';
-import '../looks/look.dart' show FaceMetrics, layoutUnit;
+import '../looks/look.dart' show FaceMetrics, lineBoxHeight;
 import '../view/line.dart' show EditorRunScope;
 import 'inline_box.dart';
 
@@ -260,7 +260,7 @@ class FieldChip extends StatelessWidget {
     // with the upper half floored.
     final face = FaceMetrics.of(style);
     final ascent = (face.ascent * em).roundToDouble(), descent = (face.descent * em).roundToDouble();
-    final height = layoutUnit(lineHeight * em);
+    final height = lineBoxHeight(lineHeight, em);
     final baseline = ascent + ((height - ascent - descent) / 2).floorToDouble();
     Widget words(String text, TextStyle of, double size) => Dropped(
       top: baseline - FaceMetrics.of(of).ascent * size,

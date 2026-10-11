@@ -77,7 +77,7 @@ const bool groundsOnTightLines = true;
 /// each to a whole pixel as the line's are (looks/look.dart `_box`).
 bool _tight(Props p) {
   final face = FaceMetrics.of(TextStyle(fontFamily: p.families.isEmpty ? null : p.families.first));
-  return layoutUnit(p.lineHeight * p.fontSize) < (face.ascent * p.fontSize).roundToDouble() + (face.descent * p.fontSize).roundToDouble();
+  return lineBoxHeight(p.lineHeight, p.fontSize) < (face.ascent * p.fontSize).roundToDouble() + (face.descent * p.fontSize).roundToDouble();
 }
 
 /// A rule that sorts after every other in the editor's sheets: `!important`, and a ground laid under whatever

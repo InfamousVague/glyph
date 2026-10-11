@@ -316,6 +316,10 @@ final LookSheet markdownLook = LookSheet('editor/markdown.module.css', <LookRule
       final ground = e.code.color('bg');
       p
         ..background = ((_) => ground)
+        // `background` is the shorthand: it puts `background-image` back to none, and a quote's bar is one
+        // (`.lineQuote`, the rule before this). A block of code in a quote is the card alone, with no bar down it.
+        ..barWidth = 0
+        ..barColor = null
         ..marginStart = e.gutter
         ..marginEnd = e.gutter
         ..paddingStart = p.em(0.85)

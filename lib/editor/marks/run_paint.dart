@@ -208,16 +208,10 @@ BoxEdge boxEdgeOf(String? said) => switch (said) {
   _ => BoxEdge.both,
 };
 
-double _device() {
-  final views = ui.PlatformDispatcher.instance.views;
-  return views.isEmpty ? 1.0 : views.first.devicePixelRatio;
-}
+double _device() => paintPixelRatio();
 
 /// A position on a whole device pixel, so two pieces of one box meet without a seam.
-double snapToDevice(double value) {
-  final ratio = _device();
-  return (value * ratio).roundToDouble() / ratio;
-}
+double snapToDevice(double value) => snapToDevicePixel(value);
 
 /// `background`, `border-radius`, `box-shadow: 0 0 0 <spread> <color>` and `padding`, on an inline box.
 class BoxLayer extends PaintLayer {
