@@ -664,7 +664,10 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
               key: ValueKey('scroll ${shown.id}'),
               controller: _paneScroll,
               padding: padding,
-              child: Column(
+              // A layer of its own: the page is one box in its scroller, and without one every row and every example
+              // of it was drawn again at each frame of a scroll (the cheat sheet flung on the Fold: 4.3 ms of a
+              // frame's 8.3 to draw what had only moved, 415 of 561 frames late).
+              child: RepaintBoundary(child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   // `.settingsScreen__display`: a title rather than a display word, so the rows start near the top.
@@ -686,7 +689,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                   ),
                   shown.content(context),
                 ],
-              ),
+              )),
             )),
           ),
         ),

@@ -173,7 +173,11 @@ class _CheatSheetState extends State<CheatSheet> {
           key: ValueKey('group ${found[g].title}'),
           // `.group + .group { margin-block-start: var(--glacier-space-8) }`
           padding: EdgeInsets.only(top: g == 0 ? 0 : t.space(8)),
-          child: Column(
+          // A layer of its own for each group: the strip over them is moved at every frame of a scroll to stay at
+          // the page's top (`_Pinned`), and what shares a layer with it is drawn again with it, which was every
+          // card and every example on the page, sixty times a second (on the Fold a fling of the cheat sheet was
+          // 4.3 ms of build a frame, 415 of 561 frames late; a third of the Mac's samples were paragraphs painted).
+          child: RepaintBoundary(child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -202,7 +206,7 @@ class _CheatSheetState extends State<CheatSheet> {
               SizedBox(height: t.space(3)),
               _Cards(rows: found[g].rows, ground: ground),
             ],
-          ),
+          )),
         ),
       if (found.isEmpty)
         Padding(
@@ -248,7 +252,7 @@ class _Pinned extends StatelessWidget {
           final room = all.size.height - own.size.height;
           dy = (position.pixels - top).clamp(0.0, room < 0 ? 0.0 : room);
         }
-        return Transform.translate(offset: Offset(0, dy), child: child);
+        return Transform.translate(offset: Offset(0, dy), child: RepaintBoundary(child: child));
       },
     );
   }
