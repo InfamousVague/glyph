@@ -23,11 +23,11 @@
 /// are put in order by lib/core/query/collate.dart, which stands in for the browser's collation.
 library;
 
-import '../core/book.dart' show bookIndex, isBookBody, placeOf;
+import '../core/book.dart' show bookIndex, placeOf;
 import '../core/front_matter.dart' show frontMatterValue;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/note.dart';
-import '../core/note_text.dart' show noteTitle;
+import '../core/note_facts.dart';
 import '../core/properties.dart';
 import '../core/query/collate.dart' show localeCompare;
 import '../core/task_fields.dart' show FieldKind, fieldsIn, personKey;
@@ -118,29 +118,38 @@ Note? Function(Note note) notebookFinder(Iterable<Note> notes) {
   final index = bookIndex(notes);
   final keyed = <String, Note>{};
   for (final note in notes) {
-    if (!isBookBody(note.body)) continue;
+    if (!NoteFacts.of(note).isBook) continue;
     final key = notebookKey(note.body);
     if (key != null) keyed.putIfAbsent(key, () => note);
   }
   return (note) {
     final place = placeOf(index, note);
     if (place != null) return place.book;
-    final id = ticketIdOf(note.body);
+    final id = issueKeyOf(NoteFacts.of(note).value('id'));
     return id != null ? keyed[id.substring(0, id.lastIndexOf('-'))] : null;
   };
 }
 
+/// The workflow of a ticket in no notebook, or in one that names none: one list for all of them.
+final List<String> _noWorkflow = List<String>.unmodifiable(statusesOf(null));
+
 /// Every ticket among [notes], in the order given, each read in its notebook's workflow. [skip] leaves notes out
 /// that are tickets in shape only: a ticket's template page (lib/notes/own_templates.dart) makes tickets and is not
 /// one.
+///
+/// Read through what is kept of each note (lib/core/note_facts.dart): whether it is a notebook or a ticket, its
+/// title, its ticket, its notebook's workflow. This found each note's front matter four times over and read every
+/// ticket's from its words, and it is asked again whenever the library is (every time a note is left for the home
+/// page, which reads the notes again): two to three milliseconds of the next note's opening, over 354 notes on a Mac.
 List<TicketEntry> ticketsIn(Iterable<Note> notes, [bool Function(Note note)? skip]) {
   final notebookOf = notebookFinder(notes);
   final entries = <TicketEntry>[];
   for (final note in notes) {
-    if ((skip != null && skip(note)) || isBookBody(note.body) || !isTicket(note.body)) continue;
+    final facts = NoteFacts.of(note);
+    if (!facts.isTicket || facts.isBook || (skip != null && skip(note))) continue;
     final notebook = notebookOf(note);
-    final statuses = statusesOf(notebook?.body);
-    entries.add(TicketEntry(note: note, title: noteTitle(note.body), ticket: ticketOf(note.body, statuses)!, statuses: statuses, notebook: notebook));
+    final statuses = notebook == null ? _noWorkflow : NoteFacts.of(notebook).statuses;
+    entries.add(TicketEntry(note: note, title: facts.title, ticket: facts.ticketIn(statuses)!, statuses: statuses, notebook: notebook));
   }
   return entries;
 }

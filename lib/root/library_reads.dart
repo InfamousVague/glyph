@@ -71,7 +71,7 @@ class LibraryReads {
 
   /// Every ticket in the library, each in its notebook's workflow. A ticket's template page makes tickets and is
   /// not one.
-  List<TicketEntry> get entries => _entries ??= ticketsIn(notes, (note) => isTemplatePageBody(note.body));
+  List<TicketEntry> get entries => _entries ??= ticketsIn(notes, (note) => NoteFacts.of(note).isTemplatePage);
 
   /// The ticket a key or a title names.
   TicketEntry? ticket(String target) => (_find ??= ticketFinder(entries))(target);
