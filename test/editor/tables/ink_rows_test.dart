@@ -20,7 +20,8 @@ void main() {
   final only = Platform.environment['EDITOR_CASE'];
   for (final name in TableFixture.names()) {
     if (only != null && only.isNotEmpty && !name.contains(only)) continue;
-    if (name.contains('caret') || name.contains('inside') || name.contains('selection')) continue;
+    // The cases under phone/ are a phone's own page, drawn by their own harness at its density: not held here.
+    if (name.contains('caret') || name.contains('inside') || name.contains('selection') || name.startsWith('phone/')) continue;
     testWidgets('$name: the words are on the rows the page\'s are', (tester) async {
       final fixture = TableFixture.read(name);
       await pumpTableFixture(tester, fixture);
