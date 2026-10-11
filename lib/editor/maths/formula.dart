@@ -10,7 +10,7 @@
 library;
 
 import 'package:flutter/painting.dart' show Color;
-import 'package:flutter_math_fork/ast.dart' show EquationArrayNode, MathOptions, MathStyle, SyntaxTree, SyntaxTreeTexStyleBreakExt;
+import 'package:flutter_math_fork/ast.dart' show EquationArrayNode, EquationRowNode, GreenNode, MathOptions, MathStyle, Mode, MultiscriptsNode, SymbolNode, SyntaxTree, SyntaxTreeTexStyleBreakExt, TransparentNode;
 import 'package:flutter_math_fork/flutter_math.dart' show ParseException, Strict, TexParserSettings;
 import 'package:flutter_math_fork/tex.dart' show TexParser;
 
@@ -44,8 +44,35 @@ class Formula {
   /// as TeX breaks a formula in a paragraph and KaTeX lets a browser (each piece is a `.base` of its markup).
   late final List<SyntaxTree> parts = tree == null ? const <SyntaxTree>[] : tree!.texBreak().parts;
 
+  /// Whether a letter stands in the formula's own line: one of KaTeX_Math's slanted ones, a variable, not in a
+  /// script, a fraction or anything else KaTeX sets in a box of a said height. Its face's box is part of the
+  /// line's then (maths.dart `_inlineBox`): on the page `x` set apart is 27.33 px tall where `(9)` is 25.33.
+  late final bool letterInLine = tree != null && _letterIn(tree!.greenRoot);
+
   /// Whether a drawing on screen holds this reading ([takeFormula]).
   bool _taken = false;
+}
+
+/// The letters KaTeX sets in KaTeX_Math's slanted face where no face is said (`mathdefault`): the Latin ones and
+/// the small Greek.
+bool _slanted(String symbol) {
+  if (symbol.length != 1) return false;
+  final unit = symbol.codeUnitAt(0);
+  return (unit >= 0x41 && unit <= 0x5a) || (unit >= 0x61 && unit <= 0x7a) || (unit >= 0x3b1 && unit <= 0x3c9) || unit == 0x3d1 || unit == 0x3d5 || unit == 0x3d6 || unit == 0x3f1 || unit == 0x3f5;
+}
+
+bool _letterIn(GreenNode node) {
+  if (node is SymbolNode) return node.mode == Mode.math && node.overrideFont == null && _slanted(node.symbol);
+  // A row and what only says how its children are set: their children stand in the same line.
+  if (node is EquationRowNode || node is TransparentNode) {
+    for (final child in node.children) {
+      if (child != null && _letterIn(child)) return true;
+    }
+    return false;
+  }
+  // What has scripts: its base stands in the line, its scripts in boxes of their own.
+  if (node is MultiscriptsNode) return _letterIn(node.base);
+  return false;
 }
 
 /// The work done, counted, for a test to hold the editor to.

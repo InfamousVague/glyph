@@ -17,8 +17,6 @@
 ///   nothing unless it enters or leaves a line or a block that has maths.
 /// - `title` (what a browser shows over a formula it could not draw) is a panel on a long press, the footnotes'
 ///   own (`view/text_panel.dart`).
-/// - The dots under a formula that could not be read sit where Flutter puts an underline:
-///   `text-underline-offset: 0.25em` has no word here.
 library;
 
 import 'package:flutter/foundation.dart' show listEquals;
@@ -29,6 +27,7 @@ import 'package:flutter_math_fork/flutter_math.dart' show Math, MathOptions, Ren
 import 'package:glacier/glacier.dart';
 
 import '../../core/maths.dart';
+import '../../sheet/css.dart' show CssLines;
 import '../editor.dart';
 import '../looks/look.dart';
 import '../syntax/tree.dart' show SyntaxNode;
@@ -118,8 +117,13 @@ class MathsWidget extends EditorWidget implements ClassedBlockWidget {
   bool takesPointer(PointerEvent event) => opens || event is! PointerDownEvent;
 }
 
-/// The face KaTeX's own box is in (`.katex { font: normal 1.21em KaTeX_Main; line-height: 1.2 }`).
-const TextStyle _katexMain = TextStyle(fontFamily: 'packages/flutter_math_fork/KaTeX_Main');
+/// The face KaTeX's own box is in (`.katex { font: normal 1.21em KaTeX_Main; line-height: 1.2 }`), and the face
+/// of a letter in a formula (`.mathnormal { font-family: KaTeX_Math; font-style: italic }`): how far each
+/// reaches above and below its baseline, of its size. The faces' own `hhea` tables (KaTeX 0.16's, which
+/// packages/flutter_math_fork carries: 903 and 272 of 1000 in KaTeX_Main-Regular, 717 and 218 in
+/// KaTeX_Math-Italic), which is what a page's engine rounds to whole pixels for an inline box. The text engine
+/// here would answer each with half the faces' line gap (90) added, and round another way at some sizes.
+const FaceMetrics _katexMain = FaceMetrics(0.903, 0.272), _katexMath = FaceMetrics(0.717, 0.218);
 
 /// What one inline box in `face` at `fontSize` with a line `lineHeight` high gives its line, above and below the
 /// baseline, as Blink makes it: the arithmetic of `Look._box` (looks/look.dart), for a box the stylesheets here
@@ -127,12 +131,15 @@ const TextStyle _katexMain = TextStyle(fontFamily: 'packages/flutter_math_fork/K
 /// (`.katex`, a line of 1.2 in KaTeX_Main), and in a line of the note the span round it (`.cm-mathsInline`, 1.05
 /// of the words' size, whose line is the words' own line grown with it: a line with a formula in it is that much
 /// taller on the page).
-({double above, double below}) _inlineBox(LookEnv? env, TextStyle face, double fontSize, double lineHeight) {
-  final metrics = FaceMetrics.of(face);
+///
+/// [metrics] are the face's ascent and descent where they are known otherwise than by asking the text engine,
+/// which answers each with half the face's line gap added. The app's own faces have no gap; KaTeX's have one.
+({double above, double below}) _inlineBox(LookEnv? env, TextStyle? face, double fontSize, double lineHeight, {FaceMetrics? metrics}) {
+  metrics ??= FaceMetrics.of(face!);
   final ratio = env != null && env.t.css.lineDpr > 0 ? env.t.css.lineDpr : 1.0;
   if (ratio == 1) {
     final ascent = (metrics.ascent * fontSize).roundToDouble(), descent = (metrics.descent * fontSize).roundToDouble();
-    final leading = layoutUnit(lineHeight * fontSize);
+    final leading = lineBoxHeight(lineHeight, fontSize);
     final above = ascent + ((leading - (ascent + descent)) / 2).floorToDouble();
     return (above: above, below: leading - above);
   }
@@ -142,7 +149,7 @@ const TextStyle _katexMain = TextStyle(fontFamily: 'packages/flutter_math_fork/K
     down += 1;
     up -= 1;
   }
-  final leading = layoutUnit(lineHeight * fontSize * ratio);
+  final leading = lineBoxHeight(lineHeight, fontSize * ratio);
   final above = up + ((leading - (up + down)) / 2).floorToDouble();
   return (above: above / ratio, below: (leading - above) / ratio);
 }
@@ -221,10 +228,20 @@ class _DrawnMathsState extends State<DrawnMaths> {
       // '.cm-mathsInline:not([data-drawn])': { fontFamily: 'var(--glacier-font-mono)', fontSize: '0.92em',
       //   whiteSpace: 'pre-wrap', color: 'var(--app-ink-2, var(--glacier-text))' }
       // '[data-failed]': { textDecoration: 'underline dotted', textUnderlineOffset: '0.25em' }
-      final style = t
-          .textAt(em * 0.92, mono: true, color: t.color('app-ink-2'))
-          .copyWith(decoration: TextDecoration.underline, decorationStyle: TextDecorationStyle.dotted, decorationColor: t.color('app-ink-2'));
-      child = Text(source, style: style, textAlign: display ? TextAlign.center : TextAlign.start, textScaler: TextScaler.noScaling);
+      // Its lines are the note's own leading at its own size (`.cm-scroller { line-height: 1.6 }`, which a
+      // number inherits as a number): three lines of a block that could not be read are 77.06 px at 16.05, where
+      // the face's own lines would be 63.
+      // The dots are drawn here ([DottedUnderline]), as the page's engine draws them: the text engine's own are
+      // hairs close under the letters.
+      final style = t.textAt(em * 0.92, mono: true, color: t.color('app-ink-2'), height: run?.props.lineHeight ?? 1.6);
+      child = CssLines(
+        line: lineBoxHeight(style.height!, style.fontSize!),
+        child: DottedUnderline(
+          fontSize: style.fontSize!,
+          color: t.color('app-ink-2'),
+          child: Text(source, style: style, textAlign: display ? TextAlign.center : TextAlign.start, textScaler: TextScaler.noScaling),
+        ),
+      );
       if (view is EditorView) {
         child = GestureDetector(
           onLongPressStart: (details) {
@@ -238,7 +255,13 @@ class _DrawnMathsState extends State<DrawnMaths> {
       // '.cm-mathsInline': { fontSize: '1.05em' }, '.cm-mathsInline .katex': { fontSize: '1em' }: in a line, a
       // touch larger than the words, as KaTeX's type runs small beside a sans face. Set apart, KaTeX's own 1.21em.
       final size = em * (display ? 1.21 : 1.05);
-      var box = _inlineBox(env, _katexMain, size, 1.2);
+      var box = _inlineBox(env, null, size, 1.2, metrics: _katexMain);
+      if (display && formula.letterInLine) {
+        // A letter in the formula's own line is in another face, whose box of the same leading stands a little
+        // off KaTeX_Main's: the line is as tall as the two together (27.33 px for `x` at 21.12, not 25.33).
+        final slanted = _inlineBox(env, null, size, 1.2, metrics: _katexMath);
+        box = (above: slanted.above > box.above ? slanted.above : box.above, below: slanted.below > box.below ? slanted.below : box.below);
+      }
       if (!display && run != null) {
         final span = _inlineBox(env, run.style, size, run.props.lineHeight);
         box = (above: span.above > box.above ? span.above : box.above, below: span.below > box.below ? span.below : box.below);
@@ -290,7 +313,8 @@ class _DrawnMathsState extends State<DrawnMaths> {
           return SizedBox(
             width: constraints.maxWidth.isFinite ? room : null,
             child: Padding(
-              padding: EdgeInsets.symmetric(vertical: layoutUnitFloor(em * 0.4), horizontal: gutter),
+              // The padding's em is the block's own type: 0.92 of the note's where the formula is its source.
+              padding: EdgeInsets.symmetric(vertical: layoutUnitFloor((tree == null ? em * 0.92 : em) * 0.4), horizontal: gutter),
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: ConstrainedBox(
@@ -303,6 +327,14 @@ class _DrawnMathsState extends State<DrawnMaths> {
           );
         },
       );
+    }
+    if (display && !block && run != null) {
+      // `$$…$$` alone on its line is a block inside its line, and CodeMirror stands a buffer (an image with no
+      // width, `.cm-widgetBuffer`) either side of a widget at a line's edge. A block parts what is round it: the
+      // buffer before it is a line box of its own and the buffer after it another, each as tall as the line's
+      // own leading makes an empty line. So the formula has an empty line above it and one below, in the line's
+      // own box (measured: a line 131.625 high round a formula 75.781 high in lines of 27.922).
+      child = _BufferLines(line: run.above + run.below, below: run.below, child: child);
     }
     child = Semantics(label: tex, child: ExcludeSemantics(child: child));
     if (opens && view is EditorView) {
@@ -321,6 +353,160 @@ class _DrawnMathsState extends State<DrawnMaths> {
     }
     return child;
   }
+}
+
+/// `text-decoration: underline dotted; text-underline-offset: 0.25em` under each line of a paragraph in one style,
+/// as Chromium draws it (measured on the page at 16.05, 16.76 and 20.51 px, tool/blocks_reference.mjs; the
+/// arithmetic is Blink's `TextDecorationOffset` and `GraphicsContext::DrawLine`):
+///
+/// - as thick as a tenth of the type, and never under a pixel (`text-decoration-thickness: auto`);
+/// - its upper edge the offset below the baseline, the offset rounded to a whole pixel;
+/// - drawn as a stroke along its middle, the middle put on a whole pixel (and half a pixel on where the dots
+///   are an odd number of pixels wide);
+/// - dots as wide as the thickness to the nearest whole pixel, as far apart again, from the words' left edge
+///   to their right, each edge on a whole pixel.
+///
+/// The text engine's own dotted underline is round dots a hair thick at the face's own underline place.
+class DottedUnderline extends SingleChildRenderObjectWidget {
+  const DottedUnderline({super.key, required this.fontSize, required this.color, required super.child});
+
+  final double fontSize;
+  final Color color;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => RenderDottedUnderline(fontSize, color);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderDottedUnderline renderObject) => renderObject
+    ..fontSize = fontSize
+    ..color = color;
+}
+
+class RenderDottedUnderline extends RenderProxyBox {
+  RenderDottedUnderline(this._fontSize, this._color);
+
+  double _fontSize;
+  Color _color;
+
+  set fontSize(double value) {
+    if (value == _fontSize) return;
+    _fontSize = value;
+    markNeedsPaint();
+  }
+
+  set color(Color value) {
+    if (value == _color) return;
+    _color = value;
+    markNeedsPaint();
+  }
+
+  /// The first line's baseline under the box's top: asked while the box is laid out, which is when it may be.
+  double _first = 0;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    _first = child?.getDistanceToBaseline(TextBaseline.alphabetic, onlyReal: true) ?? 0;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    final words = child;
+    if (words is! RenderParagraph) return;
+    final length = words.text.toPlainText().length;
+    if (length == 0) return;
+    // The words of each line, joined: a line's boxes share its top.
+    final lines = <Rect>[];
+    for (final box in words.getBoxesForSelection(TextSelection(baseOffset: 0, extentOffset: length))) {
+      final rect = box.toRect();
+      if (lines.isNotEmpty && (lines.last.top - rect.top).abs() < 1) {
+        lines[lines.length - 1] = lines.last.expandToInclude(rect);
+      } else {
+        lines.add(rect);
+      }
+    }
+    if (lines.isEmpty) return;
+    final thickness = _fontSize / 10 < 1 ? 1.0 : _fontSize / 10;
+    final dot = thickness.roundToDouble() < 1 ? 1.0 : thickness.roundToDouble();
+    final under = (0.25 * _fontSize).roundToDouble();
+    final paint = Paint()..color = _color;
+    final canvas = context.canvas;
+    for (final line in lines) {
+      final baseline = offset.dy + _first + (line.top - lines.first.top);
+      var middle = (baseline + under + thickness / 2).roundToDouble();
+      if (dot.toInt().isOdd) middle += 0.5;
+      final from = (offset.dx + line.left).roundToDouble(), to = (offset.dx + line.right).roundToDouble();
+      for (var x = from; x < to; x += 2 * dot) {
+        canvas.drawRect(Rect.fromLTRB(x, middle - thickness / 2, x + dot < to ? x + dot : to, middle + thickness / 2), paint);
+      }
+    }
+  }
+}
+
+/// A formula set apart inside its line, with the line box CodeMirror's buffer makes above it and the one below:
+/// [line] of room either side of the child, and a baseline [below] above the foot, where the last line box's is,
+/// so the line this stands in is exactly as tall as this.
+class _BufferLines extends SingleChildRenderObjectWidget {
+  const _BufferLines({required this.line, required this.below, required super.child});
+
+  final double line, below;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderBufferLines(line, below);
+
+  @override
+  void updateRenderObject(BuildContext context, _RenderBufferLines renderObject) => renderObject
+    ..line = line
+    ..below = below;
+}
+
+class _RenderBufferLines extends RenderShiftedBox {
+  _RenderBufferLines(this._line, this._below) : super(null);
+
+  double _line, _below;
+
+  set line(double value) {
+    if (value == _line) return;
+    _line = value;
+    markNeedsLayout();
+  }
+
+  set below(double value) {
+    if (value == _below) return;
+    _below = value;
+    markNeedsLayout();
+  }
+
+  @override
+  double computeMinIntrinsicHeight(double width) => (child?.getMinIntrinsicHeight(width) ?? 0) + 2 * _line;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => (child?.getMaxIntrinsicHeight(width) ?? 0) + 2 * _line;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final inner = child?.getDryLayout(constraints.deflate(EdgeInsets.symmetric(vertical: _line))) ?? Size.zero;
+    return constraints.constrain(Size(inner.width, inner.height + 2 * _line));
+  }
+
+  @override
+  void performLayout() {
+    final child = this.child;
+    if (child == null) {
+      size = constraints.constrain(Size(0, 2 * _line));
+      return;
+    }
+    child.layout(constraints.deflate(EdgeInsets.symmetric(vertical: _line)), parentUsesSize: true);
+    (child.parentData! as BoxParentData).offset = Offset(0, _line);
+    size = constraints.constrain(Size(child.size.width, child.size.height + 2 * _line));
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => size.height - _below;
+
+  @override
+  double? computeDryBaseline(BoxConstraints constraints, TextBaseline baseline) => getDryLayout(constraints).height - _below;
 }
 
 /// A formula in a line that can be broken: its pieces side by side where they fit the line, and row under row
