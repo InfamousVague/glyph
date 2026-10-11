@@ -14,6 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/editor/diagrams/diagrams.dart';
 import 'package:ghost_md/editor/editor.dart';
+import 'package:ghost_md/editor/media/inline_box.dart';
 import 'package:ghost_md/editor/view/base.dart';
 import 'package:ghost_md/editor/view/column.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
@@ -38,12 +39,12 @@ Future<EditorView> open(WidgetTester tester, List<String> codes, {String theme =
 /// What a drawn block shows of itself.
 String? textOf(WidgetTester tester, Finder block) {
   final found = find.descendant(of: block, matching: find.byKey(_text));
-  return found.evaluate().isEmpty ? null : tester.widget<Text>(found).data;
+  return found.evaluate().isEmpty ? null : tester.widget<InlineWords>(found).text;
 }
 
 String? whyOf(WidgetTester tester, Finder block) {
   final found = find.descendant(of: block, matching: find.byKey(_why));
-  return found.evaluate().isEmpty ? null : tester.widget<Text>(found).data;
+  return found.evaluate().isEmpty ? null : tester.widget<InlineWords>(found).text;
 }
 
 /// The render asked `index`th draws, and the block hears of it: the answer is handed on after a frame, and shown in

@@ -47,6 +47,7 @@ import 'package:glacier/glacier.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/note_face.dart';
+import '../media/inline_box.dart' show InlineWords;
 import '../view/blocks.dart';
 import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
@@ -109,7 +110,9 @@ DiagramAsk diagramAsk(BuildContext context, String code, double room) {
     note: _family(env?.noteFamilies ?? t.families('glacier-font-sans'), mono: coding),
     coding: coding,
     ink: env?.ink ?? t.color('glacier-text'),
-    ratio: MediaQuery.devicePixelRatioOf(context),
+    // The picture's own pixels: the window's, or what a test whose layout is told another ratio says its
+    // picture is taken at (looks/look.dart `debugPaintPixelRatio`).
+    ratio: debugPaintPixelRatio ?? MediaQuery.devicePixelRatioOf(context),
   );
 }
 
@@ -259,24 +262,30 @@ class DrawnDiagramState extends State<DrawnDiagram> {
           // '.cm-mermaidText': { margin: '0', textAlign: 'start', fontFamily: 'var(--glacier-font-mono, …)',
           //   fontSize: '0.86em', lineHeight: 'var(--glacier-leading-md, 1.5)', whiteSpace: 'pre',
           //   overflowX: 'auto', color: 'var(--app-ink-2, currentColor)' }
+          // Each line as tall as the rule says, to the sixty-fourth of a pixel (22.5 px at 15.01), with its words
+          // where the page's are in it: the text engine's own lines are whole pixels and the leading shared
+          // otherwise, and a diagram of ten lines stood five pixels taller than the page's.
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            child: Text(
+            child: InlineWords(
               widget.code,
               key: const ValueKey<String>('cm-mermaidText'),
-              softWrap: false,
-              style: t.textAt(small, mono: true, color: t.color('app-ink-2'), height: t.len('glacier-leading-md')),
+              style: t.textAt(small, mono: true, color: t.color('app-ink-2')),
+              lineHeight: small * t.len('glacier-leading-md'),
+              maxLines: _anyLines,
             ),
           ),
           if (mistake != null)
             // '.cm-mermaidWhy': { margin: '0.4em 0 0', textAlign: 'start', fontSize: '0.86em',
-            //   color: 'var(--app-ink-3, currentColor)' }
+            //   color: 'var(--app-ink-3, currentColor)' }, at the note's own leading (`.cm-scroller`, 1.6).
             Padding(
               padding: EdgeInsets.only(top: layoutUnitFloor(0.4 * small)),
-              child: Text(
+              child: InlineWords(
                 mistake.said.isEmpty ? 'This diagram could not be drawn here.' : 'That diagram has a mistake: ${firstLineOf(mistake.said)}',
                 key: const ValueKey<String>('cm-mermaidWhy'),
                 style: noteFace(t, look, small, color: t.color('app-ink-3')),
+                lineHeight: small * 1.6,
+                maxLines: _anyLines,
               ),
             ),
         ],
@@ -284,6 +293,9 @@ class DrawnDiagramState extends State<DrawnDiagram> {
     );
   }
 }
+
+/// As many lines as the words come to: nothing is cut.
+const int _anyLines = 1 << 20;
 
 /// The first line of what Mermaid said went wrong: the rest is the diagram drawn in letters, which no one needs
 /// here (`firstLine`).
