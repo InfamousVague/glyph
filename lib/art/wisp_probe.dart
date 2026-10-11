@@ -43,8 +43,9 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   frame that uses them and outside its raster time: that wait is where they show.
 /// - `covered`: every header a page smokes under is taken to hide its smoke (lib/art/wisp_edge.dart
 ///   `WispEdge.covered`): what that would save, before the pages that have such a header say so.
-/// - `scroll=<pixels>`: every page that can scroll that far is put there, and put back there for the walk's first
-///   seconds: two drawings of one page at one place, for pictures to be laid pixel on pixel (`shots`).
+/// - `scroll=<pixels>`: every page that can scroll that far is put there, and put back there from the walk's fourth
+///   second to its eighth: two drawings of one page at one place, for pictures to be laid pixel on pixel (`shots`),
+///   or a stretch of a note drawn the same in every walk.
 /// - `nobackdrop`: every backdrop filter in the window is switched off (the bars' glass, the dock's), and the log
 ///   says how often a rebuild switched one back on, since a frame it was on for is a frame that paid for it.
 ///
@@ -69,11 +70,13 @@ abstract final class WispProbe {
 
   static bool has(String name) => ghostPerf && _asked.contains(name);
 
-  /// `scroll=`: every vertical scroller that reaches [to] is put there, twice a second for eight seconds.
+  /// `scroll=`: every vertical scroller that reaches [to] is put there, twice a second from the walk's fourth second
+  /// to its eighth (a walk has opened what it means to by then, and is left alone after).
   static void _scrollTo(double to) {
     var times = 0;
     Timer.periodic(const Duration(milliseconds: 500), (timer) {
       if (++times > 16) timer.cancel();
+      if (times < 8) return;
       void visit(Element element) {
         if (element is StatefulElement && element.state is ScrollableState) {
           final position = (element.state as ScrollableState).position;
