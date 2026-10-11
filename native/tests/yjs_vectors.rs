@@ -409,3 +409,47 @@ fn what_yrs_writes_is_written_down_for_yjs_to_read() {
     std::fs::create_dir_all(&target).unwrap();
     std::fs::write(target.join("yjs_from_rust.json"), serde_json::to_string(&out).unwrap()).unwrap();
 }
+
+/// KNOWN WRONG, and not held: run with `cargo test --test yjs_vectors -- --ignored` to see it.
+///
+/// Seven updates Yjs wrote (two members typing; no undo among them), handed over a member at a time, so that the
+/// first member's arrive before the second's that two of them were written over. Yjs, given them in this very
+/// order, reads `EopqIb\ndk👻m`. This copy reads `Eopqb\ndk👻m`: the `I` is gone, and handing every update over a
+/// second time does not bring it back, so a device that met them in this order holds other words than the rest
+/// of the team for good.
+///
+/// What goes wrong is yrs 0.26's, where a block that has to wait is at last put in: `opq` was written between the
+/// `H` and the `I` of `👻HI`, and waits for that block. When the block comes, yrs cuts it for `opq` by the wrong
+/// unit (the ghost is two UTF-16 units and one character), so `opq` lands after the `I` and the `I` lies in the
+/// block the waiting deletion of `👻H` then takes (yrs alone reads `EHIopqb\ndk👻m`; with crdt.rs's second handing
+/// over of what came early, `Eopqb\ndk👻m`). With no character of two units anywhere, fifteen hundred drawn
+/// scenarios handed over this way were all read as Yjs reads them (test/live/undo_beside_others_test.dart,
+/// GHOST_UNDO_PLAIN=1 GHOST_UNDO_OUT_OF_ORDER=1), and in the order they were made these are read rightly too.
+///
+/// Found on 2026-10-11 while holding undo to Yjs (docs/PARITY.md, Differs 26); it is older than that work (main
+/// at e8c9b18 reads the same) and not undo's: what would close it is never letting yrs keep a block waiting, by
+/// holding an update back in `early` until this copy has everything it was written over.
+#[test]
+#[ignore = "yrs 0.26 cuts a waiting block by the wrong unit beside a character of two units: see the comment"]
+fn updates_met_a_member_at_a_time_beside_a_character_of_two_units_are_read_as_yjs_reads_them() {
+    let updates = [
+        "AQHD6fbgCwAEAQRib2R5A2IKZAA",
+        "AQHD6fbgCwOEw-n24AsCAWoA",
+        "AQHD6fbgCwSEw-n24AsDBmvwn5G7bQLD6fbgCwEDAZ7zoV4BAQE",
+        "AQHD6fbgCwjEnvOhXgSe86FeBQNvcHEA",
+        "AALD6fbgCwELAZ7zoV4BAgM",
+        "AQGe86FeAAQBBGJvZHkCRUYA",
+        "AQGe86FeAoSe86FeAQbwn5G7SEkBnvOhXgEBAQ",
+    ];
+    let doc = ask("crdt_open", json!({"clientId": 8101}))["doc"].clone();
+    for update in updates {
+        ask("crdt_apply", json!({"doc": doc, "updates": [update]}));
+    }
+    assert_eq!(text(&doc), "EopqIb\ndk👻m", "what Yjs 13.6.32 reads of the same updates in the same order");
+    // In the order they were made (the second member's two first), this copy reads them rightly today.
+    let made = ask("crdt_open", json!({"clientId": 8102}))["doc"].clone();
+    for at in [0, 5, 1, 6, 2, 3, 4] {
+        ask("crdt_apply", json!({"doc": made, "updates": [updates[at]]}));
+    }
+    assert_eq!(text(&made), "EopqIb\ndk👻m");
+}
