@@ -1235,12 +1235,14 @@ tool/check.sh                          # everything
 tool/check.sh --since <rev>            # the quick one: the kit and the folders that what changed since <rev> can reach, and the analyzer
 tool/check.sh --quick                  # the same for what is not committed yet (--since HEAD)
 tool/check.sh --since <rev> --list     # says what that would run and which changed file reaches each; runs nothing
-tool/check.sh app root editor          # those folders; also: kit, analyze, server, native, pictures
+tool/check.sh app root editor          # those folders; also: kit, analyze, server, kotlin, native, pictures
 tool/check.sh test test/root/root_test.dart    # one run of whatever is named, with the same limits and report
 ```
 
 `--since` follows the tests' own imports and the paths they name, so a change in `lib/home` runs `test/home`,
-`test/root` and `test/diag` and a change to the token engine runs nearly everything; it does not start the service or
-cargo, and says so when what changed asks for them. The script's head says the rest: what `--since` cannot see, where
+`test/root` and `test/diag` and a change to the token engine runs nearly everything; it does not start the service,
+gradle or cargo, and says so when what changed asks for them. `kotlin` is the phone's Kotlin on the JVM (`./gradlew
+:app:testDebugUnitTest`); a fresh checkout has no gradle wrapper until `android/gradlew` and
+`android/gradle/wrapper/gradle-wrapper.jar` are copied from one that built the app. The script's head says the rest: what `--since` cannot see, where
 each run's report is kept (`build/check/`), and why a stale picture is drawn again by its whole file and never by one
 test's name.

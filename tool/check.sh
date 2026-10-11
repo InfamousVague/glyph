@@ -28,8 +28,9 @@
 # WHAT --since REACHES. A test is reached by a changed file if it, or anything it imports, imports that file or
 # names it in a string (`File('android/app/src/main/AndroidManifest.xml')`, a folder of fixtures, `Directory('lib')`:
 # test/diag reads every file of lib/, so every change there reaches it). Besides that: a picture or a fixture under
-# test/<folder>/ reaches its folder; pubspec.yaml, assets/ and shaders/ reach everything, since every screen is
-# drawn with them; native/ reaches the tests that open the Mac's build of the core. It does NOT run `server`,
+# test/<folder>/ reaches its folder; pubspec.yaml reaches everything, and so do the faces and shaders it declares;
+# any other file of assets/ reaches whoever names it, its folder or a file beside it, and everything if nobody
+# does; native/ reaches the tests that open the Mac's build of the core. It does NOT run `server`,
 # `kotlin` or `native`, and says so where what changed asks for them. What changed in ../glyph is not seen at all.
 # GHOST_CHECK_FILES="lib/a.dart lib/b.dart" tool/check.sh --since HEAD --list answers for those files instead:
 # what a change there would have to be checked by.
@@ -608,6 +609,12 @@ for source in dart:
             if os.path.exists(path):
                 names.setdefault(path, set()).add(source)
 
+# The faces and the shaders the pubspec declares: what every screen is drawn with.
+try:
+    declared = set(re.findall(r'^\s*-\s+(?:asset:\s*)?((?:assets/fonts|shaders)/\S+)', open('pubspec.yaml').read(), re.M))
+except OSError:
+    declared = set()
+
 everything = None
 reason = {}      # a Dart file reached -> the changed file that reached it
 queue = []
@@ -620,9 +627,25 @@ def reach(target, by):
 
 
 for path in changed:
-    if path in ('pubspec.yaml', 'pubspec.lock') or re.fullmatch(r'packages/[^/]+/pubspec\.yaml', path) or path.startswith(('assets/', 'shaders/')):
-        # What every test draws with: the packages, the faces, the stylesheets, the shaders.
+    if path in ('pubspec.yaml', 'pubspec.lock') or re.fullmatch(r'packages/[^/]+/pubspec\.yaml', path):
+        # What every test is built with.
         everything = everything or path
+    elif path.startswith(('assets/', 'shaders/')):
+        # What a screen is drawn with. A face or a shader is the pubspec's own, loaded for every screen whoever
+        # else names it: everything. Anything else reaches whoever names it or the folder it is in (below), or,
+        # named by nobody, whoever names a file beside it (a diagram page's stylesheet, read only by the page the
+        # tests of diagrams read); with nobody at all to ask, everything.
+        at = path
+        while at and not names.get(at):
+            at = os.path.dirname(at)
+        beside = [source for other, sources in names.items() if os.path.dirname(other) == os.path.dirname(path) for source in sources]
+        if path in declared:
+            everything = everything or path
+        elif not at and beside:
+            for source in beside:
+                reach(source, path)
+        elif not at:
+            everything = everything or path
     if path.startswith('native/') or path == 'tool/build-native.sh':
         for source in core:
             reach(source, path)
