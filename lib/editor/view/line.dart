@@ -35,7 +35,7 @@
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui show LineMetrics, Picture, PictureRecorder, PlaceholderAlignment, PlatformDispatcher;
+import 'dart:ui' as ui show LineMetrics, Picture, PictureRecorder, PlaceholderAlignment;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -43,6 +43,7 @@ import 'package:flutter/widgets.dart';
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import '../semantics/line_semantics.dart' show assembleLine, describeLine;
+import 'line_breaks.dart' show blinkBreaks;
 import 'projection.dart';
 import 'widget.dart';
 
@@ -435,7 +436,12 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   }
 
   // -- what layout made -------------------------------------------------------------------------------------------
+  /// The paint text [_words] was laid out from: the spec's own ([_plain]), or that with the visual lines the
+  /// page would have begun before a word too long for its line ([_lateBreak]).
   PaintText? _paint;
+
+  /// The spec's paint text, with no line begun by hand.
+  PaintText? _plain;
   TextPainter? _words;
   TextPainter? _marker;
   TextPainter? _selected;
@@ -455,7 +461,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   double _laidOutWidth = -1;
   PlaceholderDimensions? _leadSize;
 
-  /// Whether [_paint] was made from the spec in force: it is made once for a spec, not at every layout and every
+  /// Whether [_plain] was made from the spec in force: it is made once for a spec, not at every layout and every
   /// asking of a height.
   bool _paintFits = false;
 
@@ -463,14 +469,78 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
   /// its card's box, then laid out), the content width it was made at and how many lines it came to: taken by the
   /// layout that follows, which made the same paragraph a second time.
   TextPainter? _dry;
+  PaintText? _dryPaint;
+  List<int>? _dryEnds;
   double _dryWidth = -1;
   int _dryCount = 1;
 
   PaintText _paintText() {
-    final had = _paint;
+    final had = _plain;
     if (had != null && _paintFits) return had;
     _paintFits = true;
-    return _paint = PaintText(_spec.projection.display, tabSize: _spec.look.tabSize, breaks: _spec.projection.hiddenBreaks);
+    return _plain = PaintText(_spec.projection.display, tabSize: _spec.look.tabSize, breaks: _spec.projection.hiddenBreaks);
+  }
+
+  /// How many lines may be begun by hand in one line of the note: each is another paragraph laid out.
+  static const int _mostLate = 24;
+
+  /// Whether the page may end a visual line before paint offset `at` of `text`: after a zero-width space (which
+  /// every space is followed by, and every pair the page may part) or a line feed, between two characters the
+  /// page's own table lets a line part, or beside a character the table does not know. Never inside a word.
+  static bool _mayBreak(String text, int at) {
+    if (at <= 0 || at >= text.length) return true;
+    final before = text.codeUnitAt(at - 1), after = text.codeUnitAt(at);
+    if (before == 0x0a || before == 0x200b) return true;
+    if (before == 0x2060 || after == 0x2060 || before == 0xa0 || after == 0x200b) return false;
+    final known = blinkBreaks(at > 1 ? text.codeUnitAt(at - 2) : -1, before, after);
+    return known ?? true;
+  }
+
+  /// Where the page would have begun a visual line and `words` did not, as a display offset; null where every
+  /// line of `words` ends where a line may.
+  ///
+  /// The lines wrap `overflow-wrap: anywhere`: a word that does not fit in what is left of its line goes to the
+  /// next line whole, and only a word longer than a whole line is cut where the line ends. A paragraph of
+  /// Flutter's cuts such a word where it stands, on the line it began on (a long address after "See", a long
+  /// string after `const s =`). So a visual line that ends inside a word, and had a place to end before that
+  /// word, is where the two part: the line is begun there by hand ([PaintText.forced]) and laid out again.
+  /// `ends` are the ends of the paragraph's lines but the last, as offsets in it; `base` is what a paint offset
+  /// loses to become one.
+  static int? _lateBreak(PaintText paint, List<int> ends, int base) {
+    final text = paint.text;
+    var start = 0;
+    for (final end in ends) {
+      final at = end + base;
+      if (!_mayBreak(text, at)) {
+        for (var back = at - 1; back > start + base; back--) {
+          if (!_mayBreak(text, back)) continue;
+          final display = paint.toDisplay(back);
+          // Not where a line is begun already, nor before everything.
+          if (display > 0 && !paint.forced.contains(display)) return display;
+          break;
+        }
+      }
+      start = end;
+    }
+    return null;
+  }
+
+  /// The ends of the lines of `words` but the last, as offsets in the paragraph. `count` is how many lines it has;
+  /// `base` is what a paint offset of `paint` loses to become one.
+  static List<int> _lineEnds(TextPainter words, int count, int length, PaintText paint, int base) {
+    if (count < 2) return const <int>[];
+    final ends = <int>[];
+    var start = 0;
+    for (var i = 0; i < count - 1; i++) {
+      var end = words.getLineBoundary(TextPosition(offset: start)).end;
+      // A line feed that begins the next line by hand is the last thing on its own: the paragraph answers the
+      // line without it.
+      if (paint.feedAt(end + base)) end += 1;
+      if (end <= start) end = math.min(length, start + 1);
+      ends.add(end);
+      start = end;
+    }
+    return ends;
   }
 
   static const WidgetSpan _spacer = WidgetSpan(child: SizedBox.shrink(), alignment: ui.PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic);
@@ -528,8 +598,11 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     _laidOutWidth = -1;
     _dry?.dispose();
     _dry = null;
+    _dryPaint = null;
+    _dryEnds = null;
     _dryWidth = -1;
     _paintFits = false;
+    _paint = null;
   }
 
   // -- layout ------------------------------------------------------------------------------------------------------
@@ -592,11 +665,12 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     final width = _width(constraints);
     _contentLeft = look.marginStart + look.borderStart + look.paddingStart;
     _contentWidth = math.max(0, width - look.insetX);
-    final paint = _paintText();
+    // The text the words were laid out from at this width, if they were; the spec's own otherwise.
+    var paint = _words != null && _laidOutWidth == _contentWidth && _paint != null ? _paint! : _paintText();
 
     // The inline widgets first: the paragraph needs their sizes.
     final sizes = <PlaceholderDimensions>[];
-    final widgetAt = <int>[];
+    var widgetAt = <int>[];
     var child = firstChild;
     for (final seg in proj.segments) {
       if (seg.kind != SegmentKind.widget) continue;
@@ -615,7 +689,17 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       raised.painter.dispose();
     }
     _raised = const <_Raised>[];
+    List<int>? ends;
+    List<ui.LineMetrics>? measured;
     if (_laidOutWidth != _contentWidth || _words == null || sizes.isNotEmpty) {
+      if (paint.forced.isNotEmpty) {
+        // Another width, or other widgets: where a line is begun by hand is found again.
+        paint = _paintText();
+        widgetAt = <int>[
+          for (final seg in proj.segments)
+            if (seg.kind == SegmentKind.widget) paint.toPaint(seg.displayFrom),
+        ];
+      }
       _words?.dispose();
       _marker?.dispose();
       _selected?.dispose();
@@ -641,39 +725,64 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         // widget among them and no spacer before them, laid out in the same room.
         _words = dry;
         _dry = null;
+        paint = _dryPaint ?? paint;
+        ends = _dryEnds;
       } else {
-        assert(_counted());
-        if (ghostPerf) Perf.count('editor.lines.paragraphs');
-        final words = _words = TextPainter(text: TextSpan(children: <InlineSpan>[if (_lead > 0) _spacer, ..._spans(paint, _split, paintLength)]), textDirection: TextDirection.ltr);
-        words.setPlaceholderDimensions(<PlaceholderDimensions>[
-          ?_leadSize,
-          for (var i = 0; i < sizes.length; i++)
-            if (widgetAt[i] >= _split) sizes[i],
-        ]);
-        // A sixty-fourth of room: a line that fits to the unit on the page fits here.
-        words.layout(maxWidth: math.max(1, _contentWidth + 1 / 64));
+        TextPainter make(PaintText paint) {
+          assert(_counted());
+          if (ghostPerf) Perf.count('editor.lines.paragraphs');
+          final words = TextPainter(text: TextSpan(children: <InlineSpan>[if (_lead > 0) _spacer, ..._spans(paint, _split, paint.text.length)]), textDirection: TextDirection.ltr);
+          words.setPlaceholderDimensions(<PlaceholderDimensions>[
+            ?_leadSize,
+            for (var i = 0; i < sizes.length; i++)
+              if (widgetAt[i] >= _split) sizes[i],
+          ]);
+          // A sixty-fourth of room: a line that fits to the unit on the page fits here.
+          return words..layout(maxWidth: math.max(1, _contentWidth + 1 / 64));
+        }
+
+        var words = make(paint);
+        // A word too long for its line goes to the next line before it is cut, as on the page ([_lateBreak]).
+        // Nothing more is done for a paragraph of one line, and one look at each line's end for any other.
+        for (var pass = 0; proj.display.isNotEmpty; pass++) {
+          measured = words.computeLineMetrics();
+          ends = _lineEnds(words, measured.length, paint.text.length - _base, paint, _base);
+          final late = pass < _mostLate ? _lateBreak(paint, ends, _base) : null;
+          if (late == null) break;
+          words.dispose();
+          paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks, forced: <int>{...paint.forced, late});
+          words = make(paint);
+        }
+        _words = words;
+      }
+      _paint = paint;
+      if (paint.forced.isNotEmpty) {
+        // Every widget after a line begun by hand is one place further on in the text.
+        widgetAt = <int>[
+          for (final seg in proj.segments)
+            if (seg.kind == SegmentKind.widget) paint.toPaint(seg.displayFrom),
+        ];
       }
       _laidOutWidth = _contentWidth;
     }
     // One asked with at another width, or for a line with a widget on it, is no use to anyone now.
     _dry?.dispose();
     _dry = null;
+    _dryPaint = null;
+    _dryEnds = null;
     final words = _words!;
 
     // The paragraph's lines, and the page's line box for each.
-    final metrics = proj.display.isEmpty ? const <ui.LineMetrics>[] : words.computeLineMetrics();
+    final metrics = proj.display.isEmpty ? const <ui.LineMetrics>[] : (measured ?? words.computeLineMetrics());
     final length = paint.text.length - _base;
     final lines = <VisualLine>[];
     var y = look.borderTop + look.paddingTop;
     var start = 0;
     var fTop = 0.0;
     final count = math.max(1, metrics.length);
+    ends ??= _lineEnds(words, count, length, paint, _base);
     for (var i = 0; i < count; i++) {
-      var end = length;
-      if (i < count - 1) {
-        end = words.getLineBoundary(TextPosition(offset: start)).end;
-        if (end <= start) end = math.min(length, start + 1);
-      }
+      final end = i < count - 1 ? ends[i] : length;
       var above = look.base.above, below = look.base.below, ascent = 0.0, descent = 0.0;
       void reach(double a, double b) {
         if (a > above) above = a;
@@ -802,17 +911,34 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
     } else if (_dry != null && _dryWidth == content) {
       count = _dryCount;
     } else {
-      final paint = _paintText();
+      var paint = _paintText();
       final split = look.hang > 0 && _spec.hangChars > 0 ? paint.toPaint(proj.toDisplay(_spec.hangChars, -1)) : 0;
-      assert(_counted());
-      if (ghostPerf) Perf.count('editor.lines.paragraphs');
-      final painter = TextPainter(text: TextSpan(children: _spans(paint, split, paint.text.length, placeholders: false)), textDirection: TextDirection.ltr)
-        ..layout(maxWidth: math.max(1, width - look.insetX + 1 / 64));
-      count = math.max(1, proj.display.isEmpty ? 1 : painter.computeLineMetrics().length);
+      TextPainter make(PaintText paint) {
+        assert(_counted());
+        if (ghostPerf) Perf.count('editor.lines.paragraphs');
+        return TextPainter(text: TextSpan(children: _spans(paint, split, paint.text.length, placeholders: false)), textDirection: TextDirection.ltr)
+          ..layout(maxWidth: math.max(1, width - look.insetX + 1 / 64));
+      }
+
+      var painter = make(paint);
+      count = 1;
+      List<int>? ends;
+      // As a layout makes it: a word too long for its line goes to the next before it is cut ([_lateBreak]).
+      for (var pass = 0; proj.display.isNotEmpty; pass++) {
+        count = math.max(1, painter.computeLineMetrics().length);
+        ends = _lineEnds(painter, count, paint.text.length - split, paint, split);
+        final late = pass < _mostLate ? _lateBreak(paint, ends, split) : null;
+        if (late == null) break;
+        painter.dispose();
+        paint = PaintText(proj.display, tabSize: look.tabSize, breaks: proj.hiddenBreaks, forced: <int>{...paint.forced, late});
+        painter = make(paint);
+      }
       if (plain) {
         // Kept for the layout that follows a height asked for (`performLayout` takes it).
         _dry?.dispose();
         _dry = painter;
+        _dryPaint = paint;
+        _dryEnds = ends;
         _dryWidth = content;
         _dryCount = count;
       } else {
@@ -875,7 +1001,11 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
         x = _contentLeft;
       } else {
         final atEnd = rel >= line.end && !identical(line, _lines.last) || (rel == line.end && lineSide < 0);
-        final caret = words.getOffsetForCaret(TextPosition(offset: rel, affinity: atEnd ? TextAffinity.upstream : TextAffinity.downstream), Rect.zero);
+        // Where a line was begun by hand (a line feed, `PaintText.forced`), the end of the line above is the
+        // place before the feed: the paragraph answers the start of the next line for the place after one,
+        // whichever way it is asked.
+        final fed = atEnd && rel > 0 && paint.feedAt(offset - 1);
+        final caret = words.getOffsetForCaret(TextPosition(offset: fed ? rel - 1 : rel, affinity: atEnd && !fed ? TextAffinity.upstream : TextAffinity.downstream), Rect.zero);
         x = _contentLeft + caret.dx;
         // A paragraph of Flutter's sets half a letter's spacing either side of it where the page sets it all after:
         // past a spaced letter the place between two letters is half the spacing further on.
@@ -942,8 +1072,9 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
       final spacing = near != null && near.kind == SegmentKind.text ? _spec.runs[proj.segments.indexOf(near)].props.tracking : 0.0;
       if (spacing != 0) at = words.getPositionForOffset(Offset(local.dx - _contentLeft + spacing / 2, middle));
       final rel = math.min(math.max(at.offset, math.max(line.start, _lead)), line.end);
-      // The end of a wrapped line is before the break: the caret stays on this line.
-      if (rel == line.end && index < _lines.length - 1) assoc = -1;
+      // The end of a wrapped line is before the break: the caret stays on this line. (Before a line feed that
+      // begins the next line by hand, the place found is the feed's own.)
+      if ((rel == line.end || (rel == line.end - 1 && paint.feedAt(rel + _base))) && index < _lines.length - 1) assoc = -1;
       if (rel == line.start && index > 0) assoc = 1;
       offset = rel + _base;
       // Which letter the point was on: the one after the place found (the paragraph says so by leaning the
@@ -1027,11 +1158,7 @@ class RenderEditorLine extends RenderBox with ContainerRenderObjectMixin<RenderB
 
   /// A position down the canvas on a whole device pixel: where the page puts a box's edge and a line of text, so
   /// two grounds that meet leave no seam and letters are not drawn between two rows of pixels.
-  static double _snap(double value) {
-    final views = ui.PlatformDispatcher.instance.views;
-    final ratio = views.isEmpty ? 1.0 : views.first.devicePixelRatio;
-    return (value * ratio).roundToDouble() / ratio;
-  }
+  static double _snap(double value) => snapToDevicePixel(value);
 
   static Rect _snapRect(Rect rect) => Rect.fromLTRB(_snap(rect.left), _snap(rect.top), _snap(rect.right), _snap(rect.bottom));
 

@@ -389,18 +389,26 @@ class _Builder implements SpanIterator<Decoration> {
 /// may not, or the other way about, the paragraph is told (`line_breaks.dart`). [toPaint] and [toDisplay] go
 /// between the two texts.
 ///
+/// And a word too long for a line. The lines wrap `overflow-wrap: anywhere`: a word that does not fit in the room
+/// left on its line goes to the next line first, as any word does, and is cut where a line ends only if it is
+/// longer than a whole line. A paragraph of Flutter's cuts it where it stands, filling the line it began on. So
+/// the line that lays the words out says where the page would have ended a line before such a word ([forced]),
+/// and a line feed is written there (`line.dart` `_lateBreak`).
+///
 /// What differs: a tab's stops are counted in characters from the line's start, which is right for the monospace
 /// faces a tab is ever drawn in (a block of code) and near enough elsewhere.
 class PaintText {
-  PaintText._(this.text, this._toPaint, this._toDisplay);
+  PaintText._(this.text, this._toPaint, this._toDisplay, [this.forced = const <int>{}]);
 
   /// [breaks] are the display offsets where something hidden stands between two characters ([hiddenBreaks]): the
   /// page draws hidden syntax as an empty element between two of CodeMirror's `<img class="cm-widgetBuffer">`, and
   /// a line may break either side of an image whatever the characters round it, so "`code`." may end a line after
   /// `code` and start the next with the full stop, which no rule for the pair `e.` allows.
-  factory PaintText(String display, {int tabSize = 4, Set<int> breaks = const <int>{}}) {
+  ///
+  /// [forced] are the display offsets a visual line is made to start at: a line feed stands before each.
+  factory PaintText(String display, {int tabSize = 4, Set<int> breaks = const <int>{}, Set<int> forced = const <int>{}}) {
     // Most lines are words and spaces; a line with neither a space, a tab nor a pair to be told about is itself.
-    var plain = true;
+    var plain = forced.isEmpty;
     for (final at in breaks) {
       if (at > 0 && at < display.length) plain = false;
     }
@@ -453,11 +461,22 @@ class PaintText {
           }
         }
       }
+      if (i + 1 < display.length && forced.contains(i + 1)) {
+        out.write('\n');
+        back.add(i + 1);
+      }
     }
     toPaint[display.length] = back.length;
     back.add(display.length);
-    return PaintText._(out.toString(), toPaint, Int32List.fromList(back));
+    return PaintText._(out.toString(), toPaint, Int32List.fromList(back), forced);
   }
+
+  /// The display offsets a line feed was written before.
+  final Set<int> forced;
+
+  /// Whether the character at paint offset `at` is a line feed written for [forced]: the display text has none of
+  /// its own.
+  bool feedAt(int at) => forced.isNotEmpty && at >= 0 && at < text.length && text.codeUnitAt(at) == 0x0a;
 
   /// What the paragraph lays out.
   final String text;
