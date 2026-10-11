@@ -82,10 +82,16 @@ class TestSuite {
 }
 
 /// Every test the app has, from the last full run on the machine that built it (`TestReport`), read from the JSON
-/// `scripts/test-report.mjs` writes.
+/// `scripts/test-report.mjs` writes for the page, and tool/test_report.mjs for this app.
 @immutable
 class TestReport {
   const TestReport({this.generatedAt, this.version, this.commit, this.dirty = false, this.sourceHash, this.os, this.node, this.tools = const [], this.suites = const []});
+
+  static final Expando<TestReport> _read = Expando<TestReport>('test report');
+
+  /// The report [json] is, read once for as long as it is the same object: a build's own has thousands of tests,
+  /// and Settings asks for it at every build of its list (the row's "8594 passed") and of this page.
+  static TestReport of(Map<String, Object?> json) => _read[json] ??= TestReport.fromJson(json);
 
   factory TestReport.fromJson(Map<String, Object?> json) {
     final host = json['host'];
@@ -230,9 +236,11 @@ const Map<String, String> _statusWord = {'passed': 'Passed', 'failed': 'Failed',
 /// tests grouped by file with failures first and open, each failure's output under it. Nothing here runs a test.
 ///
 /// What differs from the web original:
-/// - **The Flutter build carries no report**: the web's is a JSON file its build bakes in (`testReport.generated.json`
-///   from `scripts/test-report.mjs`). The page takes a [report] in that same shape ([SettingsFeatures.testReport] in
-///   Settings) and, with none, draws the page's own "No test report in this build."
+/// - **The report is this app's own suite**, in the web's shape: the web's is a JSON file its build bakes in
+///   (`testReport.generated.json` from `scripts/test-report.mjs`); this build's is `assets/diag/test_report.json`
+///   from `tool/test_report.mjs`, which the root reads and hands over ([SettingsFeatures.testReport],
+///   lib/diag/built_report.dart). A build made without the tool carries the empty one, and the page then draws its
+///   own "No test report in this build." The sentences that name the command are the page's, and name the web's.
 /// - A failure's output is a block as tall as it is; the page capped it at 14rem and scrolled inside.
 /// - A file's tests fold under its name by a tap, as the page's `<details>` do, without the browser's marker (the
 ///   page hid it too).
@@ -250,7 +258,7 @@ class TestResultsPane extends StatefulWidget {
   static Widget hosted(BuildContext context) {
     final features = SettingsHost.maybeOf(context)?.features;
     final json = features?.testReport;
-    return TestResultsPane(report: json == null ? null : TestReport.fromJson(json), buildSource: features?.testBuildSource, now: features?.testNow);
+    return TestResultsPane(report: json == null ? null : TestReport.of(json), buildSource: features?.testBuildSource, now: features?.testNow);
   }
 
   @override

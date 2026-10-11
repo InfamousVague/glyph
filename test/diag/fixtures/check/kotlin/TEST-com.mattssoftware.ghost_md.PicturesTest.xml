@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.mattssoftware.ghost_md.PicturesTest" tests="3" skipped="1" failures="1" errors="0" timestamp="2026-10-11T08:50:15.809Z" hostname="a-mac.local" time="0.019">
+  <properties/>
+  <testcase name="decodes_at_the_smallest_half_that_is_still_at_least_what_is_drawn" classname="com.mattssoftware.ghost_md.PicturesTest" time="0.006"/>
+  <testcase name="scales_the_long_side_down_to_the_cap_and_never_up" classname="com.mattssoftware.ghost_md.PicturesTest" time="0.011">
+    <failure message="java.lang.AssertionError: expected:&lt;0.512&gt; but was:&lt;0.5&gt;" type="java.lang.AssertionError">java.lang.AssertionError: expected:&lt;0.512&gt; but was:&lt;0.5&gt;
+	at org.junit.Assert.fail(Assert.java:89)
+	at com.mattssoftware.ghost_md.PicturesTest.scales_the_long_side_down_to_the_cap_and_never_up(PicturesTest.kt:29)
+</failure>
+  </testcase>
+  <testcase name="draws_a_phone&apos;s_photograph" classname="com.mattssoftware.ghost_md.PicturesTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

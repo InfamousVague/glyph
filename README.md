@@ -1246,3 +1246,10 @@ gradle or cargo, and says so when what changed asks for them. `kotlin` is the ph
 `android/gradle/wrapper/gradle-wrapper.jar` are copied from one that built the app. The script's head says the rest: what `--since` cannot see, where
 each run's report is kept (`build/check/`), and why a stale picture is drawn again by its whole file and never by one
 test's name.
+
+**What the suite did goes into a release build**: `node tool/test_report.mjs` runs `tool/check.sh` whole and writes
+every test's result to `assets/diag/test_report.json`, which Settings › Test results (Developer mode) shows, as
+Ghost.md's `scripts/test-report.mjs` does for its page. `--read` writes it from what `build/check/` holds without
+running anything, `--source` prints the fingerprint a build is stamped with (`--dart-define=GHOST_SOURCE=`), and
+`--clear` puts back the empty report the repository keeps, with which the page says "No test report in this
+build." `tool/release.md` says when it is run.

@@ -38,7 +38,7 @@ extension _RootParts on _GhostRootState {
         }, _atWorkPart),
         // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
         // updates), so it is built again as those change; never for a runner's turn or the home page's news.
-        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel), _settingsPart),
+        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel, _builtReport.value), _settingsPart),
         // The palette's commands and a note's menu are made from the notes while each is open; shut, neither
         // draws anything, and each is built with the notes as they are the moment it opens.
         _part('commands', () => ((_commands.currentState?.isOpen ?? false) ? _library.value : null, _workspaces.value, _prefsAt, _capture != null), _commandsPart),

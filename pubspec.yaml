@@ -43,6 +43,9 @@ flutter:
     # The sample note's picture and the example canvas's picture card (lib/core/sample_library.dart): the web app's
     # own, src/app/assets/sample-smoke.jpg, a photograph of smoke by Jocelyn Morales from Unsplash (Unsplash License).
     - assets/sample/sample-smoke.jpg
+    # What every test did the last time the whole suite was run (lib/diag/built_report.dart; Settings › Test
+    # results): written by tool/test_report.mjs before a release is built, and the empty one in the repository.
+    - assets/diag/test_report.json
   # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
   shaders:
     - shaders/wisp_bend.frag

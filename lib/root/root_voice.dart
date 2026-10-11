@@ -321,7 +321,11 @@ extension _RootVoice on _GhostRootState {
               ),
               models: models,
             );
-    if (voice == null) return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, places: _places);
+    // Test results: the report this build carries, and the fingerprint of the code the build was made from.
+    final tests = _builtReport.value;
+    if (voice == null) {
+      return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, places: _places, testReport: tests, testBuildSource: buildSource);
+    }
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
     final download = models?.download;
@@ -338,6 +342,8 @@ extension _RootVoice on _GhostRootState {
       backup: _backups,
       export: _export,
       places: _places,
+      testReport: tests,
+      testBuildSource: buildSource,
       models: models == null
           ? null
           : SettingsModelsState(

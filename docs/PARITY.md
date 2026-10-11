@@ -12,8 +12,9 @@ installed for either: every status is what the source shows. "Wired" means reach
 
 ## What is left (2026-10-11)
 
-Of the 687 rows, **624 match**, 25 cannot apply, and **38 do not match**: 32 differ, 6 are missing, and none is
-unwired any more. Each of the 38 is below once, by what it would take.
+Of the 687 rows, **625 match**, 25 cannot apply, and **37 do not match**: 31 differ, 6 are missing, and none is
+unwired any more (624, 38 and 32 as re-checked; the Test results row has matched since). Each of the 38 is below
+once, by what it would take.
 
 ### (a) Must be built: 4 rows
 
@@ -24,9 +25,11 @@ unwired any more. Each of the 38 is below once, by what it would take.
    another order (test/live/undo_beside_others_test.dart). To be the page's it needs yrs's `UndoManager` over a live
    document in the core (native/src/crdt.rs), commands for undo and redo, `undoSlot` given those in a live note, and
    the core built again for each platform.
-2. **Settings › Test results says "No test report in this build."** (section 33). Medium, a build's tooling. The
-   page is ported and its tests draw it over a report kept in the repository; nothing writes this app's own suite
-   into a build, and the root hands the page none.
+2. **Done 2026-10-11: Settings › Test results has this app's own report** (section 33; its row is `match`).
+   `node tool/test_report.mjs` runs the whole suite and writes what every test did to
+   `assets/diag/test_report.json`, the build carries it, and the root reads it for Settings once Developer mode
+   is on (lib/diag/built_report.dart). A build made without the tool says "No test report in this build.", as the
+   page does. tool/release.md says when it is run. Never run whole here, and never seen on a phone.
 3. **Seven families of KaTeX's commands are not read** (section 10, the maths row; the rest of that row is kept on
    purpose, see (c)): `\phase`, `\angl`, `\edef`, `\Set` and `\set`, the `CD` environment, and
    `\degree \copyright \textregistered \minuso`. A formula with one of them is shown as its source. Small to medium
@@ -1013,7 +1016,7 @@ one-line readings are the same (settings/SettingsSheet.tsx:166-422; settings/set
 | Developer › The phone at work: Readings (Heat, No heat, None), Play the scene | settings/DeveloperPane.tsx:54-78; diag/SceneBench.tsx | settings/panes/developer_pane.dart:105-127; diag/scene_bench.dart; root/ghost_root.dart:822 | match | Since 2321475 Play the scene is off, with the page's reason, while the model is on a note. Held by test/settings/panes/pages_test.dart. |
 | Developer › Developer settings (the switch that hides the page) | settings/DeveloperPane.tsx:80-86 | settings/panes/developer_pane.dart:131-141 | match | |
 | Developer › Reset local data, Reset everything (two taps, five seconds armed) | settings/DeveloperPane.tsx:88-95,124-158; core/reset.ts | settings/panes/developer_pane.dart:145-192; core/reset.dart; root/reset_wiring.dart | match | |
-| **Test results**: the report this release's tests wrote, its verdict, where it came from, Search tests, Only failures | settings/TestResultsPane.tsx:103-181; diag/testReport.ts | settings/panes/test_results_pane.dart:239-393 | differs | Re-checked 2026-10-11: `testReport` is still never given by the root, so the page says "No test report in this build." Its tests draw it over a report kept in the repository (cd8c303). Left to build: the tooling that writes this app's own suite into a build. |
+| **Test results**: the report this release's tests wrote, its verdict, where it came from, Search tests, Only failures | settings/TestResultsPane.tsx:103-181; diag/testReport.ts | settings/panes/test_results_pane.dart; diag/built_report.dart; tool/test_report.mjs | match | Since 2026-10-11: `node tool/test_report.mjs` runs tool/check.sh whole and writes what every test did (the app's and the kit's Flutter tests, the phone's Kotlin on the JVM, the core's Rust) to `assets/diag/test_report.json` in the page's own shape, stamped with a fingerprint of the code; the build carries it, is stamped with its own (`GHOST_SOURCE`), and the root reads it once Developer mode is on and hands it to Settings (`BuiltTestReport`). A build made without the tool carries the empty report and says "No test report in this build." The page's two sentences that name the command still name the web's (`node scripts/test-report.mjs`), as the page's pictures hold them. Held by test/diag/test_report_test.dart (the tool over a check kept in the repository) and test/root/test_report_test.dart. The whole suite was not run through it here, and it was not seen on a phone. |
 
 Not in the port, of the 286 labels: "You're on the web version", "Notion works in the app." and "Slack works in
 the app." (each a browser's). "On this phone" and "Phone notifications" are in since df37b2c.
@@ -1397,7 +1400,8 @@ left" at the top.
     test/editor/input/clipboard_test.dart). **Left**, for a phone to say: the handles, the loupe and composing with
     Samsung Keyboard.
 32. **done but for one** "Get a model" lights the Model card, Play the scene is held off while a run is on, and the
-    tapes say they are being counted (2321475). **Left**: Test results has no report built in.
+    tapes say they are being counted (2321475). And Test results has its report since 2026-10-11
+    (tool/test_report.mjs; test/diag/test_report_test.dart, test/root/test_report_test.dart).
 33. **done but for two sentences** A picture that did not come in says so in the note's line, and a refused
     microphone says the page's words (1aab8d8). **Left**, the owner's to decide: the line for a save refused for
     good, and the sentence for an account key that will not open.

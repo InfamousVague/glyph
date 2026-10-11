@@ -1,0 +1,7 @@
+{"protocolVersion": "0.1.1", "runnerVersion": null, "pid": 1, "type": "start", "time": 0}
+{"suite": {"id": 0, "platform": "vm", "path": "/checkout/test/shots_test.dart"}, "type": "suite", "time": 0}
+{"test": {"id": 1, "name": "loading /checkout/test/shots_test.dart", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": null, "column": null, "url": null}, "type": "testStart", "time": 0}
+{"testID": 1, "result": "success", "skipped": false, "hidden": true, "type": "testDone", "time": 900}
+{"test": {"id": 2, "name": "every screen is drawn", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": 174, "column": 5, "url": "package:flutter_test/src/widget_tester.dart", "root_line": 12, "root_column": 3, "root_url": "file:///checkout/test/shots_test.dart"}, "type": "testStart", "time": 910}
+{"testID": 2, "result": "success", "skipped": false, "hidden": false, "type": "testDone", "time": 1310}
+{"success": true, "type": "done", "time": 1400}

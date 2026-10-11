@@ -1,0 +1,7 @@
+{"protocolVersion": "0.1.1", "runnerVersion": null, "pid": 3, "type": "start", "time": 0}
+{"suite": {"id": 0, "platform": "vm", "path": "/checkout/test/e2e/sign_in_test.dart"}, "type": "suite", "time": 0}
+{"test": {"id": 1, "name": "loading /checkout/test/e2e/sign_in_test.dart", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": null, "column": null, "url": null}, "type": "testStart", "time": 0}
+{"testID": 1, "result": "success", "skipped": false, "hidden": true, "type": "testDone", "time": 500}
+{"test": {"id": 2, "name": "signs in against the service on this Mac", "suiteID": 0, "groupIDs": [], "metadata": {"skip": true, "skipReason": "the service is not running"}, "line": 18, "column": 3, "url": "file:///checkout/test/e2e/sign_in_test.dart"}, "type": "testStart", "time": 510}
+{"testID": 2, "result": "success", "skipped": true, "hidden": false, "type": "testDone", "time": 511}
+{"success": true, "type": "done", "time": 521}

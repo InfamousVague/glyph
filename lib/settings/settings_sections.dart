@@ -407,7 +407,7 @@ final List<SettingsSectionSpec> _sections = [
     group: 4,
     webFile: 'settings/TestResultsPane.tsx',
     where: (facts) => facts.developer,
-    summary: (facts) => reportSummary(facts.features.testReport == null ? null : TestReport.fromJson(facts.features.testReport!), buildSource: facts.features.testBuildSource),
+    summary: (facts) => reportSummary(facts.features.testReport == null ? null : TestReport.of(facts.features.testReport!), buildSource: facts.features.testBuildSource),
     pane: TestResultsPane.hosted,
   ),
 ];

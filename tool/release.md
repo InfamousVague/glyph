@@ -29,12 +29,24 @@ app has none, so only its `--apk` half has anything to carry over.
 ## The build
 
 ```sh
+node tool/test_report.mjs             # the whole suite, and what it did, into the build (below)
 tool/build-native.sh android          # the core, with the engines (the default)
 flutter build apk --release --target-platform android-arm64 \
   --build-name=0.2.0 --build-number=2000 \
   --dart-define=GHOST_UPDATES=https://<host>/<path> \
-  --dart-define=GHOST_BUILD=$(date -u +%Y%m%d%H%M%S)
+  --dart-define=GHOST_BUILD=$(date -u +%Y%m%d%H%M%S) \
+  --dart-define=GHOST_SOURCE=$(node tool/test_report.mjs --source)
 ```
+
+- **The test report is made first, before every release build**, and never after a change to the code: `node
+  tool/test_report.mjs` runs `tool/check.sh` whole and writes what every test did to `assets/diag/test_report.json`,
+  which the build carries and Settings › Test results (Developer mode) shows, as `../glyph/scripts/test-report.mjs`
+  does for the Tauri app (`deploy-ota.mjs` runs that before it builds). It exits 1 if anything failed or did not
+  run: do not build then. `GHOST_SOURCE` is the fingerprint of the code the build is made from; the report holds the
+  one its tests ran on, and the page says "The code changed after these tests ran" when the two are not the same.
+  A build made without either is a development build: with no report the page says "No test report in this build.",
+  which is what the repository's own `assets/diag/test_report.json` is (`node tool/test_report.mjs --clear` puts it
+  back; commit the written one with the release only if the release's commit is to keep it, as ../glyph's does).
 
 - `--build-name` is the version people read (pubspec's `version`, and `ghostVersion` in
   lib/settings/panes/about_pane.dart, which a test holds to it). `--build-number` is Android's `versionCode`: **it

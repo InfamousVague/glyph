@@ -87,6 +87,7 @@ import '../core/versions_record.dart';
 import '../core/versions_share.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../diag/built_report.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
 import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
@@ -191,7 +192,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -308,6 +309,10 @@ class GhostRoot extends StatefulWidget {
   /// The records of the notes nobody has written in yet (core/untouched.dart); the app's own unless a test brings
   /// its own.
   final UntouchedNotes? untouched;
+
+  /// Reads the test report this build carries, for Settings › Test results: the build's own asset unless a test
+  /// brings its own (lib/diag/built_report.dart).
+  final Future<Map<String, Object?>?> Function()? testReport;
 
   @override
   State<GhostRoot> createState() => _GhostRootState();
@@ -526,6 +531,10 @@ class _GhostRootState extends State<GhostRoot> {
   VoidCallback? _unwatchMeeting;
   AppLifecycleListener? _voiceLife;
   final Completer<void> _notesRead = Completer<void>();
+
+  /// The test report this build carries, read the first time Developer mode is on once the notes are read
+  /// (lib/diag/built_report.dart): Settings is handed it, and is built again when it has come.
+  late final BuiltTestReport _builtReport = BuiltTestReport(wanted: developerMode, read: widget.testReport)..addListener(_tick.tell);
 
   /// Done once this run's voice is known: made and held ([_voice]), or never to be (a build with none, a phone half
   /// that did not attach, a making that failed). What must go through voice's queues before it does anything waits
@@ -1085,6 +1094,7 @@ class _GhostRootState extends State<GhostRoot> {
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
     _aiReady.dispose();
+    _builtReport.dispose();
     _stopFills?.call();
     _guideModels?.dispose();
     _stopGistHold?.call();
@@ -1228,6 +1238,8 @@ class _GhostRootState extends State<GhostRoot> {
   Future<void> _open() async {
     await _library.load();
     if (!_notesRead.isCompleted) _notesRead.complete();
+    // The build's test report, from here on, for whoever has Developer mode on: never ahead of the notes.
+    if (mounted) _builtReport.start();
     // At launch, which opens on the home page: what the phone let go of before it was left.
     if (mounted) unawaited(_takeBack.look());
     // And a voice command's Undo, which went with the app if it was stopped inside the toast's ten seconds.

@@ -1,0 +1,21 @@
+{"protocolVersion": "0.1.1", "runnerVersion": null, "pid": 2, "type": "start", "time": 0}
+{"suite": {"id": 0, "platform": "vm", "path": "/checkout/test/notes/cards_test.dart"}, "type": "suite", "time": 0}
+{"test": {"id": 1, "name": "loading /checkout/test/notes/cards_test.dart", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": null, "column": null, "url": null}, "type": "testStart", "time": 0}
+{"suite": {"id": 2, "platform": "vm", "path": "/checkout/test/notes/broken_test.dart"}, "type": "suite", "time": 1}
+{"test": {"id": 3, "name": "loading /checkout/test/notes/broken_test.dart", "suiteID": 2, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": null, "column": null, "url": null}, "type": "testStart", "time": 1}
+{"testID": 1, "result": "success", "skipped": false, "hidden": true, "type": "testDone", "time": 800}
+{"group": {"id": 4, "suiteID": 0, "parentID": null, "name": "", "metadata": {"skip": false, "skipReason": null}, "testCount": 4, "line": null, "column": null, "url": null}, "type": "group", "time": 801}
+{"test": {"id": 5, "name": "a card: its title is the note's first line", "suiteID": 0, "groupIDs": [4], "metadata": {"skip": false, "skipReason": null}, "line": 20, "column": 3, "url": "file:///checkout/test/notes/cards_test.dart"}, "type": "testStart", "time": 802}
+{"testID": 5, "result": "success", "skipped": false, "hidden": false, "type": "testDone", "time": 814}
+{"test": {"id": 6, "name": "a card: a pinned note wears its pin", "suiteID": 0, "groupIDs": [4], "metadata": {"skip": false, "skipReason": null}, "line": 174, "column": 5, "url": "package:flutter_test/src/widget_tester.dart", "root_line": 31, "root_column": 3, "root_url": "file:///checkout/test/notes/cards_test.dart"}, "type": "testStart", "time": 815}
+{"testID": 6, "messageType": "print", "message": "══╡ EXCEPTION CAUGHT BY FLUTTER TEST FRAMEWORK ╞════════════════════════════════════════════════════\nThe following TestFailure was thrown running a test:\nExpected: exactly one matching candidate\n  Actual: _TextWidgetFinder:<Found 0 widgets with text \"Pinned\": []>\n   Which: means none were found but one was expected\n\nWhen the exception was thrown, this was the stack:\n#4      main.<anonymous closure> (file:///checkout/test/notes/cards_test.dart:36:5)", "type": "print", "time": 2200}
+{"testID": 6, "error": "Test failed. See exception logs above.\nThe test description was: a card: a pinned note wears its pin", "stackTrace": "", "isFailure": false, "type": "error", "time": 2210}
+{"testID": 6, "result": "error", "skipped": false, "hidden": false, "type": "testDone", "time": 2215}
+{"test": {"id": 7, "name": "a card: its picture, once the real model is on this Mac", "suiteID": 0, "groupIDs": [4], "metadata": {"skip": true, "skipReason": "needs a model"}, "line": 44, "column": 3, "url": "file:///checkout/test/notes/cards_test.dart"}, "type": "testStart", "time": 2216}
+{"testID": 7, "result": "success", "skipped": true, "hidden": false, "type": "testDone", "time": 2217}
+{"test": {"id": 8, "name": "a row: counts its to-dos", "suiteID": 0, "groupIDs": [4], "metadata": {"skip": false, "skipReason": null}, "line": 50, "column": 3, "url": "file:///checkout/test/notes/cards_test.dart"}, "type": "testStart", "time": 2218}
+{"testID": 8, "error": "Expected: <3>\n  Actual: <2>\n", "stackTrace": "test/notes/cards_test.dart 52:5  main.<fn>\n", "isFailure": true, "type": "error", "time": 2230}
+{"testID": 8, "result": "failure", "skipped": false, "hidden": false, "type": "testDone", "time": 2231}
+{"testID": 3, "error": "Failed to load \"/checkout/test/notes/broken_test.dart\":\nCompilation failed for testPath=/checkout/test/notes/broken_test.dart: lib/notes/card.dart:9:3: Error: Expected ';' after this.", "stackTrace": "", "isFailure": false, "type": "error", "time": 2300}
+{"testID": 3, "result": "error", "skipped": false, "hidden": false, "type": "testDone", "time": 2301}
+{"success": false, "type": "done", "time": 2400}
