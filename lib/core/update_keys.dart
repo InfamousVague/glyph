@@ -6,9 +6,14 @@
 /// and the new one, move signing to the new key, and drop the old line in a later build. Removing a key from here
 /// does not revoke it for builds already installed.
 ///
-/// **It is empty, and an empty list means no update check at all** (lib/core/updates.dart `UpdatesConfig`): which
-/// key signs this app's releases is the owner's to decide, and none has been made for it. tool/release.md says
-/// what the choice is and where the Tauri app keeps its own.
+/// **It holds Ghost.md's own key**, the one line of that file (added there 2026-09-12): the owner's choice,
+/// 2026-10-11, since this app is to replace the Tauri app as its next version ("updates use the original's update
+/// signing key and release address"; docs/CUTOVER.md). Its private half is outside every repository
+/// (`~/.config/glyph/ota-signing-key.pem`, ../glyph/scripts/ota-sign.mjs). A key alone turns nothing on: a build
+/// still looks only where it was told to (lib/core/updates.dart `UpdatesConfig`), and what this app accepts is a
+/// description signed for THIS app (`apk.json.flutter.sig`), which the Tauri app's own signature is not.
 library;
 
-const List<String> trustedUpdateKeys = <String>[];
+const List<String> trustedUpdateKeys = <String>[
+  '+lGP9TU8jcvUCrDjPwD5W33HsJn/Bhxm3gH4TK5CvkM=', // Ghost.md's, ../glyph/src-tauri/ota-trusted-keys.txt
+];

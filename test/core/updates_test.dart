@@ -185,6 +185,22 @@ void main() {
       expect(of('https://attack.fm/glyph', debug: true, testing: true, testKey: 'k'), isNull);
     });
 
+    // docs/CUTOVER.md: the build made to replace the Tauri app is that app's next version, so it looks where that
+    // app's installs look, which is the one line of ../glyph/src-tauri/ota-sources.txt.
+    test('but the build that replaces the real app, which told nothing looks where that app\'s installs do', () {
+      UpdatesConfig? cut(String source, {bool debug = false, List<String> keys = const ['a-key']}) => UpdatesConfig.of(source: source, keys: keys, debug: debug, cutover: true);
+      expect(cut('')?.source, 'https://attack.fm/glyph');
+      expect(cut('https://attack.fm/glyph/')?.source, tauriReleases);
+      expect(cut(_base)?.source, _base, reason: 'told another, it looks there');
+      expect(cut('', debug: true), isNull, reason: 'a debug build still never looks');
+      expect(cut('', keys: const []), isNull);
+      expect(cut('http://attack.fm/glyph'), isNull);
+      final sources = File('../glyph/src-tauri/ota-sources.txt');
+      if (sources.existsSync()) {
+        expect([for (final line in sources.readAsLinesSync()) if (line.trim().isNotEmpty && !line.startsWith('#')) line.trim()], [tauriReleases]);
+      }
+    });
+
     test('never in a debug build, but one built for a test run, which may be served over http by a key of its own', () {
       expect(of(_base, debug: true), isNull);
       expect(of(_base, debug: true, testKey: 'a-test-key'), isNull, reason: 'a key alone turns nothing on');
@@ -201,8 +217,12 @@ void main() {
       expect(release?.http, isFalse);
     });
 
-    test('and this build, as it stands, does not: no key has been chosen for it', () {
-      expect(trustedUpdateKeys, isEmpty);
+    test('the key it believes is Ghost.md\'s own, and a build told nothing still does not look', () {
+      expect(trustedUpdateKeys, ['+lGP9TU8jcvUCrDjPwD5W33HsJn/Bhxm3gH4TK5CvkM=']);
+      final theirs = File('../glyph/src-tauri/ota-trusted-keys.txt');
+      if (theirs.existsSync()) {
+        expect([for (final line in theirs.readAsLinesSync()) if (line.trim().isNotEmpty && !line.startsWith('#')) line.split('#').first.trim()], trustedUpdateKeys);
+      }
       expect(UpdatesConfig.fromBuild(), isNull);
       expect(Updates.forBuild(invoke: _core(core)), isNull);
     });
@@ -340,7 +360,7 @@ void main() {
       await updates.check();
       expect(updates.apk, isA<ApkPhaseNone>());
       expect(updates.lastError, '$_base/apk.json: the signature did not verify against any trusted key');
-      expect(server.asked, ['$_base/apk.json', '$_base/apk.json.sig']);
+      expect(server.asked, ['$_base/apk.json', '$_base/apk.json.flutter.sig']);
     });
 
     test('tells whoever listens', () async {

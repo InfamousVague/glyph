@@ -10,11 +10,19 @@
 /// - **There is no page to update.** A Flutter app is one binary: nothing is downloaded and run on a reload, so
 ///   `ready`, `reload`, `settleBoot`, `claimAutoReload`, the quarantine and `ota.json` have nothing to carry over.
 ///   What is left is the APK: a signed `apk.json` beside the file it names.
-/// - **Where it looks is this app's own, said at build time** (`--dart-define=GHOST_UPDATES=https://…`), and
-///   never the Tauri app's: nothing is compiled in as a default, so a build not told has no update check at all;
-///   nor has any debug build, nor one that trusts no key (lib/core/update_keys.dart). [UpdatesConfig] is that rule.
-///   A signed description cannot move the app to another address (the page's `sources`): one place, until a
-///   release has needed two.
+/// - **Where it looks is said at build time** (`--dart-define=GHOST_UPDATES=https://…`): a build not told has no
+///   update check at all; nor has any debug build, nor one that trusts no key (lib/core/update_keys.dart).
+///   [UpdatesConfig] is that rule. THE BUILD THAT REPLACES THE TAURI APP (`--dart-define=GHOST_CUTOVER=true`, with
+///   Gradle's `GHOST_CUTOVER=1`: tool/cutover-build.sh gives both; docs/CUTOVER.md) is that app's next version, so
+///   told nothing it looks where that app's installs look, [tauriReleases]. Every other build is refused that
+///   address whatever it is told: it is another app there, and Ghost.md's APK is not an update of it. A signed
+///   description cannot move the app to another address (the page's `sources`): one place, until a release has
+///   needed two.
+/// - **The signature it asks for is its own file**, `apk.json.flutter.sig`, beside the Tauri app's `apk.json.sig`
+///   over the same `apk.json`: the same key signs both, each with its app's context (`ghost-flutter-apk\0` here,
+///   `glyph-apk\0` there; native/src/kept/updates.rs). So one description at one address serves the Tauri installs
+///   that are to be offered this app and this app's own installs after them (tool/release_apk.mjs writes all
+///   three files).
 /// - **The requests are Dart's** ([HttpUpdateTransport]) and the checking is the core's (`update_read`,
 ///   `update_verify`; native/src/kept/updates.rs, the Tauri app's lines). Rust made the requests there; the rule is
 ///   the same one: a description is read only once a trusted key signed exactly its bytes, and a file is handed to
@@ -44,8 +52,8 @@ import 'update_keys.dart';
 
 // ---- what the build was told ----------------------------------------------------------------------------------------
 
-/// Where this app's releases are (`--dart-define=GHOST_UPDATES=https://…/flutter`): `apk.json`, `apk.json.sig` and
-/// the APK sit directly under it. Empty in a build not told, which then never looks.
+/// Where this app's releases are (`--dart-define=GHOST_UPDATES=https://…/flutter`): `apk.json`,
+/// `apk.json.flutter.sig` and the APK sit directly under it. Empty in a build not told, which then never looks.
 const String _source = String.fromEnvironment('GHOST_UPDATES');
 
 /// When this build was made, UTC `YYYYMMDDHHMMSS` (`--dart-define=GHOST_BUILD=…`, the page's `__GLYPH_BUILD__`).
@@ -57,9 +65,19 @@ const String ghostBuild = String.fromEnvironment('GHOST_BUILD');
 const bool _testing = bool.fromEnvironment('GHOST_UPDATES_TEST');
 const String _testKey = String.fromEnvironment('GHOST_UPDATES_TEST_KEY');
 
-/// The Tauri app's own update addresses (`../glyph/src-tauri/ota-sources.txt`, and the site it moved to). This
-/// app never looks there, whatever it is told: its `apk.json` is another app's.
-const Set<String> _theRealApps = <String>{'https://attack.fm/glyph', 'https://ghostmarkdown.com/glyph'};
+/// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`; the header).
+const bool _cutover = bool.fromEnvironment('GHOST_CUTOVER');
+
+/// Where the Tauri app's installs look for a release (`../glyph/src-tauri/ota-sources.txt`, its one line; the
+/// directory `../glyph/scripts/deploy-ota.mjs` publishes `glyph.apk` and `apk.json` into).
+const String tauriReleases = 'https://attack.fm/glyph';
+
+/// The Tauri app's own update addresses ([tauriReleases], and the site it moved to). Only the build that replaces
+/// that app looks there; any other is another app, whatever it is told.
+const Set<String> _theRealApps = <String>{tauriReleases, 'https://ghostmarkdown.com/glyph'};
+
+/// The signature this app reads, beside `apk.json` (the header).
+const String updateSignatureName = 'apk.json.flutter.sig';
 
 /// Where to look and whom to believe, or nothing: the rule in the header.
 @immutable
@@ -76,21 +94,23 @@ class UpdatesConfig {
   final bool http;
 
   /// What this build was told, or null where it does not check.
-  static UpdatesConfig? fromBuild() => of(source: _source, keys: trustedUpdateKeys, debug: kDebugMode, testing: _testing, testKey: _testKey);
+  static UpdatesConfig? fromBuild() => of(source: _source, keys: trustedUpdateKeys, debug: kDebugMode, testing: _testing, testKey: _testKey, cutover: _cutover);
 
-  /// The rule, with everything it reads handed in. Null for: no address; a debug build not under test; an address
-  /// that is not https (http, under test); the Tauri app's own; and no key to believe.
-  static UpdatesConfig? of({required String source, required List<String> keys, required bool debug, bool testing = false, String testKey = ''}) {
+  /// The rule, with everything it reads handed in. Null for: no address (but in the build that replaces the Tauri
+  /// app, [cutover], which then looks at [tauriReleases]); a debug build not under test; an address that is not
+  /// https (http, under test); the Tauri app's own in any build but that one; and no key to believe.
+  static UpdatesConfig? of({required String source, required List<String> keys, required bool debug, bool testing = false, String testKey = '', bool cutover = false}) {
     final test = debug && testing;
     if (debug && !test) return null;
     var base = source.trim();
+    if (base.isEmpty && cutover) base = tauriReleases;
     while (base.endsWith('/')) {
       base = base.substring(0, base.length - 1);
     }
     final uri = Uri.tryParse(base);
     if (base.isEmpty || uri == null || uri.host.isEmpty || uri.hasQuery || uri.hasFragment || RegExp(r'\s').hasMatch(base)) return null;
     if (uri.scheme != 'https' && !(test && uri.scheme == 'http')) return null;
-    if (_theRealApps.contains(base.toLowerCase())) return null;
+    if (!cutover && _theRealApps.contains(base.toLowerCase())) return null;
     final trusted = <String>[...keys, if (test && testKey.trim().isNotEmpty) testKey.trim()];
     if (trusted.isEmpty) return null;
     return UpdatesConfig._(source: base, keys: List.unmodifiable(trusted), http: test);
@@ -515,7 +535,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
   Future<ApkInfo> _described() async {
     final url = '${config.source}/apk.json';
     final body = await _transport.read(url);
-    final signature = await _transport.read('$url.sig');
+    final signature = await _transport.read('${config.source}/$updateSignatureName');
     try {
       final answer = await _invoke('update_read', {'body': base64.encode(body), 'signature': utf8.decode(signature, allowMalformed: true), 'keys': config.keys, 'http': config.http});
       return ApkInfo.of(answer);
