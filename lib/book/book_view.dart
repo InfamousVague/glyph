@@ -1348,16 +1348,33 @@ class BookViewState extends State<BookView> {
         // A sliver of the note's page (lib/note/note_screen.dart `seams.book`). Reading straight through, a long
         // page's lines are a sliver of their own, so the page lays out those near its window and not the page. The
         // index is one box.
-        child: _reading
-            ? _readThrough(context, t, em, chapters, numbers, padding)
-            : SliverToBoxAdapter(
-                // A layer of its own: the index is one box in the note's scroller, and without one every row of it
-                // was drawn again at each frame of a scroll.
-                child: RepaintBoundary(child: Padding(padding: padding, child: _index(context, t, em, chapters, numbers))),
+        child: SliverMainAxisGroup(
+          slivers: [
+            // The index stays in the tree, out of sight, while the pages are read straight through: back at it,
+            // its rows and the notebook's own words are the ones that were there, built again where they have
+            // changed and laid out where that changed them, where every row was made and laid out from nothing
+            // (tool/perf.sh, notebook-index: nineteen rows, one frame of 5 to 13 ms on a Mac and 24 on the Fold).
+            // Out of sight it is the widgets it last was: nothing of it is built for a frame of the read-through.
+            // A notebook that opens being read has no index until it is gone back to.
+            if (!_reading || _indexKept != null)
+              SliverOffstage(
+                key: const ValueKey('book-index-sliver'),
+                offstage: _reading,
+                sliver: SliverToBoxAdapter(
+                  // A layer of its own: the index is one box in the note's scroller, and without one every row of
+                  // it was drawn again at each frame of a scroll.
+                  child: _reading ? _indexKept! : (_indexKept = RepaintBoundary(child: Padding(padding: padding, child: _index(context, t, em, chapters, numbers)))),
+                ),
               ),
+            if (_reading) KeyedSubtree(key: const ValueKey('book-reading-sliver'), child: _readThrough(context, t, em, chapters, numbers, padding)),
+          ],
+        ),
       ),
     );
   }
+
+  /// The index as it was last built, kept while the pages are read straight through.
+  Widget? _indexKept;
 
   // ---- reading straight through ----
 

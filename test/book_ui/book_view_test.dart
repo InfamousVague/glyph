@@ -483,6 +483,29 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('keeps the index out of sight while the pages are read, and back at it its rows are the rows that were there', (tester) async {
+      await show(tester, bodyOf: (t) => '# $t\n\nWords.');
+      final row = tester.renderObject(find.byKey(const ValueKey('book-row-1')));
+      await press(tester, 'Read straight through');
+      // Not on the stage, and not gone.
+      expect(find.byKey(const ValueKey('book-row-1')), findsNothing);
+      expect(find.byKey(const ValueKey('book-row-1'), skipOffstage: false), findsOneWidget);
+      expect(tester.state<BookViewState>(find.byType(BookView)).reading, isTrue);
+      await press(tester, 'Index');
+      expect(rows(tester), ['Introduction', 'Trees', 'Birds']);
+      expect(identical(tester.renderObject(find.byKey(const ValueKey('book-row-1'))), row), isTrue, reason: 'the row was not made again');
+      await away(tester);
+      // A notebook that opens being read has no index until it is gone back to.
+      writeBookSpot('book', const ReadingSpot('Trees', 0));
+      await show(tester, spot: 'book', bodyOf: (t) => '# $t\n\nWords.');
+      expect(tester.state<BookViewState>(find.byType(BookView)).reading, isTrue);
+      expect(find.byKey(const ValueKey('book-row-1'), skipOffstage: false), findsNothing);
+      await tester.pump();
+      await press(tester, 'Index');
+      expect(rows(tester), ['Introduction', 'Trees', 'Birds']);
+      await away(tester);
+    });
+
     testWidgets('draws the chapters one after another, says which is a canvas or not written, and goes back to the index', (tester) async {
       const bodies = <String, String>{
         'Introduction': '# Introduction\n\nStart here.',
