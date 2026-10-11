@@ -268,7 +268,9 @@ class _MinimapState extends State<Minimap> {
         decoration: BoxDecoration(borderRadius: radius, boxShadow: const [BoxShadow(color: Color(0x38000000), offset: Offset(0, 6), blurRadius: 20)]),
         child: ClipRRect(
           borderRadius: radius,
-          child: BackdropFilter(
+          // One of the window's group of glass (BackdropGroup, at the app's root): what lies behind is read once
+          // for the bars, the tools, the picked card's bar and this, where each read the screen for itself.
+          child: BackdropFilter.grouped(
             filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: DecoratedBox(
               decoration: BoxDecoration(

@@ -298,7 +298,8 @@ class GlassPill extends StatelessWidget {
       decoration: BoxDecoration(borderRadius: BorderRadius.circular(999), boxShadow: shadow == null ? null : [shadow!]),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),
-        child: BackdropFilter(
+        // One of the window's group of glass (BackdropGroup, at the app's root), as the map is.
+        child: BackdropFilter.grouped(
           filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: DecoratedBox(
             decoration: BoxDecoration(
