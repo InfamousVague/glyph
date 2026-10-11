@@ -83,7 +83,7 @@ extension _RootParts on _GhostRootState {
           if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
           return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
         }, _guidePart),
-        _part('launch', () => _launching ? (!_read, _shown.length, _updatesAt, _syncAt, _voice) : null, _launchPart),
+        _part('launch', () => _launching ? (!_read, _launchNotes, _updatesAt, _launchSync, _voice) : null, _launchPart),
       ],
     ),
   );
@@ -660,9 +660,9 @@ extension _RootParts on _GhostRootState {
     if (!_launching) return _nothing;
     return LaunchScreen(
       loading: !_read,
-      notes: _shown.length,
+      notes: _launchNotes,
       updates: launchUpdatesOf(widget.updates),
-      sync: launchSyncOf(_services?.engine?.status.value.phase),
+      sync: _launchSync,
       recording: _meetingRecording,
       onDone: () => _told(() => _launching = false),
     );

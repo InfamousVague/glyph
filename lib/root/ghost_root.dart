@@ -1063,7 +1063,45 @@ class _GhostRootState extends State<GhostRoot> {
   late bool _launching = widget.launch && widget.launchSeat == null;
 
   /// What the launch screen reads of the root, where it is drawn over it from outside (`GhostRoot.launchSeat`).
-  LaunchFacts _launchFacts() => (loading: !_read, notes: _shown.length, sync: launchSyncOf(_services?.engine?.status.value.phase), recording: _meetingRecording);
+  LaunchFacts _launchFacts() => (loading: !_read, notes: _launchNotes, sync: _launchSync, recording: _meetingRecording);
+
+  /// How many notes the launch screen says there are: every one the library holds that is not in the archive
+  /// (App.tsx: `notes.filter((n) => !n.archivedAt).length`, of the library's notes, the Trash's among them).
+  int get _launchNotes {
+    var count = 0;
+    for (final note in _library.value) {
+      if ((note.archivedAt ?? 0) == 0) count += 1;
+    }
+    return count;
+  }
+
+  /// Where the account's sync stands, as the launch screen's third line says it (`syncStatus.phase`): the engine's
+  /// own word, and, until it has said one, that a signed-in device is syncing.
+  ///
+  /// The page's engine is started with the page: its session is read from the page's own storage at once, it is
+  /// renewed and the pass begun, and "Syncing your devices" is on the launch screen within its first moments, ticked
+  /// "In sync" when the pass ends. Here the same pass is begun after the library's core has opened, the root has
+  /// been made under the launch screen and the kept session has been read from the phone's secure store, each of
+  /// them a wait; the engine's first word came when the screen was already leaving or gone, and a signed-in launch
+  /// showed the notes' line and nothing else (Matt, on his phone, 2026-10-11: "it only shows a check and the note
+  /// count now"). The launch pass is not in doubt once a session is in hand, the key with it, and nothing says
+  /// local only: it is the engine's first act (lib/sync/engine.dart `start`). So from then the line says what is
+  /// happening, and from the engine's first word on it says the engine's.
+  SyncPhase get _launchSync {
+    final services = _services;
+    final engine = services?.engine;
+    if (services == null || engine == null) return SyncPhase.off;
+    final said = launchSyncOf(engine.status.value.phase);
+    if (said != SyncPhase.off) {
+      _syncSaid = true;
+      return said;
+    }
+    if (_syncSaid) return SyncPhase.off;
+    return services.signedIn && services.unlocked && !preferences.value.localOnly ? SyncPhase.syncing : SyncPhase.off;
+  }
+
+  /// Whether the engine has said where its sync stands since the root was made.
+  bool _syncSaid = false;
 
   bool _meetingRecording() => _voice?.live?.state?.recording ?? false;
   bool get _read => !_library.loading;
