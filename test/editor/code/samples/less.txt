@@ -1,0 +1,6 @@
+less
+@gap: 4px;
+// line comment
+.card(@radius: 2px) { border-radius: @radius; &:hover { color: darken(red, 10%); } }
+.note { .card(4px); margin: (@gap / 2) ~"@{gap}"; .title & { top: 0 } &:extend(.base); }
+@media (min-width: 768px) { .a { width: percentage(0.5) } }

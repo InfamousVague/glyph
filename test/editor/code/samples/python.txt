@@ -1,0 +1,36 @@
+python
+#!/usr/bin/env python3
+"""Module docstring."""
+from __future__ import annotations
+import os.path as p, sys
+from typing import Optional, List
+
+@dataclass(frozen=True)
+class Point(Base, metaclass=Meta):
+    x: int = 0
+    y: "float" = 1.5e3
+
+    def norm(self, *args, scale: float = 1.0, **kwargs) -> float:
+        """Doc."""
+        total = sum(v ** 2 for v in (self.x, self.y) if v is not None)
+        return (total * scale) ** 0.5
+
+async def fetch(url: str, retries=3):
+    async with session.get(url) as resp:
+        data = await resp.json()
+    try:
+        value = data["key"][0:10:2]
+    except (KeyError, IndexError) as err:
+        raise ValueError(f"bad {url!r}: {err:>10}") from err
+    finally:
+        pass
+    lam = lambda a, b=2: a if a > b else b
+    print(rb'raw\n', 0x1F, 0b101, 1_000, 3j, True, None, ..., sep="")
+    global counter; nonlocal_x = [i for i in range(10) if i % 2 == 0]
+    while not done and (n := next(it, None)) is not None:
+        yield n
+    match command:
+        case ["go", direction] | ["move", direction]:
+            del direction
+        case _:
+            assert False, "no"

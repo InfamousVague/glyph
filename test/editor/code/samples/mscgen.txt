@@ -1,0 +1,18 @@
+mscgen
+# a sequence chart
+msc {
+  hscale = "1.5", arcgradient = 8;
+
+  a [label="Client"], b [label="Server", textcolour="red"], c;
+
+  a => b [label="request()"];
+  b -> c [label="lookup"];
+  c >> b [label="result"];
+  b => a [label="response"];
+  a -x b [label="lost"];
+  ...;
+  --- [label="later"];
+  a abox c [label="note"];
+  /* block comment */
+  a <<=>> b; // line comment
+}

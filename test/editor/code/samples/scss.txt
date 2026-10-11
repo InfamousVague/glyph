@@ -1,0 +1,9 @@
+scss
+@use "sass:math";
+$gap: 4px !default;
+// line comment
+@mixin card($radius: 2px, $args...) { border-radius: $radius; &:hover { color: darken(red, 10%); } }
+.note { @include card(4px); margin: math.div($gap, 2) #{$gap * 2}; .title & { top: 0 } @extend %base; }
+@each $name, $colour in (a: red, b: #00f) { .t-#{$name} { color: $colour; } }
+@if $gap > 2px { a { b: c } } @else { d { e: f } }
+@function double($n) { @return $n * 2; }

@@ -1,0 +1,117 @@
+{
+ "now": 1791388800000,
+ "width": 1280,
+ "height": 800,
+ "things": {
+  "display": [
+   {
+    "x": 346.33,
+    "y": 73.75,
+    "w": 907.34,
+    "h": 34.75,
+    "text": "Organizations"
+   }
+  ],
+  "headWord": [
+   {
+    "x": 26.33,
+    "y": 5.27,
+    "w": 134.27,
+    "h": 63.22,
+    "text": "Back to your notes"
+   }
+  ],
+  "titles": [
+   {
+    "x": 346.33,
+    "y": 145.36,
+    "w": 907.34,
+    "h": 14,
+    "text": "Your organizations"
+   },
+   {
+    "x": 346.33,
+    "y": 344.42,
+    "w": 907.34,
+    "h": 14,
+    "text": "New organization"
+   }
+  ],
+  "cards": [
+   {
+    "x": 346.33,
+    "y": 169.89,
+    "w": 907.34,
+    "h": 153.47,
+    "text": "GhostOwner · 2 membersStudioMember · 3 members"
+   },
+   {
+    "x": 346.33,
+    "y": 400.73,
+    "w": 907.34,
+    "h": 149.34,
+    "text": "Create"
+   }
+  ],
+  "rows": [
+   {
+    "x": 346.33,
+    "y": 169.89,
+    "w": 907.34,
+    "h": 76.23,
+    "text": "GhostOwner · 2 members"
+   },
+   {
+    "x": 346.33,
+    "y": 246.13,
+    "w": 907.34,
+    "h": 77.23,
+    "text": "StudioMember · 3 members"
+   }
+  ],
+  "labels": [
+   {
+    "x": 407.52,
+    "y": 185.69,
+    "w": 796.56,
+    "h": 21,
+    "text": "Ghost"
+   },
+   {
+    "x": 407.52,
+    "y": 262.92,
+    "w": 796.56,
+    "h": 21,
+    "text": "Studio"
+   }
+  ],
+  "heroTitle": [],
+  "heroMeta": [],
+  "heroGlyph": [],
+  "footers": [],
+  "inputs": [
+   {
+    "x": 362.13,
+    "y": 416.53,
+    "w": 875.75,
+    "h": 44,
+    "text": "Organization name"
+   }
+  ],
+  "submits": [
+   {
+    "x": 362.13,
+    "y": 471.06,
+    "w": 50.63,
+    "h": 63.22,
+    "text": "Create"
+   }
+  ],
+  "chips": [],
+  "actions": [],
+  "swatchDots": [],
+  "linkRows": [],
+  "linkButtons": [],
+  "inviteWords": []
+ }
+}

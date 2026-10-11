@@ -1,0 +1,505 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate=say&say=Quick%20thought%20before%20I%20forget.%7CHey%20Ghost%2C%20add%20ship%20the%20APK%20to%20AttackFM.%7CAnd%20more%20words.",
+ "viewport": {
+  "width": 390,
+  "height": 844,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "the one-shot committed: the landing shows AttackFM's last lines and \"Ship the APK\" ticked",
+  "ranMs": 3440,
+  "counter": "0:03",
+  "lines": [],
+  "chip": "Added to AttackFM",
+  "chipPhase": "added"
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 844
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 75.859375
+  },
+  "mic": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 54.15625,
+   "y": 13.390625,
+   "width": 60.875,
+   "height": 53.546875
+  },
+  "counter": {
+   "x": 338.03125,
+   "y": 32.15625,
+   "width": 29.65625,
+   "height": 16
+  },
+  "body": {
+   "x": 22.3125,
+   "y": 0,
+   "width": 345.375,
+   "height": 710.453125
+  },
+  "route": {
+   "x": 90.25,
+   "y": 710.453125,
+   "width": 209.5,
+   "height": 39.84375
+  },
+  "routeTick": {
+   "x": 108.34075927734375,
+   "y": 722.1163940429688,
+   "width": 11.9434814453125,
+   "height": 11.9434814453125
+  },
+  "routeStrong": {
+   "x": 205.34375,
+   "y": 720.375,
+   "width": 75.5625,
+   "height": 20
+  },
+  "landing": {
+   "x": 22.3125,
+   "y": 521.15625,
+   "width": 345.375,
+   "height": 158.0625
+  },
+  "contextTitle": {
+   "x": 22.3125,
+   "y": 579.15625,
+   "width": 345.375,
+   "height": 14
+  },
+  "landingUndo": {
+   "x": 271,
+   "y": 521.15625,
+   "width": 96.6875,
+   "height": 53.546875
+  },
+  "footer": {
+   "x": 22.3125,
+   "y": 763.6875,
+   "width": 345.375,
+   "height": 80.3125
+  },
+  "discard": {
+   "x": 22.3125,
+   "y": 772.609375,
+   "width": 57.96875,
+   "height": 53.546875
+  },
+  "done": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "doneIcon": {
+   "x": 275.75,
+   "y": 791.375,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "contextLine0": {
+   "x": 22.3125,
+   "y": 597.609375,
+   "width": 345.375,
+   "height": 24.234375
+  },
+  "contextLine1": {
+   "x": 22.3125,
+   "y": 626.296875,
+   "width": 345.375,
+   "height": 24.234375
+  },
+  "landed0": {
+   "x": 22.3125,
+   "y": 654.984375,
+   "width": 345.375,
+   "height": 24.234375
+  },
+  "landedTick0": {
+   "x": 20.567108154296875,
+   "y": 657.9539184570312,
+   "width": 14.385200500488281,
+   "height": 14.38519287109375
+  }
+ },
+ "text": {
+  "top": {
+   "text": "New note0:03",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "New note",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "counter": {
+   "text": "0:03",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Not this noteAttackFMFix the seek barUpdate the readmeShip the APK",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "route": {
+   "text": "Added to AttackFM",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "routeStrong": {
+   "text": "AttackFM",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "landing": {
+   "text": "Not this noteAttackFMFix the seek barUpdate the readmeShip the APK",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "contextTitle": {
+   "text": "AttackFM",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "11.1342px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "0.890739px",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "landingUndo": {
+   "text": "Not this note",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.0805757px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "contextLine0": {
+   "text": "Fix the seek bar",
+   "color": "oklch(0.8 0 0)",
+   "colorRgb": "rgb(189, 190, 190)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "19.3897px",
+   "fontWeight": "400",
+   "lineHeight": "24.2371px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.34 0 0)",
+   "colorDarkRgb": "rgb(56, 56, 56)"
+  },
+  "contextLine1": {
+   "text": "Update the readme",
+   "color": "oklch(0.8 0 0)",
+   "colorRgb": "rgb(189, 190, 190)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "19.3897px",
+   "fontWeight": "400",
+   "lineHeight": "24.2371px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.34 0 0)",
+   "colorDarkRgb": "rgb(56, 56, 56)"
+  },
+  "landed0": {
+   "text": "Ship the APK",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "19.3897px",
+   "fontWeight": "600",
+   "lineHeight": "24.2371px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 22.3173px 0px 22.3173px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "13.3907px 22.3173px 8.92667px 22.3173px",
+   "background": "color(srgb 0.993282 0.993463 0.99348 / 0.66)",
+   "gap": "17.8529px",
+   "backgroundRgb": "rgba(253, 253, 253, 0.659)",
+   "backgroundDark": "color(srgb 0.0171915 0.0171986 0.0171993 / 0.66)",
+   "backgroundDarkRgb": "rgba(5, 5, 5, 0.659)"
+  },
+  "where": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 205.156px"
+  },
+  "body": {
+   "padding": "93.8529px 0px 17.8529px 0px"
+  },
+  "route": {
+   "padding": "8.92667px 17.8529px 8.92667px 17.8529px",
+   "margin": "0px 0px 13.3907px 0px",
+   "borderWidth": "1px 1px 1px 1px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.56 0 0)",
+   "borderRadius": "9999px",
+   "gap": "8.92667px",
+   "ownWidth": 210,
+   "ownHeight": 40,
+   "borderColorRgb": "rgb(116, 116, 116)",
+   "borderColorDark": "oklch(0.6 0 0)",
+   "borderColorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "routeTick": {
+   "margin": "0px 1.61152px 0px 2.41727px",
+   "borderWidth": "0px 2px 2px 0px",
+   "borderStyle": "none solid solid none",
+   "borderColor": "oklch(0.36 0 0)",
+   "transform": "matrix(0.707107, 0.707107, -0.707107, 0.707107, 0, -2.27903)",
+   "ownWidth": 6,
+   "ownHeight": 11,
+   "borderColorRgb": "rgb(61, 61, 61)",
+   "borderColorDark": "oklch(0.8 0 0)",
+   "borderColorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "landing": {
+   "margin": "0px 0px 13.3907px 0px",
+   "gap": "4.464px",
+   "ownWidth": 345,
+   "ownHeight": 158
+  },
+  "landingUndo": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "footer": {
+   "padding": "8.92667px 0px 17.8529px 0px"
+  },
+  "discard": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "done": {
+   "padding": "0px 26.7796px 0px 26.7796px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 119,
+   "ownHeight": 54,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "landed0": {
+   "gap": "8.92667px",
+   "ownWidth": 345,
+   "ownHeight": 24
+  },
+  "landedTick0": {
+   "borderWidth": "0px 2px 2px 0px",
+   "borderStyle": "none solid solid none",
+   "borderColor": "oklch(0.16 0 0)",
+   "transform": "matrix(0.707107, 0.707107, -0.707107, 0.707107, 2.05658, -2.05658)",
+   "ownWidth": 7,
+   "ownHeight": 14,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "runs": {},
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 22.3125
+  },
+  "--recorder-top": {
+   "written": "76px",
+   "px": 76
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "context-in",
+   "target": "landing",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "landed-in",
+   "target": "landed",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "chip-in",
+   "target": "route",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

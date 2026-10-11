@@ -1,0 +1,14 @@
+pig
+-- word count
+lines = LOAD 'input.txt' USING PigStorage('\t') AS (line:chararray, n:int);
+words = FOREACH lines GENERATE FLATTEN(TOKENIZE(line)) AS word, n * 2.5 AS weight;
+/* filter
+   and group */
+good = FILTER words BY word MATCHES '\\w+' AND weight > 1 OR word IS NOT NULL;
+grouped = GROUP good BY word PARALLEL 4;
+counts = FOREACH grouped GENERATE group, COUNT(good), SUM(good.weight);
+ordered = ORDER counts BY $1 DESC;
+top = LIMIT ordered 10;
+STORE top INTO 'output' USING JsonStorage();
+%default DATE '2024-01-01'
+DUMP top;

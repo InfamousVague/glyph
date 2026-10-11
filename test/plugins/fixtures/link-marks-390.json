@@ -1,0 +1,123 @@
+{
+ "at": "390x844",
+ "row": [
+  {
+   "x": 0,
+   "y": 105.39,
+   "w": 390,
+   "h": 27.66,
+   "text": "Linked to Notion board Roadmap and GitHub repo InfamousVague/AttackFM. Change in this note’s settings.",
+   "size": "16px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal"
+  }
+ ],
+ "marks": [
+  {
+   "x": 22.31,
+   "y": 105.39,
+   "w": 82.17,
+   "h": 18.73,
+   "text": "Roadmap",
+   "size": "13.3948px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "18.7528px"
+  },
+  {
+   "x": 117.88,
+   "y": 105.39,
+   "w": 185.17,
+   "h": 18.73,
+   "text": "InfamousVague/AttackFM",
+   "size": "13.3948px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "18.7528px"
+  }
+ ],
+ "rings": [
+  {
+   "x": 22.31,
+   "y": 106.22,
+   "w": 17.08,
+   "h": 17.08,
+   "text": "",
+   "size": "11.3856px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "15.9398px"
+  },
+  {
+   "x": 117.88,
+   "y": 106.22,
+   "w": 17.08,
+   "h": 17.08,
+   "text": "",
+   "size": "11.3856px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "15.9398px"
+  }
+ ],
+ "icons": [
+  {
+   "x": 25.16,
+   "y": 109.06,
+   "w": 11.38,
+   "h": 11.38,
+   "text": "",
+   "size": "11.3856px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "15.9398px"
+  },
+  {
+   "x": 120.72,
+   "y": 109.06,
+   "w": 11.38,
+   "h": 11.38,
+   "text": "",
+   "size": "11.3856px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "15.9398px"
+  }
+ ],
+ "names": [
+  {
+   "x": 44.73,
+   "y": 105.39,
+   "w": 59.75,
+   "h": 18.73,
+   "text": "Roadmap",
+   "size": "13.3948px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "18.7528px"
+  },
+  {
+   "x": 140.3,
+   "y": 105.39,
+   "w": 162.75,
+   "h": 18.73,
+   "text": "InfamousVague/AttackFM",
+   "size": "13.3948px",
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "18.7528px"
+  }
+ ],
+ "said": "Linked to Notion board Roadmap and GitHub repo InfamousVague/AttackFM. Change in this note’s settings.",
+ "titles": [
+  "Notion board: Roadmap",
+  "GitHub repo: InfamousVague/AttackFM"
+ ],
+ "ring": {
+  "border": "1px",
+  "color": "oklch(0.56 0 0)",
+  "radius": "9999px",
+  "box": "border-box"
+ }
+}

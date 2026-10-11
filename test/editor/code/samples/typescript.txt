@@ -1,0 +1,22 @@
+ts
+import type { Readable } from 'node:stream';
+export interface Shape<T extends object = {}> { readonly id: string; area?(scale: number): number; [key: string]: unknown }
+type Pair<A, B> = [A, B] | { a: A; b: B };
+enum Colour { Red = 1, Green, Blue = 'blue' }
+declare module 'x' { export function f(a: number): void; }
+namespace Geo { export const PI = 3.14 as const; }
+abstract class Circle<T> implements Shape {
+  private static count = 0;
+  constructor(public readonly id: string, protected r: number = 1) {}
+  abstract draw(): void;
+  area(scale: number): number { return Math.PI * this.r ** 2 * scale; }
+  get radius(): number { return this.r satisfies number; }
+}
+function isString(value: unknown): value is string { return typeof value === 'string'; }
+const pick = <K extends keyof Shape>(shape: Shape, key: K): Shape[K] => shape[key];
+let maybe: string | undefined = undefined!;
+@decorated({ deep: true })
+export class Thing { @field() name!: string; override toString(): string { return `${this.name}`; } }
+function assertNever(x: never): asserts x is never { throw new Error(); }
+type Fn = (a: number, ...rest: string[]) => Promise<void>;
+let u: typeof maybe extends infer U ? U : never;

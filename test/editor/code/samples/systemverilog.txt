@@ -1,0 +1,30 @@
+systemverilog
+// A counter with an interface
+`timescale 1ns/1ps
+`define WIDTH 8
+package types_pkg;
+  typedef enum logic [1:0] {IDLE, RUN, DONE} state_t;
+endpackage
+
+interface bus_if #(parameter int W = `WIDTH) (input logic clk);
+  logic [W-1:0] data;
+  modport master (output data);
+endinterface
+
+module counter import types_pkg::*; #(parameter int N = 8) (
+  input  logic clk, rst_n,
+  output logic [N-1:0] count
+);
+  state_t state;
+  always_ff @(posedge clk or negedge rst_n) begin
+    if (!rst_n) count <= '0;
+    else if (state == RUN && count != 8'hFF) count <= count + 1'b1;
+  end
+  /* block comment */
+  initial begin
+    $display("count=%0d %s", count, "str");
+    assert (N > 0) else $error("bad");
+    #10ns $finish;
+  end
+  class Packet; rand bit [7:0] payload; constraint c { payload > 4; } endclass
+endmodule

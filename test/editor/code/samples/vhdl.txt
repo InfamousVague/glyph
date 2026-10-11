@@ -1,0 +1,32 @@
+vhdl
+-- A counter
+library ieee;
+use ieee.std_logic_1164.all;
+use ieee.numeric_std.all;
+
+entity counter is
+  generic (WIDTH : positive := 8);
+  port (
+    clk   : in  std_logic;
+    reset : in  std_logic;
+    q     : out std_logic_vector(WIDTH - 1 downto 0)
+  );
+end entity counter;
+
+architecture rtl of counter is
+  signal count : unsigned(WIDTH - 1 downto 0) := (others => '0');
+  constant MAX : integer := 16#FF#;
+begin
+  process (clk, reset)
+  begin
+    if reset = '1' then
+      count <= (others => '0');
+    elsif rising_edge(clk) then
+      if count /= MAX and count < 2.5e1 then
+        count <= count + 1;
+      end if;
+    end if;
+  end process;
+  q <= std_logic_vector(count) when reset = '0' else x"00";
+  assert WIDTH > 0 report "bad width" severity failure;
+end architecture rtl;

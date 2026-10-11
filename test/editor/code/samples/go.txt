@@ -1,0 +1,29 @@
+go
+// Package main does things.
+package main
+
+import (
+	"fmt"
+	str "strings"
+)
+
+type Shape interface { Area() float64 }
+type Point struct { X, Y float64 `json:"x"`; name string }
+const ( Pi = 3.14; Big = 1 << 10; Hex = 0xFF; R = 'a' )
+var global map[string][]int
+
+func (p *Point) Area() float64 { return p.X * p.Y }
+
+func Map[T any, U comparable](xs []T, f func(T) U) (out []U, err error) {
+	for i, x := range xs {
+		if i%2 == 0 && x != nil { out = append(out, f(x)) } else { continue }
+	}
+	defer fmt.Println("done", len(out), `raw
+string`)
+	go func() { ch := make(chan int, 1); ch <- 1; select { case v := <-ch: _ = v; default: } }()
+	switch v := any(xs).(type) { case nil: return nil, fmt.Errorf("nil %v", v); case []T: fallthrough; default: }
+	label: for { break label }
+	return out, nil
+}
+/* block */
+func main() { p := &Point{X: 1, Y: 2.5e3}; fmt.Printf("%v %s\n", p.Area(), str.ToUpper("x")); var _ = struct{}{}; goto end; end: }

@@ -1,0 +1,19 @@
+ecl
+// A record and a projection
+IMPORT Std;
+EXPORT Layout := RECORD
+  STRING20  name;
+  UNSIGNED4 age := 0;
+  DECIMAL8_2 pay;
+END;
+/* block
+   comment */
+people := DATASET([{'Ann', 30, 10.5}, {'Bob', 41, 20.25}], Layout);
+older := people(age > 35 AND name != 'Zed');
+Layout bump(Layout l, INTEGER n) := TRANSFORM
+  SELF.age := l.age + n;
+  SELF := l;
+END;
+OUTPUT(SORT(PROJECT(older, bump(LEFT, 1)), -age), NAMED('result'));
+x := IF(COUNT(older) > 0, TRUE, FALSE);
+#OPTION('pickBestEngine', FALSE);

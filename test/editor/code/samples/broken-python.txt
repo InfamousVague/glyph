@@ -1,0 +1,9 @@
+python
+def f(:
+    return
+  x = [1, 2
+class :
+        pass
+print("unterminated
+   else:
+lambda: (

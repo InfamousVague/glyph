@@ -1,0 +1,1808 @@
+{
+ "katex": "0.16.47",
+ "formulas": [
+  {
+   "tex": "\\begin{align} a &= b \\end{align}",
+   "display": false,
+   "ok": false,
+   "error": "{align} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{equation*} a \\end{equation*}",
+   "display": false,
+   "ok": false,
+   "error": "{equation*} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{split} a \\end{split}",
+   "display": false,
+   "ok": false,
+   "error": "{split} can be used only in display mode."
+  },
+  {
+   "tex": "x^2 + y",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0.1944
+  },
+  {
+   "tex": "E = mc^2",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "a_1 + a_2 = a_{n+1}",
+   "display": false,
+   "ok": true,
+   "height": 0.5833,
+   "depth": 0.2083
+  },
+  {
+   "tex": "\\alpha\\beta\\gamma \\le \\Omega \\neq \\emptyset",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\frac{a}{b}",
+   "display": false,
+   "ok": true,
+   "height": 0.6954,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{a}{b}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sqrt{x^2 + y^2}",
+   "display": false,
+   "ok": true,
+   "height": 0.9578,
+   "depth": 0.2822
+  },
+  {
+   "tex": "x = \\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+   "display": true,
+   "ok": true,
+   "height": 1.5904,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.6514,
+   "depth": 1.2777
+  },
+  {
+   "tex": "\\sum_{i=1}^{n} i = \\frac{n(n+1)}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.01,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\int_0^\\infty e^{-x^2}\\,dx = \\frac{\\sqrt{\\pi}}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.4773,
+   "depth": 0.9119
+  },
+  {
+   "tex": "\\lim_{x \\to 0} \\frac{\\sin x}{x} = 1",
+   "display": true,
+   "ok": true,
+   "height": 1.3449,
+   "depth": 0.7171
+  },
+  {
+   "tex": "\\binom{n}{k} = \\frac{n!}{k!(n-k)!}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\vec{v} \\cdot \\hat{n} = \\|v\\|\\cos\\theta",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\mathbb{R}^n \\to \\mathcal{L}(\\mathfrak{g})",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\overline{z} + \\underbrace{a + b}_{c}",
+   "display": true,
+   "ok": true,
+   "height": 0.6945,
+   "depth": 1.2327
+  },
+  {
+   "tex": "\\left( \\frac{\\partial f}{\\partial x} \\right)_{y}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 1.1358
+  },
+  {
+   "tex": "\\begin{pmatrix} a & b \\\\ c & d \\end{pmatrix}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "f(x) = \\begin{cases} x^2 & x \\ge 0 \\\\ -x & \\text{otherwise} \\end{cases}",
+   "display": true,
+   "ok": true,
+   "height": 1.75,
+   "depth": 1.25
+  },
+  {
+   "tex": "\\begin{aligned} a &= b + c \\\\ &= d \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\prod_{p \\text{ prime}} \\frac{1}{1 - p^{-s}}",
+   "display": true,
+   "ok": true,
+   "height": 1.3215,
+   "depth": 1.4196
+  },
+  {
+   "tex": "\\sqrt[3]{\\frac{1}{1 + \\frac{1}{x}}}",
+   "display": true,
+   "ok": true,
+   "height": 1.7545,
+   "depth": 1.2855
+  },
+  {
+   "tex": "\\color{red}{x} + \\textcolor{blue}{y} + \\boxed{z}",
+   "display": false,
+   "ok": true,
+   "height": 0.7706,
+   "depth": 0.34
+  },
+  {
+   "tex": "\\mathbf{A}\\mathrm{d}x + \\operatorname{argmax}_\\theta \\, \\hat{\\theta}",
+   "display": false,
+   "ok": true,
+   "height": 0.9579,
+   "depth": 0.2441
+  },
+  {
+   "tex": "\\xrightarrow{f} \\overbrace{1 + 2}^{3} \\substack{a \\\\ b}",
+   "display": true,
+   "ok": true,
+   "height": 1.9435,
+   "depth": 0.3831
+  },
+  {
+   "tex": "\\dfrac{1}{2} + \\tfrac{1}{2} + {n \\choose k}",
+   "display": false,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\begin{align} a &= b \\\\ c &= d \\end{align}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\cancel{x} + \\tag{1}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\def\\x{y}\\x + \\newcommand{\\z}{w}\\z",
+   "display": false,
+   "ok": true,
+   "height": 0.5834,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\underline{x} \\, \\widehat{abc} \\, \\not= \\, \\ldots",
+   "display": false,
+   "ok": true,
+   "height": 0.9944,
+   "depth": 0.2
+  },
+  {
+   "tex": "\\frac{a",
+   "display": false,
+   "ok": false,
+   "error": "Unexpected end of input in a macro argument, expected '}' at end of input: \\frac{a"
+  },
+  {
+   "tex": "\\unknowncommand{x}",
+   "display": false,
+   "ok": false,
+   "error": "Undefined control sequence: \\unknowncommand at position 1: \\̲u̲n̲k̲n̲o̲w̲n̲c̲o̲m̲m̲a̲n̲d̲{x}"
+  },
+  {
+   "tex": "x^",
+   "display": false,
+   "ok": false,
+   "error": "Expected group after '^' at position 2: x^̲"
+  },
+  {
+   "tex": "\\begin{matrix} a & b",
+   "display": true,
+   "ok": false,
+   "error": "Expected & or \\\\ or \\cr or \\end at end of input: …n{matrix} a & b"
+  }
+ ],
+ "parts": [
+  {
+   "tex": "x^2",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "x^2",
+   "display": true,
+   "ok": true,
+   "height": 0.8641,
+   "depth": 0
+  },
+  {
+   "tex": "x_i",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.15
+  },
+  {
+   "tex": "x_i^2",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0.2587
+  },
+  {
+   "tex": "x^{y^2}",
+   "display": false,
+   "ok": true,
+   "height": 0.9869,
+   "depth": 0
+  },
+  {
+   "tex": "e^{-x^2}",
+   "display": true,
+   "ok": true,
+   "height": 1.0369,
+   "depth": 0
+  },
+  {
+   "tex": "\\sqrt{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.8003,
+   "depth": 0.2397
+  },
+  {
+   "tex": "\\sqrt{x}",
+   "display": true,
+   "ok": true,
+   "height": 0.8492,
+   "depth": 0.1908
+  },
+  {
+   "tex": "\\sqrt{\\pi}",
+   "display": true,
+   "ok": true,
+   "height": 0.8492,
+   "depth": 0.1908
+  },
+  {
+   "tex": "\\sqrt{x^2}",
+   "display": false,
+   "ok": true,
+   "height": 0.9551,
+   "depth": 0.0849
+  },
+  {
+   "tex": "\\sqrt[3]{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.8003,
+   "depth": 0.2397
+  },
+  {
+   "tex": "\\sqrt{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.5447,
+   "depth": 0.8953
+  },
+  {
+   "tex": "\\frac{\\sqrt{\\pi}}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.4773,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\frac{1}{x}",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\frac{1}{1 + \\frac{1}{x}}",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 1.0801
+  },
+  {
+   "tex": "\\binom{n}{k}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\binom{n}{k}",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "{n \\choose k}",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\left(\\frac{a}{b}\\right)",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\left(x\\right)",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\left\\{\\frac{a}{b}\\right.",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\underbrace{a + b}",
+   "display": true,
+   "ok": true,
+   "height": 0.6945,
+   "depth": 0.7313
+  },
+  {
+   "tex": "\\underbrace{a + b}_{c}",
+   "display": true,
+   "ok": true,
+   "height": 0.6945,
+   "depth": 1.2327
+  },
+  {
+   "tex": "\\overbrace{1 + 2}",
+   "display": true,
+   "ok": true,
+   "height": 1.2925,
+   "depth": 0.0833
+  },
+  {
+   "tex": "\\overbrace{1 + 2}^{3}",
+   "display": true,
+   "ok": true,
+   "height": 1.9436,
+   "depth": 0.0833
+  },
+  {
+   "tex": "\\underline{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.2
+  },
+  {
+   "tex": "\\overline{z}",
+   "display": false,
+   "ok": true,
+   "height": 0.6306,
+   "depth": 0
+  },
+  {
+   "tex": "\\xrightarrow{f}",
+   "display": true,
+   "ok": true,
+   "height": 1.1081,
+   "depth": 0.011
+  },
+  {
+   "tex": "\\xrightarrow[g]{f}",
+   "display": true,
+   "ok": true,
+   "height": 1.1081,
+   "depth": 0.5595
+  },
+  {
+   "tex": "\\xleftarrow{abc}",
+   "display": false,
+   "ok": true,
+   "height": 1.1081,
+   "depth": 0.011
+  },
+  {
+   "tex": "\\substack{a \\\\ b}",
+   "display": true,
+   "ok": true,
+   "height": 0.883,
+   "depth": 0.3831
+  },
+  {
+   "tex": "\\begin{cases} a \\\\ b \\end{cases}",
+   "display": true,
+   "ok": true,
+   "height": 1.75,
+   "depth": 1.25
+  },
+  {
+   "tex": "\\begin{cases} a & b \\\\ c & d \\\\ e & f \\end{cases}",
+   "display": true,
+   "ok": true,
+   "height": 2.41,
+   "depth": 1.91
+  },
+  {
+   "tex": "\\begin{matrix} a \\\\ b \\end{matrix}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\begin{bmatrix} a & b \\\\ c & d \\\\ e & f \\end{bmatrix}",
+   "display": true,
+   "ok": true,
+   "height": 2.05,
+   "depth": 1.55
+  },
+  {
+   "tex": "\\begin{aligned} a &= b \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\begin{aligned} a &= b \\\\ c &= d \\\\ e &= f \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 2.35,
+   "depth": 1.85
+  },
+  {
+   "tex": "\\begin{array}{cc} a & b \\\\ c & d \\end{array}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\hat{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\vec{v}",
+   "display": false,
+   "ok": true,
+   "height": 0.714,
+   "depth": 0
+  },
+  {
+   "tex": "\\widehat{abc}",
+   "display": false,
+   "ok": true,
+   "height": 0.9944,
+   "depth": 0
+  },
+  {
+   "tex": "\\bar{x}^2",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "\\dot{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.6679,
+   "depth": 0
+  },
+  {
+   "tex": "\\sum_{i=1}^n",
+   "display": true,
+   "ok": true,
+   "height": 1.6514,
+   "depth": 1.2777
+  },
+  {
+   "tex": "\\sum_{i=1}^n",
+   "display": false,
+   "ok": true,
+   "height": 0.8043,
+   "depth": 0.2997
+  },
+  {
+   "tex": "\\int_0^1",
+   "display": true,
+   "ok": true,
+   "height": 1.5641,
+   "depth": 0.9119
+  },
+  {
+   "tex": "\\lim_{x\\to 0}",
+   "display": true,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.7171
+  },
+  {
+   "tex": "\\prod_{p}",
+   "display": true,
+   "ok": true,
+   "height": 1.05,
+   "depth": 1.3861
+  },
+  {
+   "tex": "\\operatorname{argmax}_\\theta",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.2441
+  },
+  {
+   "tex": "\\operatorname{sin} x",
+   "display": false,
+   "ok": true,
+   "height": 0.6679,
+   "depth": 0
+  },
+  {
+   "tex": "\\operatorname*{argmax}_\\theta x",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.9465
+  },
+  {
+   "tex": "\\lim_{x\\to 0} x",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.15
+  },
+  {
+   "tex": "\\max_i x_i",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.15
+  },
+  {
+   "tex": "\\operatorname*{argmax}_\\theta x",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.2441
+  },
+  {
+   "tex": "\\lim\\limits_{x\\to 0} x",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.7171
+  },
+  {
+   "tex": "\\max\\nolimits_i x_i",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.15
+  },
+  {
+   "tex": "\\sup_{x}^{2} x",
+   "display": true,
+   "ok": true,
+   "height": 1.1817,
+   "depth": 0.8944
+  },
+  {
+   "tex": "\\mathbb{R}",
+   "display": false,
+   "ok": true,
+   "height": 0.6889,
+   "depth": 0
+  },
+  {
+   "tex": "\\mathcal{L}",
+   "display": false,
+   "ok": true,
+   "height": 0.6833,
+   "depth": 0
+  },
+  {
+   "tex": "\\mathfrak{g}",
+   "display": false,
+   "ok": true,
+   "height": 0.4753,
+   "depth": 0.1891
+  },
+  {
+   "tex": "\\text{abc}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\boxed{z}",
+   "display": false,
+   "ok": true,
+   "height": 0.7706,
+   "depth": 0.34
+  },
+  {
+   "tex": "\\cancel{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "a \\tag{1}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\def\\x{y}\\x",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\newcommand{\\z}{w}\\z",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "\\begin{align} a &= b \\end{align}",
+   "display": true,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\begin{gather} a \\\\ b \\end{gather}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{alignat}{2} a &= b \\end{alignat}",
+   "display": true,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\stackrel{a}{=}",
+   "display": false,
+   "ok": true,
+   "height": 0.9683,
+   "depth": 0
+  },
+  {
+   "tex": "\\overset{a}{b}",
+   "display": false,
+   "ok": true,
+   "height": 1.2958,
+   "depth": 0
+  },
+  {
+   "tex": "\\underset{a}{b}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.7
+  },
+  {
+   "tex": "\\not=",
+   "display": false,
+   "ok": true,
+   "height": 0.6945,
+   "depth": 0.1944
+  },
+  {
+   "tex": "\\ldots",
+   "display": false,
+   "ok": true,
+   "height": 0.123,
+   "depth": 0
+  },
+  {
+   "tex": "\\dfrac{1}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\tfrac{1}{2}",
+   "display": true,
+   "ok": true,
+   "height": 0.8451,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\smash{\\frac{a}{b}} x",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "\\smash[t]{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 0,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\smash[b]{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0
+  },
+  {
+   "tex": "\\smash{y}",
+   "display": false,
+   "ok": true,
+   "height": 0,
+   "depth": 0
+  },
+  {
+   "tex": "x \\mathclap{\\frac{a}{b}} y",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\sum_{\\mathclap{1 \\le i \\le n}} x_i",
+   "display": true,
+   "ok": true,
+   "height": 1.0501,
+   "depth": 1.3728
+  },
+  {
+   "tex": "\\mathllap{a} b \\mathrlap{c}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\rlap{a} \\llap{b} \\clap{c}",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\vcenter{\\frac{a}{b}} + \\vcenter{x}",
+   "display": true,
+   "ok": true,
+   "height": 1.1468,
+   "depth": 0.6468
+  },
+  {
+   "tex": "\\hbox{abc $x^2$}",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "\\mathchoice{\\frac{a}{b}}{T}{S}{s}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\mathchoice{\\frac{a}{b}}{T}{S}{s}",
+   "display": false,
+   "ok": true,
+   "height": 0.6833,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\mathchoice{D}{T}{\\frac{S}{S}}{s}}",
+   "display": false,
+   "ok": true,
+   "height": 0.9735,
+   "depth": 0
+  },
+  {
+   "tex": "\\pmb{x} + \\pmb{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\href{http://a.example}{\\frac{x}{y}}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\url{http://a.example}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\includegraphics[width=1em]{a.png}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\htmlClass{a}{\\frac{x}{y}}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\let\\a=\\frac \\a{1}{2}",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\global\\let\\b\\alpha \\b + \\long\\def\\c#1{#1^2}\\c{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0.0833
+  },
+  {
+   "tex": "\\begin{pmatrix*}[r] a & -b \\\\ -c & d \\end{pmatrix*}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\begin{Vmatrix*} a \\\\ b \\end{Vmatrix*}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\begin{Vmatrix} a \\\\ b \\end{Vmatrix}",
+   "display": true,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\varlimsup_{n} x_n",
+   "display": true,
+   "ok": true,
+   "height": 0.8944,
+   "depth": 0.7
+  },
+  {
+   "tex": "\\varinjlim_{n} x_n",
+   "display": true,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 1.222
+  },
+  {
+   "tex": "\\varinjlim_{n} x_n",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.5717
+  },
+  {
+   "tex": "\\varliminf x + \\varprojlim y",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.522
+  },
+  {
+   "tex": "\\text{\\aa \\AA}",
+   "display": false,
+   "ok": true,
+   "height": 0.9468,
+   "depth": 0
+  },
+  {
+   "tex": "\\begin{aligned} a &= b \\\\ c &= d \\\\ \\end{aligned}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{align} a &= b \\tag{x} \\\\ c &= \\frac{d}{e} \\nonumber \\\\ f \\notag \\\\ g \\end{align}",
+   "display": true,
+   "ok": true,
+   "height": 3.5287,
+   "depth": 3.0287
+  },
+  {
+   "tex": "\\begin{gather} a \\\\ b \\tag*{B} \\end{gather}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{alignat}{2} a &= b &\\quad c &= d \\\\ e &= f \\end{alignat}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{align*} a &= b \\tag{1} \\\\ c \\end{align*}",
+   "display": true,
+   "ok": true,
+   "height": 1.6,
+   "depth": 1.1
+  },
+  {
+   "tex": "\\begin{equation} \\frac{a}{b} \\end{equation}",
+   "display": true,
+   "ok": true,
+   "height": 1.1468,
+   "depth": 0.6468
+  },
+  {
+   "tex": "\\frac{-b \\pm \\sqrt{b^2 - 4ac}}{2a}",
+   "display": false,
+   "ok": true,
+   "height": 1.0395,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{\\sqrt{x}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{\\sqrt{b^2}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.0686,
+   "depth": 0.345
+  },
+  {
+   "tex": "x^{\\sqrt{y}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8591,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\sqrt{b^2 - 4ac}}",
+   "display": false,
+   "ok": true,
+   "height": 1.0085,
+   "depth": 0
+  },
+  {
+   "tex": "\\frac{\\sqrt{\\pi}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "\\frac{1}{\\sqrt{2}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8451,
+   "depth": 0.538
+  },
+  {
+   "tex": "e^{\\sqrt{\\frac{a}{b}}}",
+   "display": false,
+   "ok": true,
+   "height": 1.1274,
+   "depth": 0
+  },
+  {
+   "tex": "\\frac{\\sqrt[3]{x}}{2}",
+   "display": false,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.345
+  },
+  {
+   "tex": "x_{\\sqrt{y^2}}",
+   "display": true,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0.6748
+  },
+  {
+   "tex": "\\sum_{\\sqrt{n}}^{\\sqrt{n^2}}",
+   "display": true,
+   "ok": true,
+   "height": 2.0247,
+   "depth": 1.544
+  },
+  {
+   "tex": "x^{y^{\\sqrt{z}}}",
+   "display": false,
+   "ok": true,
+   "height": 1.0677,
+   "depth": 0
+  },
+  {
+   "tex": "\\scriptstyle \\sqrt{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 0.6725,
+   "depth": 0.3471
+  },
+  {
+   "tex": "\\scriptscriptstyle \\sqrt{x^2 + y^2}",
+   "display": true,
+   "ok": true,
+   "height": 0.5795,
+   "depth": 0.1488
+  },
+  {
+   "tex": "\\tfrac{\\sqrt{x}}{\\sqrt{y^2}}",
+   "display": true,
+   "ok": true,
+   "height": 1.038,
+   "depth": 0.8296
+  },
+  {
+   "tex": "\\Big( x \\Big)",
+   "display": false,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.65
+  },
+  {
+   "tex": "\\bigg\\{ x \\bigg\\}",
+   "display": false,
+   "ok": true,
+   "height": 1.45,
+   "depth": 0.95
+  },
+  {
+   "tex": "\\lvert x \\rvert",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\| v \\|",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\langle a, b \\rangle",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\phase{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.4305,
+   "depth": 0.2109
+  },
+  {
+   "tex": "\\phase{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.8968
+  },
+  {
+   "tex": "\\phase{-78^\\circ}",
+   "display": false,
+   "ok": true,
+   "height": 0.6741,
+   "depth": 0.2942
+  },
+  {
+   "tex": "x^{\\phase{y}}",
+   "display": false,
+   "ok": true,
+   "height": 0.7561,
+   "depth": 0
+  },
+  {
+   "tex": "\\angl{n}",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "a_{\\angl{n}}",
+   "display": false,
+   "ok": true,
+   "height": 0.4305,
+   "depth": 0.398
+  },
+  {
+   "tex": "\\angln",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\angl{g}",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\edef\\a{b}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\def\\b{c}\\edef\\a{\\b^2}\\def\\b{d}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "\\xdef\\a{\\frac12}\\a",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "{\\xdef\\a{x}}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "{\\edef\\a{x}}\\a",
+   "display": false,
+   "ok": false,
+   "error": "Undefined control sequence: \\a at position 13: {\\edef\\a{x}}\\̲a̲"
+  },
+  {
+   "tex": "\\Set{x | y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\set{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{\\frac{a}{b} | y > 0}",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\set{x | y}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{x \\| y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{x || y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Braket{a|b|c}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Braket{\\frac{a}{b}|c}",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 1.7021,
+   "depth": 0
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\\\ @VbVV @AAcA \\\\ C @= D \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 3.5491,
+   "depth": 1.7562
+  },
+  {
+   "tex": "\\begin{CD} A @<<< B @>>b> C \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 1.8031,
+   "depth": 0.0101
+  },
+  {
+   "tex": "\\begin{CD} A @. B \\\\ @| @VVV \\\\ C @>>> D \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 3.54,
+   "depth": 1.747
+  },
+  {
+   "tex": "x + \\begin{CD} A @>>> B \\\\ @VVV @VVV \\\\ C @>>> D \\\\ @AAA @| \\\\ E @<<< F \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 5.387,
+   "depth": 3.594
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\end{CD}",
+   "display": false,
+   "ok": false,
+   "error": "{CD} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{CD} A @>a> B \\end{CD}",
+   "display": true,
+   "ok": false,
+   "error": "Missing a > character to complete a CD arrow. at position 17: …begin{CD} A @>a>̲ B \\end{CD}"
+  },
+  {
+   "tex": "\\Big\\downarrow",
+   "display": false,
+   "ok": true,
+   "height": 1.151,
+   "depth": 0.65
+  },
+  {
+   "tex": "\\Big\\uparrow \\Big\\Vert",
+   "display": false,
+   "ok": true,
+   "height": 1.151,
+   "depth": 0.65
+  },
+  {
+   "tex": "\\big| x \\big|",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\Big\\| \\bigg\\uparrow \\Bigg\\Updownarrow",
+   "display": true,
+   "ok": true,
+   "height": 1.75,
+   "depth": 1.25
+  },
+  {
+   "tex": "\\bigl\\lvert x \\bigr\\rvert \\bigm\\| y",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\fbox x + \\hbox y",
+   "display": false,
+   "ok": true,
+   "height": 0.7706,
+   "depth": 0.34
+  },
+  {
+   "tex": "\\degree",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "90\\degree",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\copyright",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\textregistered",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\minuso",
+   "display": false,
+   "ok": true,
+   "height": 0.5834,
+   "depth": 0.0833
+  },
+  {
+   "tex": "a \\minuso b",
+   "display": true,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.0833
+  },
+  {
+   "tex": "x^{\\minuso}",
+   "display": false,
+   "ok": true,
+   "height": 0.7713,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\copyright}",
+   "display": false,
+   "ok": true,
+   "height": 0.9852,
+   "depth": 0
+  },
+  {
+   "tex": "\\text{\\copyright\\ 2026 \\textregistered}",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\text{\\textcircled{a}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  }
+ ],
+ "reach": [
+  {
+   "tex": "\\smash{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\vcenter{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\hbox{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\verb|x|",
+   "ok": true
+  },
+  {
+   "tex": "\\mathchoice{a}{b}{c}{d}",
+   "ok": true
+  },
+  {
+   "tex": "\\phase{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\angl{n}",
+   "ok": true
+  },
+  {
+   "tex": "\\href{http://a.example}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\url{http://a.example}",
+   "ok": true
+  },
+  {
+   "tex": "\\includegraphics{a.png}",
+   "ok": true
+  },
+  {
+   "tex": "\\htmlClass{a}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\let\\a=b \\a",
+   "ok": true
+  },
+  {
+   "tex": "\\global\\def\\a{b}\\a",
+   "ok": true
+  },
+  {
+   "tex": "\\edef\\a{b}\\a",
+   "ok": true
+  },
+  {
+   "tex": "\\pmb{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\Set{x | y}",
+   "ok": true
+  },
+  {
+   "tex": "\\set{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\underbar{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\mathstrut x",
+   "ok": true
+  },
+  {
+   "tex": "\\mathclap{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\mathllap{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\mathrlap{x}",
+   "ok": true
+  },
+  {
+   "tex": "x \\tag*{a}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{matrix*}[r] a \\\\ b \\end{matrix*}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\end{CD}",
+   "ok": true
+  },
+  {
+   "tex": "\\varinjlim x",
+   "ok": true
+  },
+  {
+   "tex": "\\bra{x} \\ket{y} \\braket{x|y}",
+   "ok": true
+  },
+  {
+   "tex": "\\textcolor{red}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\color{blue} x",
+   "ok": true
+  },
+  {
+   "tex": "\\colorbox{yellow}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\fcolorbox{red}{yellow}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\boxed{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\cancel{x} \\bcancel{x} \\xcancel{x} \\sout{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\not\\in",
+   "ok": true
+  },
+  {
+   "tex": "\\kern1em x \\mkern2mu y \\hskip1em z",
+   "ok": true
+  },
+  {
+   "tex": "\\rule{1em}{2pt}",
+   "ok": true
+  },
+  {
+   "tex": "\\raisebox{1em}{x}",
+   "ok": true
+  },
+  {
+   "tex": "\\overbrace{x} \\underbrace{y}",
+   "ok": true
+  },
+  {
+   "tex": "\\xrightarrow[a]{b} \\xleftarrow{c} \\xLeftrightarrow{d}",
+   "ok": true
+  },
+  {
+   "tex": "\\genfrac{(}{)}{0pt}{}{a}{b}",
+   "ok": true
+  },
+  {
+   "tex": "\\cfrac{1}{1 + \\cfrac{1}{x}}",
+   "ok": true
+  },
+  {
+   "tex": "\\dbinom{n}{k} \\tbinom{n}{k}",
+   "ok": true
+  },
+  {
+   "tex": "{a \\over b} {a \\atop b} {a \\brace b} {a \\brack b}",
+   "ok": true
+  },
+  {
+   "tex": "\\mathbb{R} \\mathscr{L} \\mathcal{F} \\mathfrak{g} \\mathsf{x} \\mathtt{y} \\mathit{z}",
+   "ok": true
+  },
+  {
+   "tex": "\\boldsymbol{\\alpha} \\bm{x} \\mathbf{y}",
+   "ok": true
+  },
+  {
+   "tex": "\\text{a $x$ b} \\textbf{c} \\textit{d} \\texttt{e} \\textrm{f} \\textsf{g}",
+   "ok": true
+  },
+  {
+   "tex": "\\newcommand{\\a}[1]{#1} \\renewcommand{\\a}{c} \\providecommand{\\b}{d} \\a\\b",
+   "ok": true
+  },
+  {
+   "tex": "\\sum\\limits_a^b \\int\\nolimits_a^b",
+   "ok": true
+  },
+  {
+   "tex": "\\displaystyle x \\textstyle y \\scriptstyle z \\scriptscriptstyle w",
+   "ok": true
+  },
+  {
+   "tex": "\\big( \\Big[ \\bigg\\{ \\Bigg| \\bigl< \\bigr>",
+   "ok": true
+  },
+  {
+   "tex": "\\left\\lVert x \\middle| y \\right\\rVert",
+   "ok": true
+  },
+  {
+   "tex": "\\widetilde{ab} \\widehat{cd} \\overrightarrow{ef} \\overleftarrow{gh} \\utilde{ij}",
+   "ok": true
+  },
+  {
+   "tex": "\\tiny a \\small b \\large c \\Huge d",
+   "ok": true
+  },
+  {
+   "tex": "\\liminf_x \\limsup_x \\arg\\max \\operatorname*{a}_b",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{array}{c|c} a & b \\\\ \\hline c & d \\\\ \\hdashline e & f \\end{array}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{pmatrix} a \\end{pmatrix} \\begin{Bmatrix} a \\end{Bmatrix} \\begin{vmatrix} a \\end{vmatrix} \\begin{Vmatrix} a \\end{Vmatrix} \\begin{smallmatrix} a \\end{smallmatrix}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{dcases} a \\end{dcases} \\begin{rcases} a \\end{rcases} \\begin{drcases} a \\end{drcases}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{gathered} a \\\\ b \\end{gathered} \\begin{alignedat}{2} a &= b \\end{alignedat} \\begin{split} a &= b \\end{split}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{gather} a \\\\ b \\end{gather}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{equation} a \\end{equation}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{alignat}{2} a &= b \\end{alignat}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{subarray}{l} a \\\\ b \\end{subarray}",
+   "ok": true
+  },
+  {
+   "tex": "\\begin{darray}{c} a \\end{darray}",
+   "ok": true
+  },
+  {
+   "tex": "\\quad \\qquad \\, \\: \\; \\! \\enspace \\hspace{1em} \\nobreak \\allowbreak",
+   "ok": true
+  },
+  {
+   "tex": "a \\bmod b \\pmod{c} \\pod{d} \\mod{e}",
+   "ok": true
+  },
+  {
+   "tex": "\\iff \\implies \\impliedby",
+   "ok": true
+  },
+  {
+   "tex": "\\imath \\jmath",
+   "ok": true
+  },
+  {
+   "tex": "\\text{\\aa \\AA \\ss \\o \\O \\i \\j}",
+   "ok": true
+  },
+  {
+   "tex": "\\vdots \\ddots \\cdots \\ldots \\dots",
+   "ok": true
+  },
+  {
+   "tex": "\\mathop{x} \\mathbin{y} \\mathrel{z} \\mathopen{(} \\mathclose{)} \\mathpunct{,} \\mathord{a} \\mathinner{b}",
+   "ok": true
+  },
+  {
+   "tex": "\\llap{a} \\rlap{b} \\clap{c}",
+   "ok": true
+  },
+  {
+   "tex": "\\phantom{a} \\hphantom{b} \\vphantom{c}",
+   "ok": true
+  },
+  {
+   "tex": "\\TeX \\LaTeX \\KaTeX",
+   "ok": true
+  },
+  {
+   "tex": "\\char\"41",
+   "ok": true
+  },
+  {
+   "tex": "\\degree \\copyright \\textregistered \\minuso",
+   "ok": true
+  },
+  {
+   "tex": "\\begingroup x \\endgroup",
+   "ok": true
+  },
+  {
+   "tex": "\\relax x",
+   "ok": true
+  },
+  {
+   "tex": "x \\newline y",
+   "ok": true
+  },
+  {
+   "tex": "\\overline{x} \\underline{y}",
+   "ok": true
+  },
+  {
+   "tex": "\\stackrel{a}{b} \\overset{a}{b} \\underset{a}{b} \\substack{a \\\\ b}",
+   "ok": true
+  },
+  {
+   "tex": "\\oint \\iint \\iiint \\coprod \\bigoplus \\bigotimes",
+   "ok": true
+  },
+  {
+   "tex": "\\lfloor x \\rfloor \\lceil y \\rceil \\ulcorner z \\urcorner",
+   "ok": true
+  },
+  {
+   "tex": "\\dot{x} \\ddot{y} \\acute{z} \\grave{a} \\check{b} \\breve{c} \\mathring{d}",
+   "ok": true
+  }
+ ]
+}

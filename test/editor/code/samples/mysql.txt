@@ -1,0 +1,6 @@
+mysql
+-- comment
+# hash comment
+SELECT `id`, name, IFNULL(score, 0) AS s, @var := 1 FROM `users` WHERE name REGEXP '^a' AND created > NOW() - INTERVAL 1 DAY LIMIT 5;
+INSERT INTO t VALUES (1, 'a', 0x1F, TRUE) ON DUPLICATE KEY UPDATE n = n + 1;
+SHOW TABLES; DELIMITER //

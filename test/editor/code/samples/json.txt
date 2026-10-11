@@ -1,0 +1,7 @@
+json
+{
+  "name": "ghost",
+  "version": 1.5e3,
+  "tags": ["a", "b", true, false, null, -0.5],
+  "nested": { "deep": { "key\n": "value \"quoted\"" } }
+}

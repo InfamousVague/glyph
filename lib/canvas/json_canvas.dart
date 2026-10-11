@@ -1,0 +1,649 @@
+/// JSON Canvas (jsoncanvas.org, 1.0), the open format Obsidian's canvas is written in, read and written as it is.
+/// A port of `src/app/canvas/jsonCanvas.ts`: the format, and the note that holds it (front matter naming it, then
+/// the JSON and nothing else). What is made and changed on a canvas is edits.dart, where things are geometry.dart,
+/// how lines run lines.dart, and what the screen makes of a node card_looks.dart.
+///
+/// Read leniently, written exactly: a node or edge that is not what the spec says is left out rather than the whole
+/// canvas refused; what is kept is written back with only the fields the spec names, so a round trip changes
+/// nothing a person meant.
+///
+/// What differs from the web:
+/// - A JavaScript object is its fields in the order they were set, and `JSON.stringify` writes them in that order.
+///   So a node here is that too: [CanvasRecord.fields], a map in insertion order, with the typed getters over it.
+///   A field changed keeps its place and a field taken off and put back goes last (`put`, `without`), as
+///   `{ ...node, x }` and `{ ...rest, label }` do, which is what makes the file come out byte for byte
+///   (tool/canvas_fixtures.mjs, test/canvas/fixtures_test.dart).
+/// - Two records are equal when their fields are, in any order, which is what the web's tests mean by `toEqual`.
+/// - Numbers are doubles, as JavaScript's are, and written as JavaScript writes them (js.dart).
+library;
+
+import 'dart:convert';
+
+import '../core/front_matter.dart';
+import 'geometry.dart';
+import 'js.dart';
+
+/// The spec's colour: one of six presets, "1" to "6", or a hex colour like "#FF0000".
+typedef CanvasColor = String;
+
+enum Side { top, right, bottom, left }
+
+enum End { none, arrow }
+
+enum NodeType { text, file, link, group }
+
+/// Whether two values of a file are the same: maps by their fields in any order, lists in theirs.
+bool sameJson(Object? a, Object? b) {
+  if (a is Map && b is Map) {
+    if (a.length != b.length) return false;
+    for (final key in a.keys) {
+      if (!b.containsKey(key) || !sameJson(a[key], b[key])) return false;
+    }
+    return true;
+  }
+  if (a is List && b is List) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i += 1) {
+      if (!sameJson(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
+}
+
+int _hash(Object? value) {
+  if (value is Map) return Object.hashAllUnordered(value.entries.map((e) => Object.hash(e.key, _hash(e.value))));
+  if (value is List) return Object.hashAll(value.map(_hash));
+  return value.hashCode;
+}
+
+T? _named<T extends Enum>(List<T> values, Object? name) {
+  for (final each in values) {
+    if (each.name == name) return each;
+  }
+  return null;
+}
+
+/// One object of the file: its fields as JSON holds them (strings, numbers, lists and maps of those), in the order
+/// they were set.
+abstract class CanvasRecord {
+  CanvasRecord(Map<String, Object?> fields) : fields = Map.unmodifiable(fields);
+
+  final Map<String, Object?> fields;
+
+  String? _s(String key) => fields[key] as String?;
+  double _d(String key) => (fields[key]! as num).toDouble();
+
+  /// `{ ...this, ...changes }`: a field already there keeps its place, a new one goes last.
+  Map<String, Object?> _put(Map<String, Object?> changes) => {...fields, ...changes};
+
+  /// The fields without [key].
+  Map<String, Object?> _without(String key) => {
+    for (final entry in fields.entries)
+      if (entry.key != key) entry.key: entry.value,
+  };
+
+  @override
+  bool operator ==(Object other) => other is CanvasRecord && other.runtimeType == runtimeType && sameJson(fields, other.fields);
+
+  @override
+  int get hashCode => _hash(fields);
+
+  @override
+  String toString() => '$runtimeType$fields';
+}
+
+/// A card or a group. Positions and sizes are pixels in the canvas's own space; the spec says integers.
+class CanvasNode extends CanvasRecord implements Box {
+  CanvasNode(super.fields);
+
+  /// Whether [other] is this card somewhere else: every field but where it stands is the same. A card carried is
+  /// another node at every move of the finger (edits.dart), and what is drawn of it is what was.
+  bool movedFrom(CanvasNode other) {
+    if (identical(other, this)) return true;
+    final mine = fields, theirs = other.fields;
+    if (mine.length != theirs.length) return false;
+    for (final entry in mine.entries) {
+      final key = entry.key;
+      if (!theirs.containsKey(key)) return false;
+      if (key == 'x' || key == 'y') continue;
+      final value = theirs[key];
+      if (!identical(value, entry.value) && value != entry.value) return false;
+    }
+    return true;
+  }
+
+  /// A card of words, its fields in the order the web's makers set them.
+  CanvasNode.text({required String id, required double x, required double y, required double width, required double height, required String text, CanvasColor? color})
+    : super({'id': id, 'type': 'text', 'x': x, 'y': y, 'width': width, 'height': height, 'color': ?color, 'text': text});
+
+  CanvasNode.file({required String id, required double x, required double y, required double width, required double height, required String file, String? subpath, CanvasColor? color})
+    : super({'id': id, 'type': 'file', 'x': x, 'y': y, 'width': width, 'height': height, 'color': ?color, 'file': file, 'subpath': ?subpath});
+
+  CanvasNode.link({required String id, required double x, required double y, required double width, required double height, required String url, CanvasColor? color})
+    : super({'id': id, 'type': 'link', 'x': x, 'y': y, 'width': width, 'height': height, 'color': ?color, 'url': url});
+
+  CanvasNode.group({required String id, required double x, required double y, required double width, required double height, String? label, CanvasColor? color})
+    : super({'id': id, 'type': 'group', 'x': x, 'y': y, 'width': width, 'height': height, 'label': ?label, 'color': ?color});
+
+  String get id => _s('id')!;
+  NodeType get type => _named(NodeType.values, fields['type'])!;
+  @override
+  double get x => _d('x');
+  @override
+  double get y => _d('y');
+  @override
+  double get width => _d('width');
+  @override
+  double get height => _d('height');
+  CanvasColor? get color => _s('color');
+
+  /// A card of words' Markdown; empty for any other kind.
+  String get text => _s('text') ?? '';
+
+  /// A file card's path, and the anchor in it (`#^friday`).
+  String get file => _s('file') ?? '';
+  String? get subpath => _s('subpath');
+
+  /// A link card's address.
+  String get url => _s('url') ?? '';
+
+  /// A group's name, its picture and how that is laid.
+  String? get label => _s('label');
+  String? get background => _s('background');
+  String? get backgroundStyle => _s('backgroundStyle');
+
+  bool get isGroup => type == NodeType.group;
+
+  /// `{ ...node, ...changes }`.
+  CanvasNode put(Map<String, Object?> changes) => CanvasNode(_put(changes));
+
+  /// The node without one of its fields.
+  CanvasNode without(String key) => CanvasNode(_without(key));
+}
+
+/// A line from one card to another. The spec's defaults: nothing at the start, an arrow at the end.
+class CanvasEdge extends CanvasRecord {
+  CanvasEdge(super.fields);
+
+  CanvasEdge.of({required String id, required String fromNode, required String toNode, Side? fromSide, Side? toSide, End? fromEnd, End? toEnd, CanvasColor? color, String? label})
+    : super({
+        'id': id,
+        'fromNode': fromNode,
+        'toNode': toNode,
+        'fromSide': ?fromSide?.name,
+        'toSide': ?toSide?.name,
+        'fromEnd': ?fromEnd?.name,
+        'toEnd': ?toEnd?.name,
+        'color': ?color,
+        'label': ?label,
+      });
+
+  String get id => _s('id')!;
+  String get fromNode => _s('fromNode')!;
+  String get toNode => _s('toNode')!;
+  Side? get fromSide => _named(Side.values, fields['fromSide']);
+  Side? get toSide => _named(Side.values, fields['toSide']);
+  End? get fromEnd => _named(End.values, fields['fromEnd']);
+  End? get toEnd => _named(End.values, fields['toEnd']);
+  CanvasColor? get color => _s('color');
+  String? get label => _s('label');
+
+  CanvasEdge put(Map<String, Object?> changes) => CanvasEdge(_put(changes));
+  CanvasEdge without(String key) => CanvasEdge(_without(key));
+}
+
+/// A reply in a canvas's thread (docs/SHARED.md, S9): who, when (ISO 8601) and the words.
+class CanvasReply extends CanvasRecord {
+  CanvasReply(super.fields);
+  CanvasReply.of({required String by, required String at, required String text}) : super({'by': by, 'at': at, 'text': text});
+
+  String get by => _s('by')!;
+  String get at => _s('at')!;
+  String get text => _s('text')!;
+}
+
+/// A comment thread on a card: Ghost.md's own field in the JSON, `comments`, a thread each, anchored to a node by
+/// id. The head is the thread's first comment; `resolved` names who closed it and when.
+class CanvasComment extends CanvasRecord {
+  CanvasComment(super.fields);
+
+  String get id => _s('id')!;
+  String get node => _s('node')!;
+  String get by => _s('by')!;
+  String get at => _s('at')!;
+  String get text => _s('text')!;
+  List<CanvasReply> get replies => [for (final each in fields['replies']! as List) CanvasReply((each as Map).cast<String, Object?>())];
+  ({String by, String at})? get resolved {
+    final value = fields['resolved'];
+    return value is Map ? (by: value['by'] as String, at: value['at'] as String) : null;
+  }
+
+  CanvasComment put(Map<String, Object?> changes) => CanvasComment(_put(changes));
+  CanvasComment without(String key) => CanvasComment(_without(key));
+}
+
+/// A canvas. Nodes are in ascending z-order, as the spec has them: the first is drawn first, under the rest.
+class Canvas {
+  Canvas({required List<CanvasNode> nodes, required List<CanvasEdge> edges, List<CanvasComment>? comments})
+    : nodes = List.unmodifiable(nodes),
+      edges = List.unmodifiable(edges),
+      comments = comments == null ? null : List.unmodifiable(comments);
+
+  final List<CanvasNode> nodes;
+  final List<CanvasEdge> edges;
+
+  /// The threads on its cards; left out of the JSON when there are none, so a canvas without them is the spec's alone.
+  final List<CanvasComment>? comments;
+
+  /// The node by that id, or null.
+  CanvasNode? nodeOf(String? id) {
+    if (id == null) return null;
+    for (final node in nodes) {
+      if (node.id == id) return node;
+    }
+    return null;
+  }
+
+  @override
+  bool operator ==(Object other) => other is Canvas && sameJson(nodes, other.nodes) && sameJson(edges, other.edges) && sameJson(comments, other.comments);
+
+  @override
+  int get hashCode => Object.hash(_hash(nodes), _hash(edges), _hash(comments));
+
+  @override
+  String toString() => 'Canvas(nodes: $nodes, edges: $edges${comments == null ? '' : ', comments: $comments'})';
+}
+
+const _styles = ['cover', 'ratio', 'repeat'];
+const _sides = ['top', 'right', 'bottom', 'left'];
+const _ends = ['none', 'arrow'];
+
+String? _str(Object? value) => value is String ? value : null;
+
+/// A string that is something: `str(value)` where the web then asks `if (!id)`.
+String? _some(Object? value) => value is String && value.isNotEmpty ? value : null;
+double? _num(Object? value) => value is num && value.isFinite ? jsRound(value.toDouble()) : null;
+String? _oneOf(Object? value, List<String> of) => value is String && of.contains(value) ? value : null;
+
+final RegExp _color = RegExp(r'^([1-6]|#[0-9a-f]{6}|#[0-9a-f]{3})$', caseSensitive: false);
+
+/// A colour the spec allows: a preset digit, or a hex colour. Anything else is read as no colour.
+String? _colorOf(Object? value) => value is String && _color.hasMatch(value) ? value : null;
+
+CanvasNode? _readNode(Object? value) {
+  if (value is! Map) return null;
+  final id = _some(value['id']);
+  final x = _num(value['x']);
+  final y = _num(value['y']);
+  final width = _num(value['width']);
+  final height = _num(value['height']);
+  if (id == null || x == null || y == null || width == null || height == null) return null;
+  final base = <String, Object?>{'id': id, 'x': x, 'y': y, 'width': width, 'height': height, 'color': ?_colorOf(value['color'])};
+  switch (value['type']) {
+    case 'text':
+      final text = _str(value['text']);
+      return text == null ? null : CanvasNode({...base, 'type': 'text', 'text': text});
+    case 'file':
+      final file = _some(value['file']);
+      if (file == null) return null;
+      final subpath = _str(value['subpath']);
+      return CanvasNode({...base, 'type': 'file', 'file': file, if (subpath != null && subpath.startsWith('#')) 'subpath': subpath});
+    case 'link':
+      final url = _some(value['url']);
+      return url == null ? null : CanvasNode({...base, 'type': 'link', 'url': url});
+    case 'group':
+      return CanvasNode({...base, 'type': 'group', 'label': ?_some(value['label']), 'background': ?_some(value['background']), 'backgroundStyle': ?_oneOf(value['backgroundStyle'], _styles)});
+    default:
+      return null;
+  }
+}
+
+CanvasEdge? _readEdge(Object? value, Set<String> nodes) {
+  if (value is! Map) return null;
+  final id = _some(value['id']);
+  final fromNode = _some(value['fromNode']);
+  final toNode = _some(value['toNode']);
+  if (id == null || fromNode == null || toNode == null || !nodes.contains(fromNode) || !nodes.contains(toNode)) return null;
+  return CanvasEdge({
+    'id': id,
+    'fromNode': fromNode,
+    'toNode': toNode,
+    'fromSide': ?_oneOf(value['fromSide'], _sides),
+    'toSide': ?_oneOf(value['toSide'], _sides),
+    'fromEnd': ?_oneOf(value['fromEnd'], _ends),
+    'toEnd': ?_oneOf(value['toEnd'], _ends),
+    'color': ?_colorOf(value['color']),
+    'label': ?_some(value['label']),
+  });
+}
+
+Map<String, Object?>? _readReply(Object? value) {
+  if (value is! Map) return null;
+  final by = _some(value['by']);
+  final at = _some(value['at']);
+  final text = _str(value['text']);
+  return by != null && at != null && text != null ? {'by': by, 'at': at, 'text': text} : null;
+}
+
+/// A thread as the JSON has it: on a node that is there, with a head and whatever replies read; resolved when it
+/// says so.
+CanvasComment? _readComment(Object? value, Set<String> nodes) {
+  if (value is! Map) return null;
+  final id = _some(value['id']);
+  final node = _some(value['node']);
+  final head = _readReply(value);
+  if (id == null || node == null || !nodes.contains(node) || head == null) return null;
+  final given = value['replies'];
+  final replies = [for (final each in given is List ? given : const <Object?>[]) ?_readReply(each)];
+  final resolved = value['resolved'];
+  final by = resolved is Map ? _some(resolved['by']) : null;
+  final at = resolved is Map ? _some(resolved['at']) : null;
+  return CanvasComment({
+    'id': id,
+    'node': node,
+    ...head,
+    'replies': replies,
+    if (by != null && at != null) 'resolved': {'by': by, 'at': at},
+  });
+}
+
+/// The canvas in [text], or null where the text is not one. A canvas is a JSON object with a `nodes` or an `edges`
+/// array (the spec makes both optional; an object with neither is not a canvas, it is `{}`). Nodes that are not
+/// nodes are left out, as are edges to nodes that are not there, and a node's id appearing twice keeps the first.
+Canvas? parseCanvas(String text) {
+  Object? value;
+  try {
+    value = jsonDecode(text);
+  } on FormatException {
+    return null;
+  }
+  if (value is! Map) return null;
+  final givenNodes = value['nodes'];
+  final givenEdges = value['edges'];
+  final givenComments = value['comments'];
+  if (givenNodes is! List && givenEdges is! List) return null;
+  final nodes = <CanvasNode>[];
+  final seen = <String>{};
+  for (final entry in givenNodes is List ? givenNodes : const <Object?>[]) {
+    final node = _readNode(entry);
+    if (node != null && seen.add(node.id)) nodes.add(node);
+  }
+  final edges = <CanvasEdge>[];
+  final edgeIds = <String>{};
+  for (final entry in givenEdges is List ? givenEdges : const <Object?>[]) {
+    final edge = _readEdge(entry, seen);
+    if (edge != null && edgeIds.add(edge.id)) edges.add(edge);
+  }
+  final comments = <CanvasComment>[];
+  final commentIds = <String>{};
+  for (final entry in givenComments is List ? givenComments : const <Object?>[]) {
+    final comment = _readComment(entry, seen);
+    if (comment != null && commentIds.add(comment.id)) comments.add(comment);
+  }
+  return Canvas(nodes: nodes, edges: edges, comments: comments.isEmpty ? null : comments);
+}
+
+/// `JSON.stringify(value, null, 2)`.
+void _write(StringBuffer out, Object? value, String indent) {
+  if (value is CanvasRecord) return _write(out, value.fields, indent);
+  if (value is Map) {
+    if (value.isEmpty) return out.write('{}');
+    final inner = '$indent  ';
+    out.write('{\n');
+    var first = true;
+    for (final entry in value.entries) {
+      if (!first) out.write(',\n');
+      first = false;
+      out
+        ..write(inner)
+        ..write(jsonEncode(entry.key))
+        ..write(': ');
+      _write(out, entry.value, inner);
+    }
+    out.write('\n$indent}');
+    return;
+  }
+  if (value is List) {
+    if (value.isEmpty) return out.write('[]');
+    final inner = '$indent  ';
+    out.write('[\n');
+    for (var i = 0; i < value.length; i += 1) {
+      if (i > 0) out.write(',\n');
+      out.write(inner);
+      _write(out, value[i], inner);
+    }
+    out.write('\n$indent]');
+    return;
+  }
+  if (value is num) return out.write(value.isFinite ? jsNumber(value.toDouble()) : 'null');
+  out.write(jsonEncode(value));
+}
+
+/// The canvas as the spec writes it, two spaces in, a newline at the end, the way Obsidian saves one - and its
+/// threads after the edges, when it has any (docs/SHARED.md, S9), which Obsidian reads past.
+String serializeCanvas(Canvas canvas) {
+  final out = StringBuffer();
+  _write(out, {'nodes': canvas.nodes, 'edges': canvas.edges, if (canvas.comments?.isNotEmpty ?? false) 'comments': canvas.comments}, '');
+  out.write('\n');
+  return out.toString();
+}
+
+// ---- a canvas as a note ---------------------------------------------------------------------
+
+/// The body after its front matter, where it opens with one; the title is not put back as a first line - a
+/// canvas's first line is `{`, and the title is the note's name.
+String _afterFrontMatter(String body) {
+  final at = frontMatterOffset(body);
+  return at == 0 ? body : body.substring(at);
+}
+
+/// The canvas a note's body is, or null for a note that is words: front matter, then the JSON and nothing else.
+Canvas? canvasOf(String body) {
+  final rest = _afterFrontMatter(body).trim();
+  return rest.startsWith('{') ? parseCanvas(rest) : null;
+}
+
+/// Whether the note is a canvas rather than words: cheap enough to ask of every note in a list.
+///
+/// The same answer as `canvasOf(body) != null`, with no canvas made and nothing decoded: a note of words is told
+/// by the first character after its front matter, which is not `{`; one that opens with a brace is walked once as
+/// JSON ([_canvasJson]), which says what [parseCanvas] asks of the decoded text before it reads a node: that it is
+/// JSON at all, an object, and has a `nodes` or an `edges` that is an array. It was the whole canvas decoded and
+/// built for each asking, and a list asks it of every note (test/canvas/canvas_body_test.dart holds the two
+/// answers to one).
+bool isCanvasBody(String body) {
+  // The body the canvas's own view has just written ([withCanvas]) is one, and is asked about at once by the
+  // note's screen, at every letter typed in a card: read through again each time, a twentieth of that letter's work.
+  if (identical(body, _written)) return true;
+  var from = frontMatterOffset(body);
+  var to = body.length;
+  // `trim()`, where the text lies.
+  while (from < to && blankIn(body, from, from + 1)) {
+    from += 1;
+  }
+  if (from >= to || body.codeUnitAt(from) != 0x7B) return false;
+  while (to > from && blankIn(body, to - 1, to)) {
+    to -= 1;
+  }
+  return _canvasJson(body, from, to);
+}
+
+bool _jsonSpace(int c) => c == 0x20 || c == 0x0A || c == 0x0D || c == 0x09;
+bool _digit(int c) => c >= 0x30 && c <= 0x39;
+bool _hex(int c) => _digit(c) || (c >= 0x41 && c <= 0x46) || (c >= 0x61 && c <= 0x66);
+
+/// Where the JSON string that opens at `text[at]` (its quote) ends, one past its closing quote; -1 where it is
+/// not a string as `jsonDecode` reads one.
+int _jsonString(String text, int at, int end) {
+  var i = at + 1;
+  while (i < end) {
+    final c = text.codeUnitAt(i);
+    if (c == 0x22) return i + 1;
+    if (c < 0x20) return -1;
+    if (c == 0x5C) {
+      if (i + 1 >= end) return -1;
+      final e = text.codeUnitAt(i + 1);
+      if (e == 0x75) {
+        if (i + 5 >= end) return -1;
+        for (var h = i + 2; h < i + 6; h += 1) {
+          if (!_hex(text.codeUnitAt(h))) return -1;
+        }
+        i += 6;
+        continue;
+      }
+      // `\"`, `\\`, `\/`, `\b`, `\f`, `\n`, `\r`, `\t`.
+      if (e != 0x22 && e != 0x5C && e != 0x2F && e != 0x62 && e != 0x66 && e != 0x6E && e != 0x72 && e != 0x74) return -1;
+      i += 2;
+      continue;
+    }
+    i += 1;
+  }
+  return -1;
+}
+
+/// Where the JSON number that opens at `text[at]` ends; -1 where it is not one:
+/// `-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`.
+int _jsonNumber(String text, int at, int end) {
+  var i = at;
+  if (i < end && text.codeUnitAt(i) == 0x2D) i += 1;
+  if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+  if (text.codeUnitAt(i) == 0x30) {
+    i += 1;
+  } else {
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  if (i < end && text.codeUnitAt(i) == 0x2E) {
+    i += 1;
+    if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  if (i < end && (text.codeUnitAt(i) | 0x20) == 0x65) {
+    i += 1;
+    if (i < end && (text.codeUnitAt(i) == 0x2B || text.codeUnitAt(i) == 0x2D)) i += 1;
+    if (i >= end || !_digit(text.codeUnitAt(i))) return -1;
+    while (i < end && _digit(text.codeUnitAt(i))) {
+      i += 1;
+    }
+  }
+  return i;
+}
+
+/// Whether `text[from..to)`, which opens with a brace, is what [parseCanvas] makes a canvas of: JSON, an object,
+/// with a `nodes` or an `edges` that is an array (of two keys the same, the last, as a decoder keeps it). The text
+/// is walked once and nothing is made of it.
+bool _canvasJson(String text, int from, int to) {
+  // Each open object or array, the innermost last: true for an object.
+  final open = <bool>[];
+  var nodes = false, edges = false;
+  // Which of the outermost object's keys the value being read is under: 1 `nodes`, 2 `edges`, 0 any other.
+  var under = 0;
+  var i = from;
+
+  int spaces(int at) {
+    while (at < to && _jsonSpace(text.codeUnitAt(at))) {
+      at += 1;
+    }
+    return at;
+  }
+
+  // A key and its colon, in an object: answers where its value begins, or -1.
+  int key(int at) {
+    if (at >= to || text.codeUnitAt(at) != 0x22) return -1;
+    final end = _jsonString(text, at, to);
+    if (end < 0) return -1;
+    if (open.length == 1) {
+      final raw = text.substring(at + 1, end - 1);
+      // A key written with an escape is read as a decoder reads it.
+      final name = raw.contains(r'\') ? jsonDecode('"$raw"') as String : raw;
+      under = name == 'nodes' ? 1 : (name == 'edges' ? 2 : 0);
+    }
+    final colon = spaces(end);
+    if (colon >= to || text.codeUnitAt(colon) != 0x3A) return -1;
+    return spaces(colon + 1);
+  }
+
+  while (true) {
+    // A value begins at i.
+    if (i >= to) return false;
+    final c = text.codeUnitAt(i);
+    if (open.length == 1) {
+      if (under == 1) nodes = c == 0x5B;
+      if (under == 2) edges = c == 0x5B;
+    }
+    var closed = false;
+    if (c == 0x7B) {
+      open.add(true);
+      i = spaces(i + 1);
+      if (i < to && text.codeUnitAt(i) == 0x7D) {
+        open.removeLast();
+        i += 1;
+        closed = true;
+      } else {
+        i = key(i);
+        if (i < 0) return false;
+        continue;
+      }
+    } else if (c == 0x5B) {
+      open.add(false);
+      i = spaces(i + 1);
+      if (i < to && text.codeUnitAt(i) == 0x5D) {
+        open.removeLast();
+        i += 1;
+        closed = true;
+      } else {
+        continue;
+      }
+    } else if (c == 0x22) {
+      i = _jsonString(text, i, to);
+    } else if (c == 0x2D || _digit(c)) {
+      i = _jsonNumber(text, i, to);
+    } else if (text.startsWith('true', i) || text.startsWith('null', i)) {
+      i += 4;
+    } else if (text.startsWith('false', i)) {
+      i += 5;
+    } else {
+      return false;
+    }
+    if (i < 0 || i > to) return false;
+    // A value has ended: what follows it closes what it is in, or goes on to the next.
+    while (true) {
+      if (open.isEmpty) return closed && spaces(i) == to && (nodes || edges);
+      i = spaces(i);
+      if (i >= to) return false;
+      final next = text.codeUnitAt(i);
+      if (next == 0x2C) {
+        i = spaces(i + 1);
+        if (open.last) {
+          i = key(i);
+          if (i < 0) return false;
+        }
+        break;
+      }
+      if (next != (open.last ? 0x7D : 0x5D)) return false;
+      open.removeLast();
+      i += 1;
+      closed = true;
+    }
+  }
+}
+
+/// A canvas note's body: the title as front matter, which is how the note gets its name, then the canvas exactly
+/// as the spec writes it. Quoted, so a title with a colon in it stays one line.
+String canvasNoteBody(String title, Canvas canvas) => '---\ntitle: ${quotedTitle(title, 'Canvas')}\n---\n${serializeCanvas(canvas)}';
+
+/// The note's body with its canvas replaced and everything else kept: the front matter that names it, character
+/// for character, then the canvas as the spec writes it. [canvasNoteBody] is for a new note; this is for a note
+/// being edited, whose front matter may hold more than a title.
+String withCanvas(String body, Canvas canvas) {
+  final lines = body.split('\n');
+  final end = frontMatterEnd(lines);
+  return _written = end == 0 ? serializeCanvas(canvas) : '${lines.sublist(0, end).join('\n')}\n${serializeCanvas(canvas)}';
+}
+
+/// The last body [withCanvas] wrote: a canvas's, by its making ([isCanvasBody]).
+String? _written;

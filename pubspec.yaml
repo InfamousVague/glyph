@@ -1,0 +1,141 @@
+name: ghost_md
+description: "Ghost.md in Flutter: notes in plain Markdown."
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # A formula drawn (lib/editor/maths): KaTeX's parser, layout and faces in Dart, Apache 2.0. The published
+  # 0.7.4 with the changes its README names, kept here because they are in its layout and its parser.
+  flutter_math_fork:
+    path: packages/flutter_math_fork
+  flutter_svg: ^2.3.0
+  glacier:
+    path: packages/glacier
+  shared_preferences: ^2.5.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  # tool/perf_cpu.dart reads a profile build's CPU samples through the VM's own service.
+  vm_service: ^15.0.0
+
+flutter:
+  uses-material-design: false
+  assets:
+    - assets/css/ink.css
+    - assets/css/app.css
+    - assets/css/typefaces.css
+    - assets/launch/ghost-icon-eyeless.webp
+    # The ghost's scenes (lib/art/ghost.dart), the web app's own masks from src/app/art/ghosts.
+    - assets/art/ghosts/
+    # Ghost.md: The Guide (lib/guide/guidebook.dart): the web app's own index and chapters, src/app/guidebook.
+    - assets/guidebook/
+    - assets/guidebook/chapters/
+    # A ```mermaid fence drawn as its diagram (lib/editor/diagrams): Mermaid itself, the release ../glyph pins, with
+    # its licence, and the page it draws on in a web view nobody sees. Brought here by tool/diagram_page.mjs.
+    - assets/diagrams/
+    # The sample note's picture and the example canvas's picture card (lib/core/sample_library.dart): the web app's
+    # own, src/app/assets/sample-smoke.jpg, a photograph of smoke by Jocelyn Morales from Unsplash (Unsplash License).
+    - assets/sample/sample-smoke.jpg
+    # What every test did the last time the whole suite was run (lib/diag/built_report.dart; Settings › Test
+    # results): written by tool/test_report.mjs before a release is built, and the empty one in the repository.
+    - assets/diag/test_report.json
+  # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
+  shaders:
+    - shaders/wisp_bend.frag
+    - shaders/wisp_merge.frag
+    - shaders/wisp_small.frag
+    - shaders/wisp_field.frag
+    - shaders/wisp_haze.frag
+    - shaders/wisp_smoke.frag
+    - shaders/wisp_halo.frag
+    - shaders/wisp_back.frag
+    - shaders/wisp_through.frag
+    - shaders/wisp_soft.frag
+  fonts:
+    # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
+    # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.
+    - family: Inter Variable
+      fonts:
+        - asset: assets/fonts/InterVariable-latin.ttf
+        - asset: assets/fonts/InterVariable-latin-Italic.ttf
+          style: italic
+    - family: Inter Variable LatinExt
+      fonts:
+        - asset: assets/fonts/InterVariable-latin-ext.ttf
+        - asset: assets/fonts/InterVariable-latin-ext-Italic.ttf
+          style: italic
+    - family: Inter Variable Cyrillic
+      fonts:
+        - asset: assets/fonts/InterVariable-cyrillic.ttf
+        - asset: assets/fonts/InterVariable-cyrillic-Italic.ttf
+          style: italic
+    - family: Inter Variable CyrillicExt
+      fonts:
+        - asset: assets/fonts/InterVariable-cyrillic-ext.ttf
+        - asset: assets/fonts/InterVariable-cyrillic-ext-Italic.ttf
+          style: italic
+    - family: Inter Variable Greek
+      fonts:
+        - asset: assets/fonts/InterVariable-greek.ttf
+        - asset: assets/fonts/InterVariable-greek-Italic.ttf
+          style: italic
+    - family: Inter Variable GreekExt
+      fonts:
+        - asset: assets/fonts/InterVariable-greek-ext.ttf
+        - asset: assets/fonts/InterVariable-greek-ext-Italic.ttf
+          style: italic
+    - family: Inter Variable Vietnamese
+      fonts:
+        - asset: assets/fonts/InterVariable-vietnamese.ttf
+        - asset: assets/fonts/InterVariable-vietnamese-Italic.ttf
+          style: italic
+    - family: Maple Mono
+      fonts:
+        - asset: assets/fonts/MapleMono-400.ttf
+          weight: 400
+        - asset: assets/fonts/MapleMono-500.ttf
+          weight: 500
+        - asset: assets/fonts/MapleMono-600.ttf
+          weight: 600
+        - asset: assets/fonts/MapleMono-700.ttf
+          weight: 700
+        - asset: assets/fonts/MapleMono-400-Italic.ttf
+          weight: 400
+          style: italic
+        - asset: assets/fonts/MapleMono-700-Italic.ttf
+          weight: 700
+          style: italic
+    # The other faces Settings › Appearance › Type offers, as the page loads them (typefaces.css, the kit's fonts):
+    # Fira Code and Noto Sans are variable in weight, IBM Plex Sans is the one weight the page registers.
+    - family: Fira Code Variable
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-latin.ttf
+    - family: Fira Code Variable LatinExt
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-latin-ext.ttf
+    - family: Fira Code Variable Symbols
+      fonts:
+        - asset: assets/fonts/FiraCodeVariable-symbols2.ttf
+    - family: Noto Sans Variable
+      fonts:
+        - asset: assets/fonts/NotoSansVariable-latin.ttf
+        - asset: assets/fonts/NotoSansVariable-latin-Italic.ttf
+          style: italic
+    - family: Noto Sans Variable LatinExt
+      fonts:
+        - asset: assets/fonts/NotoSansVariable-latin-ext.ttf
+        - asset: assets/fonts/NotoSansVariable-latin-ext-Italic.ttf
+          style: italic
+    - family: IBM Plex Sans
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-latin-400.ttf
+    - family: IBM Plex Sans LatinExt
+      fonts:
+        - asset: assets/fonts/IBMPlexSans-latin-ext-400.ttf

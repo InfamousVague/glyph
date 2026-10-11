@@ -1,0 +1,25 @@
+sas
+/* Summary statistics */
+%let cutoff = 30;
+data work.people;
+  input name $ age height;
+  if age > &cutoff then group = 'old';
+  else group = "young";
+  bmi = round(height / 2.5, 0.01);
+  datalines;
+Ann 34 160
+Bob 28 175
+;
+run;
+* a statement comment;
+proc means data=work.people mean std maxdec=2;
+  class group;
+  var age height;
+run;
+%macro show(ds=, n=5);
+  proc print data=&ds(obs=&n); run;
+%mend show;
+%show(ds=work.people)
+proc sql;
+  select name, count(*) as n from work.people where age >= 30 group by name;
+quit;

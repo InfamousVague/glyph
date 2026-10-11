@@ -1,0 +1,16 @@
+idl
+; A procedure and a function
+pro plot_demo, n, TITLE=title
+  compile_opt idl2
+  if n_elements(n) eq 0 then n = 100
+  x = findgen(n) / (n - 1) * 2 * !pi
+  y = sin(x) ^ 2 + 1.5e-3
+  plot, x, y, title='A ''quoted'' title', /nodata
+  for i = 0, n - 1 do begin
+    if (y[i] gt 0.5) && ~keyword_set(title) then print, i, y[i], format='(I3, F8.3)'
+  endfor
+end
+
+function square, v
+  return, v * v ; comment
+end

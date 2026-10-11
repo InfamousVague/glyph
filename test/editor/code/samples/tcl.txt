@@ -1,0 +1,22 @@
+tcl
+# A proc and a loop
+package require Tcl 8.6
+namespace eval ::sample {
+  variable count 0
+}
+proc ::sample::greet {name {times 1}} {
+  variable count
+  for {set i 0} {$i < $times} {incr i} {
+    puts "Hello, $name! [expr {$i * 2 + 1.5}]"
+    incr count
+  }
+  if {$count > 3 && $name ne "nobody"} {
+    return -code error "too many: ${count}"
+  } elseif {[string length $name] == 0} {
+    return {}
+  }
+  return $count
+}
+set d [dict create a 1 b {x y z}]
+foreach {k v} $d { lappend out $k=$v }
+catch {::sample::greet World 2} result ;# trailing comment

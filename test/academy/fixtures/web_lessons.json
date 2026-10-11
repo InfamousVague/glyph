@@ -1,0 +1,2149 @@
+{
+ "chapters": [
+  "Markdown basics",
+  "More Markdown",
+  "Lines that do more",
+  "Links and places",
+  "Boards and to-dos",
+  "Tickets and queries",
+  "Marks and effects"
+ ],
+ "about": {
+  "Markdown basics": "Headings, bold, lists, links and to-dos: what every Markdown app reads the same way.",
+  "More Markdown": "Tables, pictures, footnotes, maths, callouts and diagrams.",
+  "Lines that do more": "Tags, choices, counters, sums, blanks for the AI and comments: lines whose words the note works with.",
+  "Links and places": "Another note, the bookmark you left, and a place on a map.",
+  "Boards and to-dos": "Due days and people on a to-do, names for items, and boards made of them.",
+  "Tickets and queries": "Notes as tickets, and queries that list, count and lay out what matches in every note.",
+  "Marks and effects": "Highlights, spoilers, asides and the five effects, from the Marks plugin."
+ },
+ "lessons": [
+  {
+   "id": "title",
+   "chapter": "Markdown basics",
+   "symbol": "#",
+   "standard": true,
+   "rows": [
+    "Title"
+   ],
+   "title": "A title",
+   "teach": "A note usually starts with its name. One # and a space makes that line the title, and it is what the note is called in your list.",
+   "example": "# Weekend trip",
+   "task": "Give a note a title of your own.",
+   "praise": "That is a title.",
+   "hint": "Start the line with # and a space, then the words.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "heading",
+   "chapter": "Markdown basics",
+   "symbol": "##",
+   "standard": true,
+   "rows": [
+    "Heading",
+    "Smaller heading"
+   ],
+   "title": "A heading",
+   "teach": "More hashes, smaller heading: ## for a part of the note, ### for a part of that. It is how a long note gets somewhere to look.",
+   "example": "## The budget",
+   "task": "Write a heading for part of a note.",
+   "praise": "That is a heading.",
+   "hint": "Two hashes and a space: ## The budget.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "bold",
+   "chapter": "Markdown basics",
+   "symbol": "**",
+   "standard": true,
+   "rows": [
+    "Bold"
+   ],
+   "title": "Bold",
+   "teach": "Two stars either side of some words make them bold. The stars themselves go once the line is written.",
+   "example": "The train leaves **Friday at noon**",
+   "task": "Write a line with something bold in it.",
+   "praise": "Bold.",
+   "hint": "Two stars, the words, two stars: **like this**.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "italic",
+   "chapter": "Markdown basics",
+   "symbol": "_",
+   "standard": true,
+   "rows": [
+    "Italic"
+   ],
+   "title": "Italic",
+   "teach": "One underscore either side leans the words over. It is quieter than bold: an aside, a name, a word said with a shrug.",
+   "example": "we could take the coast road _if the weather holds_",
+   "task": "Write a line with something in italics.",
+   "praise": "Italic.",
+   "hint": "An underscore either side: _like this_.",
+   "needs": null,
+   "check": "(text) => /(?:^|[^\\w_])_\\S(?:[^_\\n]*\\S)?_(?![\\w_])/m.test(text) || /(?<![*\\w])\\*[^*\\n]+\\*(?!\\*)/.test(text)"
+  },
+  {
+   "id": "both",
+   "chapter": "Markdown basics",
+   "symbol": "***",
+   "standard": true,
+   "rows": [
+    "Both"
+   ],
+   "title": "Bold and italic",
+   "teach": "Three stars either side make words bold and italic at once. Keep it for the one thing that must not be missed.",
+   "example": "the deposit is ***not*** refundable",
+   "task": "Make a word or two bold and italic at once.",
+   "praise": "Both at once.",
+   "hint": "Three stars either side: ***like this***.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "struck",
+   "chapter": "Markdown basics",
+   "symbol": "~~",
+   "standard": true,
+   "rows": [
+    "Struck through"
+   ],
+   "title": "Struck through",
+   "teach": "Two squiggles either side cross the words out. Good for a plan that changed, where you still want to see what it was.",
+   "example": "we are going ~~on Thursday~~ on Friday",
+   "task": "Cross some words out.",
+   "praise": "Crossed out, and still readable.",
+   "hint": "Two squiggles either side: ~~like this~~.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "code",
+   "chapter": "Markdown basics",
+   "symbol": "`",
+   "standard": true,
+   "rows": [
+    "Code"
+   ],
+   "title": "Code",
+   "teach": "A backtick either side sets the words in the typewriter face and leaves them exactly as you typed them: a command, a filename, a password to read out.",
+   "example": "run `npm run dev` first",
+   "task": "Write a line with a bit of code in it.",
+   "praise": "That stays exactly as typed.",
+   "hint": "A backtick either side: `like this`. The key is usually under Escape.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "link",
+   "chapter": "Markdown basics",
+   "symbol": "[ ]( )",
+   "standard": true,
+   "rows": [
+    "A link"
+   ],
+   "title": "A link",
+   "teach": "The words people read go in square brackets, and where they point goes in round ones after it. The note shows the words, not the address.",
+   "example": "[Ghost.md](https://attack.fm/glyph) is the app this is in",
+   "task": "Write a link of your own.",
+   "praise": "That is a link.",
+   "hint": "Words in square brackets, then the address in round ones: [words](https://example.com).",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "list",
+   "chapter": "Markdown basics",
+   "symbol": "-",
+   "standard": true,
+   "rows": [
+    "A list"
+   ],
+   "title": "A list",
+   "teach": "A dash and a space starts a list, one line each. Press Enter and the next line is a bullet too.",
+   "example": "- Oat milk\n- Rye bread\n- Coffee",
+   "task": "Write a list of two or three things.",
+   "praise": "That is a list.",
+   "hint": "Start each line with a dash and a space.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "number",
+   "chapter": "Markdown basics",
+   "symbol": "1.",
+   "standard": true,
+   "rows": [
+    "In order"
+   ],
+   "title": "In order",
+   "teach": "A number, a dot and a space when the order is the point: steps to follow, one after another.",
+   "example": "1. Unplug it\n2. Wait a minute\n3. Plug it back in",
+   "task": "Write two steps in order.",
+   "praise": "Numbered.",
+   "hint": "Start the line with 1. and a space; the next one with 2.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "todo",
+   "chapter": "Markdown basics",
+   "symbol": "- [ ]",
+   "standard": true,
+   "rows": [
+    "A to-do",
+    "Done"
+   ],
+   "title": "A to-do",
+   "teach": "A dash, then a box: - [ ] and the thing to do. Tap the box in a note to tick it off, or type an x between the brackets.",
+   "example": "- [ ] Book the cabin\n- [x] Pick a date",
+   "task": "Write something you have to do.",
+   "praise": "That is a to-do, and its box is real: tap it in a note.",
+   "hint": "A dash, a space, then [ ] with a space between the brackets.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "quote",
+   "chapter": "Markdown basics",
+   "symbol": ">",
+   "standard": true,
+   "rows": [
+    "A quote"
+   ],
+   "title": "A quote",
+   "teach": "A > and a space sets a line apart: somebody else’s words, or something you want to stand away from the rest.",
+   "example": "> The deposit comes back in full.",
+   "task": "Quote a line.",
+   "praise": "Set apart.",
+   "hint": "Start the line with > and a space.",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "rule",
+   "chapter": "Markdown basics",
+   "symbol": "---",
+   "standard": true,
+   "rows": [
+    "A dividing line"
+   ],
+   "title": "A dividing line",
+   "teach": "Three dashes on a line of their own draw a line across the note: one thing ends, another starts.",
+   "example": "Packing\n\n---\n\nOn the way back",
+   "task": "Put a line between two parts of a note.",
+   "praise": "A clean break.",
+   "hint": "Three dashes alone on a line: ---",
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "fence",
+   "chapter": "Markdown basics",
+   "symbol": "```",
+   "standard": true,
+   "rows": [
+    "A block of code"
+   ],
+   "title": "A block of code",
+   "teach": "Three backticks above and below a few lines keeps every one of them exactly as typed, and colors the code if you say what it is after the first three.",
+   "example": "```js\nconst note = \"hello\";\n```",
+   "task": "Write a block with a line or two of code in it.",
+   "praise": "A block, kept exactly as typed.",
+   "hint": "Three backticks on their own line, your code, then three more.",
+   "needs": null,
+   "check": "(text) => /^[ \\t]*(?:```|~~~)/m.test(text) && (text.match(/^[ \\t]*(?:```|~~~)/gm)?.length ?? 0) >= 2"
+  },
+  {
+   "id": "table",
+   "chapter": "More Markdown",
+   "symbol": "| |",
+   "standard": true,
+   "rows": [
+    "A table"
+   ],
+   "title": "A table",
+   "teach": "Pipes between the cells, and a row of dashes under the first row. In a note the table is drawn as a table; a tap on it opens its pipes to change it, and it is drawn again when you leave it.",
+   "example": "| What | Packed |\n| --- | --- |\n| Tent | Yes |",
+   "task": "Make a table with a row or two in it.",
+   "praise": "That is a table.",
+   "hint": "A row of cells between pipes, then | --- | --- | under it, then the rest of the rows.",
+   "needs": null,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "picture",
+   "chapter": "More Markdown",
+   "symbol": "![ ]( )",
+   "standard": true,
+   "rows": [
+    "A picture"
+   ],
+   "title": "A picture",
+   "teach": "An exclamation mark, what the picture shows in square brackets, and where it is in round ones. In a note you seldom type it: paste a picture, or press and hold and choose Add image, and the line is written for you.",
+   "example": "![A cassette](image/sample-tape.svg)",
+   "task": "Write the line for a picture.",
+   "praise": "That is a picture’s line.",
+   "hint": "An exclamation mark, then [what it shows], then (where it is).",
+   "needs": null,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "video",
+   "chapter": "More Markdown",
+   "symbol": "[![ ]( )]( )",
+   "rows": [
+    "A video"
+   ],
+   "title": "A video",
+   "teach": "A picture of the film’s first frame, linked to the film itself. You never type it: on Android, the + beside an empty line writes it when you choose A video. The film stays on the phone it was added on; everywhere else the still shows.",
+   "example": "[![video 0:12](image/sample-tape.svg)](video/a1b2c3.mp4)",
+   "task": "Write a video’s line, as the + would.",
+   "praise": "That is a video’s line.",
+   "hint": "A picture’s line inside a link’s square brackets, then (video/ and the file’s name).",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => text.split(\"\\n\").some((one) => videoOfLine(one.trim()) !== null)"
+  },
+  {
+   "id": "raised",
+   "chapter": "More Markdown",
+   "symbol": "^ ^",
+   "rows": [
+    "Raised"
+   ],
+   "title": "Raised",
+   "teach": "A caret either side lifts part of a word above the line: the 2nd of June, a power in a sum.",
+   "example": "the 2^nd^ of June",
+   "task": "Raise part of a word.",
+   "praise": "Raised.",
+   "hint": "A caret either side of the part to lift: 2^nd^.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "lowered",
+   "chapter": "More Markdown",
+   "symbol": "~ ~",
+   "rows": [
+    "Lowered"
+   ],
+   "title": "Lowered",
+   "teach": "One squiggle either side drops part of a word below the line, the way water is written. Two squiggles cross words out, which is a lesson of its own.",
+   "example": "H~2~O",
+   "task": "Lower part of a word.",
+   "praise": "Lowered.",
+   "hint": "One squiggle either side: H~2~O.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "footnote",
+   "chapter": "More Markdown",
+   "symbol": "[^ ]",
+   "standard": true,
+   "rows": [
+    "A footnote"
+   ],
+   "title": "A footnote",
+   "teach": "A caret and a name in square brackets marks the words, and a line that starts with the same mark and a colon says what it is. In a note the mark is raised, and a tap on it shows the small print.",
+   "example": "four hundred[^sam]\n\n[^sam]: Sam said so.",
+   "task": "Write a line with a footnote, and the footnote.",
+   "praise": "That is a footnote, and a tap reads it.",
+   "hint": "A mark like [^sam] after the words, and a line under them that starts [^sam]: and says it.",
+   "needs": null,
+   "check": "function footnoted(text) {\n  const marks = [...text.matchAll(/\\[\\^([^\\]\\s]+)\\](?!:)/g)].map((mark) => mark[1]);\n  return footnotesIn(text).some((note) => marks.includes(note.name));\n}"
+  },
+  {
+   "id": "definition",
+   "chapter": "More Markdown",
+   "symbol": ":",
+   "rows": [
+    "A definition"
+   ],
+   "title": "A definition",
+   "teach": "A word on one line, and its meaning on the next, starting with a colon and a space. The colon goes at the start of the meaning’s line, not after the word, which is how Markdown apps know it is a definition; drawn, it is gone and the meaning hangs under the word. It is how a glossary is written.",
+   "example": "Deposit\n: what you pay up front",
+   "task": "Define a word.",
+   "praise": "Defined.",
+   "hint": "The word, then on the next line a colon, a space, and what it means.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "maths",
+   "chapter": "More Markdown",
+   "symbol": "$",
+   "rows": [
+    "Maths"
+   ],
+   "title": "Maths",
+   "teach": "A dollar sign either side makes a formula, drawn as one: a raised power, a fraction, a Greek letter. Two either side, alone on a line, set it in the middle of the page. With the caret on its line you see what you typed, to edit.",
+   "example": "the area is $\\pi r^2$, and half is $\\frac{1}{2}$",
+   "task": "Write a formula.",
+   "praise": "Drawn as a formula.",
+   "hint": "A dollar sign either side, no space inside them: $x^2$. A fraction is \\frac{top}{bottom}.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "emoji",
+   "chapter": "More Markdown",
+   "symbol": ": :",
+   "rows": [
+    "An emoji"
+   ],
+   "title": "An emoji",
+   "teach": "A name between colons becomes its emoji: :tada: is a party popper. The name comes back while the caret is on the line, and a name Ghost.md does not know stays as it was typed.",
+   "example": "shipped :tada:",
+   "task": "Put an emoji in a line by its name.",
+   "praise": "An emoji, from its name.",
+   "hint": "A colon either side of the name: :tada:, :rocket:, :coffee:.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => shortcodesIn(text).length > 0"
+  },
+  {
+   "id": "callout",
+   "chapter": "More Markdown",
+   "symbol": "[! ]",
+   "rows": [
+    "A callout"
+   ],
+   "title": "A callout",
+   "teach": "A quote whose first line is [!NOTE] becomes a box of its own. TIP, IMPORTANT, WARNING and CAUTION work the same way.",
+   "example": "> [!NOTE]\n> The deposit comes back in full.",
+   "task": "Write a callout.",
+   "praise": "That is a callout.",
+   "hint": "A quote with the kind on its first line: > [!TIP]",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => text.split(\"\\n\").some((each) => calloutKind(each) !== null)"
+  },
+  {
+   "id": "diagram",
+   "chapter": "More Markdown",
+   "symbol": "```mermaid",
+   "rows": [
+    "A diagram"
+   ],
+   "title": "A diagram",
+   "teach": "A block of code marked mermaid is drawn as the diagram it describes: boxes, and the arrows between them. Tap a drawn diagram in a note to change its words.",
+   "example": "```mermaid\nflowchart TD\n  A[Speak] --> B[Note]\n```",
+   "task": "Draw two boxes and an arrow.",
+   "praise": "That is a diagram.",
+   "hint": "Three backticks and mermaid, then flowchart TD, then a line like A --> B, then three backticks.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "tag",
+   "chapter": "Lines that do more",
+   "symbol": "#",
+   "rows": [
+    "A tag"
+   ],
+   "title": "A tag",
+   "teach": "A hash against a word, with no space between, tags the line: #web. A tag can hold a slash, #work/clients, which apps like Obsidian read as one tag inside another. A hash and a space at the start of a line is a heading instead.",
+   "example": "- [ ] Ship the pricing page #web",
+   "task": "Tag a line.",
+   "praise": "Tagged.",
+   "hint": "A # and the word, with no space between: #web.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => tagsIn(text).length > 0"
+  },
+  {
+   "id": "choice",
+   "chapter": "Lines that do more",
+   "symbol": "- ( )",
+   "rows": [
+    "A choice"
+   ],
+   "title": "A choice",
+   "teach": "Round brackets on a list make a choice. One in the group is picked, with an x, and a tap on another picks it and clears the rest. Try it on the one drawn below.",
+   "example": "Where do we stay?\n- ( ) Tent\n- (x) Cabin",
+   "task": "Write a choice with two options.",
+   "praise": "That is a choice: tap one below to pick it.",
+   "hint": "A dash, a space, then ( ) with a space between the brackets.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => {\n      const doc = docOf(text);\n      for (let n = 1; n <= doc.lines; n += 1) if (choiceOn(doc, n)) return true;\n      return false;\n    }"
+  },
+  {
+   "id": "counter",
+   "chapter": "Lines that do more",
+   "symbol": "[ / ]",
+   "rows": [
+    "A counter"
+   ],
+   "title": "A counter",
+   "teach": "A count and a goal in square brackets, like [3/8], is a counter. In a note a tap adds one and a hold takes one away, never past the goal.",
+   "example": "- Water [3/8]",
+   "task": "Count something toward a goal.",
+   "praise": "That is a counter.",
+   "hint": "Two numbers with a slash between, in square brackets: [0/8].",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => countersIn(text).length > 0"
+  },
+  {
+   "id": "sum",
+   "chapter": "Lines that do more",
+   "symbol": "=",
+   "rows": [
+    "A sum"
+   ],
+   "title": "A sum",
+   "teach": "A line that starts with = and a space shows its answer after it. The answer is never written into the note, so it changes when a number does.",
+   "example": "= $450 + 120 * 2",
+   "task": "Do a sum.",
+   "praise": "Worked out.",
+   "hint": "An equals sign, a space, then the sum: = 12 * 4.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => text.split(\"\\n\").some((each) => sumOnLine(each) !== null)"
+  },
+  {
+   "id": "blank",
+   "chapter": "Lines that do more",
+   "symbol": "{?}",
+   "rows": [
+    "A blank"
+   ],
+   "title": "A blank for the AI",
+   "teach": "Curly brackets and a question mark ask a question where its answer belongs. A total, a date or a conversion is worked out at once. Anything else waits for Fill: the model on the phone answers with a dotted line under what it wrote, and something live, like the weather or a rate, is looked up online when you press it, with only the question sent.",
+   "example": "Days until Christmas: {?}",
+   "task": "Write a blank.",
+   "praise": "That is a blank.",
+   "hint": "A curly bracket, a question mark, the question, then a closing bracket: {?which day}.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => blanksIn(text).length > 0"
+  },
+  {
+   "id": "hiddenLine",
+   "chapter": "Lines that do more",
+   "symbol": ">|",
+   "rows": [
+    "A hidden line"
+   ],
+   "needs": "Spoiler",
+   "title": "A hidden line",
+   "teach": "A quote whose first character is a bar goes to smoke until the caret is in it: the answer to a riddle, or a code nobody should read over your shoulder.",
+   "example": ">| The answer is forty-two.",
+   "task": "Hide a line.",
+   "praise": "Hidden in smoke.",
+   "hint": "A > and a bar, with no space between, then the line: >| like this.",
+   "standard": false,
+   "check": "(text) => pattern.test(text)"
+  },
+  {
+   "id": "progress",
+   "chapter": "Lines that do more",
+   "symbol": "#",
+   "rows": [
+    "Progress"
+   ],
+   "title": "Progress",
+   "teach": "Nothing to type but a heading and its to-dos: the heading counts them, “1 of 2”, and says so when they are all done.",
+   "example": "## Packing\n- [x] Tent\n- [ ] Stove",
+   "task": "Write a heading with a to-do or two under it.",
+   "praise": "The heading is counting.",
+   "hint": "A heading, then a line like - [ ] Stove under it.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => headingCounts(docOf(text)).length > 0"
+  },
+  {
+   "id": "comment",
+   "chapter": "Lines that do more",
+   "symbol": "[^c1]",
+   "rows": [
+    "A comment"
+   ],
+   "title": "A comment",
+   "teach": "A comment is kept in the note itself: a mark like [^c1] after the words it is about, or ==round them==[^c1], and the thread in a ```comments block at the end - its id, who and when, then the words, with replies indented under it. Comment on the press-and-hold menu, in More and in the bar writes both for you.",
+   "example": "Call the band[^c1]\n\n```comments\nc1 me 2026-10-05T09:00:00Z\nWhich band?\n```",
+   "task": "Write a line with a comment mark, and its thread in a comments block.",
+   "praise": "That is a comment, and its mark opens the thread.",
+   "hint": "A mark like [^c1] after the words, then a ```comments block with a line like c1 me 2026-10-05T09:00:00Z and the words under it.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => readComments(text).anchors.length > 0"
+  },
+  {
+   "id": "wiki",
+   "chapter": "Links and places",
+   "symbol": "[[ ]]",
+   "rows": [
+    "Another note"
+   ],
+   "title": "Another note",
+   "teach": "Two square brackets either side of a note’s name link to that note. A name with no note yet is drawn dashed, and a tap on it makes the note.",
+   "example": "the deposit is in [[The cabin trip]]",
+   "task": "Link to a note by its name.",
+   "praise": "That links to the note.",
+   "hint": "Two square brackets either side of the name: [[The cabin trip]].",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => wikiLinksIn(text).length > 0"
+  },
+  {
+   "id": "bookmark",
+   "chapter": "Links and places",
+   "symbol": "§§",
+   "rows": [
+    "The bookmark"
+   ],
+   "title": "The bookmark",
+   "teach": "Two section signs at the end of a line are the note’s bookmark, and the note opens there. A note has one; the bookmark button at the top of a note moves it to the line you are on.",
+   "example": "the deposit is four hundred §§",
+   "task": "Bookmark a line.",
+   "praise": "The note would open here.",
+   "hint": "Two section signs at the very end of the line: §§",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => bookmarkLineIn(text) !== null"
+  },
+  {
+   "id": "place",
+   "chapter": "Links and places",
+   "symbol": "[ ](geo: )",
+   "rows": [
+    "A place"
+   ],
+   "title": "A place",
+   "teach": "A link to geo: and two numbers, alone on its line, is a place, with its map drawn under it. The + beside an empty line writes one for where you are.",
+   "example": "[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)",
+   "task": "Put a place of your own on a line.",
+   "praise": "That is a place, with its map.",
+   "hint": "Its name in square brackets, then geo: and the two numbers in round ones: [Home](geo:51.5074,-0.1278).",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => placeLines(text).length > 0"
+  },
+  {
+   "id": "fields",
+   "chapter": "Boards and to-dos",
+   "symbol": "📅",
+   "rows": [
+    "A due date",
+    "A priority",
+    "A person",
+    "A field by name"
+   ],
+   "title": "Fields on a to-do",
+   "teach": "A to-do can say when it is due, how much it matters and who it is for, in the signs Obsidian Tasks reads: 📅 and a date, ⏫ for high priority, @ before a name, and [effort:: 3] for anything else. In a note each is a chip: the date says “Tomorrow”, and goes red once it has passed. Tap one to change it, or press and hold a to-do to add one.",
+   "example": "- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03",
+   "task": "Give a to-do a due date, a priority or a person.",
+   "praise": "That to-do has a field.",
+   "hint": "After the words, @ and a name is the quickest: - [ ] Book the cabin @sam. A date is 📅 then 2026-10-03.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => fieldsIn(text).some((field) => field.kind === \"date\" || field.kind === \"priority\" || field.kind === \"person\" || field.kind === \"inline\")"
+  },
+  {
+   "id": "anchor",
+   "chapter": "Boards and to-dos",
+   "symbol": "^",
+   "rows": [
+    "A name for an item"
+   ],
+   "title": "A name for an item",
+   "teach": "A space, a caret and a name at the very end of a list item names it, so a board or a sentence can point at it. The name is drawn small and faint.",
+   "example": "- [ ] Ship the pricing page ^ship-page",
+   "task": "Name an item on a list.",
+   "praise": "That item has a name.",
+   "hint": "At the end of the item, a space, a caret and a name with no spaces: ^ship-page.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => itemsIn(text).length > 0"
+  },
+  {
+   "id": "itemRef",
+   "chapter": "Boards and to-dos",
+   "symbol": "[[#^ ]]",
+   "rows": [
+    "That item, from the words"
+   ],
+   "title": "That item, from the words",
+   "teach": "Two square brackets around a hash, a caret and an item’s name point at that item from anywhere in the note. A tap goes to its line.",
+   "example": "the page is waiting on [[#^ask-sam]]\n\n- Ask Sam about the copy ^ask-sam",
+   "task": "Point at a named item from a sentence.",
+   "praise": "That points at the item.",
+   "hint": "Two square brackets around #^ and the name: [[#^ask-sam]].",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => refsIn(text).length > 0"
+  },
+  {
+   "id": "board",
+   "chapter": "Boards and to-dos",
+   "symbol": "```board",
+   "rows": [
+    "A board"
+   ],
+   "title": "A board",
+   "teach": "A block marked board lays named items out as columns. Each line of it is a column: its name, a colon, and the names of the items in it. The items stay in the note as they were, and dragging a card to another column moves it there.",
+   "example": "```board\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date",
+   "task": "Make a board with a column or two.",
+   "praise": "That is a board.",
+   "hint": "Three backticks and board, a line like To do: ship-page, then three backticks, and an item named ^ship-page.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => boardsIn(text).length > 0"
+  },
+  {
+   "id": "boardHeight",
+   "chapter": "Boards and to-dos",
+   "symbol": "```board height=",
+   "rows": [],
+   "title": "A board’s height",
+   "teach": "Left to itself a board is as tall as its longest column. Drag the line under it to set a height, and the columns scroll inside it; the height is written on the fence as height=, in the board’s own text size. A double tap on the line takes it off again.",
+   "example": "```board height=12\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date",
+   "task": "Give a board a height of its own.",
+   "praise": "That board keeps its height.",
+   "hint": "After the word board on the first line, a space and height= with a number: ```board height=12.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => boardsIn(text).some((board) => board.height !== null)"
+  },
+  {
+   "id": "ticket",
+   "chapter": "Tickets and queries",
+   "symbol": "type: ticket",
+   "rows": [
+    "A ticket"
+   ],
+   "title": "A ticket",
+   "teach": "A note whose front matter says type: ticket is a ticket. Its status, who it is for, its priority and its due day sit under that line, and are drawn as a card you tap to change. A notebook with a ticket key numbers its tickets, and [[GHO-12]] links to one by its key.",
+   "example": "---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\n---\n# Fix the login loop",
+   "task": "Make a note a ticket, with a status.",
+   "praise": "That note is a ticket.",
+   "hint": "At the very top: three dashes, type: ticket, status: To do, then three dashes again.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => Boolean(ticketOf(text)?.status)"
+  },
+  {
+   "id": "notebookKey",
+   "chapter": "Tickets and queries",
+   "symbol": "key:",
+   "rows": [],
+   "title": "A ticket notebook",
+   "teach": "A notebook whose front matter has a key numbers the tickets made in it: key: GLY gives GLY-1, then GLY-2 and on. Make this a ticket, under More on the +, turns the note you are in into its notebook’s next ticket.",
+   "example": "---\nbook: true\nkey: GLY\n---\n# Glyph\n\n- [[GLY-1]]",
+   "task": "Make a notebook with a ticket key.",
+   "praise": "Its tickets will be numbered by that key.",
+   "hint": "At the very top: three dashes, book: true, key: and two to five capital letters, then three dashes again.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => ticketNotebook(text)"
+  },
+  {
+   "id": "query",
+   "chapter": "Tickets and queries",
+   "symbol": "```query",
+   "rows": [
+    "A query"
+   ],
+   "title": "A query",
+   "teach": "A fence called query lists what matches across every note: to-dos, tickets or notes. Say where from, what has to be true, and how to show it, a line each, and it is drawn as a list, a table, a board, a month or a timeline that keeps up as your notes change. More › A database, on the + beside an empty line, writes a ready-made one.",
+   "example": "```query\nfrom: tasks\nwhere: due <= today+7\nshow: list\n```",
+   "task": "Write a query that lists your open to-dos.",
+   "praise": "Every open to-do, in one place.",
+   "hint": "Three backticks and query, then from: tasks on the next line, then three backticks to close it.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => queryFencesIn(text).some((fence) => readQuery(fence.body).query?.kind === \"tasks\")"
+  },
+  {
+   "id": "queryWhere",
+   "chapter": "Tickets and queries",
+   "symbol": "where:",
+   "rows": [],
+   "title": "Narrow it down",
+   "teach": "where: keeps only what is true: status != Done, due < today, priority >= high, assignee = Sam, joined with and or or. sort: puts what is left in order, by one field or several.",
+   "example": "```query\nfrom: tickets\nwhere: status != Done and priority >= high\nsort: due\n```",
+   "task": "Write a query with a where: line.",
+   "praise": "Only what matches.",
+   "hint": "Inside a query fence, a line like where: status != Done.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => queriesIn(text).some((query) => query.where !== null)"
+  },
+  {
+   "id": "queryShow",
+   "chapter": "Tickets and queries",
+   "symbol": "show:",
+   "rows": [],
+   "title": "Show it another way",
+   "teach": "show: draws the same answer as a table, a list, a board, a calendar month, a gantt timeline or a count. A query drawn as a board keeps a height as a board does: drag the line under it.",
+   "example": "```query\nfrom: tasks\nshow: calendar\n```",
+   "task": "Show a query as a board, a table, a calendar or a timeline.",
+   "praise": "The same answer, drawn another way.",
+   "hint": "Inside a query fence, a line like show: board, or show: calendar.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => queriesIn(text).some((query) => query.show !== null && query.show !== \"list\")"
+  },
+  {
+   "id": "queryGroup",
+   "chapter": "Tickets and queries",
+   "symbol": "group:",
+   "rows": [],
+   "title": "Group and add up",
+   "teach": "group: gives each value of one field its own heading, or its own lane on a board. total: adds a number up, under each group and at the end: an estimate, or any field of your own.",
+   "example": "```query\nfrom: tickets\ngroup: assignee\ntotal: estimate\nshow: table\n```",
+   "task": "Group a query, or add something up.",
+   "praise": "Grouped and counted.",
+   "hint": "Inside a query fence, a line like group: status, or total: estimate.",
+   "standard": false,
+   "needs": null,
+   "check": "(text) => queriesIn(text).some((query) => query.group !== null || query.total.length > 0)"
+  },
+  {
+   "id": "spoiler",
+   "chapter": "Marks and effects",
+   "symbol": "||",
+   "rows": [
+    "Spoiler"
+   ],
+   "needs": "Spoiler",
+   "title": "A spoiler",
+   "teach": "Two bars either side turn the words to smoke until the caret is in them: the end of a film, a surprise.",
+   "example": "the ending: ||the butler did it||",
+   "task": "Keep a secret in a line.",
+   "praise": "Gone to smoke.",
+   "hint": "Two bars either side: ||like this||.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "highlight",
+   "chapter": "Marks and effects",
+   "symbol": "==",
+   "rows": [
+    "Highlight"
+   ],
+   "needs": "Highlight",
+   "title": "A highlight",
+   "teach": "Two equals signs either side put a wash of color behind the words, for the line you will want again.",
+   "example": "meet at ==the north gate==",
+   "task": "Highlight something.",
+   "praise": "Highlighted.",
+   "hint": "Two equals signs either side: ==like this==.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "tint",
+   "chapter": "Marks and effects",
+   "symbol": "==( )",
+   "rows": [
+    "A colored highlight"
+   ],
+   "needs": "Highlight",
+   "title": "A colored highlight",
+   "teach": "A color’s name in brackets straight after a highlight changes its color: blue, red, amber, green, teal, purple or gray.",
+   "example": "==the cabin key==(green) and ==the deadline==(red)",
+   "task": "Highlight something in a color.",
+   "praise": "In color.",
+   "hint": "A highlight, then the color in brackets with no space: ==this==(green).",
+   "standard": false,
+   "check": "(text) => noted(text, true)"
+  },
+  {
+   "id": "aside",
+   "chapter": "Marks and effects",
+   "symbol": "%%",
+   "rows": [
+    "Aside"
+   ],
+   "needs": "Aside",
+   "title": "An aside",
+   "teach": "Two percent signs either side make a note to yourself inside the note: smaller, quieter, leaning.",
+   "example": "the train at nine %%or the one after%%",
+   "task": "Write an aside.",
+   "praise": "A quiet aside.",
+   "hint": "Two percent signs either side: %%like this%%.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "unsure",
+   "chapter": "Marks and effects",
+   "symbol": "??",
+   "rows": [
+    "Unsure"
+   ],
+   "needs": "Unsure",
+   "title": "Unsure",
+   "teach": "Two question marks either side draw a dotted line under a fact to check later.",
+   "example": "the deposit is ??four hundred??",
+   "task": "Mark something you are not sure of.",
+   "praise": "Marked to check.",
+   "hint": "Two question marks either side: ??like this??.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "markNote",
+   "chapter": "Marks and effects",
+   "symbol": "( )",
+   "rows": [
+    "A note on a mark"
+   ],
+   "needs": "Unsure",
+   "title": "A note on a mark",
+   "teach": "Words in brackets straight after a mark are a note on it, and a tap on the words in a note shows it. On a fact you are unsure of, it says why.",
+   "example": "??four hundred??(Sam said 400)",
+   "task": "Put a note on a mark.",
+   "praise": "That is a note on the mark: tap the words to read it.",
+   "hint": "A mark, then the note in brackets with no space: ??four hundred??(why).",
+   "standard": false,
+   "check": "(text) => noted(text, false)"
+  },
+  {
+   "id": "redact",
+   "chapter": "Marks and effects",
+   "symbol": "@@",
+   "rows": [
+    "Redact"
+   ],
+   "needs": "Redact",
+   "title": "A redaction",
+   "teach": "Two at signs either side put a solid bar of ink over the words. It lifts while the caret is in them, so they can still be read and edited, and a share still has the words.",
+   "example": "the name on the lease is @@Sam Ortiz@@",
+   "task": "Put a bar over something.",
+   "praise": "Under the bar.",
+   "hint": "Two at signs either side: @@like this@@.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "shout",
+   "chapter": "Marks and effects",
+   "symbol": "^^",
+   "rows": [
+    "Shout"
+   ],
+   "needs": "Shout",
+   "title": "A shout",
+   "teach": "Two carets either side set the words in spaced small capitals: emphasis that is not bold.",
+   "example": "bring ^^the tickets^^",
+   "task": "Shout something.",
+   "praise": "Heard.",
+   "hint": "Two carets either side: ^^like this^^.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "added",
+   "chapter": "Marks and effects",
+   "symbol": "++",
+   "rows": [
+    "Added"
+   ],
+   "needs": "Added",
+   "title": "Added",
+   "teach": "Two plus signs either side underline what was added, the partner of struck through for what went.",
+   "example": "we leave at ~~nine~~ ++ten++",
+   "task": "Mark something as added.",
+   "praise": "Added, and it shows.",
+   "hint": "Two plus signs either side: ++like this++.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "heat",
+   "chapter": "Marks and effects",
+   "symbol": "🔥🔥",
+   "rows": [
+    "Heat"
+   ],
+   "needs": "Heat",
+   "title": "Heat",
+   "teach": "Two flames either side make the words bold, and the line above them wavers in the heat coming off them. An effect lifts while the caret is in its words, so they edit as plain text.",
+   "example": "The air above wavers\n🔥🔥too hot to touch🔥🔥",
+   "task": "Heat some words, with a line above them.",
+   "praise": "Too hot to touch.",
+   "hint": "Two flames either side: 🔥🔥like this🔥🔥. One flame is only a flame.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "frost",
+   "chapter": "Marks and effects",
+   "symbol": "❄️❄️",
+   "rows": [
+    "Frost"
+   ],
+   "needs": "Frost",
+   "title": "Frost",
+   "teach": "Two snowflakes either side turn the words cold, a rime creeping over their edges and settling.",
+   "example": "the pond is ❄️❄️frozen solid❄️❄️",
+   "task": "Freeze some words.",
+   "praise": "Frozen.",
+   "hint": "Two snowflakes either side: ❄️❄️like this❄️❄️.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "wave",
+   "chapter": "Marks and effects",
+   "symbol": "🌊🌊",
+   "rows": [
+    "Wave"
+   ],
+   "needs": "Wave",
+   "title": "A wave",
+   "teach": "Two waves either side set the words bobbing along the line, a ripple passing through them.",
+   "example": "the boat went 🌊🌊out to sea🌊🌊",
+   "task": "Send some words out on a wave.",
+   "praise": "Bobbing along.",
+   "hint": "Two waves either side: 🌊🌊like this🌊🌊.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "shimmer",
+   "chapter": "Marks and effects",
+   "symbol": "✨✨",
+   "rows": [
+    "Shimmer"
+   ],
+   "needs": "Shimmer",
+   "title": "A shimmer",
+   "teach": "Two sparkles either side send a glint across the words every few seconds.",
+   "example": "a ✨✨silver thread✨✨",
+   "task": "Make some words shimmer.",
+   "praise": "Glinting.",
+   "hint": "Two sparkles either side: ✨✨like this✨✨.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  },
+  {
+   "id": "haunt",
+   "chapter": "Marks and effects",
+   "symbol": "👻👻",
+   "rows": [
+    "Haunt"
+   ],
+   "needs": "Haunt",
+   "title": "A haunting",
+   "teach": "Two ghosts either side make the words fade almost away and back, slowly, like something passing.",
+   "example": "and then 👻👻nobody there👻👻",
+   "task": "Haunt some words.",
+   "praise": "Something passed.",
+   "hint": "Two ghosts either side: 👻👻like this👻👻.",
+   "standard": false,
+   "check": "(text) => nodesIn(text).has(name)"
+  }
+ ],
+ "corpus": [
+  "# Weekend trip",
+  "## The budget",
+  "The train leaves **Friday at noon**",
+  "we could take the coast road _if the weather holds_",
+  "the deposit is ***not*** refundable",
+  "we are going ~~on Thursday~~ on Friday",
+  "run `npm run dev` first",
+  "[Ghost.md](https://attack.fm/glyph) is the app this is in",
+  "- Oat milk\n- Rye bread\n- Coffee",
+  "1. Unplug it\n2. Wait a minute\n3. Plug it back in",
+  "- [ ] Book the cabin\n- [x] Pick a date",
+  "> The deposit comes back in full.",
+  "Packing\n\n---\n\nOn the way back",
+  "```js\nconst note = \"hello\";\n```",
+  "| What | Packed |\n| --- | --- |\n| Tent | Yes |",
+  "![A cassette](image/sample-tape.svg)",
+  "[![video 0:12](image/sample-tape.svg)](video/a1b2c3.mp4)",
+  "the 2^nd^ of June",
+  "H~2~O",
+  "four hundred[^sam]\n\n[^sam]: Sam said so.",
+  "Deposit\n: what you pay up front",
+  "the area is $\\pi r^2$, and half is $\\frac{1}{2}$",
+  "shipped :tada:",
+  "> [!NOTE]\n> The deposit comes back in full.",
+  "```mermaid\nflowchart TD\n  A[Speak] --> B[Note]\n```",
+  "- [ ] Ship the pricing page #web",
+  "Where do we stay?\n- ( ) Tent\n- (x) Cabin",
+  "- Water [3/8]",
+  "= $450 + 120 * 2",
+  "Days until Christmas: {?}",
+  ">| The answer is forty-two.",
+  "## Packing\n- [x] Tent\n- [ ] Stove",
+  "Call the band[^c1]\n\n```comments\nc1 me 2026-10-05T09:00:00Z\nWhich band?\n```",
+  "the deposit is in [[The cabin trip]]",
+  "the deposit is four hundred §§",
+  "[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)",
+  "- [ ] Fix the login loop @sam ⏫ 📅 2026-10-03",
+  "- [ ] Ship the pricing page ^ship-page",
+  "the page is waiting on [[#^ask-sam]]\n\n- Ask Sam about the copy ^ask-sam",
+  "```board\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date",
+  "```board height=12\nTo do: ship-page\nDone: pick-date\n```\n\n- [ ] Ship the pricing page ^ship-page\n- [x] Pick a launch date ^pick-date",
+  "---\ntype: ticket\nid: GHO-12\nstatus: In progress\nassignee: Sam\n---\n# Fix the login loop",
+  "---\nbook: true\nkey: GLY\n---\n# Glyph\n\n- [[GLY-1]]",
+  "```query\nfrom: tasks\nwhere: due <= today+7\nshow: list\n```",
+  "```query\nfrom: tickets\nwhere: status != Done and priority >= high\nsort: due\n```",
+  "```query\nfrom: tasks\nshow: calendar\n```",
+  "```query\nfrom: tickets\ngroup: assignee\ntotal: estimate\nshow: table\n```",
+  "the ending: ||the butler did it||",
+  "meet at ==the north gate==",
+  "==the cabin key==(green) and ==the deadline==(red)",
+  "the train at nine %%or the one after%%",
+  "the deposit is ??four hundred??",
+  "??four hundred??(Sam said 400)",
+  "the name on the lease is @@Sam Ortiz@@",
+  "bring ^^the tickets^^",
+  "we leave at ~~nine~~ ++ten++",
+  "The air above wavers\n🔥🔥too hot to touch🔥🔥",
+  "the pond is ❄️❄️frozen solid❄️❄️",
+  "the boat went 🌊🌊out to sea🌊🌊",
+  "a ✨✨silver thread✨✨",
+  "and then 👻👻nobody there👻👻",
+  "# Camping in June",
+  "notes\n\n## What to pack",
+  "### Friday",
+  "#### Friday morning",
+  "bring the **big tent**",
+  "the _small_ one leaks",
+  "the *small* one leaks",
+  "it is ***here***",
+  "~~Thursday~~ Friday",
+  "type `ls` to look",
+  "see [the map](https://maps.example.com/x)",
+  "- tent\n- stove",
+  "1) Pack\n2) Go",
+  "- [ ] ring the site",
+  "> no dogs in July",
+  "before\n\n***\n\nafter",
+  "```\nkeep this\n```",
+  "| Day | Where |\n| --- | --- |\n| Fri | Cabin |",
+  "![the view](image/lake.jpg)",
+  "E = mc^2^",
+  "CO~2~ levels",
+  "the lake is cold[^1]\n\n[^1]: In June, anyway.",
+  "Kayak\n: a boat for one",
+  "area is $\\pi r^2$",
+  "on the way :rocket:",
+  "> [!WARNING]\n> The road floods.",
+  "```mermaid\nflowchart LR\n  Home --> Lake\n```",
+  "swim at dawn #lake",
+  "Dinner?\n- (x) Pasta\n- ( ) Fish",
+  "- Lengths [2/10]",
+  "= 12 * 4",
+  ">| the gate code is 4411",
+  "# Trip\n- [ ] Pack",
+  "the lake is cold[^c9]\n\n```comments\nc9 sam 2026-10-05T09:00:00Z\nIn June?\n```",
+  "see [[Packing list]]",
+  "- Book the kayak ^kayak",
+  "after [[#^kayak]]",
+  "start reading here §§",
+  "```board\nLater: kayak\n```",
+  "---\nTYPE: Ticket\nstatus: Doing\n---\nKayak trip",
+  "it was ||Sam|| all along",
+  "the ==gate code==",
+  "the ==gate code==(amber)",
+  "swim %%if warm%%",
+  "about ??six miles??",
+  "about ??six miles??(from the map)",
+  "the gate code is @@4417@@",
+  "^^do not^^ feed the ducks",
+  "bring ++a towel++",
+  "🔥🔥a hot day🔥🔥",
+  "❄️❄️cold water❄️❄️",
+  "🌊🌊rough today🌊🌊",
+  "✨✨the lake at night✨✨",
+  "👻👻the old boathouse👻👻",
+  "Weekend trip",
+  "*one star*",
+  "snake_case_words",
+  "**Friday at noon**",
+  "~one squiggle~",
+  "no backticks here",
+  "[words] (https://example.com)",
+  "milk and bread",
+  "2026 was the year",
+  "- ring the site",
+  "she said no dogs",
+  "- -",
+  "```js\nconst x = 1;",
+  "| just | pipes |",
+  "[the view](image/lake.jpg)",
+  "x^2 with no end",
+  "~~struck~~",
+  "the lake is cold[^1]",
+  ": a colon on its own",
+  "it costs $450",
+  "a :not-a-name-we-know: here",
+  "> an ordinary quote",
+  "```js\nconst x = 1;\n```",
+  "- [ ] a to-do, not a choice",
+  "three of 3/8",
+  "450 + 120",
+  "## Packing\n- tent",
+  "the lake is cold[^c9]",
+  "the lake is cold\n\n```comments\nc9 sam 2026-10-05T09:00:00Z\nIn June?\n```",
+  "- Book the kayak",
+  "one section sign §",
+  "```\nLater: kayak\n```",
+  "---\ntype: ticket\n---\nKayak trip",
+  "Kayak trip\n\ntype: ticket\nstatus: To do",
+  "a |single| bar",
+  "a =single= sign",
+  "a ==plain== highlight",
+  "fifty %",
+  "really?",
+  "write to sam@ortiz.example",
+  "the gate code is @@4417",
+  "1 + 1",
+  "🔥a fire🔥",
+  "🔥🔥🔥a fire🔥🔥🔥",
+  "❄️cold❄️",
+  "🌊sea🌊",
+  "✨one✨",
+  "👻boo👻",
+  "```board\nTo do: a\n```",
+  "```board height=20\nTo do: a\n```",
+  "---\nbook: true\n---\n# Glyph",
+  "---\nkey: GLY\n---\n# Not a notebook",
+  "---\ntitle: Work\nbook: true\nkey: WRK\n---\n# Work",
+  "```query\nfrom: tasks\n```",
+  "```query\nfrom: tasks\nwhere: due < today\n```",
+  "```query\nfrom: tasks\nwher: due < today\n```",
+  "```query\nfrom: tasks\nshow: list\n```",
+  "```query\nfrom: tickets\nshow: gantt\n```",
+  "```query\nfrom: tickets\n```",
+  "```query\nfrom: tickets\ngroup: status\n```",
+  "```query\nfrom: tickets\ntotal: estimate\n```",
+  "1. [ ] ring the site",
+  "* [x] rang the site",
+  "- [ ]ring the site",
+  "",
+  "   ",
+  "plain words"
+ ],
+ "answers": [
+  "1000000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0010100000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000001000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000001000000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000010000000000000000000000000000000000000000000000",
+  "0000000100000001000000000000000000000000000000000000000000000",
+  "0000000100000001100000000000000000000000000000000000000000000",
+  "0000000000000000010000000000000000000000000000000000000000000",
+  "0000000000000000001000000000000000000000000000000000000000000",
+  "0000000000000000000100000000000000000000000000000000000000000",
+  "0000000000000000000010000000000000000000000000000000000000000",
+  "0000000000000000000001000000000000000000000000000000000000000",
+  "0000000000000000000000100000000000000000000000000000000000000",
+  "0000000000010000000000010000000000000000000000000000000000000",
+  "0000000000000100000000001000000000000000000000000000000000000",
+  "0000000010100000000000000100000000000000000000000000000000000",
+  "0000000010000000000000000010000000000000000000000000000000000",
+  "0000000010000000000000000001000000000000000000000000000000000",
+  "0000000000000000000000000000100000000000000000000000000000000",
+  "0000000000000000000000000000010000000000000000000000000000000",
+  "0000000000010000000000000000001000000000000000000000000000000",
+  "0100000010100000000000000000000100000000000000000000000000000",
+  "0000000000000100000000000000000010000000000000000000000000000",
+  "0000000000000000000000000000000001000000000000000000000000000",
+  "0000000000000000000000000000000000100000000000000000000000000",
+  "0000000100000000000000000000000000010000000000000000000000000",
+  "0000000010100000000000000000000000001000000000000000000000000",
+  "0000000010100000000000000000000000000100000000000000000000000",
+  "0000000010000000000000000000000000000110000000000000000000000",
+  "0000000010100100000000000000000000000101000000000000000000000",
+  "0000000010100100000000000000000000000101100000000000000000000",
+  "1000000000001000000000000000000000000000010000000000000000000",
+  "1000000010001000000000000000000001000000001000000000000000000",
+  "0000000000000100000000000000000000000000000110000000000000000",
+  "0000000000000100000000000000000000000000000010000000000000000",
+  "0000000000000100000000000000000000000000000101000000000000000",
+  "0000000000000100000000000000000000000000000001100000000000000",
+  "0000000000000000000000000000000000000000000000010000000000000",
+  "0000000000000000000000000000000000000000000000001000000000000",
+  "0000000000000000000000000000000000000000000000001100000000000",
+  "0000000000000000000000000000000000000000000000000010000000000",
+  "0000000000000000000000000000000000000000000000000001000000000",
+  "0000000000000000000000000000000000000000000000000001100000000",
+  "0000000000000000000000000000000000000000000000000000010000000",
+  "0000000000000000000000000000000000000000000000000000001000000",
+  "0000010000000000000000000000000000000000000000000000000100000",
+  "0000000000000000000000000000000000000000000000000000000010000",
+  "0000000000000000000000000000000000000000000000000000000001000",
+  "0000000000000000000000000000000000000000000000000000000000100",
+  "0000000000000000000000000000000000000000000000000000000000010",
+  "0000000000000000000000000000000000000000000000000000000000001",
+  "1000000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0010100000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000001000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000001000000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000010000000000000000000000000000000000000000000000",
+  "0000000100000001000000000000000000000000000000000000000000000",
+  "0000000000000000010000000000000000000000000000000000000000000",
+  "0000000000000000001000000000000000000000000000000000000000000",
+  "0000000000000000000100000000000000000000000000000000000000000",
+  "0000000000000000000010000000000000000000000000000000000000000",
+  "0000000000000000000001000000000000000000000000000000000000000",
+  "0000000000000000000000100000000000000000000000000000000000000",
+  "0000000000010000000000010000000000000000000000000000000000000",
+  "0000000000000100000000001000000000000000000000000000000000000",
+  "0000000000000000000000000100000000000000000000000000000000000",
+  "0000000010000000000000000010000000000000000000000000000000000",
+  "0000000010000000000000000001000000000000000000000000000000000",
+  "0000000000000000000000000000100000000000000000000000000000000",
+  "0000000000010000000000000000001000000000000000000000000000000",
+  "1000000010100000000000000000000100000000000000000000000000000",
+  "0000000000000100000000000000000010000000000000000000000000000",
+  "0000000000000000000000000000000001000000000000000000000000000",
+  "0000000010000000000000000000000000000100000000000000000000000",
+  "0000000000000000000000000000000000000010000000000000000000000",
+  "0000000000000000000000000000000000100000000000000000000000000",
+  "0000000000000100000000000000000000000001000000000000000000000",
+  "0000000000001000000000000000000000000000010000000000000000000",
+  "0000000000000000000000000000000000000000000000010000000000000",
+  "0000000000000000000000000000000000000000000000001000000000000",
+  "0000000000000000000000000000000000000000000000001100000000000",
+  "0000000000000000000000000000000000000000000000000010000000000",
+  "0000000000000000000000000000000000000000000000000001000000000",
+  "0000000000000000000000000000000000000000000000000001100000000",
+  "0000000000000000000000000000000000000000000000000000010000000",
+  "0000000000000000000000000000000000000000000000000000001000000",
+  "0000000000000000000000000000000000000000000000000000000100000",
+  "0000000000000000000000000000000000000000000000000000000010000",
+  "0000000000000000000000000000000000000000000000000000000001000",
+  "0000000000000000000000000000000000000000000000000000000000100",
+  "0000000000000000000000000000000000000000000000000000000000010",
+  "0000000000000000000000000000000000000000000000000000000000001",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0100000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000001000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000001000000000000000000000",
+  "0000000000000100000000000000000000000001100000000000000000000",
+  "1000000000001000000000000000000000000000000000000000000000000",
+  "1000000000001000000000000000000000000000000000000000000000000",
+  "1000000000001000000000000000000000000000001000000000000000000",
+  "0000000000000100000000000000000000000000000100000000000000000",
+  "0000000000000100000000000000000000000000000110000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000100000000000000000",
+  "0000000000000100000000000000000000000000000001000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000100000000000000",
+  "0000000000000100000000000000000000000000000000100000000000000",
+  "0000000001100000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000"
+ ],
+ "answersOff": [
+  "1000000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0010100000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000001000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000001000000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000010000000000000000000000000000000000000000000000",
+  "0000000100000001000000000000000000000000000000000000000000000",
+  "0000000100000001100000000000000000000000000000000000000000000",
+  "0000000000000000010000000000000000000000000000000000000000000",
+  "0000000000000000001000000000000000000000000000000000000000000",
+  "0000000000000000000100000000000000000000000000000000000000000",
+  "0000000000000000000010000000000000000000000000000000000000000",
+  "0000000000000000000001000000000000000000000000000000000000000",
+  "0000000000000000000000100000000000000000000000000000000000000",
+  "0000000000010000000000010000000000000000000000000000000000000",
+  "0000000000000100000000001000000000000000000000000000000000000",
+  "0000000010100000000000000100000000000000000000000000000000000",
+  "0000000010000000000000000010000000000000000000000000000000000",
+  "0000000010000000000000000001000000000000000000000000000000000",
+  "0000000000000000000000000000100000000000000000000000000000000",
+  "0000000000000000000000000000010000000000000000000000000000000",
+  "0000000000010000000000000000001000000000000000000000000000000",
+  "0100000010100000000000000000000100000000000000000000000000000",
+  "0000000000000100000000000000000010000000000000000000000000000",
+  "0000000000000000000000000000000001000000000000000000000000000",
+  "0000000000000000000000000000000000100000000000000000000000000",
+  "0000000100000000000000000000000000010000000000000000000000000",
+  "0000000010100000000000000000000000001000000000000000000000000",
+  "0000000010100000000000000000000000000100000000000000000000000",
+  "0000000010000000000000000000000000000110000000000000000000000",
+  "0000000010100100000000000000000000000101000000000000000000000",
+  "0000000010100100000000000000000000000101100000000000000000000",
+  "1000000000001000000000000000000000000000010000000000000000000",
+  "1000000010001000000000000000000001000000001000000000000000000",
+  "0000000000000100000000000000000000000000000110000000000000000",
+  "0000000000000100000000000000000000000000000010000000000000000",
+  "0000000000000100000000000000000000000000000101000000000000000",
+  "0000000000000100000000000000000000000000000001100000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "1000000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0100000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0010100000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000001000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000001000000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000010000000000000000000000000000000000000000000000",
+  "0000000100000001000000000000000000000000000000000000000000000",
+  "0000000000000000010000000000000000000000000000000000000000000",
+  "0000000000000000001000000000000000000000000000000000000000000",
+  "0000000000000000000100000000000000000000000000000000000000000",
+  "0000000000000000000010000000000000000000000000000000000000000",
+  "0000000000000000000001000000000000000000000000000000000000000",
+  "0000000000000000000000100000000000000000000000000000000000000",
+  "0000000000010000000000010000000000000000000000000000000000000",
+  "0000000000000100000000001000000000000000000000000000000000000",
+  "0000000000000000000000000100000000000000000000000000000000000",
+  "0000000010000000000000000010000000000000000000000000000000000",
+  "0000000010000000000000000001000000000000000000000000000000000",
+  "0000000000000000000000000000100000000000000000000000000000000",
+  "0000000000010000000000000000001000000000000000000000000000000",
+  "1000000010100000000000000000000100000000000000000000000000000",
+  "0000000000000100000000000000000010000000000000000000000000000",
+  "0000000000000000000000000000000001000000000000000000000000000",
+  "0000000010000000000000000000000000000100000000000000000000000",
+  "0000000000000000000000000000000000000010000000000000000000000",
+  "0000000000000000000000000000000000100000000000000000000000000",
+  "0000000000000100000000000000000000000001000000000000000000000",
+  "0000000000001000000000000000000000000000010000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0001000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0010000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000100000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000010000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000010000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0100000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000001000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000001000000000000000000000",
+  "0000000000000100000000000000000000000001100000000000000000000",
+  "1000000000001000000000000000000000000000000000000000000000000",
+  "1000000000001000000000000000000000000000000000000000000000000",
+  "1000000000001000000000000000000000000000001000000000000000000",
+  "0000000000000100000000000000000000000000000100000000000000000",
+  "0000000000000100000000000000000000000000000110000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000100000000000000000",
+  "0000000000000100000000000000000000000000000001000000000000000",
+  "0000000000000100000000000000000000000000000000000000000000000",
+  "0000000000000100000000000000000000000000000000100000000000000",
+  "0000000000000100000000000000000000000000000000100000000000000",
+  "0000000001100000000000000000000000000000000000000000000000000",
+  "0000000010100000000000000000000000000000000000000000000000000",
+  "0000000010000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000",
+  "0000000000000000000000000000000000000000000000000000000000000"
+ ],
+ "rows": [
+  {
+   "name": "Bold",
+   "symbol": "**"
+  },
+  {
+   "name": "Italic",
+   "symbol": "_"
+  },
+  {
+   "name": "Both",
+   "symbol": "***"
+  },
+  {
+   "name": "Struck through",
+   "symbol": "~~"
+  },
+  {
+   "name": "Code",
+   "symbol": "`"
+  },
+  {
+   "name": "A link",
+   "symbol": "[ ]( )"
+  },
+  {
+   "name": "A tag",
+   "symbol": "#"
+  },
+  {
+   "name": "Title",
+   "symbol": "#"
+  },
+  {
+   "name": "Heading",
+   "symbol": "##"
+  },
+  {
+   "name": "Smaller heading",
+   "symbol": "###"
+  },
+  {
+   "name": "A list",
+   "symbol": "-"
+  },
+  {
+   "name": "In order",
+   "symbol": "1."
+  },
+  {
+   "name": "A to-do",
+   "symbol": "- [ ]"
+  },
+  {
+   "name": "Done",
+   "symbol": "- [x]"
+  },
+  {
+   "name": "A due date",
+   "symbol": "📅"
+  },
+  {
+   "name": "A priority",
+   "symbol": "⏫"
+  },
+  {
+   "name": "A person",
+   "symbol": "@"
+  },
+  {
+   "name": "A field by name",
+   "symbol": "[ :: ]"
+  },
+  {
+   "name": "A choice",
+   "symbol": "- ( )"
+  },
+  {
+   "name": "A counter",
+   "symbol": "[ / ]"
+  },
+  {
+   "name": "A sum",
+   "symbol": "="
+  },
+  {
+   "name": "A blank",
+   "symbol": "{?}"
+  },
+  {
+   "name": "A quote",
+   "symbol": ">"
+  },
+  {
+   "name": "A hidden line",
+   "symbol": ">|"
+  },
+  {
+   "name": "Progress",
+   "symbol": "#"
+  },
+  {
+   "name": "A dividing line",
+   "symbol": "---"
+  },
+  {
+   "name": "Another note",
+   "symbol": "[[ ]]"
+  },
+  {
+   "name": "A name for an item",
+   "symbol": "^"
+  },
+  {
+   "name": "That item, from the words",
+   "symbol": "[[#^ ]]"
+  },
+  {
+   "name": "The bookmark",
+   "symbol": "§§"
+  },
+  {
+   "name": "A place",
+   "symbol": "[ ](geo: )"
+  },
+  {
+   "name": "A footnote",
+   "symbol": "[^ ]"
+  },
+  {
+   "name": "A comment",
+   "symbol": "[^c1]"
+  },
+  {
+   "name": "Raised",
+   "symbol": "^ ^"
+  },
+  {
+   "name": "Lowered",
+   "symbol": "~ ~"
+  },
+  {
+   "name": "A definition",
+   "symbol": ":"
+  },
+  {
+   "name": "Maths",
+   "symbol": "$"
+  },
+  {
+   "name": "An emoji",
+   "symbol": ": :"
+  },
+  {
+   "name": "A table",
+   "symbol": "| |"
+  },
+  {
+   "name": "A picture",
+   "symbol": "![ ]( )"
+  },
+  {
+   "name": "A video",
+   "symbol": "[![ ]( )]( )"
+  },
+  {
+   "name": "A block of code",
+   "symbol": "```"
+  },
+  {
+   "name": "A callout",
+   "symbol": "[! ]"
+  },
+  {
+   "name": "A diagram",
+   "symbol": "```mermaid"
+  },
+  {
+   "name": "A board",
+   "symbol": "```board"
+  },
+  {
+   "name": "A ticket",
+   "symbol": "type: ticket"
+  },
+  {
+   "name": "A query",
+   "symbol": "```query"
+  },
+  {
+   "name": "Spoiler",
+   "symbol": "||"
+  },
+  {
+   "name": "Highlight",
+   "symbol": "=="
+  },
+  {
+   "name": "Aside",
+   "symbol": "%%"
+  },
+  {
+   "name": "Unsure",
+   "symbol": "??"
+  },
+  {
+   "name": "Redact",
+   "symbol": "@@"
+  },
+  {
+   "name": "Shout",
+   "symbol": "^^"
+  },
+  {
+   "name": "Added",
+   "symbol": "++"
+  },
+  {
+   "name": "Heat",
+   "symbol": "🔥🔥"
+  },
+  {
+   "name": "Frost",
+   "symbol": "❄️❄️"
+  },
+  {
+   "name": "Wave",
+   "symbol": "🌊🌊"
+  },
+  {
+   "name": "Shimmer",
+   "symbol": "✨✨"
+  },
+  {
+   "name": "Haunt",
+   "symbol": "👻👻"
+  },
+  {
+   "name": "A colored highlight",
+   "symbol": "==( )"
+  },
+  {
+   "name": "A note on a mark",
+   "symbol": "( )"
+  }
+ ],
+ "rowsOff": [
+  {
+   "name": "Bold",
+   "symbol": "**"
+  },
+  {
+   "name": "Italic",
+   "symbol": "_"
+  },
+  {
+   "name": "Both",
+   "symbol": "***"
+  },
+  {
+   "name": "Struck through",
+   "symbol": "~~"
+  },
+  {
+   "name": "Code",
+   "symbol": "`"
+  },
+  {
+   "name": "A link",
+   "symbol": "[ ]( )"
+  },
+  {
+   "name": "A tag",
+   "symbol": "#"
+  },
+  {
+   "name": "Title",
+   "symbol": "#"
+  },
+  {
+   "name": "Heading",
+   "symbol": "##"
+  },
+  {
+   "name": "Smaller heading",
+   "symbol": "###"
+  },
+  {
+   "name": "A list",
+   "symbol": "-"
+  },
+  {
+   "name": "In order",
+   "symbol": "1."
+  },
+  {
+   "name": "A to-do",
+   "symbol": "- [ ]"
+  },
+  {
+   "name": "Done",
+   "symbol": "- [x]"
+  },
+  {
+   "name": "A due date",
+   "symbol": "📅"
+  },
+  {
+   "name": "A priority",
+   "symbol": "⏫"
+  },
+  {
+   "name": "A person",
+   "symbol": "@"
+  },
+  {
+   "name": "A field by name",
+   "symbol": "[ :: ]"
+  },
+  {
+   "name": "A choice",
+   "symbol": "- ( )"
+  },
+  {
+   "name": "A counter",
+   "symbol": "[ / ]"
+  },
+  {
+   "name": "A sum",
+   "symbol": "="
+  },
+  {
+   "name": "A blank",
+   "symbol": "{?}"
+  },
+  {
+   "name": "A quote",
+   "symbol": ">"
+  },
+  {
+   "name": "Progress",
+   "symbol": "#"
+  },
+  {
+   "name": "A dividing line",
+   "symbol": "---"
+  },
+  {
+   "name": "Another note",
+   "symbol": "[[ ]]"
+  },
+  {
+   "name": "A name for an item",
+   "symbol": "^"
+  },
+  {
+   "name": "That item, from the words",
+   "symbol": "[[#^ ]]"
+  },
+  {
+   "name": "The bookmark",
+   "symbol": "§§"
+  },
+  {
+   "name": "A place",
+   "symbol": "[ ](geo: )"
+  },
+  {
+   "name": "A footnote",
+   "symbol": "[^ ]"
+  },
+  {
+   "name": "A comment",
+   "symbol": "[^c1]"
+  },
+  {
+   "name": "Raised",
+   "symbol": "^ ^"
+  },
+  {
+   "name": "Lowered",
+   "symbol": "~ ~"
+  },
+  {
+   "name": "A definition",
+   "symbol": ":"
+  },
+  {
+   "name": "Maths",
+   "symbol": "$"
+  },
+  {
+   "name": "An emoji",
+   "symbol": ": :"
+  },
+  {
+   "name": "A table",
+   "symbol": "| |"
+  },
+  {
+   "name": "A picture",
+   "symbol": "![ ]( )"
+  },
+  {
+   "name": "A video",
+   "symbol": "[![ ]( )]( )"
+  },
+  {
+   "name": "A block of code",
+   "symbol": "```"
+  },
+  {
+   "name": "A callout",
+   "symbol": "[! ]"
+  },
+  {
+   "name": "A diagram",
+   "symbol": "```mermaid"
+  },
+  {
+   "name": "A board",
+   "symbol": "```board"
+  },
+  {
+   "name": "A ticket",
+   "symbol": "type: ticket"
+  },
+  {
+   "name": "A query",
+   "symbol": "```query"
+  }
+ ],
+ "nowOn": [
+  "title",
+  "heading",
+  "bold",
+  "italic",
+  "both",
+  "struck",
+  "code",
+  "link",
+  "list",
+  "number",
+  "todo",
+  "quote",
+  "rule",
+  "fence",
+  "table",
+  "picture",
+  "video",
+  "raised",
+  "lowered",
+  "footnote",
+  "definition",
+  "maths",
+  "emoji",
+  "callout",
+  "diagram",
+  "tag",
+  "choice",
+  "counter",
+  "sum",
+  "blank",
+  "hiddenLine",
+  "progress",
+  "comment",
+  "wiki",
+  "bookmark",
+  "place",
+  "fields",
+  "anchor",
+  "itemRef",
+  "board",
+  "boardHeight",
+  "ticket",
+  "notebookKey",
+  "query",
+  "queryWhere",
+  "queryShow",
+  "queryGroup",
+  "spoiler",
+  "highlight",
+  "tint",
+  "aside",
+  "unsure",
+  "markNote",
+  "redact",
+  "shout",
+  "added",
+  "heat",
+  "frost",
+  "wave",
+  "shimmer",
+  "haunt"
+ ],
+ "nowOff": [
+  "title",
+  "heading",
+  "bold",
+  "italic",
+  "both",
+  "struck",
+  "code",
+  "link",
+  "list",
+  "number",
+  "todo",
+  "quote",
+  "rule",
+  "fence",
+  "table",
+  "picture",
+  "video",
+  "raised",
+  "lowered",
+  "footnote",
+  "definition",
+  "maths",
+  "emoji",
+  "callout",
+  "diagram",
+  "tag",
+  "choice",
+  "counter",
+  "sum",
+  "blank",
+  "progress",
+  "comment",
+  "wiki",
+  "bookmark",
+  "place",
+  "fields",
+  "anchor",
+  "itemRef",
+  "board",
+  "boardHeight",
+  "ticket",
+  "notebookKey",
+  "query",
+  "queryWhere",
+  "queryShow",
+  "queryGroup"
+ ]
+}

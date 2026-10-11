@@ -1,0 +1,30 @@
+haxe
+package sample;
+
+import haxe.ds.StringMap;
+using StringTools;
+
+/** A doc comment */
+@:keep
+class Point<T:Float> implements IShape {
+  public var x(default, null):T;
+  static inline var ORIGIN = 0;
+  public function new(x:T, ?y:T) { this.x = x; }
+  public function dist(o:Point<T>):Float {
+    var d = Math.sqrt(x * o.x); // comment
+    return switch (d) { case 0: 0.0; case v if (v > 1e3): v; default: -1; };
+  }
+}
+
+enum Color { Red; Rgb(r:Int, g:Int, b:Int); }
+typedef User = { name:String, ?age:Int }
+
+class Main {
+  static function main() {
+    var m = new StringMap<Int>();
+    var re = ~/^[a-z]+$/i;
+    var s = 'single $x ${1 + 2}' + "double\n";
+    for (i in 0...10) if (i % 2 == 0) trace(i, null, true, 0xFF);
+    #if debug trace("dbg"); #end
+  }
+}

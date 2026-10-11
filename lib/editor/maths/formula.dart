@@ -1,0 +1,189 @@
+/// A formula read, once: what `katex.renderToString(tex, {displayMode, throwOnError: true, output: 'htmlAndMathml',
+/// strict: 'ignore'})` is to `src/app/editor/mathsDrawn.ts`, which keeps its answers by what they say and how
+/// they are set (`drawn`, four hundred of them) so that scrolling past a formula reads nothing again.
+///
+/// The reader is `flutter_math_fork` 0.7 (Apache 2.0), a port of KaTeX's parser and layout to Dart with KaTeX's
+/// own faces: the same TeX, the same boxes, by the same tables of the faces' sizes. What it reads is a tree;
+/// what the tree is drawn as depends on a size and an ink, and the package keeps what it built for the last
+/// options it was asked with, so the options a formula is drawn with are kept too ([optionsFor]): the same
+/// formula at the same size in the same ink is built once.
+library;
+
+import 'package:flutter/painting.dart' show Color;
+import 'package:flutter_math_fork/ast.dart' show EquationArrayNode, EquationRowNode, GreenNode, MathOptions, MathStyle, Mode, MultiscriptsNode, SymbolNode, SyntaxTree, SyntaxTreeTexStyleBreakExt, TransparentNode;
+import 'package:flutter_math_fork/flutter_math.dart' show ParseException, Strict, TexParserSettings;
+import 'package:flutter_math_fork/tex.dart' show TexParser;
+
+/// What a formula is drawn as: its tree, or what is wrong with it.
+class Formula {
+  Formula._(this.tex, this.display, this.tree, this.failed, [this.tag, this.rowTags, this.rowNumbered]);
+
+  final String tex;
+  final bool display;
+  final SyntaxTree? tree;
+
+  /// What `\tag{…}` named the formula, to be set at the right of its line.
+  final SyntaxTree? tag;
+
+  /// For a formula that is one of the environments whose rows may be named (`align`, `gather`, `equation`,
+  /// `alignat`, and their starred forms), each row's own `\tag{…}`, null where it has none; null for any other
+  /// formula.
+  final List<SyntaxTree?>? rowTags;
+
+  /// And which of its rows take the next equation number: the rows of an unstarred one, less those that say
+  /// `\nonumber` or `\notag` or have a tag of their own.
+  final List<bool>? rowNumbered;
+
+  /// How many numbers the formula takes.
+  late final int numbered = rowNumbered == null ? 0 : rowNumbered!.where((row) => row).length;
+
+  /// What the reader said, when it could not read the formula.
+  final String? failed;
+
+  /// The formula in the pieces a line may be broken between: after a relation or an operator at its top level,
+  /// as TeX breaks a formula in a paragraph and KaTeX lets a browser (each piece is a `.base` of its markup).
+  late final List<SyntaxTree> parts = tree == null ? const <SyntaxTree>[] : tree!.texBreak().parts;
+
+  /// Whether a letter stands in the formula's own line: one of KaTeX_Math's slanted ones, a variable, not in a
+  /// script, a fraction or anything else KaTeX sets in a box of a said height. Its face's box is part of the
+  /// line's then (maths.dart `_inlineBox`): on the page `x` set apart is 27.33 px tall where `(9)` is 25.33.
+  late final bool letterInLine = tree != null && _letterIn(tree!.greenRoot);
+
+  /// Whether a drawing on screen holds this reading ([takeFormula]).
+  bool _taken = false;
+}
+
+/// The letters KaTeX sets in KaTeX_Math's slanted face where no face is said (`mathdefault`): the Latin ones and
+/// the small Greek.
+bool _slanted(String symbol) {
+  if (symbol.length != 1) return false;
+  final unit = symbol.codeUnitAt(0);
+  return (unit >= 0x41 && unit <= 0x5a) || (unit >= 0x61 && unit <= 0x7a) || (unit >= 0x3b1 && unit <= 0x3c9) || unit == 0x3d1 || unit == 0x3d5 || unit == 0x3d6 || unit == 0x3f1 || unit == 0x3f5;
+}
+
+bool _letterIn(GreenNode node) {
+  if (node is SymbolNode) return node.mode == Mode.math && node.overrideFont == null && _slanted(node.symbol);
+  // A row and what only says how its children are set: their children stand in the same line.
+  if (node is EquationRowNode || node is TransparentNode) {
+    for (final child in node.children) {
+      if (child != null && _letterIn(child)) return true;
+    }
+    return false;
+  }
+  // What has scripts: its base stands in the line, its scripts in boxes of their own.
+  if (node is MultiscriptsNode) return _letterIn(node.base);
+  return false;
+}
+
+/// The work done, counted, for a test to hold the editor to.
+abstract final class MathsStats {
+  /// Formulas read (parsed) from their TeX.
+  static int read = 0;
+
+  static void reset() => read = 0;
+}
+
+/// The readings kept, by what each says and how it is set. More than one of the same where the same formula
+/// stands in more than one place at once: the reader's tree keeps the one drawing it built (and names its rows
+/// with keys only one place on screen may hold), so each place on screen needs a tree of its own.
+final RegExp _letterFirst = RegExp('^[A-Za-z]');
+final RegExp _controlWord = RegExp(r'\\[A-Za-z]+$');
+
+final Map<String, List<Formula>> _read = <String, List<Formula>>{};
+int _kept = 0;
+
+Formula _parse(String tex, bool display) {
+  MathsStats.read++;
+  try {
+    // `strict: 'ignore'`: what LaTeX would not take and KaTeX can is drawn without a word.
+    final settings = TexParserSettings(displayMode: display, strict: Strict.ignore);
+    final parser = TexParser(tex, settings);
+    final root = SyntaxTree(greenRoot: parser.parse());
+    // KaTeX's parseTree: a `\tag` is kept by the parse (as the macro `\df@tag`) and set beside the formula
+    // when it is done; only a formula on lines of its own has the room.
+    final tagged = parser.macroExpander.expandMacro(r'\df@tag');
+    if (tagged == null) {
+      // KaTeX's buildHTML: the numbers of an environment that is the whole formula are set at the far side of
+      // its line (`expression.length === 2 && expression[1].hasClass('tag')`).
+      final only = root.greenRoot.children.length == 1 ? root.greenRoot.children[0] : null;
+      final tags = only is EquationArrayNode ? only.tags : null;
+      if (tags == null) return Formula._(tex, display, root, null);
+      return Formula._(
+        tex,
+        display,
+        root,
+        null,
+        null,
+        <SyntaxTree?>[for (final tag in tags) tag == null || identical(tag, EquationArrayNode.numbered) ? null : SyntaxTree(greenRoot: tag)],
+        <bool>[for (final tag in tags) identical(tag, EquationArrayNode.numbered)],
+      );
+    }
+    if (!display) return Formula._(tex, display, null, r'\tag works only in display equations');
+    final words = StringBuffer();
+    for (final token in tagged) {
+      // A control word and a letter after it are two things: kept apart as they were written.
+      if (words.isNotEmpty && _letterFirst.hasMatch(token.text) && _controlWord.hasMatch(words.toString())) words.write(' ');
+      words.write(token.text);
+    }
+    return Formula._(tex, display, root, null, SyntaxTree(greenRoot: TexParser(words.toString(), settings).parse()));
+  } on ParseException catch (error) {
+    return Formula._(tex, display, null, error.message);
+  } on Object catch (error) {
+    return Formula._(tex, display, null, '$error');
+  }
+}
+
+/// An equation's number as KaTeX's stylesheet writes it (`.eqn-num::before { content: '(' counter(katexEqnNo)
+/// ')' }`), to be drawn: a tree of its own each time, for the one place on screen that draws it.
+SyntaxTree numberTag(int number) => SyntaxTree(greenRoot: TexParser('\\text{($number)}', const TexParserSettings(displayMode: true)).parse());
+
+List<Formula> _readings(String tex, bool display) {
+  final key = '${display ? 'D' : 'I'}$tex';
+  var list = _read[key];
+  if (list == null) {
+    // `if (drawn.size > 400) drawn.clear()`, less the ones on screen.
+    if (_kept > 400) {
+      _read.removeWhere((_, readings) {
+        readings.removeWhere((reading) => !reading._taken);
+        return readings.isEmpty;
+      });
+      _kept = _read.values.fold(0, (sum, readings) => sum + readings.length);
+    }
+    list = _read[key] = <Formula>[_parse(tex, display)];
+    _kept++;
+  }
+  return list;
+}
+
+/// The formula `tex` (without its dollar signs), set on lines of its own (`display`) or in a line: whether it
+/// can be read, and what is wrong with it if not. For whoever only asks; to draw it, [takeFormula].
+Formula formulaOf(String tex, bool display) => _readings(tex, display).first;
+
+/// A reading of the formula for one place on screen to draw, its own until it is given back
+/// ([releaseFormula]). A formula scrolled away and back, or typed past, is read once; the same formula in two
+/// places at once is read twice.
+Formula takeFormula(String tex, bool display) {
+  final readings = _readings(tex, display);
+  // One that cannot be read has nothing to draw, and is anyone's.
+  if (readings.first.tree == null) return readings.first;
+  for (final reading in readings) {
+    if (!reading._taken) return reading.._taken = true;
+  }
+  final more = _parse(tex, display).._taken = true;
+  readings.add(more);
+  _kept++;
+  return more;
+}
+
+/// Gives a reading back, for the next place that draws the same formula.
+void releaseFormula(Formula formula) => formula._taken = false;
+
+final Map<(bool, double, int), MathOptions> _options = <(bool, double, int), MathOptions>{};
+
+/// The options a formula is drawn with: on lines of its own or in a line, at `size` (the formula's own em, in
+/// logical pixels), in `color`. The same three give the same object, which is what the package's trees keep
+/// their built boxes by.
+MathOptions optionsFor({required bool display, required double size, required Color color}) {
+  if (_options.length > 64) _options.clear();
+  return _options[(display, size, color.toARGB32())] ??= MathOptions(style: display ? MathStyle.display : MathStyle.text, fontSize: size, color: color);
+}

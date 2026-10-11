@@ -1,0 +1,160 @@
+{
+  "edge": {
+    "ABOVE": 200,
+    "BAND": 7,
+    "SOFT": 15,
+    "REACH": 115,
+    "FOOT_BAND": 11,
+    "FOOT_SOFT": 29,
+    "FOOT_LIFT": 24,
+    "FOOT_CLEAR": 93,
+    "EASE": 34,
+    "SIDE": 40,
+    "DROP": 12,
+    "FOOT_REACH": 175
+  },
+  "cases": {
+    "turbulence": {
+      "width": 256,
+      "height": 128,
+      "frequency": "0.018 0.06",
+      "octaves": 2,
+      "seed": 3,
+      "stitch": false
+    },
+    "turbulence-sides": {
+      "width": 256,
+      "height": 128,
+      "frequency": "0.07 0.035",
+      "octaves": 2,
+      "seed": 5,
+      "stitch": false
+    },
+    "turbulence-stitched": {
+      "width": 256,
+      "height": 128,
+      "frequency": "0.035",
+      "octaves": 3,
+      "seed": 7,
+      "stitch": true
+    },
+    "top": {
+      "under": 60,
+      "lift": 0,
+      "frequency": "0.0208 0.0636",
+      "dx": "1.06",
+      "dy": "19.99",
+      "topFade": 0,
+      "footFade": 0
+    },
+    "bare": {
+      "under": 36,
+      "lift": 0,
+      "frequency": "0.018 0.06",
+      "dx": "0",
+      "dy": "0",
+      "topFade": 44,
+      "footFade": 0
+    },
+    "foot": {
+      "height": 420,
+      "frequency": "0.018 0.06",
+      "dx": "0",
+      "dy": "0",
+      "topFade": 0,
+      "footFade": 32
+    },
+    "foot-moved": {
+      "height": 420,
+      "frequency": "0.0208 0.0636",
+      "dx": "1.06",
+      "dy": "19.99",
+      "topFade": 0,
+      "footFade": 32
+    },
+    "lane": {
+      "height": 300,
+      "width": 390,
+      "fade": 22,
+      "filter": "<filter id=\"wispFoot470x300\" filterUnits=\"objectBoundingBox\" primitiveUnits=\"objectBoundingBox\" x=\"-0.10256410256410256\" y=\"-0.13333333333333333\" width=\"1.205128205128205\" height=\"1.6666666666666667\" color-interpolation-filters=\"sRGB\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.02 0.07\" numOctaves=\"2\" seed=\"3\" x=\"-0.10256410256410256\" y=\"0.6466666666666666\" width=\"1.205128205128205\" height=\"0.4866666666666667\" result=\"rawNoise\"></feTurbulence><feColorMatrix in=\"rawNoise\" type=\"matrix\" values=\"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1\" result=\"noise\"></feColorMatrix><feFlood flood-color=\"#000\" result=\"black\"></feFlood><feFlood flood-color=\"#fff\" x=\"-0.10256410256410256\" y=\"0.9133333333333333\" width=\"1.205128205128205\" height=\"0.4866666666666667\" result=\"strip\"></feFlood><feMerge result=\"stripOnBlack\"><feMergeNode in=\"black\"></feMergeNode><feMergeNode in=\"strip\"></feMergeNode></feMerge><feGaussianBlur in=\"stripOnBlack\" stdDeviation=\"0 0.05333333333333334\" result=\"band\"></feGaussianBlur><feComposite in=\"noise\" in2=\"band\" operator=\"arithmetic\" k1=\"1\" k2=\"0\" k3=\"-0.5\" k4=\"0.5\" result=\"field\"></feComposite><feDisplacementMap in=\"SourceGraphic\" in2=\"field\" scale=\"0.08047771453105568\" xChannelSelector=\"R\" yChannelSelector=\"G\" x=\"-0.10256410256410256\" y=\"0.6466666666666666\" width=\"1.205128205128205\" height=\"0.4866666666666667\" result=\"bent\"></feDisplacementMap><feGaussianBlur in=\"bent\" stdDeviation=\"0.006153846153846154 0.008\" x=\"-0.10256410256410256\" y=\"0.6466666666666666\" width=\"1.205128205128205\" height=\"0.4866666666666667\" result=\"soft\"></feGaussianBlur><feMorphology in=\"bent\" operator=\"dilate\" radius=\"0.005128205128205128 0.006666666666666667\" x=\"-0.10256410256410256\" y=\"0.6466666666666666\" width=\"1.205128205128205\" height=\"0.4866666666666667\" result=\"near\"></feMorphology><feComposite in=\"soft\" in2=\"near\" operator=\"in\" result=\"softNear\"></feComposite><feColorMatrix in=\"band\" type=\"luminanceToAlpha\" result=\"bandAlpha\"></feColorMatrix><feComposite in=\"softNear\" in2=\"bandAlpha\" operator=\"in\" result=\"smoke\"></feComposite><feComposite in=\"SourceGraphic\" in2=\"bandAlpha\" operator=\"out\" result=\"rest\"></feComposite><feComposite in=\"bent\" in2=\"bandAlpha\" operator=\"in\" result=\"bentIn\"></feComposite><feMerge><feMergeNode in=\"rest\"></feMergeNode><feMergeNode in=\"bentIn\"></feMergeNode><feMergeNode in=\"smoke\"></feMergeNode></feMerge></filter>"
+    },
+    "lane-short": {
+      "height": 96,
+      "width": 390,
+      "fade": 19.555555555555557,
+      "filter": "<filter id=\"wispFoot470x96\" filterUnits=\"objectBoundingBox\" primitiveUnits=\"objectBoundingBox\" x=\"-0.10256410256410256\" y=\"-0.4166666666666667\" width=\"1.205128205128205\" height=\"3.0833333333333335\" color-interpolation-filters=\"sRGB\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.02 0.07\" numOctaves=\"2\" seed=\"3\" x=\"-0.10256410256410256\" y=\"0\" width=\"1.205128205128205\" height=\"1.4166666666666667\" result=\"rawNoise\"></feTurbulence><feColorMatrix in=\"rawNoise\" type=\"matrix\" values=\"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1\" result=\"noise\"></feColorMatrix><feFlood flood-color=\"#000\" result=\"black\"></feFlood><feFlood flood-color=\"#fff\" x=\"-0.10256410256410256\" y=\"0.7592592592592592\" width=\"1.205128205128205\" height=\"1.4907407407407407\" result=\"strip\"></feFlood><feMerge result=\"stripOnBlack\"><feMergeNode in=\"black\"></feMergeNode><feMergeNode in=\"strip\"></feMergeNode></feMerge><feGaussianBlur in=\"stripOnBlack\" stdDeviation=\"0 0.14814814814814814\" result=\"band\"></feGaussianBlur><feComposite in=\"noise\" in2=\"band\" operator=\"arithmetic\" k1=\"1\" k2=\"0\" k3=\"-0.5\" k4=\"0.5\" result=\"field\"></feComposite><feDisplacementMap in=\"SourceGraphic\" in2=\"field\" scale=\"0.09859032694758262\" xChannelSelector=\"R\" yChannelSelector=\"G\" x=\"-0.10256410256410256\" y=\"0\" width=\"1.205128205128205\" height=\"1.4166666666666667\" result=\"bent\"></feDisplacementMap><feGaussianBlur in=\"bent\" stdDeviation=\"0.006153846153846154 0.024999999999999998\" x=\"-0.10256410256410256\" y=\"0\" width=\"1.205128205128205\" height=\"1.4166666666666667\" result=\"soft\"></feGaussianBlur><feMorphology in=\"bent\" operator=\"dilate\" radius=\"0.005128205128205128 0.020833333333333332\" x=\"-0.10256410256410256\" y=\"0\" width=\"1.205128205128205\" height=\"1.4166666666666667\" result=\"near\"></feMorphology><feComposite in=\"soft\" in2=\"near\" operator=\"in\" result=\"softNear\"></feComposite><feColorMatrix in=\"band\" type=\"luminanceToAlpha\" result=\"bandAlpha\"></feColorMatrix><feComposite in=\"softNear\" in2=\"bandAlpha\" operator=\"in\" result=\"smoke\"></feComposite><feComposite in=\"SourceGraphic\" in2=\"bandAlpha\" operator=\"out\" result=\"rest\"></feComposite><feComposite in=\"bent\" in2=\"bandAlpha\" operator=\"in\" result=\"bentIn\"></feComposite><feMerge><feMergeNode in=\"rest\"></feMergeNode><feMergeNode in=\"bentIn\"></feMergeNode><feMergeNode in=\"smoke\"></feMergeNode></feMerge></filter>"
+    },
+    "sides": {
+      "width": 390,
+      "height": 48,
+      "start": true,
+      "end": true,
+      "cardY": 100,
+      "filter": "<filter id=\"wispSides390x48se\" filterUnits=\"objectBoundingBox\" primitiveUnits=\"objectBoundingBox\" x=\"-0.06153846153846154\" y=\"-0.5\" width=\"1.123076923076923\" height=\"2\" color-interpolation-filters=\"sRGB\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.07 0.035\" numOctaves=\"2\" seed=\"5\" x=\"-0.06153846153846154\" y=\"-0.5\" width=\"1.123076923076923\" height=\"2\" result=\"rawNoise\"></feTurbulence><feColorMatrix in=\"rawNoise\" type=\"matrix\" values=\"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1\" result=\"noise\"></feColorMatrix><feFlood flood-color=\"#000\" result=\"black\"></feFlood><feFlood flood-color=\"#fff\" x=\"-0.15384615384615385\" y=\"-0.5\" width=\"0.20512820512820512\" height=\"2\" result=\"startStrip\"></feFlood><feFlood flood-color=\"#fff\" x=\"0.9487179487179487\" y=\"-0.5\" width=\"0.20512820512820512\" height=\"2\" result=\"endStrip\"></feFlood><feMerge result=\"stripsOnBlack\"><feMergeNode in=\"black\"></feMergeNode><feMergeNode in=\"startStrip\"></feMergeNode><feMergeNode in=\"endStrip\"></feMergeNode></feMerge><feGaussianBlur in=\"stripsOnBlack\" stdDeviation=\"0.03076923076923077 0\" result=\"band\"></feGaussianBlur><feComposite in=\"noise\" in2=\"band\" operator=\"arithmetic\" k1=\"1\" k2=\"0\" k3=\"-0.5\" k4=\"0.5\" result=\"field\"></feComposite><feDisplacementMap in=\"SourceGraphic\" in2=\"field\" scale=\"0.050386449882414454\" xChannelSelector=\"R\" yChannelSelector=\"G\" result=\"bent\"></feDisplacementMap><feGaussianBlur in=\"bent\" stdDeviation=\"0.0041025641025641026 0.03333333333333333\" result=\"soft\"></feGaussianBlur><feMorphology in=\"bent\" operator=\"dilate\" radius=\"0.0038461538461538464 0.03125\" result=\"near\"></feMorphology><feComposite in=\"soft\" in2=\"near\" operator=\"in\" result=\"softNear\"></feComposite><feColorMatrix in=\"band\" type=\"luminanceToAlpha\" result=\"bandAlpha\"></feColorMatrix><feComposite in=\"softNear\" in2=\"bandAlpha\" operator=\"in\" result=\"smoke\"></feComposite><feComposite in=\"SourceGraphic\" in2=\"bandAlpha\" operator=\"out\" result=\"rest\"></feComposite><feComposite in=\"bent\" in2=\"bandAlpha\" operator=\"in\" result=\"bentIn\"></feComposite><feMerge><feMergeNode in=\"rest\"></feMergeNode><feMergeNode in=\"bentIn\"></feMergeNode><feMergeNode in=\"smoke\"></feMergeNode></feMerge></filter>"
+    },
+    "sides-start": {
+      "width": 390,
+      "height": 48,
+      "start": true,
+      "end": false,
+      "cardY": 100,
+      "filter": "<filter id=\"wispSides390x48s\" filterUnits=\"objectBoundingBox\" primitiveUnits=\"objectBoundingBox\" x=\"-0.06153846153846154\" y=\"-0.5\" width=\"1.123076923076923\" height=\"2\" color-interpolation-filters=\"sRGB\"><feTurbulence type=\"fractalNoise\" baseFrequency=\"0.07 0.035\" numOctaves=\"2\" seed=\"5\" x=\"-0.06153846153846154\" y=\"-0.5\" width=\"1.123076923076923\" height=\"2\" result=\"rawNoise\"></feTurbulence><feColorMatrix in=\"rawNoise\" type=\"matrix\" values=\"1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 0 1\" result=\"noise\"></feColorMatrix><feFlood flood-color=\"#000\" result=\"black\"></feFlood><feFlood flood-color=\"#fff\" x=\"-0.15384615384615385\" y=\"-0.5\" width=\"0.20512820512820512\" height=\"2\" result=\"startStrip\"></feFlood><feMerge result=\"stripsOnBlack\"><feMergeNode in=\"black\"></feMergeNode><feMergeNode in=\"startStrip\"></feMergeNode></feMerge><feGaussianBlur in=\"stripsOnBlack\" stdDeviation=\"0.03076923076923077 0\" result=\"band\"></feGaussianBlur><feComposite in=\"noise\" in2=\"band\" operator=\"arithmetic\" k1=\"1\" k2=\"0\" k3=\"-0.5\" k4=\"0.5\" result=\"field\"></feComposite><feDisplacementMap in=\"SourceGraphic\" in2=\"field\" scale=\"0.050386449882414454\" xChannelSelector=\"R\" yChannelSelector=\"G\" result=\"bent\"></feDisplacementMap><feGaussianBlur in=\"bent\" stdDeviation=\"0.0041025641025641026 0.03333333333333333\" result=\"soft\"></feGaussianBlur><feMorphology in=\"bent\" operator=\"dilate\" radius=\"0.0038461538461538464 0.03125\" result=\"near\"></feMorphology><feComposite in=\"soft\" in2=\"near\" operator=\"in\" result=\"softNear\"></feComposite><feColorMatrix in=\"band\" type=\"luminanceToAlpha\" result=\"bandAlpha\"></feColorMatrix><feComposite in=\"softNear\" in2=\"bandAlpha\" operator=\"in\" result=\"smoke\"></feComposite><feComposite in=\"SourceGraphic\" in2=\"bandAlpha\" operator=\"out\" result=\"rest\"></feComposite><feComposite in=\"bent\" in2=\"bandAlpha\" operator=\"in\" result=\"bentIn\"></feComposite><feMerge><feMergeNode in=\"rest\"></feMergeNode><feMergeNode in=\"bentIn\"></feMergeNode><feMergeNode in=\"smoke\"></feMergeNode></feMerge></filter>"
+    },
+    "letter": {
+      "width": 44,
+      "height": 44,
+      "cardX": 18,
+      "cardY": 4,
+      "seed": 8,
+      "bend": 18,
+      "blur": 1.5
+    },
+    "letter-bent": {
+      "width": 44,
+      "height": 44,
+      "cardX": 18,
+      "cardY": 4,
+      "seed": 8,
+      "bend": 34,
+      "blur": 0
+    },
+    "mask-top": {
+      "TILE": 512,
+      "ABOVE": 160,
+      "HEIGHT": 256,
+      "REACH": 48,
+      "DOCK_TILE": 256
+    },
+    "mask-foot": {
+      "TILE": 512,
+      "ABOVE": 160,
+      "HEIGHT": 256,
+      "REACH": 48,
+      "DOCK_TILE": 256
+    },
+    "dock-tile": {
+      "TILE": 512,
+      "ABOVE": 160,
+      "HEIGHT": 256,
+      "REACH": 48,
+      "DOCK_TILE": 256
+    },
+    "dock-core": {
+      "width": 240,
+      "height": 150
+    },
+    "dock-ramp": {
+      "width": 240,
+      "height": 150
+    },
+    "dock-bend": {
+      "halo": {
+        "x": 40,
+        "y": 90,
+        "width": 300,
+        "height": 180
+      },
+      "paper": "#0d0d0d"
+    }
+  }
+}

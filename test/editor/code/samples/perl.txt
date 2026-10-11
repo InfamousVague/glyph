@@ -1,0 +1,14 @@
+perl
+#!/usr/bin/perl
+use strict; use warnings;
+# comment
+my ($name, @items, %map) = ("world", 1, 2);
+sub greet { my $who = shift // $name; return "Hello, $who! @{[ scalar @items ]}\n"; }
+foreach my $i (@items) { next unless $i > 1; print greet($i) if defined $map{$i}; }
+if ($name =~ m/^w(or)ld$/i) { $name =~ s/o/0/g; } elsif (!$name) { die 'no'; } else { exit 0x1F; }
+my $ref = { a => [1, 2], b => sub { 1 } }; print $ref->{a}[0], __FILE__, <<"EOT";
+heredoc $name
+EOT
+=pod
+doc
+=cut

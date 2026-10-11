@@ -1,0 +1,7 @@
+{"protocolVersion": "0.1.1", "runnerVersion": null, "pid": 4, "type": "start", "time": 0}
+{"suite": {"id": 0, "platform": "vm", "path": "/checkout/packages/glacier/test/tokens_test.dart"}, "type": "suite", "time": 0}
+{"test": {"id": 1, "name": "loading /checkout/packages/glacier/test/tokens_test.dart", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": null, "column": null, "url": null}, "type": "testStart", "time": 0}
+{"testID": 1, "result": "success", "skipped": false, "hidden": true, "type": "testDone", "time": 400}
+{"test": {"id": 2, "name": "reads the page’s tokens", "suiteID": 0, "groupIDs": [], "metadata": {"skip": false, "skipReason": null}, "line": 9, "column": 3, "url": "file:///checkout/packages/glacier/test/tokens_test.dart"}, "type": "testStart", "time": 410}
+{"testID": 2, "result": "success", "skipped": false, "hidden": false, "type": "testDone", "time": 450}
+{"success": true, "type": "done", "time": 460}

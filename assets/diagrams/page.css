@@ -1,0 +1,132 @@
+/*
+ * The rules of the web app that reach a drawn diagram, and the ones that reach Mermaid while it measures. What the
+ * app decides (the two faces, the note's size, its gutter, the room, the ink) arrives as custom properties on the
+ * root, set by page.js from what it is asked.
+ */
+
+/* src/app/app.css */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+/* src/app/app.css: Inter's optical sizes and its features, on every word of the page. */
+html {
+  font-optical-sizing: auto;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+/*
+ * src/app/app.css `html, body`: the interface's face. Mermaid measures a diagram's words in a box it hangs on the
+ * body, so this, and not the note's face, is what its boxes are sized for.
+ */
+html,
+body {
+  margin: 0;
+  font-family: var(--ui-font, sans-serif);
+  color: var(--ink, #000);
+  background: transparent;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overflow: hidden;
+}
+
+/* The picture's own number, in a colour: whoever photographs the page reads it to know the page has drawn this one. */
+#mark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 16px;
+  height: 16px;
+}
+
+/* The editor, as wide as the note's column and under the mark. */
+#stage {
+  position: absolute;
+  top: 16px;
+  left: 0;
+  width: var(--room, 100vw);
+}
+
+/* src/app/typefaces.css: a note in a coding face has the font's own features, no optical size and no tracking. */
+:root.coding .cm-editor {
+  font-feature-settings: 'calt', 'liga';
+  font-optical-sizing: none;
+}
+
+:root.coding .cm-editor * {
+  letter-spacing: 0 !important;
+}
+
+/* @codemirror/view's base theme and src/app/editor/glyphTheme.ts, the parts a child inherits. */
+.cm-scroller {
+  font-family: var(--note-font, var(--ui-font, sans-serif));
+  font-size: var(--app-body, 16px);
+  line-height: 1.6;
+}
+
+.cm-content {
+  margin: 0;
+  display: block;
+  white-space: pre;
+  word-wrap: normal;
+}
+
+.cm-lineWrapping {
+  white-space: pre-wrap;
+  white-space: break-spaces;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* src/app/editor/mermaid.ts `mermaidTheme`. */
+.cm-mermaid {
+  display: block;
+  margin: 0;
+  padding: 0.6em var(--app-gutter, 1rem);
+  overflow-x: auto;
+  text-align: center;
+  text-indent: 0;
+}
+
+.cm-mermaid[data-drawn] svg {
+  max-inline-size: 100%;
+  block-size: auto;
+}
+
+/*
+ * src/app/editor/QueryView.module.css `.gantt`: Mermaid's own drawing, quieted for a query's card. The axis in the
+ * third ink, its lines in the rule, and no band behind a section. Its stylesheet is scoped to the drawing's id, so
+ * these are marked important to be heard over it. The inks arrive as custom properties (page.js `timeline`).
+ *
+ * The block is in the card, and the line its picture stands on is the card's own (`.query { line-height: 1.4 }`),
+ * not a note's: the room under the picture is that line's.
+ */
+.gantt {
+  padding-inline: 0 !important;
+  overflow-x: auto;
+  line-height: 1.4;
+}
+
+.gantt .tick text {
+  fill: var(--timeline-tick) !important;
+}
+
+.gantt .tick line {
+  stroke: var(--timeline-rule) !important;
+}
+
+.gantt .section0,
+.gantt .section1,
+.gantt .section2,
+.gantt .section3 {
+  fill: transparent !important;
+}
+
+.gantt .sectionTitle {
+  fill: var(--timeline-section) !important;
+}

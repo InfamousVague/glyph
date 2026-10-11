@@ -1,0 +1,1087 @@
+{
+ "body": "---\nauthors: matt, Claude\n---\n# Trip to Lisbon\n\nPack the **charger** and the _good_ shoes.\n\n- [ ] Book the tram\n- [x] Print tickets\n\nA longer paragraph of words that runs on past the edge of a phone so that it wraps onto a second line at least.",
+ "size": {
+  "width": 840,
+  "height": 900
+ },
+ "frame": {
+  "root": {
+   "tabs": "rows",
+   "split": "on",
+   "platform": "desktop"
+  },
+  "safeTop": "calc(0px + calc(\n    calc(clamp(0.5rem, 0.4671rem + 0.1645vw, 0.625rem) * 1.1) + calc(calc(clamp(2.5rem, 2.3355rem + 0.8224vw, 3.125rem) * 1.1) * 0.74) + calc(clamp(0.25rem, 0.2336rem + 0.0822vw, 0.3125rem) * 1.1) + calc(clamp(0.8333rem, 0.8158rem + 0.0877vw, 0.9rem) * 2.04 + 2px + calc(clamp(0.25rem, 0.2336rem + 0.0822vw, 0.3125rem) * 1.1) * 2.6) + calc(clamp(0.25rem, 0.2336rem + 0.0822vw, 0.3125rem) * 1.1) +\n      0px + 0px * 2\n  ))",
+  "header": {
+   "x": 0,
+   "y": 0,
+   "w": 840,
+   "h": 98.3125
+  },
+  "page": {
+   "x": 0,
+   "y": 0,
+   "w": 840,
+   "h": 900
+  },
+  "pagePaddingTop": "112.612px",
+  "wispUnder": "98px",
+  "tools": [
+   {
+    "label": "Share",
+    "tool": "share",
+    "on": null,
+    "rect": {
+     "x": 230.4375,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 238.453125,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Version history",
+    "tool": "history",
+    "on": null,
+    "rect": {
+     "x": 276.203125,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 284.21875,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Comment",
+    "tool": "comment",
+    "on": null,
+    "rect": {
+     "x": 321.96875,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 329.984375,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Bookmark this line",
+    "tool": "bookmark",
+    "on": null,
+    "rect": {
+     "x": 367.734375,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 375.75,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Pin to the top",
+    "tool": "pin",
+    "on": null,
+    "rect": {
+     "x": 413.5,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 421.515625,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Archive",
+    "tool": "archive",
+    "on": null,
+    "rect": {
+     "x": 459.265625,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 467.28125,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Talk into this note",
+    "tool": "speak",
+    "on": null,
+    "rect": {
+     "x": 505.03125,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 513.046875,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "Showing the marks. Show the formatted note.",
+    "tool": null,
+    "on": null,
+    "rect": {
+     "x": 550.796875,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 558.8125,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   },
+   {
+    "label": "More for this note",
+    "tool": null,
+    "on": null,
+    "rect": {
+     "x": 733.859375,
+     "y": 9.734375,
+     "w": 36.03125,
+     "h": 36.03125
+    },
+    "icon": {
+     "x": 741.875,
+     "y": 17.75,
+     "w": 20,
+     "h": 20
+    },
+    "color": "oklch(0.16 0 0)"
+   }
+  ],
+  "toolsBox": {
+   "x": 230.4375,
+   "y": 9.734375,
+   "w": 356.390625,
+   "h": 36.03125
+  },
+  "byline": {
+   "x": 0,
+   "y": 122.34375,
+   "w": 840,
+   "h": 17.578125
+  },
+  "bylineMarks": [
+   {
+    "title": "matt",
+    "rect": {
+     "x": 24.34375,
+     "y": 122.34375,
+     "w": 17.578125,
+     "h": 17.578125
+    }
+   },
+   {
+    "title": "Claude",
+    "rect": {
+     "x": 37.828125,
+     "y": 122.34375,
+     "w": 17.578125,
+     "h": 17.578125
+    }
+   }
+  ],
+  "bylineNames": {
+   "x": 62.296875,
+   "y": 123.125,
+   "w": 127.296875,
+   "h": 16
+  },
+  "editor": {
+   "x": 0,
+   "y": 139.921875,
+   "w": 840,
+   "h": 760.078125
+  },
+  "scroller": {
+   "x": 0,
+   "y": 139.921875,
+   "w": 840,
+   "h": 760.078125
+  },
+  "content": {
+   "x": 0,
+   "y": 139.921875,
+   "w": 840,
+   "h": 760.078125
+  },
+  "lines": [
+   {
+    "text": "# Trip to Lisbon1 of 2",
+    "rect": {
+     "x": 0,
+     "y": 193.859375,
+     "w": 840,
+     "h": 74.890625
+    }
+   },
+   {
+    "text": "",
+    "rect": {
+     "x": 0,
+     "y": 268.75,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "Pack the **charger** and the _good_ shoes.",
+    "rect": {
+     "x": 0,
+     "y": 298.421875,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "",
+    "rect": {
+     "x": 0,
+     "y": 328.09375,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "- [ ] Book the tram",
+    "rect": {
+     "x": 0,
+     "y": 357.765625,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "- [x] Print tickets",
+    "rect": {
+     "x": 0,
+     "y": 387.4375,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "",
+    "rect": {
+     "x": 0,
+     "y": 417.109375,
+     "w": 840,
+     "h": 29.671875
+    }
+   },
+   {
+    "text": "A longer paragraph of words that runs on past the edge of a phone so that it wraps onto a second line at least.",
+    "rect": {
+     "x": 0,
+     "y": 446.78125,
+     "w": 840,
+     "h": 59.34375
+    }
+   }
+  ],
+  "body": [
+   {
+    "hidden": false,
+    "rect": {
+     "x": 0,
+     "y": 139.921875,
+     "w": 840,
+     "h": 760.078125
+    }
+   }
+  ]
+ },
+ "sheet": {
+  "dialog": {
+   "x": 148,
+   "y": 81,
+   "w": 544,
+   "h": 738
+  },
+  "scrollHeight": 1985,
+  "blocks": [
+   {
+    "tag": "SPAN",
+    "cls": "grip",
+    "text": "",
+    "rect": {
+     "x": 0,
+     "y": 0,
+     "w": 0,
+     "h": 0
+    }
+   },
+   {
+    "tag": "P",
+    "cls": "title",
+    "text": "Trip to Lisbon",
+    "rect": {
+     "x": 173.34375,
+     "y": 106.34375,
+     "w": 493.3125,
+     "h": 25
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 150.8125,
+     "w": 493.3125,
+     "h": 59.21875
+    },
+    "rows": [
+     {
+      "text": "Talk into this note",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 150.8125,
+       "w": 493.3125,
+       "h": 59.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 165.421875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 170.421875,
+       "w": 139.8125,
+       "h": 20
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Reading it",
+    "rect": {
+     "x": 173.34375,
+     "y": 224.640625,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 248.375,
+     "w": 493.3125,
+     "h": 265.875
+    },
+    "rows": [
+     {
+      "text": "Look",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 248.375,
+       "w": 493.3125,
+       "h": 69.21875
+      },
+      "icon": null,
+      "label": {
+       "x": 192.8125,
+       "y": 272.984375,
+       "w": 38.921875,
+       "h": 20
+      }
+     },
+     {
+      "text": "Bookmark this line",
+      "hint": "Marks the line the caret is on, to come back to.",
+      "rect": {
+       "x": 173.34375,
+       "y": 317.59375,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 337.203125,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 333.203125,
+       "w": 304.875,
+       "h": 38
+      }
+     },
+     {
+      "text": "Find and replace",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 385.8125,
+       "w": 493.3125,
+       "h": 60.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 401.421875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 406.421875,
+       "w": 132.15625,
+       "h": 20
+      }
+     },
+     {
+      "text": "Make a board",
+      "hint": "Every item in this note becomes a card.",
+      "rect": {
+       "x": 173.34375,
+       "y": 446.03125,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 465.640625,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 461.640625,
+       "w": 256.28125,
+       "h": 38
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Comments",
+    "rect": {
+     "x": 173.34375,
+     "y": 528.859375,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 552.59375,
+     "w": 493.3125,
+     "h": 67.21875
+    },
+    "rows": [
+     {
+      "text": "Comment",
+      "hint": "On the words selected, or on the line the caret is on.",
+      "rect": {
+       "x": 173.34375,
+       "y": 552.59375,
+       "w": 493.3125,
+       "h": 67.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 571.203125,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 567.203125,
+       "w": 339.65625,
+       "h": 38
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "AI",
+    "rect": {
+     "x": 173.34375,
+     "y": 634.421875,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 658.15625,
+     "w": 493.3125,
+     "h": 484.25
+    },
+    "rows": [
+     {
+      "text": "Format",
+      "hint": "Tidy and organise, keeping every word that matters.",
+      "rect": {
+       "x": 173.34375,
+       "y": 658.15625,
+       "w": 493.3125,
+       "h": 67.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 676.765625,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 672.765625,
+       "w": 338.953125,
+       "h": 38
+      }
+     },
+     {
+      "text": "Summarize",
+      "hint": "The point of the note and its tasks, in far fewer words.",
+      "rect": {
+       "x": 173.34375,
+       "y": 725.375,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 744.984375,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 740.984375,
+       "w": 350.90625,
+       "h": 38
+      }
+     },
+     {
+      "text": "Enhance",
+      "hint": "Every thought finished and the note made fuller, without inventing.",
+      "rect": {
+       "x": 173.34375,
+       "y": 793.59375,
+       "w": 493.3125,
+       "h": 84.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 821.203125,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 809.203125,
+       "w": 409.765625,
+       "h": 54
+      }
+     },
+     {
+      "text": "Fix spelling",
+      "hint": "Spelling, grammar and punctuation, and not a word more.",
+      "rect": {
+       "x": 173.34375,
+       "y": 877.8125,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 897.421875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 893.421875,
+       "w": 373.828125,
+       "h": 38
+      }
+     },
+     {
+      "text": "Make a list",
+      "hint": "Tasks, a list or a table out of what is there.",
+      "rect": {
+       "x": 173.34375,
+       "y": 946.03125,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 965.640625,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 961.640625,
+       "w": 274.1875,
+       "h": 38
+      }
+     },
+     {
+      "text": "Continue",
+      "hint": "Carries on from the last line in the note’s own voice.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1014.25,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1033.859375,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1029.859375,
+       "w": 335.96875,
+       "h": 38
+      }
+     },
+     {
+      "text": "",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 1082.46875,
+       "w": 493.3125,
+       "h": 59.9375
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1097.9375,
+       "w": 30,
+       "h": 30
+      },
+      "label": null
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Sharing",
+    "rect": {
+     "x": 173.34375,
+     "y": 1157.015625,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 1180.75,
+     "w": 493.3125,
+     "h": 83.21875
+    },
+    "rows": [
+     {
+      "text": "Share a read-only link",
+      "hint": "Sign in under Settings › Account first: a share is kept with your account.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1180.75,
+       "w": 493.3125,
+       "h": 83.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1207.359375,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1195.359375,
+       "w": 409.765625,
+       "h": 54
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Where it sits",
+    "rect": {
+     "x": 173.34375,
+     "y": 1278.578125,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 1302.3125,
+     "w": 493.3125,
+     "h": 356.09375
+    },
+    "rows": [
+     {
+      "text": "Pin to the top",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 1302.3125,
+       "w": 493.3125,
+       "h": 59.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1316.921875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1321.921875,
+       "w": 105.21875,
+       "h": 20
+      }
+     },
+     {
+      "text": "Archive",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 1361.53125,
+       "w": 493.3125,
+       "h": 60.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1377.140625,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1382.140625,
+       "w": 60.75,
+       "h": 20
+      }
+     },
+     {
+      "text": "Workspace",
+      "hint": "None yet. Make one to sort your notes.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1421.75,
+       "w": 493.3125,
+       "h": 68.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1441.359375,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1437.359375,
+       "w": 253.0625,
+       "h": 38
+      }
+     },
+     {
+      "text": "Keep version history",
+      "hint": "Saves a version as you write, to go back to like git. Kept beside the note as a .versions file.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1489.96875,
+       "w": 493.3125,
+       "h": 84.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1517.578125,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1505.578125,
+       "w": 409.765625,
+       "h": 54
+      }
+     },
+     {
+      "text": "Add my location",
+      "hint": "Where you are now, kept in the note. Its name is asked of OpenStreetMap once.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1574.1875,
+       "w": 493.3125,
+       "h": 84.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1601.796875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1589.796875,
+       "w": 409.765625,
+       "h": 54
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Linked to",
+    "rect": {
+     "x": 173.34375,
+     "y": 1673.015625,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 1696.75,
+     "w": 493.3125,
+     "h": 151.4375
+    },
+    "rows": [
+     {
+      "text": "Notion board",
+      "hint": "Works in the Ghost.md app on your phone.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1696.75,
+       "w": 493.3125,
+       "h": 67.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1715.359375,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1711.359375,
+       "w": 278.71875,
+       "h": 38
+      }
+     },
+     {
+      "text": "GitHub repo",
+      "hint": "A repo for this note: its list items can go there as issues, and the AI reads it for context.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1763.96875,
+       "w": 493.3125,
+       "h": 84.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1791.578125,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1779.578125,
+       "w": 409.765625,
+       "h": 54
+      }
+     }
+    ]
+   },
+   {
+    "tag": "P",
+    "cls": "heading app-eyebrow",
+    "text": "Help",
+    "rect": {
+     "x": 173.34375,
+     "y": 1862.796875,
+     "w": 493.3125,
+     "h": 14
+    }
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 1886.53125,
+     "w": 493.3125,
+     "h": 67.21875
+    },
+    "rows": [
+     {
+      "text": "Formatting cheat sheet",
+      "hint": "Every mark you can type, and what it looks like, on one page.",
+      "rect": {
+       "x": 173.34375,
+       "y": 1886.53125,
+       "w": 493.3125,
+       "h": 67.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1905.140625,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1901.140625,
+       "w": 399.03125,
+       "h": 38
+      }
+     }
+    ]
+   },
+   {
+    "tag": "DIV",
+    "cls": "group",
+    "text": null,
+    "rect": {
+     "x": 173.34375,
+     "y": 1968.359375,
+     "w": 493.3125,
+     "h": 59.21875
+    },
+    "rows": [
+     {
+      "text": "Move to Trash",
+      "hint": null,
+      "rect": {
+       "x": 173.34375,
+       "y": 1968.359375,
+       "w": 493.3125,
+       "h": 59.21875
+      },
+      "icon": {
+       "x": 192.8125,
+       "y": 1982.96875,
+       "w": 30,
+       "h": 30
+      },
+      "label": {
+       "x": 237.421875,
+       "y": 1987.96875,
+       "w": 113.0625,
+       "h": 20
+      }
+     }
+    ]
+   }
+  ],
+  "look": {
+   "box": {
+    "x": 494.015625,
+    "y": 262.984375,
+    "w": 153.171875,
+    "h": 40
+   },
+   "options": [
+    {
+     "text": "Plain",
+     "on": "true",
+     "rect": {
+      "x": 498.015625,
+      "y": 266.984375,
+      "w": 61.671875,
+      "h": 32
+     }
+    },
+    {
+     "text": "Reading",
+     "on": null,
+     "rect": {
+      "x": 559.6875,
+      "y": 266.984375,
+      "w": 83.5,
+      "h": 32
+     }
+    }
+   ]
+  }
+ }
+}

@@ -1,0 +1,13 @@
+{
+  "code": "flowchart LR\n  F[Friday: drive up] --> S[Saturday: the lake]\n  S --> U[Sunday: the long walk]\n  U --> H[Home by dark]",
+  "dark": true,
+  "viewport": 1280.0,
+  "room": 346.388288,
+  "gutter": 0.0,
+  "em": 12.16725696,
+  "ui": "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  "note": "'Maple Mono', ui-monospace, monospace",
+  "coding": true,
+  "ink": "rgba(243,243,243,1.000)",
+  "ratio": 2.0
+}

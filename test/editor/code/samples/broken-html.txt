@@ -1,0 +1,6 @@
+html
+<div class="a
+<p>text <b>bold</i></p>
+<script>const x = ;</script
+<style>a { color: }</style>
+< notatag> &amp <!-- unclosed

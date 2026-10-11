@@ -1,0 +1,22 @@
+dylan
+Module: sample
+Synopsis: A class and a generic function
+
+// a line comment
+define class <point> (<object>)
+  slot x :: <integer>, required-init-keyword: x:;
+  slot y :: <integer> = 0, init-keyword: y:;
+end class <point>;
+
+define method distance (p :: <point>) => (d :: <float>)
+  /* block comment */
+  let sum = p.x * p.x + p.y * p.y;
+  sqrt(as(<float>, sum))
+end method distance;
+
+define constant $origin = make(<point>, x: 0);
+begin
+  format-out("%= %s %d\n", #t, "str", #xFF);
+  if (distance($origin) = 0.0) #"symbol" else 'c' end;
+  for (i from 0 below 3) format-out("%d", i) end for;
+end;

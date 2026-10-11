@@ -1,0 +1,21 @@
+lua
+#!/usr/bin/lua
+-- comment
+--[[ block
+comment ]]
+local M = {}
+local count, name = 0x1F + 1.5e3, "str\n" .. 'single' .. [[long
+string]] .. [==[level]==]
+function M.greet(who, ...)
+  local args = { ... }
+  if who == nil or #args > 0 and not false then return "hi " .. tostring(who) elseif who ~= "x" then goto done else error("no") end
+  for i = 1, 10, 2 do count = count + i % 3 end
+  for k, v in pairs(M) do print(k, v) end
+  while true do break end
+  repeat count = count - 1 until count <= 0
+  ::done::
+  return nil, true
+end
+local obj = setmetatable({ x = 1, ["y"] = 2 }, { __index = function(t, k) return k end })
+function obj:method(a) self.x = a; return self end
+return M

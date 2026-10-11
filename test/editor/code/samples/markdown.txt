@@ -1,0 +1,26 @@
+markdown
+# Heading one
+
+Some *emphasis*, **strong**, `code`, ~~not struck in CommonMark~~ and a [link](http://x.y "title").
+
+> quote with <b>html</b>
+> second line
+
+- item one
+- [ ] not a task in CommonMark
+  1. nested
+
+```js
+const x = 1;
+```
+
+Setext
+======
+
+    indented code
+
+![image](a.png) <!-- comment --> &amp; \* escape
+***
+<div class="x">
+block
+</div>

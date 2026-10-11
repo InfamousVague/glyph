@@ -1,0 +1,15 @@
+turtle
+# people
+@prefix foaf: <http://xmlns.com/foaf/0.1/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@base <http://example.org/> .
+
+<#alice> a foaf:Person ;
+    foaf:name "Alice"@en ;
+    foaf:age "42"^^xsd:integer ;
+    foaf:knows <#bob>, [ foaf:name "Carol" ] ;
+    foaf:height 1.7 .
+
+<#bob> foaf:name """Bob
+the builder""" ; foaf:member ( 1 2 3 ) ; foaf:active true .
+_:b1 foaf:mbox <mailto:x@example.org> .

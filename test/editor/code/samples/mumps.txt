@@ -1,0 +1,13 @@
+mumps
+HELLO ; a routine
+ NEW X,I
+ SET X="World",I=0
+ WRITE !,"Hello, ",X,!
+ FOR I=1:1:3 DO
+ . WRITE I*2+1,$CHAR(32)
+ . IF I>2 QUIT
+ SET ^GLOBAL("key",1)=$PIECE("a^b^c","^",2)_$EXTRACT(X,1,3)
+ IF $DATA(^GLOBAL("key")) WRITE !,$$ADD(1,2.5)
+ QUIT
+ADD(A,B) ; an extrinsic function
+ QUIT A+B

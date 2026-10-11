@@ -1,0 +1,37 @@
+elm
+module Main exposing (Model, Msg(..), main)
+
+import Browser
+import Html exposing (Html, button, div, text)
+import Html.Events exposing (onClick)
+
+{-| A counter.
+-}
+type alias Model =
+    { count : Int, name : String }
+
+type Msg
+    = Increment
+    | Decrement
+
+-- UPDATE
+update : Msg -> Model -> Model
+update msg model =
+    case msg of
+        Increment ->
+            { model | count = model.count + 1 }
+
+        Decrement ->
+            { model | count = model.count - 1 }
+
+view : Model -> Html Msg
+view model =
+    div []
+        [ button [ onClick Decrement ] [ text "-" ]
+        , text (String.fromInt model.count ++ " \"q\" " ++ String.fromChar 'c')
+        , if model.count > 0x10 || 1.5e3 < 2 then text """multi
+line""" else text ""
+        ]
+
+main =
+    Browser.sandbox { init = { count = 0, name = "" }, update = update, view = view }

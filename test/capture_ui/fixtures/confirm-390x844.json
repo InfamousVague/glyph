@@ -1,0 +1,628 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate=say&say=Add%20to%20my%20note%20labeled%20Shopping%20list%20a%20list%20with%20sunscreen%20and%20bin%20bags.",
+ "viewport": {
+  "width": 390,
+  "height": 844,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "the phrase said whole and a second gone, Done pressed, the confirm card up",
+  "ranMs": 3640,
+  "counter": "0:03",
+  "lines": [
+   "Start talking."
+  ],
+  "chip": null,
+  "chipPhase": null
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 844
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 75.859375
+  },
+  "mic": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 54.15625,
+   "y": 13.390625,
+   "width": 60.875,
+   "height": 53.546875
+  },
+  "counter": {
+   "x": 338.03125,
+   "y": 32.15625,
+   "width": 29.65625,
+   "height": 16
+  },
+  "headerBlur": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 28
+  },
+  "body": {
+   "x": 22.3125,
+   "y": 0,
+   "width": 345.375,
+   "height": 553.859375
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 333.375
+  },
+  "editor": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 257.375
+  },
+  "content": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 257.375
+  },
+  "placeholder": {
+   "x": 22.3125,
+   "y": 98.3125,
+   "width": 146.59375,
+   "height": 27.921875
+  },
+  "ghost": {
+   "x": 112.171875,
+   "y": 346.765625,
+   "width": 165.65625,
+   "height": 168.78125
+  },
+  "pageHint": {
+   "x": 22.3125,
+   "y": 524.46875,
+   "width": 345.375,
+   "height": 16
+  },
+  "confirm": {
+   "x": 22.3125,
+   "y": 553.859375,
+   "width": 345.375,
+   "height": 196.4375
+  },
+  "confirmHeading": {
+   "x": 41.15625,
+   "y": 572.703125,
+   "width": 307.6875,
+   "height": 14
+  },
+  "confirmDetail": {
+   "x": 41.15625,
+   "y": 648.53125,
+   "width": 307.6875,
+   "height": 16
+  },
+  "confirmActions": {
+   "x": 41.15625,
+   "y": 677.90625,
+   "width": 307.6875,
+   "height": 53.546875
+  },
+  "confirmCancel": {
+   "x": 41.15625,
+   "y": 677.90625,
+   "width": 52.734375,
+   "height": 53.546875
+  },
+  "confirmAction": {
+   "x": 264.171875,
+   "y": 677.90625,
+   "width": 84.671875,
+   "height": 53.546875
+  },
+  "footer": {
+   "x": 22.3125,
+   "y": 763.6875,
+   "width": 345.375,
+   "height": 80.3125
+  },
+  "discard": {
+   "x": 22.3125,
+   "y": 772.609375,
+   "width": 57.96875,
+   "height": 53.546875
+  },
+  "done": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "doneIcon": {
+   "x": 275.75,
+   "y": 791.375,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "line0": {
+   "x": 0,
+   "y": 98.3125,
+   "width": 390,
+   "height": 27.921875
+  },
+  "confirmLine0": {
+   "x": 41.15625,
+   "y": 591.15625,
+   "width": 307.6875,
+   "height": 24.234375
+  },
+  "confirmLine1": {
+   "x": 41.15625,
+   "y": 619.84375,
+   "width": 307.6875,
+   "height": 24.234375
+  }
+ },
+ "text": {
+  "top": {
+   "text": "New note0:03",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "New note",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "counter": {
+   "text": "0:03",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Start talking.Tap Done to stop.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "livePage": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "editor": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "content": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "placeholder": {
+   "text": "Start talking.",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "pageHint": {
+   "text": "Tap Done to stop.",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "confirm": {
+   "text": "Add to Shopping listSunscreenBin bagsIn its listCancelAdd",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "confirmHeading": {
+   "text": "Add to Shopping list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "11.1342px",
+   "fontWeight": "700",
+   "lineHeight": "normal",
+   "letterSpacing": "0.890739px",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "confirmDetail": {
+   "text": "In its list",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "confirmActions": {
+   "text": "CancelAdd",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "confirmCancel": {
+   "text": "Cancel",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "confirmAction": {
+   "text": "Add",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.0805757px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.0805757px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Start talking.",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "confirmLine0": {
+   "text": "Sunscreen",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "19.3897px",
+   "fontWeight": "600",
+   "lineHeight": "24.2371px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "confirmLine1": {
+   "text": "Bin bags",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "19.3897px",
+   "fontWeight": "600",
+   "lineHeight": "24.2371px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 22.3173px 0px 22.3173px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "13.3907px 22.3173px 8.92667px 22.3173px",
+   "background": "color(srgb 0.993282 0.993463 0.99348 / 0.66)",
+   "gap": "17.8529px",
+   "backgroundRgb": "rgba(253, 253, 253, 0.659)",
+   "backgroundDark": "color(srgb 0.0171915 0.0171986 0.0171993 / 0.66)",
+   "backgroundDarkRgb": "rgba(5, 5, 5, 0.659)"
+  },
+  "where": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 205.156px"
+  },
+  "headerBlur": {
+   "opacity": "0"
+  },
+  "livePage": {
+   "padding": "76px 0px 0px 0px",
+   "margin": "0px -22.3173px 0px -22.3173px"
+  },
+  "editor": {
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "content": {
+   "padding": "22.3173px 0px 107.12px 0px"
+  },
+  "ghost": {
+   "margin": "13.3907px 89.8594px 8.92667px 89.8594px",
+   "background": "oklch(0.56 0 0)",
+   "backgroundRgb": "rgb(116, 116, 116)",
+   "backgroundDark": "oklch(0.6 0 0)",
+   "backgroundDarkRgb": "rgb(128, 128, 128)"
+  },
+  "pageHint": {
+   "margin": "0px 0px 13.3907px 0px"
+  },
+  "confirm": {
+   "padding": "17.8529px 17.8529px 17.8529px 17.8529px",
+   "margin": "0px 0px 13.3907px 0px",
+   "borderWidth": "1px 1px 1px 1px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "16px",
+   "background": "oklch(0.955 0 0)",
+   "gap": "4.464px",
+   "ownWidth": 345,
+   "ownHeight": 196,
+   "backgroundRgb": "rgb(240, 240, 240)",
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.17 0 0)",
+   "backgroundDarkRgb": "rgb(15, 15, 15)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "confirmActions": {
+   "margin": "8.92667px 0px 0px 0px"
+  },
+  "confirmCancel": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "confirmAction": {
+   "padding": "0px 26.7796px 0px 26.7796px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "footer": {
+   "padding": "8.92667px 0px 17.8529px 0px"
+  },
+  "discard": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "done": {
+   "padding": "0px 26.7796px 0px 26.7796px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 119,
+   "ownHeight": 54,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line0": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  }
+ },
+ "runs": {
+  "line0": [
+   {
+    "text": "Start talking.",
+    "classes": "cm-placeholder",
+    "x": 22.3125,
+    "y": 100.3125,
+    "width": 146.59375,
+    "height": 23,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ]
+ },
+ "scroll": {
+  "scrollTop": 0,
+  "scrollHeight": 333,
+  "clientHeight": 333
+ },
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 22.3125
+  },
+  "--recorder-top": {
+   "written": "76px",
+   "px": 76
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "card-pop",
+   "target": "confirm",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

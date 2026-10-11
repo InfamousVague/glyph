@@ -1,0 +1,232 @@
+{
+ "add": [
+  {
+   "x": 26.33,
+   "y": 624.36,
+   "w": 1227.34,
+   "h": 366.67,
+   "text": "RiversGhost.mdFix the login loopWrite the docsDiaryAddCancel",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "field": [
+  {
+   "x": 26.33,
+   "y": 624.36,
+   "w": 1227.34,
+   "h": 49.09,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.04)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "starts": [],
+ "startsTitle": [],
+ "start": [],
+ "startName": [],
+ "startLine": [],
+ "actions": [
+  {
+   "x": 26.33,
+   "y": 946.67,
+   "w": 67.06,
+   "h": 44.36,
+   "text": "Add",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  }
+ ],
+ "quiet": [
+  {
+   "x": 103.92,
+   "y": 947.67,
+   "w": 78.3,
+   "h": 42.36,
+   "text": "Cancel",
+   "size": 17.66,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "26.4932px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px",
+   "radius": "0px"
+  }
+ ],
+ "picker": [
+  {
+   "x": 26.33,
+   "y": 683.98,
+   "w": 1227.34,
+   "h": 252.16,
+   "text": "RiversGhost.mdFix the login loopWrite the docsDiary",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "10px"
+  }
+ ],
+ "pick": [
+  {
+   "x": 27.33,
+   "y": 684.98,
+   "w": 1225.34,
+   "h": 50.03,
+   "text": "Rivers",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.06)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 27.33,
+   "y": 735.02,
+   "w": 1225.34,
+   "h": 50.03,
+   "text": "Ghost.md",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 27.33,
+   "y": 785.05,
+   "w": 1225.34,
+   "h": 50.03,
+   "text": "Fix the login loop",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 27.33,
+   "y": 835.08,
+   "w": 1225.34,
+   "h": 50.03,
+   "text": "Write the docs",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  },
+  {
+   "x": 27.33,
+   "y": 885.11,
+   "w": 1225.34,
+   "h": 50.03,
+   "text": "Diary",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 1px",
+   "radius": "0px"
+  }
+ ],
+ "pickMark": [
+  {
+   "x": 43.02,
+   "y": 697.72,
+   "w": 23.55,
+   "h": 23.55,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.995 0 0)",
+   "line": "29.4369px",
+   "bg": "oklch(0.16 0 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 43.02,
+   "y": 747.75,
+   "w": 23.55,
+   "h": 23.55,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 43.02,
+   "y": 797.78,
+   "w": 23.55,
+   "h": 23.55,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 43.02,
+   "y": 847.81,
+   "w": 23.55,
+   "h": 23.55,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  },
+  {
+   "x": 43.02,
+   "y": 897.84,
+   "w": 23.55,
+   "h": 23.55,
+   "text": "",
+   "size": 19.62,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.4369px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "1px 1px",
+   "radius": "999px"
+  }
+ ],
+ "none": []
+}

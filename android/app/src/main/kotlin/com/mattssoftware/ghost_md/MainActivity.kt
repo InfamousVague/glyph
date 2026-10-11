@@ -1,0 +1,237 @@
+package com.mattssoftware.ghost_md
+
+import android.content.Intent
+import android.os.Build
+import android.os.Bundle
+import com.mattssoftware.glyph.capture.DictationMic
+import com.mattssoftware.glyph.files.LibraryTree
+import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.engine.FlutterEngine
+import io.flutter.plugin.common.MethodChannel
+import java.lang.ref.WeakReference
+
+class MainActivity : FlutterActivity() {
+    companion object {
+        /** Sent by `GlyphSession` when the side key is held, and by the launcher shortcut (8F). */
+        const val ACTION_CAPTURE = "com.mattssoftware.glyph.CAPTURE"
+        const val EXTRA_SOURCE = "com.mattssoftware.glyph.SOURCE"
+
+        /** On the recording notification's tap: a plain launch that opens the meeting screen. */
+        const val EXTRA_MEETING = "com.mattssoftware.glyph.MEETING"
+
+        /**
+         * The activity in front, for the meeting service and the write-up to reach the app through. Set in
+         * onResume and cleared in onPause, and a WeakReference, never a captured activity: the service outlives
+         * the task, and an activity it held on to would be a leaked window.
+         */
+        @Volatile private var resumed: WeakReference<MainActivity>? = null
+
+        /** Whether the app is in front. */
+        fun isInFront(): Boolean = resumed?.get() != null
+
+        /**
+         * `{name, argument}` to the app on `ghost_md/meeting/events`, from anywhere in the process, while an
+         * activity is resumed: what the Tauri activity's `tell` did by calling `window.__glyph.<name>(argument)`
+         * on its page. False when no activity is resumed, and the word is dropped (the app reads `meetingState`
+         * when it is next in front).
+         */
+        internal fun tell(name: String, argument: String?): Boolean = tell(name, argument, null)
+
+        /**
+         * As above, and `taken` hears whether anybody was listening: false while the app is still starting, so a
+         * word that must not be lost can be kept and said again.
+         */
+        internal fun tell(name: String, argument: String?, taken: ((Boolean) -> Unit)?): Boolean {
+            val activity = resumed?.get() ?: return false
+            activity.runOnUiThread {
+                val heard = activity.meeting?.say(name, argument) == true
+                taken?.invoke(heard)
+            }
+            return true
+        }
+    }
+
+    private var meeting: MeetingBridge? = null
+
+    /** Links that open the app, kept until Dart asks (AppLinks.kt). */
+    private val links = AppLinks()
+
+    /** The player of a note's recording, let go with the activity (TapePlayer.kt). */
+    private var tape: TapePlayer? = null
+
+    /** The player of the voice memos left in a note: its own, so a memo never moves the tape (TapePlayer.kt). */
+    private var clips: TapePlayer? = null
+
+    /** The system's pickers, each answered when its activity result arrives (FilesBridge.kt). */
+    private val files = FilesBridge(this)
+
+    /** Where the phone is, and the prompt that allows it (Position.kt). */
+    private val position = Position(this)
+
+    /** The phone's picture chooser, answered when its activity result arrives (Pictures.kt). */
+    private val pictures = Pictures(this)
+
+    /** The phone's video picker, answered when its activity result arrives (Films.kt). */
+    private val films = Films(this)
+
+    /** The players of a note's films, let go with the activity (FilmPlayer.kt). */
+    private var film: FilmPlayer? = null
+
+    /** Tells the page's binding when the activity is paused and resumed (lib/app/front_frames.dart). */
+    private var front: MethodChannel? = null
+
+    /** The hinge's angle while the app is up, for a note's unfold (Hinge.kt; lib/core/unfold.dart). */
+    private val hinge by lazy { Hinge(applicationContext) }
+
+    /** A note's diagrams, drawn by a web view nobody sees, let go with the activity (DiagramRenderer.kt). */
+    private var diagrams: DiagramRenderer? = null
+    private var carry: TauriCarry? = null
+
+    /** Whether the phone has a connection, and the moment one comes back (Connection.kt). */
+    private val connection by lazy { Connection(applicationContext) }
+
+    /** The battery, for the AI card's reading (Battery.kt). */
+    private val battery by lazy { Battery(applicationContext) }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
+        meeting = MeetingBridge(this).also { it.onCreate(intent) }
+        links.onCreate(intent, restored = savedInstanceState != null)
+        // Before the engine starts, and so before the core opens the library: the library may be in a folder chosen
+        // through Android's picker (files/LibraryTree.kt), and Rust can reach Kotlin only once it has been handed the
+        // class. The tidy lets go of grants for folders that are not the library any more.
+        LibraryTree.install(applicationContext, tidy = true)
+        super.onCreate(savedInstanceState)
+        // A build made to be measured (the app of its own, `….flutter.perf`: tool/perf.sh android) walks itself for
+        // minutes with no finger on the glass, and a phone that dims and locks under it ends the walk half way.
+        if (packageName.endsWith(".perf")) window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+    }
+
+    override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
+        super.configureFlutterEngine(flutterEngine)
+        val messenger = flutterEngine.dartExecutor.binaryMessenger
+        // Where the app keeps its files, for the Rust core's `init` (lib/core/native/device_paths.dart). The data
+        // directory is the one the Tauri app's `app_data_dir` is (Tauri's PathPlugin.getDataDir, line for line):
+        // `dataDir`, the parent of `filesDir`, so `Library/` sits where ../glyph's Kotlin and backup rules expect.
+        MethodChannel(messenger, "ghost_md/device_paths").setMethodCallHandler { call, result ->
+            when (call.method) {
+                "dirs" -> {
+                    val data = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) dataDir.absolutePath else applicationInfo.dataDir
+                    result.success(mapOf("dataDir" to data, "cacheDir" to cacheDir.absolutePath))
+                }
+                else -> result.notImplemented()
+            }
+        }
+        // The session and the account's keys, under a key the Android Keystore holds (SecureStore.kt;
+        // lib/account/device_keys.dart).
+        val secrets = SecureStore(applicationContext).also { it.register(messenger) }
+        // Stage 8: meetings, the write-up and the capture launch (MeetingBridge.kt; lib/capture/meeting_host.dart),
+        // and the dictation microphone (DictationMic.kt; lib/capture/device_mic.dart).
+        (meeting ?: MeetingBridge(this).also { meeting = it }).register(messenger)
+        DictationMic.register(this, messenger)
+        // An address handed to the phone's browser, mail, dialler or maps (OpenLink.kt; lib/core/open_link.dart).
+        OpenLink(this).register(messenger)
+        // Starting over: the phone's half (ResetChannel.kt; lib/core/reset_native.dart).
+        ResetChannel(this, secrets).register(messenger)
+        // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
+        links.register(messenger)
+        // A note's recording, played (TapePlayer.kt; lib/tapes/phone_player.dart).
+        tape = TapePlayer(applicationContext).also { it.register(messenger) }
+        clips = TapePlayer(applicationContext, TapePlayer.CLIPS).also { it.register(messenger) }
+        // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
+        // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
+        files.register(messenger)
+        // A new version of the app, handed to Android's installer (UpdateInstaller.kt; lib/core/updates.dart).
+        UpdateInstaller(this).register(messenger)
+        // Where a note was written: the permission, its prompt and the fix (Position.kt; lib/core/phone_position.dart).
+        position.register(messenger)
+        // A picture chosen for a note, shrunk and handed over as a file (Pictures.kt; lib/core/phone_pictures.dart).
+        pictures.register(messenger)
+        // A film chosen for a note, copied with its poster and handed over as files (Films.kt;
+        // lib/core/phone_films.dart), and played into a texture (FilmPlayer.kt).
+        films.register(messenger)
+        film = FilmPlayer(applicationContext, flutterEngine.renderer).also { it.register(messenger) }
+        // Told when the activity leaves the front and comes back (lib/app/front_frames.dart).
+        front = MethodChannel(messenger, "ghost_md/front")
+        // A date's words in the phone's language, from its own ICU (Dates.kt; lib/core/phone_dates.dart).
+        Dates().register(messenger)
+        // Pick a date: the phone's own calendar (DayPick.kt; lib/core/phone_day.dart).
+        DayPick(this).register(messenger)
+        // A folding phone's hinge, as it opens (Hinge.kt; lib/core/unfold.dart).
+        hinge.register(messenger)
+        // A ```mermaid fence drawn as its diagram (DiagramRenderer.kt; lib/editor/diagrams/bridge.dart).
+        diagrams = DiagramRenderer(this).also { it.register(messenger) }
+        // What the Tauri app's page kept in its web view, asked once on the first launch over it (TauriCarry.kt;
+        // lib/carry/tauri_carry.dart).
+        carry = TauriCarry(this).also { it.register(messenger) }
+        // The bell's rows as the phone's own notifications, and the prompt that allows them (Notices.kt;
+        // lib/core/phone_notices.dart).
+        Notices(applicationContext) { meeting?.requestNotifications() ?: "blocked" }.register(messenger)
+        // Whether there is a connection, and its coming back (Connection.kt; lib/core/phone_connection.dart).
+        connection.register(messenger)
+        // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).
+        battery.register(messenger)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        meeting?.onNewIntent(intent)
+        links.onNewIntent(intent)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Back in front: frames again (lib/app/front_frames.dart).
+        front?.invokeMethod("back", null)
+        resumed = WeakReference(this)
+        meeting?.onResume()
+        hinge.onResume()
+    }
+
+    override fun onPause() {
+        // Leaving the front: nothing more is drawn until the app is back. A frame drawn while the window's surface
+        // is taken away brings the app down on Impeller's OpenGL ES (lib/app/front_frames.dart).
+        front?.invokeMethod("leaving", null)
+        if (resumed?.get() === this) resumed = null
+        film?.pauseAll()
+        hinge.onPause()
+        meeting?.onPause()
+        super.onPause()
+    }
+
+    // A take goes on when the app goes behind another (docs/PARITY.md, Differs 6): nothing here closes the
+    // dictation's microphone at onStop, as nothing closed the Tauri app's WebView's (DictationMic.kt says what
+    // Android does with a hidden app's recorder, and when the device is let go).
+
+    override fun onDestroy() {
+        // The window is going, and the recorder with it: a dictation still open is let go here, never left to a
+        // process with no screen (a meeting is the service's, and goes on).
+        DictationMic.released()
+        tape?.release()
+        clips?.release()
+        film?.release()
+        diagrams?.destroy()
+        connection.release()
+        battery.release()
+        carry?.close()
+        meeting?.onDestroy()
+        super.onDestroy()
+    }
+
+    override fun onRequestPermissionsResult(requestCode: Int, permissions: Array<out String>, grantResults: IntArray) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (DictationMic.answered(this, requestCode, grantResults)) return
+        if (position.answered(requestCode, grantResults)) return
+        meeting?.onRequestPermissionsResult(requestCode, grantResults)
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        super.onActivityResult(requestCode, resultCode, data)
+        if (files.onActivityResult(requestCode, resultCode, data)) return
+        if (pictures.onActivityResult(requestCode, resultCode, data)) return
+        if (films.onActivityResult(requestCode, resultCode, data)) return
+        meeting?.onActivityResult(requestCode, resultCode, data)
+    }
+}

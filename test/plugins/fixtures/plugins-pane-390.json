@@ -1,0 +1,3019 @@
+{
+ "at": "390x844",
+ "states": {
+  "base": {
+   "display": [
+    {
+     "x": 22.31,
+     "y": 62.45,
+     "w": 345.38,
+     "h": 29.05,
+     "text": "Plugins",
+     "size": "25.2722px",
+     "weight": "700",
+     "color": "oklch(0.16 0 0)",
+     "line": "29.0631px"
+    }
+   ],
+   "cards": [
+    {
+     "x": 22.31,
+     "y": 122.73,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 301.02,
+     "w": 345.38,
+     "h": 320.02,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.Boards for your listsNotion",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 667.88,
+     "w": 345.38,
+     "h": 400.33,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1115.05,
+     "w": 345.38,
+     "h": 272,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1433.89,
+     "w": 345.38,
+     "h": 319.94,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.Read and write your notes from Claud",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1800.67,
+     "w": 345.38,
+     "h": 269.84,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroes": [
+    {
+     "x": 22.31,
+     "y": 122.73,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 301.02,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 667.88,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1115.05,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1433.89,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1800.67,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroTitles": [
+    {
+     "x": 93.09,
+     "y": 136.13,
+     "w": 261.2,
+     "h": 30.88,
+     "text": "Plugins",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 314.41,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Notion",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 681.27,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "GitHub",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1128.44,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Marks",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1447.28,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Claude",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1814.06,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Slack",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    }
+   ],
+   "heroMetas": [
+    {
+     "x": 93.09,
+     "y": 169.39,
+     "w": 261.2,
+     "h": 100.39,
+     "text": "4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its commands or",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 347.67,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 714.53,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Links a note to a repo: its list items become issues you can tick off from either side, and the repo is read on the phon",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1161.7,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1480.55,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Read, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1847.33,
+     "w": 203.81,
+     "h": 100.39,
+     "text": "Posts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "heroGlyphs": [
+    {
+     "x": 35.7,
+     "y": 180.95,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 339.16,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 746.17,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1193.34,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1472.03,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1858.89,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "heroIcons": [
+    {
+     "x": 46.7,
+     "y": 191.95,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 350.16,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 757.17,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1204.34,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1483.03,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1869.89,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "switches": [
+    {
+     "x": 309.3,
+     "y": 359.66,
+     "w": 1,
+     "h": 1,
+     "text": "Notion plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 766.67,
+     "w": 1,
+     "h": 1,
+     "text": "GitHub plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1213.84,
+     "w": 1,
+     "h": 1,
+     "text": "Marks plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1492.53,
+     "w": 1,
+     "h": 1,
+     "text": "Claude plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1879.39,
+     "w": 1,
+     "h": 1,
+     "text": "Slack plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    }
+   ],
+   "tracks": [
+    {
+     "x": 310.3,
+     "y": 347.16,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 754.17,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1201.34,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1480.03,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1866.89,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "rows": [
+    {
+     "x": 22.31,
+     "y": 421.3,
+     "w": 345.38,
+     "h": 89.33,
+     "text": "Boards for your listsNotion’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 510.63,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 868.47,
+     "w": 345.38,
+     "h": 89.33,
+     "text": "Repos, issues and contextGitHub’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 957.8,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.github.com) · The model on your phoneWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1315.64,
+     "w": 345.38,
+     "h": 71.41,
+     "text": "What it may reachWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1554.17,
+     "w": 345.38,
+     "h": 109.33,
+     "text": "Read and write your notes from ClaudeClaude’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1663.5,
+     "w": 345.38,
+     "h": 90.33,
+     "text": "What it may reachYour notes · The internet (ghostmarkdown.com)Why",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1961.11,
+     "w": 345.38,
+     "h": 109.41,
+     "text": "What it may reachYour notes · The internet (hooks.slack.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "labels": [
+    {
+     "x": 78.69,
+     "y": 434.69,
+     "w": 244.22,
+     "h": 20,
+     "text": "Boards for your lists",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 525.02,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 78.69,
+     "y": 881.86,
+     "w": 244.22,
+     "h": 20,
+     "text": "Repos, issues and context",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 972.19,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1341.34,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 78.69,
+     "y": 1567.56,
+     "w": 244.22,
+     "h": 40,
+     "text": "Read and write your notes from Claude",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1677.89,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1974.5,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "hints": [
+    {
+     "x": 78.69,
+     "y": 457.08,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "Notion’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 547.41,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 78.69,
+     "y": 904.25,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "GitHub’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 994.58,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.github.com) · The model on your phone",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 78.69,
+     "y": 1609.95,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "Claude’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 1700.28,
+     "w": 261.25,
+     "h": 40.16,
+     "text": "Your notes · The internet (ghostmarkdown.com)",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 1996.89,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (hooks.slack.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "rowIcons": [
+    {
+     "x": 35.7,
+     "y": 451.16,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 898.33,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1594.03,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "actions": [
+    {
+     "x": 310.34,
+     "y": 544.02,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 991.19,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1329.03,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1686.84,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1993.5,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "footers": [
+    {
+     "x": 22.31,
+     "y": 629.95,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1077.13,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1395.97,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1762.75,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 2079.44,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "footnote": [
+    {
+     "x": 22.31,
+     "y": 2117.36,
+     "w": 345.38,
+     "h": 60.23,
+     "text": "Plugins ship inside Ghost.md and update with it. There is nothing to install, and nothing here reaches anywhere its card",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.56 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "callout": [],
+   "goWords": []
+  },
+  "why": {
+   "display": [
+    {
+     "x": 22.31,
+     "y": -1193.55,
+     "w": 345.38,
+     "h": 29.05,
+     "text": "Plugins",
+     "size": "25.2722px",
+     "weight": "700",
+     "color": "oklch(0.16 0 0)",
+     "line": "29.0631px"
+    }
+   ],
+   "cards": [
+    {
+     "x": 22.31,
+     "y": -1133.27,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -954.98,
+     "w": 345.38,
+     "h": 320.02,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.Boards for your listsNotion",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -588.12,
+     "w": 345.38,
+     "h": 400.33,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -140.95,
+     "w": 345.38,
+     "h": 272,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 177.89,
+     "w": 345.38,
+     "h": 560.83,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.Read and write your notes from Claud",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 785.56,
+     "w": 345.38,
+     "h": 269.84,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroes": [
+    {
+     "x": 22.31,
+     "y": -1133.27,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -954.98,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -588.12,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -140.95,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 177.89,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 785.56,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroTitles": [
+    {
+     "x": 93.09,
+     "y": -1119.87,
+     "w": 261.2,
+     "h": 30.88,
+     "text": "Plugins",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": -941.59,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Notion",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": -574.73,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "GitHub",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": -127.56,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Marks",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 191.28,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Claude",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 798.95,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Slack",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    }
+   ],
+   "heroMetas": [
+    {
+     "x": 93.09,
+     "y": -1086.61,
+     "w": 261.2,
+     "h": 100.39,
+     "text": "4 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its commands or",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": -908.33,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": -541.47,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Links a note to a repo: its list items become issues you can tick off from either side, and the repo is read on the phon",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": -94.3,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 224.55,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Read, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 832.22,
+     "w": 203.81,
+     "h": 100.39,
+     "text": "Posts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "heroGlyphs": [
+    {
+     "x": 35.7,
+     "y": -1075.05,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -916.84,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -509.83,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -62.66,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 216.03,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 843.78,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "heroIcons": [
+    {
+     "x": 46.7,
+     "y": -1064.05,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": -905.84,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": -498.83,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": -51.66,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 227.03,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 854.78,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "switches": [
+    {
+     "x": 309.3,
+     "y": -896.34,
+     "w": 1,
+     "h": 1,
+     "text": "Notion plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": -489.33,
+     "w": 1,
+     "h": 1,
+     "text": "GitHub plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": -42.16,
+     "w": 1,
+     "h": 1,
+     "text": "Marks plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 236.53,
+     "w": 1,
+     "h": 1,
+     "text": "Claude plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 864.28,
+     "w": 1,
+     "h": 1,
+     "text": "Slack plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    }
+   ],
+   "tracks": [
+    {
+     "x": 310.3,
+     "y": -908.84,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": -501.83,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": -54.66,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 224.03,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 851.78,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "rows": [
+    {
+     "x": 22.31,
+     "y": -834.7,
+     "w": 345.38,
+     "h": 89.33,
+     "text": "Boards for your listsNotion’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -745.37,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -387.53,
+     "w": 345.38,
+     "h": 89.33,
+     "text": "Repos, issues and contextGitHub’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": -298.2,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.github.com) · The model on your phoneWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 59.64,
+     "w": 345.38,
+     "h": 71.41,
+     "text": "What it may reachWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 298.17,
+     "w": 345.38,
+     "h": 109.33,
+     "text": "Read and write your notes from ClaudeClaude’s own page: what it keeps, and how it is set.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 407.5,
+     "w": 345.38,
+     "h": 90.33,
+     "text": "What it may reachYour notes · The internet (ghostmarkdown.com)Less",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 497.83,
+     "w": 345.38,
+     "h": 130.48,
+     "text": "Your notesClaude reads and writes the notes of your account once you sign it in: from outside the phone, through the syn",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 628.31,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "The internetClaude talks to Ghost.md’s sync service and nothing else. This page only carries the instructions.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 946,
+     "w": 345.38,
+     "h": 109.41,
+     "text": "What it may reachYour notes · The internet (hooks.slack.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "labels": [
+    {
+     "x": 78.69,
+     "y": -821.31,
+     "w": 244.22,
+     "h": 20,
+     "text": "Boards for your lists",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -730.98,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 78.69,
+     "y": -374.14,
+     "w": 244.22,
+     "h": 20,
+     "text": "Repos, issues and context",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -283.81,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 85.34,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 78.69,
+     "y": 311.56,
+     "w": 244.22,
+     "h": 40,
+     "text": "Read and write your notes from Claude",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 421.89,
+     "w": 260.45,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 512.22,
+     "w": 318.59,
+     "h": 20,
+     "text": "Your notes",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 642.7,
+     "w": 318.59,
+     "h": 20,
+     "text": "The internet",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 959.39,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "hints": [
+    {
+     "x": 78.69,
+     "y": -798.92,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "Notion’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": -708.59,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 78.69,
+     "y": -351.75,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "GitHub’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": -261.42,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.github.com) · The model on your phone",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 78.69,
+     "y": 353.95,
+     "w": 244.22,
+     "h": 40.16,
+     "text": "Claude’s own page: what it keeps, and how it is set.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 444.28,
+     "w": 260.45,
+     "h": 40.16,
+     "text": "Your notes · The internet (ghostmarkdown.com)",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 534.61,
+     "w": 318.59,
+     "h": 80.31,
+     "text": "Claude reads and writes the notes of your account once you sign it in: from outside the phone, through the sync service,",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 665.09,
+     "w": 318.59,
+     "h": 60.23,
+     "text": "Claude talks to Ghost.md’s sync service and nothing else. This page only carries the instructions.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 981.78,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (hooks.slack.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "rowIcons": [
+    {
+     "x": 35.7,
+     "y": -804.84,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": -357.67,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 338.03,
+     "w": 29.59,
+     "h": 29.59,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "actions": [
+    {
+     "x": 310.34,
+     "y": -711.98,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": -264.81,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 73.03,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.55,
+     "y": 430.84,
+     "w": 44.75,
+     "h": 44.63,
+     "text": "Less",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 978.39,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "footers": [
+    {
+     "x": 22.31,
+     "y": -626.05,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": -178.87,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 139.97,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 747.64,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1064.33,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "footnote": [
+    {
+     "x": 22.31,
+     "y": 1102.25,
+     "w": 345.38,
+     "h": 60.23,
+     "text": "Plugins ship inside Ghost.md and update with it. There is nothing to install, and nothing here reaches anywhere its card",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.56 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "callout": [],
+   "goWords": []
+  },
+  "localOnly": {
+   "display": [
+    {
+     "x": 22.31,
+     "y": 62.45,
+     "w": 345.38,
+     "h": 29.05,
+     "text": "Plugins",
+     "size": "25.2722px",
+     "weight": "700",
+     "color": "oklch(0.16 0 0)",
+     "line": "29.0631px"
+    }
+   ],
+   "cards": [
+    {
+     "x": 22.31,
+     "y": 122.73,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins1 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 387.8,
+     "w": 345.38,
+     "h": 299.94,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.Off while Local only is onI",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 734.58,
+     "w": 345.38,
+     "h": 380.25,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1161.67,
+     "w": 345.38,
+     "h": 272,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1480.52,
+     "w": 345.38,
+     "h": 279.86,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.Off while Local only is onIt uses th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1807.22,
+     "w": 345.38,
+     "h": 340.09,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroes": [
+    {
+     "x": 22.31,
+     "y": 122.73,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "Plugins1 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its comm",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 387.8,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "NotionTurns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 734.58,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "GitHubLinks a note to a repo: its list items become issues you can tick off from either side, and the repo is read on th",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1161.67,
+     "w": 345.38,
+     "h": 200.59,
+     "text": "MarksGhost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a ",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1480.52,
+     "w": 345.38,
+     "h": 120.28,
+     "text": "ClaudeRead, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1807.22,
+     "w": 345.38,
+     "h": 160.44,
+     "text": "SlackPosts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "heroTitles": [
+    {
+     "x": 93.09,
+     "y": 136.13,
+     "w": 261.2,
+     "h": 30.88,
+     "text": "Plugins",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 401.19,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Notion",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 747.97,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "GitHub",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1175.06,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Marks",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1493.91,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Claude",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    },
+    {
+     "x": 93.09,
+     "y": 1820.61,
+     "w": 203.81,
+     "h": 30.88,
+     "text": "Slack",
+     "size": "28.0802px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "30.8883px"
+    }
+   ],
+   "heroMetas": [
+    {
+     "x": 93.09,
+     "y": 169.39,
+     "w": 261.2,
+     "h": 100.39,
+     "text": "1 of 5 on. Each reaches only what its card says. One switched off offers nothing anywhere, not its rows, its commands or",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 434.45,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 781.23,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Links a note to a repo: its list items become issues you can tick off from either side, and the repo is read on the phon",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1208.33,
+     "w": 203.81,
+     "h": 140.55,
+     "text": "Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1527.17,
+     "w": 203.81,
+     "h": 60.23,
+     "text": "Read, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 93.09,
+     "y": 1853.88,
+     "w": 203.81,
+     "h": 100.39,
+     "text": "Posts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "heroGlyphs": [
+    {
+     "x": 35.7,
+     "y": 180.95,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 425.94,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 812.88,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1239.97,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1518.66,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1865.44,
+     "w": 44,
+     "h": 44,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "heroIcons": [
+    {
+     "x": 46.7,
+     "y": 191.95,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 436.94,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 823.88,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1250.97,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1529.66,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    },
+    {
+     "x": 46.7,
+     "y": 1876.44,
+     "w": 22,
+     "h": 22,
+     "text": "",
+     "size": "16px",
+     "weight": "400",
+     "color": "rgb(42, 157, 75)",
+     "line": "normal"
+    }
+   ],
+   "switches": [
+    {
+     "x": 309.3,
+     "y": 446.44,
+     "w": 1,
+     "h": 1,
+     "text": "Notion plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(84, 84, 84)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 833.38,
+     "w": 1,
+     "h": 1,
+     "text": "GitHub plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(84, 84, 84)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1260.47,
+     "w": 1,
+     "h": 1,
+     "text": "Marks plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(0, 0, 0)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1539.16,
+     "w": 1,
+     "h": 1,
+     "text": "Claude plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(84, 84, 84)",
+     "line": "normal"
+    },
+    {
+     "x": 309.3,
+     "y": 1885.94,
+     "w": 1,
+     "h": 1,
+     "text": "Slack plugin",
+     "size": "13.3333px",
+     "weight": "400",
+     "color": "rgb(84, 84, 84)",
+     "line": "normal"
+    }
+   ],
+   "tracks": [
+    {
+     "x": 310.3,
+     "y": 433.94,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 820.88,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1247.97,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1526.66,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.3,
+     "y": 1873.44,
+     "w": 44,
+     "h": 26,
+     "text": "",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "rows": [
+    {
+     "x": 22.31,
+     "y": 508.08,
+     "w": 345.38,
+     "h": 69.25,
+     "text": "Off while Local only is onIt uses the internet. Switch Local only off to use it.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 577.33,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 935.17,
+     "w": 345.38,
+     "h": 69.25,
+     "text": "Off while Local only is onIt uses the internet. Switch Local only off to use it.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1004.42,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (api.github.com) · The model on your phoneWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1362.27,
+     "w": 345.38,
+     "h": 71.41,
+     "text": "What it may reachWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1600.8,
+     "w": 345.38,
+     "h": 69.25,
+     "text": "Off while Local only is onIt uses the internet. Switch Local only off to use it.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1670.05,
+     "w": 345.38,
+     "h": 90.33,
+     "text": "What it may reachYour notes · The internet (ghostmarkdown.com)Why",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 1967.66,
+     "w": 345.38,
+     "h": 69.25,
+     "text": "Off while Local only is onIt uses the internet. Switch Local only off to use it.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 22.31,
+     "y": 2036.91,
+     "w": 345.38,
+     "h": 110.41,
+     "text": "What it may reachYour notes · The internet (hooks.slack.com) · Built-in app commandsWhy",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "labels": [
+    {
+     "x": 35.7,
+     "y": 521.47,
+     "w": 318.59,
+     "h": 20,
+     "text": "Off while Local only is on",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 591.72,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 948.56,
+     "w": 318.59,
+     "h": 20,
+     "text": "Off while Local only is on",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1018.81,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1387.97,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1614.19,
+     "w": 318.59,
+     "h": 20,
+     "text": "Off while Local only is on",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1684.44,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 1981.05,
+     "w": 318.59,
+     "h": 20,
+     "text": "Off while Local only is on",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 35.7,
+     "y": 2051.3,
+     "w": 261.25,
+     "h": 20,
+     "text": "What it may reach",
+     "size": "16.1152px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "hints": [
+    {
+     "x": 35.7,
+     "y": 543.86,
+     "w": 318.59,
+     "h": 20.08,
+     "text": "It uses the internet. Switch Local only off to use it.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 614.11,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 970.95,
+     "w": 318.59,
+     "h": 20.08,
+     "text": "It uses the internet. Switch Local only off to use it.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 1041.2,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (api.github.com) · The model on your phone",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 1636.58,
+     "w": 318.59,
+     "h": 20.08,
+     "text": "It uses the internet. Switch Local only off to use it.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 1706.83,
+     "w": 261.25,
+     "h": 40.16,
+     "text": "Your notes · The internet (ghostmarkdown.com)",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 2003.44,
+     "w": 318.59,
+     "h": 20.08,
+     "text": "It uses the internet. Switch Local only off to use it.",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 35.7,
+     "y": 2073.69,
+     "w": 261.25,
+     "h": 60.23,
+     "text": "Your notes · The internet (hooks.slack.com) · Built-in app commands",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "rowIcons": [],
+   "actions": [
+    {
+     "x": 310.34,
+     "y": 610.72,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1037.81,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1375.66,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 1693.39,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    },
+    {
+     "x": 310.34,
+     "y": 2070.3,
+     "w": 43.95,
+     "h": 44.63,
+     "text": "Why",
+     "size": "16px",
+     "weight": "600",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "footers": [
+    {
+     "x": 22.31,
+     "y": 696.66,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1123.75,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1442.59,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 1769.3,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ships with Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 22.31,
+     "y": 2156.23,
+     "w": 345.38,
+     "h": 20.08,
+     "text": "Ghost.md · version 1.0.0",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.36 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "footnote": [
+    {
+     "x": 22.31,
+     "y": 2194.16,
+     "w": 345.38,
+     "h": 60.23,
+     "text": "Plugins ship inside Ghost.md and update with it. There is nothing to install, and nothing here reaches anywhere its card",
+     "size": "13.3948px",
+     "weight": "400",
+     "color": "oklch(0.56 0 0)",
+     "line": "20.0922px"
+    }
+   ],
+   "callout": [
+    {
+     "x": 22.31,
+     "y": 301.02,
+     "w": 345.38,
+     "h": 68.94,
+     "text": "Local only is on, so plugins that use the internet are held off until it is off.",
+     "size": "16px",
+     "weight": "400",
+     "color": "oklch(0.16 0 0)",
+     "line": "normal"
+    }
+   ],
+   "goWords": [
+    {
+     "x": 36.7,
+     "y": 315.41,
+     "w": 65.38,
+     "h": 20.08,
+     "text": "Local only",
+     "size": "13.3948px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 207.7,
+     "y": 543.86,
+     "w": 65.38,
+     "h": 20.08,
+     "text": "Local only",
+     "size": "13.3948px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 207.7,
+     "y": 970.95,
+     "w": 65.38,
+     "h": 20.08,
+     "text": "Local only",
+     "size": "13.3948px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 207.7,
+     "y": 1636.58,
+     "w": 65.38,
+     "h": 20.08,
+     "text": "Local only",
+     "size": "13.3948px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "20.0922px"
+    },
+    {
+     "x": 207.7,
+     "y": 2003.44,
+     "w": 65.38,
+     "h": 20.08,
+     "text": "Local only",
+     "size": "13.3948px",
+     "weight": "500",
+     "color": "oklch(0.16 0 0)",
+     "line": "20.0922px"
+    }
+   ]
+  }
+ },
+ "listRow": "Plugins4 of 5 on"
+}

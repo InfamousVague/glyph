@@ -1,0 +1,12 @@
+erlang
+-module(geo).
+-export([area/1, start/0]).
+% comment
+-record(point, {x = 0, y = 0.5e3}).
+area({circle, R}) when R > 0 -> math:pi() * R * R;
+area(#point{x = X, y = Y}) -> X * Y;
+area(_) -> erlang:error(badarg).
+start() ->
+    Pid = spawn(fun() -> receive {From, Msg} -> From ! {self(), "ok", 'atom', $c, 16#1F, <<"bin">>} after 1000 -> timeout end end),
+    case lists:map(fun(X) -> X * 2 end, [1, 2, 3]) of [H | _] when H =:= 2 -> ok; _ -> error end,
+    try throw(x) catch _:_ -> ok end, Pid.

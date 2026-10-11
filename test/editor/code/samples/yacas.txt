@@ -1,0 +1,12 @@
+yacas
+/* A function and some algebra */
+Square(x_IsNumber) <-- x * x;
+10 # Fact(0) <-- 1;
+20 # Fact(n_IsPositiveInteger) <-- n * Fact(n - 1);
+f(x) := Sin(x)^2 + 1.5e3;
+// a line comment
+D(x) f(x);
+Solve(x^2 - 4 == 0, x);
+list := {1, 2, "string", a_b};
+ForEach(i, list) [ Echo(i); If(i > 1 And Not IsString(i), Echo("big"), True); ];
+Integrate(x, 0, Pi) Exp(-x) /. {x <- 2};

@@ -1,0 +1,32 @@
+yaml
+# comment
+%YAML 1.2
+---
+name: ghost
+version: 1.5
+count: 0x1F
+enabled: true
+nothing: null
+tilde: ~
+date: 2026-10-10
+quoted: "double \n quoted"
+single: 'single ''quoted'''
+list:
+  - one
+  - two: 2
+    three: [a, b, {c: d}]
+  - &anchor
+    key: value
+  - *anchor
+merged:
+  <<: *anchor
+  ? complex key
+  : complex value
+text: |
+  literal block
+  second line
+folded: >-
+  folded block
+tagged: !!str 123
+url: http://example.com:80/x#frag
+...

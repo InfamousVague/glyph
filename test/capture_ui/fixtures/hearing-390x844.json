@@ -1,0 +1,559 @@
+{
+ "url": "http://127.0.0.1:5278/?simulate",
+ "viewport": {
+  "width": 390,
+  "height": 844,
+  "deviceScaleFactor": 2
+ },
+ "at": {
+  "waitedFor": "two phrases committed, the third a guess: its last line reads \"For the drive we want\"",
+  "ranMs": 5200,
+  "counter": "0:05",
+  "lines": [
+   "Weekend trip0 of 1",
+   "",
+   "- [ ] Book the cabin by Friday and the deposit is 200 dollars",
+   "",
+   "For the drive we want"
+  ],
+  "chip": null,
+  "chipPhase": null
+ },
+ "rects": {
+  "screen": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 844
+  },
+  "top": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 75.859375
+  },
+  "mic": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "micIcon": {
+   "x": 22.3125,
+   "y": 33.15625,
+   "width": 14,
+   "height": 14
+  },
+  "where": {
+   "x": 54.15625,
+   "y": 13.390625,
+   "width": 60.875,
+   "height": 53.546875
+  },
+  "counter": {
+   "x": 338.03125,
+   "y": 32.15625,
+   "width": 29.65625,
+   "height": 16
+  },
+  "headerBlur": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 28
+  },
+  "body": {
+   "x": 22.3125,
+   "y": 0,
+   "width": 345.375,
+   "height": 763.6875
+  },
+  "livePage": {
+   "x": 0,
+   "y": 0,
+   "width": 390,
+   "height": 763.6875
+  },
+  "editor": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 687.6875
+  },
+  "content": {
+   "x": 0,
+   "y": 76,
+   "width": 390,
+   "height": 687.6875
+  },
+  "footer": {
+   "x": 22.3125,
+   "y": 763.6875,
+   "width": 345.375,
+   "height": 80.3125
+  },
+  "discard": {
+   "x": 22.3125,
+   "y": 772.609375,
+   "width": 57.96875,
+   "height": 53.546875
+  },
+  "done": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "doneIcon": {
+   "x": 275.75,
+   "y": 791.375,
+   "width": 16,
+   "height": 16
+  },
+  "meter": {
+   "x": 248.984375,
+   "y": 772.609375,
+   "width": 118.703125,
+   "height": 53.546875
+  },
+  "line0": {
+   "x": 0,
+   "y": 98.3125,
+   "width": 390,
+   "height": 39.921875
+  },
+  "line1": {
+   "x": 0,
+   "y": 138.234375,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line2": {
+   "x": 0,
+   "y": 166.15625,
+   "width": 390,
+   "height": 83.765625
+  },
+  "line3": {
+   "x": 0,
+   "y": 249.921875,
+   "width": 390,
+   "height": 27.921875
+  },
+  "line4": {
+   "x": 0,
+   "y": 277.84375,
+   "width": 390,
+   "height": 27.921875
+  }
+ },
+ "text": {
+  "top": {
+   "text": "New note0:05",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "where": {
+   "text": "New note",
+   "color": "oklch(0.56 0 0)",
+   "colorRgb": "rgb(116, 116, 116)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.6 0 0)",
+   "colorDarkRgb": "rgb(128, 128, 128)"
+  },
+  "counter": {
+   "text": "0:05",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "13.3948px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "body": {
+   "text": "Weekend trip0 of 1- [ ] Book the cabin by Friday and the deposit is 200 dollarsFor the drive we want",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "livePage": {
+   "text": "Weekend trip0 of 1- [ ] Book the cabin by Friday and the deposit is 200 dollarsFor the drive we want",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "editor": {
+   "text": "Weekend trip0 of 1- [ ] Book the cabin by Friday and the deposit is 200 dollarsFor the drive we want",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "content": {
+   "text": "Weekend trip0 of 1- [ ] Book the cabin by Friday and the deposit is 200 dollarsFor the drive we want",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "footer": {
+   "text": "DiscardDone",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "400",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "discard": {
+   "text": "Discard",
+   "color": "oklch(0.36 0 0)",
+   "colorRgb": "rgb(61, 61, 61)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16px",
+   "fontWeight": "500",
+   "lineHeight": "normal",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.8 0 0)",
+   "colorDarkRgb": "rgb(189, 190, 190)"
+  },
+  "done": {
+   "text": "Done",
+   "color": "oklch(0.995 0 0)",
+   "colorRgb": "rgb(253, 253, 253)",
+   "fontFamily": "\"Inter Variable\", ui-sans-serif, system-ui, -apple-system, \"Segoe UI\", sans-serif",
+   "fontSize": "16.1152px",
+   "fontWeight": "600",
+   "lineHeight": "normal",
+   "letterSpacing": "-0.0805757px",
+   "colorDark": "oklch(0.11 0 0)",
+   "colorDarkRgb": "rgb(4, 4, 4)"
+  },
+  "line0": {
+   "text": "Weekend trip0 of 1",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line2": {
+   "text": "- [ ] Book the cabin by Friday and the deposit is 200 dollars",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line4": {
+   "text": "For the drive we want",
+   "color": "oklch(0.16 0 0)",
+   "colorRgb": "rgb(13, 13, 13)",
+   "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+   "fontSize": "17.4507px",
+   "fontWeight": "400",
+   "lineHeight": "27.9211px",
+   "letterSpacing": "normal",
+   "colorDark": "oklch(0.965 0 0)",
+   "colorDarkRgb": "rgb(243, 243, 243)"
+  }
+ },
+ "box": {
+  "screen": {
+   "padding": "0px 22.3173px 0px 22.3173px",
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "top": {
+   "padding": "13.3907px 22.3173px 8.92667px 22.3173px",
+   "background": "color(srgb 0.993282 0.993463 0.99348 / 0.66)",
+   "gap": "17.8529px",
+   "backgroundRgb": "rgba(253, 253, 253, 0.659)",
+   "backgroundDark": "color(srgb 0.0171915 0.0171986 0.0171993 / 0.66)",
+   "backgroundDarkRgb": "rgba(5, 5, 5, 0.659)"
+  },
+  "where": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "counter": {
+   "margin": "0px 0px 0px 205.156px"
+  },
+  "headerBlur": {
+   "opacity": "0"
+  },
+  "livePage": {
+   "padding": "76px 0px 0px 0px",
+   "margin": "0px -22.3173px 0px -22.3173px"
+  },
+  "editor": {
+   "background": "oklch(0.995 0 0)",
+   "backgroundRgb": "rgb(253, 253, 253)",
+   "backgroundDark": "oklch(0.11 0 0)",
+   "backgroundDarkRgb": "rgb(4, 4, 4)"
+  },
+  "content": {
+   "padding": "22.3173px 0px 107.12px 0px"
+  },
+  "footer": {
+   "padding": "8.92667px 0px 17.8529px 0px"
+  },
+  "discard": {
+   "padding": "8.92667px 0px 8.92667px 0px"
+  },
+  "done": {
+   "padding": "0px 26.7796px 0px 26.7796px",
+   "borderRadius": "9999px",
+   "background": "oklch(0.16 0 0)",
+   "gap": "8.92667px",
+   "backgroundRgb": "rgb(13, 13, 13)",
+   "backgroundDark": "oklch(0.965 0 0)",
+   "backgroundDarkRgb": "rgb(243, 243, 243)"
+  },
+  "meter": {
+   "borderWidth": "2px 2px 2px 2px",
+   "borderStyle": "solid solid solid solid",
+   "borderColor": "oklch(0.16 0 0)",
+   "borderRadius": "9999px",
+   "opacity": "0.25",
+   "ownWidth": 119,
+   "ownHeight": 54,
+   "borderColorRgb": "rgb(13, 13, 13)",
+   "borderColorDark": "oklch(0.965 0 0)",
+   "borderColorDarkRgb": "rgb(243, 243, 243)"
+  },
+  "line0": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line1": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line2": {
+   "padding": "0px 22.3173px 0px 85.1773px"
+  },
+  "line3": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  },
+  "line4": {
+   "padding": "0px 22.3173px 0px 22.3173px"
+  }
+ },
+ "runs": {
+  "line0": [
+   {
+    "text": "Weekend trip",
+    "classes": "_h1_3xzvf_6",
+    "x": 22.3125,
+    "y": 93.3125,
+    "width": 263.59375,
+    "height": 48,
+    "color": "color(srgb 0.0517453 0.0517638 0.0517655 / 0.88)",
+    "colorRgb": "rgba(13, 13, 13, 0.878)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "36.6157px",
+    "fontWeight": "700",
+    "lineHeight": "39.5449px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": "0 of 1",
+    "classes": "cm-headingCount",
+    "x": 293.9375,
+    "y": 115.703125,
+    "width": 48.21875,
+    "height": 18,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "13.3948px",
+    "fontWeight": "500",
+    "lineHeight": "21.4317px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line1": [],
+  "line2": [
+   {
+    "text": "-",
+    "classes": "_list_3xzvf_187 _mark_3xzvf_6",
+    "x": 22.3125,
+    "y": 168.15625,
+    "width": 10.484375,
+    "height": 23,
+    "color": "oklch(0.56 0 0)",
+    "colorRgb": "rgb(116, 116, 116)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": " ",
+    "classes": "_list_3xzvf_187",
+    "x": 32.796875,
+    "y": 168.15625,
+    "width": 10.484375,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": "[ ]",
+    "classes": "_list_3xzvf_187 _taskMarker_3xzvf_205",
+    "x": 43.28125,
+    "y": 168.15625,
+    "width": 31.421875,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "500",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   },
+   {
+    "text": " Book the cabin by Friday and the deposit is 200 dollars",
+    "classes": "_list_3xzvf_187 _list_3xzvf_187",
+    "x": 74.703125,
+    "y": 168.15625,
+    "width": 272.234375,
+    "height": 78.84375,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ],
+  "line3": [],
+  "line4": [
+   {
+    "text": "For the drive we want",
+    "classes": "cm-line",
+    "x": 22.3125,
+    "y": 279.84375,
+    "width": 219.875,
+    "height": 23,
+    "color": "oklch(0.16 0 0)",
+    "colorRgb": "rgb(13, 13, 13)",
+    "fontFamily": "\"Maple Mono\", ui-monospace, \"SF Mono\", Menlo, monospace",
+    "fontSize": "17.4507px",
+    "fontWeight": "400",
+    "lineHeight": "27.9211px",
+    "letterSpacing": "normal"
+   }
+  ]
+ },
+ "scroll": {
+  "scrollTop": 0,
+  "scrollHeight": 764,
+  "clientHeight": 764
+ },
+ "vars": {
+  "--app-safe-top": {
+   "written": "calc(0px + 0px)",
+   "px": 0
+  },
+  "--app-safe-bottom": {
+   "written": "0px",
+   "px": 0
+  },
+  "--app-gutter-start": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter-end": {
+   "written": "calc(0px + calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1))",
+   "px": 22.3125
+  },
+  "--app-gutter": {
+   "written": "calc(clamp(1.25rem, 1.1678rem + 0.4112vw, 1.5625rem) * 1.1)",
+   "px": 22.3125
+  },
+  "--recorder-top": {
+   "written": "76px",
+   "px": 76
+  }
+ },
+ "html": {
+  "data-theme": "light",
+  "data-platform": "desktop",
+  "data-note-font": "maple",
+  "data-code-light": "pastel",
+  "data-code-dark": "pastel"
+ },
+ "rootData": {
+  "phase": "listening"
+ },
+ "animations": [
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  },
+  {
+   "name": "",
+   "target": "ring",
+   "endless": false,
+   "heldAt": "end"
+  }
+ ]
+}

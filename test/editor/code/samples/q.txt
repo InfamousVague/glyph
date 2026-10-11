@@ -1,0 +1,11 @@
+q
+/ a table and a query
+t:([] sym:`a`b`c; price:1.5 2 3e2; size:10 20 30i)
+f:{[x;y] x+y*2}
+select avg price, sum size by sym from t where price>1, sym in `a`b
+update vwap:size wavg price from `t
+\l script.q
+s:"a string with \"quotes\""
+d:`k1`k2!(1b;2024.01.01D12:00:00)
+if[count[t]>2; -1 "big"; :0N]
+g:{$[x<0; neg x; x=0; 0; x]} each -1 0 1

@@ -1,0 +1,367 @@
+{
+ "now": 1791388800000,
+ "width": 1280,
+ "height": 800,
+ "things": {
+  "bar": [
+   {
+    "x": 0,
+    "y": 0,
+    "w": 1280,
+    "h": 132.75,
+    "text": "Ghost"
+   }
+  ],
+  "back": [
+   {
+    "x": 15.8,
+    "y": 77.97,
+    "w": 42.14,
+    "h": 42.14,
+    "text": "Back to home"
+   }
+  ],
+  "titleHue": [
+   {
+    "x": 68.47,
+    "y": 92.48,
+    "w": 13.08,
+    "h": 13.08,
+    "text": ""
+   }
+  ],
+  "title": [
+   {
+    "x": 92.08,
+    "y": 86.03,
+    "w": 58.66,
+    "h": 26,
+    "text": "Ghost"
+   }
+  ],
+  "cogs": [
+   {
+    "x": 1150.42,
+    "y": 75.86,
+    "w": 46.36,
+    "h": 46.36,
+    "text": "Audit log"
+   },
+   {
+    "x": 1207.31,
+    "y": 75.86,
+    "w": 46.36,
+    "h": 46.36,
+    "text": "Organization settings"
+   }
+  ],
+  "pills": [
+   {
+    "x": 26.33,
+    "y": 154.06,
+    "w": 79.8,
+    "h": 28.91,
+    "text": "Ghost"
+   },
+   {
+    "x": 116.66,
+    "y": 154.06,
+    "w": 82.94,
+    "h": 28.91,
+    "text": "Studio"
+   }
+  ],
+  "hero": [
+   {
+    "x": 26.33,
+    "y": 204.03,
+    "w": 1227.34,
+    "h": 147.31,
+    "text": "Ghost"
+   }
+  ],
+  "heroHue": [
+   {
+    "x": 53.66,
+    "y": 251.69,
+    "w": 52,
+    "h": 52,
+    "text": ""
+   }
+  ],
+  "heroName": [
+   {
+    "x": 126.72,
+    "y": 231.36,
+    "w": 895.2,
+    "h": 38.61,
+    "text": "Ghost"
+   }
+  ],
+  "heroMeta": [
+   {
+    "x": 126.72,
+    "y": 275.23,
+    "w": 895.2,
+    "h": 17,
+    "text": "2 members · You are owner"
+   }
+  ],
+  "heroNote": [
+   {
+    "x": 126.72,
+    "y": 302.77,
+    "w": 895.2,
+    "h": 21.25,
+    "text": "Notes filed here are the team’s: everyone in it reads and edits them, and edits "
+   }
+  ],
+  "heroActions": [
+   {
+    "x": 1042.98,
+    "y": 259.69,
+    "w": 83.25,
+    "h": 36,
+    "text": "New in this organization"
+   },
+   {
+    "x": 1136.77,
+    "y": 259.69,
+    "w": 89.58,
+    "h": 36,
+    "text": "Invite"
+   }
+  ],
+  "headings": [
+   {
+    "x": 26.33,
+    "y": 416.59,
+    "w": 85.67,
+    "h": 17,
+    "text": "Notes2"
+   },
+   {
+    "x": 862.11,
+    "y": 393.48,
+    "w": 110.08,
+    "h": 17,
+    "text": "Members2"
+   },
+   {
+    "x": 26.33,
+    "y": 695.25,
+    "w": 78.23,
+    "h": 17,
+    "text": "Activity"
+   }
+  ],
+  "mores": [
+   {
+    "x": 698.92,
+    "y": 393.48,
+    "w": 110.52,
+    "h": 63.22,
+    "text": "In its workspace"
+   },
+   {
+    "x": 749.06,
+    "y": 672.14,
+    "w": 60.38,
+    "h": 63.22,
+    "text": "Audit log"
+   }
+  ],
+  "cards": [
+   {
+    "x": 26.33,
+    "y": 472.5,
+    "w": 250.5,
+    "h": 157.5,
+    "text": "Standupyesterday: shipped1 hr ago"
+   },
+   {
+    "x": 292.63,
+    "y": 472.5,
+    "w": 250.5,
+    "h": 157.5,
+    "text": "Roadmap- ship2 hr ago"
+   }
+  ],
+  "members": [
+   {
+    "x": 862.11,
+    "y": 426.28,
+    "w": 391.55,
+    "h": 73.98,
+    "text": "MmattOwnerYou, owner since Sunday"
+   },
+   {
+    "x": 862.11,
+    "y": 500.27,
+    "w": 391.55,
+    "h": 73.98,
+    "text": "SsamMemberjoined Monday"
+   },
+   {
+    "x": 862.11,
+    "y": 574.25,
+    "w": 391.55,
+    "h": 73.98,
+    "text": "LleeInvitedInvited by matt 1 hr ago"
+   }
+  ],
+  "avatars": [
+   {
+    "x": 862.11,
+    "y": 444.77,
+    "w": 36,
+    "h": 36,
+    "text": "M"
+   },
+   {
+    "x": 862.11,
+    "y": 518.75,
+    "w": 36,
+    "h": 36,
+    "text": "S"
+   },
+   {
+    "x": 862.11,
+    "y": 592.73,
+    "w": 36,
+    "h": 36,
+    "text": "L"
+   }
+  ],
+  "handles": [
+   {
+    "x": 913.91,
+    "y": 442.08,
+    "w": 168.98,
+    "h": 22,
+    "text": "mattOwner"
+   },
+   {
+    "x": 913.91,
+    "y": 516.06,
+    "w": 104.06,
+    "h": 22,
+    "text": "samMember"
+   },
+   {
+    "x": 913.91,
+    "y": 590.05,
+    "w": 155.22,
+    "h": 22,
+    "text": "leeInvited"
+   }
+  ],
+  "roles": [
+   {
+    "x": 961.48,
+    "y": 443.8,
+    "w": 49.66,
+    "h": 20.28,
+    "text": "Owner"
+   },
+   {
+    "x": 959.06,
+    "y": 517.78,
+    "w": 58.91,
+    "h": 20.28,
+    "text": "Member"
+   },
+   {
+    "x": 949.09,
+    "y": 591.77,
+    "w": 50.23,
+    "h": 20.28,
+    "text": "Invited"
+   }
+  ],
+  "sinces": [
+   {
+    "x": 913.91,
+    "y": 466.47,
+    "w": 168.98,
+    "h": 17,
+    "text": "You, owner since Sunday"
+   },
+   {
+    "x": 913.91,
+    "y": 540.45,
+    "w": 104.06,
+    "h": 17,
+    "text": "joined Monday"
+   },
+   {
+    "x": 913.91,
+    "y": 614.44,
+    "w": 155.22,
+    "h": 17,
+    "text": "Invited by matt 1 hr ago"
+   }
+  ],
+  "yourColour": [
+   {
+    "x": 862.11,
+    "y": 685.09,
+    "w": 391.55,
+    "h": 120.25,
+    "text": "Your colourYour account’s, from Settings."
+   }
+  ],
+  "inviteInput": [
+   {
+    "x": 862.11,
+    "y": 826.41,
+    "w": 313.81,
+    "h": 44,
+    "text": "Invite by handle"
+   }
+  ],
+  "inviteButton": [
+   {
+    "x": 1186.45,
+    "y": 830.41,
+    "w": 67.2,
+    "h": 36,
+    "text": "Invite"
+   }
+  ],
+  "linkRows": [
+   {
+    "x": 862.11,
+    "y": 929.53,
+    "w": 391.55,
+    "h": 58.06,
+    "text": "Link ending 12345Stops in 7 days · none joined yet"
+   }
+  ],
+  "newLink": [
+   {
+    "x": 862.11,
+    "y": 998.13,
+    "w": 108.59,
+    "h": 36,
+    "text": "New link"
+   }
+  ],
+  "news": [
+   {
+    "x": 26.33,
+    "y": 751.16,
+    "w": 783.11,
+    "h": 49.59,
+    "text": "matt made you an admin of Ghost1 hr ago"
+   },
+   {
+    "x": 26.33,
+    "y": 800.75,
+    "w": 783.11,
+    "h": 49.59,
+    "text": "sam joined GhostMonday"
+   }
+  ]
+ }
+}

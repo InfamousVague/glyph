@@ -1,0 +1,26 @@
+crystal
+# A struct, a macro and a block
+require "json"
+
+module Shapes
+  struct Point
+    getter x : Int32, y : Int32
+    def initialize(@x, @y = 0); end
+
+    def +(other : Point) : Point
+      Point.new(x + other.x, y + other.y)
+    end
+  end
+
+  macro define(name, value)
+    def {{name.id}}; {{value}}; end
+  end
+end
+
+points = [Shapes::Point.new(1, 2), Shapes::Point.new(3)]
+total = points.sum(&.x)
+puts "total: #{total} #{:sym} #{'c'} #{0x1f_u8} #{1.5e3}"
+if total > 3 && !points.empty?
+  h = {"a" => 1, :b => nil} of String | Symbol => Int32?
+  %w(a b c).each_with_index { |s, i| p s, i }
+end

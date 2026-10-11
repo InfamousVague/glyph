@@ -1,0 +1,75 @@
+Two changes to yrs 0.26.0 that make its undo answer as Yjs's does in two of the three places where it does not
+(native/src/crdt.rs, `Undo`, "Where yrs 0.26 is not Yjs"; docs/PARITY.md, Differs 26). NOT APPLIED: the core is
+built with yrs as it is released, and says where that differs. This is what closing two of the differences takes,
+measured, for whoever decides to carry a patched yrs.
+
+1. src/store.rs `follow_redone`: a block put in again is followed with its offset, as Yjs's `followRedone` carries
+   `diff`. Without it a step whose letters are the tail of a run deleted and put back twice takes back the head of
+   the run too (test/live/undo_beside_others_test.dart, "letters of two steps deleted together and put back
+   twice"). With it crdt.rs's own following of positions (`again`, `followed`) is no longer needed.
+2. src/undo.rs `pop`: each run of a step's letters is cut as it is reached, as Yjs's `iterateDeletedStructs` cuts
+   as it goes, where yrs reads every cut first and makes them after. Without it a step whose letters are two runs
+   of one block overflows (and in a release build writes a block of a length it does not have), which is why
+   crdt.rs lets the steps go when words reach a note while its editor is bound (`undo_forget`). With it that can
+   be taken out, and the page's answer there (the steps kept) is this app's.
+
+Measured 2026-10-11, with crdt.rs as it is: of 2,000 drawn scenarios of two members, forty steps each, each run
+with the first member's client id the lower and again the higher (4,000 runs; GHOST_UNDO_SCENARIOS=2000 flutter
+test test/live/undo_beside_others_test.dart), yrs as released parts from the page in 7 runs (scenarios 438, 696
+and 1424 either way, by the first of these; 328 one way, by the third difference), and with this patch in 1 (328).
+The third, which this does not touch: yrs leaves a block cut where Yjs joins it again (src/store.rs `materialize`,
+"todo: txn merge blocks insert?"), so a run put back by an undo can be two runs where Yjs's is one.
+
+To try it: copy the crate (~/.cargo/registry/src/*/yrs-0.26.0, less its benches and their [[bench]] entries in
+Cargo.toml) to native/vendor/yrs, apply this there (patch -p1), and add `yrs = { path = "vendor/yrs" }` under
+[patch.crates-io] in native/Cargo.toml.
+
+--- a/src/store.rs
++++ b/src/store.rs
+@@ -358,7 +358,12 @@
+         while let Some(next) = next_id.as_mut() {
+             slice = self.blocks.get_item_clean_start(next);
+             if let Some(slice) = &slice {
+-                next_id = slice.ptr.redone;
++                // Yjs's `followRedone` carries `diff`: an id that falls inside a block is followed as far
++                // inside the block that one was put in again as, not to its start.
++                next_id = slice
++                    .ptr
++                    .redone
++                    .map(|redone| ID::new(redone.client, redone.clock + slice.start));
+             } else {
+                 break;
+             }
+--- a/src/undo.rs
++++ b/src/undo.rs
+@@ -756,17 +756,22 @@
+             let mut to_delete = Vec::<ItemPtr>::new();
+             let mut change_performed = false;
+ 
+-            let deleted: Vec<_> = item.insertions.blocks().collect(txn);
+-            for slice in deleted {
++            // Each run is cut as it is reached (Yjs's `iterateDeletedStructs` cuts as it goes): cut from a list
++            // read beforehand, a second run of one block is cut by places the first cut has moved.
++            let mut inserted = item.insertions.blocks();
++            while let Some(slice) = inserted.next(txn) {
+                 if let BlockSlice::Item(slice) = slice {
+-                    let mut item = txn.store.materialize(slice);
+-                    if item.redone.is_some() {
+-                        let slice = txn.store_mut().follow_redone(item.id())?;
+-                        item = txn.store.materialize(slice);
++                    let mut block = txn.store.materialize(slice);
++                    if block.redone.is_some() {
++                        let slice = txn.store_mut().follow_redone(block.id())?;
++                        block = txn.store.materialize(slice);
+                     }
+ 
+-                    if !item.is_deleted() && scope.iter().any(|b| b.is_parent_of(Some(item))) {
+-                        to_delete.push(item);
++                    if !block.is_deleted()
++                        && scope.iter().any(|b| b.is_parent_of(Some(block)))
++                        && !to_delete.contains(&block)
++                    {
++                        to_delete.push(block);
+                     }
+                 }
+             }

@@ -1,0 +1,349 @@
+{
+ "sections": [
+  {
+   "x": 22.31,
+   "y": 0,
+   "w": 345.38,
+   "h": 267.61,
+   "text": "ReposRepos the model on your phone has read. A note linked to one is formatted knowing its",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  },
+  {
+   "x": 22.31,
+   "y": 285.45,
+   "w": 345.38,
+   "h": 292.97,
+   "text": "TokenA token lets Ghost.md read private repos and make and close issues from your notes. I",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "titles": [
+  {
+   "x": 22.31,
+   "y": 0,
+   "w": 345.38,
+   "h": 14,
+   "text": "Repos",
+   "size": 11.52,
+   "weight": "600",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "pad": "0px 8.92667px 0px 8.92667px",
+   "opacity": "1"
+  },
+  {
+   "x": 22.31,
+   "y": 285.45,
+   "w": 345.38,
+   "h": 14,
+   "text": "Token",
+   "size": 11.52,
+   "weight": "600",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "pad": "0px 8.92667px 0px 8.92667px",
+   "opacity": "1"
+  }
+ ],
+ "descs": [
+  {
+   "x": 22.31,
+   "y": 22.92,
+   "w": 345.38,
+   "h": 60.23,
+   "text": "Repos the model on your phone has read. A note linked to one is formatted knowing its name",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "pad": "0px 8.92667px 0px 8.92667px",
+   "opacity": "1"
+  },
+  {
+   "x": 22.31,
+   "y": 308.38,
+   "w": 345.38,
+   "h": 60.23,
+   "text": "A token lets Ghost.md read private repos and make and close issues from your notes. It sta",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "pad": "0px 8.92667px 0px 8.92667px",
+   "opacity": "1"
+  }
+ ],
+ "cards": [
+  {
+   "x": 22.31,
+   "y": 92.08,
+   "w": 345.38,
+   "h": 175.53,
+   "text": "No repos yet.Open a note, tap More, and choose GitHub repo to link one.",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  },
+  {
+   "x": 22.31,
+   "y": 377.53,
+   "w": 345.38,
+   "h": 200.89,
+   "text": "No tokenPublic repos are read without one, but sending list items as issues needs it.Keep ",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "rows": [
+  {
+   "x": 22.31,
+   "y": 377.53,
+   "w": 345.38,
+   "h": 200.89,
+   "text": "No tokenPublic repos are read without one, but sending list items as issues needs it.Keep ",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "13.3907px 13.3907px 13.3907px 13.3907px",
+   "opacity": "1"
+  }
+ ],
+ "labels": [
+  {
+   "x": 35.7,
+   "y": 390.92,
+   "w": 318.59,
+   "h": 20,
+   "text": "No token",
+   "size": 16.12,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "hints": [
+  {
+   "x": 35.7,
+   "y": 413.31,
+   "w": 318.59,
+   "h": 40.16,
+   "text": "Public repos are read without one, but sending list items as issues needs it.",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "icons": [],
+ "controls": [],
+ "wides": [
+  {
+   "x": 35.7,
+   "y": 466.86,
+   "w": 318.59,
+   "h": 98.17,
+   "text": "Keep it",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "actions": [
+  {
+   "x": 292.34,
+   "y": 520.41,
+   "w": 61.95,
+   "h": 44.63,
+   "text": "Keep it",
+   "size": 16,
+   "weight": "600",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "pad": "8.92667px 4.464px 8.92667px 4.464px",
+   "opacity": "1"
+  }
+ ],
+ "inputs": [
+  {
+   "x": 35.7,
+   "y": 466.86,
+   "w": 318.59,
+   "h": 44.63,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "1px 1px oklch(0.86 0 0)",
+   "radius": "10px",
+   "pad": "1px 13.3907px 1px 13.3907px",
+   "opacity": "1"
+  }
+ ],
+ "empty": [
+  {
+   "x": 22.31,
+   "y": 92.08,
+   "w": 345.38,
+   "h": 175.53,
+   "text": "No repos yet.Open a note, tap More, and choose GitHub repo to link one.",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "pad": "26.7796px 17.8529px 26.7796px 17.8529px",
+   "opacity": "1"
+  }
+ ],
+ "emptyIcon": [
+  {
+   "x": 173,
+   "y": 118.84,
+   "w": 44,
+   "h": 44,
+   "text": "",
+   "size": 16,
+   "weight": "400",
+   "color": "rgb(95, 99, 104)",
+   "line": "normal",
+   "bg": "color(srgb 0.372549 0.388235 0.407843 / 0.16)",
+   "border": "0px 0px rgb(95, 99, 104)",
+   "radius": "16px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "emptyTitle": [
+  {
+   "x": 144.3,
+   "y": 171.77,
+   "w": 101.39,
+   "h": 20,
+   "text": "No repos yet.",
+   "size": 16,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "emptyBody": [
+  {
+   "x": 40.16,
+   "y": 200.69,
+   "w": 309.69,
+   "h": 40.16,
+   "text": "Open a note, tap More, and choose GitHub repo to link one.",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "pad": "0px 0px 0px 0px",
+   "opacity": "1"
+  }
+ ],
+ "footnote": [
+  {
+   "x": 22.31,
+   "y": 596.27,
+   "w": 345.38,
+   "h": 60.23,
+   "text": "Only the repo goes to the model, and the model runs on your phone. Issues carry the words ",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "pad": "0px 8.92667px 0px 8.92667px",
+   "opacity": "1"
+  }
+ ],
+ "callout": [],
+ "host": [
+  {
+   "pad": "0px 22.3173px 0px 22.3173px",
+   "border": "0px",
+   "gap": "17.8529px",
+   "htmlTheme": "light",
+   "bg": "rgba(0, 0, 0, 0)",
+   "stageBg": "oklch(0.995 0 0)"
+  }
+ ]
+}

@@ -1,0 +1,8 @@
+r
+# comment
+library(stats)
+square <- function(x, n = 2L, ...) { if (is.null(x) || !is.numeric(x)) stop("bad") else x^n }
+xs <- c(1, 2.5e3, 0x1F, NA, TRUE, Inf); names(xs) <- c("a", 'b')
+for (i in seq_along(xs)) { while (FALSE) next; repeat break }
+df <- data.frame(x = 1:10, y = rnorm(10)) |> subset(x %% 2 == 0)
+result = sapply(xs, \(v) v * 2); ys = xs[xs > 1 & !is.na(xs)]; df$x; pkg::fn(1i)

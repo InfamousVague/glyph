@@ -1,0 +1,9 @@
+webassembly
+(module
+  ;; comment
+  (; block ;)
+  (import "env" "log" (func $log (param i32)))
+  (memory (export "mem") 1)
+  (func $add (export "add") (param $a i32) (param $b i32) (result i32)
+    local.get $a local.get $b i32.add (if (result i32) (i32.const 0x1F) (then (f64.const 1.5e3) drop (i32.const 1)) (else (i32.const 0))))
+  (data (i32.const 0) "hi\n"))

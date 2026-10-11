@@ -1,0 +1,13 @@
+fsharp
+// comment
+(* block *)
+module Geo
+open System
+type Shape = | Circle of float | Rect of w: float * h: float
+[<Literal>]
+let Pi = 3.14159
+let rec area shape = match shape with | Circle r when r > 0.0 -> Pi * r * r | Rect (w, h) -> w * h | _ -> failwith "no"
+let xs = [1; 2; 0x1F] |> List.map (fun x -> x * 2) |> List.filter (fun n -> n % 2 = 0)
+let mutable s = sprintf "sum %d %s" (List.sum xs) "str\n" + @"verbatim" + """triple"""
+type Point(x: float, y: float) = member this.X = x; member _.Norm() = sqrt (x * x + y * y); interface IDisposable with member _.Dispose() = ()
+async { let! v = fetch () in return v } |> ignore

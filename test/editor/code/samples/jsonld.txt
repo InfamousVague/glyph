@@ -1,0 +1,15 @@
+jsonld
+{
+  "@context": {
+    "name": "http://schema.org/name",
+    "homepage": { "@id": "http://schema.org/url", "@type": "@id" }
+  },
+  "@id": "http://example.org/people#alice",
+  "@type": ["Person", "Thing"],
+  "name": "Alice",
+  "age": 42,
+  "ratio": -1.5e3,
+  "active": true,
+  "spouse": null,
+  "homepage": "http://example.org/~alice"
+}

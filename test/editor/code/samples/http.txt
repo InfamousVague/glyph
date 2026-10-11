@@ -1,0 +1,7 @@
+http
+POST /api/notes?id=1 HTTP/1.1
+Host: example.com
+Content-Type: application/json
+Authorization: Bearer abc.def
+
+{"title": "x"}

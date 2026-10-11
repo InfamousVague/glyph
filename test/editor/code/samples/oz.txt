@@ -1,0 +1,21 @@
+oz
+% A function and a thread
+declare
+fun {Fact N}
+   if N =< 1 then 1
+   else N * {Fact N-1}
+   end
+end
+proc {Show X Y}
+   {Browse X#Y}
+end
+local Xs = [1 2 3] S = "string" A = 'atom' F = 1.5e3 C = &a in
+   thread {Show {Map Xs Fact} S} end
+   case Xs of H|T then {Show H T} [] nil then skip end
+   /* comment */
+   try raise error(A F C) end catch error(...) then skip finally {Show true false} end
+end
+class Counter from BaseObject
+   attr val: 0
+   meth inc() val := @val + 1 end
+end

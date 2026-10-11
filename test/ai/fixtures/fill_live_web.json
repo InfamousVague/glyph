@@ -1,0 +1,3671 @@
+[
+ {
+  "text": "Weather in Lisbon today: {?weather}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "weather",
+  "clause": "Weather in Lisbon today"
+ },
+ {
+  "text": "Weather in Lisbon: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Weather Lisbon",
+  "clause": "Weather in Lisbon"
+ },
+ {
+  "text": "The weather in Tokyo is {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Tokyo",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "weather Tokyo",
+  "clause": "The weather in Tokyo is"
+ },
+ {
+  "text": "The forecast for New York: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "New York",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "forecast New York",
+  "clause": "The forecast for New York"
+ },
+ {
+  "text": "The forecast for New York tomorrow: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "New York",
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "forecast New York tomorrow",
+  "clause": "The forecast for New York tomorrow"
+ },
+ {
+  "text": "A return flight London to Tokyo costs {?price today}",
+  "live": {
+   "2024": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   },
+   "2026": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "price today",
+  "clause": "A return flight London to Tokyo costs"
+ },
+ {
+  "text": "Cheapest flight to Lisbon today: {?}",
+  "live": {
+   "2024": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   },
+   "2026": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Cheapest flight Lisbon today",
+  "clause": "Cheapest flight to Lisbon today"
+ },
+ {
+  "text": "The cheapest hotel in Porto tomorrow night is {?}",
+  "live": {
+   "2024": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   },
+   "2026": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Porto",
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "cheapest hotel Porto tomorrow night",
+  "clause": "The cheapest hotel in Porto tomorrow night is"
+ },
+ {
+  "text": "The 2026 World Cup was won by {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2026 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "2026 World Cup won",
+  "clause": "The 2026 World Cup was won by"
+ },
+ {
+  "text": "The 2025 World Cup was won by {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2025 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "2025 World Cup won",
+  "clause": "The 2025 World Cup was won by"
+ },
+ {
+  "text": "The 2022 World Cup was won by {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "2022 World Cup won",
+  "clause": "The 2022 World Cup was won by"
+ },
+ {
+  "text": "100 dollars is {?how many yen} yen.",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 100,
+   "from": "USD",
+   "to": "JPY"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "many yen",
+  "clause": "100 dollars is"
+ },
+ {
+  "text": "€250 in pounds: {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 250,
+   "from": "EUR",
+   "to": "GBP"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "250 pounds",
+  "clause": "€250 in pounds"
+ },
+ {
+  "text": "1,000 USD is {?} EUR",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 1000,
+   "from": "USD",
+   "to": "EUR"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "000 USD",
+  "clause": "000 USD is"
+ },
+ {
+  "text": "$40 in euros is {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 40,
+   "from": "USD",
+   "to": "EUR"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "40 euros",
+  "clause": "$40 in euros is"
+ },
+ {
+  "text": "£12.50 is {?} in Australian dollars",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 12.5,
+   "from": "GBP",
+   "to": "AUD"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "12 50",
+  "clause": "£12.50 is"
+ },
+ {
+  "text": "500 Swiss francs in kronor: {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 500,
+   "from": "CHF",
+   "to": "SEK"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "500 Swiss francs kronor",
+  "clause": "500 Swiss francs in kronor"
+ },
+ {
+  "text": "20 quid in Mexican pesos: {?how many pesos}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 20,
+   "from": "GBP",
+   "to": "MXN"
+  },
+  "place": "Mexican",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "many pesos",
+  "clause": "20 quid in Mexican pesos"
+ },
+ {
+  "text": "How many rupees is 50 GBP? {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 50,
+   "from": "GBP",
+   "to": "INR"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "many rupees 50 GBP",
+  "clause": "How many rupees is 50 GBP?"
+ },
+ {
+  "text": "Pounds to euros: {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Pounds euros",
+  "clause": "Pounds to euros"
+ },
+ {
+  "text": "The exchange rate today: {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "exchange rate today",
+  "clause": "The exchange rate today"
+ },
+ {
+  "text": "What is the rate of exchange? {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "rate exchange",
+  "clause": "What is the rate of exchange?"
+ },
+ {
+  "text": "3 bucks and 4 euros: {?}",
+  "live": {
+   "2024": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   },
+   "2026": {
+    "kind": "money",
+    "words": "Exchange rates change every day, and the model has no internet."
+   }
+  },
+  "money": {
+   "amount": 3,
+   "from": "USD",
+   "to": "EUR"
+  },
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "4 euros",
+  "clause": "4 euros"
+ },
+ {
+  "text": "Korean won to yen for 10000 won: {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Korean won yen 10000",
+  "clause": "Korean won to yen for 10000 won"
+ },
+ {
+  "text": "Kinkaku-ji opens at {?opening time}",
+  "live": {
+   "2024": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   },
+   "2026": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "opening time",
+  "clause": "Kinkaku-ji opens at"
+ },
+ {
+  "text": "Is it open today? {?}",
+  "live": {
+   "2024": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   },
+   "2026": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "open today",
+  "clause": "Is it open today?"
+ },
+ {
+  "text": "The museum closes at {?}",
+  "live": {
+   "2024": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   },
+   "2026": {
+    "kind": "hours",
+    "words": "Opening hours change, and the model could be out of date."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "museum closes",
+  "clause": "The museum closes at"
+ },
+ {
+  "text": "The newest Pixel is the {?}",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "newest Pixel",
+  "clause": "The newest Pixel is the"
+ },
+ {
+  "text": "The latest version of Android is {?}",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "latest version Android",
+  "clause": "The latest version of Android is"
+ },
+ {
+  "text": "The latest iPhone is the {?}",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "latest iPhone",
+  "clause": "The latest iPhone is the"
+ },
+ {
+  "text": "The current world champion is {?}",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "current world champion",
+  "clause": "The current world champion is"
+ },
+ {
+  "text": "The reigning monarch: {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "reigning monarch",
+  "clause": "The reigning monarch"
+ },
+ {
+  "text": "The latest check-out time is {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "latest check-out time",
+  "clause": "The latest check-out time is"
+ },
+ {
+  "text": "Q: Who won the 2026 World Cup?\nA: {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2026 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won 2026 World Cup",
+  "clause": "Who won the 2026 World Cup?"
+ },
+ {
+  "text": "Bitcoin is worth {?} now.",
+  "live": {
+   "2024": {
+    "kind": "markets",
+    "words": "Prices change by the minute, and the model has no internet."
+   },
+   "2026": {
+    "kind": "markets",
+    "words": "Prices change by the minute, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Bitcoin worth",
+  "clause": "Bitcoin is worth"
+ },
+ {
+  "text": "The share price of Apple is {?}",
+  "live": {
+   "2024": {
+    "kind": "markets",
+    "words": "Prices change by the minute, and the model has no internet."
+   },
+   "2026": {
+    "kind": "markets",
+    "words": "Prices change by the minute, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "share price Apple",
+  "clause": "The share price of Apple is"
+ },
+ {
+  "text": "Stocks to watch: {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Stocks watch",
+  "clause": "Stocks to watch"
+ },
+ {
+  "text": "Next train to Brighton: {?}",
+  "live": {
+   "2024": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   },
+   "2026": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Next train Brighton",
+  "clause": "Next train to Brighton"
+ },
+ {
+  "text": "Are there delays on the Northern line? {?}",
+  "live": {
+   "2024": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   },
+   "2026": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "delays Northern line",
+  "clause": "Are there delays on the Northern line?"
+ },
+ {
+  "text": "Who won last night? {?}",
+  "live": {
+   "2024": {
+    "kind": "news",
+    "words": "This happened after what the model learnt, or may have."
+   },
+   "2026": {
+    "kind": "news",
+    "words": "This happened after what the model learnt, or may have."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won last night",
+  "clause": "Who won last night?"
+ },
+ {
+  "text": "The results last week: {?}",
+  "live": {
+   "2024": {
+    "kind": "news",
+    "words": "This happened after what the model learnt, or may have."
+   },
+   "2026": {
+    "kind": "news",
+    "words": "This happened after what the model learnt, or may have."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "results last week",
+  "clause": "The results last week"
+ },
+ {
+  "text": "Who won the 2022 World Cup? {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won 2022 World Cup",
+  "clause": "Who won the 2022 World Cup?"
+ },
+ {
+  "text": "The President of the United States is {?}",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "President United States",
+  "clause": "The President of the United States is"
+ },
+ {
+  "text": "The President of the United States in 1962 was {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "President United States 1962",
+  "clause": "The President of the United States in 1962 was"
+ },
+ {
+  "text": "If the president is late, we {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": "we"
+ },
+ {
+  "text": "The Prime Minister is {?}.",
+  "live": {
+   "2024": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   },
+   "2026": {
+    "kind": "newest",
+    "words": "Something newer may exist than the model knows of."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Prime Minister",
+  "clause": "The Prime Minister is"
+ },
+ {
+  "text": "Flights are cheapest to Tokyo on {?what day / time?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "day time",
+  "clause": "Flights are cheapest to Tokyo on"
+ },
+ {
+  "text": "The capital of Australia is {?}.",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "capital Australia",
+  "clause": "The capital of Australia is"
+ },
+ {
+  "text": "Priya: export bug fixed, lands today.\n\nIn one line: {?summary}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "summary",
+  "clause": "In one line"
+ },
+ {
+  "text": "| Book | Author |\n| --- | --- |\n| The Remains of the Day | {?} |",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Remains Day",
+  "clause": "| The Remains of the Day |"
+ },
+ {
+  "text": "Petrichor: {?what it means}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "means",
+  "clause": "Petrichor"
+ },
+ {
+  "text": "1 cup of plain flour is about {?grams} grams.",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "grams",
+  "clause": "1 cup of plain flour is about"
+ },
+ {
+  "text": "Opening line, friendlier: {?a friendlier way to say: fix the boiler now}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "friendlier way say fix boiler now",
+  "clause": "friendlier"
+ },
+ {
+  "text": "{?how long to boil an egg}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "long boil egg",
+  "clause": ""
+ },
+ {
+  "text": "What’s the average lifespan of a cat? {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "What’s average lifespan cat",
+  "clause": "What’s the average lifespan of a cat?"
+ },
+ {
+  "text": "If it rains tomorrow what do we do? {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "",
+  "clause": "what do we do?"
+ },
+ {
+  "text": "Unless it is cold today, {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": ""
+ },
+ {
+  "text": "Our 2026 trip: flights are cheapest on {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "2026 trip flights cheapest",
+  "clause": "Our 2026 trip: flights are cheapest on"
+ },
+ {
+  "text": "The weather in Tokyo back in 1990 was {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": "Tokyo",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "weather Tokyo back 1990",
+  "clause": "The weather in Tokyo back in 1990 was"
+ },
+ {
+  "text": "What was the weather in Lisbon on our wedding day? {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "weather Lisbon wedding day",
+  "clause": "What was the weather in Lisbon on our wedding day?"
+ },
+ {
+  "text": "Will it rain today? {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "rain today",
+  "clause": "Will it rain today?"
+ },
+ {
+  "text": "Is it cold in Reykjavik? {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Reykjavik",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "cold Reykjavik",
+  "clause": "Is it cold in Reykjavik?"
+ },
+ {
+  "text": "How hot is it at Lake Como this weekend? {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lake Como",
+  "days": [
+   {
+    "from": 5,
+    "to": 6
+   },
+   {
+    "from": 4,
+    "to": 5
+   },
+   {
+    "from": 3,
+    "to": 4
+   },
+   {
+    "from": 2,
+    "to": 3
+   },
+   {
+    "from": 1,
+    "to": 2
+   },
+   {
+    "from": 0,
+    "to": 1
+   },
+   {
+    "from": 6,
+    "to": 6
+   }
+  ],
+  "search": "hot Lake Como weekend",
+  "clause": "How hot is it at Lake Como this weekend?"
+ },
+ {
+  "text": "Weather in Lisbon tomorrow: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "Weather Lisbon tomorrow",
+  "clause": "Weather in Lisbon tomorrow"
+ },
+ {
+  "text": "Weather in Lisbon this weekend: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 5,
+    "to": 6
+   },
+   {
+    "from": 4,
+    "to": 5
+   },
+   {
+    "from": 3,
+    "to": 4
+   },
+   {
+    "from": 2,
+    "to": 3
+   },
+   {
+    "from": 1,
+    "to": 2
+   },
+   {
+    "from": 0,
+    "to": 1
+   },
+   {
+    "from": 6,
+    "to": 6
+   }
+  ],
+  "search": "Weather Lisbon weekend",
+  "clause": "Weather in Lisbon this weekend"
+ },
+ {
+  "text": "Weather in Lisbon this week: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   },
+   {
+    "from": 0,
+    "to": 6
+   }
+  ],
+  "search": "Weather Lisbon week",
+  "clause": "Weather in Lisbon this week"
+ },
+ {
+  "text": "Weather for Sarah’s wedding in Lisbon tomorrow: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Lisbon",
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "Weather Sarah’s wedding Lisbon tomorrow",
+  "clause": "Weather for Sarah’s wedding in Lisbon tomorrow"
+ },
+ {
+  "text": "Q: Will it rain at Dr Patel’s clinic tomorrow? A: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "rain Dr Patel’s clinic tomorrow",
+  "clause": "Q: Will it rain at Dr Patel’s clinic tomorrow?"
+ },
+ {
+  "text": "- Will it rain tomorrow? {?in Italian}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   },
+   {
+    "from": 1,
+    "to": 1
+   }
+  ],
+  "search": "Italian",
+  "clause": "Will it rain tomorrow?"
+ },
+ {
+  "text": "Rain over Rio de Janeiro: {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Rio de Janeiro",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Rain Rio de Janeiro",
+  "clause": "Rain over Rio de Janeiro"
+ },
+ {
+  "text": "The temperature in Stratford upon Avon now is {?}",
+  "live": {
+   "2024": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   },
+   "2026": {
+    "kind": "weather",
+    "words": "Weather changes by the hour, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": "Stratford upon Avon",
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "temperature Stratford upon Avon now",
+  "clause": "The temperature in Stratford upon Avon now is"
+ },
+ {
+  "text": "Sarah Jones owes me £450 for rent. {?who won the 2026 World Cup}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2026 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won 2026 World Cup",
+  "clause": "Sarah Jones owes me £450 for rent."
+ },
+ {
+  "text": "My HIV test results came back and Dr Patel said to ask who won the 2026 World Cup {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2026 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won 2026 World Cup",
+  "clause": "who won the 2026 World Cup"
+ },
+ {
+  "text": "Told Dr Patel about my knee, and he asked who won the 2026 World Cup {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2026 is after what the model learnt. It would only be guessing."
+   },
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "won 2026 World Cup",
+  "clause": "who won the 2026 World Cup"
+ },
+ {
+  "text": "I wondered; what is the tallest mountain, and where is it {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": "where is it"
+ },
+ {
+  "text": "The film was released in 2027 and it {?}",
+  "live": {
+   "2024": {
+    "kind": "after",
+    "words": "2027 is after what the model learnt. It would only be guessing."
+   },
+   "2026": {
+    "kind": "after",
+    "words": "2027 is after what the model learnt. It would only be guessing."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": "it"
+ },
+ {
+  "text": "She was elected in 2019, then {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": "then"
+ },
+ {
+  "text": "How much is a pint now? {?}",
+  "live": {
+   "2024": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   },
+   "2026": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "much pint now",
+  "clause": "How much is a pint now?"
+ },
+ {
+  "text": "The price of milk is currently {?}",
+  "live": {
+   "2024": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   },
+   "2026": {
+    "kind": "prices",
+    "words": "Prices change, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "price milk currently",
+  "clause": "The price of milk is currently"
+ },
+ {
+  "text": "X: {?}",
+  "live": {
+   "2024": null,
+   "2026": null
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "",
+  "clause": ""
+ },
+ {
+  "text": "Traffic on the M25: {?}",
+  "live": {
+   "2024": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   },
+   "2026": {
+    "kind": "transport",
+    "words": "This changes by the minute, and the model has no internet."
+   }
+  },
+  "money": null,
+  "place": null,
+  "days": [
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   },
+   {
+    "from": 0,
+    "to": 0
+   }
+  ],
+  "search": "Traffic M25",
+  "clause": "Traffic on the M25"
+ }
+]

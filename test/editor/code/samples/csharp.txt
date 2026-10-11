@@ -1,0 +1,37 @@
+csharp
+using System;
+using System.Collections.Generic;
+using static System.Math;
+
+namespace App.Models
+{
+    /// <summary>Doc</summary>
+    [Serializable]
+    public abstract partial class Shape<T> : IComparable<T>, IDisposable where T : struct
+    {
+        private readonly List<T> _items = new();
+        public const double Pi = 3.14159d;
+        public string Name { get; private set; } = "shape";
+        public event EventHandler? Changed;
+        protected Shape(string name) => Name = name ?? throw new ArgumentNullException(nameof(name));
+        public abstract double Area();
+        // comment
+        public async Task<int> LoadAsync(params int[] xs)
+        {
+            var total = 0x1F + 1_000L + 1.5f + 2.5m;
+            foreach (var x in xs) { if (x is > 0 and < 10 && x != default) total += x; else continue; }
+            string s = $"sum {total:N2} of {xs.Length}", v = @"verbatim ""x""", c = 'c'.ToString();
+            var q = from x in xs where x % 2 == 0 orderby x descending select new { x, Sq = x * x };
+            switch (total) { case 1: break; case var n when n > 5: goto default; default: return await Task.FromResult(0); }
+            try { checked { total++; } } catch (Exception e) when (e is not null) { throw; } finally { lock (this) { } }
+            using var r = new Reader(); unsafe { int* p = &total; }
+            return (int)total;
+        }
+        /* block */
+    }
+    public enum Kind { A = 1, B }
+    public record Point(int X, int Y);
+    public interface IThing { void Do(); }
+#if DEBUG
+#endif
+}

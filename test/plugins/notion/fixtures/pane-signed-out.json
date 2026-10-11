@@ -1,0 +1,232 @@
+{
+ "display": [
+  {
+   "x": 22.31,
+   "y": 62.45,
+   "w": 345.38,
+   "h": 29.05,
+   "text": "Notion",
+   "size": 25.27,
+   "weight": "700",
+   "color": "oklch(0.16 0 0)",
+   "line": "29.0631px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "-0.631806px"
+  }
+ ],
+ "pane": [
+  {
+   "x": 0,
+   "y": 62.45,
+   "w": 390,
+   "h": 781.55,
+   "text": "NotionAccountGhost.md sends list items to your Notion boards as tasks. Nothing else in you",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "sections": [
+  {
+   "x": 22.31,
+   "y": 122.73,
+   "w": 345.38,
+   "h": 181.41,
+   "text": "AccountGhost.md sends list items to your Notion boards as tasks. Nothing else in your note",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "titles": [
+  {
+   "x": 22.31,
+   "y": 122.73,
+   "w": 345.38,
+   "h": 14,
+   "text": "Account",
+   "size": 11.52,
+   "weight": "600",
+   "color": "oklch(0.56 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "0.9216px"
+  }
+ ],
+ "descs": [
+  {
+   "x": 22.31,
+   "y": 145.66,
+   "w": 345.38,
+   "h": 40.16,
+   "text": "Ghost.md sends list items to your Notion boards as tasks. Nothing else in your notes goes ",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "cards": [
+  {
+   "x": 22.31,
+   "y": 194.73,
+   "w": 345.38,
+   "h": 109.41,
+   "text": "Not signed inNotion opens in your browser and asks which pages and boards Ghost.md may use",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "oklch(0.955 0 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "16px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "rows": [
+  {
+   "x": 22.31,
+   "y": 194.73,
+   "w": 345.38,
+   "h": 109.41,
+   "text": "Not signed inNotion opens in your browser and asks which pages and boards Ghost.md may use",
+   "size": 16,
+   "weight": "400",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "labels": [
+  {
+   "x": 35.7,
+   "y": 208.13,
+   "w": 244.27,
+   "h": 20,
+   "text": "Not signed in",
+   "size": 16.12,
+   "weight": "500",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "hints": [
+  {
+   "x": 35.7,
+   "y": 230.52,
+   "w": 244.27,
+   "h": 60.23,
+   "text": "Notion opens in your browser and asks which pages and boards Ghost.md may use.",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.36 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.36 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "icons": [],
+ "iconGlyphs": [],
+ "chevrons": [],
+ "actions": [
+  {
+   "x": 293.36,
+   "y": 227.13,
+   "w": 60.94,
+   "h": 44.63,
+   "text": "Sign in",
+   "size": 16,
+   "weight": "600",
+   "color": "oklch(0.16 0 0)",
+   "line": "normal",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.16 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "hero": [],
+ "heroTitle": [],
+ "heroMeta": [],
+ "heroGlyph": [],
+ "callouts": [],
+ "calloutIcons": [],
+ "footnotes": [
+  {
+   "x": 22.31,
+   "y": 321.98,
+   "w": 345.38,
+   "h": 60.23,
+   "text": "Signing in goes through ghostmarkdown.com to finish the handshake with Notion. Your notes ",
+   "size": 13.39,
+   "weight": "400",
+   "color": "oklch(0.56 0 0)",
+   "line": "20.0922px",
+   "bg": "rgba(0, 0, 0, 0)",
+   "border": "0px 0px oklch(0.56 0 0)",
+   "radius": "0px",
+   "family": "\"Inter Variable\", ui-sans-serif, system-",
+   "shadow": "none",
+   "backdrop": "none",
+   "tracking": "normal"
+  }
+ ],
+ "empties": []
+}

@@ -1,0 +1,5 @@
+postgresql
+-- comment
+SELECT id::text, data->>'k' AS k, ARRAY[1,2] || 3, $$dollar quoted$$, E'esc\n', now() AT TIME ZONE 'utc' FROM users u WHERE name ILIKE 'a%' AND tags @> '{a}' RETURNING *;
+CREATE OR REPLACE FUNCTION f(x int) RETURNS int AS $body$ BEGIN RETURN x + 1; END; $body$ LANGUAGE plpgsql;
+CREATE INDEX CONCURRENTLY idx ON users USING gin (data jsonb_path_ops);

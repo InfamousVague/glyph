@@ -1,0 +1,20 @@
+xquery
+xquery version "3.1";
+(: A module with a function :)
+declare namespace ex = "http://example.org";
+declare variable $limit as xs:integer := 10;
+
+declare function ex:square($n as xs:double) as xs:double {
+  $n * $n
+};
+
+let $doc := doc("books.xml")
+for $book at $i in $doc//book[@year > 2000 and price < 30.5]
+where contains($book/title, 'XML') or not(empty($book/author))
+order by $book/title descending
+return
+  <result n="{$i}" kind='x'>
+    { $book/title/text() }
+    <sq>{ ex:square(xs:double($book/price)) }</sq>
+    <!-- a comment --> &amp; { if ($i mod 2 = 0) then "even" else () }
+  </result>

@@ -1,0 +1,13 @@
+# The package as it was published, kept as it was written: its own style is not the app's, and what a newer
+# analyzer says of code that was right for its day (a member since deprecated, a default a switch no longer
+# needs) is not said here. The changes made to it are named in README.md. Errors are still errors.
+analyzer:
+  exclude:
+    - build/**
+  errors:
+    deprecated_member_use: ignore
+    dead_code: ignore
+    unreachable_switch_default: ignore
+    doc_directive_missing_closing_tag: ignore
+linter:
+  rules: []

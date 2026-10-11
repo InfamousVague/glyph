@@ -1,0 +1,15 @@
+mirc
+; an alias and an event
+alias greet {
+  var %name = $1, %i = 0
+  while (%i < 3) {
+    msg $chan Hello, %name $+ ! ( $+ %i $+ )
+    inc %i
+  }
+  if ($len(%name) > 5) && (%name != nobody) { echo -a long name: $upper(%name) }
+  else { halt }
+}
+on *:TEXT:!time*:#:{
+  msg $chan $nick $+ : it is $time(hh:nn) | /timer 1 5 greet $nick
+}
+on 1:JOIN:#help:notice $nick Welcome to $chan

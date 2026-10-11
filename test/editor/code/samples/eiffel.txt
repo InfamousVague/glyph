@@ -1,0 +1,35 @@
+eiffel
+note
+	description: "A simple account"
+class
+	ACCOUNT
+inherit
+	ANY redefine out end
+create
+	make
+feature -- Access
+	balance: INTEGER
+	owner: STRING = "nobody"
+feature -- Element change
+	make (a_owner: STRING)
+			-- Create with `a_owner'.
+		do
+			balance := 0
+		ensure
+			empty: balance = 0
+		end
+	deposit (sum: INTEGER)
+		require
+			positive: sum > 0
+		local
+			l_ratio: REAL_64
+		do
+			l_ratio := 1.5e2
+			balance := balance + sum
+			if balance >= 100 and then not (sum = 'c'.code) then
+				io.put_string ("rich%N")
+			end
+		end
+invariant
+	non_negative: balance >= 0
+end

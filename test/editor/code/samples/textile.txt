@@ -1,0 +1,27 @@
+textile
+h1. A heading
+
+p(lead). A paragraph with *strong*, _emphasis_, -deleted-, +inserted+, ^super^, ~sub~ and @code@.
+
+h2{color:red}. Lists
+
+* one
+** nested "link":http://example.org
+# first
+# second
+
+bq. A block quote
+that goes on.
+
+|_. name |_. age |
+| Ann | 30 |
+| Bob | 41 |
+
+!http://example.org/image.png(alt text)!
+
+bc. some code
+  more code
+
+A footnote[1] and an acronym HTML(HyperText Markup Language).
+
+fn1. The note.

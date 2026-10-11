@@ -1,0 +1,4 @@
+excel
+=IF(AND(A1>10, $B$2<>"x"), SUM(Sheet1!A1:C10)*1.5, VLOOKUP(D4, Data!$A:$F, 3, FALSE))
+=ROUND(AVERAGE(B2:B20), 2) & " units" + 1E3 - R1C1 + 'My Sheet'!A1
+=IFERROR(INDEX(A:A, MATCH(TRUE, B:B>0, 0)), "none")

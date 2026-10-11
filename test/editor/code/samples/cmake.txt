@@ -1,0 +1,9 @@
+cmake
+# comment
+cmake_minimum_required(VERSION 3.20)
+project(Ghost VERSION 1.0 LANGUAGES CXX)
+set(SOURCES main.cpp "with space.cpp" ${EXTRA})
+if(WIN32 AND NOT MSVC) add_definitions(-DX=1) elseif(APPLE) else() endif()
+foreach(src IN LISTS SOURCES) message(STATUS "src: ${src} $ENV{HOME}") endforeach()
+add_executable(ghost ${SOURCES}) target_link_libraries(ghost PRIVATE fmt::fmt)
+function(my_fn arg) return() endfunction()

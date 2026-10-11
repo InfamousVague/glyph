@@ -1,2 +1,75 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# The .vscode folder contains launch configuration and tasks you configure in
+# VS Code which you may wish to be included in version control, so this line
+# is commented out by default.
+#.vscode/
+
+# Flutter/Dart/Pub related
+**/doc/api/
+**/ios/Flutter/.last_build_id
+.dart_tool/
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication related
+app.*.symbols
+
+# Obfuscation related
+app.*.map.json
+
+# Android Studio will place build artifacts here
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Widget Preview related
+.widget_preview/
+
+# What a picture test writes when it differs.
+**/failures/
+
+# The Rust core (native/, tool/build-native.sh): cargo's output, and the phone's library it copies for Gradle.
+/native/target/
+/android/app/src/main/jniLibs/
+/macos/Core/
+/ios/Core/
+
+# --- The rest of the repository (docs/CUTOVER.md §5) ---
+# The Tauri app (tauri/) ignores its own: tauri/.gitignore. The service's cargo output: server/.gitignore.
+
 # The MCP server as one file (scripts/build-mcp.mjs).
 /mcp/dist
+
+# Deploy credentials. The one .env is tauri/.env (tauri/.gitignore names it); a checkout pulled across the move still
+# has its old one here, which scripts/lib/env.mjs reads until it is moved, and which must never be committed.
+.env
+.env.*
+
+# What a checkout pulled across the move is left holding at the root, where the Tauri app used to be: git moved the
+# tracked files into tauri/ and left these ignored ones behind. Move them into tauri/ or delete them.
+/node_modules/
+/dist/
+/models/
+/src-tauri/

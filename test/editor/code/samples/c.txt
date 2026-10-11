@@ -1,0 +1,22 @@
+c
+#include <stdio.h>
+#include "local.h"
+#define MAX(a, b) ((a) > (b) ? (a) : (b))
+#ifdef DEBUG
+#endif
+/* block comment */
+typedef struct point { int x, y; unsigned long flags : 3; } point_t;
+enum colour { RED = 1, GREEN, BLUE };
+static const char *names[] = { "a", "b\n", NULL };
+extern int printf(const char *fmt, ...);
+union u { float f; int i; };
+
+int main(int argc, char **argv) {
+    point_t p = { .x = 1, .y = 0x1F }, *q = &p;
+    double d = 1.5e-3 + 10UL + 'c' + sizeof(p);
+    for (int i = 0; i < argc; ++i) { if (argv[i] == NULL) continue; else printf("%s %d\n", argv[i], MAX(i, 2)); }
+    while (q->x-- > 0) { switch (q->y) { case 1: break; default: goto done; } }
+    do { d *= 2; } while (d < 100.0f);
+done:
+    return (int)d; // line comment
+}

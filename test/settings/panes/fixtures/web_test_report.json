@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-09T20:36:45.228Z",
+  "version": "1.15.0",
+  "commit": "88a6cb59",
+  "dirty": false,
+  "sourceHash": "5c902b98f2531edb",
+  "host": {
+    "os": "darwin arm64",
+    "node": "v25.9.0"
+  },
+  "tools": {
+    "vitest": "vitest/5.0.1 darwin-arm64 node-v25.9.0",
+    "cargo": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+    "rustc": "rustc 1.94.1 (e408947bf 2026-03-25)"
+  },
+  "ok": true,
+  "totals": {
+    "total": 6233,
+    "passed": 6084,
+    "failed": 0,
+    "skipped": 149,
+    "todo": 0,
+    "notRun": 0
+  },
+  "suites": [
+    {
+      "id": "vitest",
+      "title": "Page (Vitest)",
+      "runner": "vitest",
+      "runnerVersion": "vitest/5.0.1 darwin-arm64 node-v25.9.0",
+      "command": "npx vitest run",
+      "status": "passed",
+      "reason": null,
+      "exitCode": 0,
+      "durationMs": 251170,
+      "counts": {
+        "total": 5636,
+        "passed": 5500,
+        "failed": 0,
+        "skipped": 136,
+        "todo": 0
+      },
+      "tests": [
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 56,
+          "name": "the session file › lives under GLYPH_MCP_HOME, else the config folder the environment names, else ~/.config",
+          "status": "passed",
+          "ms": 4,
+          "failure": null
+        },
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 62,
+          "name": "the session file › is written readable by its owner alone, in a folder made for it, however loosely it was left",
+          "status": "passed",
+          "ms": 2,
+          "failure": null
+        },
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 73,
+          "name": "the session file › reads back a session, and nothing from a file that is missing, not JSON, or not a session",
+          "status": "passed",
+          "ms": 2,
+          "failure": null
+        },
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 88,
+          "name": "the password prompt › takes GLYPH_PASSWORD without asking, and will not ask without a terminal",
+          "status": "passed",
+          "ms": 2,
+          "failure": null
+        },
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 95,
+          "name": "the password prompt › reads what is typed without echo, backspace and delete taking a letter back, until Return",
+          "status": "passed",
+          "ms": 4,
+          "failure": null
+        },
+        {
+          "file": "mcp/cli.test.ts",
+          "line": 108,
+          "name": "the password prompt › is cancelled by Ctrl-C",
+          "status": "passed",
+          "ms": 1,
+          "failure": null
+        }
+      ]
+    },
+    {
+      "id": "cargo:app",
+      "title": "App (Rust)",
+      "runner": "cargo",
+      "runnerVersion": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+      "command": "cargo test --manifest-path src-tauri/Cargo.toml --lib -- --test-threads=1",
+      "status": "passed",
+      "reason": null,
+      "exitCode": 0,
+      "durationMs": 372836,
+      "counts": {
+        "total": 396,
+        "passed": 383,
+        "failed": 0,
+        "skipped": 13,
+        "todo": 0
+      },
+      "tests": [
+        {
+          "file": "ai_commands::tests",
+          "line": null,
+          "name": "a_pages_grammar_is_dropped_on_reading_and_the_mapping_never_adds_one",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "ai_commands::tests",
+          "line": null,
+          "name": "a_request_reads_from_the_pages_json_with_a_default_temperature",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "ai_commands::tests",
+          "line": null,
+          "name": "an_unknown_model_is_refused_by_name",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "backup::tests",
+          "line": null,
+          "name": "a_folder_target_writes_whole_files_and_leaves_no_temporary_one",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "backup::tests",
+          "line": null,
+          "name": "copies_the_media_under_attachments_and_skips_dot_files",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "backup::tests",
+          "line": null,
+          "name": "lists_what_the_last_backup_left_in_the_folder_and_nothing_on_a_drive_without_one",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        }
+      ]
+    },
+    {
+      "id": "cargo:server",
+      "title": "glyph-api (Rust)",
+      "runner": "cargo",
+      "runnerVersion": "cargo 1.94.1 (29ea6fb6a 2026-03-24)",
+      "command": "cargo test --manifest-path server/Cargo.toml -- --test-threads=1",
+      "status": "passed",
+      "reason": null,
+      "exitCode": 0,
+      "durationMs": 34487,
+      "counts": {
+        "total": 201,
+        "passed": 201,
+        "failed": 0,
+        "skipped": 0,
+        "todo": 0
+      },
+      "tests": [
+        {
+          "file": "accounts::challenges::tests",
+          "line": null,
+          "name": "a_challenge_is_good_once_for_the_account_it_was_handed_out_for",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "accounts::challenges::tests",
+          "line": null,
+          "name": "a_challenge_lapses_after_two_minutes_and_is_spent_by_the_late_attempt_too",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "accounts::challenges::tests",
+          "line": null,
+          "name": "handing_one_out_forgets_the_ones_that_have_lapsed",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "accounts::credentials::tests",
+          "line": null,
+          "name": "a_device_without_a_label_is_called_a_device",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "accounts::credentials::tests",
+          "line": null,
+          "name": "a_handle_is_three_to_twenty_four_plain_characters_starting_with_one_that_is_not_punctuation",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        },
+        {
+          "file": "accounts::credentials::tests",
+          "line": null,
+          "name": "a_login_half_is_sixty_four_hex_characters_and_nothing_else",
+          "status": "passed",
+          "ms": null,
+          "failure": null
+        }
+      ]
+    }
+  ]
+}

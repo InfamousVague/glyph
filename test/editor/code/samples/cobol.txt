@@ -1,0 +1,18 @@
+cobol
+       IDENTIFICATION DIVISION.
+       PROGRAM-ID. HELLO.
+      * A comment line
+       DATA DIVISION.
+       WORKING-STORAGE SECTION.
+       01 WS-NAME     PIC X(20) VALUE "World".
+       01 WS-COUNT    PIC 9(3)  VALUE 0.
+       PROCEDURE DIVISION.
+       MAIN-PARA.
+           PERFORM VARYING WS-COUNT FROM 1 BY 1 UNTIL WS-COUNT > 3
+               DISPLAY "Hello, " WS-NAME
+           END-PERFORM.
+           IF WS-COUNT = 4 THEN
+               MOVE 'done' TO WS-NAME
+           END-IF.
+           COMPUTE WS-COUNT = WS-COUNT * 2 + 1.
+           STOP RUN.

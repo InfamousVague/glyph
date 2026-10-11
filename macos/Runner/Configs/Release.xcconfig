@@ -1,0 +1,5 @@
+#include "../../Flutter/Flutter-Release.xcconfig"
+#include "Warnings.xcconfig"
+// The native compiler's load optimiser is off in every compiled build: Dart 3.13.5 hoists a load past the null
+// check that guards it, and a board ended the app with SIGSEGV (android/gradle.properties says the whole of it).
+EXTRA_GEN_SNAPSHOT_OPTIONS=--no-load_cse

@@ -1,0 +1,120 @@
+{
+  "list": [
+    {
+      "lead": "",
+      "tip": "Make a list called … with …",
+      "said": "Make a list called packing with toothbrush, socks and charger",
+      "read": {
+        "kind": "command",
+        "plan": {
+          "kind": "create-list",
+          "title": "packing",
+          "items": [
+            "toothbrush",
+            "socks",
+            "charger"
+          ]
+        }
+      }
+    },
+    {
+      "lead": "Hey Ghost, ",
+      "tip": "Make a list called … with …",
+      "said": "Hey Ghost, make a list called packing with toothbrush, socks and charger",
+      "read": {
+        "kind": "command",
+        "plan": {
+          "kind": "create-list",
+          "title": "packing",
+          "items": [
+            "toothbrush",
+            "socks",
+            "charger"
+          ]
+        }
+      }
+    }
+  ],
+  "asks": [
+    {
+      "say": "Fix the spelling",
+      "bare": {
+        "words": "Fix the spelling",
+        "keyed": false,
+        "misheard": false
+      },
+      "runWhole": "fix",
+      "keyedSaid": "Hey Ghost, fix the spelling",
+      "keyed": {
+        "words": "fix the spelling",
+        "keyed": true,
+        "misheard": false
+      },
+      "runKeyed": "fix"
+    },
+    {
+      "say": "Summarise this",
+      "bare": {
+        "words": "Summarise this",
+        "keyed": false,
+        "misheard": false
+      },
+      "runWhole": "summarize",
+      "keyedSaid": "Hey Ghost, summarise this",
+      "keyed": {
+        "words": "summarise this",
+        "keyed": true,
+        "misheard": false
+      },
+      "runKeyed": "summarize"
+    },
+    {
+      "say": "Make this a list",
+      "bare": {
+        "words": "Make this a list",
+        "keyed": false,
+        "misheard": false
+      },
+      "runWhole": "shape",
+      "keyedSaid": "Hey Ghost, make this a list",
+      "keyed": {
+        "words": "make this a list",
+        "keyed": true,
+        "misheard": false
+      },
+      "runKeyed": "shape"
+    },
+    {
+      "say": "Tidy this up",
+      "bare": {
+        "words": "Tidy this up",
+        "keyed": false,
+        "misheard": false
+      },
+      "runWhole": "format",
+      "keyedSaid": "Hey Ghost, tidy this up",
+      "keyed": {
+        "words": "tidy this up",
+        "keyed": true,
+        "misheard": false
+      },
+      "runKeyed": "format"
+    },
+    {
+      "say": "Carry on",
+      "bare": {
+        "words": "Carry on",
+        "keyed": false,
+        "misheard": false
+      },
+      "runWhole": "continue",
+      "keyedSaid": "Hey Ghost, carry on",
+      "keyed": {
+        "words": "carry on",
+        "keyed": true,
+        "misheard": false
+      },
+      "runKeyed": "continue"
+    }
+  ]
+}

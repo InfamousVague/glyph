@@ -1,0 +1,36 @@
+php
+<!DOCTYPE html>
+<p class="a"><?= htmlspecialchars($title) ?></p>
+<?php
+declare(strict_types=1);
+namespace App\Models;
+
+use App\Contracts\{Shape, Named as HasName};
+
+/** Doc */
+#[Attribute]
+abstract class Circle extends Base implements Shape, \Countable
+{
+    use Helper;
+    const PI = 3.14;
+    public static int $count = 0;
+    public function __construct(private readonly float $r = 1.0, ?string $name = null) { parent::__construct(); self::$count++; }
+    // comment
+    # hash comment
+    public function area(int ...$xs): float|int
+    {
+        $total = array_sum(array_map(fn($x) => $x ** 2, $xs)) + 0x1F + 1_000 + 1.5e3;
+        foreach ($xs as $i => $x) { if ($x instanceof Shape && !empty($x)) { continue; } elseif ($i === 0) { break; } else { echo "x $x {$this->r} ${i}\n", 'single \' quoted'; } }
+        $s = <<<EOT
+        heredoc $total
+        EOT;
+        $f = function ($a) use (&$total): void { $total += $a; };
+        match (true) { $total > 1 => null, default => throw new \Exception("no") };
+        try { $o = new static(); $o?->area(); } catch (\Throwable | \Error $e) { } finally { unset($o); }
+        return static::PI * $this->r ** 2 <=> 0;
+    }
+}
+enum Suit: string { case Hearts = 'H'; }
+/* block */
+?>
+<b>after</b>

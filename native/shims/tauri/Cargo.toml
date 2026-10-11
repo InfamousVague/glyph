@@ -1,0 +1,18 @@
+# NOT Tauri. A crate that answers to the name so `../glyph/src-tauri/src/model_files.rs` can be included as it is
+# (native/src/lib.rs): that file is Tauri-free but for the runtime its retry sleeps on and its tests block on,
+# `tauri::async_runtime::{spawn_blocking, block_on}`. Those two functions, over a tokio runtime, are all of it.
+[package]
+name = "tauri"
+version = "0.0.0"
+edition = "2021"
+publish = false
+description = "ghost_core's stand-in for the two functions of tauri::async_runtime that model_files.rs calls."
+
+[lib]
+path = "src/lib.rs"
+doctest = false
+
+[dependencies]
+# The runtime reqwest's client needs under it; already in the tree through reqwest, which turns on `net` and
+# `time`. Tauri's own async runtime is tokio's multi-thread one too.
+tokio = { version = "1", features = ["rt-multi-thread"] }

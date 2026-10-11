@@ -1,0 +1,30 @@
+vbscript
+' A sub and a loop
+Option Explicit
+Dim names, i, total
+names = Array("Ann", "Bob", "Cy")
+total = 0
+
+Sub Greet(ByVal who, times)
+  Dim n
+  For n = 1 To times
+    WScript.Echo "Hello, " & who & "!" & vbCrLf
+  Next
+End Sub
+
+Function Square(x)
+  Square = x * x
+End Function
+
+For i = 0 To UBound(names)
+  If Len(names(i)) > 2 And Not IsEmpty(names(i)) Then
+    Call Greet(names(i), 1)
+    total = total + Square(i) + &HFF + 1.5E2
+  ElseIf names(i) = "" Then
+    Exit For
+  Else
+    On Error Resume Next
+  End If
+Next
+Rem done
+Set fso = CreateObject("Scripting.FileSystemObject") : Set fso = Nothing

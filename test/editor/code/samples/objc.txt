@@ -1,0 +1,18 @@
+objc
+#import <Foundation/Foundation.h>
+// comment
+@interface Point : NSObject <NSCopying>
+@property (nonatomic, strong, readonly) NSString *name;
+- (instancetype)initWithX:(CGFloat)x y:(CGFloat)y;
++ (Point *)origin;
+@end
+@implementation Point
+- (instancetype)initWithX:(CGFloat)x y:(CGFloat)y {
+    if ((self = [super init])) { _name = @"point"; NSArray *xs = @[@1, @2.5, @YES]; NSDictionary *d = @{@"k": xs}; }
+    for (id obj in xs) { if (obj == nil) continue; NSLog(@"%@ %d", obj, 0x1F); }
+    @try { [self doThing:^(int a) { return a + 1; }]; } @catch (NSException *e) { } @finally { }
+    return self;
+}
+@end
+/* block */
+int main(void) { @autoreleasepool { Point *p = [[Point alloc] initWithX:1 y:2]; return p ? 0 : 1; } }

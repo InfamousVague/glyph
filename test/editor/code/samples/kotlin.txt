@@ -1,0 +1,24 @@
+kotlin
+package com.example
+
+import kotlin.math.*
+
+/** Doc */
+@Suppress("unused")
+data class Point(val x: Double = 0.0, var y: Double) : Shape(), Comparable<Point> {
+    companion object { const val ORIGIN = 0; @JvmStatic fun make(): Point? = null }
+    override fun area(): Double = x * y
+    // comment
+    fun <T : Any> pick(items: List<T>, f: (T) -> Boolean): T? {
+        for ((i, item) in items.withIndex()) { if (i % 2 == 0 && f(item)) return item else continue }
+        val text = "x = $x, sum = ${x + y}\n"; val raw = """raw "text" $x"""; val c = 'c'
+        when (val n = items.size) { 0, 1 -> println(text); in 2..10 -> Unit; is Int -> {} else -> throw IllegalStateException() }
+        val lambda = { a: Int, b: Int -> a + b }; var count = 0xFF + 1_000L + 1.5f
+        return items.firstOrNull { it != null } ?: run { null }
+    }
+}
+sealed interface Shape2 { object Empty : Shape2 }
+suspend inline fun <reified T> load(noinline block: suspend () -> T): T = block()
+typealias Handler = (String) -> Unit
+fun main() { val p = Point(y = 2.0); p.y++; println(p as? Shape ?: "no"); do { } while (false); try { } catch (e: Exception) { } finally { } }
+/* block /* nested */ */

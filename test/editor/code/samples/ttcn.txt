@@ -1,0 +1,24 @@
+ttcn
+// A test case
+module Sample {
+  import from Types all;
+  type record Request { integer id, charstring name optional }
+  type port MyPort message { inout Request }
+  type component MTC { port MyPort p; timer t := 5.0 }
+  const integer c_max := 10;
+  template Request t_req(integer i) := { id := i, name := "x" }
+  /* block
+     comment */
+  function f_add(in integer a, in integer b) return integer { return a + b; }
+  testcase tc_send() runs on MTC system MTC {
+    var integer v := f_add(1, 2) mod 3;
+    p.send(t_req(v));
+    t.start;
+    alt {
+      [] p.receive(Request:?) { setverdict(pass); }
+      [v > 0] t.timeout { setverdict(fail, "timeout"); }
+    }
+    if (v == c_max and not false) { log("v = ", v, 'FF'H, '1010'B); }
+  }
+  control { execute(tc_send()); }
+}

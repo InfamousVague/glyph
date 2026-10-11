@@ -1,0 +1,191 @@
+{
+ "entities": {
+  "Q5020214": {
+   "id": "Q5020214",
+   "labels": {
+    "en": {
+     "language": "en",
+     "value": "2026 FIFA World Cup"
+    }
+   },
+   "claims": {
+    "P585": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P585",
+       "hash": "bd4e608fca97bfd620514f81e735833b9d96e34d",
+       "datavalue": {
+        "value": {
+         "time": "+2026-00-00T00:00:00Z",
+         "timezone": 0,
+         "before": 0,
+         "after": 0,
+         "precision": 9,
+         "calendarmodel": "http://www.wikidata.org/entity/Q1985727"
+        },
+        "type": "time"
+       },
+       "datatype": "time"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P580": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P580",
+       "hash": "2c3a628944b26e47fc6a7c436ee09045ca36a93c",
+       "datavalue": {
+        "value": {
+         "time": "+2026-06-11T00:00:00Z",
+         "timezone": 0,
+         "before": 0,
+         "after": 0,
+         "precision": 11,
+         "calendarmodel": "http://www.wikidata.org/entity/Q1985727"
+        },
+        "type": "time"
+       },
+       "datatype": "time"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P582": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P582",
+       "hash": "6cb1800a0e22261f0270486ea3ac58aecad43958",
+       "datavalue": {
+        "value": {
+         "time": "+2026-07-19T00:00:00Z",
+         "timezone": 0,
+         "before": 0,
+         "after": 0,
+         "precision": 11,
+         "calendarmodel": "http://www.wikidata.org/entity/Q1985727"
+        },
+        "type": "time"
+       },
+       "datatype": "time"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P155": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P155",
+       "hash": "cddd841e3c6dfb6d938556fc3b68531f136e7ee9",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 284163,
+         "id": "Q284163"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P156": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P156",
+       "hash": "50c68c0b81ff705764966c0f1734139649156e58",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 14935989,
+         "id": "Q14935989"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P1346": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P1346",
+       "hash": "4f3f6060095aaa3eec06cb94817c1fe32ec9e9d6",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 42267,
+         "id": "Q42267"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     }
+    ],
+    "P17": [
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P17",
+       "hash": "a3723c4c3601569aebcc86e0f0c5c3697821da1b",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 16,
+         "id": "Q16"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     },
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P17",
+       "hash": "10592d8b33c4a4a1c0858b41723f0b359551bf15",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 96,
+         "id": "Q96"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     },
+     {
+      "mainsnak": {
+       "snaktype": "value",
+       "property": "P17",
+       "hash": "be4c6eafa2984964f04be85667263f5642ba1a72",
+       "datavalue": {
+        "value": {
+         "entity-type": "item",
+         "numeric-id": 30,
+         "id": "Q30"
+        },
+        "type": "wikibase-entityid"
+       },
+       "datatype": "wikibase-item"
+      },
+      "rank": "normal"
+     }
+    ]
+   }
+  }
+ }
+}

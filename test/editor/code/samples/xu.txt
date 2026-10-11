@@ -1,0 +1,13 @@
+xù
+# an extended chart
+msc {
+  width = 600, watermark = "draft";
+  a, b, c;
+  a => b [label="start"];
+  b alt c [label="ok"] {
+    b => c [label="go"];
+    --- [label="else"];
+    b loop c { c >> b; };
+  };
+  a note a [label="done"];
+}

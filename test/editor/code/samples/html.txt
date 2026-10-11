@@ -1,0 +1,24 @@
+html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset=utf-8>
+  <title>A page &amp; more</title>
+  <style>
+    body > .note:hover { color: #fff; margin: 0 auto; }
+    @media (max-width: 600px) { a { display: none } }
+  </style>
+  <script type="module">
+    import { x } from './x.js';
+    const n = 1 + 2; // comment
+    document.querySelector('#id').addEventListener('click', () => alert(`hi ${n}`));
+  </script>
+</head>
+<body class="a b" onclick="go(1)" style="color: red; margin: 1px">
+  <!-- a comment -->
+  <p id='one'>Text <b>bold</b> <br/> &copy; &#169; &bad</p>
+  <img src="a.png" alt="An image">
+  <textarea><b>not a tag</b></textarea>
+  <custom-el :bind="x">unclosed
+</body>
+</html>

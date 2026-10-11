@@ -1,0 +1,21 @@
+liquid
+{% comment %} a template {% endcomment %}
+{% assign items = "a,b,c" | split: "," %}
+{% capture greeting %}Hello, {{ user.name | capitalize | default: "you" }}!{% endcapture %}
+<h1 class="title">{{ greeting }}</h1>
+{% for item in items limit: 2 offset: 1 %}
+  <li>{{ forloop.index }}: {{ item | append: "!" }}</li>
+{% else %}
+  <li>nothing</li>
+{% endfor %}
+{% if user.age >= 18 and user.banned != true or user.name contains 'admin' %}
+  {% include 'adult' with user %}
+{% elsif user %}
+  {% render "minor", n: 1.5 %}
+{% endif %}
+{% case kind %}{% when 'a', "b" %}AB{% else %}other{% endcase %}
+{% raw %}{{ not parsed }}{% endraw %}
+{%- liquid
+  assign x = 1
+  echo x
+-%}

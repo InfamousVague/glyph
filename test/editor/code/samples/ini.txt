@@ -1,0 +1,10 @@
+ini
+; comment
+# another
+[section]
+key = value
+path=/usr/local/bin
+quoted = "a b"
+[other.section]
+flag
+n: 12

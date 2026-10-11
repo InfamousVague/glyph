@@ -1,0 +1,26 @@
+gherkin
+# language: en
+@billing @smoke
+Feature: Checkout
+  As a customer I want to pay
+
+  Background:
+    Given a cart with 2 items
+
+  Scenario Outline: Paying with <method>
+    Given I am logged in as "alice"
+    When I pay with <method>
+    Then I should see "Thanks"
+    And the total is 19.99
+    But no email is sent
+
+    Examples:
+      | method | fee |
+      | card   | 0   |
+      | cash   | 1.5 |
+
+  Scenario: A doc string
+    Given the text:
+      """
+      some text
+      """

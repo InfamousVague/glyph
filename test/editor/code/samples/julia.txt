@@ -1,0 +1,16 @@
+julia
+# comment
+#= block =#
+module Geo
+using LinearAlgebra: norm
+abstract type Shape end
+struct Circle{T<:Real} <: Shape; r::T; end
+area(c::Circle)::Float64 = π * c.r^2
+function greet(who::String="world"; loud=false, kw...)
+    msg = "Hello, $who! $(length(who))\n"; xs = [1, 2, 0x1F, 1.5e3, 1//2, :sym, 'c', nothing, true]
+    for (i, x) in enumerate(xs) if x isa Number && x > 1 continue elseif i == 1 break else end end
+    f = x -> x^2; g = map(xs) do x x end; try error("no") catch e; rethrow() finally end
+    return loud ? uppercase(msg) : msg
+end
+macro m(x) :($x + 1) end; @m 1; r"re+"; raw"raw"; """multi"""
+end

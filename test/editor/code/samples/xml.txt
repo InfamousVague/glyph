@@ -1,0 +1,11 @@
+xml
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE note SYSTEM "note.dtd">
+<!-- comment -->
+<ns:note xmlns:ns="http://x.y/ns" id='1' flag="a &amp; b">
+  <to>Sam &lt;sam&gt; &#169; &bad</to>
+  <empty/>
+  <![CDATA[ raw <b>text</b> ]]>
+  <?target instruction?>
+  <unclosed>
+</ns:note>

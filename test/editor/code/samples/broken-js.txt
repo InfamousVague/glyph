@@ -1,0 +1,8 @@
+js
+function (a, { return a +
+const = 5;
+if (x { y( }
+class { get #x( }
+let s = "unterminated
+`template ${ unclosed
+export default

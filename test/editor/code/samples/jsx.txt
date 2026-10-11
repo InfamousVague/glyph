@@ -1,0 +1,16 @@
+jsx
+import React, { useState } from 'react';
+// A component
+export function Counter({ start = 0, label }) {
+  const [count, setCount] = useState(start);
+  return (
+    <div className="counter" data-count={count} {...rest}>
+      {/* comment */}
+      <Label.Text bold>{label}: {count > 0 ? count : 'none'}</Label.Text>
+      <button onClick={() => setCount((c) => c + 1)} disabled>Add &amp; go</button>
+      <>
+        <input type="text" value={count} />
+      </>
+    </div>
+  );
+}
