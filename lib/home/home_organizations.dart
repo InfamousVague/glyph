@@ -238,9 +238,13 @@ class _OrgCard extends StatelessWidget {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(org.name, style: pageText(t, md, weight: 'semibold', color: t.color('app-ink'))),
+                            // `.name`, `.meta` and `.here` are lines of `line-height: normal`, rounded in the phone's
+                            // own pixels on the page: 51, 43 and 43 device pixels at 2.625, where the engine's whole
+                            // logical pixels (19, 16, 16) made the card 3 device pixels short and set each line of it
+                            // tighter (seen on the owner's phone beside Ghost.md, 2026-10-11).
+                            ExactLines.of(Text(org.name, style: pageText(t, md, weight: 'semibold', color: t.color('app-ink'))), normal: true, dpr: t.css.lineDpr),
                             SizedBox(height: 0.2 * 16),
-                            Text(meta, style: pageText(t, sm, color: t.color('app-ink-3'))),
+                            ExactLines.of(Text(meta, style: pageText(t, sm, color: t.color('app-ink-3'))), normal: true, dpr: t.css.lineDpr),
                             SizedBox(height: 0.2 * 16),
                             // Always a line, said quietly when nobody is in.
                             Row(
@@ -256,7 +260,11 @@ class _OrgCard extends StatelessWidget {
                                 ),
                                 SizedBox(width: 0.45 * sm),
                                 Expanded(
-                                  child: Text(here ?? 'Nobody here now', style: pageText(t, sm, weight: here == null ? 'regular' : 'medium', color: here == null ? t.color('app-ink-4') : space)),
+                                  child: ExactLines.of(
+                                    Text(here ?? 'Nobody here now', style: pageText(t, sm, weight: here == null ? 'regular' : 'medium', color: here == null ? t.color('app-ink-4') : space)),
+                                    normal: true,
+                                    dpr: t.css.lineDpr,
+                                  ),
                                 ),
                               ],
                             ),
