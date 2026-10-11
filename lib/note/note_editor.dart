@@ -33,6 +33,7 @@ import '../editor/syntax/language.dart' show InlineFormatSyntax;
 import '../editor/view/base.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/sliver.dart';
+import '../editor/view/syntax_tree.dart' show syntaxAsleep;
 import '../editor/view/view_mode.dart';
 
 /// `Editor`'s props, as the note's screen passes them. The ones whose pieces are not built yet (the +, the blank
@@ -56,6 +57,7 @@ class NoteEditorSpec {
     this.placeholder = 'Write something.',
     this.meHue,
     this.extensions = const <Extension>[],
+    this.shown = true,
   });
 
   /// The note's words as the screen was opened with them; a change to it is put into the editor whole.
@@ -105,6 +107,12 @@ class NoteEditorSpec {
 
   /// The extensions of pieces plugged in by whoever wires the app, after the base ones.
   final List<Extension> extensions;
+
+  /// Whether the editor is in sight. A note drawn as its canvas, its journal or its notebook's index keeps its
+  /// editor behind that view, never drawn, so that nothing typed is lost and its caret keeps its place; what it
+  /// holds there is the note's words all the same (a canvas's JSON), and out of sight they are not read as
+  /// Markdown (lib/editor/view/syntax_tree.dart `syntaxAsleep`): they are the moment the editor is shown.
+  final bool shown;
 }
 
 /// Builds the editor for a note's screen: a SLIVER, for the page's scroll view.
@@ -178,6 +186,7 @@ class NoteEditorHost extends StatefulWidget {
 class _NoteEditorHostState extends State<NoteEditorHost> {
   final Compartment _display = Compartment();
   final Compartment _look = Compartment();
+  final Compartment _sleep = Compartment();
   late EditorView _view = _make(widget.spec.value);
 
   EditorView _make(String doc) => EditorView(
@@ -192,6 +201,7 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
               placeholder('Write something.'),
               _display.of(noteView(widget.spec.display)),
               _look.of(noteLookExtensions(widget.spec.look)),
+              _sleep.of(syntaxAsleep.of(!widget.spec.shown)),
               EditorViewLike.updateListener.of((update) {
                 if (update.docChanged) widget.spec.onChange(update.state.doc.toString());
               }),
@@ -235,6 +245,8 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
     final effects = <StateEffect<Object?>>[
       if (was.display != now.display) _display.reconfigure(noteView(now.display)),
       if (was.look != now.look) _look.reconfigure(noteLookExtensions(now.look)),
+      // Put out of sight before it is handed other words, so that they are not read for nothing.
+      if (was.shown && !now.shown) _sleep.reconfigure(syntaxAsleep.of(true)),
     ];
     if (effects.isNotEmpty) _view.dispatch(TransactionSpec(effects: effects));
     // The words changed from outside the editor: a canvas's JSON or a book's Markdown, asked for.
@@ -242,6 +254,8 @@ class _NoteEditorHostState extends State<NoteEditorHost> {
       final doc = _view.state.doc.toString();
       if (doc != now.value) _view.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: doc.length, insert: now.value)));
     }
+    // Shown: its words are read now, once, as they stand after any handed to it above.
+    if (!was.shown && now.shown) _view.dispatch(TransactionSpec(effects: <StateEffect<Object?>>[_sleep.reconfigure(syntaxAsleep.of(false))]));
   }
 
   @override

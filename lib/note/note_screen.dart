@@ -1401,6 +1401,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // The names and cards are under line 1 and over the room the words keep under their last line.
       contentBottom: offered != null ? 0 : null,
       meHue: null,
+      // Behind a canvas, a journal or an index the editor is kept and not drawn: its words are not read there.
+      shown: _words,
     );
 
     final words = CustomScrollView(
