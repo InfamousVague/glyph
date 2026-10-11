@@ -1222,14 +1222,16 @@ failed, 14 skipped; cargo's own tests not run), and nothing under `lib/` has cha
 The first two are in the code at `976690e` too; the third came in with the phone's notifications (df37b2c), and
 is no rewrite's doing. None was fixed here.
 
-1. **A note opened before voice is made leaves the whole run without tape ids.** lib/root/ghost_root.dart:734 and
-   :771: the desks' world is made once, the first time a note's screen is built, and takes
-   `tapes: _voice?.recorder.tapes` as it stands then. Opened before `_speakUp` has made voice (a cold start by
-   `ghostmd://note/<id>` or by a tap on "Written up", or a phone that attaches voice late), it is null for every
-   note of that run: a voice memo that names its tape is a quiet mark (lib/editor/media/clip_refs.dart:98
-   `playsOn`), and Remove on a tape leaves its id behind (lib/root/note_desk.dart:889-890). To see it: stop the
-   app, then `adb shell am start -a android.intent.action.VIEW -d ghostmd://note/<the id of a spoken note with a
-   memo>`, and press the memo. By the code only; not tried.
+1. **A note opened before voice is made leaves the whole run without tape ids.** **Fixed 2026-10-11.** The desks'
+   world was made once, the first time a note's screen is built, and took `tapes: _voice?.recorder.tapes` as it
+   stood then. Opened before `_speakUp` had made voice (a cold start by `ghostmd://note/<id>` or by a tap on
+   "Written up", or a phone that attaches voice late), it was null for every note of that run: a voice memo that
+   names its tape was a quiet mark (lib/editor/media/clip_refs.dart `playsOn`), and Remove on a tape left its id
+   behind, and until voice came wrote nothing and said it had. The tape each note holds is this device's own
+   memory and a recording's length is the library's, as on the page (`tapeId(note.id)`, core/clips.ts): the root
+   hands the desks both itself (`TapeIds(_stored)`, the same memory the recorder names its tapes in, and the
+   library's own writing of a recording), so no note waits for voice to have them. Held by
+   test/root/before_voice_test.dart, where voice comes after the note is open. Not seen on a phone.
 2. **A tap on "Written up" with the app stopped can open the note before its summary is put in.**
    lib/root/root_commands.dart:96-98: `_openNoteFromLink` waits on `_voice?.summaries?.landNativeResult(id)`, which
    is nothing while `_voice` is still null, and the link is followed as soon as the notes are read. The page's

@@ -17,6 +17,7 @@ extension _RootVoice on _GhostRootState {
     // The phone's half of voice, or, where it had not attached by the first frame, that half when it has
     // (lib/main.dart): the recorder and the AI are made then, where the run had neither.
     final making = widget.voiceMaking ?? (widget.voice == null ? await widget.voiceLater : null);
+    if (widget.voiceWhen case final ready?) await ready;
     if (!mounted) return;
     final Voice? voice;
     try {

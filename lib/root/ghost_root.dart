@@ -32,6 +32,7 @@ import '../core/place_tags.dart';
 import '../editor/ai/blanks.dart' show openNoteBlanks;
 import '../editor/items/field_menu.dart' show DayPicker;
 import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
+import '../editor/media/clip_refs.dart' show TapeIds;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
@@ -42,7 +43,7 @@ import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
 import '../canvas/sample_canvas.dart' show sampleCanvasBody;
 import '../capture/meeting_live.dart' show MeetingLive;
 import '../capture/place.dart' show Placing;
-import '../capture/recorder.dart' show SpokenAsk;
+import '../capture/recorder.dart' show LibraryRecorderStore, SpokenAsk;
 import '../capture/ui/capture_screen.dart';
 import '../capture/ui/meeting_screen.dart';
 import '../capture/voice_model.dart';
@@ -190,7 +191,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -286,6 +287,10 @@ class GhostRoot extends StatefulWidget {
 
   /// Voice, where a test brings its own; then nothing is made from [voiceMaking].
   final Voice? voice;
+
+  /// When a test's own [voice] is there to take: with the root unless given, and then only once this completes, as
+  /// the app's own is made a moment after the notes are read (`Voice.make`) and a note can be on screen before it.
+  final Future<void>? voiceWhen;
 
   /// The app's updates (lib/core/updates.dart), the process's own as the core is: made by whoever holds this root,
   /// and only in a build told where its releases are. Absent, as in every debug build and every test that brings
@@ -767,8 +772,10 @@ class _GhostRootState extends State<GhostRoot> {
     clipPlayer: widget.clipPlayer,
     noteById: _library.noteOf,
     getNote: _library.get,
-    setNoteRecording: (id, ms, segments) async => _voice?.recorder.store.setNoteRecording(id, ms, segments),
-    tapes: _voice?.recorder.tapes,
+    // A tape's length and its name are the library's and this device's own, whether or not voice is made yet: a
+    // note opened before it (the app started by a link to it) has both, as the page reads `tapeId` with no recorder.
+    setNoteRecording: (id, ms, segments) => LibraryRecorderStore(_library).setNoteRecording(id, ms, segments),
+    tapes: TapeIds(_stored),
     // Not where nothing records (an iPhone): a tape synced from another device then offers no Add.
     onSpeak: recordsVoice ? (id) => unawaited(_speakInto(id)) : null,
     pickPicture: _pickPicture,
