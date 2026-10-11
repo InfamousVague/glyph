@@ -82,7 +82,7 @@ int _differing(({int width, int height, Uint8List data}) a, ({int width, int hei
 void main() {
   setUpAll(loadAppFonts);
   setUp(() => useStored(MemoryStored()));
-  tearDown(() => BookViewState.longPage = 1500);
+  tearDown(() => BookViewState.longPage = 400);
 
   Future<void> show(
     WidgetTester tester, {
@@ -570,7 +570,7 @@ void main() {
       await away(tester);
 
       // As it is: the long page's lines a sliver of the note's page.
-      BookViewState.longPage = 1500;
+      BookViewState.longPage = 400;
       await read(tester, scroll: scroll);
       expect(find.byKey(const ValueKey('book-read-body-0')), findsOneWidget);
       expect(tester.widget(find.byKey(const ValueKey('book-read-body-0'))), isNot(isA<MarkdownView>()));

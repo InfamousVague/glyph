@@ -1185,10 +1185,12 @@ class BookViewState extends State<BookView> {
   }
 
   /// A page of this many letters or more is long, and read straight through its lines are a sliver of the note's
-  /// page (`EditorSliver`), built and laid out where they are near the screen as a note's own are. A shorter page is
-  /// a box, whole: about a screenful of words at the most, and nothing to gain.
+  /// page (`EditorSliver`), built and laid out where they are near the screen as a note's own are. A shorter page,
+  /// a few lines, is a box, whole. It was 1500 letters, a screenful: but a page under the window's foot is laid out
+  /// whole as a box however short, and the pages come one a frame, so a notebook of pages of a thousand letters
+  /// laid each out in a frame of its own before anyone had scrolled to it.
   @visibleForTesting
-  static int longPage = 1500;
+  static int longPage = 400;
 
   bool _isLong(_PageRead read, String title) => read.untitled(title).length >= longPage;
 
