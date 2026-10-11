@@ -120,7 +120,7 @@ Future<void> away(WidgetTester tester) async {
 /// One line of the list as drawn: a group's heading or a row, its words and where it is.
 typedef Line = ({String kind, String text, Rect rect, bool selected});
 
-final Finder _list = find.descendant(of: find.byType(GlacierCommandPalette), matching: find.byType(SingleChildScrollView));
+final Finder _list = find.descendant(of: find.byType(GlacierCommandPalette), matching: find.byType(CustomScrollView));
 
 /// The panel: the kit puts its whole surface in one tap region, the outermost of the overlay's.
 Rect panelRect(WidgetTester tester) => tester.getRect(find.byType(TextFieldTapRegion).first);
@@ -132,20 +132,42 @@ Rect footerRect(WidgetTester tester) => tester.getRect(find.ancestor(of: find.by
 
 bool get hasList => _list.evaluate().isNotEmpty;
 
-/// The headings and rows of the list, top to bottom, those scrolled out of sight among them. A row's words are as
-/// the page's `innerText` gives them: the label, then its key hint after a bar.
-List<Line> lines(WidgetTester tester) {
+/// Every heading and row of the list, top to bottom, where each would stand with the list at its top: those out of
+/// sight among them. The list builds the rows near its window, so it is taken down to its foot a window at a time
+/// and each row read where it is built, then put back.
+Future<List<Line>> allLines(WidgetTester tester) async {
+  if (!hasList) return const <Line>[];
+  final position = tester.state<ScrollableState>(find.descendant(of: _list, matching: find.byType(Scrollable)).first).position;
+  final seen = <String, Line>{};
+  for (var guard = 0; guard < 200; guard += 1) {
+    final at = position.pixels;
+    for (final line in lines(tester, offstage: true)) {
+      final placed = (kind: line.kind, text: line.text, rect: line.rect.shift(Offset(0, at)), selected: line.selected);
+      seen['${placed.kind} ${placed.text} ${placed.rect.top.round()}'] = placed;
+    }
+    if (at >= position.maxScrollExtent) break;
+    position.jumpTo((at + position.viewportDimension * 0.8).clamp(position.minScrollExtent, position.maxScrollExtent));
+    await tester.pump();
+  }
+  position.jumpTo(position.minScrollExtent);
+  await tester.pump();
+  return seen.values.toList()..sort((a, b) => a.rect.top.compareTo(b.rect.top));
+}
+
+/// The headings and rows of the list that are built, top to bottom; those on the stage unless [offstage]. A row's
+/// words are as the page's `innerText` gives them: the label, then its key hint after a bar.
+List<Line> lines(WidgetTester tester, {bool offstage = false}) {
   final out = <Line>[];
   if (!hasList) return out;
   String words(Element element) => [
-        for (final text in find.descendant(of: find.byElementPredicate((e) => identical(e, element)), matching: find.byType(RichText)).evaluate())
+        for (final text in find.descendant(of: find.byElementPredicate((e) => identical(e, element), skipOffstage: !offstage), matching: find.byType(RichText), skipOffstage: !offstage).evaluate())
           (text.widget as RichText).text.toPlainText(),
       ].join(' | ');
-  for (final element in find.descendant(of: _list, matching: find.byType(GlacierPressable)).evaluate()) {
+  for (final element in find.descendant(of: _list, matching: find.byType(GlacierPressable), skipOffstage: !offstage).evaluate()) {
     final row = element.widget as GlacierPressable;
-    out.add((kind: 'row', text: words(element), rect: tester.getRect(find.byElementPredicate((e) => identical(e, element))), selected: row.selected ?? false));
+    out.add((kind: 'row', text: words(element), rect: tester.getRect(find.byElementPredicate((e) => identical(e, element), skipOffstage: !offstage)), selected: row.selected ?? false));
   }
-  for (final element in find.descendant(of: _list, matching: find.byType(ExcludeSemantics)).evaluate()) {
+  for (final element in find.descendant(of: _list, matching: find.byType(ExcludeSemantics), skipOffstage: !offstage).evaluate()) {
     final child = (element.widget as ExcludeSemantics).child;
     if (child is! Padding) continue;
     // A heading's words are set on the page's own line (the kit's ExactLines round the Text), or are the Text itself
@@ -153,7 +175,7 @@ List<Line> lines(WidgetTester tester) {
     final inner = child.child;
     final words = inner is ExactLines ? inner.child : inner;
     if (words is! Text) continue;
-    out.add((kind: 'head', text: words.data!, rect: tester.getRect(find.byElementPredicate((e) => identical(e, element))), selected: false));
+    out.add((kind: 'head', text: words.data!, rect: tester.getRect(find.byElementPredicate((e) => identical(e, element), skipOffstage: !offstage)), selected: false));
   }
   out.sort((a, b) => a.rect.top.compareTo(b.rect.top));
   return out;

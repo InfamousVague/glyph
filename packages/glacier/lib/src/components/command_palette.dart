@@ -409,11 +409,20 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
 
   /// Brings the cursor's row into the list's view by the shortest way, as `scrollIntoView({ block: 'nearest' })`
   /// would. At once: the keys repeat, and a row that eased into place would trail them.
-  void _reveal() {
+  void _reveal({bool again = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scroll.hasClients || _cursor < 0 || _cursor >= _rows.length) return;
       final row = _rows[_cursor].currentContext?.findRenderObject();
-      if (row == null || !row.attached) return;
+      if (row == null || !row.attached) {
+        // A row far from the list's window is not built (End, from the top): the list goes to about where the row
+        // is, by its place among the rows, and once it is built there it is brought in exactly.
+        if (!again || _rows.length < 2) return;
+        final position = _scroll.position;
+        position.jumpTo(position.minScrollExtent + (position.maxScrollExtent - position.minScrollExtent) * _cursor / (_rows.length - 1));
+        _reveal(again: false);
+        WidgetsBinding.instance.scheduleFrame();
+        return;
+      }
       final viewport = RenderAbstractViewport.of(row);
       final position = _scroll.position;
       final top = viewport.getOffsetToReveal(row, 0).offset;
@@ -609,16 +618,20 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
               explicitChildNodes: true,
               label: label,
               identifier: _listId,
-              child: SingleChildScrollView(
+              // The rows near the list's window are the ones built: every row offered was built and laid out at
+              // each letter typed, forty notes and the commands, of which the panel shows ten (a letter cost a
+              // phone 18 ms of its frame). The list is as tall as its rows up to the room it is given, as it was:
+              // where it is the shorter, every row is in its window and is built, and its height is theirs.
+              child: CustomScrollView(
                 controller: _scroll,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    for (final group in _groups) ...[
-                      // Presentational: the option order already carries the grouping for anyone reading top to
-                      // bottom.
-                      if (group.group != null && group.group!.isNotEmpty)
-                        ExcludeSemantics(
+                shrinkWrap: true,
+                slivers: [
+                  for (final group in _groups) ...[
+                    // Presentational: the option order already carries the grouping for anyone reading top to
+                    // bottom.
+                    if (group.group != null && group.group!.isNotEmpty)
+                      SliverToBoxAdapter(
+                        child: ExcludeSemantics(
                           child: Padding(
                             padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(1)),
                             // headings are signposts, not rows: they should never be mistaken for something Enter
@@ -635,10 +648,20 @@ class _GlacierCommandPaletteState extends State<GlacierCommandPalette> with Tick
                             ),
                           ),
                         ),
-                      for (final match in group.matches) _row(t, match),
-                    ],
+                      ),
+                    SliverList(
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => _row(t, group.matches[i]),
+                        childCount: group.matches.length,
+                        // As the rows were in their column: no layer of a row's own, nothing kept alive past the
+                        // window, and no place in the list added to what a screen reader hears of a row.
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: false,
+                        addSemanticIndexes: false,
+                      ),
+                    ),
                   ],
-                ),
+                ],
               ),
             ),
           ),

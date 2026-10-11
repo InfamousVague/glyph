@@ -174,7 +174,7 @@ void main() {
             await settle(tester);
             if (query.isNotEmpty) await type(tester, query);
 
-            final drawn = lines(tester);
+            final drawn = await allLines(tester);
             final rows = (page['rows'] as List).cast<Map<String, dynamic>>();
             expect([for (final line in drawn) '${line.kind} ${line.text}'], [for (final row in rows) '${row['kind']} ${row['text']}']);
             expect([for (final line in drawn) if (line.selected) line.text], [for (final row in rows) if (row['selected'] == true) row['text']]);

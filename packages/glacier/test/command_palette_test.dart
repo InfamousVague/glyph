@@ -96,7 +96,8 @@ Future<void> pumpIn(WidgetTester tester, Widget child, {Size size = const Size(3
 }
 
 final Finder panel = find.byWidgetPredicate((w) => w is Semantics && w.properties.role == SemanticsRole.dialog);
-final Finder list = find.byType(SingleChildScrollView);
+// The list is a scroll view of slivers: the rows near its window are the ones built.
+final Finder list = find.byType(CustomScrollView);
 final Finder rows = find.descendant(of: list, matching: find.byType(GlacierPressable));
 final Finder field = find.byType(EditableText);
 
@@ -751,12 +752,16 @@ void main() {
       expect(view.bottom, lessThan(box.bottom));
       expect(tester.getRect(find.text('↑↓ to navigate · ↵ to run · esc to close')).bottom, lessThan(box.bottom));
 
+      // A row out of the list's window is not on the stage, and one far from it is not built.
       bool visible(String label) {
+        if (find.textContaining(label, findRichText: true).evaluate().isEmpty) return false;
         final row = tester.getRect(rowOf(label));
         return row.top >= view.top - 0.01 && row.bottom <= view.bottom + 0.01;
       }
 
       expect(visible('Command 0'), isTrue);
+      // Forty rows offered, and the ones built are those in the list's window and a few past it.
+      expect(find.descendant(of: list, matching: find.byType(GlacierPressable), skipOffstage: false).evaluate().length, lessThan(25));
       for (var i = 0; i < 20; i++) {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowDown);
         await tester.pump();
