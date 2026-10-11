@@ -1,20 +1,23 @@
 #!/bin/sh
 # The whole suite, one thing at a time, in the order that fails soonest: the kit, the app folder by folder, the
-# analyzer, the two folders that want the real service (tool/local-server.sh), and the Rust core's own tests.
+# analyzer, the two folders that want the real service (tool/local-server.sh), the phone's Kotlin on the JVM, and
+# the Rust core's own tests.
 #
-#   tool/check.sh                     everything
+#   tool/check.sh                     everything (GHOST_CHECK_SKIP="native kotlin" leaves parts out, and says so)
 #   tool/check.sh --since <rev>       the quick one: the kit and the folders of test/ that what changed since <rev>
 #                                     can reach (committed since, not committed yet, or not yet known to git), and
 #                                     the analyzer. --quick is --since HEAD: what is not committed yet.
 #   tool/check.sh --since <rev> --list    says what that would run, and the changed file that reaches each; runs nothing
 #
-#   tool/check.sh kit                 packages/glacier
+#   tool/check.sh kit                 packages/glacier, and any other package under packages/ that has tests
 #   tool/check.sh app                 every folder of test/ (and the tests at its top), each in a run of its own
 #   tool/check.sh app root editor     those folders only
 #   tool/check.sh test <arguments>    one `flutter test` of whatever is named, with the same limits and the same
 #                                     report: a file, --plain-name '<a test>', --update-goldens
 #   tool/check.sh analyze             lib/, test/ and packages/glacier: no error and no warning
 #   tool/check.sh server              test/e2e and test/live against the service on this Mac, started and stopped here
+#   tool/check.sh kotlin              the phone's Kotlin on the JVM (android: ./gradlew :app:testDebugUnitTest), under
+#                                     the build lock
 #   tool/check.sh native              tool/build-native.sh test (cargo's tests; long, and it takes the build lock)
 #   tool/check.sh pictures            what a run left changed among the pictures (it says; it changes nothing)
 #
@@ -26,8 +29,8 @@
 # names it in a string (`File('android/app/src/main/AndroidManifest.xml')`, a folder of fixtures, `Directory('lib')`:
 # test/diag reads every file of lib/, so every change there reaches it). Besides that: a picture or a fixture under
 # test/<folder>/ reaches its folder; pubspec.yaml, assets/ and shaders/ reach everything, since every screen is
-# drawn with them; native/ reaches the tests that open the Mac's build of the core. It does NOT run `server` or
-# `native`, and says so where what changed asks for them. What changed in ../glyph is not seen at all.
+# drawn with them; native/ reaches the tests that open the Mac's build of the core. It does NOT run `server`,
+# `kotlin` or `native`, and says so where what changed asks for them. What changed in ../glyph is not seen at all.
 # GHOST_CHECK_FILES="lib/a.dart lib/b.dart" tool/check.sh --since HEAD --list answers for those files instead:
 # what a change there would have to be checked by.
 #
@@ -36,8 +39,16 @@
 #     (/tmp/ghost-flutter-check.lock, which holds the first one's process id and is taken over if that is gone);
 #   - before each run it waits while the one-minute load is GHOST_CHECK_LOAD (40) or more: a picture's settle, a
 #     keystroke's budget and a derivation at the real rounds are each measured in this Mac's time;
-#   - cargo is given GHOST_JOBS (4) jobs, and every cargo build is made under the lock every build takes here
-#     (/tmp/ghost-flutter-build.lock, a directory made and removed).
+#   - no run is begun while someone else is building: /tmp/ghost-flutter-build.lock is a directory whose `pid`
+#     names its holder, waited for while that process lives, taken over once it is gone, and waited for without
+#     end if it names nobody (a lock made by a plain mkdir);
+#   - cargo is given GHOST_JOBS (4) jobs, and cargo and gradle are run holding that lock.
+#
+# THE CORE THE DART TESTS OPEN is native/target/debug/libghost_core.dylib (tool/build-native.sh host). `app` says
+# when it is not what this checkout's native/ would build: a source cargo built it from (its own list,
+# libghost_core.d) has been written since it was linked, or it was built in another checkout (a worktree's
+# native/target linked to the main tree's) whose native/ is not this one's, file for file. It reads no commit's
+# date and no checkout's file times: a file checked out a minute ago is as old as what is in it.
 #
 # A folder is one that git knows a test in: a probe left untracked in a folder of its own under test/ is not run.
 #
@@ -95,23 +106,49 @@ take_turn() {
 # Whatever this run holds is let go, however it ends: its turn, the build lock, the service it started.
 leave() {
   [ -z "$serving" ] || tool/local-server.sh stop >/dev/null 2>&1
-  [ -z "$building" ] || rmdir "$build_lock" 2>/dev/null
+  [ -z "$building" ] || built
   [ -z "$held" ] || rm -rf "$check_lock"
   serving=""; building=""; held=""
 }
 
-# Every build on this Mac is made one at a time.
+# Whether someone else is building: the lock is there, it is not this run's, and its holder lives (or is unnamed).
+# A lock whose holder is gone is nobody's, and is removed.
+others_build() {
+  [ -d "$build_lock" ] || return 1
+  [ -z "$building" ] || return 1
+  holder="$(cat "$build_lock/pid" 2>/dev/null || true)"
+  if [ -n "$holder" ] && ! kill -0 "$holder" 2>/dev/null; then
+    rm -f "$build_lock/pid"
+    rmdir "$build_lock" 2>/dev/null || true
+    [ -d "$build_lock" ] || return 1
+  fi
+  return 0
+}
+
+# Every build on this Mac is made one at a time, and says who is making it.
 build_turn() {
-  until mkdir "$build_lock" 2>/dev/null; do sleep 10; done
+  until mkdir "$build_lock" 2>/dev/null; do
+    others_build || continue
+    sleep 2
+  done
+  echo $$ >"$build_lock/pid"
   building=1
 }
 
 built() {
+  rm -f "$build_lock/pid"
   rmdir "$build_lock" 2>/dev/null
   building=""
 }
 
+# Before a run: nobody else building, and the Mac not busy.
 quiet() {
+  told=""
+  while others_build; do
+    [ -n "$told" ] || say "a build holds $build_lock (process $(cat "$build_lock/pid" 2>/dev/null || echo '?')); waiting for it..."
+    told=1
+    sleep 5
+  done
   # macOS and Linux both: the first number of the load average.
   while :; do
     load="$( (sysctl -n vm.loadavg 2>/dev/null || cat /proc/loadavg) | tr -d '{}' | awk '{print int($1)}')"
@@ -214,6 +251,13 @@ run() {
 
 kit() {
   run kit "$root/packages/glacier"
+  # Any other package kept in this repository that has tests of its own (the vendored maths has none).
+  for package in packages/*/; do
+    name="$(basename "$package")"
+    [ "$name" = glacier ] && continue
+    [ -n "$(git ls-files "$package" | grep '_test\.dart$' | head -1)" ] || continue
+    run "kit-$name" "$root/$package"
+  done
 }
 
 # The folders of test/ that git knows a test in, and "." where there are tests at its top.
@@ -221,14 +265,38 @@ folders() {
   git ls-files 'test/*_test.dart' | awk -F/ '{ print (NF > 2 ? $2 : ".") }' | sort -u
 }
 
-# The Mac's build of the core is what the Dart tests of it open; one older than its source answers for the old source.
+# The Mac's build of the core is what the Dart tests of it open. Whether it is this checkout's source is asked of
+# what cargo built it from (its own list, beside the library), never of this checkout's file times, which say when
+# a file was checked out and nothing of what is in it:
+#   - a source on that list written since the library was linked: the library is the old source's;
+#   - the list is another checkout's (a worktree whose native/target is a link to the main tree's): its native/
+#     must be this one's, file for file, or the library is that checkout's and not this one's.
 core_note() {
   if [ ! -f "$library" ]; then
     say "note: the Mac's build of the core is not there, so the tests that open it skip themselves (tool/build-native.sh host)"
     return 0
   fi
-  newer="$(find native/src native/shims native/Cargo.toml ../glyph/src-tauri/src -type f -newer "$library" 2>/dev/null | head -1)"
-  [ -z "$newer" ] || say "note: the Mac's build of the core is older than $newer; the Dart tests of the core ran against the old one (tool/build-native.sh host)"
+  list="${library%.dylib}.d"
+  if [ ! -f "$list" ]; then
+    say "note: cargo's list of what the core was built from is not beside it ($list), so whether it is this source's cannot be told"
+    return 0
+  fi
+  sources="$(tr ' ' '\n' <"$list" | grep '\.rs$' | grep -v '/target/')"
+  builder="$(echo "$sources" | grep -m1 '/native/src/' | sed 's|/native/src/.*||')"
+  for source in $sources ${builder:+"$builder/native/Cargo.toml" "$builder/native/Cargo.lock"}; do
+    if [ "$source" -nt "$library" ]; then
+      say "note: the Mac's build of the core is older than $source, which it is built from: the Dart tests of the core ran against the old one (tool/build-native.sh host)"
+      return 0
+    fi
+  done
+  [ -n "$builder" ] && [ -d "$builder" ] || return 0
+  [ "$(cd "$builder" && pwd -P)" = "$(pwd -P)" ] && return 0
+  for source in $(echo "$sources" | grep '/native/' | grep -v '/\.\./') "$builder/native/Cargo.toml" "$builder/native/Cargo.lock"; do
+    if ! cmp -s "$source" "$root/native/${source#*/native/}"; then
+      say "note: the Mac's build of the core was made in $builder, whose native/${source#*/native/} is not this checkout's: the Dart tests of the core ran against that one's"
+      return 0
+    fi
+  done
 }
 
 app() {
@@ -259,7 +327,13 @@ imports() {
 import os, re, subprocess, sys
 
 os.chdir(sys.argv[1])
-KIT = 'packages/glacier'
+# The packages kept in this repository, by the name an import calls each: the kit, the vendored maths.
+packages = {}
+for folder in sorted(os.listdir('packages')) if os.path.isdir('packages') else []:
+    try:
+        packages[re.search(r'^name:\s*(\S+)', open('packages/%s/pubspec.yaml' % folder).read(), re.M).group(1)] = 'packages/' + folder
+    except (OSError, AttributeError):
+        pass
 
 
 def git(*args):
@@ -269,8 +343,9 @@ def git(*args):
 def resolve(uri, source):
     if uri.startswith('package:ghost_md/'):
         return 'lib/' + uri[len('package:ghost_md/'):]
-    if uri.startswith('package:glacier/'):
-        return KIT + '/lib/' + uri[len('package:glacier/'):]
+    if uri.startswith('package:'):
+        name, _, rest = uri[len('package:'):].partition('/')
+        return packages[name] + '/lib/' + rest if name in packages else None
     if ':' in uri:
         return None
     return os.path.normpath(os.path.join(os.path.dirname(source), uri))
@@ -292,11 +367,11 @@ def imported(lines, head):
 
 directive = r'^[[:space:]]*(import|export|part)[[:space:]]'
 committed = set(git('ls-tree', '-r', '--name-only', 'HEAD'))
-for target, by in sorted(imported(git('grep', '-n', '-E', directive, 'HEAD', '--', 'lib', 'test', KIT), True).items()):
+for target, by in sorted(imported(git('grep', '-n', '-E', directive, 'HEAD', '--', 'lib', 'test', 'packages'), True).items()):
     if target not in committed:
         print('missing %s %d %s' % (target, len(by), by[0]))
 known = set(git('ls-files'))
-for target, by in sorted(imported(git('grep', '-n', '-E', directive, '--', 'lib', 'test', KIT), False).items()):
+for target, by in sorted(imported(git('grep', '-n', '-E', directive, '--', 'lib', 'test', 'packages'), False).items()):
     if target not in known and os.path.exists(target):
         print('unadded %s %d %s' % (target, len(by), by[0]))
 EOF
@@ -366,6 +441,53 @@ server() {
   done
 }
 
+# The phone's Kotlin that needs no phone: the tests under android/app/src/test, on the JVM. Gradle compiles the
+# app's Kotlin for them, so it is a build, and holds the lock. The wrapper is not in git: a fresh checkout has
+# none until android/gradlew and android/gradle/wrapper/gradle-wrapper.jar are copied from one that built the app.
+kotlin() {
+  take_turn
+  if [ ! -x android/gradlew ] || [ ! -f android/gradle/wrapper/gradle-wrapper.jar ]; then
+    say "kotlin: no gradle wrapper in this checkout (git ignores android/gradlew and android/gradle/wrapper/gradle-wrapper.jar): copy both from a checkout that has built the app"
+    failed="$failed kotlin"
+    return 0
+  fi
+  quiet
+  export JAVA_HOME="${JAVA_HOME:-/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home}"
+  export ANDROID_HOME="${ANDROID_HOME:-$HOME/Library/Android/sdk}"
+  say "kotlin: the JVM tests (waiting for the build lock first)"
+  build_turn
+  began="$(date +%s)"
+  : >"$out/kotlin.began"
+  # Run again whatever gradle remembers: an up-to-date task leaves the last run's answers and says nothing ran.
+  (cd android && ./gradlew :app:cleanTestDebugUnitTest :app:testDebugUnitTest --console=plain) >"$out/kotlin.log" 2>&1
+  code=$?
+  built
+  said="$(find build android -path '*test-results/testDebugUnitTest/*.xml' -newer "$out/kotlin.began" 2>/dev/null | python3 -c '
+import sys, xml.etree.ElementTree as ET
+tests = bad = skipped = 0
+names = []
+for path in sys.stdin.read().split():
+    suite = ET.parse(path).getroot()
+    tests += int(suite.get("tests", 0)); skipped += int(suite.get("skipped", 0))
+    for case in suite.iter("testcase"):
+        why = case.find("failure") if case.find("failure") is not None else case.find("error")
+        if why is not None:
+            bad += 1
+            names.append("  FAILED %s :: %s\n         %s" % (case.get("classname"), case.get("name"), (why.get("message") or "").splitlines()[0][:230] if why.get("message") else ""))
+print("%d passed, %d failed, %d skipped" % (tests - bad - skipped, bad, skipped))
+print("\n".join(names))
+')"
+  counts="$(echo "$said" | head -1)"
+  say "kotlin: $counts ($(( $(date +%s) - began )) s)"
+  echo "$said" | sed '1d' | sed '/^$/d' | sed 's/^/check: /'
+  set -- $counts
+  passed=$((passed + ${1:-0})); failures=$((failures + ${3:-0})); skipped=$((skipped + ${5:-0}))
+  if [ "$code" -ne 0 ]; then
+    failed="$failed kotlin"
+    echo "$said" | grep -q FAILED || say "  gradle ended $code and named no test; see $out/kotlin.log"
+  fi
+}
+
 native() {
   take_turn
   quiet
@@ -402,7 +524,13 @@ import os, re, subprocess, sys
 
 root, rev = sys.argv[1], sys.argv[2]
 os.chdir(root)
-KIT = 'packages/glacier'
+# The packages kept in this repository, by the name an import calls each: the kit, the vendored maths.
+packages = {}
+for folder in sorted(os.listdir('packages')) if os.path.isdir('packages') else []:
+    try:
+        packages[re.search(r'^name:\s*(\S+)', open('packages/%s/pubspec.yaml' % folder).read(), re.M).group(1)] = 'packages/' + folder
+    except (OSError, AttributeError):
+        pass
 
 
 def git(*args):
@@ -417,10 +545,12 @@ if os.environ.get('GHOST_CHECK_FILES'):
     changed = sorted(set(os.environ['GHOST_CHECK_FILES'].split()))
 else:
     changed = sorted(set(git('diff', '--name-only', rev, '--') + git('ls-files', '--others', '--exclude-standard')))
+    # cargo's output, where a worktree has it as a link to another checkout's (git ignores the folder, not a link).
+    changed = [path for path in changed if path != 'native/target']
 
-# Every Dart file a test can compile: the app's, the kit's, and both sets of tests (known to git or not).
+# Every Dart file a test can compile: the app's, the packages', and their tests (known to git or not).
 dart = []
-for top in ('lib', 'test', KIT + '/lib', KIT + '/test'):
+for top in ['lib', 'test'] + [kept + part for kept in packages.values() for part in ('/lib', '/test')]:
     for folder, _, names in os.walk(top):
         dart += [os.path.join(folder, name) for name in names if name.endswith('.dart')]
 known = set(dart)
@@ -433,8 +563,9 @@ opened = re.compile(r'''\b(?:File|Directory)\(\s*r?['"]([^'"$\n]+)['"]''')
 def resolve(uri, source):
     if uri.startswith('package:ghost_md/'):
         return 'lib/' + uri[len('package:ghost_md/'):]
-    if uri.startswith('package:glacier/'):
-        return KIT + '/lib/' + uri[len('package:glacier/'):]
+    if uri.startswith('package:'):
+        name, _, rest = uri[len('package:'):].partition('/')
+        return packages[name] + '/lib/' + rest if name in packages else None
     if ':' in uri:
         return None
     return os.path.normpath(os.path.join(os.path.dirname(source), uri))
@@ -455,7 +586,7 @@ for source in dart:
                 importers.setdefault(target, set()).add(source)
     # The strings that are paths in the repository, from where a test runs (the kit's from its own folder too). An
     # import's address is not one; a string a `$name` cuts short names the folder it was in.
-    bases = ['', KIT] if source.startswith(KIT + '/') else ['']
+    bases = [''] + [kept for kept in packages.values() if source.startswith(kept + '/')]
     body = directive.sub('', text)
     bare = set(opened.findall(body))
     literals = {(name, False) for name in bare}
@@ -489,7 +620,7 @@ def reach(target, by):
 
 
 for path in changed:
-    if path in ('pubspec.yaml', 'pubspec.lock', KIT + '/pubspec.yaml') or path.startswith(('assets/', 'shaders/')):
+    if path in ('pubspec.yaml', 'pubspec.lock') or re.fullmatch(r'packages/[^/]+/pubspec\.yaml', path) or path.startswith(('assets/', 'shaders/')):
         # What every test draws with: the packages, the faces, the stylesheets, the shaders.
         everything = everything or path
     if path.startswith('native/') or path == 'tool/build-native.sh':
@@ -509,7 +640,7 @@ while queue:
 
 kit, folders = None, {}
 for path in changed:
-    if path.startswith(KIT + '/') and not path.endswith('.dart'):
+    if path.startswith('packages/') and not path.endswith('.dart'):
         kit = kit or path
     parts = path.split('/')
     if parts[0] == 'test' and len(parts) > 2 and not path.endswith('.dart') and 'failures' not in parts:
@@ -517,7 +648,7 @@ for path in changed:
 for path in sorted(reason):
     if not path.endswith('_test.dart'):
         continue
-    if path.startswith(KIT + '/test/'):
+    if re.match(r'packages/[^/]+/test/', path):
         kit = kit or reason[path]
     elif path.startswith('test/'):
         parts = path.split('/')
@@ -533,6 +664,10 @@ for folder in sorted(folders):
 for path in changed:
     if path.startswith('native/') or path == 'tool/build-native.sh':
         print('native %s' % path)
+        break
+for path in changed:
+    if path.startswith('android/'):
+        print('kotlin %s' % path)
         break
 EOF
 }
@@ -579,6 +714,8 @@ since() {
     say "note: --since does not start the service: the halves of test/e2e and test/live that need it were skipped (tool/check.sh server)"
   fi
   [ -z "$native_why" ] || say "note: $native_why changed: cargo's own tests are \`tool/check.sh native\`, and the Dart tests open the core as tool/build-native.sh host last built it"
+  kotlin_why="$(echo "$reached" | awk '$1 == "kotlin" { print $2 }')"
+  [ -z "$kotlin_why" ] || say "note: $kotlin_why changed: the phone's Kotlin has tests of its own, \`tool/check.sh kotlin\`"
 }
 
 what="${1:-all}"
@@ -589,6 +726,7 @@ case "$what" in
   test) run test "$root" "$@" ;;
   analyze) analyze ;;
   server) server ;;
+  kotlin) kotlin ;;
   native) native ;;
   pictures) pictures ;;
   --since | --quick)
@@ -603,7 +741,14 @@ case "$what" in
     [ -z "$list" ] || exit 0
     ;;
   --list) say "the kit, then: $(folders | tr '\n' ' ')" ; exit 0 ;;
-  all) kit; app; analyze; server; native; pictures ;;
+  all)
+    for part in kit app analyze server kotlin native pictures; do
+      case " ${GHOST_CHECK_SKIP:-} " in
+        *" $part "*) say "$part: left out (GHOST_CHECK_SKIP)" ;;
+        *) "$part" ;;
+      esac
+    done
+    ;;
   *) sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//' >&2; exit 2 ;;
 esac
 
