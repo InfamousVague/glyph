@@ -13,7 +13,7 @@
 ///
 /// Where each goes is commands/inserts.dart: a drawn thing on a line of its own, a block with blank lines where
 /// words are near, words at the caret. Every write is one Undo, and appears at once (docs/DESIGN.md §140, §141 in
-/// ../glyph).
+/// tauri/).
 ///
 /// What differs:
 /// - **What the device can do is the screen's to say.** `canPickPicture` and `placeRow` read the web's platform

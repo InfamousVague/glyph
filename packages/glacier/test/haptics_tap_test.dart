@@ -1,5 +1,5 @@
 // The tap tick is given for a tap and not for the start of a scroll: the app's own rule
-// (../glyph/src/app/core/haptics.ts `installTapHaptics`: a tap is only a tap in hindsight).
+// (tauri/src/app/core/haptics.ts `installTapHaptics`: a tap is only a tap in hindsight).
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:glacier/glacier.dart';

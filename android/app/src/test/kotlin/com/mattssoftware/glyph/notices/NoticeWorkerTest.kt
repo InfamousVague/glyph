@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.notices
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/test/java/com/mattssoftware/glyph/notices/NoticeWorkerTest.kt for the Flutter app
+// PORTED from tauri/src-tauri/gen/android/app/src/test/java/com/mattssoftware/glyph/notices/NoticeWorkerTest.kt for the Flutter app
 // (docs/PARITY.md, Missing 4), and one test more: which service the worker may ask (NoticeAlerts `mayAsk`).
 
 import org.json.JSONArray

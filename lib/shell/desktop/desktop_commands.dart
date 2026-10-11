@@ -1,7 +1,7 @@
 /// What a desktop's keyboard and menu bar ask of the app, and who answers.
 ///
 /// The web app bound these on its page: Command-N and Command-R in App.tsx (the Mac app only: docs/DESIGN.md §144
-/// and §210 of ../glyph), Command-K in the kit's palette, Command-F in Settings' field, and Tauri's default menu
+/// and §210 of tauri/), Command-K in the kit's palette, Command-F in Settings' field, and Tauri's default menu
 /// beside them. Here they are named once, so the Mac's menu bar (macos/Runner/AppDelegate.swift, through
 /// lib/shell/desktop/mac_window.dart) and the keyboard reach the same handler:
 ///

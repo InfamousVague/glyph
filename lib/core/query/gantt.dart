@@ -1,5 +1,5 @@
 /// A query shown as a gantt (`show: gantt`): its records turned into the text of a Mermaid gantt chart
-/// (../glyph docs/QUERIES.md, docs/DESIGN.md §159). A port of `src/app/core/query/gantt.ts`.
+/// (tauri/docs/QUERIES.md, docs/DESIGN.md §159). A port of `src/app/core/query/gantt.ts`.
 ///
 ///     gantt
 ///       dateFormat YYYY-MM-DD

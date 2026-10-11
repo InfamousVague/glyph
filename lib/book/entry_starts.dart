@@ -1,4 +1,4 @@
-/// What a new entry can start from, as New entry offers it on an open journal (../glyph docs/DESIGN.md §142): the
+/// What a new entry can start from, as New entry offers it on an open journal (tauri/docs/DESIGN.md §142): the
 /// journal's usual template first, then the presets it is not, then an empty page, each told on one line as it would
 /// start this minute. A port of `src/app/book/entryStarts.ts`. Pure, so the order and the line are tests.
 ///

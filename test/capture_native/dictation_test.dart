@@ -1,7 +1,7 @@
 // The native capture through the real C functions on the Mac: `NativeCaptureBackend` under the app's own
 // `CaptureEngine`, Whisper (base.en) hearing the web app's fixture recording as a microphone would hand it over,
 // in 200 ms chunks. Then the rest of the backend: the tape kept and moved, a rewind, a cancel, a pass with the
-// larger model. Needs tool/build-native.sh host and ../glyph/models; says SKIPPED otherwise.
+// larger model. Needs tool/build-native.sh host and tauri/models; says SKIPPED otherwise.
 import 'dart:async';
 import 'dart:io';
 

@@ -1,4 +1,4 @@
-//! Starting over: `reset_local_data`, from `../glyph/src-tauri/src/reset.rs`, whose command names Tauri's
+//! Starting over: `reset_local_data`, from `tauri/src-tauri/src/reset.rs`, whose command names Tauri's
 //! `AppHandle` and so cannot be included whole. What a reset removes, in what order, and the rule that a folder
 //! of the person's is never emptied (docs/DESIGN.md §187) are that file's own lines between the marks;
 //! `kept::tests` holds them to the original. Its tests came with them.

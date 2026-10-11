@@ -1,5 +1,5 @@
 /// A notebook's tickets: the library-wide half of tickets as notes (Matt asked what Notion- and Jira-like features
-/// custom Markdown could give the app, "like tickets and such", and then "Do 1, 2 and 3 in parallel"; ../glyph
+/// custom Markdown could give the app, "like tickets and such", and then "Do 1, 2 and 3 in parallel"; tauri/
 /// docs/DESIGN.md §157, docs/TICKETS.md). A port of `src/app/book/tickets.ts`. What one ticket's front matter says is
 /// lib/core/properties.dart, the grammar the three features share (§156); this is what needs the other notes: which
 /// notebook a ticket is in and so which workflow its status moves through, the key the next one gets, the people the

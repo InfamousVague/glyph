@@ -1,4 +1,4 @@
-//! The library's folder, moved and gone back from (docs/DESIGN.md §187): `../glyph/src-tauri/src/library_commands.rs`,
+//! The library's folder, moved and gone back from (docs/DESIGN.md §187): `tauri/src-tauri/src/library_commands.rs`,
 //! whose commands take Tauri's `AppHandle` and `State` and open the Mac's folder panel, so it cannot be included
 //! whole. What a folder is said to hold, the move itself and what a reset forgets are that file's own lines
 //! between the marks, and `kept::tests` holds them to the original; its tests came with them.

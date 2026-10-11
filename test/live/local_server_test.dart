@@ -1,4 +1,4 @@
-// Live typing between two Dart devices through the REAL relay (../glyph/server `live.rs`), run on this Mac by
+// Live typing between two Dart devices through the REAL relay (server `live.rs`), run on this Mac by
 // tool/local-server.sh, with the real crypto, the real CRDT and real sockets: a note of the account's own on two
 // of its devices (the web's core/live/live.e2e.test.ts, case for case), and a team's note between two members'
 // devices with their carets, who is where, and the word that there is something to fetch.

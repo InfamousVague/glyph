@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/query/read.dart';
 
-/// A query's lines, read (lib/core/query/read.dart, ../glyph docs/QUERIES.md): every clause, its defaults, the words
+/// A query's lines, read (lib/core/query/read.dart, tauri/docs/QUERIES.md): every clause, its defaults, the words
 /// a test compares with, and the one sentence a query that cannot be read is answered with, at its line and column.
 /// Case for case with the web's `core/query/read.test.ts`.
 Query read(String body) {

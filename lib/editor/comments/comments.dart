@@ -1,4 +1,4 @@
-/// Comments drawn in the note (../glyph docs/SHARED.md, S8; lib/comments/format.dart is the format). Ports
+/// Comments drawn in the note (tauri/docs/SHARED.md, S8; lib/comments/format.dart is the format). Ports
 /// `src/app/editor/comments.ts`. Matt: "make sure comments were added to the app like we discussed previously".
 ///
 /// - **The anchor**, `[^c1]`, is drawn as a small round in its author's colour where it sits; a tap on it opens the

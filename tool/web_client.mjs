@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// A WEB device, under Node, against the local server: the web app's own client code (../glyph/src/app/core:
+// A WEB device, under Node, against the local server: the web app's own client code (tauri/src/app/core:
 // account.ts, sync/notes.ts, sync/prefs.ts, account/encKey.ts, orgs/orgKeys.ts, team/sync.ts with its own Yjs)
 // signing in to an account a Dart device made, reading what it wrote and writing back. What test/e2e/web_test.dart
 // runs; the proof that the two clients are one wire through one real service.
@@ -19,7 +19,7 @@
 //   3. `fetch` is replaced, before any web code loads, by one that throws for any host but 127.0.0.1, and
 //      `WebSocket` is taken away.
 //
-// ../glyph is only READ: its TypeScript is loaded as it is (Node strips the types), its node_modules give it `yjs`
+// tauri/ is only READ: its TypeScript is loaded as it is (Node strips the types), its node_modules give it `yjs`
 // and `react`. Nothing is written there.
 import { registerHooks } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
@@ -51,7 +51,7 @@ globalThis.WebSocket = undefined;
 globalThis.__GHOST_WEB_ENV = Object.freeze({ VITE_GLYPH_API: base, MODE: 'test', DEV: false, PROD: false });
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const web = resolve(root, '../glyph/src/app');
+const web = resolve(root, 'tauri/src/app');
 const webUrl = pathToFileURL(web).href;
 
 // Vite's `import.meta.env`, as the web's source is loaded: the local base, and nothing else.

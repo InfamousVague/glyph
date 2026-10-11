@@ -12,7 +12,7 @@
 // needs, at two device pixels to the logical one, the editor's box at the page's corner, so every rectangle is in
 // the editor's own coordinates. A colour is what the page paints for it, read off a canvas: red, green, blue and
 // alpha, each of 255. The editor measured is the BASE one of tool/editor_reference.mjs (language, highlighter, line
-// classes, extended markdown, theme, view mode) with `drawnMaths()` of ../glyph/src/app/editor/mathsDrawn.ts and
+// classes, extended markdown, theme, view mode) with `drawnMaths()` of tauri/src/app/editor/mathsDrawn.ts and
 // `drawnMermaid()` of editor/mermaid.ts, each as Editor.tsx adds it.
 //
 // For each case it writes test/editor/blocks/fixtures/<name>.json:
@@ -31,7 +31,7 @@
 //   colours  the page's ground and ink, and every `--code-*` property as the page computed it
 // and <name>.png, the picture.
 //
-//   (cd ../glyph && npx vite --port 5291 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5291 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/blocks_reference.mjs [name ...]                                 # then stop the server by its PID
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.

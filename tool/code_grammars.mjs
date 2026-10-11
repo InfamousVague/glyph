@@ -3,7 +3,7 @@
 //
 //   node tool/code_grammars.mjs
 //
-// Everything is read from ../glyph's node_modules and nothing is written there. A fenced block in the web app is
+// Everything is read from the Tauri app's node_modules and nothing is written there. A fenced block in the web app is
 // parsed by a Lezer grammar (@lezer/javascript, @lezer/python ...): tables an LR parser runs, made by
 // lezer-generator and shipped as strings. The port runs the same tables, so they are copied as they are shipped:
 // `states`, `stateData`, `goto` and `tokenData` in Lezer's own encoding, the node names, and the numbers beside
@@ -18,7 +18,7 @@
 // each with the parents it asks for (`context`), its mode (0 opaque, 1 inherit, 2 normal) and its class.
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const MODULES = `${GLYPH}node_modules/`;
 const OUT = new URL('../lib/editor/code/grammars/', import.meta.url).pathname;
 

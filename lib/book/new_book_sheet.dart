@@ -7,7 +7,7 @@
 /// book writes one note with those pages as its index (lib/core/book.dart [bookNoteBody]) and opens it. Nothing is
 /// written until then: closing the sheet makes nothing.
 ///
-/// Or a journal (../glyph docs/DESIGN.md §142): a choice under the name, Notebook or Journal, and with Journal
+/// Or a journal (tauri/docs/DESIGN.md §142): a choice under the name, Notebook or Journal, and with Journal
 /// chosen the pages give way to what each entry starts with and whether it keeps where it was written
 /// (template_picker.dart). Its place switch starts as this device's Tag new notes, whatever the device can do, so a
 /// journal made on the Mac keeps the places of the entries made on the phone.

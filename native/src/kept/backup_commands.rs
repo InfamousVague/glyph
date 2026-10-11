@@ -1,4 +1,4 @@
-//! The backup's doors (backup.rs; docs/DESIGN.md §204 and §213 of ../glyph): `../glyph/src-tauri/src/backup_commands.rs`,
+//! The backup's doors (backup.rs; docs/DESIGN.md §204 and §213 of tauri/): `tauri/src-tauri/src/backup_commands.rs`,
 //! whose commands take Tauri's `AppHandle` and `State` and so cannot be included. What a request is, the one
 //! backup that may run and how a failure is said are that file's own lines between the marks; `kept::tests`
 //! holds them to the original. The backup itself, backup.rs, is included whole (lib.rs).

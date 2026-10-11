@@ -34,7 +34,7 @@ import java.util.concurrent.Executors
 /**
  * Meetings, the write-up and the capture launch, as the Flutter app asks for them: what `window.GlyphHost`'s
  * meeting methods and `window.__glyph`'s inbound calls were to the Tauri app's page
- * (../glyph/src-tauri/gen/android/…/MainActivity.kt, the `@JavascriptInterface` block), method for method, with the
+ * (tauri/src-tauri/gen/android/…/MainActivity.kt, the `@JavascriptInterface` block), method for method, with the
  * same words answered. lib/capture/meeting_host.dart is the other side.
  *
  * THE CHANNEL `ghost_md/meeting` (every answer is the Tauri bridge's own):

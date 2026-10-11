@@ -1,4 +1,4 @@
-/// A ```query fence, drawn as what it finds (../glyph docs/QUERIES.md, docs/DESIGN.md §159). Ports
+/// A ```query fence, drawn as what it finds (tauri/docs/QUERIES.md, docs/DESIGN.md §159). Ports
 /// `src/app/editor/queries.ts`. Matt asked what "notion and jira like features" Markdown could give the app and took
 /// the database view among the first three: a fence of a few lines, `from: tickets #bug`,
 /// `where: status != Done`, `show: board`, which any other app shows as the lines it is.

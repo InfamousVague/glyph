@@ -1,5 +1,5 @@
 // What the web app's own comments module answers, written down for test/comments/parity_test.dart to hold the Dart
-// port to. Reads ../glyph and writes nothing there:
+// port to. Reads tauri/ and writes nothing there:
 //
 //   node --experimental-strip-types test/comments/fixtures/web_comments.mjs > test/comments/fixtures/web_comments.json
 //
@@ -7,7 +7,7 @@
 // resolution, a reopening, a deletion), and for each the module's edits are kept as it gave them, with what it read
 // of the note before. The note moves on by the edits laid in the order the editor's dispatch lays them (two at one
 // place in the order given), which is the Dart `applyEdits`; the page's own `applyEdits` is recorded beside it.
-import { addReply, addThread, applyEdits, countsBy, countWords, deleteThread, freshId, readComments, reopenThread, resolveThread, stampNow, threadCounts, withoutAnchors } from '../../../../glyph/src/app/core/comments/format.ts';
+import { addReply, addThread, applyEdits, countsBy, countWords, deleteThread, freshId, readComments, reopenThread, resolveThread, stampNow, threadCounts, withoutAnchors } from '../../../tauri/src/app/core/comments/format.ts';
 
 let seed = 4242;
 const random = () => {

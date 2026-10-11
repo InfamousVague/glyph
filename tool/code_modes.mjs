@@ -3,7 +3,7 @@
 //
 //   node tool/code_modes.mjs
 //
-// Everything is read from ../glyph's node_modules and nothing is written there. The pack reads ninety-odd of its
+// Everything is read from the Tauri app's node_modules and nothing is written there. The pack reads ninety-odd of its
 // languages with @codemirror/legacy-modes: each a `token(stream, state)` function in plain JavaScript, kept as it
 // was written for CodeMirror 5. Seven of the commonest are ported to Dart by hand (stream/clike.dart,
 // stream/modes.dart). The rest are run as they are: this parses each mode's file (acorn, which the web app's own
@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { gzipSync } from 'node:zlib';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const MODULES = `${GLYPH}node_modules/`;
 const MODES = `${MODULES}@codemirror/legacy-modes/mode/`;
 const OUT = new URL('../lib/editor/code/stream/modes.g.dart', import.meta.url).pathname;

@@ -160,7 +160,7 @@ void main() {
       expect(reviewPrompt.length, 2199);
       expect(reviewPrompt, startsWith('You check a voice note that a fast pipeline just wrote, inside Ghost.md, a notes app.'));
       expect(reviewPrompt, endsWith('No finding for style. If everything is right, answer [].'));
-      final web = File('../glyph/src/app/review/prompt.ts');
+      final web = File('tauri/src/app/review/prompt.ts');
       if (!web.existsSync()) return;
       final source = web.readAsStringSync();
       const open = 'export const REVIEW_PROMPT = String.raw`';

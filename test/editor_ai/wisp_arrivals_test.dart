@@ -1,4 +1,4 @@
-// Ports, from src/app/editor/wispArrivals.test.ts (../glyph), the cases about the drawing, in its order and under
+// Ports, from src/app/editor/wispArrivals.test.ts (tauri/), the cases about the drawing, in its order and under
 // its names, onto lib/editor/ai/wisp_arrivals.dart: 'words drawn arriving' (a filter each and no more than the pool
 // holds, every word of a paragraph settled past the pool, the filters gone with the editor) and 'the smoke of text
 // that went' (drawn in the look the text had). The cases about what is set in motion ('text arriving from smoke in

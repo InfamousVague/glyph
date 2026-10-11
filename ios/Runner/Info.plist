@@ -22,7 +22,7 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
-	<!-- The app's own links, as the real iPhone app claims them (../glyph/src-tauri/Info.ios.plist): a shared
+	<!-- The app's own links, as the real iPhone app claims them (tauri/src-tauri/Info.ios.plist): a shared
 	     note, an invitation, "written up" (lib/share/app_links.dart). An iPhone with both apps hands a link to
 	     whichever it chooses (README, "What the iPhone app left open"). `glyph://`, which the real app keeps for
 	     a voice-note shortcut nothing answers yet, is not claimed. -->

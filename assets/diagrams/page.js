@@ -2,7 +2,7 @@
  * A diagram drawn on this page for the app (lib/editor/diagrams/diagram_bridge.dart; DiagramRenderer.kt on Android,
  * apple/DiagramRenderer.swift on a Mac and an iPhone).
  *
- * `ghostDiagram.draw(ask)` draws what `ask.code` says the way ../glyph's src/app/editor/mermaid.ts `render` does (the
+ * `ghostDiagram.draw(ask)` draws what `ask.code` says the way the Tauri app's src/app/editor/mermaid.ts `render` does (the
  * same settings, word for word), puts it where its widget would (`.cm-mermaid` inside the editor's boxes, as wide as
  * the note's column), and tells the web view's owner where on the page the picture is. The owner then photographs
  * that part of the page.

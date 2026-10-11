@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.files
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryDocuments.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryDocuments.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 9A). What differs: `R` is this app's (its namespace is com.mattssoftware.ghost_md); the
 // place is named as this app is named on the phone (its label: "Ghost Flutter" while it installs beside the real app), where the Tauri
 // one wrote "Ghost.md", so a phone with both never lists two places of one name; and the button that opens it asks on `ghost_md/files`
@@ -51,7 +51,7 @@ class LibraryDocuments : DocumentsProvider() {
     )
   }
 
-  // The app's own folder for the notes: `LIBRARY` in native/src/paths.rs, which is ../glyph/src-tauri/src/paths.rs's.
+  // The app's own folder for the notes: `LIBRARY` in native/src/paths.rs, which is tauri/src-tauri/src/paths.rs's.
   // Rename both together (test/core/library_files_test.dart holds the two). Where the library is when it is not here
   // is library-root.json's to say (files/LibraryTree.kt `LibraryRoot`).
   private fun library(): File = File(context!!.dataDir, "Library")

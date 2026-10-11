@@ -3,11 +3,11 @@
   Google's backup on Android 11 and earlier (AndroidManifest.xml, android:fullBackupContent). The notes go
   (Library/, their sidecars in Library/.glyph/notes/ and library.json with them); the library's index does not.
   It is SQLite in WAL mode, three files that change together and that a backup copies one at a time, and it is
-  only a cache: the Rust core rebuilds it from the files the first time it opens (../glyph
+  only a cache: the Rust core rebuilds it from the files the first time it opens (tauri/
   src-tauri/src/library/index.rs). `root` is the data directory, which lib/core/native/device_paths.dart opens
   the core on. index/ is where a chosen folder's index is kept (library/root.rs `INDEXES`).
   The films in notes do not go either: video/ under the data directory (native/src/kept/videos.rs), which stays on
-  the phone it was added on, as ../glyph's own rules have it.
+  the phone it was added on, as the Tauri app's own rules have it.
 -->
 <full-backup-content>
     <exclude domain="root" path="Library/.glyph/index.sqlite" />

@@ -21,7 +21,7 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!--
-      Meetings (capture/MeetingService.kt, ported from ../glyph): a recording that keeps going with the screen
+      Meetings (capture/MeetingService.kt, ported from tauri/): a recording that keeps going with the screen
       off, and the write-up that follows it with the app closed. A foreground service needs FOREGROUND_SERVICE,
       and from Android 14 each of its types needs its own permission and a matching type on the <service> below:
       MICROPHONE while it records (the only type Android lets hold a microphone in the background, and only when
@@ -150,7 +150,7 @@
         </activity-alias>
 
         <!--
-          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from ../glyph and DISABLED (`@bool/ghost_assistant`, false
+          8F, THE PHONE ASSISTANT AND THE SIDE KEY: ported from tauri/ and DISABLED (`@bool/ghost_assistant`, false
           unless the build turns it on; android/app/build.gradle.kts says how), until a developer switches them on
           for one phone (AssistantSwitch.kt enables these four by name). Four things hang on the one switch: this
           alias, which is the activity's two capture doors (ASSIST for launchers and OEM builds that invoke the
@@ -256,7 +256,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/ghost_update_paths" />
         </provider>
-        <!-- The notes' folder in the phone's Files app, read-only (files/LibraryDocuments.kt, ported from ../glyph).
+        <!-- The notes' folder in the phone's Files app, read-only (files/LibraryDocuments.kt, ported from tauri/).
              Exported and guarded by MANAGE_DOCUMENTS, which only the system's Files app holds. The authority is this
              app's own id's, as the Tauri app's is its own: on a phone with both, each lists its own place. -->
         <provider

@@ -1,6 +1,6 @@
 /// A chapter's way round the book it is in: the bar under the note's header, and the foot under its last line. A
 /// port of `src/app/book/BookNav.tsx` and `BookNav.module.css`. Both read the chapters either side from one
-/// [_sides], so the two can never disagree (../glyph docs/DESIGN.md §87), and both open a neighbour through `open`,
+/// [_sides], so the two can never disagree (tauri/docs/DESIGN.md §87), and both open a neighbour through `open`,
 /// which the note screen points at the book's one tab (§77).
 ///
 ///     BookBar     the book, the note's place in it and the chapters either side, one row under the header

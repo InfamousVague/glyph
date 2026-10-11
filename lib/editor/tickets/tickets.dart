@@ -1,5 +1,5 @@
 /// A ticket drawn in its note (Matt asked what Notion- and Jira-like features custom Markdown could give the app,
-/// "like tickets and such", and picked tickets as notes; ../glyph docs/DESIGN.md §157, docs/TICKETS.md). Ports
+/// "like tickets and such", and picked tickets as notes; tauri/docs/DESIGN.md §157, docs/TICKETS.md). Ports
 /// `src/app/editor/tickets.ts`. Two things, both drawn from the Markdown and writing nothing but it:
 ///
 /// **The properties panel.** A note whose front matter says `type: ticket` is drawn with that front matter as a

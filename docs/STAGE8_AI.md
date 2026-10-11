@@ -7,7 +7,7 @@ the page.
 
 ## What is where
 
-| Piece | Files | From `../glyph/src/app` |
+| Piece | Files | From `tauri/src/app` |
 | ----- | ----- | ----------------------- |
 | The plugins that ship | `lib/plugins/built_in.dart` | the foot of `plugins/registry.ts` |
 | A spoken instruction's reader | `lib/ai/instruction.dart` (`lib/capture/run_of.dart` and `lib/capture/ui/read_instruction.dart` ask it) | `ai/instruction.ts` |

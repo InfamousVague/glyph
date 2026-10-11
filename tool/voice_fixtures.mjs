@@ -4,7 +4,7 @@
 //   node --experimental-transform-types --no-warnings tool/voice_fixtures.mjs
 //
 // (`--experimental-transform-types` because capture/liveTake.ts has a constructor with parameter properties, which
-// Node's plain type stripping refuses.) Everything is read from ../glyph and nothing is written there. Nothing is
+// Node's plain type stripping refuses.) Everything is read from tauri/ and nothing is written there. Nothing is
 // random and no clock is read, so running it again writes the same files. Three files go to test/capture/fixtures/:
 //
 //   suite.json             a copy of glyph/voice-tests/suite.json, byte for byte: the scripts and what each expects.
@@ -28,7 +28,7 @@
 import { copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const APP = `${GLYPH}src/app/`;
 const OUT = new URL('../test/capture/fixtures/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });

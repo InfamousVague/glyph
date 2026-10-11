@@ -1,5 +1,5 @@
 // The web app's own press-and-hold band, drawn by Chromium, for lib/editor/band to be held against
-// (test/editor/band/band_reference_test.dart). Each case is the web `ContextMenu` (../glyph/src/app/editor/
+// (test/editor/band/band_reference_test.dart). Each case is the web `ContextMenu` (tauri/src/app/editor/
 // ContextMenu.tsx) over the base editor tool/editor_reference.mjs assembles, on a page 390 x 844 at two device pixels
 // (or the case's own window), asked for as a press asks for it: a `contextmenu` on the editor.
 //
@@ -11,7 +11,7 @@
 //           paper, its icon's and its word's rectangles, and the word's face
 // and <name>.png, the band and the page round it.
 //
-//   node test/editor/band/fixtures/reference.mjs [name ...]      # the dev server of ../glyph at GLYPH_DEV
+//   node test/editor/band/fixtures/reference.mjs [name ...]      # the dev server of tauri/ at GLYPH_DEV
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.
 import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';

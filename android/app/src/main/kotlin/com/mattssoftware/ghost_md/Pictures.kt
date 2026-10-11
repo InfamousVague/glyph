@@ -21,13 +21,13 @@ import java.util.UUID
 
 /**
  * A picture chosen on the phone for a note (lib/core/phone_pictures.dart, the phone's half of `ghost_md/pictures`).
- * Ported from ../glyph's MainActivity (`pickImage`, `shrinkPicture`, its `REQUEST_PICTURE` result), whose page was
+ * Ported from the Tauri app's MainActivity (`pickImage`, `shrinkPicture`, its `REQUEST_PICTURE` result), whose page was
  * told of the picture by `window.__glyph.image(json)`; here the call's own answer carries it.
  *
  * - `pick` -> `{path}`, the picture shrunk and turned the right way up in `cacheDir/picked/`, for the core to adopt
  *   (`sync_put_file_path`, which moves it among the pictures); `{cancelled: true}` when none was chosen; or an error
  *   whose message is the sentence for the note.
- * - `clipboard` -> what is on the clipboard, for the note's own Paste (its press-and-hold menu; ../glyph's
+ * - `clipboard` -> what is on the clipboard, for the note's own Paste (its press-and-hold menu; the Tauri app's
  *   `readClipboard`): `{text}` for words, `{path}` for a picture (shrunk and turned the right way up into
  *   `cacheDir/picked/`, the way the chooser's is, for the core to adopt), `{error}` when a picture could not be
  *   read, `{}` when there is nothing. Since Android 10 the clipboard only answers an app that holds focus, and a
@@ -35,14 +35,14 @@ import java.util.UUID
  *
  * - `smaller {bytes, longSide, quality}` -> the picture drawn again as a JPEG, its long side at most `longSide`
  *   and never larger than it was, the right way up, over white paper; or null when it would not open. A share's
- *   reading copy (lib/sync/device.dart; ../glyph's `smallerImage(bytes, 1024, 0.72)` in core/images.ts, which the
+ *   reading copy (lib/sync/device.dart; the Tauri app's `smallerImage(bytes, 1024, 0.72)` in core/images.ts, which the
  *   page drew on a canvas). Flutter's engine opens a JPEG and writes none, so the phone writes it.
  *
  * Android's own chooser ("Choose a picture"), which asks for no permission: the picture is read through the
  * address the chooser hands back, once, and the cache copy is the only thing this ever writes. Decoded at a sample
  * size that keeps memory sane, turned per its EXIF, its long side capped at 1600 px, written as a JPEG at 85: a
  * photo straight off the camera is several times what a note ever draws. A picture with no background is laid on
- * white paper first, as the page's own shrink lays a pasted one (core/imageShrink.ts): ../glyph's activity did not,
+ * white paper first, as the page's own shrink lays a pasted one (core/imageShrink.ts): the Tauri app's activity did not,
  * and a transparent screenshot came out black as a JPEG.
  */
 class Pictures(private val activity: Activity) {
@@ -199,7 +199,7 @@ class Pictures(private val activity: Activity) {
     const val CHANNEL = "ghost_md/pictures"
     private const val TAG = "GhostPictures"
 
-    /** The request code the activity's result arrives under: ../glyph's own for a picked picture. */
+    /** The request code the activity's result arrives under: the Tauri app's own for a picked picture. */
     const val REQUEST = 4102
 
     /** The long side a kept picture is capped at. */

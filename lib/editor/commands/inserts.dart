@@ -1,7 +1,7 @@
 /// Where a thing put into a note goes: the rules the + beside the line keeps, and with it press and hold's Add
 /// image, a pasted picture and Style's table and rule. A port of `src/app/editor/inserts.ts`.
 ///
-/// Three kinds of insert, by what they are (docs/DESIGN.md §141 in ../glyph):
+/// Three kinds of insert, by what they are (docs/DESIGN.md §141 in tauri/):
 ///
 /// - **A thing drawn on a line of its own**, a picture, a place, a film, a canvas's frame: it takes the caret's line
 ///   when that line says nothing ([givesWay]), or goes on a new line after it, so a line is never split. A blank

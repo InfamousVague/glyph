@@ -1,5 +1,5 @@
 //! The names of the directories under the app's data and cache directories: the constants of
-//! `../glyph/src-tauri/src/paths.rs`, and none of its functions.
+//! `tauri/src-tauri/src/paths.rs`, and none of its functions.
 //!
 //! The original resolves each directory from a Tauri `AppHandle`. Here the Flutter app resolves the two roots
 //! itself (lib/core/native/device_paths.dart) and hands them to `init`, so only the names are needed: by the
@@ -41,7 +41,7 @@ mod tests {
 
     #[test]
     fn every_name_is_the_tauri_apps() {
-        let original = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../glyph/src-tauri/src/paths.rs");
+        let original = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tauri/src-tauri/src/paths.rs");
         let source = std::fs::read_to_string(&original).unwrap_or_else(|e| panic!("{}: {e}", original.display()));
         for (name, value) in [
             ("LIBRARY", LIBRARY),

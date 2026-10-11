@@ -6,7 +6,7 @@ import 'package:ghost_md/core/versions_diff.dart';
 import 'package:ghost_md/core/versions_file.dart';
 
 /// The Dart port held to the web's own modules: `fixtures/web_versions.json` is what `core/versions/diff.ts` and
-/// `core/versions/file.ts` answered (fixtures/web_versions.mjs, run under Node against ../glyph, 2026-10-07) for a
+/// `core/versions/file.ts` answered (fixtures/web_versions.mjs, run under Node against tauri/, 2026-10-07) for a
 /// few hundred seeded cases - edit scripts, hashes, files grown a version at a time, two devices' files merged -
 /// and the port has to answer every one the same. A versions file is exchanged between this app and the web's, so
 /// "the same" is to the byte.

@@ -15,7 +15,7 @@
 #
 #   GHOST_VOICE=0 tool/build-native.sh ...    the notes-only core, without the engines: seconds, not minutes
 #
-# The crate includes its library from ../glyph/src-tauri/src by path and builds nothing there: cargo's target
+# The crate includes its library from tauri/src-tauri/src by path and builds nothing there: cargo's target
 # directory is native/target, whatever CARGO_TARGET_DIR says outside. A deploy of the Tauri app runs tests that
 # fail when the Mac is busy, so this waits for one to end before it compiles.
 #
@@ -50,7 +50,7 @@ jobs="${GHOST_JOBS:-$jobs}"
 export CMAKE_BUILD_PARALLEL_LEVEL="$jobs"
 
 # The included tests that cannot run from here, by name. Each reads a file of the Tauri app's by a path built
-# from CARGO_MANIFEST_DIR, which in this crate is native/ and not ../glyph/src-tauri, and takes no directory
+# from CARGO_MANIFEST_DIR, which in this crate is native/ and not tauri/src-tauri, and takes no directory
 # from the environment: three hold write_up.rs to the Tauri app's Kotlin (gen/android/.../RecordingJob.kt and
 # friends), one to a fixture of its page. They are the Tauri app's own agreements and run in its own suite.
 # (The engine's model-bound tests in llm/tests.rs look for ../models/llm the same way; they find none and say
@@ -62,8 +62,8 @@ skipped="
   write_up::tests::the_kotlin_reads_every_answer_by_its_key_and_every_word_by_its_name
 "
 
-if [ ! -f "$root/../glyph/src-tauri/src/library/mod.rs" ]; then
-  echo "build-native: ../glyph is not beside this repository; the core is built from its src-tauri/src." >&2
+if [ ! -f "$root/tauri/src-tauri/src/library/mod.rs" ]; then
+  echo "build-native: there is no tauri/ in this checkout; the core is built from its src-tauri/src." >&2
   exit 1
 fi
 
@@ -119,7 +119,7 @@ build_android() {
   export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$bin/${target}${api}-clang"
   export CARGO_TARGET_AARCH64_LINUX_ANDROID_RUSTFLAGS="-C link-arg=-Wl,-z,max-page-size=16384 -C link-arg=-Wl,-z,common-page-size=16384"
   if [ -n "$voice" ]; then
-    # What ../glyph/.cargo/config.toml sets for its NDK, for this one. The C++ compiler by name (the cmake crate
+    # What tauri/.cargo/config.toml sets for its NDK, for this one. The C++ compiler by name (the cmake crate
     # asks cc for it); the sysroot bindgen parses whisper.h and llama.h against; and the NDK and API level
     # llama-cpp-sys-2 finds by its own rules (left alone: the newest NDK installed, API 28). The CMake toolchain
     # file for whisper.cpp, and GGML_CPU_ARM_ARCH, are in native/.cargo/config.toml.
@@ -172,7 +172,7 @@ build_android() {
 }
 
 # The Mac app's library: release, without the test hooks, one slice per architecture joined by lipo, as the Tauri
-# Mac app is universal (../glyph scripts/deploy-ota.mjs MAC_TARGET). Its install name is @rpath's, so the copy in
+# Mac app is universal (tauri/scripts/deploy-ota.mjs MAC_TARGET). Its install name is @rpath's, so the copy in
 # the app's Frameworks is what it says it is. Left unsigned: Xcode's phase signs the copy with the app's identity.
 # The Intel slice compiles the engines for x86_64 from here (no -march=native: cmake is told the processor).
 build_mac() {
@@ -226,7 +226,7 @@ build_mac() {
 # takes the one the build is for (both are arm64, which one fat file cannot hold twice).
 #
 # WITHOUT THE ENGINES, whatever GHOST_VOICE says. The Tauri app builds neither whisper.cpp nor llama.cpp for iOS
-# (../glyph/src-tauri/Cargo.toml's `cfg(not(target_os = "ios"))` table, src/unsupported.rs) and its iPhone app
+# (tauri/src-tauri/Cargo.toml's `cfg(not(target_os = "ios"))` table, src/unsupported.rs) and its iPhone app
 # records nothing and runs no model (core/platform.ts `recordsVoice`); this app's iPhone is held to that, so its
 # core is the notes-only one. GHOST_IOS_VOICE=1 tries the engines anyway, for whoever takes that up: untried.
 #

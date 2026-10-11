@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/boards.dart';
 
 /// Lanes: a lane found by the name said, a to-do added to it ("add … to Doing" on a board's own Speak), and an item
-/// moved into it, which nothing in the app asks for now (../glyph docs/DESIGN.md §127). Case for case with the web's
+/// moved into it, which nothing in the app asks for now (tauri/docs/DESIGN.md §127). Case for case with the web's
 /// `core/boards/lanes.test.ts`.
 ///
 /// lib/core/boards/lanes.dart, reached as every caller reaches it: through the room's door, lib/core/boards.dart.

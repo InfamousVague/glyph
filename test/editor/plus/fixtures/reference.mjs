@@ -1,7 +1,7 @@
 // The web app's + beside the line and its list, drawn by Chromium, for lib/editor/plus to be held against
 // (test/editor/plus/plus_reference_test.dart). Modelled on tool/editor_reference.mjs: the web `Editor` itself with
 // its `plus` hooks, on a page 390 x 844 at two device pixels, the editor's box at the page's corner, and
-// `AddList` (../glyph/src/app/editor/AddList.tsx) opened by the +'s own press, by `/`, or by a fine pointer.
+// `AddList` (tauri/src/app/editor/AddList.tsx) opened by the +'s own press, by `/`, or by a fine pointer.
 //
 // For each case, light and dark, it writes <name>.json and <name>.png beside this file:
 //   lines   every `.cm-line`'s rectangle

@@ -134,7 +134,7 @@ void main() {
 
     test('lists this app’s own folder, as a place of this app’s own', () {
       final provider = kotlin('glyph/files/LibraryDocuments.kt');
-      // The folder the core keeps the notes in: ../glyph's paths.rs holds its Kotlin twin the same way.
+      // The folder the core keeps the notes in: the Tauri app's paths.rs holds its Kotlin twin the same way.
       final library = RegExp(r'pub const LIBRARY: &str = "([^"]+)";').firstMatch(File('native/src/paths.rs').readAsStringSync())!.group(1)!;
       expect(provider, contains('private fun library(): File = File(context!!.dataDir, "$library")'));
       expect(provider, contains('paths.rs'));
@@ -154,9 +154,9 @@ void main() {
     });
 
     test('is the Tauri app’s provider line for line, but for the app’s name and its R', () {
-      final original = File('../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryDocuments.kt');
+      final original = File('tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryDocuments.kt');
       if (!original.existsSync()) {
-        markTestSkipped('../glyph is not beside the repository');
+        markTestSkipped('tauri/ is not in this checkout');
         return;
       }
       /// A file's lines of code: nothing of its comments, which say whose button opens it.

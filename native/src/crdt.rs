@@ -1,7 +1,7 @@
 //! Team notes and live typing (docs/STAGE7.md, "Live typing and team notes"): Yjs documents in Rust, by `yrs`,
 //! speaking the wire the web app's `yjs` 13 and `y-protocols` speak, so a phone and a Mac edit one note.
 //!
-//! What the web keeps in `../glyph/src/app/core/team/doc.ts` (a `Y.Doc` per note, its words in the text `body`,
+//! What the web keeps in `tauri/src/app/core/team/doc.ts` (a `Y.Doc` per note, its words in the text `body`,
 //! the updates made here that the service has not been given) is kept here behind a number, as crypto.rs keeps
 //! a key. Held to the web's own libraries by fixtures they wrote (tool/yjs_vectors.mjs, tests/yjs_vectors.rs),
 //! in both directions.

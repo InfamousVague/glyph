@@ -1,4 +1,4 @@
-/// What a query reads: every note as a record, and every to-do in them as a record of its own (../glyph
+/// What a query reads: every note as a record, and every to-do in them as a record of its own (tauri/
 /// docs/QUERIES.md, docs/DESIGN.md §159). A port of `src/app/core/query/records.ts`. Matt asked for "notion and jira
 /// like features … like tickets and such", and a query is the database view over them; this is the database.
 ///

@@ -1,5 +1,5 @@
 //! The account's keys and the sealed wire (docs/STAGE7.md, "Crypto"): what the web app asks of WebCrypto in
-//! `../glyph/src/app/core/sync/crypto.ts`, `core/orgs/wrap.ts`, `core/account/encKey.ts` and `share/share.ts`,
+//! `tauri/src/app/core/sync/crypto.ts`, `core/orgs/wrap.ts`, `core/account/encKey.ts` and `share/share.ts`,
 //! byte for byte, so a note sealed on the phone opens on the Mac and the reverse. Held to the web code by
 //! fixtures the web code itself wrote (tool/crypto_vectors.mjs, tests/crypto_vectors.rs), in both directions.
 //!

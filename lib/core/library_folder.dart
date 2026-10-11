@@ -1,5 +1,5 @@
 /// Where the library is, and the calls that move it (native/src/kept/library_commands.rs; docs/DESIGN.md §187 of
-/// ../glyph), for Settings › Library folder (lib/settings/panes/library_folder_pane.dart). A port of
+/// tauri/), for Settings › Library folder (lib/settings/panes/library_folder_pane.dart). A port of
 /// `src/app/core/libraryFolder.ts`.
 ///
 /// A folder is only ever chosen in the system's own picker (Android, android/…/glyph/files/LibraryTree.kt): the app

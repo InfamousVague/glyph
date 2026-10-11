@@ -1,10 +1,10 @@
-// Makes lib/art/ghost_mark.g.dart: Ghost.md's mark, its shapes as ../glyph/src/app/art/ghostMark.ts writes them.
+// Makes lib/art/ghost_mark.g.dart: Ghost.md's mark, its shapes as tauri/src/app/art/ghostMark.ts writes them.
 //
 //   dart run tool/ghost_mark.dart
 import 'dart:io';
 
 void main() {
-  final text = File('../glyph/src/app/art/ghostMark.ts').readAsStringSync();
+  final text = File('tauri/src/app/art/ghostMark.ts').readAsStringSync();
   final box = RegExp(r"GHOST_MARK_BOX = '([^']+)'").firstMatch(text)!.group(1)!;
   final out = StringBuffer()
     ..writeln('// MADE, not written: `dart run tool/ghost_mark.dart` copies it from the web app\'s art/ghostMark.ts.')

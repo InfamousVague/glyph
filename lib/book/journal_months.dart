@@ -1,4 +1,4 @@
-/// A journal's entries as its view draws them (../glyph docs/DESIGN.md §142): newest first, in runs by the month each
+/// A journal's entries as its view draws them (tauri/docs/DESIGN.md §142): newest first, in runs by the month each
 /// was written in, every row what a person scans for - the day, the time, where, and how it starts. A port of
 /// `src/app/book/journalMonths.ts`.
 ///

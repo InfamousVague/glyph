@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <!--
-  What the Mac app may do. It is NOT sandboxed, as the Tauri Mac app is not (../glyph/src-tauri/Entitlements.plist;
+  What the Mac app may do. It is NOT sandboxed, as the Tauri Mac app is not (tauri/src-tauri/Entitlements.plist;
   Matt, 2026-10-09: "un sandbox it"): it keeps its files in its own folder under ~/Library/Application Support,
   reaches a folder or a drive the person chose by its plain path, and needs no entitlement for the network.
 

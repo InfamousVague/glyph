@@ -3,7 +3,7 @@
 //
 //   node tool/maths_fixtures.mjs
 //
-// Everything is read from ../glyph and nothing is written there: its node_modules for KaTeX 0.16, called as
+// Everything is read from tauri/ and nothing is written there: its node_modules for KaTeX 0.16, called as
 // src/app/editor/mathsDrawn.ts calls it (`displayMode`, `throwOnError: true`, `output: 'htmlAndMathml'`,
 // `strict: 'ignore'`). There is no browser here, so no width and no picture: what KaTeX itself works out is each
 // formula's height above its baseline and its depth below, in ems of the formula's own type, which it writes into
@@ -12,7 +12,7 @@
 import { writeFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const OUT = new URL('../test/editor/maths/fixtures/', import.meta.url).pathname;
 const require = createRequire(`${GLYPH}package.json`);
 const katex = require('katex');

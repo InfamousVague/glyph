@@ -1,4 +1,4 @@
-// Ports src/app/editor/textEffects.test.ts (../glyph), case for case and in its order, onto
+// Ports src/app/editor/textEffects.test.ts (tauri/), case for case and in its order, onto
 // lib/editor/marks/text_effects.dart.
 //
 // What is read differently, because the Dart file draws differently (its header, "What differs"):

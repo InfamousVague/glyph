@@ -3,7 +3,7 @@
 //
 //   node tool/canvas_fixtures.mjs
 //
-// Everything is read from ../glyph and nothing is written there: Node (22.18 or later) runs the web's TypeScript as
+// Everything is read from tauri/ and nothing is written there: Node (22.18 or later) runs the web's TypeScript as
 // it is, types struck off, and the one thing in reach of these files that is not code (sampleNote.ts imports an
 // SVG) is answered with an empty string. One fixture goes to test/canvas/fixtures/canvas.json. Seeded, so running
 // it again writes the same file.
@@ -22,7 +22,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { registerHooks } from 'node:module';
 
-const WEB = '/Users/matt/Development/Apps/glyph/src/';
+const WEB = new URL('../tauri/src/', import.meta.url).pathname;
 const OUT = new URL('../test/canvas/fixtures/', import.meta.url).pathname;
 
 // A picture or a stylesheet imported by a module on the way: nothing here draws one.

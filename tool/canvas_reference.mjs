@@ -14,7 +14,7 @@
 // and test/canvas/reference/<width>_<theme>.png, the picture, with `<width>_<theme>_picked.png` (the card of words
 // picked).
 //
-//   (cd ../glyph && npx vite --port 5276 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5276 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/canvas_reference.mjs
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.

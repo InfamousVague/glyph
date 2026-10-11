@@ -6,7 +6,7 @@
 /// costs the document's text once, made from the text before it and the change ([_textAfter]: one copy of the
 /// note's letters), and a reparse of the blocks the change touched (`MarkdownParser.reparse` reuses every other
 /// block of the old tree). There is no
-/// language data, no indentation service and no folding: nothing in ../glyph asks for them.
+/// language data, no indentation service and no folding: nothing in tauri/ asks for them.
 ///
 /// A state can be ASLEEP ([syntaxAsleep]): the editor a note keeps behind its canvas or its notebook's index is
 /// never drawn, and what it holds there is the canvas's JSON, which read as Markdown is one paragraph thousands of

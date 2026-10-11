@@ -1,7 +1,7 @@
 // The voice model's download through the real C functions on the Mac, from a server this test starts on
 // 127.0.0.1 and from nowhere else: `CaptureEngine.ensureModel` over `NativeCaptureBackend`, the first connection
 // cut a third of the way through the file, the rest picked up with a `Range`, the whole verified by its SHA-256.
-// Needs tool/build-native.sh host and ../glyph/models (which the server only reads); says SKIPPED otherwise.
+// Needs tool/build-native.sh host and tauri/models (which the server only reads); says SKIPPED otherwise.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

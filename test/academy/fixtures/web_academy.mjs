@@ -10,7 +10,7 @@ import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/pl
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.GLYPH_DEV ?? 'http://127.0.0.1:5279/';
-const OUT = process.env.ACADEMY_OUT ?? '/Users/matt/Development/Apps/ghost-flutter/test/academy/fixtures/';
+const OUT = process.env.ACADEMY_OUT ?? new URL('./', import.meta.url).pathname;
 mkdirSync(`${OUT}web`, { recursive: true });
 
 const c = (name) => `[class*="_${name}_"]`;

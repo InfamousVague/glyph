@@ -1,4 +1,4 @@
-# Ghost.md's Rust core for the Flutter app: the notes library of ../glyph/src-tauri, behind a C ABI.
+# Ghost.md's Rust core for the Flutter app: the notes library of tauri/src-tauri, behind a C ABI.
 # Nothing of the library is copied here: src/lib.rs includes the real files by `#[path]`. docs/STAGE3.md.
 [package]
 name = "ghost_core"
@@ -18,8 +18,8 @@ crate-type = ["cdylib", "rlib"]
 # The included files' doc comments are prose with indented examples, not doctests.
 doctest = false
 
-# Exactly what the included files use, at the versions ../glyph/src-tauri/Cargo.toml pins (Cargo.lock began as
-# ../glyph/tools/host-tests' own, so the versions resolved are the Tauri app's too).
+# Exactly what the included files use, at the versions tauri/src-tauri/Cargo.toml pins (Cargo.lock began as
+# tauri/tools/host-tests' own, so the versions resolved are the Tauri app's too).
 [dependencies]
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1", features = ["derive"] }
@@ -46,14 +46,14 @@ base64 = "0.22"
 # document kept in a table for the worker to reach must be, and its undo manager with it (crdt.rs, "undo").
 yrs = { version = "=0.26.0", features = ["sync"] }
 
-# Stage 9C, everything as one zip (export.rs), as ../glyph/src-tauri/Cargo.toml has it: deflate for the words,
+# Stage 9C, everything as one zip (export.rs), as tauri/src-tauri/Cargo.toml has it: deflate for the words,
 # stored for the media, zip64 past 4 GB, written as a stream so a descriptor Android's picker hands over will do;
 # flate2 named for its pure-Rust backend. libc is for that descriptor (and the engines').
 zip = { version = "8.6", default-features = false, features = ["deflate-flate2"] }
 flate2 = { version = "1.1", default-features = false, features = ["rust_backend"] }
 libc = "0.2"
 
-# Stage 8A, the engines (the `voice` feature below): whisper.cpp and llama.cpp as ../glyph/src-tauri/Cargo.toml
+# Stage 8A, the engines (the `voice` feature below): whisper.cpp and llama.cpp as tauri/src-tauri/Cargo.toml
 # has them, which says why each line is as it is. In short: ONE ggml (the patched whisper-rs-sys at the foot of
 # this file builds whisper.cpp against llama-cpp-sys-2's), so llama-cpp-2 is pinned exactly; no default features
 # (no OpenMP, no `common`); the C++ runtime static on Android; reqwest 0.12 with rustls so nothing needs OpenSSL
@@ -74,7 +74,7 @@ tauri = { path = "shims/tauri", optional = true }
 jni = "0.21"
 
 # The Mac's own sound in a meeting (kept/system_audio.rs, and the Tauri app's system_audio/mac.rs included as it
-# is): a Core Audio process tap, whose AudioHardware calls objc2-core-audio binds. As ../glyph/src-tauri/Cargo.toml
+# is): a Core Audio process tap, whose AudioHardware calls objc2-core-audio binds. As tauri/src-tauri/Cargo.toml
 # has them, line for line.
 [target.'cfg(target_os = "macos")'.dependencies]
 objc2 = "0.6"
@@ -134,7 +134,7 @@ opt-level = 3
 # ggml): its copy, by path, so there is no second one to drift. The build copies whisper.cpp into OUT_DIR under
 # native/target and writes nothing beside the source.
 [patch.crates-io]
-whisper-rs-sys = { path = "../../glyph/src-tauri/vendor/whisper-rs-sys" }
+whisper-rs-sys = { path = "../tauri/src-tauri/vendor/whisper-rs-sys" }
 
 # Panics must unwind (the default): ffi.rs catches them at the boundary. Do not set `panic = "abort"`.
 [profile.release]

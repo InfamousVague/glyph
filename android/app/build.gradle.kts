@@ -49,7 +49,7 @@ val ghostPerfId = !System.getenv("GHOST_PERF_ID").isNullOrEmpty() && System.gete
  * - the id is `com.mattssoftware.glyph` and the name is "Ghost.md";
  * - the version code is made from the version name the way Tauri made it (major * 1,000,000 + minor * 1,000 +
  *   patch), and the build is refused unless that is above the Tauri app's last, 1.15.0 = 1015000
- *   (../glyph/src-tauri/gen/android/app/tauri.properties): Android will not install a lower code over a higher one;
+ *   (tauri/src-tauri/gen/android/app/tauri.properties): Android will not install a lower code over a higher one;
  * - the launcher's activity is still called `com.mattssoftware.glyph.MainActivity` (an alias of this app's own, in
  *   the manifest), since a home screen keeps an icon and a pinned "Record note" by that name and drops both when the
  *   name goes; the shortcut names the same id and class the Tauri app's did (res/xml/ghost_cutover_shortcuts.xml).
@@ -59,7 +59,7 @@ val ghostPerfId = !System.getenv("GHOST_PERF_ID").isNullOrEmpty() && System.gete
  * workers' class names, the notification channels' ids and the Kotlin side's preference files.
  *
  * An update is only installed over an app signed with the same certificate, and the Tauri app's is pinned in
- * ../glyph/src-tauri/apk-signer.sha256. A release build is signed from the file the Tauri app's build reads,
+ * tauri/src-tauri/apk-signer.sha256. A release build is signed from the file the Tauri app's build reads,
  * outside every repo: ~/.config/glyph/android-signing.properties, or the file $GLYPH_ANDROID_SIGNING names, with
  * `storeFile`, `storePassword`, `keyAlias` and `keyPassword`. Without that file a release build is signed with
  * this machine's debug key, which is only the right certificate on a machine where the two are the same key.
@@ -168,7 +168,7 @@ flutter {
 
 dependencies {
     // A meeting's write-up with the app closed (recordings/RecordingWorker.kt): the Tauri app's own line and
-    // version, ../glyph/src-tauri/gen/android/app/build.gradle.kts. A plain Worker, so no coroutines artifact.
+    // version, tauri/src-tauri/gen/android/app/build.gradle.kts. A plain Worker, so no coroutines artifact.
     implementation("androidx.work:work-runtime:2.9.1")
     // Whether the app is in front when a write-up ends (recordings/WriteUp.kt, ProcessLifecycleOwner): the Tauri
     // app's own line and version.

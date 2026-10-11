@@ -15,7 +15,7 @@ import 'package:ghost_md/canvas/viewport.dart';
 import 'package:ghost_md/comments/format.dart' show Stamp;
 
 /// The canvas's pure files against what the web's own answer (tool/canvas_fixtures.mjs, which runs
-/// `../glyph/src/app/canvas/*.ts` in Node): the file a canvas is written as, byte for byte, after reading and
+/// `tauri/src/app/canvas/*.ts` in Node): the file a canvas is written as, byte for byte, after reading and
 /// after every kind of edit; every line's path, string for string; and the small functions' answers.
 
 final Map<String, dynamic> fixture = jsonDecode(File('test/canvas/fixtures/canvas.json').readAsStringSync()) as Map<String, dynamic>;

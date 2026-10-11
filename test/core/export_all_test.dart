@@ -10,7 +10,7 @@ import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/events.dart';
 
-/// Everything as one zip (lib/core/export_all.dart; docs/DESIGN.md §167 of ../glyph): the archive's name, what the
+/// Everything as one zip (lib/core/export_all.dart; docs/DESIGN.md §167 of tauri/): the archive's name, what the
 /// app writes into it, where it can go, Android's picker and descriptor, and what is said after. A port of
 /// `src/app/core/exportAll.test.ts`, without the browser's export and the Mac's panel, which this app has not: the
 /// core, its job and the activity are stood in for; the activity's own words are read out of its Kotlin.

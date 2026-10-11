@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.files
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryTree.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryTree.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 9A). What differs: the library loaded is `ghost_core`; the picker's answer goes to
 // whoever `tell` is (the Flutter activity's `ghost_md/files` channel, FilesBridge.kt, where the Tauri one called
 // `window.__glyph.libraryFolder`). The package stays

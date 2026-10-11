@@ -1,4 +1,4 @@
-// Ports the drawn cases of ../glyph/src/app/editor/tables.test.ts ("a table drawn in a note") case for case, then
+// Ports the drawn cases of tauri/src/app/editor/tables.test.ts ("a table drawn in a note") case for case, then
 // what tables.ts does that its test leaves to the eye: the grow buttons, alignment, sideways scrolling. The cases
 // that only read and grow a table's text are test/editor/commands/tables_test.dart.
 import 'package:flutter/widgets.dart' hide Decoration;

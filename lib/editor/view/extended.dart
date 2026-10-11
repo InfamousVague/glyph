@@ -1,7 +1,7 @@
 /// The extended markdown Ghost.md draws. Ports `src/app/editor/extended.ts`.
 ///
 /// The language already parses more than plain markdown (GFM plus subscript, superscript and emoji). What is drawn
-/// here, all of it ordinary markdown elsewhere (docs/MARKDOWN.md in ../glyph):
+/// here, all of it ordinary markdown elsewhere (docs/MARKDOWN.md in tauri/):
 ///
 ///     x^2^  H~2~O            raised and lowered runs
 ///     > [!NOTE]              a callout, GitHub's own spelling

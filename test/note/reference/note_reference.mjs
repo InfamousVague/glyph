@@ -4,7 +4,7 @@
 // pressed, every block of the sheet are written to test/note/reference/note_<size>.json, with a picture of each in
 // light and dark beside them.
 //
-//   (cd ../glyph && npx vite --port 5273 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5273 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node test/note/reference/note_reference.mjs
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.

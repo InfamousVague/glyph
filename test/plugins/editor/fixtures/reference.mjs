@@ -6,7 +6,7 @@ import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/pl
 import { mkdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.GLYPH_DEV ?? 'http://127.0.0.1:5279/';
-const OUT = '/Users/matt/Development/Apps/ghost-flutter/test/plugins/editor/fixtures/';
+const OUT = new URL('./', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
 const T = (n) => `https://www.notion.so/Task-${String(n).repeat(32)}`;

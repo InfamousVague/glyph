@@ -1,5 +1,5 @@
 // The + beside the line (lib/editor/plus/insert_plus.dart, drawn by plus_layer.dart): where it lives, when it comes
-// and goes, and what its press does and does not reach. The cases of ../glyph/src/app/editor/insertPlus.test.ts,
+// and goes, and what its press does and does not reach. The cases of tauri/src/app/editor/insertPlus.test.ts,
 // one for one; the rules for which line are plus_line_test.dart, and the timings run on the test's own clock.
 import 'package:flutter/gestures.dart';
 import 'package:flutter/services.dart';

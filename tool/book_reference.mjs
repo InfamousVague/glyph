@@ -3,7 +3,7 @@
 // notebook with a preface, a nested page and one not written; a notebook with a key and a ticket; a journal of five
 // months and a page planned), at 390 x 844 and 1280 x 800, two device pixels to the logical one.
 //
-//   (cd ../glyph && npx vite --port 5277 --strictPort --host 127.0.0.1) &      # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5277 --strictPort --host 127.0.0.1) &      # read-only: never `vite build` there
 //   node tool/book_reference.mjs
 //
 // It writes test/book_ui/fixtures/<page>-<width>.json - for each named thing on the page its rectangle

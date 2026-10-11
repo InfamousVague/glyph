@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // A WEB device in a live room, under Node, against the local server: the web app's own live code
-// (../glyph/src/app/core/live: transport.ts, hub.ts, wire.ts, session.ts, team.ts, with its own Yjs, its own
+// (tauri/src/app/core/live: transport.ts, hub.ts, wire.ts, session.ts, team.ts, with its own Yjs, its own
 // y-protocols awareness and its own WebCrypto) in the same note as a Dart device, typing at once. What
 // test/live/web_test.dart drives; the proof that the Flutter app and the web app are one wire through one real
 // relay, in both directions.
@@ -29,7 +29,7 @@
 // `import.meta.env` and checks `API_BASE` before a call, and replaces `fetch` and `WebSocket`, before any web code
 // loads, by ones that throw for any host but 127.0.0.1.
 //
-// ../glyph is only READ: its TypeScript is loaded as it is, its node_modules give it `yjs` and `y-protocols`.
+// tauri/ is only READ: its TypeScript is loaded as it is, its node_modules give it `yjs` and `y-protocols`.
 import { registerHooks } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -67,7 +67,7 @@ globalThis.WebSocket = class extends RealSocket {
 globalThis.__GHOST_WEB_ENV = Object.freeze({ VITE_GLYPH_API: base, MODE: 'test', DEV: false, PROD: false });
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const glyph = resolve(root, '../glyph');
+const glyph = resolve(root, 'tauri');
 const web = join(glyph, 'src/app');
 const webUrl = pathToFileURL(web).href;
 

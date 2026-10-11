@@ -112,7 +112,7 @@ class MainActivity : FlutterActivity() {
         val messenger = flutterEngine.dartExecutor.binaryMessenger
         // Where the app keeps its files, for the Rust core's `init` (lib/core/native/device_paths.dart). The data
         // directory is the one the Tauri app's `app_data_dir` is (Tauri's PathPlugin.getDataDir, line for line):
-        // `dataDir`, the parent of `filesDir`, so `Library/` sits where ../glyph's Kotlin and backup rules expect.
+        // `dataDir`, the parent of `filesDir`, so `Library/` sits where the Tauri app's Kotlin and backup rules expect.
         MethodChannel(messenger, "ghost_md/device_paths").setMethodCallHandler { call, result ->
             when (call.method) {
                 "dirs" -> {

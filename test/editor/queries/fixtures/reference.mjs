@@ -6,7 +6,7 @@
 // The editor measured is the BASE one of tool/editor_reference.mjs with `drawnBoards()` (for the room it tells a
 // block, boards.ts `boardRoom`), `drawnMermaid()` (a note's editor always has it, Editor.tsx, and its theme's
 // `.cm-mermaid` is the timeline's block too: the 0.6em above and under Mermaid's gantt in a card are that rule's),
-// `tags()`, `wikiLinks()`, `queries()` of ../glyph/src/app/editor/queries.ts over the fixed library below, and
+// `tags()`, `wikiLinks()`, `queries()` of tauri/src/app/editor/queries.ts over the fixed library below, and
 // `tickets()` of editor/tickets.ts over its tickets.
 //
 // For each case it writes <name>.json beside this file (a query's) or in ../../tickets/fixtures (a ticket's):
@@ -18,7 +18,7 @@
 //   titles  every `.cm-ticketTitle` after a `[[GHO-12]]`: its rectangle, its words, its dot
 // and <name>.png, the picture.
 //
-//   (cd ../glyph && npx vite --port 5280 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5280 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node test/editor/queries/fixtures/reference.mjs [name ...]
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.

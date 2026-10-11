@@ -4,7 +4,7 @@
 // every rectangle is in the editor's own coordinates.
 //
 // The editor measured is the BASE one of tool/editor_reference.mjs with `drawnBoards()` of
-// ../glyph/src/app/editor/boards.ts and the chips' stylesheet (`fieldChipTheme` of fieldChips.ts, which the app's
+// tauri/src/app/editor/boards.ts and the chips' stylesheet (`fieldChipTheme` of fieldChips.ts, which the app's
 // own editor has from taskFields.ts) added and nothing else. Unlike the tables' page the editor keeps the screen's
 // width (`.cm-scroller` scrolls): a board is told its room from the scroller's width (boards.ts `boardRoom`).
 //
@@ -17,7 +17,7 @@
 //   ghost   the card in the air, where a case holds one
 // and test/editor/boards/fixtures/<name>.png, the picture.
 //
-//   (cd ../glyph && npx vite --port 5275 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5275 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node test/editor/boards/fixtures/reference.mjs [name ...]
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.

@@ -46,7 +46,7 @@ class _Failed extends _State {
   final String why;
 }
 
-/// Port of `ExportCard` (src/app/settings/ExportCard.tsx; docs/DESIGN.md §167 and §205 of ../glyph; Matt: "Please
+/// Port of `ExportCard` (src/app/settings/ExportCard.tsx; docs/DESIGN.md §167 and §205 of tauri/; Matt: "Please
 /// add a feature that allows me to plug in a USB drive and export the entire app onto a folder or zip file with
 /// `ghostmarkdown_<datetime>.7z` or something"). One row: everything, as `ghostmarkdown_<date>_<time>.zip`, wherever
 /// the device's own save asks, a drive plugged in among its places (lib/core/export_all.dart). While it runs, how

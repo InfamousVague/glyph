@@ -6,7 +6,7 @@ import UniformTypeIdentifiers
 /// (android/…/ghost_md/FilesBridge.kt), so lib/core/library_folder.dart and export_all.dart read one shape.
 ///
 /// - `chooseLibraryFolder` -> `{path, name}` | `{cancelled: true}`: the Mac's folder panel, which is
-///   `library_choose_folder`'s first half in the Tauri app (../glyph/src-tauri/src/library_commands.rs); the core's
+///   `library_choose_folder`'s first half in the Tauri app (tauri/src-tauri/src/library_commands.rs); the core's
 ///   `library_inspect {path}` is its second, and the folder is kept by its plain path (`library-root.json`).
 /// - `chooseExport {name}` -> `{fd, name}` | `{cancelled: true}` | `{error}`: the save panel (`export_save` there),
 ///   the file made and a descriptor opened on it, which the core's `export_fd` writes through and closes.

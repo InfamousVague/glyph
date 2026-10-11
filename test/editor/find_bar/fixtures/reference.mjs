@@ -1,7 +1,7 @@
 // The web app's own find bar, drawn by Chromium over its own editor, for the Flutter one to be held against
 // (test/editor/find_bar/reference_test.dart). Modelled on tool/editor_reference.mjs: a page 390 x 844 at two device
 // pixels to the logical one, the editor's box at the page's corner (the BASE editor of that file, with find.ts's
-// `findExtension()` added) and ../glyph/src/app/editor/FindBar.tsx mounted over it, resting on the page's foot.
+// `findExtension()` added) and tauri/src/app/editor/FindBar.tsx mounted over it, resting on the page's foot.
 //
 // For each case it writes test/editor/find_bar/fixtures/<name>.json:
 //   bar       the bar's rectangle, its ground and its hairline
@@ -16,7 +16,7 @@
 //
 //   node test/editor/find_bar/fixtures/reference.mjs [name ...]      # GLYPH_DEV=http://127.0.0.1:5272/ by default
 //
-// The dev server is ../glyph's own (`npx vite --port 5272 --strictPort --host 127.0.0.1`), read-only: never built.
+// The dev server is the Tauri app's own (`npx vite --port 5272 --strictPort --host 127.0.0.1`), read-only: never built.
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.
 import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
 import { writeFileSync } from 'node:fs';

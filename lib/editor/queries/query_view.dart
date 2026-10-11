@@ -1,4 +1,4 @@
-/// A query's answer, drawn (queries.dart, ../glyph docs/QUERIES.md, docs/DESIGN.md §159): a table, a list, a board, a
+/// A query's answer, drawn (queries.dart, tauri/docs/QUERIES.md, docs/DESIGN.md §159): a table, a list, a board, a
 /// month, a timeline or a count, with a quiet head that says what it lists and how many, a switcher for how it is
 /// drawn, and a pencil that opens its lines. Ports `src/app/editor/QueryView.tsx` and `QueryView.module.css`.
 /// Everything here is drawing; what is listed, in what order and in which groups is lib/core/query/run.dart's.

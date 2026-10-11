@@ -9,8 +9,8 @@ import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/pl
 import { readFileSync, writeFileSync } from 'node:fs';
 
 const BASE = 'http://127.0.0.1:5279/';
-const FLUTTER = '/Users/matt/Development/Apps/ghost-flutter/';
-const testSource = readFileSync('/Users/matt/Development/Apps/glyph/src/app/academy/lessons.test.ts', 'utf8');
+const FLUTTER = new URL('../../../', import.meta.url).pathname;
+const testSource = readFileSync(new URL('../../../tauri/src/app/academy/lessons.test.ts', import.meta.url).pathname, 'utf8');
 const tried = [...testSource.matchAll(/passes\('(\w+)', ('(?:[^'\\]|\\.)*')\)/g)].map((m) => (0, eval)(m[2]));
 
 const browser = await chromium.launch();

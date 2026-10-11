@@ -1,4 +1,4 @@
-//! The language model's commands and events (the `voice` feature): what `../glyph/src-tauri/src/ai_commands.rs`
+//! The language model's commands and events (the `voice` feature): what `tauri/src-tauri/src/ai_commands.rs`
 //! is to the Tauri app, command for command, over the same engine (`llm/`, included as it is). Which model,
 //! which prompt, how many tokens: every one of those is the app's decision, sent with the request.
 //!
@@ -358,7 +358,7 @@ mod tests {
 
     #[test]
     fn the_command_prompt_is_the_tauri_apps_word_for_word() {
-        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../glyph/src-tauri/src/ai_commands.rs");
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tauri/src-tauri/src/ai_commands.rs");
         let source = std::fs::read_to_string(&source).unwrap_or_else(|e| panic!("{}: {e}", source.display()));
         let mine = include_str!("ai.rs").split("// copied:begin\n").nth(1).and_then(|rest| rest.split("// copied:end").next()).expect("the marks").trim();
         assert!(source.contains(mine), "ai_commands.rs no longer has this COMMAND_SYSTEM, word for word");

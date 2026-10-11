@@ -53,7 +53,7 @@ class _Moving extends _Step {
   return ((status.name ?? '').isEmpty ? 'A folder of yours' : status.name!, '$count. Chosen on this phone.');
 }
 
-/// Port of `LibraryFolderPane` (src/app/settings/LibraryFolderPane.tsx; docs/DESIGN.md §187 of ../glyph, a setting
+/// Port of `LibraryFolderPane` (src/app/settings/LibraryFolderPane.tsx; docs/DESIGN.md §187 of tauri/, a setting
 /// of its own since §205): where the notes are now; Choose a folder…, which opens the system's own picker and then
 /// says, before anything moves, what is in the folder and what will happen to the notes; Use Ghost.md's own folder,
 /// with a copy of the notes or none; and what is good to know, by device. Nothing here deletes a file in a folder of

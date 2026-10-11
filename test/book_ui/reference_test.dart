@@ -22,7 +22,7 @@ import '../support/render.dart' show pumpApp;
 import 'support.dart';
 
 /// The notebook's pages held to the web page's own rectangles (tool/book_reference.mjs wrote them from Chromium
-/// drawing ../glyph over the same notes, at the same minute), to half a pixel, and a picture of each
+/// drawing tauri/ over the same notes, at the same minute), to half a pixel, and a picture of each
 /// (test/book_ui/shots) to look at beside the page's (test/book_ui/fixtures/web).
 ///
 /// A rectangle is asked from the view's own corner on both sides: the page's view starts under its header, this

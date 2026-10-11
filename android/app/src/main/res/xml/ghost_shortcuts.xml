@@ -4,7 +4,7 @@
   the same capture action the side key sends, so both land in the same place. The package is this app's own id, not
   the Tauri app's.
 
-  `android:enabled` is the word itself, as ../glyph's is, and must be: Android reads a shortcut's `enabled` with its
+  `android:enabled` is the word itself, as the Tauri app's is, and must be: Android reads a shortcut's `enabled` with its
   own resources, where an app's `@bool/…` is not a boolean at all, and reads that as false. It was
   `@bool/ghost_assistant` here, and so the shortcut was never on a phone, in any build. A build made without the
   assistant is given the other file instead (res/xml/ghost_no_shortcuts.xml), by the manifest's `${ghostShortcuts}`

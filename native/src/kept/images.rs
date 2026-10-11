@@ -1,5 +1,5 @@
 //! The pictures a deleted note takes with it, a picture that arrives by sync, and a film's poster adopted from
-//! the cache's `picked/`: the items of `../glyph/src-tauri/src/images.rs` that `delete_note`, `sync_put_file` and
+//! the cache's `picked/`: the items of `tauri/src-tauri/src/images.rs` that `delete_note`, `sync_put_file` and
 //! `save_video` need, word for word.
 //!
 //! images.rs cannot come in by `#[path]` as the library does: it also holds the `img` scheme and two Tauri

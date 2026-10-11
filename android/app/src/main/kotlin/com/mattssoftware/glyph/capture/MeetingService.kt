@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.capture
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/MeetingService.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/capture/MeetingService.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity is the Flutter one (`MainActivity.tell` sends over the
 // `ghost_md/meeting/events` channel where the Tauri one called `window.__glyph`). The package stays `com.mattssoftware.glyph.capture`, with RecordingJob's.
 

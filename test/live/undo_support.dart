@@ -2,7 +2,7 @@
 // own members to ask the same of.
 //
 // [Page] is the web app: tool/yjs_undo.mjs under Node, which is its editor (CodeMirror under jsdom) bound to its
-// live document by its own `bindLive` (../glyph/src/app/editor/liveBinding.ts: Yjs 13's `UndoManager` behind
+// live document by its own `bindLive` (tauri/src/app/editor/liveBinding.ts: Yjs 13's `UndoManager` behind
 // y-codemirror), driven a step at a time. [Member] is this app's: a team note's document in the REAL core
 // (tool/build-native.sh host), an editor with the app's own input layer, and the binding between them
 // (lib/live/editor_binding.dart). [Both] does each step to the two and holds every answer of the one to the other:
@@ -32,8 +32,8 @@ import 'package:ghost_md/team/docs.dart';
 
 /// Why the page cannot be asked here, or null when it can.
 String? get pageSkip {
-  if (!Directory('../glyph/node_modules/yjs').existsSync() || !Directory('../glyph/node_modules/y-codemirror.next').existsSync()) return '../glyph has no node_modules for the page\'s editor to load';
-  if (!Directory('../glyph/node_modules/jsdom').existsSync()) return '../glyph has no node_modules/jsdom for the page\'s editor to stand in';
+  if (!Directory('tauri/node_modules/yjs').existsSync() || !Directory('tauri/node_modules/y-codemirror.next').existsSync()) return 'tauri/ has no node_modules for the page\'s editor to load';
+  if (!Directory('tauri/node_modules/jsdom').existsSync()) return 'tauri/ has no node_modules/jsdom for the page\'s editor to stand in';
   try {
     if (Process.runSync('node', ['--version']).exitCode != 0) return '`node` did not run';
   } on ProcessException {

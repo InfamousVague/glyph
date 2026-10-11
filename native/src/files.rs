@@ -1,5 +1,5 @@
 //! The files sync carries besides the notes (docs/STAGE7.md, "Sync"): a note's recording, the pictures notes
-//! show, and a note's versions file. What `LocalFiles` in `../glyph/src/app/core/sync/notes.ts` asks of a device.
+//! show, and a note's versions file. What `LocalFiles` in `tauri/src/app/core/sync/notes.ts` asks of a device.
 //!
 //! The web page read a picture and a recording through its own schemes (`img`, `rec`) and wrote them through one
 //! Tauri command. Flutter has no such schemes, so reading is a command too, and a large file need never cross at

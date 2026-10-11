@@ -1,4 +1,4 @@
-// Ports src/app/editor/markNotes.test.ts (../glyph), case for case and in its order, onto
+// Ports src/app/editor/markNotes.test.ts (tauri/), case for case and in its order, onto
 // lib/editor/marks/mark_notes.dart.
 //
 // What is read differently: a `MarkNote`'s `words` and `brackets` are `wordsFrom`/`wordsTo` and

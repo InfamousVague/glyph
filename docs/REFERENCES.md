@@ -6,7 +6,7 @@ it, and what does not yet. It follows PARITY.md's sections, area by area.
 ## How a thing is held
 
 A **reference** is three things kept together: a tool that draws the thing in the ORIGINAL's page in Chromium
-(`../glyph` on a Vite dev server of its own port, read-only; Playwright from the npx cache), the fixtures it writes
+(`tauri/` on a Vite dev server of its own port, read-only; Playwright from the npx cache), the fixtures it writes
 (every box's rectangle, the computed inks and types, and a picture), and a test that draws the same thing here and
 compares. The tool's header says the command that remakes its fixtures.
 
@@ -112,10 +112,10 @@ port against itself.
   `.cm-content` is a flex item no narrower than what is in it, so in a window of 390 every line is 834 px wide, the
   words run off the screen and the note scrolls sideways. mathsDrawn.ts says it means the formula to scroll ("rather
   than running off it"). Here the note keeps to the screen and the formula scrolls in its box. This is a mistake in
-  `../glyph` worth mending there.
+  `tauri/` worth mending there.
 - **Mermaid's own error picture.** A diagram written wrong leaves Mermaid's "Syntax error" element at the foot of
   the page's `body` (mermaid.ts asks `mermaid.render` without `suppressErrorRendering`). The tool cuts its picture
-  above it. Also `../glyph`'s to mend.
+  above it. Also `tauri/`'s to mend.
 
 ## In a phone's own pixels (2026-10-11, the second batch)
 

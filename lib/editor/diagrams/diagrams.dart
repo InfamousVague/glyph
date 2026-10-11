@@ -5,7 +5,7 @@
 /// (tables/tables.dart) and a board as a board (boards/boards.dart). Tapping it puts the caret at the fence's first
 /// line and the drawing steps aside; leaving it draws it again.
 ///
-/// **Mermaid itself is what draws it**, every diagram type it knows: the release ../glyph pins, in the phone's own
+/// **Mermaid itself is what draws it**, every diagram type it knows: the release tauri/ pins, in the phone's own
 /// web view, off the screen (bridge.dart). It is made the first time a diagram is actually asked for, so a phone
 /// that never draws one never pays for it.
 ///

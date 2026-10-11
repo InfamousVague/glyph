@@ -1,6 +1,6 @@
-# Stage 3, the library: what was read in ../glyph (2026-10-07), and the plan
+# Stage 3, the library: what was read in tauri/ (2026-10-07), and the plan
 
-Read, not built. Paths are in `../glyph`.
+Read, not built. Paths are in `tauri/`.
 
 ## What the library is
 - Markdown files: `<app data>/Library/**/*.md` is the truth; `.glyph/index.sqlite` is a cache Rust rebuilds. `store.rs`
@@ -18,7 +18,7 @@ Read, not built. Paths are in `../glyph`.
 `undo_command_mutation`, `latest_command_mutation`, `versions_read {id}`, `versions_write {id, text}`, `library_root`.
 
 ## Shape
-- `native/` crate `ghost_core` (cdylib + rlib) that `#[path]`-includes the real files from `../glyph/src-tauri/src`,
+- `native/` crate `ghost_core` (cdylib + rlib) that `#[path]`-includes the real files from `tauri/src-tauri/src`,
   with a `paths` shim (constants, held to the original by a test) and an Android `saf` stub that answers Err.
   Dependencies: rusqlite 0.40.2 bundled, serde, serde_json, uuid v4.
 - C ABI: `ghost_invoke(cmd, args_json) -> {"ok": ..} | {"err": ".."}`, `ghost_free`, `ghost_set_listener` (unused

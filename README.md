@@ -1,6 +1,23 @@
-# Ghost.md in Flutter
+# Ghost.md
 
-A port of Ghost.md (`../glyph`: Tauri, a React page, a Rust core, Kotlin for Android) to Flutter, started 2026-10-07
+A markdown notes app. This repository holds all of it, and since 2026-10-11 its root is the Flutter app:
+
+| Where | What |
+| --- | --- |
+| the root (`lib/`, `packages/glacier/`, `native/`, `android/`, `ios/`, `macos/`, `test/`, `tool/`, `docs/`) | **The Flutter app**: Ghost.md on Android, the app that replaced the Tauri one there. The rest of this file is about it. |
+| `tauri/` | **The Tauri app**, whole, as it was at the root before (tag `tauri-last-main`, branch `tauri`): the web app, the Mac app, the Windows app and the reader page shared links open. Its own `README.md`, `docs/`, `package.json` and `.env` are in there; work on it from inside (`cd tauri && npm ci && npm run dev`). The Flutter app's Rust core is built from `tauri/src-tauri/src` by path, and its tests are held to `tauri/src`. |
+| `server/` | glyph-api, the service: accounts, end-to-end sync, shares, the live relay, the door to the hosted connector. |
+| `mcp/` | Claude's connector (the MCP server), local and hosted. It reads the Tauri app's sources (`../tauri/src`) and its packages (`mcp/node_modules` is a link to `tauri/node_modules`: run `npm ci` in `tauri/` first). |
+| `landing/` | ghostmarkdown.com, the download page. |
+| `scripts/` | What deploys the four above from the root: `deploy-server.mjs` (the service, and `--mcp-only` for the hosted connector), `build-mcp.mjs`, `deploy-landing.mjs`, `deploy-flutter-apk.mjs` (the Android app's release). The web app, the Mac app and Windows deploy from `tauri/scripts/`. |
+| `.github/` | The Windows build, run in `tauri/`. |
+
+`docs/CUTOVER.md` section 5 says how the repository came to this shape, where each deploy is run from, and the way
+back.
+
+## The Flutter app
+
+A port of Ghost.md (`tauri/`: Tauri, a React page, a Rust core, Kotlin for Android) to Flutter, started 2026-10-07
 at Matt's ask: "change the architecture ... to flutter ... maintain parity of features and the UI kit porting used
 glacier components one to one, maintain the animations and effects and as you build each stage deploy a ghost flutter
 version on my fold".
@@ -13,7 +30,7 @@ app, for everyone, when it is ready). The ordinary build is still the one above.
 is made with `tool/cutover-build.sh <version>`: the Tauri app's id, name, certificate and update address, and on its
 first launch what the Tauri app kept on the phone is carried into this app's stores (`lib/carry/`).
 `docs/CUTOVER.md` is the whole of it: what is carried and how it was proven, the signing, what an update is for a
-Flutter app, what to publish and in which order, and the plan for the repository.
+Flutter app, what to publish and in which order, and how the repository was moved.
 
 ## How it is put together
 
@@ -48,7 +65,7 @@ Flutter app, what to publish and in which order, and the plan for the repository
 
 Each stage ends installed on the Fold. Sizes are the web app's non-test source the stage has to carry.
 
-| # | Stage | From `../glyph` | State |
+| # | Stage | From `tauri/` | State |
 | - | ----- | --------------- | ----- |
 | 0 | Ground: project, token engine, motion, haptics, fonts | `vendor/@glacier/tokens`, `@glacier/motion`, `ink.css`, `app.css` | done |
 | 1 | The kit: Switch, SegmentedControl, DensitySelector, ProgressBar, Pill, Toast, Input, SearchField, Kbd, CommandPalette, Popover, Menu, and a gallery of them on the phone | `@glacier/react` (12 of its components, ~4k lines) | done 2026-10-07, on the Fold |
@@ -70,12 +87,12 @@ on the same phone.
 
 A ```mermaid fence is drawn as its diagram since 2026-10-10 (`lib/editor/diagrams`; docs/PARITY.md's Missing 3): in
 a note, on a canvas's chart card read and open, in the Academy's page and the cheat sheet's row. Mermaid itself
-draws it, the 12.0.0 `../glyph` pins (`assets/diagrams/mermaid.min.js`: 5.6 MB in the folder, 1.6 MB of an apk),
+draws it, the 12.0.0 `tauri/` pins (`assets/diagrams/mermaid.min.js`: 5.6 MB in the folder, 1.6 MB of an apk),
 on a page of the app's own in the platform's web view, which is never shown: in no window on Android, behind the
 app's own view on a Mac and an iPhone. The page is the web app's as far as a diagram can tell (the same settings,
 the body's face for measuring, the editor's nest of boxes and the rules that reach a diagram in it), the web view
 is photographed where the diagram is, and the note shows the picture. `tool/diagram_page.mjs` brings Mermaid, its
-licence and the font rules from `../glyph`; `lib/main_diagrams.dart` is a note of diagrams alone, for a platform's
+licence and the font rules from `tauri/`; `lib/main_diagrams.dart` is a note of diagrams alone, for a platform's
 half of the channel to be looked at with no library under it.
 
 - **Held to the web app** (`tool/diagram_reference.mjs`, the web app's own `Editor` and the page in one browser):
@@ -357,8 +374,8 @@ macOS 13.1 and later, Apple silicon and Intel in one file, as the Tauri app is. 
 | `ghost_md/front` | none: it holds frames while Android takes the app from the front |
 
 **Beside the page, measured** (`…/scratchpad/mac/ab/`, pairs `NN-name-A.png` the page, `-B.png` Ghost Flutter,
-`-AB.png` both). The Tauri app was not opened. The page is ../glyph's own, built with `vite build` into the
-scratchpad by a config kept there (nothing written in ../glyph, no `.env` read, a dead API address) and drawn by
+`-AB.png` both). The Tauri app was not opened. The page is the Tauri app's own, built with `vite build` into the
+scratchpad by a config kept there (nothing written in tauri/, no `.env` read, a dead API address) and drawn by
 Playwright's WebKit at 1280 x 820 and two device pixels to one, with `data-titlebar=overlay`, on the starter notes it
 seeds itself; the Flutter app is its debug build's own window, walked by the tour to the same screen, its starter
 notes given the page's order. Twenty pairs: home (and scrolled), a note, the sidebar docked, Settings, the
@@ -392,7 +409,7 @@ the same hover and the same pointer. What it found:
   notes made in the same millisecond.
 
 **What a signed release needs** (none of it done here: nothing was signed, notarised or published). The shared
-set-up is the Tauri app's (`../glyph/scripts/deploy-ota.mjs --desktop`): team `F6ZAL7ANAD`, the Developer ID
+set-up is the Tauri app's (`tauri/scripts/deploy-ota.mjs --desktop`): team `F6ZAL7ANAD`, the Developer ID
 Application certificate in the keychain, and the App Store Connect key every MattsSoftware app notarises with
 (`~/.config/mattssoftware/signing/asc-api.env`).
 
@@ -541,7 +558,7 @@ on the keyboard's bar with its count, and a ticket's Due sheet with the phone's 
 The pictures of both walks were the session's own and are not kept.
 
 **What a TestFlight or App Store build needs** (none of it done: nothing was signed with a distribution identity,
-uploaded, or asked of App Store Connect). The real app's own road is `../glyph/docs/store/APP_STORE.md` and
+uploaded, or asked of App Store Connect). The real app's own road is `tauri/docs/store/APP_STORE.md` and
 `~/Development/Apps/ghost-md-app-store-pack`; what carries over and what does not:
 
 1. **Which app it is.** The store's record is Ghost Markdown (6818598896), `com.mattssoftware.glyph`, whose build
@@ -596,7 +613,7 @@ uploaded, or asked of App Store Connect). The real app's own road is `../glyph/d
   picker have not been through `PictureKeep` on an iPhone (it is the Mac's ImageIO code). The date sheet was
   seen and no day was pressed in it. A `ghostmd://` link was not opened (the simulator asks before it hands one
   over), nor a picture pasted (an iPhone asks before a paste is read).
-- **The keyboard is not WebKit's.** Read rule by rule in ../glyph: the page has no code of its own for an iPhone's
+- **The keyboard is not WebKit's.** Read rule by rule in tauri/: the page has no code of its own for an iPhone's
   keyboard. What it has for any keyboard is `core/keyboard.ts` (up when the visual viewport is 150px shorter),
   the caret kept in sight on a viewport's resize (`Editor.tsx`), the band and the + list placed inside the visual
   viewport (`menuRoom.ts`, `PopMenu.tsx`, `AddList.tsx`), and a find bar and a dock fixed to the page's foot; the
@@ -848,13 +865,13 @@ screens. `test/root/voice_test.dart` holds the wiring. There is no always-on mic
 recorder's screen that is on screen.
 
 - **A debug build fetches a model from nowhere.** `--dart-define=GHOST_MODELS=http://10.0.2.2:8765` names a server
-  on this Mac (the files of `../glyph/models`); with none, the one mirror is `http://127.0.0.1:9`, where nothing
+  on this Mac (the files of `tauri/models`); with none, the one mirror is `http://127.0.0.1:9`, where nothing
   listens, and Get says it could not. The real mirrors are refused in a build that is not a release
   (`voiceMirrors`). **Never hand the core an empty list:** it reads one as none given and falls back to attack.fm
   and Hugging Face (`native/src/models.rs` `mirrors`); a debug build did exactly that once, on the emulator, on
   2026-10-09, before the list was given its one address.
 - **`--dart-define=GHOST_MIC_FIXTURE=true`**, a debug build's only, plays `<dataDir>/fixture.wav` in place of the
-  microphone (an emulator's hears silence): `adb push ../glyph/models/fixture.wav /data/local/tmp/` and
+  microphone (an emulator's hears silence): `adb push tauri/models/fixture.wav /data/local/tmp/` and
   `run-as com.mattssoftware.glyph.flutter cp /data/local/tmp/fixture.wav fixture.wav`.
 - **Summaries and the review's gate are lib/ai's, wired** (`Voice.summaries`, a `Summaries` over the phone's
   write-up, the better words' queue and the notes): a take's summary and whether its review can run are asked of
@@ -937,13 +954,13 @@ recorder's screen that is on screen.
 ## What stage 7 left open
 
 Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `lib/live/`, a port of
-`../glyph/src/app/core/live` with its own cases in `test/live/`). The CRDT and its awareness are the Rust core's
+`tauri/src/app/core/live` with its own cases in `test/live/`). The CRDT and its awareness are the Rust core's
 (`native/src/crdt.rs`, yrs), so everything that touches a document is a call away: `lib/team/text_log.dart` and
 `lib/live/editor_binding.dart` say what that asks of an editor bound to one.
 
 - **How it was proven.** `tool/local-server.sh start`, then
   `GHOST_E2E_API=http://127.0.0.1:<port>/api flutter test --no-pub test/live` runs, through the real relay
-  (`../glyph/server` `live.rs`) with the real crypto: two Dart devices in a note of one account's and in a team's
+  (`server` `live.rs`) with the real crypto: two Dart devices in a note of one account's and in a team's
   note with carets, presence and the nudge (`test/live/local_server_test.dart`); and the Flutter side with the WEB
   app's own live code under Node (`tool/web_live.mjs`: its transport, hub, session, team rooms, its Yjs, its
   y-protocols, its canvas adapter) in the same note at once, both ways (`test/live/web_test.dart`): a team's note,
@@ -1032,7 +1049,7 @@ Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `
   not (`CanvasView.team`). This device's pointer is where a finger is down and nowhere once it lifts, and a change
   that arrives while a card is being dragged is still the body handed to the view anew. Its threads are in the
   note's own sheet (next).
-- **Comments** (../glyph docs/SHARED.md, S8 and S9; 2026-10-09). In a note: each `[^c1]` a round in its author's
+- **Comments** (tauri/docs/SHARED.md, S8 and S9; 2026-10-09). In a note: each `[^c1]` a round in its author's
   colour and the words round a selection washed in it, the ```comments fence drawn as the list of its threads
   (`lib/editor/comments/comments.dart`), the thread's card and the new comment's field in the app's sheet with
   replies, Resolve, Reopen and Delete thread (`lib/comments/ui/`), Comment on the press-and-hold band, in the bar
@@ -1051,7 +1068,7 @@ Live typing and a team's canvas (docs/STAGE7.md, "Live typing and team notes"; `
 - **A session that meets another history after a drop ends**, as the page's does (`LiveSession` on a different
   seed): the note is live again the next time it is opened.
 - **The web's bug with an emoji, and what is done about it here.** `applyTextDiff`
-  (`../glyph/src/app/core/team/textDiff.ts`) finds the common head and foot of two wordings by UTF-16 code unit,
+  (`tauri/src/app/core/team/textDiff.ts`) finds the common head and foot of two wordings by UTF-16 code unit,
   so when they differ inside a character of two units (😀 made 😁: the same first half) it deletes and inserts
   half a character. Yjs, cutting a block of text between the halves, writes U+FFFD over both; the half it was
   given to insert is a lone surrogate in the writer's memory and U+FFFD on the wire. Every other member reads
@@ -1241,7 +1258,7 @@ xcrun simctl install <udid> build/ios/iphonesimulator/Runner.app && xcrun simctl
 tool/ios-tour.sh <udid> /tmp/shots 'wait:7000;shot:home'    # a debug build walks itself; the pictures are the simulator's
 ```
 
-`tool/sync-design.sh` refreshes the stylesheets from `../glyph`; run the kit's tests after it.
+`tool/sync-design.sh` refreshes the stylesheets from `tauri/`; run the kit's tests after it.
 
 **The suite is `tool/check.sh`**: the kit, then every folder of `test/` in a run of its own, the analyzer (and that
 the last commit imports nothing git was never given), `test/e2e` and `test/live` against the service on this Mac, and

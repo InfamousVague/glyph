@@ -68,8 +68,8 @@ const String _testKey = String.fromEnvironment('GHOST_UPDATES_TEST_KEY');
 /// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`; the header).
 const bool _cutover = bool.fromEnvironment('GHOST_CUTOVER');
 
-/// Where the Tauri app's installs look for a release (`../glyph/src-tauri/ota-sources.txt`, its one line; the
-/// directory `../glyph/scripts/deploy-ota.mjs` publishes `glyph.apk` and `apk.json` into).
+/// Where the Tauri app's installs look for a release (`tauri/src-tauri/ota-sources.txt`, its one line; the
+/// directory `tauri/scripts/deploy-ota.mjs` publishes `glyph.apk` and `apk.json` into).
 const String tauriReleases = 'https://attack.fm/glyph';
 
 /// The Tauri app's own update addresses ([tauriReleases], and the site it moved to). Only the build that replaces

@@ -1,5 +1,5 @@
 // Writes the fixtures the state tests hold the Dart port to: inputs run through the real CodeMirror
-// (@codemirror/state, @codemirror/commands and @codemirror/view from ../glyph/node_modules, read only) and what it
+// (@codemirror/state, @codemirror/commands and @codemirror/view from tauri/node_modules, read only) and what it
 // answered. Seeded, so running it again writes the same files:
 //
 //   node test/editor/state/fixtures/generate.mjs
@@ -10,7 +10,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const modules = process.env.GLYPH_NODE_MODULES ?? join(here, '../../../../../glyph/node_modules');
+const modules = process.env.GLYPH_NODE_MODULES ?? join(here, '../../../../tauri/node_modules');
 const load = (name) => import(pathToFileURL(join(modules, name, 'dist/index.js')).href);
 
 const S = await load('@codemirror/state');

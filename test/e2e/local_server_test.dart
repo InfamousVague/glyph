@@ -1,4 +1,4 @@
-// Every scenario of scenarios.dart against the REAL account and sync service (../glyph/server), run on this Mac by
+// Every scenario of scenarios.dart against the REAL account and sync service (server), run on this Mac by
 // tool/local-server.sh, with the real crypto and the real CRDT, over real sockets:
 //
 //   tool/local-server.sh test                      # builds it once, starts it, runs this, stops it

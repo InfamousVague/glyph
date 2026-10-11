@@ -2,7 +2,7 @@
 // the themes colour (a keyword, a name defined and called, a property, a type, a string, a number, a comment, a
 // decorator, a label, punctuation), a line of prose with HTML in it, and a block with no language beside them.
 // The pictures are in shots/; what each colour should be is the theme's custom property in
-// ../glyph/src/app/editor/codeThemes.css, by the class glyphHighlight.ts gives the token's tag.
+// tauri/src/app/editor/codeThemes.css, by the class glyphHighlight.ts gives the token's tag.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';

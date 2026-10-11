@@ -12,7 +12,7 @@ import java.util.concurrent.Executors
 /**
  * The bell's rows as the phone's own notifications, as the app asks for them: the phone's half of `ghost_md/notices`
  * (lib/core/phone_notices.dart), and what `GlyphHost.watchNotices`, `postNotice` and `noticesState` were to the Tauri
- * app's page (../glyph/src-tauri/gen/android/…/MainActivity.kt), method for method, with the same words answered.
+ * app's page (tauri/src-tauri/gen/android/…/MainActivity.kt), method for method, with the same words answered.
  * What is watched, posted and said is NoticeAlerts' and NoticeWorker's (glyph/notices), ported line for line.
  *
  * - `watch {json}` -> "off" | "on" | "blocked". The session and switches the worker needs while the app is closed

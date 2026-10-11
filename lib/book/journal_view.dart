@@ -1,4 +1,4 @@
-/// A journal, drawn where its words would be (lib/note/note_screen.dart `NoteSeams.journal`; ../glyph
+/// A journal, drawn where its words would be (lib/note/note_screen.dart `NoteSeams.journal`; tauri/
 /// docs/DESIGN.md §142): one action, New entry, then the journal's own words, then its entries by the month each
 /// was written in, newest first. A port of `src/app/book/JournalView.tsx` and `JournalView.module.css`.
 ///

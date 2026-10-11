@@ -1,4 +1,4 @@
-// Ports src/app/editor/formatLooks.test.ts (../glyph), case for case and in its order, onto
+// Ports src/app/editor/formatLooks.test.ts (tauri/), case for case and in its order, onto
 // lib/editor/marks/format_looks.dart.
 //
 // A plugin formatting drawn as a style: its words carry its CSS, and a name in brackets after it, where the

@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.notices
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/NoticeWorker.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/NoticeWorker.kt, line for line, for the
 // Flutter app (docs/PARITY.md, Missing 4). What differs: the activity asked whether the app is in front is the Flutter
 // one, and "the page" is the app's Dart (lib/sync/phone.dart). Which service it may ask is NoticeAlerts' `mayAsk`.
 

@@ -1,5 +1,5 @@
 //! The app's half of a model download, shared by the two seams that have models: `capture` (whisper's live and
-//! refine models) and `ai` (the formatting models). What `../glyph/src-tauri/src/model_downloads.rs` is to the
+//! refine models) and `ai` (the formatting models). What `tauri/src-tauri/src/model_downloads.rs` is to the
 //! Tauri app, without Tauri.
 //!
 //! `model_files` (included as it is) owns the download itself: the mirrors tried in turn, the resume with a

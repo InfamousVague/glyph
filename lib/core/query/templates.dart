@@ -1,4 +1,4 @@
-/// The databases the + offers ready-made (lib/editor/plus/add_rows.dart, add_list.dart; ../glyph docs/QUERIES.md,
+/// The databases the + offers ready-made (lib/editor/plus/add_rows.dart, add_list.dart; tauri/docs/QUERIES.md,
 /// docs/DESIGN.md §160). A port of `src/app/core/query/templates.ts`. Matt: "make templates for databases on the +
 /// menu". Each is a query a person would otherwise have to learn to write, the ones a notes app is asked for most -
 /// what is due this week, what is late, who has what, a ticket board, a timeline - written the way docs/QUERIES.md

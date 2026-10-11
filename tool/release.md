@@ -10,7 +10,7 @@ is `apk.json.flutter.sig`, and `apk.json` carries `native` and `build` for the T
 For the app's own updates (lib/core/updates.dart, native/src/kept/updates.rs, android/…/ghost_md/UpdateInstaller.kt)
 to find a release and trust it. **No script does this yet, nothing has been published, and no key has been made:**
 this is what one has to do, written from what the client checks. The Tauri app's own equivalent, for reference, is
-`../glyph/scripts/deploy-ota.mjs` (with `ota-sign.mjs` and `ota-keygen.mjs`), which also publishes a web bundle; this
+`tauri/scripts/deploy-ota.mjs` (with `ota-sign.mjs` and `ota-keygen.mjs`), which also publishes a web bundle; this
 app has none, so only its `--apk` half has anything to carry over.
 
 ## What is still to be decided (the owner's)
@@ -21,11 +21,11 @@ app has none, so only its `--apk` half has anything to carry over.
    with: **an APK cannot update one signed with a different key**, and moving off the debug key later means everyone
    reinstalls, losing what is on the phone. Decide it before the first release goes out. (The Tauri app keeps its own
    at `~/.config/glyph/glyph-android.keystore` with `android-signing.properties`, its certificate pinned in
-   `../glyph/src-tauri/apk-signer.sha256`, which `deploy-ota.mjs` checks with `apksigner verify --print-certs` before
+   `tauri/src-tauri/apk-signer.sha256`, which `deploy-ota.mjs` checks with `apksigner verify --print-certs` before
    it publishes. It cannot be this app's unless this app is to share that certificate.)
 2. **The update signing key** (Ed25519), whose public half goes in `lib/core/update_keys.dart`. That list is
    **empty, and an empty list means no update check at all**. A key of this app's own, or the Tauri app's
-   (`~/.config/glyph/ota-signing-key.pem`, public half in `../glyph/src-tauri/ota-trusted-keys.txt`): either is safe,
+   (`~/.config/glyph/ota-signing-key.pem`, public half in `tauri/src-tauri/ota-trusted-keys.txt`): either is safe,
    because the two apps sign different contexts (below), so a description signed for one can never pass as the
    other's. Without the private key no installed build accepts another update; back it up.
 3. **Where releases live**: one https base address of this app's own, given to the build as `GHOST_UPDATES`. Not the
@@ -47,13 +47,13 @@ flutter build apk --release --target-platform android-arm64 \
 
 - **The test report is made first, before every release build**, and never after a change to the code: `node
   tool/test_report.mjs` runs `tool/check.sh` whole and writes what every test did to `assets/diag/test_report.json`,
-  which the build carries and Settings › Test results (Developer mode) shows, as `../glyph/scripts/test-report.mjs`
+  which the build carries and Settings › Test results (Developer mode) shows, as `tauri/scripts/test-report.mjs`
   does for the Tauri app (`deploy-ota.mjs` runs that before it builds). It exits 1 if anything failed or did not
   run: do not build then. `GHOST_SOURCE` is the fingerprint of the code the build is made from; the report holds the
   one its tests ran on, and the page says "The code changed after these tests ran" when the two are not the same.
   A build made without either is a development build: with no report the page says "No test report in this build.",
   which is what the repository's own `assets/diag/test_report.json` is (`node tool/test_report.mjs --clear` puts it
-  back; commit the written one with the release only if the release's commit is to keep it, as ../glyph's does).
+  back; commit the written one with the release only if the release's commit is to keep it, as the Tauri app's does).
 
 - `--build-name` is the version people read (pubspec's `version`, and `ghostVersion` in
   lib/settings/panes/about_pane.dart, which a test holds to it). `--build-number` is Android's `versionCode`: **it
@@ -75,7 +75,7 @@ flutter build apk --release --target-platform android-arm64 \
 | `apk.json` | What the release is (below). The client parses it only after its signature verifies. |
 | `apk.json.sig` | The detached signature of `apk.json`: base64, one line. |
 
-`apk.json`, the Tauri app's shape (`ApkInfo`, `../glyph/src-tauri/src/ota/manifest.rs`) without its `native`:
+`apk.json`, the Tauri app's shape (`ApkInfo`, `tauri/src-tauri/src/ota/manifest.rs`) without its `native`:
 
 ```json
 {

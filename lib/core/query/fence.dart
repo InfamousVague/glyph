@@ -1,4 +1,4 @@
-/// Where each ```query fence in a note is, and what it says (../glyph docs/QUERIES.md, docs/DESIGN.md §159): the
+/// Where each ```query fence in a note is, and what it says (tauri/docs/QUERIES.md, docs/DESIGN.md §159): the
 /// editor draws each as its result, and nothing else in a note is a query. A port of `src/app/core/query/fence.ts`.
 /// A fence is ```query or ~~~query and nothing more on its line but its settings (`height=18`, as a board's), closed
 /// by a fence of the same character at least as long; one never closed is not drawn, since everything after it is

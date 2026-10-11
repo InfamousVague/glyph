@@ -1,5 +1,5 @@
 // Makes lib/art/lucide.g.dart: the kit's lucide icons the web app draws, as paths, each with the shapes that wear
-// the wash (lib/art/icon_wash.dart, the rule of ../glyph/src/app/art/iconWash.ts).
+// the wash (lib/art/icon_wash.dart, the rule of tauri/src/app/art/iconWash.ts).
 //
 //   dart run tool/lucide.dart
 //
@@ -7,7 +7,7 @@
 // `lucide-react` (the scan art/iconWash.test.ts makes), and whatever is named in `also` below. To bring in an icon
 // the web app does not draw, add its lucide name to `also` and run this again; that line is the whole change.
 //
-// The wash is held to the page's: every rule of ../glyph/src/app/iconWash.css must be what the Dart rule makes of
+// The wash is held to the page's: every rule of tauri/src/app/iconWash.css must be what the Dart rule makes of
 // the same icon, and this stops if one is not, since a wash that disagrees is a port that has drifted.
 import 'dart:io';
 
@@ -19,7 +19,7 @@ const also = <String>[
   'folder-input',
 ];
 
-const glyph = '../glyph';
+const glyph = 'tauri';
 const lucide = '$glyph/node_modules/lucide-react/dist/esm';
 
 Iterable<File> sources(Directory dir) sync* {

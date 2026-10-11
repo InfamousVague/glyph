@@ -1,4 +1,4 @@
-# NOT Tauri. A crate that answers to the name so `../glyph/src-tauri/src/model_files.rs` can be included as it is
+# NOT Tauri. A crate that answers to the name so `tauri/src-tauri/src/model_files.rs` can be included as it is
 # (native/src/lib.rs): that file is Tauri-free but for the runtime its retry sleeps on and its tests block on,
 # `tauri::async_runtime::{spawn_blocking, block_on}`. Those two functions, over a tokio runtime, are all of it.
 [package]

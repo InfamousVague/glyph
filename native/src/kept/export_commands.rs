@@ -1,4 +1,4 @@
-//! The export's doors (export.rs; docs/DESIGN.md §167 of ../glyph): `../glyph/src-tauri/src/export_commands.rs`,
+//! The export's doors (export.rs; docs/DESIGN.md §167 of tauri/): `tauri/src-tauri/src/export_commands.rs`,
 //! whose commands take Tauri's `AppHandle` and `State` and open the Mac's save panel, so it cannot be included.
 //! What the page asks for, which of its files the archive carries and the one export that may run are that
 //! file's own lines between the marks; `kept::tests` holds them to the original. The archive itself, export.rs,

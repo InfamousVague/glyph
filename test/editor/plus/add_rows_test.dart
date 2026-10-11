@@ -1,5 +1,5 @@
 // What the + beside the line offers (lib/editor/plus/add_rows.dart): which rows are there, in what order, and
-// exactly what each writes on an empty line. The cases of ../glyph/src/app/editor/addRows.test.ts, one for one;
+// exactly what each writes on an empty line. The cases of tauri/src/app/editor/addRows.test.ts, one for one;
 // the two that stood a phone, the Mac and the iPhone in for the page's platform are not here, since in this app a
 // row is there when the screen hands the list its callback (see add_rows.dart's header), and what is left of them
 // is `readGates`.

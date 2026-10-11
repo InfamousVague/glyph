@@ -1,4 +1,4 @@
-# Stage 7, account and sync: what was read in ../glyph (2026-10-07), and the plan
+# Stage 7, account and sync: what was read in tauri/ (2026-10-07), and the plan
 
 ## Rules before anything else
 - **A development build never talks to ghostmarkdown.com.** No default API base in debug; work against the fake service

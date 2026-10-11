@@ -1,5 +1,5 @@
 //! The app's door to a meeting's write-up and its tapes (the `voice` feature): what
-//! `../glyph/src-tauri/src/recording_commands.rs` is to the Tauri app, command for command. What the app gives
+//! `tauri/src-tauri/src/recording_commands.rs` is to the Tauri app, command for command. What the app gives
 //! the write-up (its config), what it takes from it (the result, the state of every job), and two calls about
 //! the audio itself (a digest for sync, a removal for the Tapes row). The files are `jobs.rs`'s shapes.
 //!
@@ -226,7 +226,7 @@ mod tests {
 
     #[test]
     fn the_copied_functions_are_the_tauri_apps_own_lines() {
-        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../glyph/src-tauri/src/recording_commands.rs");
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tauri/src-tauri/src/recording_commands.rs");
         let source = std::fs::read_to_string(&source).unwrap_or_else(|e| panic!("{}: {e}", source.display()));
         let squeezed = |text: &str| text.split_whitespace().collect::<Vec<_>>().join(" ");
         let (theirs, mine) = (squeezed(&source), squeezed(include_str!("recording.rs")));

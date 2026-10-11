@@ -66,7 +66,7 @@ String _heldKey(BackupDrive drive) => '${drive.id}|${drive.tree ?? ''}|${drive.l
 /// A drive's row's hint: its room, and the last backup it holds (`hintOf`).
 String driveHint(BackupDrive drive, {DateTime? now}) => [if (drive.free != null) '${sizeSaid(drive.free!)} free', lastSaid(drive.last, now: now)].join(' · ');
 
-/// Port of `BackupPane` (src/app/settings/BackupPane.tsx; docs/DESIGN.md §204 and §213 of ../glyph; Matt: "add a
+/// Port of `BackupPane` (src/app/settings/BackupPane.tsx; docs/DESIGN.md §204 and §213 of tauri/; Matt: "add a
 /// section to the settings called "Backup" it should prompt the user to plugin a removable drive to backup all the
 /// notes in the app to workspace folders and such under a Ghost.md folder on the root of the drive").
 ///

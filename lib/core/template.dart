@@ -1,4 +1,4 @@
-/// A template filled for one note: a journal's for one entry (lib/book/journal.dart; ../glyph docs/DESIGN.md §142),
+/// A template filled for one note: a journal's for one entry (lib/book/journal.dart; tauri/docs/DESIGN.md §142),
 /// and a new note's from one of those it can start from (lib/notes/note_templates.dart; §144). A port of
 /// `src/app/core/template.ts`, with `core/stamp.ts`'s `longDay` and `clockTime`, which it writes `{{date}}` and
 /// `{{time}}` with. The double-brace placeholders are the ones Obsidian's core Templates plugin writes:

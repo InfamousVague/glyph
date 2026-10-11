@@ -186,7 +186,7 @@ void main() {
     });
 
     // docs/CUTOVER.md: the build made to replace the Tauri app is that app's next version, so it looks where that
-    // app's installs look, which is the one line of ../glyph/src-tauri/ota-sources.txt.
+    // app's installs look, which is the one line of tauri/src-tauri/ota-sources.txt.
     test('but the build that replaces the real app, which told nothing looks where that app\'s installs do', () {
       UpdatesConfig? cut(String source, {bool debug = false, List<String> keys = const ['a-key']}) => UpdatesConfig.of(source: source, keys: keys, debug: debug, cutover: true);
       expect(cut('')?.source, 'https://attack.fm/glyph');
@@ -195,7 +195,7 @@ void main() {
       expect(cut('', debug: true), isNull, reason: 'a debug build still never looks');
       expect(cut('', keys: const []), isNull);
       expect(cut('http://attack.fm/glyph'), isNull);
-      final sources = File('../glyph/src-tauri/ota-sources.txt');
+      final sources = File('tauri/src-tauri/ota-sources.txt');
       if (sources.existsSync()) {
         expect([for (final line in sources.readAsLinesSync()) if (line.trim().isNotEmpty && !line.startsWith('#')) line.trim()], [tauriReleases]);
       }
@@ -219,7 +219,7 @@ void main() {
 
     test('the key it believes is Ghost.md\'s own, and a build told nothing still does not look', () {
       expect(trustedUpdateKeys, ['+lGP9TU8jcvUCrDjPwD5W33HsJn/Bhxm3gH4TK5CvkM=']);
-      final theirs = File('../glyph/src-tauri/ota-trusted-keys.txt');
+      final theirs = File('tauri/src-tauri/ota-trusted-keys.txt');
       if (theirs.existsSync()) {
         expect([for (final line in theirs.readAsLinesSync()) if (line.trim().isNotEmpty && !line.startsWith('#')) line.split('#').first.trim()], trustedUpdateKeys);
       }

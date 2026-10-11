@@ -1,10 +1,10 @@
 // The web app's voice recorder, drawn by Chromium, for the Flutter port to be held against. Each state is the web app
-// itself on its dev server (../glyph/src/app/capture/CaptureScreen.tsx and its parts, MeetingScreen.tsx), opened as a
+// itself on its dev server (tauri/src/app/capture/CaptureScreen.tsx and its parts, MeetingScreen.tsx), opened as a
 // person opens it - the Speak button on the home page's dock - over a seeded library of three notes, with the scripted
 // voice speaking (capture/simulated.ts, `?simulate`), at 390 x 844 and at 1200 x 800, two device pixels to the logical
 // one, in a plain desktop Chromium (no touch, no Android in the user agent, so `data-platform` is the browser's).
 //
-//   (cd ../glyph && npx vite --port 5278 --strictPort --host 127.0.0.1) &      # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5278 --strictPort --host 127.0.0.1) &      # read-only: never `vite build` there
 //   node test/capture_ui/reference/capture_reference.mjs [state ...]
 //
 // The states, and the moment each is read at (`STATES` below has the exact query):

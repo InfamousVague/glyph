@@ -1,6 +1,6 @@
 // Which line the + beside the line is drawn on (lib/editor/plus/plus_line.dart): the caret's line when it has no
 // words (Matt: "EMPTY LINES ONLY, on every platform"), and only where adding to the note makes sense. The cases of
-// ../glyph/src/app/editor/plusLine.test.ts, one for one.
+// tauri/src/app/editor/plusLine.test.ts, one for one.
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/plus/plus_line.dart';
 import 'package:ghost_md/editor/state/selection.dart';

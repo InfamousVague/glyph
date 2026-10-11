@@ -1,4 +1,4 @@
-/// What a journal's entries start with, and whether they keep where they were written (../glyph docs/DESIGN.md
+/// What a journal's entries start with, and whether they keep where they were written (tauri/docs/DESIGN.md
 /// §142): the one page for both, in the New notebook sheet with Journal chosen and on a notebook's More sheet. A
 /// port of `src/app/book/TemplatePicker.tsx`, `TemplatePicker.module.css` and `book/entryPlace.ts`.
 ///

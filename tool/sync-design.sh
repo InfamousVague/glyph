@@ -5,7 +5,7 @@
 # still agree.
 set -e
 here="$(cd "$(dirname "$0")/.." && pwd)"
-web="${1:-$here/../glyph}"
+web="${1:-$here/tauri}"
 cp "$web/vendor/@glacier/tokens/css/tokens.css" "$here/packages/glacier/assets/css/tokens.css"
 cp "$web/src/app/ink.css" "$web/src/app/app.css" "$web/src/app/typefaces.css" "$here/assets/css/"
 # The app reads no CSS as it starts: the sheet is worked out here, as the app is built (lib/app/token_sheet.g.dart),

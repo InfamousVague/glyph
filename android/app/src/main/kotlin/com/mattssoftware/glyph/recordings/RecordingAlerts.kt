@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.recordings
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingAlerts.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingAlerts.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the activity a notification opens is the Flutter one.
 
 import android.Manifest

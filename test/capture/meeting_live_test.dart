@@ -240,10 +240,10 @@ void main() {
 
   // The two sides of the bridge are typed twice, once in Kotlin and once here, and a key misspelt in either is read
   // as nothing without a word. So what the service and the activity build is read out of their sources and held to
-  // what this store parses. The Kotlin is the web app's, in the repo beside this one (../glyph), until the meeting
+  // what this store parses. The Kotlin is the web app's, in the repo beside this one (tauri/), until the meeting
   // service is ported here (piece 8E), when these three should read this repo's own.
   group('what the Kotlin says, and what the page reads', () {
-    const android = '../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph';
+    const android = 'tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph';
     final service = File('$android/capture/MeetingService.kt').readAsStringSync();
     final activity = File('$android/MainActivity.kt').readAsStringSync();
 

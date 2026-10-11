@@ -1,6 +1,6 @@
 {
  "made": "2026-10-08T02:56:54.853Z",
- "by": "tool/yjs_vectors.mjs make, with ../glyph/node_modules",
+ "by": "tool/yjs_vectors.mjs make, with tauri/node_modules",
  "yjs": "13.6.32",
  "protocols": "1.0.7",
  "seed": {

@@ -77,7 +77,7 @@ class BareView extends EditorViewLike {
   void focus() => setFocus(true);
 }
 
-/// The shape of ../glyph's tags.ts: a chip on every `#word` in view, redrawn when the document changes.
+/// The shape of the Tauri app's tags.ts: a chip on every `#word` in view, redrawn when the document changes.
 class TagChips extends PluginValue {
   TagChips(EditorViewLike view) : decorations = decorate(view);
 

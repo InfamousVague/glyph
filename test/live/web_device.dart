@@ -9,7 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Why the web device cannot run here, or null when it can.
 String? webSkip(String base) {
   if (base.isEmpty) return 'no local server: run tool/local-server.sh start and set GHOST_E2E_API';
-  if (!Directory('../glyph/node_modules/yjs').existsSync()) return '../glyph has no node_modules/yjs for the web client to load';
+  if (!Directory('tauri/node_modules/yjs').existsSync()) return 'tauri/ has no node_modules/yjs for the web client to load';
   try {
     if (Process.runSync('node', ['--version']).exitCode != 0) return '`node` did not run';
   } on ProcessException {

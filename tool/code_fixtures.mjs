@@ -3,7 +3,7 @@
 //
 //   node tool/code_fixtures.mjs
 //
-// Everything is read from ../glyph and nothing is written there: its node_modules for @codemirror/language-data
+// Everything is read from tauri/ and nothing is written there: its node_modules for @codemirror/language-data
 // and the grammars and legacy modes behind it, @lezer/highlight, and its src for the editor's own language
 // (src/app/editor/language.ts) and highlighter (glyphHighlight.ts, whose list tool/code_grammars.mjs copies and
 // checks). Three fixtures go to test/editor/code/fixtures/:
@@ -18,7 +18,7 @@
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { glyphHighlighter } from './code_grammars.mjs';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const MODULES = `${GLYPH}node_modules/`;
 const OUT = new URL('../test/editor/code/fixtures/', import.meta.url).pathname;
 const SAMPLES = new URL('../test/editor/code/samples/', import.meta.url).pathname;

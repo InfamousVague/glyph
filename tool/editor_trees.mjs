@@ -3,7 +3,7 @@
 //
 //   node tool/editor_trees.mjs
 //
-// Everything is read from ../glyph and nothing is written there: its node_modules for @lezer/markdown 1.7.2,
+// Everything is read from tauri/ and nothing is written there: its node_modules for @lezer/markdown 1.7.2,
 // @lezer/common and TypeScript, its src for the editor's own language (src/app/editor/language.ts, which Node loads
 // as it is, types stripped). Four fixtures go to test/editor/syntax/fixtures/:
 //
@@ -22,7 +22,7 @@
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const OUT = new URL('../test/editor/syntax/fixtures/', import.meta.url).pathname;
 const require = createRequire(`${GLYPH}package.json`);
 

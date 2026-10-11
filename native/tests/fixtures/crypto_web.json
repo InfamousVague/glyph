@@ -1,6 +1,6 @@
 {
  "made": "2026-10-08T02:54:21.276Z",
- "by": "tool/crypto_vectors.mjs make, from ../glyph/src/app",
+ "by": "tool/crypto_vectors.mjs make, from tauri/src/app",
  "rounds": 600000,
  "accountKey": "F-qmi1bYkfvBMYwJbSH8UjJwMBZFytRmiu5cA-ckOxM",
  "salts": [

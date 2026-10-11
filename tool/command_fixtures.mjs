@@ -3,7 +3,7 @@
 //
 //   node tool/command_fixtures.mjs
 //
-// Everything is read from ../glyph and nothing is written there: its node_modules for @codemirror/commands 6.11.0,
+// Everything is read from tauri/ and nothing is written there: its node_modules for @codemirror/commands 6.11.0,
 // @codemirror/state, @codemirror/view, @codemirror/language, @codemirror/lang-markdown and jsdom. One fixture goes
 // to test/editor/commands/fixtures/commands.json. Seeded, so running it again writes the same file.
 //
@@ -38,7 +38,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const OUT = new URL('../test/editor/commands/fixtures/', import.meta.url).pathname;
 const require = createRequire(`${GLYPH}package.json`);
 

@@ -3,7 +3,7 @@ import UIKit
 
 /// `ghost_md/day` on the iPhone: a day picked from the phone's own calendar (lib/core/phone_day.dart), as
 /// android/…/ghost_md/DayPick.kt is on Android. What a hidden `<input type="date">` and its `showPicker()` were to
-/// the real app's Pick a date (../glyph `editor/fieldMenu.ts` `pickDay`), where the iPhone's WebView answered with
+/// the real app's Pick a date (tauri/ `editor/fieldMenu.ts` `pickDay`), where the iPhone's WebView answered with
 /// its own calendar.
 ///
 /// - `pick {current}` -> the day chosen as `YYYY-MM-DD`, or null when the calendar was left without one. `current`

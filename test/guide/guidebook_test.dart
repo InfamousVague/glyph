@@ -219,10 +219,10 @@ void main() {
       expect([for (final chapter in shipped.chapters) chapter.body], [for (final chapter in book.chapters) chapter.body]);
     });
 
-    test('is the web app’s own Markdown, byte for byte, where ../glyph is beside the repository', () {
-      final web = Directory('../glyph/src/app/guidebook');
+    test('is the web app’s own Markdown, byte for byte, where tauri/ is in the checkout', () {
+      final web = Directory('tauri/src/app/guidebook');
       if (!web.existsSync()) {
-        markTestSkipped('../glyph is not beside the repository');
+        markTestSkipped('tauri/ is not in this checkout');
         return;
       }
       final theirs = web.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.md')).toList();

@@ -4,7 +4,7 @@
 // editor's own coordinates.
 //
 // Two editors are measured. The BASE one is what lib/editor/view ports and no more: a CodeMirror view assembled here
-// as ../glyph/src/app/editor/Editor.tsx assembles it, from the web app's own modules (language.ts, glyphHighlight.ts,
+// as tauri/src/app/editor/Editor.tsx assembles it, from the web app's own modules (language.ts, glyphHighlight.ts,
 // glyphLines.ts, extended.ts, glyphTheme.ts, viewMode.ts) inside the same `.editor` host, without the extensions later
 // pieces port (short links, heading counts, tags, tables...), which would move the words. The FULL one is the web
 // `Editor` component itself, written to fixtures/full/ for those pieces to be held against in their turn.
@@ -27,7 +27,7 @@
 // set to it, so the moving marks can be compared at a moment (test/editor/marks/effects_test.dart). `still` cases
 // ask for reduced motion.
 //
-//   (cd ../glyph && npx vite --port 5270 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5270 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/editor_reference.mjs [name ...]
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/wisp_reference.mjs takes it.

@@ -5,7 +5,7 @@
 //
 // The editor measured is the BASE one of tool/editor_reference.mjs (what lib/editor/view ports: language.ts,
 // glyphHighlight.ts, glyphLines.ts, extended.ts, glyphTheme.ts, viewMode.ts in the `.editor` host) with
-// `drawnTables()` of ../glyph/src/app/editor/tables.ts added and nothing else, so the only thing that moves the
+// `drawnTables()` of tauri/src/app/editor/tables.ts added and nothing else, so the only thing that moves the
 // words is the piece being ported.
 //
 // For each case it writes test/editor/tables/fixtures/<name>.json:

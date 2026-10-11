@@ -1,11 +1,11 @@
 // What the web app's own versions modules answer, written down for test/versions/parity_test.dart to hold the Dart
-// port to. Reads ../glyph and writes nothing there:
+// port to. Reads tauri/ and writes nothing there:
 //
 //   node --experimental-strip-types test/versions/fixtures/web_versions.mjs > test/versions/fixtures/web_versions.json
 //
 // A seeded generator, so the file is the same from run to run until the web's modules change.
-import { diffLines, linesOf, firstChange } from '../../../../glyph/src/app/core/versions/diff.ts';
-import { hashText, mergeFiles, readFile, withVersion, writeFile } from '../../../../glyph/src/app/core/versions/file.ts';
+import { diffLines, linesOf, firstChange } from '../../../tauri/src/app/core/versions/diff.ts';
+import { hashText, mergeFiles, readFile, withVersion, writeFile } from '../../../tauri/src/app/core/versions/file.ts';
 
 let seed = 20261007;
 const random = () => {

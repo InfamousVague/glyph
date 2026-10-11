@@ -1,6 +1,6 @@
 //! Ghost.md's core for the Flutter app: the Tauri app's notes library, as it is, behind a C ABI.
 //!
-//! `#[path]` points at the REAL files in `../glyph/src-tauri/src`, the way that repo's own
+//! `#[path]` points at the REAL files in `tauri/src-tauri/src`, the way that repo's own
 //! `tools/host-tests/src/lib.rs` does, so there is no second library to drift: a note written by this crate is
 //! the file the Tauri app would have written, because the same lines wrote it. The files included hold no
 //! `tauri::` type (note.rs says why that is a rule there), and this crate is what the rule now pays for.
@@ -26,55 +26,55 @@
 //!   twin for `DictationMic.kt`).
 //! - `smoke` (the `voice` feature): stage 8A's one command per engine, proving each through the C functions.
 //!
-//! Never built from inside ../glyph, and it builds nothing there: cargo's target directory is `native/target`.
+//! Never built from inside tauri/, and it builds nothing there: cargo's target directory is `native/target`.
 //!
 //! ```sh
 //! tool/build-native.sh        # the tests, the Mac's library for Dart's tests, the phone's .so
 //! ```
 
 // Declared at the top level so each `#[path]` resolves against src/, one predictable base.
-#[path = "../../../glyph/src-tauri/src/note.rs"]
+#[path = "../../tauri/src-tauri/src/note.rs"]
 pub mod note;
 
-#[path = "../../../glyph/src-tauri/src/fsx.rs"]
+#[path = "../../tauri/src-tauri/src/fsx.rs"]
 pub mod fsx;
 
-#[path = "../../../glyph/src-tauri/src/lock.rs"]
+#[path = "../../tauri/src-tauri/src/lock.rs"]
 pub mod lock;
 
 // The process's locks. Only `PROGRESS_FILE` is used yet (a deleted note's write-up); the rest are the capture's
 // and the write-up's, which arrive with stage 8.
-#[path = "../../../glyph/src-tauri/src/guards.rs"]
+#[path = "../../tauri/src-tauri/src/guards.rs"]
 pub mod guards;
 
 // The database the notes lived in before 1.3.0: `library/move_in.rs` reads it once.
-#[path = "../../../glyph/src-tauri/src/store.rs"]
+#[path = "../../tauri/src-tauri/src/store.rs"]
 pub mod store;
 
-#[path = "../../../glyph/src-tauri/src/library/mod.rs"]
+#[path = "../../tauri/src-tauri/src/library/mod.rs"]
 pub mod library;
 
-#[path = "../../../glyph/src-tauri/src/library_root.rs"]
+#[path = "../../tauri/src-tauri/src/library_root.rs"]
 pub mod library_root;
 
 // Stage 9A, a folder chosen through Android's picker: Rust's calls into Kotlin (files/LibraryTree.kt), which
 // `library_root::open_root` and the backup stand on. Compiled for Android only, as in the Tauri app; anywhere else
 // src/saf.rs answers that no such folder can be opened, which is true there.
 #[cfg(target_os = "android")]
-#[path = "../../../glyph/src-tauri/src/saf.rs"]
+#[path = "../../tauri/src-tauri/src/saf.rs"]
 pub mod saf;
 
 // Every note onto a removable drive, as plain files (stage 9B). Here from 9A on, since saf.rs writes a drive's
 // tree as this file's `Target`.
-#[path = "../../../glyph/src-tauri/src/backup.rs"]
+#[path = "../../tauri/src-tauri/src/backup.rs"]
 pub mod backup;
 
 // Everything the app keeps, as one zip to carry away (stage 9C): the archive, written as a stream.
-#[path = "../../../glyph/src-tauri/src/export.rs"]
+#[path = "../../tauri/src-tauri/src/export.rs"]
 pub mod export;
 
 // A meeting's write-up files, for the two a deleted note takes with it.
-#[path = "../../../glyph/src-tauri/src/jobs.rs"]
+#[path = "../../tauri/src-tauri/src/jobs.rs"]
 pub mod jobs;
 
 // Stage 8A, the engines (the `voice` feature; docs/STAGES_5_6_8_9.md). All Tauri-free but model_files.rs, which
@@ -82,34 +82,34 @@ pub mod jobs;
 
 // A recording's phrases as the paragraphs of its transcript.
 #[cfg(feature = "voice")]
-#[path = "../../../glyph/src-tauri/src/transcript.rs"]
+#[path = "../../tauri/src-tauri/src/transcript.rs"]
 pub mod transcript;
 
 // Speech to text: whisper.cpp, the streaming core, WAV files.
 #[cfg(feature = "voice")]
-#[path = "../../../glyph/src-tauri/src/whisper/mod.rs"]
+#[path = "../../tauri/src-tauri/src/whisper/mod.rs"]
 pub mod whisper;
 
 // A model file, whichever engine reads it, and its verified, resumable download.
 #[cfg(feature = "voice")]
-#[path = "../../../glyph/src-tauri/src/model_files.rs"]
+#[path = "../../tauri/src-tauri/src/model_files.rs"]
 pub mod model_files;
 
 // The language model: llama.cpp, the prompt, the catalogue.
 #[cfg(feature = "voice")]
-#[path = "../../../glyph/src-tauri/src/llm/mod.rs"]
+#[path = "../../tauri/src-tauri/src/llm/mod.rs"]
 pub mod llm;
 
 // A meeting's write-up, start to end. Called by the JNI door below on the phone, and by recording.rs's three
 // `write_up_*` commands everywhere.
 #[cfg(feature = "voice")]
-#[path = "../../../glyph/src-tauri/src/write_up.rs"]
+#[path = "../../tauri/src-tauri/src/write_up.rs"]
 pub mod write_up;
 
 // The JNI door the meeting service and its WorkManager job call: finish, run, cancel. Its symbols name the
 // Kotlin class `com.mattssoftware.glyph.recordings.RecordingJob`.
 #[cfg(all(feature = "voice", target_os = "android"))]
-#[path = "../../../glyph/src-tauri/src/recording_jobs.rs"]
+#[path = "../../tauri/src-tauri/src/recording_jobs.rs"]
 pub mod recording_jobs;
 
 // write_up.rs asks `crate::recordings` where a note's recording is: the two functions held in `kept`.
@@ -123,7 +123,7 @@ pub use kept::library_commands;
 pub use kept::images;
 
 #[cfg(test)]
-#[path = "../../../glyph/src-tauri/src/test_support/temp.rs"]
+#[path = "../../tauri/src-tauri/src/test_support/temp.rs"]
 pub mod test_support;
 
 #[cfg(feature = "voice")]

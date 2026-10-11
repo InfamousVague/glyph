@@ -1,4 +1,4 @@
-//! Films in notes, kept: the items of `../glyph/src-tauri/src/videos.rs` that name no `tauri::` type, word for
+//! Films in notes, kept: the items of `tauri/src-tauri/src/videos.rs` that name no `tauri::` type, word for
 //! word. What a deleted note takes with it, a picked film and its poster adopted from the cache's `picked/`
 //! (`save`, `discard`), the weekly sweep of films no note names and the hourly one of `picked/`. `kept::tests`
 //! holds what is between the marks to the original.

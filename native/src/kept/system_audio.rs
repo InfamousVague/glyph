@@ -1,4 +1,4 @@
-//! The computer's own sound, mixed into a meeting's microphone on the Mac: `../glyph/src-tauri/src/system_audio.rs`,
+//! The computer's own sound, mixed into a meeting's microphone on the Mac: `tauri/src-tauri/src/system_audio.rs`,
 //! whose four commands take Tauri's state and its runtime and so cannot be included whole. The mixer, the
 //! resampler, what each command answers and the state that holds the open tap are that file's own lines between
 //! the marks, which `kept::tests` holds to the original (its header says why the sound is mixed at the push, and
@@ -24,7 +24,7 @@
 #![allow(dead_code)]
 
 #[cfg(target_os = "macos")]
-#[path = "../../../../glyph/src-tauri/src/system_audio/mac.rs"]
+#[path = "../../../tauri/src-tauri/src/system_audio/mac.rs"]
 mod mac;
 
 // copied:begin

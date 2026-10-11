@@ -323,7 +323,7 @@
   "screen": "Appearance, Type",
   "kind": "visual",
   "summary": "Fira Code, Noto and Plex cards are all drawn in Inter in B",
-  "detail": "Fira Code Variable, Noto Sans Variable and IBM Plex Sans (400, the one weight the page registers) converted from ../glyph/node_modules by tool/fonts.py, Latin and Latin Extended (and Fira's symbols) with fallbacks. Cards are set in their faces (test picture looked at).",
+  "detail": "Fira Code Variable, Noto Sans Variable and IBM Plex Sans (400, the one weight the page registers) converted from tauri/node_modules by tool/fonts.py, Latin and Latin Extended (and Fira's symbols) with fallbacks. Cards are set in their faces (test picture looked at).",
   "pictures": [
    "21-appearance-s5-AB.png"
   ],

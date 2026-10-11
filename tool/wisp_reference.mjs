@@ -7,7 +7,7 @@
 // with art/wispEdge.ts's numbers, placed as `placeBand` and `placeFoot` place them. The numbers each picture was
 // drawn with go to cases.json, and the test holds the Dart port's own numbers to them before it compares a pixel.
 //
-//   (cd ../glyph && npx vite --port 5261 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5261 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/wisp_reference.mjs
 //
 // Playwright and pngjs are not this repository's: they are taken from the npx cache, as ../ghost-md-app-store-pack's

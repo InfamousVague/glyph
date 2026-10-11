@@ -2,7 +2,7 @@
 /// other platform ([IPhonePage] hands its child straight back).
 ///
 /// The real iPhone app is the web page in a WKWebView, and three things about that page are WebKit's doing rather
-/// than a rule written in ../glyph. Flutter does each differently by default, so each is said here:
+/// than a rule written in tauri/. Flutter does each differently by default, so each is said here:
 ///
 /// - **The phone's text size is left alone.** The page sets its type in px and rem under
 ///   `-webkit-text-size-adjust: 100%` (app.css), and WebKit does not scale that with Dynamic Type or embolden it

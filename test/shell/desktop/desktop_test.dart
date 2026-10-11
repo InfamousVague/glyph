@@ -10,7 +10,7 @@ import 'package:ghost_md/shell/desktop/mac_drag_strip.dart';
 import 'package:ghost_md/shell/desktop/mac_lights.dart';
 
 /// A desktop's keys and the Mac's menu bar (App.tsx's own `keydown` listener, docs/DESIGN.md §144 and §210 of
-/// ../glyph), the drag strip (`.app-dragBar`) and the row the Mac's window buttons are set into.
+/// tauri/), the drag strip (`.app-dragBar`) and the row the Mac's window buttons are set into.
 void main() {
   group('the commands', () {
     test('are named as the Mac’s menu names them', () {

@@ -1,7 +1,7 @@
 // The + beside the line's list (lib/editor/plus/add_list.dart): its rows, where it goes against the +'s row (never
 // over it, and on one side of the Fold's crease), what closes it and what does not, the page behind More, the step
 // that asks which note, and that a press on it never takes the editor's focus. The cases of
-// ../glyph/src/app/editor/AddList.test.tsx, one for one: those about where it goes are asked of `placeList` with the
+// tauri/src/app/editor/AddList.test.tsx, one for one: those about where it goes are asked of `placeList` with the
 // sizes that file gave jsdom (a 256-wide card of 44px rows, More held at its foot), and its real sizes are held to
 // the page in plus_reference_test.dart.
 import 'package:flutter/gestures.dart';

@@ -27,7 +27,7 @@ WorkspaceStore seededSpaces() => WorkspaceStore(
 /// The build the web page said it was when About was measured inside the app.
 SettingsUpdates measuredUpdates({VoidCallback? onCheck}) => SettingsUpdates(version: '1.15.0', built: 'Oct 8, 02:55 AM', onCheck: onCheck ?? () {});
 
-/// The web app's own test report, as its build of 2026-10-09 baked it in (../glyph
+/// The web app's own test report, as its build of 2026-10-09 baked it in (tauri/
 /// src/app/diag/testReport.generated.json at its commit 05dd0efc: 6084 passed, 149 skipped), kept in this
 /// repository. It was read from the web app's checkout, which writes that file again every time its tests are run:
 /// the picture drawn over it was red against its own reference the day after it was drawn, and both tests were

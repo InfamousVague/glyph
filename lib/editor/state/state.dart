@@ -1,7 +1,7 @@
 /// The editor's state and everything that configures it: CodeMirror's `EditorState`, `Transaction`,
 /// `TransactionSpec`, `StateField`, `StateEffect`, `Annotation`, `Facet`, `Compartment`, `Prec` and the extension
 /// tree (@codemirror/state: state.ts, transaction.ts, facet.ts, extension.ts), ported by structure and by name so an
-/// extension file from ../glyph ports line by line.
+/// extension file from tauri/ ports line by line.
 ///
 /// A configuration is resolved exactly as CodeMirror resolves one: the extension tree is flattened by precedence
 /// (five buckets, a value seen twice kept at its higher precedence), every field and every facet gets an address,

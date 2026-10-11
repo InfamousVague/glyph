@@ -1,4 +1,4 @@
-// Ports src/app/editor/wispRipples.test.ts (../glyph), case for case and under its names, onto
+// Ports src/app/editor/wispRipples.test.ts (tauri/), case for case and under its names, onto
 // lib/editor/ai/wisp_ripples.dart: the stretches that ripple, the level followed, the bend at a level, and the
 // ripples drawn in an editor (worn by the arriving words alone, bent with the voice, still and costing nothing in
 // silence, gone with the editor, never there with reduced motion).

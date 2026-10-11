@@ -1,4 +1,4 @@
-# Stages 5, 6, 8, 9 and a list for 10: what was read in ../glyph (2026-10-08), and the pieces
+# Stages 5, 6, 8, 9 and a list for 10: what was read in tauri/ (2026-10-08), and the pieces
 
 Holds for all: the worker isolate is serial (a long job must return an id at once and report by events); the
 Rust-to-Dart event path is unbuilt (`native/src/ffi.rs` keeps a listener nothing calls) and stages 8 and 9 need it;
@@ -34,7 +34,7 @@ recorded): a new Kotlin `AudioRecord` pushing into Rust over JNI. Meetings: `Mee
 nearly verbatim (JNI symbols are tied to package `com.mattssoftware.glyph.*`). Events keep the web's names
 (`capture://partial` …) through `NativeCallable.listener`; Rust allocates each buffer, Dart frees it.
 Models: ggml-base.en-q5_1 (60 MB), ggml-small.en-q5_1 (190 MB), Qwen3.5 2B/4B/9B (1.3/2.7/5.7 GB), gemma-4-E4B (5 GB);
-local copies for tests in ../glyph/models.
+local copies for tests in tauri/models.
 Pieces: 8A engines build · 8B events and async jobs · 8C native commands · 8D dictation mic · 8E meetings ·
 8F assistant and side key · 8G1 spoken marks · 8G2 commands and routing · 8G3 take and session · 8H capture UI ·
 8I AI runs and format · 8J fills · 8K editor AI surface · 8L tapes, scene, settings.

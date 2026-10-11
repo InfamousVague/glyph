@@ -1,7 +1,7 @@
 import Cocoa
 import FlutterMacOS
 
-/// The Mac app's one window, as the Tauri app's is (../glyph/src-tauri/tauri.conf.json `app.windows[0]`, and
+/// The Mac app's one window, as the Tauri app's is (tauri/src-tauri/tauri.conf.json `app.windows[0]`, and
 /// src/platform.rs `place_traffic_lights`): 1280 x 820 in the middle of the screen, never smaller than 360 x 560,
 /// drawn under a transparent title bar with no title, its three lights set into the page's own top row.
 ///

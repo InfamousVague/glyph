@@ -5,7 +5,7 @@
 //
 //   node --experimental-strip-types test/core/fixtures/make_web_library.mjs
 //
-// from this repo's root, with ../glyph and ../ghost-md-app-store-pack beside it. The clock is seed.mjs's (a Monday
+// from this repo's root, with tauri/ and ../ghost-md-app-store-pack beside it. The clock is seed.mjs's (a Monday
 // morning in London); what it writes of time is how long ago each note was made and touched, so the fixture reads the
 // same in any time zone.
 process.env.TZ = 'Europe/London';
@@ -14,7 +14,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 const here = new URL('.', import.meta.url).pathname;
-const web = new URL('../../../../glyph/src/app/', import.meta.url).pathname;
+const web = new URL('../../../tauri/src/app/', import.meta.url).pathname;
 const pack = new URL('../../../../ghost-md-app-store-pack/tools/', import.meta.url).pathname;
 
 // core/sampleNote.ts imports a picture and the picture store, which only a bundler can give it: a copy without them.

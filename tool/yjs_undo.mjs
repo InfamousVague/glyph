@@ -7,7 +7,7 @@
 // Every member here is what a member is on the page: a `Y.Doc` with the note's words in `body`
 // (core/team/doc.ts), a CodeMirror `EditorView` (mounted under jsdom) with its undo in the slot
 // (`undoSlot.of(localUndo())`, as editor/Editor.tsx builds it), and `bindLive` from
-// ../glyph/src/app/editor/liveBinding.ts called on the two: `new Y.UndoManager(text)` handed to y-codemirror's
+// tauri/src/app/editor/liveBinding.ts called on the two: `new Y.UndoManager(text)` handed to y-codemirror's
 // `yCollab`, with `yUndoManagerKeymap`. Nothing of it is written here: a key is a transaction dispatched to the
 // real view, an undo is the real key (or the keyboard's own `beforeinput`), what arrives is `Y.applyUpdate` under
 // an origin that is not the editor's, and a reconcile is core/team/textDiff.ts `applyTextDiff`. So what this
@@ -41,7 +41,7 @@
 //   {do: 'reset'}                          every member let go, for the next scenario
 //   {do: 'close'}                          ends
 //
-// ../glyph is only READ: its TypeScript loaded as it is, its node_modules for yjs, y-codemirror.next, CodeMirror
+// tauri/ is only READ: its TypeScript loaded as it is, its node_modules for yjs, y-codemirror.next, CodeMirror
 // and jsdom. Nothing here touches a network.
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -50,7 +50,7 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const glyph = resolve(root, '../glyph');
+const glyph = resolve(root, 'tauri');
 const require = createRequire(join(glyph, 'package.json'));
 
 // ---- The clock, before anything reads it ---------------------------------------------------------------------------

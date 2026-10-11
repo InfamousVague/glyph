@@ -1,4 +1,4 @@
-//! What a deleted note takes with it besides its file, from three files of `../glyph/src-tauri/src` that name
+//! What a deleted note takes with it besides its file, from three files of `tauri/src-tauri/src` that name
 //! `tauri::` types and so cannot be included whole: `images.rs`, `videos.rs` and `recordings.rs`. And, the same
 //! way, what a reset removes (`reset.rs`), how the library's folder is moved (`library_commands.rs`) what a
 //! backup is asked (`backup_commands.rs`) and what an export is (`export_commands.rs`). And what an update of the
@@ -24,7 +24,7 @@ pub mod videos;
 mod tests {
     /// Every item between the marks of `copy`, found word for word in `original`.
     fn held(copy: &str, original: &str) {
-        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../glyph/src-tauri/src").join(original);
+        let source = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tauri/src-tauri/src").join(original);
         let source = std::fs::read_to_string(&source).unwrap_or_else(|e| panic!("{}: {e}", source.display()));
         let copied = copy.split("// copied:begin\n").nth(1).and_then(|rest| rest.split("// copied:end").next()).expect("the marks");
         let items: Vec<&str> = copied.split("\n\n").map(str::trim).filter(|item| !item.is_empty()).collect();

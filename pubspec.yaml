@@ -37,7 +37,7 @@ flutter:
     # Ghost.md: The Guide (lib/guide/guidebook.dart): the web app's own index and chapters, src/app/guidebook.
     - assets/guidebook/
     - assets/guidebook/chapters/
-    # A ```mermaid fence drawn as its diagram (lib/editor/diagrams): Mermaid itself, the release ../glyph pins, with
+    # A ```mermaid fence drawn as its diagram (lib/editor/diagrams): Mermaid itself, the release tauri/ pins, with
     # its licence, and the page it draws on in a web view nobody sees. Brought here by tool/diagram_page.mjs.
     - assets/diagrams/
     # The sample note's picture and the example canvas's picture card (lib/core/sample_library.dart): the web app's

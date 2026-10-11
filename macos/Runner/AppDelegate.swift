@@ -5,7 +5,7 @@ import FlutterMacOS
 ///
 /// THE MENU is the Mac's own for an app with one window (the Tauri app wears Tauri's default: the app's, File,
 /// Edit, View, Window), with the page's keys in it by name, so each is found where a Mac's person looks for it and
-/// works wherever the keyboard is: New Note (Command-N, ../glyph docs/DESIGN.md §144), Sync Now (Command-R, §210:
+/// works wherever the keyboard is: New Note (Command-N, tauri/docs/DESIGN.md §144), Sync Now (Command-R, §210:
 /// a Mac has no page to pull down), Find (Command-F), the command palette (Command-K, the kit's own key) and
 /// Settings (Command-comma). Choosing one says its name to the page (`ghost_md/window` `menu`,
 /// lib/shell/desktop/mac_window.dart), which does what its own button would.

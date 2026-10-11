@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // The crypto fixtures of stage 7 (docs/STAGE7.md, "Crypto"): made by the WEB app's own code, at its real 600,000
 // rounds, and the web app's own code opening what the Rust core made. The web repository has no pinned vectors,
-// so these are the proof that native/src/crypto.rs and ../glyph/src/app/core/sync/crypto.ts are one format.
+// so these are the proof that native/src/crypto.rs and tauri/src/app/core/sync/crypto.ts are one format.
 //
 //   node tool/crypto_vectors.mjs make     writes native/tests/fixtures/crypto_web.json
 //   node tool/crypto_vectors.mjs check    opens native/target/vectors/crypto_from_rust.json, which
 //                                         `cargo test --test crypto_vectors` writes (tool/build-native.sh test)
 //
-// ../glyph is only read. Its TypeScript is imported as it is (Node strips the types): crypto.ts, wrap.ts, wire.ts,
+// tauri/ is only read. Its TypeScript is imported as it is (Node strips the types): crypto.ts, wrap.ts, wire.ts,
 // ids.ts. share.ts and sync/notes.ts import half the app, so the few functions wanted from them (`sealShare`,
 // `openShare`, `sha`, `fileId`) are lifted out of their source text, word for word, into a module of their own in
 // the temp directory. Nothing here touches a network.
@@ -17,7 +17,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const web = resolve(root, '../glyph/src/app');
+const web = resolve(root, 'tauri/src/app');
 const FIXTURE = join(root, 'native/tests/fixtures/crypto_web.json');
 const FROM_RUST = join(root, 'native/target/vectors/crypto_from_rust.json');
 
@@ -81,7 +81,7 @@ function picture(length) {
 // ---- make: what the web code seals, for Rust to open -----------------------------------------------------
 
 async function make() {
-  const out = { made: new Date().toISOString(), by: 'tool/crypto_vectors.mjs make, from ../glyph/src/app', rounds: C.ROUNDS };
+  const out = { made: new Date().toISOString(), by: 'tool/crypto_vectors.mjs make, from tauri/src/app', rounds: C.ROUNDS };
 
   // The account key, extractable for as long as it takes to write it down.
   const accountKey = await C.newAccountKey();

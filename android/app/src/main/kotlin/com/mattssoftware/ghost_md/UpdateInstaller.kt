@@ -13,11 +13,11 @@ import java.io.File
 
 /**
  * A new version of the app, handed to Android's installer (lib/core/updates.dart, the phone's half of
- * `ghost_md/updates`). What `GlyphHost.installApk` did for the web app (../glyph's MainActivity.kt), and the two
+ * `ghost_md/updates`). What `GlyphHost.installApk` did for the web app (the Tauri app's MainActivity.kt), and the two
  * things its page asked Rust: which app this is, and where a download is kept.
  *
  * - `installed` -> `{version, versionCode, dir}`: the app as the package manager has it, and `<cacheDir>/updates`,
- *   the one directory a file is ever handed to the installer from (`UPDATES` in ../glyph's paths.rs).
+ *   the one directory a file is ever handed to the installer from (`UPDATES` in the Tauri app's paths.rs).
  * - `install {path}` -> "started" when Android's own screen was asked for, "permission" when the person must first
  *   let this app install apps (their page for exactly that is opened; pressing Install again afterwards carries
  *   on), or a reason.

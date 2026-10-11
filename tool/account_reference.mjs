@@ -7,7 +7,7 @@
 // this file, and anything else is refused and written down. The run fails if anything was refused that was not the
 // dead API.
 //
-//   (cd ../glyph && VITE_GLYPH_API=http://127.0.0.1:1/api VITE_GLYPH_API_URL=http://127.0.0.1:1/format \
+//   (cd tauri && VITE_GLYPH_API=http://127.0.0.1:1/api VITE_GLYPH_API_URL=http://127.0.0.1:1/format \
 //      npx vite --port 5274 --strictPort --host 127.0.0.1) &      # read-only: never `vite build` there
 //   node tool/account_reference.mjs
 //

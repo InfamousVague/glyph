@@ -26,7 +26,7 @@ import java.util.UUID
 
 /**
  * A film chosen on the phone for a note (lib/core/phone_films.dart, the phone's half of `ghost_md/films`). Ported
- * from ../glyph's media/VideoPick.kt, whose page was told of the film by `window.__glyph.video(json)`; here the
+ * from the Tauri app's media/VideoPick.kt, whose page was told of the film by `window.__glyph.video(json)`; here the
  * call's own answer carries it, and the one thing said before the answer is a call the other way.
  *
  * - `pick` -> `{path, poster, ms, width, height}`: the film copied as it was filmed into `cacheDir/picked/` with
@@ -47,7 +47,7 @@ import java.util.UUID
  * answered, never thrown.
  *
  * RUST TWIN: native/src/kept/videos.rs, whose EXTENSIONS are this file's, and native/src/paths.rs, whose `picked`
- * this writes to. The rules at the foot are ../glyph's own, line for line.
+ * this writes to. The rules at the foot are the Tauri app's own, line for line.
  */
 class Films(private val activity: Activity) {
   private var asking: MethodChannel.Result? = null
@@ -221,7 +221,7 @@ class Films(private val activity: Activity) {
     const val CHANNEL = "ghost_md/films"
     private const val TAG = "GhostFilms"
 
-    /** The request code the activity's result arrives under: ../glyph's own for a picked film. */
+    /** The request code the activity's result arrives under: the Tauri app's own for a picked film. */
     const val REQUEST = 4106
 
     /** A film's type, and the extension it is kept under. RUST TWIN: kept/videos.rs `EXTENSIONS`. */
@@ -266,7 +266,7 @@ class Films(private val activity: Activity) {
       }
     }
 
-    // ---- the rules, pure (../glyph's VideoPickTest holds the originals) ---------------------------------------
+    // ---- the rules, pure (the Tauri app's VideoPickTest holds the originals) ---------------------------------------
 
     /** The extension a film is kept under: its type's, or its name's where the type says no better; null for any other. */
     fun extensionFor(type: String?, name: String?): String? {

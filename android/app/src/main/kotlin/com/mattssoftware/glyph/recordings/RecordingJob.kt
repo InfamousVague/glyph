@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.recordings
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingJob.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/recordings/RecordingJob.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 8). What differs: the library loaded is the Flutter app's `ghost_core` (native/, whose
 // recording_jobs.rs is the Tauri app's own file). THE PACKAGE AND THE NAMES MUST STAY: the JNI symbols are
 // `Java_com_mattssoftware_glyph_recordings_RecordingJob_*`, and tool/build-native.sh checks the .so exports them.

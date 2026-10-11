@@ -1,4 +1,4 @@
-// What the live tests share: a relay in memory that keeps the real one's promises (../glyph/server/src/live.rs),
+// What the live tests share: a relay in memory that keeps the real one's promises (server/src/live.rs),
 // as the web's own tests have one (core/live/session.test.ts, team.test.ts), and the Mac's core for the REAL crypto
 // and the REAL CRDT (tool/build-native.sh host).
 import 'dart:async';

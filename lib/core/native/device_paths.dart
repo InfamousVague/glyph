@@ -1,5 +1,5 @@
 /// Where the app keeps its files: the two directories the Rust core is opened on (`init`, ghost_core.dart). It
-/// stands in for `../glyph/src-tauri/src/paths.rs`'s `data_dir` and `cache_dir`, which asked Tauri.
+/// stands in for `tauri/src-tauri/src/paths.rs`'s `data_dir` and `cache_dir`, which asked Tauri.
 ///
 /// **On Android they are the directories the Tauri app uses**, so the layout under them is the same file for
 /// file (`Library/`, `recordings/`, `images/`, `library-root.json`): Tauri 2.11.5's `app_data_dir` is its

@@ -1,5 +1,13 @@
 # Ghost.md
 
+> **Where this is.** Since 2026-10-11 this app lives in `tauri/` of its repository, whose root is the Flutter app
+> that replaced it on Android (`../README.md`, `../docs/CUTOVER.md` section 5). Everything below is run from here,
+> `tauri/`: `npm ci`, `npm run dev`, `node scripts/deploy-ota.mjs`. The service (`../server/`), Claude's connector
+> (`../mcp/`), the landing page (`../landing/`) and the scripts that deploy them (`../scripts/deploy-server.mjs`,
+> `build-mcp.mjs`, `deploy-landing.mjs`) are one folder up; where this file says `server/`, `mcp/`, `landing/` or
+> names one of those three scripts, read it with `../` in front. The Android app is no longer built here:
+> `deploy-ota.mjs --apk` is refused. The one `.env` is `tauri/.env`.
+
 A mobile-first markdown notes app built on [Glacier UI](https://github.com/InfamousVague/GlacierUI):
 live formatting that keeps the markdown tokens on screen, haptics as styles land,
 and a hardware-button voice capture transcribed on the device.
@@ -105,7 +113,7 @@ How it works, and the failure modes it is built around, is the header of `src-ta
 | Command | What it ships |
 | --- | --- |
 | `npm run deploy:server` | glyph-api, the Rust service under `server/` behind `/glyph/api/`: accounts, sync, shares, the live relay, Notion's sign-in and the door to Claude's hosted MCP server. The old formatting route, `POST /glyph/api/format`, still runs behind its token: nothing in the app calls it, but the deploy fails when `health` reports Ollama unreachable and checks that the route refuses a request without the token (`server/src/format.rs`). `--mcp-only` ships only the hosted MCP server. |
-| `node scripts/deploy-landing.mjs` | ghostmarkdown.com, the download page and its privacy and delete-account pages (docs/LANDING.md). It has no npm alias. `--caddy` also writes the site's block into the box's shared Caddyfile. |
+| `node ../scripts/deploy-landing.mjs` | ghostmarkdown.com, the download page and its privacy and delete-account pages (docs/LANDING.md). It has no npm alias. `--caddy` also writes the site's block into the box's shared Caddyfile. |
 
 The box counts logins, not deploys, and locks an account out after a handful in a short window: the lockout answers
 as a wrong password. Every script spends one login; `--keep-connection` lets an OTA and a server deploy share one.

@@ -1,4 +1,4 @@
-/// The Tapes row's sums (lib/settings/panes/recording_pane.dart; docs/DESIGN.md §127 section 6 of ../glyph): how
+/// The Tapes row's sums (lib/settings/panes/recording_pane.dart; docs/DESIGN.md §127 section 6 of tauri/): how
 /// much room the recordings take on this device, said from their lengths rather than measured (16 kHz, 16-bit,
 /// mono: an hour is about 115 MB), and which of them the row offers to remove the audio of. Pure, so the pane's
 /// words can be tested without a store. A port of `src/app/settings/tapes.ts`.

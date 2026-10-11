@@ -1,11 +1,11 @@
 /// Backup: every note, onto a removable drive, as plain files under a `Ghost.md` folder on its root (docs/DESIGN.md
-/// §204 and §213 of ../glyph; Matt: "add a section to the settings called "Backup" it should prompt the user to
+/// §204 and §213 of tauri/; Matt: "add a section to the settings called "Backup" it should prompt the user to
 /// plugin a removable drive to backup all the notes in the app to workspace folders and such under a Ghost.md folder
 /// on the root of the drive"). A port of `src/app/core/backup.ts`.
 ///
 /// The drives are Android's removable volumes (android/…/glyph/files/BackupDrives.kt), asked again every two seconds
 /// while Settings › Backup is open, so a drive plugged in shows up by itself. A drive is allowed once, through the
-/// system's own picker opened on its root, and is remembered. The writing is Rust's (../glyph's backup.rs, included
+/// system's own picker opened on its root, and is remembered. The writing is Rust's (the Tauri app's backup.rs, included
 /// whole in native/): the notes by their workspace folders, each note's versions file beside it, the pictures, films
 /// and recordings under Attachments/, and a second backup to the same drive writes only what changed.
 ///

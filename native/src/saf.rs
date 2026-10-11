@@ -1,5 +1,5 @@
 //! A folder chosen through Android's picker, where there is no Android: the stand-in for
-//! `../glyph/src-tauri/src/saf.rs` on the Mac.
+//! `tauri/src-tauri/src/saf.rs` on the Mac.
 //!
 //! On a phone the original itself is compiled (lib.rs includes it for Android only, as the Tauri app does): it
 //! calls into Kotlin (`files/LibraryTree.kt`) over JNI. Anywhere else there is no such class to call and no such
@@ -64,7 +64,7 @@ mod tests {
         assert_eq!(TreeDocuments::new("content://x/tree/y").err().as_deref(), Some(NOT_YET));
     }
 
-    /// What `../glyph/src-tauri/src/paths.rs` holds its own Kotlin to, for this app's port of it: the class Rust
+    /// What `tauri/src-tauri/src/paths.rs` holds its own Kotlin to, for this app's port of it: the class Rust
     /// is handed is `com.mattssoftware.glyph.files.LibraryTree`, each call the original saf.rs makes is a
     /// `@JvmStatic` method of strings answering a string, and `attach` is the native method saf.rs exports. A
     /// rename on either side fails here rather than as a library that will not open on a phone.
@@ -76,7 +76,7 @@ mod tests {
         assert!(source.starts_with("package com.mattssoftware.glyph.files\n"), "saf.rs exports Java_com_mattssoftware_glyph_files_LibraryTree_attach");
         assert!(source.contains("object LibraryTree {") && source.contains("@JvmStatic private external fun attach()"));
         assert!(source.contains("System.loadLibrary(\"ghost_core\")"), "the library that exports `attach` is this crate's");
-        let rust = manifest.join("../../glyph/src-tauri/src/saf.rs");
+        let rust = manifest.join("../tauri/src-tauri/src/saf.rs");
         let rust = std::fs::read_to_string(&rust).unwrap_or_else(|e| panic!("{}: {e}", rust.display()));
         assert!(rust.contains("pub extern \"system\" fn Java_com_mattssoftware_glyph_files_LibraryTree_attach"));
         // Every `call("<method>", &[…])` in the original, by its name and how many strings it passes.

@@ -1,4 +1,4 @@
-//! The two functions of `tauri::async_runtime` that `../glyph/src-tauri/src/model_files.rs` names, and nothing
+//! The two functions of `tauri::async_runtime` that `tauri/src-tauri/src/model_files.rs` names, and nothing
 //! else of Tauri: this crate exists so that file is included unchanged (see Cargo.toml here).
 //!
 //! As in Tauri, one tokio runtime for the process, made on first use. Two workers, where Tauri takes one per

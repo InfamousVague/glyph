@@ -1,12 +1,12 @@
 /// Everything the app keeps, as one zip on a USB drive or wherever a person chooses (Matt: "Please add a feature that
 /// allows me to plug in a USB drive and export the entire app onto a folder or zip file with
-/// `ghostmarkdown_<datetime>.7z` or something"; docs/DESIGN.md §167 of ../glyph). A port of `src/app/core/exportAll.ts`.
+/// `ghostmarkdown_<datetime>.7z` or something"; docs/DESIGN.md §167 of tauri/). A port of `src/app/core/exportAll.ts`.
 ///
 /// A zip rather than a 7z, since every computer and phone opens a zip with nothing installed, named
 /// `ghostmarkdown_2026-10-01_21-42-05.zip` on the device's own clock, with one folder of that name inside it. On
 /// Android the system's picker makes the file, a drive plugged in by USB among its places
 /// (android/…/glyph/files/ExportTarget.kt), and Rust writes the archive straight into it (`export_fd`,
-/// native/src/kept/export_commands.rs over ../glyph's export.rs).
+/// native/src/kept/export_commands.rs over the Tauri app's export.rs).
 ///
 /// What differs:
 /// - The page's imports (`invoke`, `listenTo`, `window.GlyphHost.chooseExport` with its `exportTarget` answer,

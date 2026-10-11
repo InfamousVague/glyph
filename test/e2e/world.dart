@@ -6,7 +6,7 @@
 //
 // - `FakeWorld`: the service in memory (test/support/fake_service.dart), handed the REAL crypto and the core's own
 //   Ed25519 check for a device's signature. One account, as that service holds one. Offline.
-// - `LocalWorld`: the real service (../glyph/server) run on 127.0.0.1 by tool/local-server.sh, over real sockets.
+// - `LocalWorld`: the real service (server) run on 127.0.0.1 by tool/local-server.sh, over real sockets.
 //   Any number of accounts. Its base is refused unless its host is 127.0.0.1.
 //
 // A device is everything the app would make for one phone, with nothing standing in for the cryptography or the

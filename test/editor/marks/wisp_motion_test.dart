@@ -1,4 +1,4 @@
-// Ports, from src/app/editor/wispArrivals.test.ts (../glyph), the cases about what wispMotion.ts decides, in its
+// Ports, from src/app/editor/wispArrivals.test.ts (tauri/), the cases about what wispMotion.ts decides, in its
 // order and under its names, onto lib/editor/marks/wisp_motion.dart: `commonEnds`, what a heard, rewritten, typed,
 // deleted, tapped or revealed transaction sets in motion, the `typing` switch, the user events that are not typing
 // (`input.board`, `input.plus`, `input.toggle`), the pace, and `settle`.

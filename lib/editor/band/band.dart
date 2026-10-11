@@ -1,7 +1,7 @@
 /// The press-and-hold band, in one import: the menu ([ContextBand] and its [ContextBandController]), the pieces it
 /// is drawn from, its Style page, where it sits, its clipboard and its board rows. Ports of
 /// `src/app/editor/ContextMenu.tsx`, `MenuBand.tsx`, `StyleItems.tsx`, `menuRoom.ts`, `clipboard.ts` and
-/// `boardActions.ts` in ../glyph.
+/// `boardActions.ts` in tauri/.
 library;
 
 export 'board_actions.dart';

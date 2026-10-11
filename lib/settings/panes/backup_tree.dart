@@ -8,7 +8,7 @@ import '../kit/settings_type.dart';
 String _filesSaid(int count) => count == 1 ? 'one file' : '$count files';
 
 /// Port of `BackupTree` (src/app/settings/BackupTree.tsx with BackupTree.module.css; docs/DESIGN.md §213 of
-/// ../glyph): what a drive's Ghost.md folder holds, as a tree (Matt: "On the backup page, show a logical file tree of
+/// tauri/): what a drive's Ghost.md folder holds, as a tree (Matt: "On the backup page, show a logical file tree of
 /// all the files on the USB drive inside the ghost folder specifically"). The folder itself open, its folders -
 /// Inbox, Workspaces, Organizations, Attachments - closed until tapped, each saying how many files are under it and
 /// their size, and a file its own size. A library is hundreds of files, so only what is opened is drawn.

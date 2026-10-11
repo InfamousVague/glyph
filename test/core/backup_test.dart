@@ -9,7 +9,7 @@ import 'package:ghost_md/core/locale_dates.dart';
 import 'package:ghost_md/core/native/core.dart';
 import 'package:ghost_md/core/native/events.dart';
 
-/// A backup onto a removable drive (lib/core/backup.dart; docs/DESIGN.md §204 of ../glyph): where one can go, the
+/// A backup onto a removable drive (lib/core/backup.dart; docs/DESIGN.md §204 of tauri/): where one can go, the
 /// drives as Android says them, Android's one-time allow, the backup's request and its words after. A port of
 /// `src/app/core/backup.test.ts`: the core, its job and its events are stood in for; the activity's own words are
 /// read out of its Kotlin.

@@ -3,9 +3,9 @@
 //
 //   node tool/query_fixtures.mjs
 //
-// Everything is read from ../glyph and nothing is written there: its src/app/core/query/*.ts as they are (read.ts
+// Everything is read from tauri/ and nothing is written there: its src/app/core/query/*.ts as they are (read.ts
 // has a constructor's parameter properties, which Node's own type stripping will not take, so each file is put
-// through ../glyph's own TypeScript on its way in, in memory), its test library (core/query/library.fixture.ts), the
+// through the Tauri app's own TypeScript on its way in, in memory), its test library (core/query/library.fixture.ts), the
 // Guide's chapters (src/app/guidebook) and docs/QUERIES.md. One fixture goes to test/query/fixtures/queries.json.
 // Nothing here is random, so running it again writes the same file.
 //
@@ -30,7 +30,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { createRequire, registerHooks } from 'node:module';
 import { fileURLToPath } from 'node:url';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const APP = `${GLYPH}src/app/`;
 const OUT = new URL('../test/query/fixtures/', import.meta.url).pathname;
 const require = createRequire(`${GLYPH}package.json`);

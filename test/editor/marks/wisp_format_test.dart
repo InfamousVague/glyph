@@ -1,4 +1,4 @@
-// Ports src/app/editor/wispFormat.test.ts (../glyph), case for case and in its order, onto
+// Ports src/app/editor/wispFormat.test.ts (tauri/), case for case and in its order, onto
 // lib/editor/marks/wisp_format.dart (and, for its one case about a styled formatting, format_looks.dart).
 //
 // Every case is about what is smoked, not how: the functions are called with a state, as on the web.

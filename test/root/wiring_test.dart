@@ -100,7 +100,7 @@ void main() {
     test('a release told nothing is on the real service, the address the Tauri app\'s page names', () {
       expect(accountBase('', debug: false), 'https://ghostmarkdown.com/api');
       expect(accountBase('  ', debug: false), realServiceBase);
-      final page = File('../glyph/src/app/core/account/api.ts');
+      final page = File('tauri/src/app/core/account/api.ts');
       if (page.existsSync()) expect(page.readAsStringSync(), contains("|| '$realServiceBase'"));
       // Told another, a release is on that one; told rubbish, it has no account rather than the real one by mistake.
       expect(accountBase('http://10.0.2.2:4010/api', debug: false), 'http://10.0.2.2:4010/api');

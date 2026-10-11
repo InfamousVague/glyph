@@ -31,7 +31,7 @@
 # test/<folder>/ reaches its folder; pubspec.yaml reaches everything, and so do the faces and shaders it declares;
 # any other file of assets/ reaches whoever names it, its folder or a file beside it, and everything if nobody
 # does; native/ reaches the tests that open the Mac's build of the core. It does NOT run `server`,
-# `kotlin` or `native`, and says so where what changed asks for them. What changed in ../glyph is not seen at all.
+# `kotlin` or `native`, and says so where what changed asks for them. What changed in tauri/ is not seen at all.
 # GHOST_CHECK_FILES="lib/a.dart lib/b.dart" tool/check.sh --since HEAD --list answers for those files instead:
 # what a change there would have to be checked by.
 #
@@ -408,7 +408,7 @@ analyze() {
 }
 
 # test/e2e and test/live against the real service on 127.0.0.1, each folder against a service of its own, begun
-# empty: the service lets one address in twenty times a minute (../glyph/server/src/accounts.rs), every device of
+# empty: the service lets one address in twenty times a minute (server/src/accounts.rs), every device of
 # every test is this Mac, and two folders at one service spend each other's turns.
 server() {
   take_turn

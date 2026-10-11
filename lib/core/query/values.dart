@@ -1,4 +1,4 @@
-/// What a field says on a record, and how a query compares it, sorts it and groups by it (../glyph docs/QUERIES.md).
+/// What a field says on a record, and how a query compares it, sorts it and groups by it (tauri/docs/QUERIES.md).
 /// A port of `src/app/core/query/values.ts`. A query's words are read in read.dart; what they mean against a note, a
 /// ticket or a to-do is here.
 ///

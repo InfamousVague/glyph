@@ -12,7 +12,7 @@ import 'package:glacier/glacier.dart';
 
 import 'stage9_support.dart';
 
-/// Settings › Backup (lib/settings/panes/backup_pane.dart; docs/DESIGN.md §204 and §213 of ../glyph): the page with
+/// Settings › Backup (lib/settings/panes/backup_pane.dart; docs/DESIGN.md §204 and §213 of tauri/): the page with
 /// no drive in, a drive found by looking again, the allow, the backup from a drive's row with its progress and Stop,
 /// what it says after, and the drive's Ghost.md folder as a tree. A port of `src/app/settings/BackupPane.test.tsx`,
 /// on Android's road where the web's cases were the Mac's: the drives, the picker and the core are stood in for.

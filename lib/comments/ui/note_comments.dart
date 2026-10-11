@@ -1,4 +1,4 @@
-/// The note's comments on its screen (../glyph docs/SHARED.md, S8): what the editor's drawing opens
+/// The note's comments on its screen (tauri/docs/SHARED.md, S8): what the editor's drawing opens
 /// (lib/editor/comments/comments.dart), what every way in starts (Comment on the press-and-hold band, in More and in
 /// the bar, "Add a comment" on a note's menu in a list; Matt: "add them to the context menu for a note and the
 /// popover toolbar so we can quickly click to add comments") and the sheet the card is drawn in. A port of

@@ -7,7 +7,7 @@ import 'package:ghost_md/core/task_fields.dart' show TaskFields;
 import 'support.dart';
 
 /// The query core held to the web's, answer for answer: everything `tool/query_fixtures.mjs` wrote from
-/// `../glyph/src/app/core/query/` is read and run again here and must come out the same, as JSON writes it. Every
+/// `tauri/src/app/core/query/` is read and run again here and must come out the same, as JSON writes it. Every
 /// query the web's own tests read or run, the ready-made databases, the queries the Guide and docs/QUERIES.md write,
 /// and a few hundred made to reach every operator on every kind of value, over three libraries: the web tests' own,
 /// Ghost.md: The Guide whole, and one with every edge in it.

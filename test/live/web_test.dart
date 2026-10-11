@@ -1,13 +1,13 @@
 // The Flutter app's live code and the WEB app's, typing in the same note at once through the REAL relay on
 // 127.0.0.1: a Dart device (lib/live over the Rust core's yrs and its awareness) and a web device (tool/web_live.mjs:
-// ../glyph/src/app/core/live with its own Yjs, its own y-protocols and its own WebCrypto, under Node), in a team
+// tauri/src/app/core/live with its own Yjs, its own y-protocols and its own WebCrypto, under Node), in a team
 // note's room and in a room of one account's own.
 //
 //   tool/local-server.sh start
 //   GHOST_E2E_API=http://127.0.0.1:<port>/api flutter test --no-pub test/live/web_test.dart
 //
 // Skipped unless GHOST_E2E_API is set (and names 127.0.0.1), the Mac's core is built, `node` is on the PATH and
-// ../glyph has its node_modules. The Node side refuses any host but 127.0.0.1, for its requests and its sockets.
+// tauri/ has its node_modules. The Node side refuses any host but 127.0.0.1, for its requests and its sockets.
 //
 // What this proves: the two clients agree on the relay's frames, on the seal of a live message (`live:<note>`
 // under the account key, `live:org:<org>:<room>` under the organization key), on the kinds and their payloads

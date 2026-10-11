@@ -1,10 +1,10 @@
 // What the diagram page (assets/diagrams/index.html, lib/editor/diagrams/) is handed that this repository does not
-// write: Mermaid itself, the version ../glyph pins, with its licence, and the page's fonts as the web app declares
+// write: Mermaid itself, the version tauri/ pins, with its licence, and the page's fonts as the web app declares
 // them.
 //
-//     node tool/diagram_page.mjs ../glyph
+//     node tool/diagram_page.mjs tauri/
 //
-// - assets/diagrams/mermaid.min.js and MERMAID-LICENSE: ../glyph/node_modules/mermaid/dist/mermaid.min.js and its
+// - assets/diagrams/mermaid.min.js and MERMAID-LICENSE: tauri/node_modules/mermaid/dist/mermaid.min.js and its
 //   LICENSE, byte for byte. The web app imports `mermaid` and Vite splits it into chunks; this is the same release
 //   built as one file by Mermaid's own build.
 // - assets/diagrams/fonts.css: the @font-face rules the web app loads (src/main.tsx, the kit's fonts.css and

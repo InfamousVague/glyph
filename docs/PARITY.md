@@ -4,7 +4,7 @@ Audited 2026-10-10 by reading both trees, and re-checked 2026-10-11 the same way
 installed for either: every status is what the source shows. "Wired" means reachable from `lib/main.dart` through
 `lib/root/`.
 
-- **Original**: `../glyph` at `05dd0efc`. Paths below are under `src/app/` unless they start with `src-tauri/`,
+- **Original**: `tauri/` at `05dd0efc`. Paths below are under `src/app/` unless they start with `src-tauri/`,
   `src/read/` or `docs/`.
 - **Port**: this repository, at main `e8c9b18` for the re-check. Paths are under `lib/` unless they start with
   `android/`, `native/`, `assets/` or `packages/`.

@@ -100,7 +100,7 @@ void main() {
       expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
       // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
       expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
-      final web = Directory('../glyph/src/app');
+      final web = Directory('tauri/src/app');
       for (final spec in settingsSections) {
         expect(spec.webFile, matches(RegExp(r'^(settings|plugins|guide)/\w+\.tsx$')), reason: spec.id);
         // Beside the web app's checkout, the file is there.

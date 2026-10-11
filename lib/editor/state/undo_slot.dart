@@ -1,4 +1,4 @@
-/// Undo, in a slot live sync can swap: the port of ../glyph `src/app/editor/undoSlot.ts`.
+/// Undo, in a slot live sync can swap: the port of tauri/ `src/app/editor/undoSlot.ts`.
 ///
 /// A note on its own undoes with the editor's history (`history.dart`). A note live on two devices, or a team's,
 /// undoes with the live document's own undo instead ([noteUndo]), which takes back this person's typing and leaves

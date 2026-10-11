@@ -1,5 +1,5 @@
 //! The crypto of stage 7 held to the web app's own (docs/STAGE7.md): `fixtures/crypto_web.json` is what
-//! `../glyph/src/app/core/sync/crypto.ts`, `core/orgs/wrap.ts`, `core/live/wire.ts` and `share/share.ts` sealed,
+//! `tauri/src/app/core/sync/crypto.ts`, `core/orgs/wrap.ts`, `core/live/wire.ts` and `share/share.ts` sealed,
 //! at the real 600,000 rounds (tool/crypto_vectors.mjs make). Every test here opens some of it through the
 //! commands the app calls.
 //!

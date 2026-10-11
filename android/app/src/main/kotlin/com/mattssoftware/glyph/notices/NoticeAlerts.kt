@@ -1,6 +1,6 @@
 package com.mattssoftware.glyph.notices
 
-// PORTED from ../glyph/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/NoticeAlerts.kt, line for line, for the
+// PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/notices/NoticeAlerts.kt, line for line, for the
 // Flutter app (docs/PARITY.md, Missing 4). What differs: the activity a notification opens is the Flutter one, "the
 // page" is the app's Dart (lib/sync/phone.dart over ghost_md/Notices.kt), and which service the worker may ask is
 // `mayAsk`: the Tauri app has its service built in and asks it over https only; this app is told its service by the

@@ -16,7 +16,7 @@
 /// Given `spot`, the view keeps where the book was left (book_spot.dart, book_spot_watch.dart): a book left reading
 /// straight through opens reading straight through, scrolled back to the chapter and the line it was at.
 ///
-/// A notebook with a ticket key (`key: GHO`; tickets.dart, ../glyph docs/DESIGN.md §157) makes tickets as well as
+/// A notebook with a ticket key (`key: GHO`; tickets.dart, tauri/docs/DESIGN.md §157) makes tickets as well as
 /// pages: New ticket, beside Add a page, asks for the title and what the ticket starts with, and puts its line in
 /// the index as a page's is. A page that is a ticket says its key and status on its row (lib/notes/ticket_mark.dart).
 ///

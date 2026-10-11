@@ -1,7 +1,7 @@
 // The language model through the real C functions on the Mac: `NativeAiBackend` over llama.cpp. The smallest
 // model of the catalogue (Qwen3.5 2B) is downloaded from a server this test starts on 127.0.0.1 (never a real
 // mirror), writes with its words streamed, is stopped mid-run, reads a spoken command under the core's grammar,
-// and is removed. Needs tool/build-native.sh host and ../glyph/models/llm; says SKIPPED otherwise.
+// and is removed. Needs tool/build-native.sh host and tauri/models/llm; says SKIPPED otherwise.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';

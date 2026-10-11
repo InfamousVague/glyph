@@ -3,7 +3,7 @@
 //
 //   node tool/markdown_command_fixtures.mjs
 //
-// Everything is read from ../glyph's node_modules and nothing is written there: @codemirror/state,
+// Everything is read from the Tauri app's node_modules and nothing is written there: @codemirror/state,
 // @codemirror/language and @codemirror/lang-markdown 6.5.2, configured as the app configures them
 // (src/app/editor/language.ts `glyphMarkdown([], [])`: GFM, no Setext headings, the keymap, no code languages, HTML
 // parsed by the HTML language as lang-markdown does by default). One fixture goes to
@@ -19,7 +19,7 @@
 // Every command dispatches with scrollIntoView and one user event (`events`); the script throws if one does not.
 import { writeFileSync, mkdirSync } from 'node:fs';
 
-const GLYPH = '/Users/matt/Development/Apps/glyph/';
+const GLYPH = new URL('../tauri/', import.meta.url).pathname;
 const OUT = new URL('../test/editor/commands/fixtures/', import.meta.url).pathname;
 
 const { EditorState, EditorSelection, Transaction } = await import(`${GLYPH}node_modules/@codemirror/state/dist/index.js`);

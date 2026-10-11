@@ -7,10 +7,11 @@ sentence on a refused save stays. And in GitHub, `main` of the `glyph` repositor
 code kept on a branch.
 
 This file is what that takes on Android: what is built (branch `cutover`), what was proven and how, what was not,
-and what whoever publishes has to do, in order. **Nothing here has been published, pushed, deployed or put on a
-phone.** `../glyph` was read and never changed.
+and what whoever publishes has to do, in order. **Nothing in sections 1 to 4 and 6 has been published, deployed or put on a
+phone.** The Tauri app's tree was read and never changed for them. Section 5, the repository's move, is done.
 
-Paths under `src/`, `src-tauri/`, `scripts/` are `../glyph`'s; everything else is this repository's.
+Paths under `src/`, `src-tauri/`, `scripts/` are the Tauri app's, which is `tauri/` of this repository since the
+move (`../glyph` while this was written); everything else is the root's.
 
 ## 1. What the Tauri app keeps on a phone, and what becomes of each
 
@@ -225,87 +226,82 @@ this app would need a build without `REQUEST_INSTALL_PACKAGES` and with `Updates
   `main`'s page rect for rect. On the emulator the release build offered no assistant service and answered no
   capture action; the switch itself is held by a widget test and was not pressed on a phone.
 
-## 5. The repository: `main` of `glyph` becomes this app
+## 5. The repository: `main` of `glyph` is this app
 
-A plan only. Nothing below was run.
+Done 2026-10-11. `main` of the `glyph` repository has this app at its root, the Tauri app whole under `tauri/`, and
+the service, the connector, the landing page and the Windows workflow where they were. One repository, both
+histories, nothing deleted: every Tauri file was moved by `git mv` (`git log --follow tauri/<path>` reaches its
+history), and this app's own history came in by a merge of its `main` (`c42175b2`).
 
-**What breaks if `main` is simply replaced**, and so what the order has to respect:
+| Where | What | Deployed from |
+| --- | --- | --- |
+| the root | this app | `tool/cutover-build.sh <version>`, `node tool/release_apk.mjs build/app/outputs/flutter-apk/app-release.apk`, then `node scripts/deploy-flutter-apk.mjs` (reads `build/cutover`; `--print` checks the four files and logs in nowhere) |
+| `tauri/` | the web app, the Mac app, the Windows app, the reader page (`read.html`, `src/read`) | `cd tauri && node scripts/deploy-ota.mjs` (never `--apk`: it is refused), `cd tauri && node scripts/deploy-windows.mjs` |
+| `server/` | glyph-api | `node scripts/deploy-server.mjs` from the root (or `cd tauri && npm run deploy:server`, the same script) |
+| `mcp/` | Claude's connector | the hosted one: `node scripts/deploy-server.mjs --mcp-only`; the one-file local one: `cd tauri && node scripts/deploy-ota.mjs --mcp`. Both build it with `node scripts/build-mcp.mjs` (root), which needs `npm ci` done in `tauri/` |
+| `landing/` | ghostmarkdown.com | `node scripts/deploy-landing.mjs [--caddy]` from the root; its `parts/` are built by `cd tauri && npm run build:landing` |
+| `.github/workflows/windows.yml` | the Windows installer | on a push to the branch `windows`; every step runs in `tauri/` |
 
-1. **This app does not build without the Tauri tree.** native/src/lib.rs includes twenty files of
-   `../glyph/src-tauri/src` by path, native/Cargo.toml names `../../glyph/src-tauri/vendor/whisper-rs-sys`, and
-   fifty-odd tools and a dozen tests read `../glyph` (the stylesheets `tool/sync-design.sh` copies, fixtures made
-   from the page, the lines tests hold this app to). The Tauri sources have to come along, at a path those can
-   reach.
-2. **The service and the connector live in that repository and are deployed from it**: `server/` (glyph-api,
-   scripts/deploy-server.mjs:66) and `mcp/` (scripts/build-mcp.mjs, the hosted bundle at deploy-server.mjs:71).
-   They must stay deployable from `main`.
-3. **The landing page** (`landing/`, scripts/deploy-landing.mjs:36) links `/glyph.apk`, `/glyph.dmg`,
-   `/glyph-setup.exe` and "Open in your browser" at `https://attack.fm/glyph/`.
-4. **The web app, the reader page for shared links (`read.html`, `src/read`), the Mac app and the Windows app are
-   still the Tauri/React code.** This app has no web build, its Mac build is not signed, and Windows is not begun.
-   `.github/workflows/windows.yml` builds the Tauri app on a push to the branch `windows`.
-5. **`scripts/deploy-ota.mjs` would delete this app's signature.** Its rsync runs with `--delete` and spares
-   `apk.json`, `apk.json.sig` and `glyph.apk` by name (lines 593-594), not `apk.json.flutter.sig`. A page deploy
-   after the cutover removes it, and every Flutter install then fails its update check. And `--apk` would publish
-   a Tauri APK over this app.
+**What was changed for it**, beyond the move:
 
-**The shape that breaks nothing:** the Tauri tree moves into a folder of `main`, whole, and this app becomes the
-root. One repository, one history each, nothing deleted.
+- **This app reads `tauri/` where it read `../glyph`**: the `#[path]`s of `native/src/lib.rs` and `native/src/kept/`
+  (`../../tauri/src-tauri/src/…`, `../../../tauri/…`), `native/Cargo.toml` (`../tauri/src-tauri/vendor/whisper-rs-sys`),
+  `native/.cargo/config.toml` (the toolchain file, `GLYPH_REPO_DIR`, `GLYPH_MODELS_DIR`), every tool and test that
+  named `../glyph` (one `../` fewer each), and the eleven tools and three fixture scripts that named
+  `/Users/matt/Development/Apps/glyph/` or `…/ghost-flutter/` outright, which now find the tree from their own file
+  (`new URL('../tauri/', import.meta.url)`). `tool/local-server.sh` copies `server/` from the root, not from the
+  Tauri tree. The Tauri app's node_modules are `tauri/node_modules` and its models `tauri/models`.
+- **The root's `scripts/`** holds the four scripts above and `scripts/lib/paths.mjs` and `env.mjs`. Everything else
+  they share (the box's one login, `run`, `say`, the `.env` parser) is imported from `tauri/scripts/lib/`, so
+  `deploy-ota.mjs` and `deploy-server.mjs` cannot come to disagree about the shared connection.
+- **There is one `.env`, and it is `tauri/.env`** (Vite reads its `VITE_*` keys from beside `tauri/package.json`). The
+  root's scripts read it from there, and read a `.env` at the root only when `tauri/.env` is absent.
+- **`mcp/` reads `../tauri/src/…`**, and `mcp/node_modules` is a committed link to `../tauri/node_modules`, which is
+  what lets `tsc -p ../mcp`, Vitest and esbuild resolve its packages. `tauri/vitest.config.ts` runs `../mcp/*.test.ts`
+  and lets Vite serve the folder above; `npm run typecheck` in `tauri/` checks `../mcp`. **`npm run lint` in `tauri/`
+  no longer reaches `mcp/`** (a flat ESLint config does not lint above its own folder): lint it by path, or give it a
+  config of its own.
+- **`tauri/scripts/`**: `lib/paths.mjs` has `ROOT` (`tauri/`) and `REPO` (one up); `deploy-ota.mjs` finds the
+  connector's bundle and `build-mcp.mjs` under `REPO`; `landing-assets.mjs`, `landing-icons.mjs`, `landing-shots.mjs`,
+  `vite.landing.config.ts` and the two `src/landing` tests write and read `../landing`; the test report runs
+  `../server/Cargo.toml` and fingerprints `../server/src`, `../scripts` and `../mcp` with the rest.
+- **`.gitignore`**: the root's is this app's, with `/mcp/dist`, `.env` and what a pulled checkout is left holding
+  at the root (`/node_modules/`, `/dist/`, `/models/`, `/src-tauri/`); `tauri/.gitignore` is the Tauri app's own,
+  unchanged but for `/mcp/dist`; `server/.gitignore` is as it was.
 
-```sh
-# 0. Before anything: in ../glyph, on main, commit two guards and deploy nothing.
-#    scripts/deploy-ota.mjs: add  --exclude '/apk.json.flutter.sig'  to the rsync beside '/apk.json.sig',
-#    and make --apk refuse to run ("the Android app is the Flutter app now: tool/release_apk.mjs").
-cd ~/Development/Apps/glyph
-git switch main && git pull --ff-only
-git switch -c tauri && git push -u origin tauri          # the Tauri code as it stands, kept on a branch for good
-git tag tauri-last-main && git push origin tauri-last-main   # the way back
+**What was run before `main` moved**, in a fresh clone: the core built from the new paths
+(`GHOST_VOICE=0 tool/build-native.sh host`); `flutter analyze lib`; `flutter test` over `test/native`, `test/team`,
+`test/live`, `test/editor/view/reference_test.dart`, `test/home`, `test/root/typing_budget_test.dart` and
+`test/carry`; the kit's tests; eight fixture tools run again and writing the same bytes; in `tauri/`, `tsc`,
+`tsc -p ../mcp`, the whole Vitest suite, `build:landing` (the same bytes) and `build-mcp.mjs`; `cargo metadata` for
+`tauri/src-tauri`, `server` and `native`. **Not run:** any deploy, any login, an APK, the Mac or Windows build, the
+Tauri app's cargo tests, `tool/check.sh` whole.
 
-# 1. The Tauri tree into a folder, history kept.
-git switch main
-mkdir tauri && git mv $(git ls-files | cut -d/ -f1 | sort -u | grep -v -x -e tauri -e server -e mcp -e landing -e .github) tauri/
-#    server/, mcp/, landing/ and .github/ stay at the root (the Tauri docs/ go with the tree: this app has its own).
-#    Move back what deploys them, with whatever of scripts/lib/ the three import:
-mkdir scripts && git mv tauri/scripts/deploy-server.mjs tauri/scripts/deploy-landing.mjs tauri/scripts/build-mcp.mjs scripts/
-#    and fix their ROOT joins (deploy-server.mjs:66-73, deploy-landing.mjs:36, build-mcp.mjs:12-18), which already
-#    read server/, mcp/ and landing/ under ROOT. deploy-ota.mjs, deploy-windows.mjs and the page stay in tauri/.
-git commit -m "The Tauri app into tauri/, with the service, the connector and the landing page left at the root"
+**A checkout that was pulled across the move** has its tracked files in `tauri/` and its ignored ones still at the
+root, because git moves only what it tracks. Move them: `mv .env node_modules dist models tauri/` (those that
+exist), and `src-tauri/target` and `src-tauri/gen/android`'s build folders into `tauri/src-tauri/` or delete them
+(`rm -rf src-tauri`: they are build output). `mcp/dist` and `server/target` stay where they are. A worktree or
+branch begun before the move merges `main` like any other: git follows the renames, and a file it created at the
+old root (a new file under `src/`, say) has to be moved into `tauri/` by hand. **Nobody deploys from a checkout
+older than the move**: a deploy ships the tree it is run from, so an older checkout publishes an older web app
+over the live one, and one from before `6cd2d7de` also deletes this app's signature from the box
+(`apk.json.flutter.sig`) and can place a Tauri APK over this app. It is the hazard the Windows download already met.
 
-# 2. This app in, with its history.
-git remote add flutter ~/Development/Apps/ghost-flutter
-git fetch flutter
-git merge --allow-unrelated-histories flutter/main        # conflicts: README.md, docs/, .gitignore; this app's win,
-                                                          # the Tauri ones are already under tauri/
+**The branch `windows`** is still the old layout, with the old workflow, and builds as it did. It takes the new
+workflow when it next merges `main`; until then do not copy the new `windows.yml` onto it alone.
 
-# 3. Point this app at tauri/ instead of ../glyph.
-grep -rl '\.\./glyph' native tool test lib docs README.md | xargs sed -i '' -e 's#\.\./\.\./\.\./glyph/#../../tauri/#g' -e 's#\.\./\.\./glyph/#../tauri/#g' -e 's#\.\./glyph/#tauri/#g'
-#    then by hand: native/src/lib.rs's #[path]s are relative to native/src (../../tauri/src-tauri/src/…),
-#    native/Cargo.toml's to native/ (../tauri/src-tauri/vendor/…). Build the core (tool/build-native.sh) and run
-#    tool/check.sh before committing: a wrong depth fails at once.
-git commit -am "This app reads the Tauri tree from tauri/"
+**The way back.** The tag `tauri-last-main` and the branch `tauri` are `main` as it stood before the move
+(`6cd2d7de`). Putting `main` back is `git push --force-with-lease origin tauri-last-main:main`, which needs the
+owner's word; without rewriting anything, `git revert -m 1` of the merge and a revert of the two commits before it
+does the same to the tree. The published APK is the other half and has no way back on a phone that took it: Android
+will not install 1.15.0 over 2.0.0. What can be undone is the offer (put the previous `apk.json`, `apk.json.sig` and
+`glyph.apk` back: `scripts/deploy-flutter-apk.mjs` keeps the three beside the release, in
+`/opt/attackfm-site/glyph.apk-before-<stamp>`), and a phone that already updated keeps this app and its carried
+data; the Tauri app's own files are still under it, untouched, for as long as the carry's rule stands.
 
-# 4. Workflows: .github/workflows/windows.yml gets  defaults.run.working-directory: tauri  (and its cache path).
-# 5. Only now: git push origin main
-```
-
-Afterwards: the service and the connector deploy from the root as before (`node scripts/deploy-server.mjs`,
-`--mcp-only`); the landing page from the root; the web app, the Mac app and Windows from `tauri/`
-(`cd tauri && node scripts/deploy-ota.mjs`, never `--apk`); the Android app from the root
-(`tool/cutover-build.sh`, `tool/release_apk.mjs`). Every open worktree and peer session of `../glyph` is on a tree
-that has moved: finish or rebase them first (`git worktree list` in both repositories), and nobody deploys from a
-checkout older than step 0, which is the hazard the Windows download already met.
-
-If the owner wants `main` to hold nothing of Tauri at all, the same steps with step 1 replaced by vendoring: copy
-the twenty Rust files and `vendor/whisper-rs-sys` into `native/`, and `server/`, `mcp/`, `landing/` and their three
-scripts to the root; the web app, the reader page, the Mac and Windows apps are then built only from the `tauri`
-branch. That is more work and splits one Rust library into two copies; it is not recommended while both apps ship.
-
-**The way back.** Before step 5 nothing has left the Mac: `git reset --hard tauri-last-main` on `main`. After it:
-`git push --force-with-lease origin tauri-last-main:main`, which needs the owner's word. The published APK is the
-other half and has no way back on a phone that took it: Android will not install 1.15.0 over 2.0.0. What can be
-undone is the offer (put the previous `apk.json`, `apk.json.sig` and `glyph.apk` back: keep copies of the three
-before step 6 of the next section), and a phone that already updated keeps this app and its carried data; the Tauri app's own files are
-still under it, untouched, for as long as the carry's rule stands.
+If the owner wants `main` to hold nothing of Tauri at all, that is another move: copy the twenty Rust files and
+`vendor/whisper-rs-sys` into `native/`, and build the web app, the reader page, the Mac and Windows apps only from
+the `tauri` branch. It splits one Rust library into two copies; it is not recommended while both apps ship.
 
 ## 6. To publish, in order
 
@@ -313,14 +309,15 @@ still under it, untouched, for as long as the carry's rule stands.
 2. On a spare phone, or the Fold with the owner's say: sign in on the Tauri app, leave an unsynced note, then
    `adb install -r` the release from `tool/cutover-build.sh 2.0.0` (pick the version). Read
    `carry/tauri-carry.log`, edit a note on each side, see both arrive. This is the proof this file lacks.
-3. In `../glyph`: the two guards of section 5, step 0, committed. No deploy.
+3. The two guards in `tauri/scripts/deploy-ota.mjs` (it spares `apk.json.flutter.sig` and refuses `--apk`): done,
+   `6cd2d7de`. No deploy.
 4. `node tool/test_report.mjs`, then `tool/cutover-build.sh <version>` on the Mac that has
    `~/.config/glyph/android-signing.properties`.
 5. `node tool/release_apk.mjs build/app/outputs/flutter-apk/app-release.apk`: it refuses a wrong id, a debuggable
    build, a version code not above 1015000, another certificate, or a key the apps do not trust.
-6. Keep copies of the live `glyph.apk`, `apk.json` and `apk.json.sig`. On the box, into `/opt/attackfm-site/glyph` (one login; the limits on logins apply): `glyph.apk` first, whole,
+6. `node scripts/deploy-flutter-apk.mjs` does this step in one login. By hand it is: keep copies of the live `glyph.apk`, `apk.json` and `apk.json.sig`. On the box, into `/opt/attackfm-site/glyph` (one login; the limits on logins apply): `glyph.apk` first, whole,
    then `apk.json.flutter.sig`, then `apk.json` and `apk.json.sig` together, last. Until that last pair lands no
    installed app sees anything. Check `https://attack.fm/glyph/apk.json` against `build/cutover/apk.json`, and the
    size `glyph.apk` is served at.
 7. Watch one Tauri install offer it and take it. Then say so in the changelog the Tauri page reads, if wanted.
-8. The repository move (section 5), whenever; it does not gate the release.
+8. The repository move (section 5): done; it did not gate the release.

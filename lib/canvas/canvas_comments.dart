@@ -1,4 +1,4 @@
-/// A canvas's comments on its screen (../glyph docs/SHARED.md, S9): a round on a card's corner for its threads, in
+/// A canvas's comments on its screen (tauri/docs/SHARED.md, S9): a round on a card's corner for its threads, in
 /// the colour of who started the first open one, with how many are open; Comment on the picked card's bar starts
 /// one; and the card a thread is drawn in is the note's own (lib/comments/ui/sheet.dart), from the same shape. A
 /// port of `src/app/canvas/useCanvasComments.tsx`. Every change is the canvas handed back whole, as a card moved

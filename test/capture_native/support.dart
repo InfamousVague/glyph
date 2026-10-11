@@ -1,5 +1,5 @@
 // What the tests of the native capture and the native model share (test/capture_native, test/ai_native): the
-// Mac's core opened on a folder of the test's own, the web app's model files (../glyph/models, only ever read:
+// Mac's core opened on a folder of the test's own, the web app's model files (tauri/models, only ever read:
 // linked to, or served from 127.0.0.1), the fixture recording as samples, and a server on 127.0.0.1 that can cut
 // a download partway.
 import 'dart:async';
@@ -11,8 +11,8 @@ import 'package:ghost_md/core/native/ghost_core.dart';
 
 const library = 'native/target/debug/libghost_core.dylib';
 
-/// The web app's models: `GLYPH_MODELS_DIR`, or ../glyph/models.
-Directory get webModels => Directory(Platform.environment['GLYPH_MODELS_DIR'] ?? '../glyph/models').absolute;
+/// The web app's models: `GLYPH_MODELS_DIR`, or tauri/models.
+Directory get webModels => Directory(Platform.environment['GLYPH_MODELS_DIR'] ?? 'tauri/models').absolute;
 
 /// A core for one test file, with a data directory of its own, removed by [close].
 class TestCore {
@@ -31,7 +31,7 @@ class TestCore {
     return null;
   }
 
-  /// Opens the core on a fresh folder. [link] names the model files (under ../glyph/models, `llm/` included) to
+  /// Opens the core on a fresh folder. [link] names the model files (under tauri/models, `llm/` included) to
   /// link into its `models/`, so the core finds them present without a byte being copied.
   static Future<TestCore> open(String label, {List<String> link = const []}) async {
     final root = Directory.systemTemp.createTempSync('ghost-$label-');

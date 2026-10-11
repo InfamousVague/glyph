@@ -1,7 +1,7 @@
 /// A chapter's number, read from its title (Matt: "make chapters numbered with some standard identifiers for books
 /// maybe at the end of the title and that should let us lay out the chapters in order when there is no book"). A
 /// port of `src/app/book/chapterNumber.ts`. The number lets chapters be put in order when no book's index says the
-/// order. ../glyph docs/BOOKS.md has the standard.
+/// order. tauri/docs/BOOKS.md has the standard.
 ///
 /// The standard, at the end of the title:
 ///

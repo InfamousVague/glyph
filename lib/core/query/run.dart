@@ -1,6 +1,6 @@
 /// A query run over the library (records.dart): the records it reads from, those its tests pass, in its order, as
 /// many as its limit, in its groups, with its totals, as the cells a table, a list, a board, a calendar, a gantt or
-/// a count draws (../glyph docs/QUERIES.md, docs/DESIGN.md §159). A port of `src/app/core/query/run.ts`. Everything a
+/// a count draws (tauri/docs/QUERIES.md, docs/DESIGN.md §159). A port of `src/app/core/query/run.ts`. Everything a
 /// drawing needs is answered here as plain data, so the drawing is only drawing, and a result can be compared by
 /// what it says.
 ///

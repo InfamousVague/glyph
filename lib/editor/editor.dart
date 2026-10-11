@@ -2,7 +2,7 @@
 /// @codemirror/commands) and the interfaces extension files are written against (`view/decoration.dart`,
 /// `view/widget.dart`, `view/plugin.dart`, from @codemirror/view). See docs/STAGE4.md.
 ///
-/// An extension file from ../glyph that began
+/// An extension file from tauri/ that began
 ///
 ///     import { RangeSetBuilder, type Extension } from '@codemirror/state';
 ///     import { Decoration, EditorView, ViewPlugin, type DecorationSet, type ViewUpdate } from '@codemirror/view';

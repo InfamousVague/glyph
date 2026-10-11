@@ -6,7 +6,7 @@
 /// commands and cues for adding to swimlanes on the board".
 ///
 /// [matchLane] and [moveToLane] weighed a lane by the name a person says and moved a card into it as a drag would,
-/// for the phrase-at-a-time reader's "move fix login to the Done column". That reader has gone (../glyph
+/// for the phrase-at-a-time reader's "move fix login to the Done column". That reader has gone (tauri/
 /// docs/DESIGN.md §127), and nothing in the app calls them now; they are kept, tested, until it is decided whether
 /// moving a card by voice comes back. A lane is weighed the way a note's name is, and a card moved has its box
 /// ticked going into Done and cleared coming out.

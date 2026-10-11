@@ -1,6 +1,6 @@
 //! What an update of the app itself must pass before the phone's installer sees it (stage 9I): the signature over
 //! `apk.json`, the shape of what it says, and the SHA-256 and size of the file it names. From three files of
-//! `../glyph/src-tauri/src/ota` that name `tauri::`, `reqwest` and `ring` and so cannot be included whole:
+//! `tauri/src-tauri/src/ota` that name `tauri::`, `reqwest` and `ring` and so cannot be included whole:
 //! `manifest.rs`, `fetch.rs` and `apk.rs`.
 //!
 //! THE RULE IS THE TAURI APP'S: TRUST IS A KEY, NOT A DOMAIN. An APK description is parsed only once a trusted
@@ -329,7 +329,7 @@ mod tests {
     fn a_digest_is_written_the_way_the_manifests_write_it() {
         assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         assert_eq!(sha256_hex(b"glyph").len(), 64);
-        let fetch = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../glyph/src-tauri/src/ota/fetch.rs");
+        let fetch = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../tauri/src-tauri/src/ota/fetch.rs");
         let fetch = std::fs::read_to_string(&fetch).unwrap();
         for line in ["hex(&Sha256::digest(bytes))", "digest.iter().map(|b| format!(\"{b:02x}\")).collect()"] {
             assert!(fetch.contains(line), "fetch.rs no longer has {line}");

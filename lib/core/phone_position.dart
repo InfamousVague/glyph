@@ -1,6 +1,6 @@
 /// The phone's own position: the [Locator] over the channel `ghost_md/location` (Kotlin's `Position`). Ports the
 /// Android half of `locate` in `src/app/core/location.ts` (`readAccess`, `askAndroid`, then the fix) with
-/// ../glyph's `location/LocationAccess.kt` behind it.
+/// the Tauri app's `location/LocationAccess.kt` behind it.
 ///
 /// What differs:
 /// - The page asked its WebView for the position (`navigator.geolocation.getCurrentPosition`); the phone's half

@@ -31,7 +31,9 @@ int _numberOf(String name) => _numbers[name] ??= () {
       return _names.length - 1;
     }();
 
-final RegExp _ownLib = RegExp(r'/ghost-flutter[^/]*/lib/');
+// The checkout's folder is `glyph` (or `glyph-…`) since this app became that repository's root (docs/CUTOVER.md §5),
+// and was `ghost-flutter` before; never the Tauri app's own tree below it, which has no lib/.
+final RegExp _ownLib = RegExp(r'/(?:ghost-flutter|glyph)[^/]*/lib/');
 
 String _where(String url) {
   // The tree's own files, in the main checkout or in a worktree beside it (ghost-flutter-paint and the like).

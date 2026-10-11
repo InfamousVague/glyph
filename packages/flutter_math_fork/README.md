@@ -151,7 +151,7 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
     stood 1.35 em above its baseline where KaTeX's stands 1.04, and the line it was on was that much taller.
     `Surd.of` is `sqrtImage` (delimiter.js) line for line. Fifteen roots in smaller styles are in
     `test/editor/maths/fixtures/katex.json` now, and all agree.
-23. **The faces are KaTeX 0.16's** (`lib/katex_fonts/fonts/`, twenty files, copied from `../glyph`'s
+23. **The faces are KaTeX 0.16's** (`lib/katex_fonts/fonts/`, twenty files, copied from `tauri/`'s
     `node_modules/katex/dist/fonts`, which is what Ghost.md's page draws a formula in). The published package
     carries an earlier cut of the same faces: the same letters to the eye and to a picture laid over the page's
     (`test/editor/blocks/reference_test.dart` measured the same either way), and other numbers in their tables

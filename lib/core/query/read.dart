@@ -1,5 +1,5 @@
 /// A query's lines, read: the grammar of a ```query fence, and the one plain sentence that says what is wrong with
-/// one that cannot be read, and where (../glyph docs/QUERIES.md is the grammar written down; docs/DESIGN.md §159 why
+/// one that cannot be read, and where (tauri/docs/QUERIES.md is the grammar written down; docs/DESIGN.md §159 why
 /// it is this one). A port of `src/app/core/query/read.ts`. Matt asked for "notion and jira like features"; a query
 /// is the database view, written as words.
 ///

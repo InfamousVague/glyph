@@ -1,5 +1,5 @@
 // The diagram page held to the web app (assets/diagrams/, lib/editor/diagrams/): the same diagrams drawn by the web
-// app's own editor (../glyph src/app/editor/Editor.tsx with its `drawnMermaid()`) and by this app's page, in the
+// app's own editor (tauri/src/app/editor/Editor.tsx with its `drawnMermaid()`) and by this app's page, in the
 // same browser, and what differs between the two.
 //
 // For each case the web editor is given a note that is one ```mermaid fence, read-only, and once its block is drawn
@@ -11,7 +11,7 @@
 // to the same page in two tabs), between the lightest and the darkest of the other's round the same place. Nothing is written but what is said on the terminal (and, with
 // --keep <folder>, the photographs).
 //
-//   (cd ../glyph && npx vite --port 5270 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
+//   (cd tauri && npx vite --port 5270 --strictPort --host 127.0.0.1) &     # read-only: never `vite build` there
 //   node tool/diagram_reference.mjs [--webkit] [--keep folder] [--width px] [--ratio n] [--asks] [name ...]
 //
 // --width and --ratio draw every set at one window's width and one device's ratio (a phone's, to hold a picture

@@ -1,6 +1,6 @@
 /// A journal: a notebook whose pages are dated entries, each started from a template the journal keeps (Matt: "a
 /// journal function where we can just do entries into a book marked as a journal where we pick the template for
-/// pages (time and date prefixed, with geo location, etc etc)"; ../glyph docs/DESIGN.md §142). A port of
+/// pages (time and date prefixed, with geo location, etc etc)"; tauri/docs/DESIGN.md §142). A port of
 /// `src/app/book/journal.ts`.
 ///
 /// It is a notebook note (lib/core/book.dart) with two more flat keys beside `book: true`, and a third when it keeps

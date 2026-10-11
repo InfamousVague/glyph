@@ -4,7 +4,7 @@ import 'package:ghost_md/core/query/query.dart';
 
 import 'support.dart';
 
-/// A query run over a library (lib/core/query/records.dart, run.dart; ../glyph docs/QUERIES.md): what is read from
+/// A query run over a library (lib/core/query/records.dart, run.dart; tauri/docs/QUERIES.md): what is read from
 /// the notes, the defaults that make `from: #bug` alone useful, the tests, the order, the groups a board and a table
 /// draw, the totals, and what the drawing is handed. Case for case with the web's `core/query/run.test.ts`. The
 /// library is support.dart's; today is 5 October 2026.

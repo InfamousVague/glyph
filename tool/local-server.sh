@@ -1,18 +1,18 @@
 #!/bin/sh
-# The real account and sync service (../glyph/server, Rust), on this Mac and nowhere else: what test/e2e runs
+# The real account and sync service (server, Rust), on this Mac and nowhere else: what test/e2e runs
 # against (docs/STAGE7.md: "a local copy of server/"). Nothing here, and nothing it starts, talks to
 # ghostmarkdown.com or attack.fm: the service binds 127.0.0.1 on a port the system picks, with a token made for the
 # run and a data folder made for the run, both thrown away when it stops.
 #
-#   tool/local-server.sh build     copies ../glyph/server and builds it (once; again only when its source changed)
+#   tool/local-server.sh build     copies server and builds it (once; again only when its source changed)
 #   tool/local-server.sh start     builds if need be, starts it, and prints  GHOST_E2E_API=http://127.0.0.1:<port>/api
 #   tool/local-server.sh stop      stops the one `start` started, by its PID, and removes its data
 #   tool/local-server.sh status    whether one is running, and where
 #   tool/local-server.sh test      start, `flutter test --no-pub test/e2e` against it (more arguments are passed on), stop
 #
-# ../glyph is only READ. Its server/ is copied (without target/) to build/local-server/server, under this
-# repository's git-ignored build/, and cargo builds there with its own target directory, so nothing is written in
-# the glyph checkout and none of its 5 GB of build output is touched. `flutter clean` removes the copy and the
+# server/ (the service, at this repository's root) is only READ. It is copied (without target/) to
+# build/local-server/server, under the git-ignored build/, and cargo builds there with its own target directory, so
+# nothing is written in server/ and none of its 5 GB of build output is touched. `flutter clean` removes the copy and the
 # build; the next `build` makes them again (a few minutes).
 #
 # A deploy of the Tauri app runs tests that fail when the Mac is busy (as tool/build-native.sh says), so a build
@@ -20,7 +20,7 @@
 set -eu
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
-source="$root/../glyph/server"
+source="$root/server"
 work="$root/build/local-server"
 copy="$work/server"
 target="$work/target"
@@ -38,7 +38,7 @@ wait_for_deploys() {
 
 build() {
   if [ ! -f "$source/Cargo.toml" ]; then
-    echo "local-server: ../glyph/server is not beside this repository." >&2
+    echo "local-server: there is no server/ in this checkout." >&2
     exit 1
   fi
   mkdir -p "$copy"

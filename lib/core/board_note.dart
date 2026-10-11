@@ -1,4 +1,4 @@
-/// The example board (../glyph docs/BOARDS.md): a note that is a working board, added from Settings. A port of
+/// The example board (tauri/docs/BOARDS.md): a note that is a working board, added from Settings. A port of
 /// `src/app/core/boardNote.ts`.
 ///
 /// Matt: "make an example note with this functionality". Everything in it is the standard and nothing else - a fence

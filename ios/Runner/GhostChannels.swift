@@ -12,7 +12,7 @@ import UniformTypeIdentifiers
 /// (macos/Runner/TapeChannel.swift, compiled here too); the Keychain and a picture's shrinking are apple/'s.
 ///
 /// WHAT AN IPHONE HAS NO HALF OF, AND WHY (README, "What the iPhone app left open"): the real iPhone app records
-/// nothing and runs no model (../glyph `core/platform.ts` `recordsVoice`, src-tauri/src/unsupported.rs), chooses no
+/// nothing and runs no model (tauri/ `core/platform.ts` `recordsVoice`, src-tauri/src/unsupported.rs), chooses no
 /// folder, exports and backs up nowhere, finds no position and picks no film, and is updated by the App Store. So
 /// there is no `ghost_md/mic`, `ghost_md/meeting`, `ghost_md/files`, `ghost_md/location`, `ghost_md/films`,
 /// `ghost_md/updates`, and none of Android's own (`ghost_md/front`, `ghost_md/hinge`); the Dart offers none of
@@ -179,7 +179,7 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
   /// A picture for a note, answered as the phone's chooser answers: `{path}` of a JPEG in the app's cache, shrunk
   /// and the right way up, `{cancelled: true}`, or an error with a sentence.
   ///
-  /// The real iPhone app asks through the page's file input (../glyph `core/images.ts` `pickWeb`), which an iPhone
+  /// The real iPhone app asks through the page's file input (tauri/ `core/images.ts` `pickWeb`), which an iPhone
   /// answers with a menu of its photo library, its camera and its files; so does this.
   private func pickPicture(_ result: @escaping FlutterResult) {
     // One chooser at a time: a second ask while the first is up is answered as none chosen.

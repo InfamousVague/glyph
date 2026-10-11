@@ -1,7 +1,7 @@
 // Both engines through the real C functions on the Mac (native/src/smoke.rs, the `voice` feature): whisper.cpp
 // over the web app's fixture recording with base.en, and llama.cpp writing a few tokens with the smallest GGUF
 // there is, the words arriving as `ai://progress` events. Needs tool/build-native.sh host, and the web app's
-// models in ../glyph/models (or GLYPH_MODELS_DIR); says SKIPPED for whichever is missing.
+// models in tauri/models (or GLYPH_MODELS_DIR); says SKIPPED for whichever is missing.
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -12,7 +12,7 @@ const _library = 'native/target/debug/libghost_core.dylib';
 
 void main() {
   final built = File(_library).existsSync();
-  final models = Directory(Platform.environment['GLYPH_MODELS_DIR'] ?? '../glyph/models').absolute;
+  final models = Directory(Platform.environment['GLYPH_MODELS_DIR'] ?? 'tauri/models').absolute;
   final whisper = File('${models.path}/ggml-base.en-q5_1.bin');
   final wav = File('${models.path}/fixture.wav');
   final llmDir = Directory('${models.path}/llm');

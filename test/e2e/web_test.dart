@@ -1,12 +1,12 @@
 // A Dart device and a WEB device on one account, through the real service on 127.0.0.1: the web app's own client
-// code (../glyph/src/app/core, with its own WebCrypto and its own Yjs) run under Node by tool/web_client.mjs,
+// code (tauri/src/app/core, with its own WebCrypto and its own Yjs) run under Node by tool/web_client.mjs,
 // signing in to the account the Dart device made, reading its note, its picture, its settings and its team note,
 // writing its own back, and both editing one team note apart.
 //
 //   tool/local-server.sh test          # runs this with the rest of test/e2e
 //
 // Skipped unless GHOST_E2E_API is set (and names 127.0.0.1), the Mac's core is built, `node` is on the PATH and
-// ../glyph has its node_modules (the web's `yjs`). The Node side refuses any host but 127.0.0.1 three times over
+// tauri/ has its node_modules (the web's `yjs`). The Node side refuses any host but 127.0.0.1 three times over
 // (web_client.mjs says how): the web's own default base is the real service, and must never be reached.
 //
 // What this proves, and no more: the two clients agree on the account's wire (PBKDF2 login halves, the account
@@ -29,7 +29,7 @@ import 'world.dart';
 String? _whyNot(String base) {
   if (base.isEmpty) return 'no local server: run tool/local-server.sh test (GHOST_E2E_API is not set)';
   if (coreSkip != null) return coreSkip;
-  if (!Directory('../glyph/node_modules/yjs').existsSync()) return '../glyph has no node_modules/yjs for the web client to load';
+  if (!Directory('tauri/node_modules/yjs').existsSync()) return 'tauri/ has no node_modules/yjs for the web client to load';
   try {
     if (Process.runSync('node', ['--version']).exitCode != 0) return '`node` did not run';
   } on ProcessException {

@@ -2,7 +2,7 @@
 /// forty-four chapters in eleven parts, each a Markdown file in `assets/guidebook/chapters/`, named `NN-slug.md` so
 /// the files' order is the book's, and `assets/guidebook/index.md` the notebook's own note: `book: true` in its
 /// front matter, its numbered `[[links]]` the chapters, found by title as any notebook's are. The Markdown is the web
-/// app's, byte for byte (test/guide/guidebook_test.dart compares each file with `../glyph` where it is beside the
+/// app's, byte for byte (test/guide/guidebook_test.dart compares each file with `tauri/` where it is beside the
 /// repository).
 ///
 /// The book costs the library nothing until it is added ([addGuideBook], from Settings › About). Added, it is

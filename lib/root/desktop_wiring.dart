@@ -1,6 +1,6 @@
 /// A desktop's keys and the Mac's menu bar, answered by the root (lib/shell/desktop/desktop_commands.dart says
 /// which key is which). Ports the page's own `keydown` listener in App.tsx (docs/DESIGN.md §144 and §210 of
-/// ../glyph) and adds the two the Mac's menu names beside them.
+/// tauri/) and adds the two the Mac's menu names beside them.
 ///
 /// - **New note** (Command-N): a new blank note, as + › Note makes one. Only on a place (home, All notes, a note,
 ///   an organization), never over a recording or the Academy; and not while a sheet, the palette or Settings is

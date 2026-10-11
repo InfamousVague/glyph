@@ -1,5 +1,5 @@
 //! Where a note's kept recording lives, and how one that arrives by sync is kept: the two functions of
-//! `../glyph/src-tauri/src/recordings.rs` that `delete_note` and `sync_put_file` need, word for word. The rest of that file is the `rec` scheme, which is Tauri's.
+//! `tauri/src-tauri/src/recordings.rs` that `delete_note` and `sync_put_file` need, word for word. The rest of that file is the `rec` scheme, which is Tauri's.
 //! `kept::tests` holds what is between the marks to the original.
 
 use std::path::{Path, PathBuf};

@@ -4,14 +4,14 @@
 //   node --no-warnings tool/ai_fixtures.mjs            every section
 //   node --no-warnings tool/ai_fixtures.mjs zones      one section, by its name below
 //
-// Everything is read from ../glyph and nothing is written there. Nothing is random and no clock is read, so running it
+// Everything is read from tauri/ and nothing is written there. Nothing is random and no clock is read, so running it
 // again writes the same files (given the same Node, whose ICU carries the time-zone database and the Unicode tables).
 // Each section is one self-contained function, listed in SECTIONS at the foot: add yours beside the others and leave
 // theirs alone.
 
 import { mkdirSync, writeFileSync } from 'node:fs';
 
-const GLYPH_APP = '/Users/matt/Development/Apps/glyph/src/app/';
+const GLYPH_APP = new URL('../tauri/src/app/', import.meta.url).pathname;
 const HERE = new URL('..', import.meta.url).pathname;
 
 // ---- zones: every city's zone, its offsets from UTC ---------------------------------------------------------------

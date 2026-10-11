@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // The Yjs fixtures of stage 7 (docs/STAGE7.md, "Live typing and team notes"): documents, updates, state vectors,
-// relative positions and awareness made by the WEB app's own `yjs` and `y-protocols` (../glyph/node_modules, the
+// relative positions and awareness made by the WEB app's own `yjs` and `y-protocols` (tauri/node_modules, the
 // versions it ships), for native/src/crdt.rs to read; and those same libraries reading what `yrs` wrote.
 //
 //   node tool/yjs_vectors.mjs make     writes native/tests/fixtures/yjs_web.json
 //   node tool/yjs_vectors.mjs check    opens native/target/vectors/yjs_from_rust.json, which
 //                                      `cargo test --test yjs_vectors` writes (tool/build-native.sh test)
 //
-// ../glyph is only read: its node_modules through `createRequire`, and core/team/textDiff.ts imported as it is, so
+// tauri/ is only read: its node_modules through `createRequire`, and core/team/textDiff.ts imported as it is, so
 // a reconcile here is the web's own `applyTextDiff`. Nothing here touches a network.
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -15,7 +15,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const glyph = resolve(root, '../glyph');
+const glyph = resolve(root, 'tauri');
 const FIXTURE = join(root, 'native/tests/fixtures/yjs_web.json');
 const FROM_RUST = join(root, 'native/target/vectors/yjs_from_rust.json');
 
@@ -66,7 +66,7 @@ const splits = (text, index) => index > 0 && index < text.length && text.charCod
 // ---- make ------------------------------------------------------------------------------------------------
 
 function make() {
-  const out = { made: new Date().toISOString(), by: 'tool/yjs_vectors.mjs make, with ../glyph/node_modules', yjs: version('yjs'), protocols: version('y-protocols') };
+  const out = { made: new Date().toISOString(), by: 'tool/yjs_vectors.mjs make, with tauri/node_modules', yjs: version('yjs'), protocols: version('y-protocols') };
 
   // doc.ts `make`: a note's words seeded into a new document, the whole of it one update.
   {

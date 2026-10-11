@@ -19,7 +19,7 @@ void main() {
       expect(File(file).existsSync(), isTrue, reason: file);
     }
     // And each is the web app's own, byte for byte, where that checkout is beside this one.
-    final theirs = Directory('../glyph/src/app/art/ghosts');
+    final theirs = Directory('tauri/src/app/art/ghosts');
     if (theirs.existsSync()) {
       for (final scene in GhostScene.values) {
         expect(File(scene.asset).readAsBytesSync(), File('${theirs.path}/${scene.file}.webp').readAsBytesSync(), reason: scene.file);

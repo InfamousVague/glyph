@@ -1,4 +1,4 @@
-/// A query shown as a calendar (`show: calendar`, ../glyph docs/QUERIES.md): a month of weeks, each day with the
+/// A query shown as a calendar (`show: calendar`, tauri/docs/QUERIES.md): a month of weeks, each day with the
 /// records it holds, which is the day run.dart gives each row (its due day, else its scheduled day, its start, or
 /// its note's `date:`). A port of `src/app/core/query/calendar.ts`. Weeks start on Monday, as a week does everywhere
 /// else in the app (day_words.dart `nextWeek`), and the days of the weeks either side of the month are there to fill

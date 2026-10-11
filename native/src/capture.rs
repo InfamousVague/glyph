@@ -1,4 +1,4 @@
-//! Dictation's commands and events (the `voice` feature): what `../glyph/src-tauri/src/capture_commands.rs`,
+//! Dictation's commands and events (the `voice` feature): what `tauri/src-tauri/src/capture_commands.rs`,
 //! `capture_commands/models.rs` and `capture_commands/refine.rs` are to the Tauri app, command for command, over
 //! the same engine (`whisper/`, included as it is). Every decision about what to transcribe, when, and what
 //! counts as silence is the engine's; this file resolves the directories, holds the loaded model and the one

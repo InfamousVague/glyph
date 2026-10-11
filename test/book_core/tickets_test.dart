@@ -8,7 +8,7 @@ import 'package:ghost_md/core/properties.dart' show StatusCategory, defaultStatu
 
 import '../core/make_note.dart';
 
-/// A notebook's tickets across the library (lib/book/tickets.dart; ../glyph docs/DESIGN.md §157): the key a notebook
+/// A notebook's tickets across the library (lib/book/tickets.dart; tauri/docs/DESIGN.md §157): the key a notebook
 /// gives, the next number, the status a new ticket starts in, the notebook a ticket's workflow comes from, the people
 /// already named, and what a ticket waits on. Case for case with the web's `book/tickets.test.ts`.
 const String notebook = '---\ntitle: "Ghost.md"\nbook: true\nkey: GHO\n---\n# Ghost.md\n\n- [[Fix the login loop]]\n- [[Fix the session cookie]]\n';

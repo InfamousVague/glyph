@@ -4,7 +4,7 @@
 // Mac's Rust test can copy by name. Here that is an equality: every prompt constant in format/prompt.dart against
 // the literal in the web's source, and the recording prompts, the templates and the numbers against what the phone's
 // own write-up compiles in (src-tauri/src/write_up.rs) and the fixtures both sides read. The web checkout is looked
-// for at GLYPH_REPO_DIR, then ../glyph, then Matt's path; where it is not there those checks are skipped, and say so.
+// for at GLYPH_REPO_DIR, then tauri/, then Matt's path; where it is not there those checks are skipped, and say so.
 import 'dart:convert';
 import 'dart:io';
 
@@ -15,7 +15,7 @@ import 'package:ghost_md/format/prompt.dart';
 
 /// The web app's checkout, or null where there is none.
 Directory? webRepo() {
-  for (final at in [Platform.environment['GLYPH_REPO_DIR'], '../glyph', '/Users/matt/Development/Apps/glyph']) {
+  for (final at in [Platform.environment['GLYPH_REPO_DIR'], 'tauri', '/Users/matt/Development/Apps/glyph/tauri']) {
     if (at != null && File('$at/src/app/format/prompt.ts').existsSync()) return Directory(at);
   }
   return null;
@@ -26,7 +26,7 @@ String? webFile(String path) {
   final repo = webRepo();
   final file = repo == null ? null : File('${repo.path}/$path');
   if (file == null || !file.existsSync()) {
-    markTestSkipped('The web app’s $path is not on this machine (looked at GLYPH_REPO_DIR, ../glyph and /Users/matt/Development/Apps/glyph): the equality with it was not checked.');
+    markTestSkipped('The web app’s $path is not on this machine (looked at GLYPH_REPO_DIR, tauri/ and /Users/matt/Development/Apps/glyph/tauri): the equality with it was not checked.');
     return null;
   }
   return file.readAsStringSync();

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  What makes Ghost.md a digital assistant (ported from ../glyph's glyph_voice_interaction.xml; in use only when the
+  What makes Ghost.md a digital assistant (ported from the Tauri app's glyph_voice_interaction.xml; in use only when the
   build turns the assistant on, res/values/voice_assistant.xml). All three of sessionService, recognitionService and
   supportsAssist are required: VoiceInteractionServiceInfo rejects the service if either service is missing, and
   the assistant role only counts it as an assistant when supportsAssist is true.

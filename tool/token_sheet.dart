@@ -9,7 +9,7 @@
 // and on a phone, where a compiled build walks every regular expression in an interpreter, more. The rules do not
 // change between a build and the next launch, so they are worked out here, once, and compiled in as constants.
 //
-// Run it again whenever one of the four stylesheets changes (tool/sync-design.sh brings them from ../glyph).
+// Run it again whenever one of the four stylesheets changes (tool/sync-design.sh brings them from tauri/).
 // test/app/token_sheet_test.dart holds the file to the stylesheets, rule for rule, and fails with this command in
 // its words when they have drifted.
 import 'dart:io';

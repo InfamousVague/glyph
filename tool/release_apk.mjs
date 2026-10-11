@@ -9,12 +9,12 @@
 //   glyph.apk              the APK, under the name every Ghost.md install and the download page fetch
 //   apk.json               { version, versionCode, native, sha256, bytes, url: "glyph.apk", build }
 //   apk.json.sig           Ed25519 over "glyph-apk\0" + apk.json: what an installed TAURI app verifies, and so
-//                          offers this APK as its next version (../glyph/src-tauri/src/ota/apk.rs, core/ota.ts)
+//                          offers this APK as its next version (tauri/src-tauri/src/ota/apk.rs, core/ota.ts)
 //   apk.json.flutter.sig   Ed25519 over "ghost-flutter-apk\0" + apk.json: what THIS app verifies from then on
 //                          (native/src/kept/updates.rs, lib/core/updates.dart)
 //
 // One key signs both: Ghost.md's update key, ~/.config/glyph/ota-signing-key.pem (or --key), whose public half is
-// the one line of ../glyph/src-tauri/ota-trusted-keys.txt and of lib/core/update_keys.dart. This script reads it,
+// the one line of tauri/src-tauri/ota-trusted-keys.txt and of lib/core/update_keys.dart. This script reads it,
 // signs, and prints nothing of it.
 //
 // `native` is the Tauri app's "native generation". Its installs are offered an APK whose version is newer than
@@ -23,7 +23,7 @@
 //
 // It refuses what must never be published: an APK that is not com.mattssoftware.glyph, one that is debuggable,
 // one whose version code is not above the Tauri app's last (1015000), one not signed by the certificate pinned in
-// ../glyph/src-tauri/apk-signer.sha256 (Android installs an update only over the same certificate), and a signing
+// tauri/src-tauri/apk-signer.sha256 (Android installs an update only over the same certificate), and a signing
 // key the apps do not trust. --test turns the refusals into warnings, for trying the script with a throwaway key.
 import { createHash, createPrivateKey, createPublicKey, sign, verify } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
@@ -82,7 +82,7 @@ if (/application-debuggable/.test(badging.stdout)) refuse('the APK is debuggable
 if (!Number.isInteger(native) || native < 28) refuse(`native ${native} must be a whole number above the Tauri app's 27.`);
 
 // --- who signed it ----------------------------------------------------------------------------------------------
-// apksigner is Java: the JDK ../glyph/scripts/deploy-ota.mjs falls back on, or Android Studio's, unless JAVA_HOME says.
+// apksigner is Java: the JDK tauri/scripts/deploy-ota.mjs falls back on, or Android Studio's, unless JAVA_HOME says.
 const jdk = ['/opt/homebrew/opt/openjdk@17/libexec/openjdk.jdk/Contents/Home', '/Applications/Android Studio.app/Contents/jbr/Contents/Home'].find((home) => existsSync(home));
 const env = { ...process.env, ...(process.env.JAVA_HOME || !jdk ? {} : { JAVA_HOME: jdk, PATH: `${jdk}/bin:${process.env.PATH}` }) };
 const certs = spawnSync(join(tools, newest, 'apksigner'), ['verify', '--print-certs', apk], { encoding: 'utf8', env });

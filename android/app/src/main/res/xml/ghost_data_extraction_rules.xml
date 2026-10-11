@@ -3,7 +3,7 @@
   Google's backup and a move to a new phone, on Android 12 and later (AndroidManifest.xml,
   android:dataExtractionRules). The same as ghost_backup_rules.xml, which says why: the notes go, the library's
   index (a cache the Rust core rebuilds) stays behind, for the cloud and for a move by cable alike. The films in
-  notes (video/) stay out of the cloud and are meant to go with a move by cable, as ../glyph's rules have it.
+  notes (video/) stay out of the cloud and are meant to go with a move by cable, as the Tauri app's rules have it.
 -->
 <data-extraction-rules>
     <cloud-backup>

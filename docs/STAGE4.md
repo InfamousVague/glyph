@@ -1,4 +1,4 @@
-# Stage 4, the editor: what was read in ../glyph (2026-10-07), and the plan
+# Stage 4, the editor: what was read in tauri/ (2026-10-07), and the plan
 
 ## Findings
 - The web editor is CodeMirror 6 over the Markdown string; 12 extensions hide or replace text (`Decoration.replace`) and

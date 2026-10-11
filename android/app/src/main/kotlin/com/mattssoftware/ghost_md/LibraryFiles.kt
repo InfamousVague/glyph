@@ -11,7 +11,7 @@ import com.mattssoftware.glyph.files.LibraryRoot
 /**
  * The notes' folder opened in the phone's Files app, for the sidebar's Browse files (lib/core/library_files.dart,
  * `browseFiles` on `ghost_md/files`; FilesBridge.kt). What the Tauri activity's `GlyphHost.browseFiles` was
- * (../glyph MainActivity.kt, native generation 18), line for line: the Files app shown at the app's place in it
+ * (tauri/ MainActivity.kt, native generation 18), line for line: the Files app shown at the app's place in it
  * (files/LibraryDocuments.kt), or where a phone's Files app won't open a place by itself, the system's file browser
  * starting there.
  *

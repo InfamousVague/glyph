@@ -1,6 +1,6 @@
 /// A note's properties - its front matter read as named values, the way Notion shows a page's - and a ticket's
 /// vocabulary (Matt asked what Notion- and Jira-like features custom Markdown could give the app, "like tickets and
-/// such", and picked tickets as notes: ../glyph docs/DESIGN.md §156). A port of `src/app/core/properties.ts`, whole.
+/// such", and picked tickets as notes: tauri/docs/DESIGN.md §156). A port of `src/app/core/properties.ts`, whole.
 ///
 ///     ---
 ///     type: ticket

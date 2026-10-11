@@ -1,5 +1,5 @@
 //! The commands, by the names the web page gave Tauri's `invoke`, each doing what its `#[tauri::command]` in
-//! `../glyph/src-tauri/src/commands.rs` (and `library_commands.rs` for `library_root`) does: take the lock,
+//! `tauri/src-tauri/src/commands.rs` (and `library_commands.rs` for `library_root`) does: take the lock,
 //! call one `Library` function, turn its error into the sentence a person reads.
 //!
 //! What differs from commands.rs:

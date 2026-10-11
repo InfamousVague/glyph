@@ -1,7 +1,7 @@
 """The app's web fonts as TrueType, for Flutter, which reads no woff2.
 
     python3 -m venv .venv && .venv/bin/pip install fonttools brotli
-    .venv/bin/python tool/fonts.py ../glyph/node_modules assets/fonts
+    .venv/bin/python tool/fonts.py tauri/node_modules assets/fonts
 
 Maple Mono's four weights and two italics (Latin, all @fontsource/maple-mono has), and Inter Variable with its optical
 size axis in each subset the page loads by unicode-range. The other faces Settings offers, as the page loads them:

@@ -5,7 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/comments/format.dart';
 
 /// The Dart port held to the web's own module: `fixtures/web_comments.json` is what `core/comments/format.ts`
-/// answered (fixtures/web_comments.mjs, run under Node against ../glyph, 2026-10-07) for thirty seeded notes grown
+/// answered (fixtures/web_comments.mjs, run under Node against tauri/, 2026-10-07) for thirty seeded notes grown
 /// an operation at a time, a dozen fences written by hand, and its ids and stamps. For every step the port has to
 /// read the note as the page read it and answer the very edits the page answered - the comments are in the
 /// markdown two apps share, and in a team note the edits are what the CRDT merges.

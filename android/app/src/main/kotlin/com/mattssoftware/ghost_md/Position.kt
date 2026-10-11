@@ -23,7 +23,7 @@ import io.flutter.plugin.common.MethodChannel
 
 /**
  * Where the phone is, and whether Ghost.md may know (lib/core/phone_position.dart, the phone's half of
- * `ghost_md/location`). Ported from ../glyph's `location/LocationAccess.kt`, whose page asked the WebView for the
+ * `ghost_md/location`). Ported from the Tauri app's `location/LocationAccess.kt`, whose page asked the WebView for the
  * position itself; here there is no WebView, so the fix is this file's too.
  *
  * - `access` -> "granted" (a precise fix), "approximate" (coarse only), "ask" (never asked, or may be asked
@@ -199,7 +199,7 @@ class Position(private val activity: Activity) {
     const val CHANNEL = "ghost_md/location"
     private const val TAG = "GhostPosition"
 
-    /** The request code the activity answers under: ../glyph's own for location. */
+    /** The request code the activity answers under: the Tauri app's own for location. */
     const val REQUEST = 4105
     private const val PREFS = "glyph_location"
     private const val KEY_BLOCKED = "blocked"

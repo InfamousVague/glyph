@@ -1,6 +1,6 @@
 /// Who draws a diagram: the seam between the editor and Mermaid.
 ///
-/// There is no Mermaid in Dart, and the same diagrams means Mermaid itself: the release ../glyph pins, run in the
+/// There is no Mermaid in Dart, and the same diagrams means Mermaid itself: the release tauri/ pins, run in the
 /// platform's own web view, kept off the screen and never shown (assets/diagrams/, DiagramRenderer.kt on Android,
 /// apple/DiagramRenderer.swift on a Mac and an iPhone). The page there is the web app's as far as a diagram can
 /// tell, and what comes back is a photograph of the part of it the diagram is on. A web view shown inside the

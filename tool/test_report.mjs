@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Writes assets/diag/test_report.json: what every test this app has did the last time the whole suite was run,
 // which a build carries and Settings › Test results (Developer mode) shows. Ghost.md's own is
-// ../glyph/scripts/test-report.mjs, which writes src/app/diag/testReport.generated.json for its page to compile in;
+// tauri/scripts/test-report.mjs, which writes src/app/diag/testReport.generated.json for its page to compile in;
 // the report is the same shape, so the page here is the page there (lib/settings/panes/test_results_pane.dart).
 //
 //   node tool/test_report.mjs                    runs tool/check.sh, all of it, then writes the report
@@ -33,7 +33,8 @@
 // under lib, test, packages, native, tool, android/app/src, assets and shaders, with pubspec.yaml and its lock, in
 // a stable order, less the report itself. The report records it as the check begins, and a build is stamped with
 // it (GHOST_SOURCE), so the page can say whether the build in your hand is the code these results are for. Not in
-// it: ../glyph, which the core and the faces are partly built from and which is another repository.
+// it: tauri/, which the core and the faces are partly built from and which is the Tauri app's own tree, with a report
+// of its own (tauri/scripts/test-report.mjs).
 import { spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { mkdirSync, readFileSync, readdirSync, realpathSync, statSync, writeFileSync } from 'node:fs';

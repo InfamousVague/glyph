@@ -1,7 +1,7 @@
 /// The phone's half of its own notifications for the bell's rows: the three calls the web app made on
 /// `window.GlyphHost` (`watchNotices`, `postNotice`, `noticesState`; `src/app/core/host.ts`), and the one
 /// Settings › Notifications asks Android's prompt with (`requestNotifications`), over the channel
-/// `ghost_md/notices` (android/…/ghost_md/Notices.kt, with ../glyph's `notices/NoticeAlerts.kt` and
+/// `ghost_md/notices` (android/…/ghost_md/Notices.kt, with the Tauri app's `notices/NoticeAlerts.kt` and
 /// `NoticeWorker.kt` behind it). What is watched and posted, and when, is lib/sync/phone.dart.
 ///
 /// What differs:
