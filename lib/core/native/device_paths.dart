@@ -54,8 +54,16 @@ class DevicePaths {
     if (data == null || cache == null) {
       throw StateError('The device did not say where Ghost.md keeps its files.');
     }
-    return DevicePaths.own(dataDir: data, cacheDir: cache);
+    return DevicePaths.told(dataDir: data, cacheDir: cache, sandboxed: Platform.isAndroid);
   }
+
+  /// What a device said its two directories are. [sandboxed] is an Android phone, where the system gives every app
+  /// its own folder by its id and no other app's can be reached at all: there the folder IS this app's whatever
+  /// its name, and when this app is built to replace the Tauri app (android/app/build.gradle.kts, `GHOST_CUTOVER`)
+  /// its id, and so its folder's name, is the Tauri app's own, with that app's library in it to be carried on
+  /// with (lib/carry/tauri_carry.dart). Anywhere else the name is all that keeps the two apart, and [own] refuses.
+  factory DevicePaths.told({required String dataDir, required String cacheDir, required bool sandboxed}) =>
+      sandboxed ? DevicePaths(dataDir: dataDir, cacheDir: cacheDir) : DevicePaths.own(dataDir: dataDir, cacheDir: cacheDir);
 
   /// The two directories, refused if either is the Tauri app's own folder or inside it: this app has a folder of
   /// its own and opens no other app's library.

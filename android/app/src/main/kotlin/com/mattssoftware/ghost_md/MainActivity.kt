@@ -85,6 +85,7 @@ class MainActivity : FlutterActivity() {
 
     /** A note's diagrams, drawn by a web view nobody sees, let go with the activity (DiagramRenderer.kt). */
     private var diagrams: DiagramRenderer? = null
+    private var carry: TauriCarry? = null
 
     /** Whether the phone has a connection, and the moment one comes back (Connection.kt). */
     private val connection by lazy { Connection(applicationContext) }
@@ -160,6 +161,9 @@ class MainActivity : FlutterActivity() {
         hinge.register(messenger)
         // A ```mermaid fence drawn as its diagram (DiagramRenderer.kt; lib/editor/diagrams/bridge.dart).
         diagrams = DiagramRenderer(this).also { it.register(messenger) }
+        // What the Tauri app's page kept in its web view, asked once on the first launch over it (TauriCarry.kt;
+        // lib/carry/tauri_carry.dart).
+        carry = TauriCarry(this).also { it.register(messenger) }
         // The bell's rows as the phone's own notifications, and the prompt that allows them (Notices.kt;
         // lib/core/phone_notices.dart).
         Notices(applicationContext) { meeting?.requestNotifications() ?: "blocked" }.register(messenger)
@@ -210,6 +214,7 @@ class MainActivity : FlutterActivity() {
         diagrams?.destroy()
         connection.release()
         battery.release()
+        carry?.close()
         meeting?.onDestroy()
         super.onDestroy()
     }

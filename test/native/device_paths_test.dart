@@ -28,6 +28,14 @@ void main() {
     await expectLater(DevicePaths.fromActivity(), throwsStateError);
   });
 
+  test('on a phone the folder is the app\'s own by the system, even under the Tauri app\'s id; elsewhere that name is refused', () {
+    const data = '/data/user/0/com.mattssoftware.glyph', cache = '/data/user/0/com.mattssoftware.glyph/cache';
+    final told = DevicePaths.told(dataDir: data, cacheDir: cache, sandboxed: true);
+    expect(told.dataDir, data);
+    expect(told.cacheDir, cache);
+    expect(() => DevicePaths.told(dataDir: data, cacheDir: cache, sandboxed: false), throwsStateError);
+  });
+
   test('off Android it is a folder of its own under the temporary directory', () async {
     final paths = await DevicePaths.find();
     expect(paths.dataDir, '${Directory.systemTemp.path}/ghost_md/data');

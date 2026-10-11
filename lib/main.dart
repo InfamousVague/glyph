@@ -4,11 +4,14 @@ import 'dart:ui' show PlatformDispatcher;
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'account/crypto.dart';
 import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
 import 'app/token_sheet.g.dart';
+import 'account/device_keys.dart' show deviceSecureStore;
+import 'carry/tauri_carry.dart';
 import 'core/native/core.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
@@ -156,6 +159,9 @@ Future<void> main() async {
 /// (lib/root/plugin_ground.dart): before the first screen, since Settings' rows, the editor's parser and the
 /// Academy's lessons read them.
 Future<void> _remembered() async {
+  // What the Tauri app's page kept, brought into this app's own store the first time this app wakes in that app's
+  // folder (lib/carry/tauri_carry.dart): before a preference is read, so the first screen is the person's own.
+  await (await _carry)?.settings();
   try {
     await preferences.load().timeout(const Duration(seconds: 2));
     useStored(await DeviceStored.open().timeout(const Duration(seconds: 2)));
@@ -165,6 +171,21 @@ Future<void> _remembered() async {
   installPlugins();
   PerfLaunch.step('stored');
 }
+
+/// The carry from the Tauri app, on a phone only (the Mac's and the iPhone's apps have folders of their own, and a
+/// measured build fills a library of its own): one for the launch, since its two halves are asked from two places.
+/// Null where there is none, or where the phone will not say where its files are or open its store.
+final Future<TauriCarry?> _carry = () async {
+  if (defaultTargetPlatform != TargetPlatform.android || ghostPerf) return null;
+  try {
+    final dirs = await DevicePaths.find();
+    final kept = await SharedPreferences.getInstance().timeout(const Duration(seconds: 2));
+    return TauriCarry(dataDir: dirs.dataDir, prefs: DeviceCarryPrefs(kept), secure: deviceSecureStore(), device: const ChannelCarryDevice());
+  } catch (failure) {
+    debugPrint('[carry] not begun: $failure');
+    return null;
+  }
+}();
 
 /// What the app is made over, once it has opened.
 typedef _Opened = ({CoreInvoke? core, GhostCore? whole, AccountMaking? account, VoiceMaking? voice, Future<VoiceMaking?>? voiceLater, Films? films});
@@ -206,6 +227,9 @@ Future<_Opened> _opened() async {
         : inTime(VoiceMaking.attach(native, dataDir: dirs.dataDir, mirrors: voiceMirrors(ghostModelsDefine)), failed: (failure) => debugPrint('[ghost] voice is off for this run: $failure'));
     // The account, only in a build told where its service is (`--dart-define=GHOST_API=http://…`), and never the
     // real service from a debug build (docs/STAGE7.md). With none, nothing of the account is made at all.
+    // The session, the keys and the plugins' secrets the Tauri app kept, into the phone's secure store before
+    // anything asks it who is signed in (lib/carry/tauri_carry.dart): the core is loaded, which is all it needs.
+    await (await _carry)?.secrets(native.invoke);
     final base = accountBase(ghostApiDefine);
     if (base != null) {
       account = AccountMaking(base: base, crypto: await CoreCrypto.withLane(native), dataDir: dirs.dataDir);
