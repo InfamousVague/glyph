@@ -143,7 +143,7 @@ void main() {
 
   testWidgets('a formula drawn again at another size is as large as that size (one tree, kept, as the note keeps it)', (tester) async {
     // The words pinched larger, or a card's small drawing of a note and then the note: the same reading drawn at
-    // two sizes. The package as published built a letter once and kept it (README, change 20).
+    // two sizes. The package as published built a letter once and kept it (README, change 21).
     final read = formulaOf(r'\sum_{i=1}^{n} i = \frac{n(n+1)}{2}', true);
     Future<Size> at(double em) async {
       await tester.pumpWidget(

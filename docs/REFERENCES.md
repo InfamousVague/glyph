@@ -89,15 +89,15 @@ What it found, each fixed from the page's own rule and not by its numbers:
 | Found | Before | After | Where |
 | --- | --- | --- | --- |
 | A word too long for what is left of its line (an address after "See", a string after `const s =`) was cut where it stood. The page takes it to the next line first, and cuts it only if it is longer than a line. | `const unbroken = "aaa…` on the first line at 704, two visual lines | on its own lines, three, as the page; the caret within 0.5 px at every position, either side | `lib/editor/view/line.dart` `_lateBreak`, `projection.dart` `PaintText.forced` |
-| A formula kept the size it was first drawn at: after the words were made larger, or drawn small on a card and then in the note. | the set-apart sum 152.7 px wide at the usual size and at the larger | 152.7 and 195.1, the page's 195.1 | `packages/flutter_math_fork` (README 20) |
-| A root where the type is smaller (the quadratic formula in a line, a root in a script). | 1.35 em above the baseline, the line 3.7 px taller | 1.04 em, KaTeX's; fifteen such roots in `katex.json` | `packages/flutter_math_fork` (README 21) |
+| A formula kept the size it was first drawn at: after the words were made larger, or drawn small on a card and then in the note. | the set-apart sum 152.7 px wide at the usual size and at the larger | 152.7 and 195.1, the page's 195.1 | `packages/flutter_math_fork` (README 21) |
+| A root where the type is smaller (the quadratic formula in a line, a root in a script). | 1.35 em above the baseline, the line 3.7 px taller | 1.04 em, KaTeX's; fifteen such roots in `katex.json` | `packages/flutter_math_fork` (README 22) |
 | `$$…$$` alone on its line has an empty line above and below it on the page (CodeMirror's buffers are line boxes of their own). | 83.7 px | 131.6, the page's 131.625 | `lib/editor/maths/maths.dart` `_BufferLines` |
 | A formula that cannot be read: its lines at the note's leading, its dots as the page's engine draws them (a tenth of the type thick, a quarter of an em under the baseline, two pixels on and two off). | a block of three lines 76.9 px, hairline dots | 89.9 (the page 89.8), the page's dots | `maths.dart` `DottedUnderline` |
 | A short formula set apart (`x`, `a = b`) is as tall as the two faces' boxes together. | 2 px short | the page's, to 0.03 px | `maths.dart`, `formula.dart` `letterInLine` |
 | A block of code in a quote had the quote's bar down its card. | a bar 3 px wide | none (`background` is the shorthand) | `lib/editor/looks/markdown_look.dart` |
 | A diagram's words stood on whole-pixel lines, and its reason a pixel and a quarter low. | four lines 92 px | 90, each line's letters where the page's are | `lib/editor/diagrams/diagrams.dart`, `looks/note_face.dart` |
 | A line box's height: the type to the nearest sixty-fourth, times the leading, down. | a sixty-fourth out for two sizes in five (forty lines of code at 704: half a pixel) | Blink's rule, 836 sizes of 836 | `lib/editor/looks/look.dart` `lineBoxHeight` |
-| The faces a formula is drawn in are KaTeX 0.16's, as the page's. | an earlier cut | the page's twenty files | `packages/flutter_math_fork` (README 22) |
+| The faces a formula is drawn in are KaTeX 0.16's, as the page's. | an earlier cut | the page's twenty files | `packages/flutter_math_fork` (README 23) |
 
 And one thing about the tests themselves: a test's window is at three device pixels to one whatever the test says
 of its view, so an edge "on a whole pixel" was on a third of one in a picture taken at two, and every block of code

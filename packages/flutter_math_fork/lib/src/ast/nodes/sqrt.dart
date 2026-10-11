@@ -252,7 +252,7 @@ const emPad = vbPad / 1000;
 /// What KaTeX's `sqrtImage` (delimiter.js) makes for a root that must reach [minDelimiterHeight], in logical
 /// pixels, where [options] are in force.
 ///
-/// Changed from 0.7.4 (README.md, 21). The published package chose the surd "at a strategy of its own": the first
+/// Changed from 0.7.4 (README.md, 22). The published package chose the surd "at a strategy of its own": the first
 /// of KaTeX_Main's and the four sizes, each at TEXT size, that is taller than the body. That is KaTeX's answer
 /// where the root stands in text, and not where the type is smaller (over a fraction's bar in a line, in a
 /// script, under a sum): there KaTeX sets a surd no taller than an em of the smaller type if that reaches

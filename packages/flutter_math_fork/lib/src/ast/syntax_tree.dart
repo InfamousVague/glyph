@@ -178,7 +178,7 @@ class SyntaxNode {
 
     final newChildBuildResults = _buildChildWidgets(childOptions);
 
-    // Ghost.md (README, change 20): what a node builds is in logical pixels of the size it was asked at, and
+    // Ghost.md (README, change 21): what a node builds is in logical pixels of the size it was asked at, and
     // no node's `shouldRebuildWidget` asks about that size. A tree kept and drawn again at another size (the
     // words pinched larger, a card's small drawing of the note and then the note) kept every letter at the size
     // it was first built at.

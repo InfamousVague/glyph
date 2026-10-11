@@ -101,29 +101,6 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
     (`RenderEqnArray.rowBaselines`, exported for it). These environments, and `split`, are refused in a line
     of text with KaTeX's words (`validateAmsEnvironmentContext`). And the empty row a last `\\` leaves is no row:
     the published package tested for a kind of node a cell never is, and kept it.
-20. **A tree drawn again at another size is built again** (`lib/src/ast/syntax_tree.dart` `buildWidget`). A node
-    keeps what it built and builds again only when its own `shouldRebuildWidget` says so, and none of them asks
-    about the size (`MathOptions.fontSize`, `logicalPpi`), which every length a node builds is in. The published
-    package never noticed: it reads the TeX again for every widget. The app keeps its trees
-    (`lib/editor/maths/formula.dart` `takeFormula`), so a formula first drawn at one size (a card's small
-    drawing of a note, the note before its words were pinched larger) kept every letter at that size wherever it
-    was drawn after. Found by the page's own picture of a note at the larger text size
-    (`test/editor/blocks/reference_test.dart`, `maths-larger`), and held by `test/editor/maths/katex_test.dart`.
-21. **A root where the type is smaller** (`lib/src/ast/nodes/sqrt.dart` `Surd`). The package chose a root's surd
-    by "a different strategy than KaTeX": the first of KaTeX_Main's and the four sizes, each at text size, taller
-    than the body. Where the root stands in text that is KaTeX's answer. Over a fraction's bar in a line, in a
-    script or under a sum it is not: KaTeX's `sqrtImage` sets a surd an em of the smaller type tall where that
-    reaches, and the package set one an em of the text's, so `\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}` in a line
-    stood 1.35 em above its baseline where KaTeX's stands 1.04, and the line it was on was that much taller.
-    `Surd.of` is `sqrtImage` (delimiter.js) line for line. Fifteen roots in smaller styles are in
-    `test/editor/maths/fixtures/katex.json` now, and all agree.
-22. **The faces are KaTeX 0.16's** (`lib/katex_fonts/fonts/`, twenty files, copied from `../glyph`'s
-    `node_modules/katex/dist/fonts`, which is what Ghost.md's page draws a formula in). The published package
-    carries an earlier cut of the same faces: the same letters to the eye and to a picture laid over the page's
-    (`test/editor/blocks/reference_test.dart` measured the same either way), and other numbers in their tables
-    (KaTeX_Main-Regular rises 903 of 1000 in 0.16 and 900 before), which is what a page's engine makes a line of
-    a short formula from. `lib/editor/maths/maths.dart` reads those numbers as 0.16 has them.
-
 20. **The seven families of KaTeX's commands that were not read** (2026-10-11), each as KaTeX has it:
     - `\edef` and `\xdef` (`parser/tex/macros.dart`, `macro_expander.dart` `expandTokens`): a definition whose
       words are expanded as it is made, so a macro in it means what it meant then. With it, a wrong test put
@@ -158,6 +135,28 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
       which no face has, and drew `\Big|` no bigger than a line.
     - **A box given one thing without braces** (`parser/tex/parser.dart` `parseArgHbox`): `\fbox x`, `\hbox y`,
       `\angl n` set the thing; it was asked for its children, a letter has none, and nothing was set.
+21. **A tree drawn again at another size is built again** (`lib/src/ast/syntax_tree.dart` `buildWidget`). A node
+    keeps what it built and builds again only when its own `shouldRebuildWidget` says so, and none of them asks
+    about the size (`MathOptions.fontSize`, `logicalPpi`), which every length a node builds is in. The published
+    package never noticed: it reads the TeX again for every widget. The app keeps its trees
+    (`lib/editor/maths/formula.dart` `takeFormula`), so a formula first drawn at one size (a card's small
+    drawing of a note, the note before its words were pinched larger) kept every letter at that size wherever it
+    was drawn after. Found by the page's own picture of a note at the larger text size
+    (`test/editor/blocks/reference_test.dart`, `maths-larger`), and held by `test/editor/maths/katex_test.dart`.
+22. **A root where the type is smaller** (`lib/src/ast/nodes/sqrt.dart` `Surd`). The package chose a root's surd
+    by "a different strategy than KaTeX": the first of KaTeX_Main's and the four sizes, each at text size, taller
+    than the body. Where the root stands in text that is KaTeX's answer. Over a fraction's bar in a line, in a
+    script or under a sum it is not: KaTeX's `sqrtImage` sets a surd an em of the smaller type tall where that
+    reaches, and the package set one an em of the text's, so `\frac{-b \pm \sqrt{b^2 - 4ac}}{2a}` in a line
+    stood 1.35 em above its baseline where KaTeX's stands 1.04, and the line it was on was that much taller.
+    `Surd.of` is `sqrtImage` (delimiter.js) line for line. Fifteen roots in smaller styles are in
+    `test/editor/maths/fixtures/katex.json` now, and all agree.
+23. **The faces are KaTeX 0.16's** (`lib/katex_fonts/fonts/`, twenty files, copied from `../glyph`'s
+    `node_modules/katex/dist/fonts`, which is what Ghost.md's page draws a formula in). The published package
+    carries an earlier cut of the same faces: the same letters to the eye and to a picture laid over the page's
+    (`test/editor/blocks/reference_test.dart` measured the same either way), and other numbers in their tables
+    (KaTeX_Main-Regular rises 903 of 1000 in 0.16 and 900 before), which is what a page's engine makes a line of
+    a short formula from. `lib/editor/maths/maths.dart` reads those numbers as 0.16 has them.
 
 `\tag{…}` is not a change here: the package's macros already keep a tag aside (`\df@tag`), and the app reads it
 from there and sets it at the right of the formula (`lib/editor/maths/formula.dart`, `maths.dart`).
