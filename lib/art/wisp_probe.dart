@@ -37,10 +37,23 @@ import '../perf/frame_log.dart' show ghostPerf;
 ///   on the engine a device runs, where a test's pictures are another engine's. Not for a walk that is timed.
 /// - `onebackdrop`: every backdrop filter in the window is given one key, as a `BackdropGroup` over the app would
 ///   give those made with `BackdropFilter.grouped`: what is behind them is read once for all of them.
-/// - `spans`: says, as frames are drawn, what every frame waited between the end of its build and the start of its
-///   raster, beside its raster time, in tenths of a millisecond. The pictures a strip or a sheet of
+/// - `spans`: says, as frames are drawn, every frame's build, what it waited between the end of its build and the
+///   start of its raster, and its raster, in tenths of a millisecond: the three a frame has to fit in a beat. The pictures a strip or a sheet of
 ///   letters is drawn through are drawn by the engine in tasks of their own on the raster thread, before the
 ///   frame that uses them and outside its raster time: that wait is where they show.
+/// - `backdrop`: a page's smoke is read off what is already drawn behind it, where the engine can filter its own
+///   backdrop with a program (Impeller), with no picture of the view taken: the bend and the fade only, not the
+///   soft half, and not the look. What a strip costs when nothing is drawn twice (shaders/wisp_back.frag).
+/// - `through`: a page's layers go through one program as they are drawn, an image filter over them (Impeller),
+///   which bends and fades the strips its smoke stands in: no picture of the view asked for, nothing behind it
+///   read, the bend and the fade only and not the soft half (shaders/wisp_through.frag).
+/// - `noshare`: each smoke strip of a page has a picture of the view of its own, the strip's size, and not the one
+///   the page's strips share, which is the size of the rectangle that holds them all: a task more a frame for the
+///   engine against a far smaller picture for the GPU to clear and keep.
+/// - `backred`, `backheavy`, `backshow`, `backplace`, `backsay`: with `backdrop` or `through`, the strip drawn plain
+///   red (is the filter drawn at all), the backdrop read a hundred times more for nothing (does the frame pay for
+///   it), the strip drawn as its band and noise, or as the place the program takes each pixel to have, and what
+///   the filter was given, said.
 /// - `covered`: every header a page smokes under is taken to hide its smoke (lib/art/wisp_edge.dart
 ///   `WispEdge.covered`): what that would save, before the pages that have such a header say so.
 /// - `scroll=<pixels>`: every page that can scroll that far is put there, and put back there from the walk's fourth
@@ -89,7 +102,7 @@ abstract final class WispProbe {
     });
   }
 
-  /// `spans`: each frame's wait between its build's end and its raster's start, and its raster, a line a second.
+  /// `spans`: each frame's build, its wait between its build's end and its raster's start, and its raster.
   static void _spans() {
     SchedulerBinding.instance.addTimingsCallback((timings) {
       if (timings.isEmpty) return;
@@ -98,7 +111,7 @@ abstract final class WispProbe {
       // ignore: avoid_print
       print('[spans] ${[
         for (final frame in timings)
-          '${((frame.timestampInMicroseconds(ui.FramePhase.rasterStart) - frame.timestampInMicroseconds(ui.FramePhase.buildFinish)) / 100).round()}/${(frame.rasterDuration.inMicroseconds / 100).round()}',
+          '${(frame.buildDuration.inMicroseconds / 100).round()}/${((frame.timestampInMicroseconds(ui.FramePhase.rasterStart) - frame.timestampInMicroseconds(ui.FramePhase.buildFinish)) / 100).round()}/${(frame.rasterDuration.inMicroseconds / 100).round()}',
       ].join(' ')}');
     });
   }

@@ -15,9 +15,9 @@ import 'turbulence.dart';
 /// Loaded once, off the first frame: a program is read from the bundle and a table decoded, neither of which can be
 /// had at once. Until [maybe] answers, a wisp draws what the web app draws before its filter exists, the plain edge.
 class WispKit {
-  WispKit._(this._bend, this._merge, this._small, this._field, this._haze, this._smoke, this._halo);
+  WispKit._(this._bend, this._merge, this._small, this._field, this._haze, this._smoke, this._halo, this._back, this._through);
 
-  final ui.FragmentProgram _bend, _merge, _small, _field, _haze, _smoke, _halo;
+  final ui.FragmentProgram _bend, _merge, _small, _field, _haze, _smoke, _halo, _back, _through;
   final Map<int, ui.Image> _tables = {};
   final Map<int, Future<ui.Image>> _tablesComing = {};
 
@@ -43,8 +43,10 @@ class WispKit {
       ui.FragmentProgram.fromAsset('shaders/wisp_haze.frag'),
       ui.FragmentProgram.fromAsset('shaders/wisp_smoke.frag'),
       ui.FragmentProgram.fromAsset('shaders/wisp_halo.frag'),
+      ui.FragmentProgram.fromAsset('shaders/wisp_back.frag'),
+      ui.FragmentProgram.fromAsset('shaders/wisp_through.frag'),
     ]);
-    return _kit = WispKit._(programs[0], programs[1], programs[2], programs[3], programs[4], programs[5], programs[6]);
+    return _kit = WispKit._(programs[0], programs[1], programs[2], programs[3], programs[4], programs[5], programs[6], programs[7], programs[8]);
   }
 
   /// The noise table for [seed], made the first time it is asked for.
@@ -87,6 +89,110 @@ class WispKit {
     put(smoke.noiseRect.right);
     put(smoke.noiseRect.bottom);
     shader.setImageSampler(0, table);
+    return shader;
+  }
+
+  /// A smoke read off the backdrop (shaders/wisp_back.frag), as a program of its own for one filter: measuring
+  /// only. [viewAt] is the view's corner on the screen; the engine gives the backdrop and its size.
+  ui.FragmentShader back({required Offset viewAt, required double ratio, required WispSmoke smoke, required ui.Image field, required Rect fieldRect, required Color paper, double probe = 0}) {
+    final shader = _back.fragmentShader();
+    // The first two are the engine's: the backdrop's size.
+    var i = 2;
+    void put(double value) => shader.setFloat(i++, value);
+    put(viewAt.dx);
+    put(viewAt.dy);
+    put(ratio);
+    put(fieldRect.left);
+    put(fieldRect.top);
+    put(fieldRect.width);
+    put(fieldRect.height);
+    put(field.width.toDouble());
+    put(field.height.toDouble());
+    put(smoke.frequency.dx);
+    put(smoke.frequency.dy);
+    put(smoke.slide.dx);
+    put(smoke.slide.dy);
+    put(smoke.noiseRect.left);
+    put(smoke.noiseRect.top);
+    put(smoke.noiseRect.right);
+    put(smoke.noiseRect.bottom);
+    put(smoke.lipA ?? 0);
+    put(smoke.lipB ?? 0);
+    put(smoke.soft);
+    put(smoke.axis == Axis.vertical ? 0 : 1);
+    put(smoke.lipA == null ? 0 : 1);
+    put(smoke.lipB == null ? 0 : 1);
+    put(smoke.bend);
+    put(smoke.fade.clearUntil);
+    put(smoke.fade.wholeFrom);
+    put(smoke.fade.wholeUntil);
+    put(smoke.fade.clearFrom);
+    put(paper.r * paper.a);
+    put(paper.g * paper.a);
+    put(paper.b * paper.a);
+    put(paper.a);
+    put(probe);
+    // The first sampler is the engine's: the backdrop.
+    shader.setImageSampler(1, field);
+    return shader;
+  }
+
+  /// A view's smokes as one filter over the view's own layers (shaders/wisp_through.frag), a program of its own for
+  /// the one filter: measuring only. [view] is the rectangle of the view the engine's picture of it is of; [smokes]
+  /// are one or two, each over its own strip, of one seed, one axis and one fade.
+  ui.FragmentShader through({required Rect view, required List<({Rect strip, WispSmoke smoke})> smokes, required ui.Image field, required Rect fieldRect, double probe = 0}) {
+    final shader = _through.fragmentShader();
+    // The first two are the engine's: the picture's size.
+    var i = 2;
+    void put(double value) => shader.setFloat(i++, value);
+    put(view.left);
+    put(view.top);
+    put(view.width);
+    put(view.height);
+    put(fieldRect.left);
+    put(fieldRect.top);
+    put(fieldRect.width);
+    put(fieldRect.height);
+    put(field.width.toDouble());
+    put(field.height.toDouble());
+    final first = smokes.first.smoke;
+    put(first.fade.clearUntil);
+    put(first.fade.wholeFrom);
+    put(first.fade.wholeUntil);
+    put(first.fade.clearFrom);
+    put(first.axis == Axis.vertical ? 0 : 1);
+    for (var n = 0; n < 2; n++) {
+      if (n >= smokes.length) {
+        // No smoke: a strip nothing is in.
+        for (var k = 0; k < 19; k++) {
+          put(0);
+        }
+        continue;
+      }
+      final strip = smokes[n].strip, smoke = smokes[n].smoke;
+      put(strip.left);
+      put(strip.top);
+      put(strip.right);
+      put(strip.bottom);
+      put(smoke.frequency.dx);
+      put(smoke.frequency.dy);
+      put(smoke.slide.dx);
+      put(smoke.slide.dy);
+      put(smoke.noiseRect.left);
+      put(smoke.noiseRect.top);
+      put(smoke.noiseRect.right);
+      put(smoke.noiseRect.bottom);
+      put(smoke.lipA ?? 0);
+      put(smoke.lipB ?? 0);
+      put(smoke.soft);
+      put(0);
+      put(smoke.lipA == null ? 0 : 1);
+      put(smoke.lipB == null ? 0 : 1);
+      put(smoke.bend);
+    }
+    put(probe);
+    // The first sampler is the engine's: the view.
+    shader.setImageSampler(1, field);
     return shader;
   }
 

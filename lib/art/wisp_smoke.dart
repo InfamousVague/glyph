@@ -101,6 +101,36 @@ void paintWispSmoke(
 
 final Map<int, ({ui.Image image, Rect rect})> _fields = {};
 
+/// The program a view's layers go through for its smokes (shaders/wisp_through.frag): measuring only. [view] is the
+/// rectangle of the view the filter is given a picture of. Null where one program cannot say them: more than two,
+/// or of two seeds, axes or fades, or the seed's table not made yet.
+ui.FragmentShader? wispThrough({required WispKit kit, required Rect view, required List<({Rect at, WispSmoke smoke, Rect within})> smokes, double probe = 0}) {
+  if (smokes.isEmpty || smokes.length > 2) return null;
+  final first = smokes.first.smoke;
+  for (final other in smokes.skip(1)) {
+    if (other.smoke.seed != first.seed || other.smoke.axis != first.axis || other.smoke.fade != first.fade) return null;
+  }
+  final table = kit.tableNow(first.seed);
+  if (table == null) return null;
+  // One picture of the noise for both: each asks for its stretch, and the last answer holds every one asked.
+  var field = wispNoiseField(kit: kit, table: table, bentRect: smokes.first.at.inflate((first.bend / 2).ceilToDouble()).intersect(smokes.first.within), smoke: first);
+  for (final other in smokes.skip(1)) {
+    field = wispNoiseField(kit: kit, table: table, bentRect: other.at.inflate((other.smoke.bend / 2).ceilToDouble()).intersect(other.within), smoke: other.smoke);
+  }
+  return kit.through(view: view, smokes: [for (final each in smokes) (strip: each.at, smoke: each.smoke)], field: field.image, fieldRect: field.rect, probe: probe);
+}
+
+/// The program a strip [at] of a view is read off the backdrop with (shaders/wisp_back.frag): measuring only.
+/// [viewAt] is the view's corner on the screen, whose pixels the backdrop's are; null where the table of the
+/// smoke's seed is not made yet.
+ui.FragmentShader? wispBack({required WispKit kit, required Rect at, required WispSmoke smoke, required Rect within, required Offset viewAt, required double ratio, required Color paper, double probe = 0}) {
+  final table = kit.tableNow(smoke.seed);
+  if (table == null) return null;
+  final bentRect = at.inflate((smoke.bend / 2).ceilToDouble()).intersect(within);
+  final field = wispNoiseField(kit: kit, table: table, bentRect: bentRect, smoke: smoke);
+  return kit.back(viewAt: viewAt, ratio: ratio, smoke: smoke, field: field.image, fieldRect: field.rect, paper: paper, probe: probe);
+}
+
 /// How many times a noise's picture was made: for a test.
 int debugWispFields = 0;
 

@@ -51,12 +51,16 @@ abstract class WispStrip {
 /// A strip that smokes: one of the web app's smoke filters over the part of the view it bends ([WispSmoke]).
 /// [within] is the subregion the web filter gives its bend and blur, which may run past the view.
 class WispSmokeStrip extends WispStrip {
-  const WispSmokeStrip({required this.rect, required this.smoke, required this.within});
+  const WispSmokeStrip({required this.rect, required this.smoke, required this.within, this.paper});
 
   @override
   final Rect rect;
   final WispSmoke smoke;
   final Rect within;
+
+  /// The page's paper behind the view, where whoever lays the strip knows it: what the view fades to when the strip
+  /// is read off the backdrop, which has no clear in it (measuring only: shaders/wisp_back.frag).
+  final Color? paper;
 
   /// Half the displacement's scale is the furthest a pixel is thrown. The bent view is worked out that far past the
   /// strip (below), and each of its pixels may come from that far again.
@@ -71,7 +75,7 @@ class WispSmokeStrip extends WispStrip {
   Rect _bentRect(Rect at, double ratio) => snapOut(at.inflate((smoke.bend / 2).ceilToDouble()).intersect(within), at.topLeft, ratio);
 
   @override
-  bool get shares => wispQuick;
+  bool get shares => wispQuick && !WispProbe.has('noshare');
 
   @override
   WispSoftAsk? softAsk(Rect at, ui.Image view, Rect viewRect, double ratio) =>
@@ -101,11 +105,11 @@ class WispSmokeStrip extends WispStrip {
 /// shows changes only where the band is not nothing or the fade not whole, and past three deviations of the ramp
 /// the band is under a seven-hundredth: the view there is the view, to less than one step of 255, and is left to
 /// paint itself. A third to a half of every strip, and of every picture a strip is drawn through.
-List<WispStrip> wispSmokeStrips({required Rect rect, required WispSmoke smoke, required Rect within}) {
+List<WispStrip> wispSmokeStrips({required Rect rect, required WispSmoke smoke, required Rect within, Color? paper}) {
   if (!wispQuick) return [WispSmokeStrip(rect: rect, smoke: smoke, within: within)];
   return [
     for (final part in smoke.touched(rect))
-      if (!part.isEmpty) WispSmokeStrip(rect: part, smoke: smoke, within: within),
+      if (!part.isEmpty) WispSmokeStrip(rect: part, smoke: smoke, within: within, paper: paper),
   ];
 }
 
@@ -389,7 +393,9 @@ class RenderWispStrips extends RenderProxyBox {
       ..offset = offset
       ..strips = drawn
       ..ratio = _ratio
-      ..corner = -phase;
+      ..corner = -phase
+      ..global = localToGlobal(Offset.zero)
+      ..view = Offset.zero & size;
     context.pushLayer(stripLayer, super.paint, Offset.zero);
     layer = stripLayer;
   }
@@ -414,6 +420,56 @@ class _WispStripLayer extends OffsetLayer {
     if (value == _ratio) return;
     _ratio = value;
     markNeedsAddToScene();
+  }
+
+  /// Where the view's corner is on the screen: for a strip read off the backdrop, whose pixels are the screen's.
+  Offset _global = Offset.zero;
+  set global(Offset value) {
+    if (value == _global) return;
+    _global = value;
+    if (WispProbe.has('backdrop')) markNeedsAddToScene();
+  }
+
+  /// The view's own rectangle: what a filter over its layers is given a picture of.
+  Rect _view = Rect.zero;
+  set view(Rect value) {
+    if (value == _view) return;
+    _view = value;
+    if (WispProbe.has('through')) markNeedsAddToScene();
+  }
+
+  /// Measuring only (GHOST_PERF_SMOKE=through): the program this view's layers go through for its smokes, where
+  /// every strip of it is a smoke one program can say and the engine can filter a layer with a program; else null.
+  ui.FragmentShader? _through(List<Rect> at, Rect view) {
+    if (!WispProbe.has('through') || !wispQuick || !ui.ImageFilter.isShaderFilterSupported) return null;
+    final kit = WispKit.maybe;
+    if (kit == null || view.isEmpty) return null;
+    final smokes = <({Rect at, WispSmoke smoke, Rect within})>[];
+    for (var i = 0; i < _strips.length; i++) {
+      final strip = _strips[i];
+      if (strip is! WispSmokeStrip) return null;
+      if (at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0) continue;
+      smokes.add((at: at[i], smoke: strip.smoke, within: strip.within));
+    }
+    if (WispProbe.has('backsay') && _saidOf.add('through ${smokes.length} ${smokes.isEmpty ? 0 : smokes.first.at.top}') && _saidOf.length < 16) {
+      // ignore: avoid_print
+      print('[through] view ${_ltrb(view)} (layer offset ${offset.dx},${offset.dy}), ratio $_ratio, ${[for (final each in smokes) 'strip ${_ltrb(each.at)} lips ${each.smoke.lipA}/${each.smoke.lipB} soft ${each.smoke.soft} bend ${each.smoke.bend}'].join('; ')}');
+    }
+    return wispThrough(kit: kit, view: view, smokes: smokes, probe: _probe);
+  }
+
+  static double get _probe => WispProbe.has('backred') ? 1.0 : (WispProbe.has('backheavy') ? 2.0 : (WispProbe.has('backshow') ? 3.0 : (WispProbe.has('backplace') ? 4.0 : 0.0)));
+  static String _ltrb(Rect rect) => '${rect.left},${rect.top},${rect.right},${rect.bottom}';
+  static final Set<String> _saidOf = {};
+  static int _groups = 1 << 24;
+  final int _group = _groups++;
+
+  /// Measuring only (GHOST_PERF_SMOKE=backdrop): whether strip [i] is read off what is already drawn behind it,
+  /// where the engine can filter its own backdrop with a program, and not through a picture of the view.
+  bool _reads(int i) {
+    if (!WispProbe.has('backdrop') || !wispQuick || !ui.ImageFilter.isShaderFilterSupported) return false;
+    final strip = _strips[i];
+    return strip is WispSmokeStrip && strip.paper != null && WispKit.maybe != null;
   }
 
   /// A point of the view that lies on a screen pixel's corner.
@@ -449,24 +505,64 @@ class _WispStripLayer extends OffsetLayer {
     engineLayer = builder.pushOffset(offset.dx, offset.dy, oldLayer: engineLayer as ui.OffsetEngineLayer?);
     if (WispProbe.has('layers')) _census();
 
+    // Measuring only: the view's layers through one program, which bends and fades its strips as they are drawn.
+    final view = snapOut(_view, _corner, _ratio);
+    final through = _through(at, view);
+    if (through != null) {
+      if (ghostPerf) Perf.count('wisp.throughs');
+      builder.pushClipRect(view, clipBehavior: Clip.hardEdge);
+      builder.pushImageFilter(ui.ImageFilter.shader(through));
+      // The filter's picture is of what is drawn, and the program counts from the view's corner: a clear rectangle
+      // the size of the view, drawn so that it counts, makes the picture the view's whatever else is in it.
+      final recorder = ui.PictureRecorder();
+      Canvas(recorder).drawRect(view, Paint()..color = const Color(0x00000000)..blendMode = BlendMode.src);
+      final whole = recorder.endRecording();
+      builder.addPicture(Offset.zero, whole);
+      whole.dispose();
+      addChildrenToScene(builder);
+      builder.pop();
+      builder.pop();
+      builder.pop();
+      return;
+    }
+
     // The view itself, everywhere but under the strips. Hard edged, as the strips are drawn, so the two meet on one
     // line of pixels with neither showing through the other.
     final rest = Path()
       ..fillType = PathFillType.evenOdd
       ..addRect(const Rect.fromLTRB(-1e7, -1e7, 1e7, 1e7));
-    for (final rect in at) {
-      if (!rect.isEmpty) rest.addRect(rect);
+    for (var i = 0; i < at.length; i++) {
+      // A strip read off the backdrop needs the view drawn under it.
+      if (!at[i].isEmpty && !_reads(i)) rest.addRect(at[i]);
     }
     builder.pushClipPath(rest, clipBehavior: Clip.hardEdge);
     addChildrenToScene(builder);
     builder.pop();
+
+    // Measuring only: the strips read off the backdrop, one reading of it between them.
+    for (var i = 0; i < at.length; i++) {
+      if (at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0 || !_reads(i)) continue;
+      final strip = _strips[i] as WispSmokeStrip;
+      final probe = _probe;
+      final shader = wispBack(kit: WispKit.maybe!, at: at[i], smoke: strip.smoke, within: strip.within, viewAt: _global, ratio: _ratio, paper: strip.paper!, probe: probe);
+      if (shader == null) continue;
+      if (ghostPerf) Perf.count('wisp.backdrops');
+      if (WispProbe.has('backsay') && _saidOf.add('back ${at[i].top} ${at.length}') && _saidOf.length < 16) {
+        // ignore: avoid_print
+        print('[back] strip ${_ltrb(at[i])} of a view at ${_global.dx},${_global.dy} (layer offset ${offset.dx},${offset.dy}; view ${_ltrb(_view)}), ratio $_ratio, lips ${strip.smoke.lipA}/${strip.smoke.lipB} soft ${strip.smoke.soft}, bend ${strip.smoke.bend}, noise in ${_ltrb(strip.smoke.noiseRect)}, slide ${strip.smoke.slide.dx},${strip.smoke.slide.dy}, fade ${strip.smoke.fade.clearUntil}/${strip.smoke.fade.wholeFrom}/${strip.smoke.fade.wholeUntil}/${strip.smoke.fade.clearFrom}');
+      }
+      builder.pushClipRect(at[i], clipBehavior: Clip.hardEdge);
+      builder.pushBackdropFilter(ui.ImageFilter.shader(shader), backdropId: _group);
+      builder.pop();
+      builder.pop();
+    }
 
     // The strips' pictures of the view. Those that can share one do ([WispStrip.shares]): each picture the engine
     // is asked for is a task of its own on the raster thread before the frame, with a walk of every layer under
     // this view in it, and a page's top, its foot and its dock's halo each asked for one.
     final live = [
       for (var i = 0; i < _strips.length; i++)
-        if (!(at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0)) i,
+        if (!(at[i].isEmpty || at[i].width <= 0 || at[i].height <= 0) && !_reads(i)) i,
     ];
     final views = <int, ({ui.Image image, Rect rect})>{};
     final sharing = [

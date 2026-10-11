@@ -644,6 +644,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
           rect: Rect.fromLTRB(0, math.max(0, hidden - wispEdgeCoveredKeep), width, math.min(height, math.max(beneath + drop + wispEdgeReach, topFade))),
           smoke: wispTopSmoke(under: beneath, lift: _lift, at: at, fade: fade),
           within: wispTopWithin(beneath),
+          paper: _ground,
         ));
       } else if (topFade > 0) {
         strips.add(WispFadeStrip(rect: Rect.fromLTRB(0, 0, width, math.min(height, topFade)), fade: fade));
@@ -656,7 +657,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
         // The foot's own noise drifts with the page's top, so both ends of a view move as one smoke.
         final at = WispDrift.instance.at(WispBand.page);
         final within = wispFootWithin(edge);
-        strips.addAll(wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within));
+        strips.addAll(wispSmokeStrips(rect: Rect.fromLTRB(0, math.max(0, within.top), width, height), smoke: wispFootSmoke(height: edge, at: at, fade: fade), within: within, paper: _ground));
       } else {
         strips.add(WispFadeStrip(rect: Rect.fromLTRB(0, math.max(0, edge - footFade), width, height), fade: fade));
       }
