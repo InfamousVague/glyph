@@ -29,7 +29,6 @@ import 'package:glacier/glacier.dart';
 
 import '../art/svg_path.dart';
 import '../core/images.dart';
-import '../sheet/css.dart';
 import 'camera.dart';
 import 'card_looks.dart';
 import 'geometry.dart';
@@ -249,9 +248,13 @@ class _MinimapState extends State<Minimap> {
           widget.camera.centreOn(frame.at((event.position.dx - page.rect.left) / k, (event.position.dy - page.rect.top) / k));
         },
         onPointerCancel: (_) => _press = null,
-        child: CustomPaint(
-          painter: MapPainter(canvas: widget.canvas, lines: widget.lines, camera: widget.camera, t: t, images: _images),
-          child: const SizedBox.expand(),
+        // A layer of its own: the map is drawn again at every move of the camera and of a card, and without one
+        // everything it shares a layer with was drawn again with it.
+        child: RepaintBoundary(
+          child: CustomPaint(
+            painter: MapPainter(canvas: widget.canvas, lines: widget.lines, camera: widget.camera, t: t, images: _images),
+            child: const SizedBox.expand(),
+          ),
         ),
       ),
     );
@@ -274,7 +277,7 @@ class _MinimapState extends State<Minimap> {
             filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: DecoratedBox(
               decoration: BoxDecoration(
-                color: t.colorOf('color-mix(in oklch, var(--glacier-bg) 86%, transparent)'),
+                color: inkOf(t, 'color-mix(in oklch, var(--glacier-bg) 86%, transparent)'),
                 borderRadius: radius,
                 border: Border.all(color: t.color('glacier-border-subtle'), width: line),
               ),
@@ -308,6 +311,15 @@ class _CardMark {
 }
 
 final Expando<_CardMark> _cardMarks = Expando<_CardMark>('a card on the map');
+
+/// The last mark made for each card, by the card's id, and the node it was made for. A card carried is another node
+/// at every move, and on the map the same mark somewhere else: its colours and its bars were worked out again at
+/// each of those moves, the card's words read into bars sixty times a second.
+final Map<String, ({CanvasNode node, _CardMark mark})> _marksById = <String, ({CanvasNode node, _CardMark mark})>{};
+
+/// A group's dashed line on the map, for the group as it stands and the width of a hair: every dash was cut from
+/// the box's outline again at each paint.
+final Expando<({double hair, List<ui.Path> dashes})> _groupDashes = Expando<({double hair, List<ui.Path> dashes})>('a group’s dashes on the map');
 
 /// A group on the map: its paint (a preset's hue only), its wash, its line and its name's colour.
 typedef _GroupMark = ({Tokens t, CardPaint? paint, Color wash, Color line, Color name});
@@ -410,13 +422,26 @@ class MapPainter extends CustomPainter {
       }
       final box = RRect.fromRectAndRadius(Rect.fromLTWH(n.x, n.y, n.width, n.height), const Radius.circular(16));
       ctx.drawRRect(box, Paint()..color = mark.wash);
-      _dashed(ctx, Path()..addRRect(box), mark.line, hair, 3 * hair, 2 * hair);
+      var dashes = _groupDashes[n];
+      if (dashes == null || dashes.hair != hair) dashes = _groupDashes[n] = (hair: hair, dashes: _dashes(Path()..addRRect(box), 3 * hair, 2 * hair));
+      // Each dash drawn by itself, as it was: one path of them all is the same dashes with their ends a shade
+      // of a 255th softer.
+      final dash = Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = hair
+        ..color = mark.line;
+      for (final one in dashes.dashes) {
+        ctx.drawPath(one, dash);
+      }
       final label = n.label;
       if (label != null && n.width / unit > 36) {
         drawn.name = label;
         final size = 7 * unit;
         final words = TextPainter(
-          text: TextSpan(text: label, style: pageText(t, size, weight: 'semibold', tracking: 0.02 * size, color: mark.name)),
+          // One line set by its baseline (below): how tall its box is says nothing of where the letters go, and
+          // `line-height: normal` is measured for each size it is asked at (sheet/css.dart `normalLine`), which
+          // here is another at every move of the camera.
+          text: TextSpan(text: label, style: t.textAt(size, weight: 'semibold', tracking: 0.02 * size, color: mark.name, height: 1.2)),
           textDirection: TextDirection.ltr,
           maxLines: 1,
         )..layout();
@@ -448,6 +473,11 @@ class MapPainter extends CustomPainter {
       if (n.isGroup) continue;
       var mark = _cardMarks[n];
       if (mark == null || !identical(mark.t, t)) {
+        // The same card somewhere else wears the mark it wore.
+        final had = _marksById[n.id];
+        if (had != null && identical(had.mark.t, t) && n.movedFrom(had.node)) mark = _cardMarks[n] = had.mark;
+      }
+      if (mark == null || !identical(mark.t, t)) {
         final paint = paintOf(n.color);
         final kind = mapKind(n);
         final (fill, stroke) = switch (kind) {
@@ -457,7 +487,9 @@ class MapPainter extends CustomPainter {
           _ => (spaceOver(t, paint, 0.14, 'glacier-bg'), _mix('42%', paint)),
         };
         mark = _cardMarks[n] = _CardMark(t, paint, kind, fill, stroke, kind == 'link' ? _mix('70%', paint) : null);
+        if (_marksById.length >= 4096) _marksById.clear();
       }
+      _marksById[n.id] = (node: n, mark: mark);
       final paint = mark.paint;
       final kind = mark.kind;
       final fill = mark.fill;
@@ -509,27 +541,26 @@ class MapPainter extends CustomPainter {
       ..fillType = PathFillType.evenOdd
       ..addRect(const Rect.fromLTWH(0, 0, mapWidth, mapHeight))
       ..addPath(svgPath(roundedBox(seen.left, seen.top, seen.width, seen.height, _seenRound)), Offset.zero);
-    ctx.drawPath(shade, Paint()..color = t.colorOf('color-mix(in oklch, var(--glacier-bg) 52%, transparent)'));
+    ctx.drawPath(shade, Paint()..color = inkOf(t, 'color-mix(in oklch, var(--glacier-bg) 52%, transparent)'));
     ctx.drawRRect(
       RRect.fromRectAndRadius(seen, Radius.circular(math.min(_seenRound, math.min(seen.width / 2, seen.height / 2)))),
       Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.25
-        ..color = t.colorOf('color-mix(in oklch, var(--app-ink) 46%, transparent)'),
+        ..color = inkOf(t, 'color-mix(in oklch, var(--app-ink) 46%, transparent)'),
     );
     ctx.restore();
   }
 
-  void _dashed(ui.Canvas ctx, Path path, Color color, double width, double dash, double gap) {
-    final paint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = width
-      ..color = color;
+  /// [path] cut into dashes.
+  static List<ui.Path> _dashes(Path path, double dash, double gap) {
+    final all = <ui.Path>[];
     for (final metric in path.computeMetrics()) {
       for (var at = 0.0; at < metric.length; at += dash + gap) {
-        ctx.drawPath(metric.extractPath(at, math.min(at + dash, metric.length)), paint);
+        all.add(metric.extractPath(at, math.min(at + dash, metric.length)));
       }
     }
+    return all;
   }
 
   @override

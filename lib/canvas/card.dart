@@ -244,16 +244,21 @@ class _Lift extends StatelessWidget {
   final bool lifted;
   final Widget child;
 
+  // The same boxes round the card lifted or not, the scale at one and the shadow none while it is down (a scale
+  // of one draws the card where it is, and a box with no decoration draws nothing): with the two boxes there only
+  // while it was lifted, the card inside them changed its place in the tree as it was picked up and again as it
+  // was put down, and was made anew each time, its words read and laid out again.
   @override
   Widget build(BuildContext context) {
-    if (!lifted) return child;
     return Transform.scale(
-      scale: 1.02,
+      scale: lifted ? 1.02 : 1,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(context.tokens.radius('lg')),
-          boxShadow: const [BoxShadow(color: Color(0x59000000), offset: Offset(0, 10), blurRadius: 28)],
-        ),
+        decoration: lifted
+            ? BoxDecoration(
+                borderRadius: BorderRadius.circular(context.tokens.radius('lg')),
+                boxShadow: const [BoxShadow(color: Color(0x59000000), offset: Offset(0, 10), blurRadius: 28)],
+              )
+            : const BoxDecoration(),
         child: child,
       ),
     );

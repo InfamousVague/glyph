@@ -32,12 +32,31 @@ final RegExp _space = RegExp(r'var\(--app-space(?:,\s*var\(--app-ink(?:-3)?\))?\
 /// The tokens a colour wears: the page's hue for a preset, [t] itself otherwise.
 Tokens paintTokens(Tokens t, CardPaint? paint) => paint?.hue == null ? t : t.child(attrs: {'hue': paint!.hue!.name});
 
+/// The colours worked out so far for each set of tokens, by what was asked. A colour is a stylesheet's expression
+/// read and reckoned (`color-mix(in oklch, …)`, and for a hue a scope of tokens made to read it in), and the canvas
+/// asked for the same few at every build of a card, of the picked card's bar, and at every paint of the map and
+/// the lines: a card carried or written in asked a dozen times a frame (tool/perf.sh canvas, on a Mac: a sixth of
+/// the frame's work). The tokens do not change, so the answer does not.
+final Expando<Map<Object, Color>> _colours = Expando<Map<Object, Color>>('the canvas colours');
+
+Color _kept(Tokens t, Object asked, Color Function() make) {
+  final kept = _colours[t] ??= <Object, Color>{};
+  final had = kept[asked];
+  if (had != null) return had;
+  // A hex is anyone's to choose, and a canvas of many: no more are kept than a canvas could wear at once.
+  if (kept.length >= 2048) kept.clear();
+  return kept[asked] = make();
+}
+
+/// A colour of the stylesheet's own, as it is written there (`Tokens.colorOf`), read once.
+Color inkOf(Tokens t, String expression) => _kept(t, expression, () => t.colorOf(expression));
+
 /// A colour written as the stylesheet writes it, for something wearing [paint]: `color-mix(in oklch,
 /// var(--app-space) 55%, transparent)` with the preset's hue or the chosen hex as `--app-space`.
-Color spaceColor(Tokens t, String expression, CardPaint? paint) {
-  final hex = paint?.hex;
-  return paintTokens(t, paint).colorOf(hex == null ? expression : expression.replaceAll(_space, hex));
-}
+Color spaceColor(Tokens t, String expression, CardPaint? paint) => _kept(t, (expression, paint), () {
+      final hex = paint?.hex;
+      return paintTokens(t, paint).colorOf(hex == null ? expression : expression.replaceAll(_space, hex));
+    });
 
 /// `color-mix(in oklch, var(--app-space, var(--app-ink)) share, var(--over))` as the page's engine works it out,
 /// for the mixes with one of the page's greys: a card's ground, a group's name, a card on the map. A grey written
@@ -45,20 +64,20 @@ Color spaceColor(Tokens t, String expression, CardPaint? paint) {
 /// from the colour's to 0: moss (150) at 7% over the ground is a hue of 10.5, a warm wash and not a green one.
 /// Measured on the page (tool/canvas_reference.mjs: `oklch(0.96385 0.0098 10.5)`); the kit's `color-mix` takes the
 /// colour's hue whole.
-Color spaceOver(Tokens t, CardPaint? paint, double share, String over) {
-  final Oklch a;
-  final hex = paint?.hex;
-  if (hex != null) {
-    final c = t.colorOf(hex);
-    a = Oklch.fromSrgb(c.r, c.g, c.b, c.a);
-  } else {
-    final scoped = paintTokens(t, paint);
-    a = scoped.oklch(scoped.raw('app-space') == null ? 'app-ink' : 'app-space');
-  }
-  final b = t.oklch(over);
-  final turn = ((b.h - a.h + 540) % 360) - 180;
-  return Oklch(a.l * share + b.l * (1 - share), a.c * share + b.c * (1 - share), (a.h + turn * (1 - share)) % 360, a.alpha * share + b.alpha * (1 - share)).toColor();
-}
+Color spaceOver(Tokens t, CardPaint? paint, double share, String over) => _kept(t, (paint, share, over), () {
+      final Oklch a;
+      final hex = paint?.hex;
+      if (hex != null) {
+        final c = t.colorOf(hex);
+        a = Oklch.fromSrgb(c.r, c.g, c.b, c.a);
+      } else {
+        final scoped = paintTokens(t, paint);
+        a = scoped.oklch(scoped.raw('app-space') == null ? 'app-ink' : 'app-space');
+      }
+      final b = t.oklch(over);
+      final turn = ((b.h - a.h + 540) % 360) - 180;
+      return Oklch(a.l * share + b.l * (1 - share), a.c * share + b.c * (1 - share), (a.h + turn * (1 - share)) % 360, a.alpha * share + b.alpha * (1 - share)).toColor();
+    });
 
 /// `.canvas`'s dots.
 class DotsPainter extends CustomPainter {
@@ -176,10 +195,35 @@ class LinesPainter extends CustomPainter {
       if (line.path.toHead != null) canvas.drawPath(linePath(line.path.toHead!), fill);
       if (line.edge.label == null || isPicked || line.path.lines.isEmpty) continue;
       // `.label`: 13px, medium, the muted text, centred on the point, a 6px stroke of the page behind it.
-      final words = line.path.lines.join('\n');
-      final style = pageText(t, 13, weight: 'medium', height: labelLine / 13);
-      TextPainter make(TextStyle style) => TextPainter(text: TextSpan(text: words, style: style), textAlign: TextAlign.center, textDirection: TextDirection.ltr)..layout();
-      final halo = make(
+      final label = _labelOf(t, line.path.lines.join('\n'), ground);
+      final at = Offset(line.path.mid.x - label.text.width / 2, line.path.mid.y - label.text.height / 2);
+      label.halo.paint(canvas, at);
+      label.text.paint(canvas, at);
+    }
+  }
+
+  /// A label's words set twice, once stroked in the page's ground and once in their ink, for the tokens they are
+  /// drawn with: kept from one paint to the next. The lines are painted again at every move of a card carried, and
+  /// each paint set every label's words twice over, the same words in the same face; where they are drawn is all
+  /// that changes.
+  static final Expando<Map<String, ({TextPainter halo, TextPainter text})>> _labels = Expando<Map<String, ({TextPainter halo, TextPainter text})>>('the lines’ labels');
+
+  static ({TextPainter halo, TextPainter text}) _labelOf(Tokens t, String words, Color ground) {
+    final kept = _labels[t] ??= <String, ({TextPainter halo, TextPainter text})>{};
+    final had = kept[words];
+    if (had != null) return had;
+    // A label being typed is another at every letter: no more are kept than a canvas has lines for.
+    if (kept.length >= 256) {
+      for (final each in kept.values) {
+        each.halo.dispose();
+        each.text.dispose();
+      }
+      kept.clear();
+    }
+    final style = pageText(t, 13, weight: 'medium', height: labelLine / 13);
+    TextPainter make(TextStyle style) => TextPainter(text: TextSpan(text: words, style: style), textAlign: TextAlign.center, textDirection: TextDirection.ltr)..layout();
+    return kept[words] = (
+      halo: make(
         style.copyWith(
           foreground: Paint()
             ..style = PaintingStyle.stroke
@@ -187,14 +231,9 @@ class LinesPainter extends CustomPainter {
             ..strokeJoin = StrokeJoin.round
             ..color = ground,
         ),
-      );
-      final text = make(style.copyWith(color: t.color('glacier-text-muted')));
-      final at = Offset(line.path.mid.x - text.width / 2, line.path.mid.y - text.height / 2);
-      halo.paint(canvas, at);
-      text.paint(canvas, at);
-      halo.dispose();
-      text.dispose();
-    }
+      ),
+      text: make(style.copyWith(color: t.color('glacier-text-muted'))),
+    );
   }
 
   @override

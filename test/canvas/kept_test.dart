@@ -66,14 +66,27 @@ void main() {
     final gesture = await tester.startGesture(const Offset(350, 150), kind: mouse);
     await gesture.moveTo(const Offset(380, 190));
     await tester.pump();
+    expect(shown.state.lifted, 'n');
+    // Lifted, it is built once (its shadow, a little larger); from there each move sets its box down somewhere
+    // else, and nothing of the box is built or drawn again.
+    final lifted = cardOf(tester, 'n') as Placed;
+    final at = shown.node('n');
+    layerOf(tester, 'n').debugResetMetrics();
     await gesture.moveTo(const Offset(390, 200));
+    await tester.pump();
+    await gesture.moveTo(const Offset(420, 260));
     await tester.pump();
     expect(shown.state.lifted, 'n');
     for (final id in ids.where((id) => id != 'n')) {
       expect(identical(cardOf(tester, id), before[id]), isTrue, reason: 'card $id was not built again while n was carried');
       expect(layerOf(tester, id).debugSymmetricPaintCount, 0, reason: 'card $id was not drawn again while n was carried');
     }
-    expect(identical(cardOf(tester, 'n'), before['n']), isFalse, reason: 'the carried card is built where it is');
+    final carried = cardOf(tester, 'n') as Placed;
+    expect(shown.node('n').x, isNot(at.x), reason: 'the card went with the pointer');
+    expect(carried.at, Offset(shown.node('n').x, shown.node('n').y), reason: 'the carried card is set down where it is');
+    expect(identical(carried.child, lifted.child), isTrue, reason: 'the carried card’s box is the box it had');
+    expect(layerOf(tester, 'n').debugSymmetricPaintCount, 0, reason: 'the carried card was not drawn again');
+    expect(layerOf(tester, 'n').debugAsymmetricPaintCount, greaterThan(0), reason: 'the carried card was set down again');
     await gesture.up();
     await tester.pump();
     // Put down, the canvas is handed to the note, which builds the view again with the body it wrote: the cards

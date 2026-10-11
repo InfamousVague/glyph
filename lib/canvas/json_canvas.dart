@@ -97,6 +97,22 @@ abstract class CanvasRecord {
 class CanvasNode extends CanvasRecord implements Box {
   CanvasNode(super.fields);
 
+  /// Whether [other] is this card somewhere else: every field but where it stands is the same. A card carried is
+  /// another node at every move of the finger (edits.dart), and what is drawn of it is what was.
+  bool movedFrom(CanvasNode other) {
+    if (identical(other, this)) return true;
+    final mine = fields, theirs = other.fields;
+    if (mine.length != theirs.length) return false;
+    for (final entry in mine.entries) {
+      final key = entry.key;
+      if (!theirs.containsKey(key)) return false;
+      if (key == 'x' || key == 'y') continue;
+      final value = theirs[key];
+      if (!identical(value, entry.value) && value != entry.value) return false;
+    }
+    return true;
+  }
+
   /// A card of words, its fields in the order the web's makers set them.
   CanvasNode.text({required String id, required double x, required double y, required double width, required double height, required String text, CanvasColor? color})
     : super({'id': id, 'type': 'text', 'x': x, 'y': y, 'width': width, 'height': height, 'color': ?color, 'text': text});

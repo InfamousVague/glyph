@@ -298,8 +298,18 @@ class CanvasViewState extends State<CanvasView> {
       words = known ? wiki.body?.call(title) : null;
     }
     final had = _cards[node.id];
-    if (had != null && identical(had.node, node) && had.worn == worn && identical(had.tokens, t) && identical(had.pictures, widget.pictures) && had.known == known && identical(had.words, words)) {
-      return had.drawn;
+    if (had != null && had.worn == worn && identical(had.tokens, t) && identical(had.pictures, widget.pictures) && had.known == known && identical(had.words, words)) {
+      if (identical(had.node, node)) return had.drawn;
+      // The same card somewhere else (a card carried is another node at every move of the finger): the box it had,
+      // set down at its new place. Nothing of it is built, laid out or painted again; the world sets its layer
+      // down where it now stands. A group is built again: its name stands beside it, measured from its corner.
+      if (!node.isGroup && had.drawn.length == 1 && node.movedFrom(had.node)) {
+        final was = had.drawn.single as Placed;
+        if (ghostPerf) Perf.count('canvas.card.moved');
+        final drawn = <Widget>[Placed(key: was.key, at: Offset(node.x, node.y), size: was.size, child: was.child)];
+        _cards[node.id] = (node: node, worn: worn, tokens: t, pictures: widget.pictures, known: known, words: words, drawn: drawn);
+        return drawn;
+      }
     }
     if (ghostPerf) Perf.count('canvas.card.made');
     final drawn = CanvasCard(
@@ -827,11 +837,25 @@ class CanvasViewState extends State<CanvasView> {
 
   // ---- drawing -----------------------------------------------------------------------------------
 
+  /// The tools as they were built last, and what they were built from: the view is built again at every move of a
+  /// card carried and every letter written in one, and the tools, six round buttons in a pill of glass, were built
+  /// with it each time though nothing of them had changed.
+  ({Object from, Widget tools})? _toolsKept;
+
   Widget _tools(BuildContext context) {
     final t = context.tokens;
     final wide = MediaQuery.sizeOf(context).width > 600;
     final lining = _lining;
     final toCard = _editing ?? _chosen;
+    final from = (t, wide, lining, wide ? toCard : null, _editable, _snap);
+    final kept = _toolsKept;
+    if (kept != null && kept.from == from) return kept.tools;
+    final made = _toolsOf(context, t, wide: wide, lining: lining, toCard: toCard);
+    _toolsKept = (from: from, tools: made);
+    return made;
+  }
+
+  Widget _toolsOf(BuildContext context, Tokens t, {required bool wide, required ({String? from})? lining, required String? toCard}) {
     RoundButton tool(String label, LucideIcon icon, VoidCallback onPress, {bool on = false, bool held = false, bool? pressed}) =>
         RoundButton(label: label, icon: icon, onPress: onPress, on: on, held: held, pressed: pressed, iconSize: 18);
     final tools = <Widget>[
@@ -880,6 +904,49 @@ class CanvasViewState extends State<CanvasView> {
         ),
       ),
     );
+  }
+
+  /// The picked card's bar as it was built last, and what it was built from. Where the bar stands is the card's
+  /// (`CardBar.place`); what it shows is the card's kind and colour, whether it is open, and what it may do, none of
+  /// which a move of the card or a letter written in it changes. It was built again at each of those all the same.
+  ({Object from, Widget bar})? _barKept;
+
+  Widget _barOf(BuildContext context, CanvasNode wearing, CanvasThreads? threads) {
+    final id = wearing.id;
+    final opens = (wearing.type == NodeType.link && widget.openLink != null) || (wearing.type == NodeType.file && widget.wiki != null);
+    final from = (id, wearing.type, wearing.color, ownPicture(wearing) == null, _editing == id, opens, threads);
+    final kept = _barKept;
+    if (kept != null && kept.from == from) return kept.bar;
+    final bar = _own(
+      CardBar(
+        key: ValueKey('bar of $id'),
+        node: wearing,
+        editing: _editing == id,
+        onEdit: () => setState(() => _editing = id),
+        onDone: () {
+          setState(() => _editing = null);
+          _focus.requestFocus();
+        },
+        // The card as it is when the button is pressed: the bar may have been built for it somewhere else.
+        onOpen: opens
+            ? () {
+                final now = _live.nodeOf(id);
+                if (now != null) _openCard(now);
+              }
+            : null,
+        onComment: threads == null ? null : () => threads(this.context, canvas: _live, node: id, start: true, change: _threaded),
+        onLine: () => setState(() {
+          _editing = null;
+          _picked = null;
+          _lining = (from: id);
+        }),
+        onColour: (color) => _colourCard(id, color),
+        onDuplicate: () => _copyCard(id),
+        onRemove: () => _removeCard(id),
+      ),
+    );
+    _barKept = (from: from, bar: bar);
+    return bar;
   }
 
   /// `CommentMarks.tsx`: the rounds on the cards that have threads, one size on the screen.
@@ -965,7 +1032,9 @@ class CanvasViewState extends State<CanvasView> {
                   children: [
                     // `.canvas`: the note's ground, and the dots under the cards.
                     ColoredBox(color: t.color('glacier-bg')),
-                    CustomPaint(painter: DotsPainter(camera: _camera, ink: t.color('app-ink'))),
+                    // A layer of their own: the dots are drawn again at every move of the camera, and without one
+                    // the ground, the tools and the map's frame were drawn again with them.
+                    RepaintBoundary(child: CustomPaint(painter: DotsPainter(camera: _camera, ink: t.color('app-ink')))),
                     if (live.nodes.isEmpty)
                       IgnorePointer(
                         child: Center(
@@ -1025,33 +1094,7 @@ class CanvasViewState extends State<CanvasView> {
                             own: _own,
                             felt: _felt,
                           ).build(context),
-                        if (wearing != null)
-                          CardBar.place(
-                            node: wearing,
-                            below: _below,
-                            child: _own(
-                              CardBar(
-                                key: ValueKey('bar of ${wearing.id}'),
-                                node: wearing,
-                                editing: _editing == wearing.id,
-                                onEdit: () => setState(() => _editing = wearing.id),
-                                onDone: () {
-                                  setState(() => _editing = null);
-                                  _focus.requestFocus();
-                                },
-                                onOpen: (wearing.type == NodeType.link && widget.openLink != null) || (wearing.type == NodeType.file && widget.wiki != null) ? () => _openCard(wearing) : null,
-                                onComment: threads == null ? null : () => threads(context, canvas: _live, node: wearing.id, start: true, change: _threaded),
-                                onLine: () => setState(() {
-                                  _editing = null;
-                                  _picked = null;
-                                  _lining = (from: wearing.id);
-                                }),
-                                onColour: (color) => _colourCard(wearing.id, color),
-                                onDuplicate: () => _copyCard(wearing.id),
-                                onRemove: () => _removeCard(wearing.id),
-                              ),
-                            ),
-                          ),
+                        if (wearing != null) CardBar.place(node: wearing, below: _below, child: _barOf(context, wearing, threads)),
                       ],
                     ),
                     // The toolbar: icons, floating at the bottom left; the map at the bottom right.
@@ -1327,7 +1370,7 @@ class _LineWordsState extends State<LineWords> {
                   width: 1.6 * md,
                   height: 1.6 * md,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: t.colorOf('color-mix(in oklch, var(--app-ink) 10%, transparent)'), shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: inkOf(t, 'color-mix(in oklch, var(--app-ink) 10%, transparent)'), shape: BoxShape.circle),
                   child: Text('×', style: t.textAt(md, height: 1, color: t.color('app-ink-2'))),
                 ),
               ),

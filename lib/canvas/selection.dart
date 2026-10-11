@@ -257,7 +257,7 @@ class RoundButton extends StatelessWidget {
     final t = context.tokens;
     final side = t.lenOf('2.25rem');
     final color = on ? t.color('glacier-bg') : (held ? t.color('app-ink') : t.color('app-ink-2'));
-    final ground = on ? t.color('app-ink') : (held ? t.colorOf('color-mix(in oklch, var(--app-ink) 14%, transparent)') : null);
+    final ground = on ? t.color('app-ink') : (held ? inkOf(t, 'color-mix(in oklch, var(--app-ink) 14%, transparent)') : null);
     return Semantics(
       button: true,
       label: label,
@@ -303,7 +303,7 @@ class GlassPill extends StatelessWidget {
           filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              color: t.colorOf('color-mix(in oklch, var(--glacier-bg) $share%, transparent)'),
+              color: inkOf(t, 'color-mix(in oklch, var(--glacier-bg) $share%, transparent)'),
               borderRadius: BorderRadius.circular(999),
               border: Border.all(color: t.color('glacier-border-subtle'), width: line),
             ),
