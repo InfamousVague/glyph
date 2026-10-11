@@ -180,6 +180,17 @@ String? _checkDelimiter(GreenNode delim, FunctionContext context) {
 GreenNode _delimSizeHandler(TexParser parser, FunctionContext context) {
   final delimArg = parser.parseArgNode(mode: Mode.math, optional: false)!;
   final delim = _checkDelimiter(delimArg, context);
+  // Changed from 0.7.4 (README.md, 20): a delimiter that is always built of pieces (a bar, two bars, an arrow up
+  // or down) is built of them to the size asked for, as KaTeX's delimiter.js `sizedDelim` builds it; there is no
+  // one glyph of it in the faces of the four sizes, and it was drawn no bigger than a line.
+  if (delim != null && stackAlwaysDelimiters.contains(delim)) {
+    return StackedDelimNode(
+      delim: delim,
+      height: const [1.2, 1.8, 2.4, 3.0][_delimiterSizes[context.funcName]! - 1]
+          .cssEm,
+      type: _delimiterTypes[context.funcName]!,
+    );
+  }
   return delim == null
       ? SpaceNode(
           height: Measurement.zero, width: Measurement.zero, mode: Mode.math)

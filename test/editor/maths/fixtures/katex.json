@@ -1059,6 +1059,311 @@
    "ok": true,
    "height": 0.75,
    "depth": 0.25
+  },
+  {
+   "tex": "\\phase{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.4305,
+   "depth": 0.2109
+  },
+  {
+   "tex": "\\phase{\\frac{a}{b}}",
+   "display": true,
+   "ok": true,
+   "height": 1.1076,
+   "depth": 0.8968
+  },
+  {
+   "tex": "\\phase{-78^\\circ}",
+   "display": false,
+   "ok": true,
+   "height": 0.6741,
+   "depth": 0.2942
+  },
+  {
+   "tex": "x^{\\phase{y}}",
+   "display": false,
+   "ok": true,
+   "height": 0.7561,
+   "depth": 0
+  },
+  {
+   "tex": "\\angl{n}",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "a_{\\angl{n}}",
+   "display": false,
+   "ok": true,
+   "height": 0.4305,
+   "depth": 0.398
+  },
+  {
+   "tex": "\\angln",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\angl{g}",
+   "display": false,
+   "ok": true,
+   "height": 0.5906,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\edef\\a{b}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\def\\b{c}\\edef\\a{\\b^2}\\def\\b{d}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.8141,
+   "depth": 0
+  },
+  {
+   "tex": "\\xdef\\a{\\frac12}\\a",
+   "display": true,
+   "ok": true,
+   "height": 1.3214,
+   "depth": 0.686
+  },
+  {
+   "tex": "{\\xdef\\a{x}}\\a",
+   "display": false,
+   "ok": true,
+   "height": 0.4306,
+   "depth": 0
+  },
+  {
+   "tex": "{\\edef\\a{x}}\\a",
+   "display": false,
+   "ok": false,
+   "error": "Undefined control sequence: \\a at position 13: {\\edef\\a{x}}\\̲a̲"
+  },
+  {
+   "tex": "\\Set{x | y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\set{x}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{\\frac{a}{b} | y > 0}",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\set{x | y}",
+   "display": false,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{x \\| y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Set{x || y}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Braket{a|b|c}",
+   "display": true,
+   "ok": true,
+   "height": 0.75,
+   "depth": 0.25
+  },
+  {
+   "tex": "\\Braket{\\frac{a}{b}|c}",
+   "display": true,
+   "ok": true,
+   "height": 1.15,
+   "depth": 0.686
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 1.7021,
+   "depth": 0
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\\\ @VbVV @AAcA \\\\ C @= D \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 3.5491,
+   "depth": 1.7562
+  },
+  {
+   "tex": "\\begin{CD} A @<<< B @>>b> C \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 1.8031,
+   "depth": 0.0101
+  },
+  {
+   "tex": "\\begin{CD} A @. B \\\\ @| @VVV \\\\ C @>>> D \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 3.54,
+   "depth": 1.747
+  },
+  {
+   "tex": "x + \\begin{CD} A @>>> B \\\\ @VVV @VVV \\\\ C @>>> D \\\\ @AAA @| \\\\ E @<<< F \\end{CD}",
+   "display": true,
+   "ok": true,
+   "height": 5.387,
+   "depth": 3.594
+  },
+  {
+   "tex": "\\begin{CD} A @>a>> B \\end{CD}",
+   "display": false,
+   "ok": false,
+   "error": "{CD} can be used only in display mode."
+  },
+  {
+   "tex": "\\begin{CD} A @>a> B \\end{CD}",
+   "display": true,
+   "ok": false,
+   "error": "Missing a > character to complete a CD arrow. at position 17: …begin{CD} A @>a>̲ B \\end{CD}"
+  },
+  {
+   "tex": "\\Big\\downarrow",
+   "display": false,
+   "ok": true,
+   "height": 1.151,
+   "depth": 0.65
+  },
+  {
+   "tex": "\\Big\\uparrow \\Big\\Vert",
+   "display": false,
+   "ok": true,
+   "height": 1.151,
+   "depth": 0.65
+  },
+  {
+   "tex": "\\big| x \\big|",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\Big\\| \\bigg\\uparrow \\Bigg\\Updownarrow",
+   "display": true,
+   "ok": true,
+   "height": 1.75,
+   "depth": 1.25
+  },
+  {
+   "tex": "\\bigl\\lvert x \\bigr\\rvert \\bigm\\| y",
+   "display": false,
+   "ok": true,
+   "height": 0.85,
+   "depth": 0.35
+  },
+  {
+   "tex": "\\fbox x + \\hbox y",
+   "display": false,
+   "ok": true,
+   "height": 0.7706,
+   "depth": 0.34
+  },
+  {
+   "tex": "\\degree",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "90\\degree",
+   "display": false,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0
+  },
+  {
+   "tex": "\\copyright",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\textregistered",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\minuso",
+   "display": false,
+   "ok": true,
+   "height": 0.5834,
+   "depth": 0.0833
+  },
+  {
+   "tex": "a \\minuso b",
+   "display": true,
+   "ok": true,
+   "height": 0.6944,
+   "depth": 0.0833
+  },
+  {
+   "tex": "x^{\\minuso}",
+   "display": false,
+   "ok": true,
+   "height": 0.7713,
+   "depth": 0
+  },
+  {
+   "tex": "x^{\\copyright}",
+   "display": false,
+   "ok": true,
+   "height": 0.9852,
+   "depth": 0
+  },
+  {
+   "tex": "\\text{\\copyright\\ 2026 \\textregistered}",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
+  },
+  {
+   "tex": "\\text{\\textcircled{a}}",
+   "display": false,
+   "ok": true,
+   "height": 0.8889,
+   "depth": 0
   }
  ],
  "reach": [

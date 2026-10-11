@@ -91,6 +91,17 @@ const PARTS = [
   // The numbered environments, and a last `\\\\` with nothing after it.
   ["\\begin{aligned} a &= b \\\\ c &= d \\\\ \\end{aligned}", true], ["\\begin{align} a &= b \\tag{x} \\\\ c &= \\frac{d}{e} \\nonumber \\\\ f \\notag \\\\ g \\end{align}", true], ["\\begin{gather} a \\\\ b \\tag*{B} \\end{gather}", true], ["\\begin{alignat}{2} a &= b &\\quad c &= d \\\\ e &= f \\end{alignat}", true], ["\\begin{align*} a &= b \\tag{1} \\\\ c \\end{align*}", true], ["\\begin{equation} \\frac{a}{b} \\end{equation}", true],
   ['\\Big( x \\Big)', false], ['\\bigg\\{ x \\bigg\\}', false], ['\\lvert x \\rvert', false], ['\\| v \\|', false], ['\\langle a, b \\rangle', false],
+  // What the package was taught on 2026-10-11: the two angles, a definition worked out as it is made (and one a
+  // group forgets, which neither reads), the sets and brakets whose bar stands for something else, and the marks
+  // made of a ring.
+  ['\\phase{x}', false], ['\\phase{\\frac{a}{b}}', true], ['\\phase{-78^\\circ}', false], ['x^{\\phase{y}}', false],
+  ['\\angl{n}', false], ['a_{\\angl{n}}', false], ['\\angln', false], ['\\angl{g}', false],
+  ['\\edef\\a{b}\\a', false], ['\\def\\b{c}\\edef\\a{\\b^2}\\def\\b{d}\\a', false], ['\\xdef\\a{\\frac12}\\a', true], ['{\\xdef\\a{x}}\\a', false], ['{\\edef\\a{x}}\\a', false],
+  ['\\Set{x | y}', true], ['\\set{x}', false], ['\\Set{\\frac{a}{b} | y > 0}', true], ['\\set{x | y}', false], ['\\Set{x \\| y}', true], ['\\Set{x || y}', true], ['\\Braket{a|b|c}', true], ['\\Braket{\\frac{a}{b}|c}', true],
+  ['\\begin{CD} A @>a>> B \\end{CD}', true], ['\\begin{CD} A @>a>> B \\\\ @VbVV @AAcA \\\\ C @= D \\end{CD}', true], ['\\begin{CD} A @<<< B @>>b> C \\end{CD}', true], ['\\begin{CD} A @. B \\\\ @| @VVV \\\\ C @>>> D \\end{CD}', true], ['x + \\begin{CD} A @>>> B \\\\ @VVV @VVV \\\\ C @>>> D \\\\ @AAA @| \\\\ E @<<< F \\end{CD}', true], ['\\begin{CD} A @>a>> B \\end{CD}', false], ['\\begin{CD} A @>a> B \\end{CD}', true],
+  // A delimiter that is always built of pieces, at the four sizes; and a thing given to a box without braces.
+  ['\\Big\\downarrow', false], ['\\Big\\uparrow \\Big\\Vert', false], ['\\big| x \\big|', false], ['\\Big\\| \\bigg\\uparrow \\Bigg\\Updownarrow', true], ['\\bigl\\lvert x \\bigr\\rvert \\bigm\\| y', false], ['\\fbox x + \\hbox y', false],
+  ['\\degree', false], ['90\\degree', false], ['\\copyright', false], ['\\textregistered', false], ['\\minuso', false], ['a \\minuso b', true], ['x^{\\minuso}', false], ['x^{\\copyright}', false], ['\\text{\\copyright\\ 2026 \\textregistered}', false], ['\\text{\\textcircled{a}}', false],
 ];
 
 /**

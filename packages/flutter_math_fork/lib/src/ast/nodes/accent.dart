@@ -1,5 +1,12 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/widgets.dart';
+
+import '../../render/constants.dart';
+import '../../render/layout/custom_layout.dart';
+import '../../render/utils/render_box_layout.dart';
+import '../../render/utils/render_box_offset.dart';
 
 import '../../render/layout/min_dimension.dart';
 import '../../render/layout/reset_dimension.dart';
@@ -48,6 +55,32 @@ class AccentNode extends SlotableNode<EquationRowNode> {
     // BuildResult, so we don't need to check it here.
     final baseResult = childBuildResults[0]!;
     final skew = isShifty ? baseResult.skew : 0.0;
+    // Added to 0.7.4 (README.md, 20): `\textcircled`. KaTeX's functions/accent.js calls it a full accent: the
+    // ring (`\bigcirc`'s glyph) is laid over the letter and not above it, its foot on the letter's baseline, the
+    // two centred, the whole as wide as the wider, and the ring drawn a fifth of an em lower than it is measured.
+    if (label == '\u25EF') {
+      return BuildResult(
+        options: options,
+        italic: baseResult.italic,
+        skew: baseResult.skew,
+        widget: CustomLayout<int>(
+          delegate: RingDelegate(drop: 0.2.cssEm.toLpUnder(options)),
+          children: <Widget>[
+            CustomLayoutId(id: 0, child: baseResult.widget),
+            CustomLayoutId(
+              id: 1,
+              child: makeBaseSymbol(
+                symbol: label,
+                variantForm: false,
+                atomType: AtomType.ord,
+                mode: Mode.text,
+                options: options,
+              ).widget,
+            ),
+          ],
+        ),
+      );
+    }
     Widget accentWidget;
     if (!isStretchy) {
       Widget accentSymbolWidget;
@@ -202,4 +235,56 @@ class AccentNode extends SlotableNode<EquationRowNode> {
         isStretchy: isStretchy ?? this.isStretchy,
         isShifty: isShifty ?? this.isShifty,
       );
+}
+
+/// A letter (0) with a ring (1) over it, for `\textcircled`: as tall as the ring where the ring is the taller, as
+/// deep as the letter, as wide as the wider.
+///
+/// Added to 0.7.4 (README.md, 20).
+class RingDelegate extends CustomLayoutDelegate<int> {
+  RingDelegate({required this.drop});
+
+  /// How far below its measured place the ring is drawn.
+  final double drop;
+
+  var height = 0.0;
+
+  @override
+  double computeDistanceToActualBaseline(
+          TextBaseline baseline, Map<int, RenderBox> childrenTable) =>
+      height;
+
+  @override
+  double getIntrinsicSize({
+    required Axis sizingDirection,
+    required bool max,
+    required double extent,
+    required double Function(RenderBox child, double extent) childSize,
+    required Map<int, RenderBox> childrenTable,
+  }) =>
+      math.max(childSize(childrenTable[0]!, double.infinity),
+          childSize(childrenTable[1]!, double.infinity));
+
+  @override
+  Size computeLayout(
+    BoxConstraints constraints,
+    Map<int, RenderBox> childrenTable, {
+    bool dry = true,
+  }) {
+    final base = childrenTable[0]!;
+    final ring = childrenTable[1]!;
+    final baseSize = base.getLayoutSize(infiniteConstraint, dry: dry);
+    final ringSize = ring.getLayoutSize(infiniteConstraint, dry: dry);
+    final width = math.max(baseSize.width, ringSize.width);
+    if (dry) {
+      return Size(width, math.max(baseSize.height, ringSize.height));
+    }
+    final baseHeight = base.layoutHeight;
+    // The ring's foot is on the letter's baseline: all of it is above.
+    height = math.max(baseHeight, ringSize.height);
+    base.offset = Offset((width - baseSize.width) / 2, height - baseHeight);
+    ring.offset =
+        Offset((width - ringSize.width) / 2, height - ringSize.height + drop);
+    return Size(width, height + base.layoutDepth);
+  }
 }

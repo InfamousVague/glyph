@@ -38,7 +38,23 @@ const _encloseEntries = {
       FunctionSpec(numArgs: 1, allowedInText: true, handler: _fboxHandler),
   ['\\cancel', '\\bcancel', '\\xcancel', '\\sout']:
       FunctionSpec(numArgs: 1, handler: _cancelHandler),
+  // Added to 0.7.4 (README.md, 20): the two angles. `\angl` reads what it is given as `\hbox` does (KaTeX's
+  // `argTypes: ["hbox"]`): as text, at the size of a line of text.
+  ['\\phase']: FunctionSpec(numArgs: 1, handler: _phaseHandler),
+  ['\\angl']: FunctionSpec(numArgs: 1, handler: _anglHandler),
 };
+
+GreenNode _phaseHandler(TexParser parser, FunctionContext context) => AngleNode(
+      body: parser
+          .parseArgNode(mode: null, optional: false)!
+          .wrapWithEquationRow(),
+      kind: AngleKind.phase,
+    );
+
+GreenNode _anglHandler(TexParser parser, FunctionContext context) => AngleNode(
+      body: parser.parseArgHbox(optional: false).wrapWithEquationRow(),
+      kind: AngleKind.actuarial,
+    );
 
 GreenNode _colorboxHandler(TexParser parser, FunctionContext context) {
   final color = parser.parseArgColor(optional: false);

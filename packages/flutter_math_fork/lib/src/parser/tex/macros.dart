@@ -135,7 +135,7 @@ String _let(MacroContext context, bool global) {
   return '';
 }
 
-String _def(MacroContext context, bool global) {
+String _def(MacroContext context, bool global, {bool expand = false}) {
   final name = context.popToken().text;
   if (RegExp(r'^(?:[\\{}$&#^_]|EOF)$').hasMatch(name)) {
     throw ParseException('Expected a control sequence');
@@ -156,7 +156,10 @@ String _def(MacroContext context, bool global) {
           'A macro with text between its parameters is not read');
     }
   }
-  final body = context.consumeArgs(1)[0];
+  var body = context.consumeArgs(1)[0];
+  // Added to 0.7.4 (README.md, 20): `\edef` and `\xdef` expand what the definition is made of as it is made,
+  // so a macro in it means what it meant then (KaTeX's functions/def.js).
+  if (expand) body = context.expandTokens(body).reversed.toList();
   context.macros.set(
       name,
       MacroDefinition.fromMacroExpansion(MacroExpansion(
@@ -166,6 +169,51 @@ String _def(MacroContext context, bool global) {
       global: global);
   return '';
 }
+
+/// `\bra@ket` and `\bra@set` of braket.sty as KaTeX's macros.js has them (`braketHelper`): an opening, what a
+/// bar means, what two bars mean, a closing, and then what is between them, read with `|` and `\|` standing for
+/// those; for a set (`one`), only the first bar.
+///
+/// Added to 0.7.4 (README.md, 20).
+MacroDefinition _braket({required bool one}) => MacroDefinition((context) {
+      final left = context.consumeArgs(1)[0];
+      final middle = context.consumeArgs(1)[0];
+      final middleDouble = context.consumeArgs(1)[0];
+      final right = context.consumeArgs(1)[0];
+      final oldMiddle = context.macros.current['|'];
+      final oldMiddleDouble = context.macros.current['\\|'];
+      context.macros.beginGroup();
+      MacroDefinition midMacro({required bool double}) =>
+          MacroDefinition((context) {
+            if (one) {
+              // Only modify the first instance of | or \|
+              context.macros.set('|', oldMiddle);
+              if (middleDouble.isNotEmpty) {
+                context.macros.set('\\|', oldMiddleDouble);
+              }
+            }
+            var doubled = double;
+            if (!double && middleDouble.isNotEmpty) {
+              // Mimic \@ifnextchar
+              if (context.future().text == '|') {
+                context.popToken();
+                doubled = true;
+              }
+            }
+            return MacroExpansion(
+                tokens: doubled ? middleDouble : middle, numArgs: 0);
+          });
+      context.macros.set('|', midMacro(double: false));
+      if (middleDouble.isNotEmpty) {
+        context.macros.set('\\|', midMacro(double: true));
+      }
+      final arg = context.consumeArgs(1)[0];
+      // In the order the stack holds them: the closing, what is between, the opening.
+      final expanded = context.expandTokens([...right, ...arg, ...left]);
+      context.macros.endGroup();
+      return MacroExpansion(
+          tokens: expanded.reversed.toList(), numArgs: 0);
+    });
 
 // ignore: avoid_positional_boolean_parameters
 String newcommand(MacroContext context, bool existsOK, bool nonexistsOK) {
@@ -415,6 +463,9 @@ final Map<String, MacroDefinition> builtinMacros = {
   '\\global': MacroDefinition.fromCtxString((context) {
     final next = context.popToken().text;
     if (next == '\\def' || next == '\\gdef') return _def(context, true);
+    if (next == '\\edef' || next == '\\xdef') {
+      return _def(context, true, expand: true);
+    }
     if (next == '\\let') return _let(context, true);
     throw ParseException('Invalid token after macro prefix');
   }),
@@ -432,6 +483,22 @@ final Map<String, MacroDefinition> builtinMacros = {
   '\\aa': MacroDefinition.fromString('\\r a'),
   '\\AA': MacroDefinition.fromString('\\r A'),
   '\\gdef': MacroDefinition.fromCtxString((context) => _def(context, true)),
+  // Added to 0.7.4 (README.md, 20): a definition whose words are worked out as it is made.
+  '\\edef': MacroDefinition.fromCtxString(
+      (context) => _def(context, false, expand: true)),
+  '\\xdef': MacroDefinition.fromCtxString(
+      (context) => _def(context, true, expand: true)),
+  // And the marks KaTeX draws from others (macros.js; each is the half it gives a page, `\html@mathml`'s first):
+  // a minus in a ring, and a letter in one.
+  '\\minuso': MacroDefinition.fromString(
+      '\\mathbin{{\\mathrlap{\\mathchoice{\\kern{0.145em}}{\\kern{0.145em}}'
+      '{\\kern{0.1015em}}{\\kern{0.0725em}}\\circ}{-}}}'),
+  '\\angln': MacroDefinition.fromString('{\\angl n}'),
+  '\\copyright': MacroDefinition.fromString(
+      '\\TextOrMath{\\textcopyright}{\\text{\\textcopyright}}'),
+  '\\textcopyright': MacroDefinition.fromString('\\textcircled{c}'),
+  '\\textregistered':
+      MacroDefinition.fromString('\\textcircled{\\scriptsize R}'),
 
 // \newcommand{\macro}[args]{definition}
 // \renewcommand{\macro}[args]{definition}
@@ -897,6 +964,15 @@ final Map<String, MacroDefinition> builtinMacros = {
   '\\braket': MacroDefinition.fromString("\\mathinner{\\langle{#1}\\rangle}"),
   '\\Bra': MacroDefinition.fromString("\\left\\langle#1\\right|"),
   '\\Ket': MacroDefinition.fromString("\\left|#1\\right\\rangle"),
+  // Added to 0.7.4 (README.md, 20): the three whose bar stands for something else between their braces.
+  '\\bra@ket': _braket(one: false),
+  '\\bra@set': _braket(one: true),
+  '\\Braket': MacroDefinition.fromString("\\bra@ket{\\left\\langle}"
+      "{\\,\\middle\\vert\\,}{\\,\\middle\\vert\\,}{\\right\\rangle}"),
+  '\\Set': MacroDefinition.fromString("\\bra@set{\\left\\{\\:}"
+      "{\\;\\middle\\vert\\;}{\\;\\middle\\Vert\\;}{\\:\\right\\}}"),
+  // has no support for special || or \|
+  '\\set': MacroDefinition.fromString("\\bra@set{\\{\\,}{\\mid}{}{\\,\\}}"),
 
 // Custom Khan Academy colors, should be moved to an optional package
   '\\blue': MacroDefinition.fromString("\\textcolor{##6495ed}{#1}"),

@@ -48,6 +48,11 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
   /// Special flags for `\smallmatrix`
   final bool isSmall;
 
+  /// Half the room between two columns, where it is not an array's five points.
+  ///
+  /// Added to 0.7.4 (README.md, 20), for `CD`'s quarter of an em.
+  final Measurement? colSep;
+
   /// Align types for each column.
   final List<MatrixColumnAlign> columnAligns;
 
@@ -81,6 +86,7 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
     this.arrayStretch = 1.0,
     this.hskipBeforeAndAfter = false,
     this.isSmall = false,
+    this.colSep,
     required this.columnAligns,
     required this.vLines,
     required this.rowSpacings,
@@ -99,6 +105,7 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
     double arrayStretch = 1.0,
     bool hskipBeforeAndAfter = false,
     bool isSmall = false,
+    Measurement? colSep,
     List<MatrixColumnAlign> columnAligns = const [],
     List<MatrixSeparatorStyle> vLines = const [],
     List<Measurement> rowSpacings = const [],
@@ -136,6 +143,7 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
       arrayStretch: arrayStretch,
       hskipBeforeAndAfter: hskipBeforeAndAfter,
       isSmall: isSmall,
+      colSep: colSep,
       columnAligns: sanitizedColumnAligns,
       vLines: sanitizedVLines,
       rowSpacings: sanitizedRowSpacing,
@@ -166,11 +174,13 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
                 .toList(growable: false),
             hLines: hLines,
             hskipBeforeAndAfter: hskipBeforeAndAfter,
-            arraycolsep: isSmall
-                ? (5 / 18)
-                    .cssEm
-                    .toLpUnder(options.havingStyle(MathStyle.script))
-                : 5.0.pt.toLpUnder(options),
+            arraycolsep: colSep != null
+                ? colSep!.toLpUnder(options)
+                : isSmall
+                    ? (5 / 18)
+                        .cssEm
+                        .toLpUnder(options.havingStyle(MathStyle.script))
+                    : 5.0.pt.toLpUnder(options),
             vLines: vLines,
             columnAligns: columnAligns,
           ),
@@ -228,6 +238,7 @@ class MatrixNode extends SlotableNode<EquationRowNode?> {
         arrayStretch: arrayStretch ?? this.arrayStretch,
         hskipBeforeAndAfter: hskipBeforeAndAfter ?? this.hskipBeforeAndAfter,
         isSmall: isSmall ?? this.isSmall,
+        colSep: colSep,
         columnAligns: columnAligns ?? this.columnAligns,
         vLines: columnLines ?? this.vLines,
         rowSpacings: rowSpacing ?? this.rowSpacings,

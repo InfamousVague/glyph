@@ -24,7 +24,6 @@
 import 'dart:collection';
 import 'dart:ui';
 
-import 'package:collection/collection.dart';
 
 import '../../ast/nodes/multiscripts.dart';
 import '../../ast/nodes/over.dart';
@@ -614,9 +613,12 @@ class TexParser {
         )
       ]);
     } else {
+      // Changed from 0.7.4 (README.md, 20): what is given without braces (`\angl n`, `\fbox x`) is one thing and
+      // not a row, and it is that thing that is set; this asked it for its children, of which a letter has none,
+      // and set nothing.
       return StyleNode(
         optionsDiff: OptionsDiff(style: MathStyle.text),
-        children: res?.children.whereNotNull().toList(growable: false) ?? [],
+        children: res == null ? [] : [res],
       );
     }
   }

@@ -38,7 +38,11 @@ class Namespace<T> {
     return this.builtins[name];
   }
 
-  void set(String name, T value, {bool global = false}) {
+  /// Sets `name` to `value`, in the group being read or in all of them. A null `value` takes away what the
+  /// name was set to, leaving what it is built in as (KaTeX's Namespace.set with `undefined`).
+  ///
+  /// Changed from 0.7.4 (README.md, 20): the null, which `\Set` puts a bar back with.
+  void set(String name, T? value, {bool global = false}) {
     if (global) {
       for (final undef in undefStack) {
         undef.remove(name);
@@ -48,10 +52,16 @@ class Namespace<T> {
       }
     } else {
       if (this.undefStack.isNotEmpty) {
-        this.undefStack.last[name] = this.current[name];
+        // Kept as it was when the group began: a name set twice in a group goes back to that, not to its first
+        // setting there.
+        this.undefStack.last.putIfAbsent(name, () => this.current[name]);
       }
     }
-    this.current[name] = value;
+    if (value == null) {
+      this.current.remove(name);
+    } else {
+      this.current[name] = value;
+    }
   }
 
   /// Forgets what `name` was set to, in every group: only what it is built in as is left.

@@ -87,10 +87,13 @@ class MacroExpander implements MacroContext {
     final name = topToken.text;
     final expansion = !topToken.noexpand ? this._getExpansion(name) : null;
     if (expansion == null || (expandableOnly && expansion.unexpandable)) {
+      // Changed from 0.7.4 (README.md, 20): it is a name nothing defines that is refused here (KaTeX's
+      // MacroExpander.expandOnce); the published package refused the defined ones, so `\expandafter` before a
+      // function, and any `\edef` with one in its words, failed.
       if (expandableOnly &&
           expansion == null &&
           name[0] == '\\' &&
-          this.isDefined(name)) {
+          !this.isDefined(name)) {
         throw ParseException('Undefined control sequence: $name');
       }
       this.pushToken(topToken);
@@ -219,6 +222,30 @@ class MacroExpander implements MacroContext {
 
   Lexer getNewLexer(String input) => Lexer(input, this.settings);
 
+  /// The given tokens expanded as far as macros go. They come in the order the stack holds them (the last is
+  /// read first) and are answered in the order they are read. KaTeX: MacroExpander.expandTokens.
+  ///
+  /// Added to 0.7.4 (README.md, 20), for `\edef` and the braces of `\Set`.
+  @override
+  List<Token> expandTokens(List<Token> tokens) {
+    final output = <Token>[];
+    final oldStackLength = this.stack.length;
+    this.pushTokens(tokens);
+    while (this.stack.length > oldStackLength) {
+      // Expand only expandable tokens
+      if (this.expandOnce(true) != null) {
+        final token = this.stack.removeLast();
+        if (token.treatAsRelax) {
+          // the expansion of \noexpand is the token itself
+          token.noexpand = false;
+          token.treatAsRelax = false;
+        }
+        output.add(token);
+      }
+    }
+    return output;
+  }
+
   String? expandMacroAsText(String name) {
     final tokens = this.expandMacro(name);
     if (tokens != null) {
@@ -258,6 +285,7 @@ abstract class MacroContext {
   Token expandNextToken();
 //
   List<List<Token>> consumeArgs(int numArgs);
+  List<Token> expandTokens(List<Token> tokens);
   bool isDefined(String name);
   bool isExpandable(String name);
 

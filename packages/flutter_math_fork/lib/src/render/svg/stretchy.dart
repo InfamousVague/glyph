@@ -31,6 +31,11 @@ const katexImagesData = {
   'xrightarrow':
       _KatexImagesData(['rightarrow'], 1.469, 522, Alignment.topRight),
   'xleftarrow': _KatexImagesData(['leftarrow'], 1.469, 522, Alignment.topLeft),
+  // Added to 0.7.4 (README.md, 20): the arrows of a `CD`, three ems at least.
+  'cdrightarrow':
+      _KatexImagesData(['rightarrow'], 3.0, 522, Alignment.topRight),
+  'cdleftarrow': _KatexImagesData(['leftarrow'], 3.0, 522, Alignment.topLeft),
+  'cdlongequal': _KatexImagesData(['longequal'], 3.0, 334, Alignment.topLeft),
   'Overrightarrow':
       _KatexImagesData(['doublerightarrow'], 0.888, 560, Alignment.topRight),
   'xRightarrow':

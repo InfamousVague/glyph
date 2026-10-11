@@ -24,6 +24,7 @@
 import '../../ast/syntax_tree.dart';
 import '../../ast/types.dart';
 import 'environments/array.dart';
+import 'environments/cd.dart';
 import 'environments/eqn_array.dart';
 import 'parser.dart';
 
@@ -68,4 +69,6 @@ Map<String, EnvSpec> get environments {
 final _environmentsEntries = {
   ...arrayEntries,
   ...eqnArrayEntries,
+  // Added to 0.7.4 (README.md, 20).
+  ...cdEntries,
 };

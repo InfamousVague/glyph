@@ -1,7 +1,7 @@
 # flutter_math_fork, as Ghost.md keeps it
 
 This is [flutter_math_fork](https://pub.dev/packages/flutter_math_fork) 0.7.4 (Apache 2.0, see `LICENSE`; the
-parser and the layout are ported from KaTeX, MIT, and each file says so), with the nineteen changes named below. The app
+parser and the layout are ported from KaTeX, MIT, and each file says so), with the twenty changes named below. The app
 reads it by path (`pubspec.yaml`: `flutter_math_fork: path: packages/flutter_math_fork`) and draws a note's
 formulas with it (`lib/editor/maths`).
 
@@ -102,13 +102,48 @@ Each is marked where it is made: `Changed from 0.7.4 (README.md, N)`.
     of text with KaTeX's words (`validateAmsEnvironmentContext`). And the empty row a last `\\` leaves is no row:
     the published package tested for a kind of node a cell never is, and kept it.
 
+20. **The seven families of KaTeX's commands that were not read** (2026-10-11), each as KaTeX has it:
+    - `\edef` and `\xdef` (`parser/tex/macros.dart`, `macro_expander.dart` `expandTokens`): a definition whose
+      words are expanded as it is made, so a macro in it means what it meant then. With it, a wrong test put
+      right: `expandOnce(true)` refused a name that *is* defined, where KaTeX's refuses one that is not, so
+      `\expandafter` before a function failed. KaTeX: `functions/def.js`, `MacroExpander.expandTokens`.
+    - `\Set`, `\set` and `\Braket` (`macros.dart` `_braket`, `namespace.dart`): braket.sty's three whose `|`
+      (and `\|`, `||`) stands for a bar that grows with the braces, for a set only the first. They are KaTeX's
+      `\bra@set` and `\bra@ket` (`macros.js` `braketHelper`): the bar is set to a macro for as long as what is
+      between the braces is expanded, and a name can now be set back to nothing (`Namespace.set` with null).
+    - `\textcircled`, and `\copyright`, `\textcopyright` and `\textregistered` made of it
+      (`functions/katex_base/accent.dart`, `ast/nodes/accent.dart` `RingDelegate`): KaTeX's one "full" accent, the
+      `\bigcirc` glyph laid over the letter with its foot on the letter's baseline, the two centred, drawn a fifth
+      of an em lower than it is measured. KaTeX: `functions/accent.js`.
+    - `\minuso` (`macros.dart`): a ring laid over a minus with `\mathrlap` and `\mathchoice`, as `macros.js` has it.
+      (`\degree` was read already; the line the test held as unread failed on the three beside it.)
+    - `\angl` and `\angln`, `\phase` (`ast/nodes/box.dart` `AngleNode`, `functions/katex_base/enclose.dart`):
+      the actuary's angle is a rule over what is in it and down its right, three rules clear above, at least a
+      quarter of an em below; steinmetz's is an angle under and before it, as tall as it is with the line and a
+      third of an x-height over the line. KaTeX: `functions/enclose.js`, `svgGeometry.js` `phasePath`.
+    - The `CD` environment (`parser/tex/environments/cd.dart`, new; `ast/nodes/box.dart` `StackedDelimNode` and
+      `BoxNode.lessDepth`; `ast/nodes/matrix.dart` `colSep`; `render/svg/stretchy.dart`): a diagram of arrows,
+      read as `environments/cd.js` reads it and laid out as KaTeX's array is for it: rows three x-heights apart
+      and a jot, a quarter of an em each side of a column, an arrow across three ems at least with its labels
+      over and under, an arrow up or down `\Big` with its labels beside it taking no room. KaTeX leaves a row
+      nothing is in after the last, counts it where it sets the diagram about the axis, and reaches into it with
+      nothing; so does this.
+
+    Two things found wrong beside them, and put right, since a `CD`'s arrows and `\angln` stand on them:
+    - **A bar, two bars or an arrow at `\big`, `\Big`, `\bigg` or `\Bigg`** (`functions/katex_base/delimsizing.dart`,
+      `StackedDelimNode`) is built of its pieces to 1.2, 1.8, 2.4 or 3 ems, as KaTeX's `delimiter.js` `sizedDelim`
+      builds a delimiter that always stacks. The published package asked the size's face for one glyph of it,
+      which no face has, and drew `\Big|` no bigger than a line.
+    - **A box given one thing without braces** (`parser/tex/parser.dart` `parseArgHbox`): `\fbox x`, `\hbox y`,
+      `\angl n` set the thing; it was asked for its children, a letter has none, and nothing was set.
+
 `\tag{…}` is not a change here: the package's macros already keep a tag aside (`\df@tag`), and the app reads it
 from there and sets it at the right of the formula (`lib/editor/maths/formula.dart`, `maths.dart`).
 
 ## What still differs from KaTeX
 
-`test/editor/maths/katex_test.dart` holds the formulas it reads and a hundred and fifteen pieces of them to KaTeX's heights
-and depths, to a hundredth of an em, and all agree. What that does not say:
+`test/editor/maths/katex_test.dart` holds the formulas it reads and the pieces of them, one at a time, to KaTeX's
+heights and depths, to a hundredth of an em, and all agree. What that does not say:
 
 - **Which number an equation has.** KaTeX counts with a counter of the page's stylesheet: a row's number is
   one more than the numbered rows in the page before it, and the web editor keeps only the lines near the
@@ -118,16 +153,15 @@ and depths, to a hundredth of an em, and all agree. What that does not say:
 - **Widths, and the shape of a glyph.** There is no browser on either side of the comparison, so only what the
   two layouts work out is compared: how far above and below its baseline a formula reaches.
 - **What KaTeX reads and this reader does not.** Of eighty-three families of KaTeX's commands, each tried the
-  plainest way, seven are not read (the test holds the list): `\phase` and `\angl`; `\edef`; `\set` and `\Set`;
-  the `CD` environment; `\copyright`, `\textregistered` and `\minuso`. A formula that uses one is shown as its
-  source, in the note's error ink, as KaTeX shows what it cannot read. `\phase`, `\angl` and the circled
-  letters each want a way of drawing in `lib/src/ast/nodes` (an angle, a border on two sides, a ring round a
-  letter); `\edef` wants the expander asked to expand a definition's words as it is made; `\set` wants KaTeX's
-  `\bra@set`, which reads its braces with `|` meaning something else; `CD` is a parser of its own
-  (`environments/cd.js`).
+  plainest way, every one is read (the test holds the list of those that are not, and it is empty). A family
+  is one line of the test, not every command: a `\def` with text between its parameters is still refused, and
+  `\href` and its kin are drawn as KaTeX draws them for a page it does not trust (change 16).
+- **How the new marks are drawn.** The ring, the angles and a diagram's labels are held to KaTeX's heights and
+  depths like the rest; where their strokes fall inside those boxes was read from KaTeX's styles and paths and
+  not compared with a browser's drawing.
 
 ## Taking a newer one
 
-Copy the new `lib/` over this one, then make the nineteen changes again: `git log -p -- packages/flutter_math_fork`
+Copy the new `lib/` over this one, then make the twenty changes again: `git log -p -- packages/flutter_math_fork`
 shows each, and `diff -r` against the published 0.7.4 in the pub cache is the whole of them (about four hundred
 lines). `test/editor/maths/katex_test.dart` then says which of them the new version still needs.

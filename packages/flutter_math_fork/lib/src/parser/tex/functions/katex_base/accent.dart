@@ -65,12 +65,19 @@ const _accentEntries = {
     '\\r',
     '\\H',
     '\\v',
-    // '\\textcircled',
   ]: FunctionSpec(
     numArgs: 1,
     allowedInMath: false,
     allowedInText: true,
     handler: _textAccentHandler,
+  ),
+  // Added to 0.7.4 (README.md, 20): a ring round a letter, which KaTeX reads in maths too (it is what
+  // `\textregistered` is made of there).
+  ['\\textcircled']: FunctionSpec(
+    numArgs: 1,
+    allowedInMath: true,
+    allowedInText: true,
+    handler: _circledHandler,
   ),
 };
 
@@ -161,6 +168,16 @@ const textUnicodeAccentMapping = {
   '\\H': '\u030b',
   // '\\textcircled': '\u',
 };
+GreenNode _circledHandler(TexParser parser, FunctionContext context) {
+  final base = parser.parseArgNode(mode: null, optional: false)!;
+  return AccentNode(
+    base: base.wrapWithEquationRow(),
+    label: '\u25EF',
+    isStretchy: false,
+    isShifty: true,
+  );
+}
+
 GreenNode _textAccentHandler(TexParser parser, FunctionContext context) {
   final base = parser.parseArgNode(mode: null, optional: false)!;
   if (base is SymbolNode) {

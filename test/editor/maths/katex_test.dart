@@ -156,17 +156,4 @@ void main() {
 /// What KaTeX reads and the port's reader does not, of the families in the fixture: a formula with one of these
 /// is shown as its source, in the error's ink. Held here so that the list is known, and so that one coming
 /// right is taken off it.
-const List<String> _unread = <String>[
-  // Two marks: an angle under and beside, and the actuary's.
-  r'\phase{x}',
-  r'\angl{n}',
-  // A definition whose words are worked out as it is made.
-  r'\edef\a{b}\a',
-  // A set with a bar in it that grows with the braces.
-  r'\Set{x | y}',
-  r'\set{x}',
-  // A diagram of arrows.
-  r'\begin{CD} A @>a>> B \end{CD}',
-  // A letter in a circle.
-  r'\degree \copyright \textregistered \minuso',
-];
+const List<String> _unread = <String>[];

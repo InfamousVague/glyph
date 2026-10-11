@@ -30,10 +30,13 @@ once, by what it would take.
    `assets/diag/test_report.json`, the build carries it, and the root reads it for Settings once Developer mode
    is on (lib/diag/built_report.dart). A build made without the tool says "No test report in this build.", as the
    page does. tool/release.md says when it is run. Never run whole here, and never seen on a phone.
-3. **Seven families of KaTeX's commands are not read** (section 10, the maths row; the rest of that row is kept on
-   purpose, see (c)): `\phase`, `\angl`, `\edef`, `\Set` and `\set`, the `CD` environment, and
-   `\degree \copyright \textregistered \minuso`. A formula with one of them is shown as its source. Small to medium
-   each, in packages/flutter_math_fork; test/editor/maths/katex_test.dart holds the list.
+3. **Done 2026-10-11: the seven families of KaTeX's commands that were not read are read** (section 10, the maths
+   row; the rest of that row is kept on purpose, see (c)): `\phase`, `\angl`, `\edef` and `\xdef`, `\Set`, `\set`
+   and `\Braket`, the `CD` environment, and `\copyright`, `\textregistered` and `\minuso` (`\degree` was read
+   already). Each is as tall and as deep as KaTeX sets it, to a hundredth of an em
+   (test/editor/maths/katex_test.dart, whose list of the unread is empty; packages/flutter_math_fork's README,
+   change 20). Found beside and put right with them: a bar, two bars or an arrow at `\big` to `\Bigg` was drawn
+   no bigger than a line, and a box given one thing without braces (`\fbox x`) set nothing.
 4. **Dates on a phone that keeps the Persian calendar, or names the parts of the day finely** (section 40). Small,
    and only for those phones: a Persian date is written in the Gregorian calendar with Persian names and figures,
    and a Taiwanese clock with two meridiems. The rest of that row is Android's own CLDR against the WebView's
@@ -417,7 +420,7 @@ are on the +'s first page; maths and diagrams are drawn (KaTeX, Mermaid), not se
 | A backslash makes a mark mean itself | editor/viewMode.ts:35-41 | editor/view/view_mode.dart:47-55 | match | |
 | Emoji `:name:`, 150 names | core/emoji.ts:13 | core/emoji.dart | match | |
 | Maths `$…$` set as code where it cannot be drawn | editor/extended.ts:258,373 | editor/view/extended.dart:302,458-463 | match | The original's fallback is the port's only look. |
-| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | editor/maths/maths.dart; editor/maths/formula.dart; packages/flutter_math_fork | differs | Drawn by flutter_math_fork, a port of KaTeX with KaTeX's faces, kept in the repo (packages/flutter_math_fork: its README names the nineteen places it was changed to agree with KaTeX). Thirty formulas and a hundred and fifteen pieces of them, held against KaTeX 0.16 (test/editor/maths/katex_test.dart), are as tall and as deep to a hundredth of an em, every one, and the seven KaTeX refuses are refused. Of eighty-three families of KaTeX's commands seven are not read (the test holds the list: `\phase`, `\angl`, `\edef`, `\set`, `CD`, `\copyright`) and a formula with one is shown as its source. The rows of `align`, `gather`, `equation` and `alignat` are numbered at the right of their line, counted through the note from its top, where the web's number is counted through what is drawn (Differs 41). A formula that cannot be read says so on a long press, in a panel, not a browser's tooltip. Re-checked 2026-10-11: as written; the test's list (`_unread`) still has the seven. The reader and the numbering are kept on purpose; the seven families are left to build. |
+| Maths drawn as a formula (KaTeX), inline | editor/mathsDrawn.ts:132-173; editor/Editor.tsx:336 | editor/maths/maths.dart; editor/maths/formula.dart; packages/flutter_math_fork | differs | Drawn by flutter_math_fork, a port of KaTeX with KaTeX's faces, kept in the repo (packages/flutter_math_fork: its README names the twenty places it was changed to agree with KaTeX). Thirty formulas and the pieces of them, one at a time, held against KaTeX 0.16 (test/editor/maths/katex_test.dart), are as tall and as deep to a hundredth of an em, every one, and what KaTeX refuses is refused. Of eighty-three families of KaTeX's commands every one is read since 2026-10-11 (`\phase`, `\angl`, `\edef`, `\Set`, `CD` and the ringed marks were not: the README's change 20). The rows of `align`, `gather`, `equation` and `alignat` are numbered at the right of their line, counted through the note from its top, where the web's number is counted through what is drawn (Differs 41). A formula that cannot be read says so on a long press, in a panel, not a browser's tooltip. Re-checked 2026-10-11, and the seven families built the same day: the test's list (`_unread`) is empty. The reader and the numbering are kept on purpose. |
 | A `$$` block on lines of its own, set in the middle of the page | editor/mathsDrawn.ts:141-157 | editor/maths/maths.dart | match | |
 | Lists `-`, `*`, `+`, `1.`, `1)`, nested, with a hanging indent | core/itemSyntax.ts:31-33; editor/glyphLines.ts:44-93 | core/item_syntax.dart; editor/view/glyph_lines.dart:47-70 | match | |
 | To-do boxes | editor/glyphHighlight.ts:52 | editor/view/glyph_highlight.dart:80 | match | |
@@ -1420,8 +1423,9 @@ left" at the top.
     web's colouring of the whole note, and here that line goes uncoloured and the next is read; Pug's mode asks
     JavaScript itself whether an attribute's value has ended, and here the grammar JavaScript is coloured by is
     asked; Stylus's mode sorts its words with a comparison V8 and WebKit take differently, and V8's is followed.
-41. **kept on purpose, but for seven families left to build** A formula is drawn by `flutter_math_fork`, held to
-    KaTeX's heights and depths (test/editor/maths/katex_test.dart). An equation's number is its place in the note,
+41. **kept on purpose** A formula is drawn by `flutter_math_fork`, held to
+    KaTeX's heights and depths (test/editor/maths/katex_test.dart); the seven families of commands it did not
+    read are read since 2026-10-11. An equation's number is its place in the note,
     counted through the note from its top (test/editor/maths/numbers_test.dart), where KaTeX's counter counts what
     is in the page. A formula that cannot be read says why in a panel on a long press, where a browser shows a
     tooltip; a screen reader is told the formula's TeX, where the web gives it MathML.
