@@ -442,7 +442,9 @@ class NoteCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final gap = t.space(3);
-    final window = windowWidth ?? MediaQuery.sizeOf(context).width;
+    // The window's width alone: its height is another at every frame of a keyboard's rise (the page under it is
+    // told the window ends at the keyboard), and the cards were made again at each of them.
+    final window = windowWidth ?? MediaQuery.widthOf(context);
     return LayoutBuilder(
       builder: (context, box) {
         final columns = columnsFor(box.maxWidth, window, gap: gap, least: t.lenOf('12rem'));
@@ -481,7 +483,9 @@ class SliverNoteCards extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final gap = t.space(3);
-    final window = windowWidth ?? MediaQuery.sizeOf(context).width;
+    // The window's width alone: its height is another at every frame of a keyboard's rise (the page under it is
+    // told the window ends at the keyboard), and the cards were made again at each of them.
+    final window = windowWidth ?? MediaQuery.widthOf(context);
     final columns = NoteCards.columnsFor(width, window, gap: gap, least: t.lenOf('12rem'));
     final idOf = columns == 1 ? this.idOf : null;
     final places = idOf == null ? null : <String, int>{for (var index = 0; index < count; index += 1) idOf(index): index};

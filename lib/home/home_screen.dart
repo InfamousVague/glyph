@@ -503,8 +503,13 @@ class _HomeScreenState extends State<HomeScreen> {
   /// place too, and arrive again when it changes, as each was made again when the list was a column.
   static String _placed(HomeSection section, int at, Note note) => '${section.key}/${section.draw.name}/$at/${note.id}';
 
+  // Under [_KeyboardWatch], which says whether the keyboard is up as a yes or a no: the page asked the window for
+  // the keyboard's height here, another number at every frame of its rise, and was built again at each of them
+  // (on the phone, opening search over it: home.build=26 in the 42 frames, tool/perf.sh android search).
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context) => _KeyboardWatch(child: Builder(builder: _build));
+
+  Widget _build(BuildContext context) {
     if (ghostPerf) Perf.count('home.build');
     final t = context.tokens;
     final spaces = widget.workspaces.value;
@@ -524,7 +529,7 @@ class _HomeScreenState extends State<HomeScreen> {
       orgNews: widget.orgNews,
       sideKey: widget.sideKey ?? defaultTargetPlatform == TargetPlatform.android,
       // The home bar is under the keyboard while it is up: nothing to stand clear of then.
-      keyboard: MediaQuery.viewInsetsOf(context).bottom > 0,
+      keyboard: _KeyboardUp.of(context),
       seams: (widget.onCapture != null ? 1 : 0) |
           (widget.onSearch != null ? 2 : 0) |
           (widget.onSwipe != null ? 4 : 0) |
@@ -932,6 +937,26 @@ class _HomeScreenState extends State<HomeScreen> {
 /// (`row-<id>`) still finds one widget.
 class _Slot extends ValueKey<String> {
   const _Slot(super.value);
+}
+
+/// Whether the keyboard is up, said to the page as a yes or a no ([_KeyboardUp]): what it wants to know (whether
+/// the phone's own bar is there to stand clear of) changes twice a keyboard, not at every frame of one.
+class _KeyboardWatch extends StatelessWidget {
+  const _KeyboardWatch({required this.child});
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => _KeyboardUp(up: MediaQuery.viewInsetsOf(context).bottom > 0, child: child);
+}
+
+class _KeyboardUp extends InheritedWidget {
+  const _KeyboardUp({required this.up, required super.child});
+  final bool up;
+
+  static bool of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<_KeyboardUp>()?.up ?? false;
+
+  @override
+  bool updateShouldNotify(_KeyboardUp oldWidget) => oldWidget.up != up;
 }
 
 /// The page's window ends at the keyboard: padded by it, and what is under it told that the window is that much
