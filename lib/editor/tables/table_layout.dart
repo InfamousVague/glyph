@@ -51,29 +51,59 @@ import '../view/line_breaks.dart';
 /// A unitless `line-height` as Blink resolves it: the font size taken to the nearest sixty-fourth, times the
 /// number, down to the sixty-fourth below. (16.0546px at 1.35 is 21.65625 on the page, not 21.671875; 20.5143px
 /// is 27.6875; 13.9606px at 1.6 is 22.3125.)
-double blinkLineHeight(double factor, double size) => layoutUnitFloor(factor * layoutUnit(size));
+///
+/// A phone's page is laid out in the phone's own pixels: [ratio] of them to a CSS one, and the sixty-fourths are
+/// of those. (A row of a table at 16.2458px on a screen at 2.625 is a line of 57.5625 device pixels, 21.9286px.)
+double blinkLineHeight(double factor, double size, [double ratio = 1]) => layoutUnitFloor(factor * layoutUnit(size * ratio)) / ratio;
+
+/// A length of [value] CSS pixels as a page laid out at [ratio] device pixels to one has it: down to the
+/// sixty-fourth of a device pixel.
+double deviceFloor(double value, double ratio) => layoutUnitFloor(value * ratio) / ratio;
+
+/// `border: 1px solid` as a page laid out at [ratio] draws it: a whole number of device pixels, down, and never
+/// under one (2 of them at 2.625, which is 0.762px).
+double deviceRule(double width, double ratio) {
+  final device = (width * ratio + 1e-6).floorToDouble();
+  return (device < 1 ? 1 : device) / ratio;
+}
 
 /// A face at a size on a line of a height: what a run of words needs to be set as the page sets it.
 class WordsFace {
-  WordsFace(this.style, this.lineHeight) : size = style.fontSize ?? 16 {
+  WordsFace(this.style, this.lineHeight, {this.ratio = 1}) : size = style.fontSize ?? 16 {
     final metrics = FaceMetrics.of(style);
-    ascent = (metrics.ascent * size).roundToDouble();
-    descent = (metrics.descent * size).roundToDouble();
+    if (ratio == 1) {
+      ascent = (metrics.ascent * size).roundToDouble();
+      descent = (metrics.descent * size).roundToDouble();
+    } else {
+      // In the phone's own pixels, and a descent rounded down takes a pixel from the ascent (looks/look.dart
+      // `_box`, measured beside a phone's page).
+      final exact = metrics.descent * size * ratio;
+      var up = (metrics.ascent * size * ratio).roundToDouble(), down = exact.roundToDouble();
+      if (down < exact - 1e-4) {
+        down += 1;
+        up -= 1;
+      }
+      ascent = up / ratio;
+      descent = down / ratio;
+    }
   }
 
   final TextStyle style;
   final double size;
   final double lineHeight;
 
+  /// The device pixels to a CSS one the page is laid out in: the whole pixels below are of those.
+  final double ratio;
+
   /// The font's ascent and descent at this size, each a whole pixel, as Blink rounds them.
   late final double ascent;
   late final double descent;
 
   /// From the top of a line to the top of its words' box: the half-leading, floored.
-  double get lead => ((lineHeight - (ascent + descent)) / 2).floorToDouble();
+  double get lead => ((lineHeight - (ascent + descent)) * ratio / 2 + 1e-6).floorToDouble() / ratio;
 
   /// Whether `other` sets words the same way.
-  bool same(WordsFace other) => other.style == style && other.lineHeight == lineHeight;
+  bool same(WordsFace other) => other.style == style && other.lineHeight == lineHeight && other.ratio == ratio;
 }
 
 bool _space(int unit) => unit == 0x20 || unit == 0x09;

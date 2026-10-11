@@ -36,14 +36,24 @@ class TableFixture {
   /// How wide the page's editor came out: the screen's 390, or wider where a table would not fit, the growing
   /// editor on the page taking the table's width for its own.
   double get width => (json['width'] as num).toDouble();
-  bool get widened => (json['content'] as Map<String, dynamic>)['right'] != 390;
+
+  /// The screen the page was drawn on: a phone's 390, or the screen a case in a phone's own pixels says
+  /// (`fixtures/phone/`, drawn by a Chromium launched at [ratio]: 475 is the Fold's cover screen at 2.625).
+  double get screen => ((json['screen'] ?? 390) as num).toDouble();
+
+  /// The device pixels to a CSS one the page was LAID OUT in: 1 for a case drawn by a browser told a scale to
+  /// paint at (it lays out in whole CSS pixels), the phone's for one in `fixtures/phone/`.
+  double get ratio => ((json['ratio'] ?? 1) as num).toDouble();
+  bool get widened => (json['content'] as Map<String, dynamic>)['right'] != screen;
   List<Map<String, dynamic>> get lines => (json['lines'] as List).cast<Map<String, dynamic>>();
   List<Map<String, dynamic>> get tables => (json['tables'] as List).cast<Map<String, dynamic>>();
 
   static Rect rect(Map<String, dynamic> r) => Rect.fromLTRB((r['left'] as num).toDouble(), (r['top'] as num).toDouble(), (r['right'] as num).toDouble(), (r['bottom'] as num).toDouble());
 
-  static List<String> names() =>
-      Directory('test/editor/tables/fixtures').listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => f.uri.pathSegments.last.replaceAll('.json', '')).toList()..sort();
+  static List<String> names() => <String>[
+    for (final folder in const <String>['', 'phone/'])
+      ...(Directory('test/editor/tables/fixtures/$folder').listSync().whereType<File>().where((f) => f.path.endsWith('.json')).map((f) => '$folder${f.uri.pathSegments.last.replaceAll('.json', '')}').toList()..sort()),
+  ];
 }
 
 /// A note with its tables drawn, as the page drew it: a screen 390 x 844 at two device pixels, the editor's box at
@@ -58,6 +68,8 @@ Future<EditorView> pumpTables(
   bool readOnly = false,
   int? caret,
   List<Extension> more = const <Extension>[],
+  double screen = 390,
+  double layoutRatio = 1,
 }) async {
   final view = EditorView(
     wholeDocument: true,
@@ -71,19 +83,21 @@ Future<EditorView> pumpTables(
   view.focusRequest = () => view.setFocused(true);
   await pumpApp(
     tester,
+    size: Size(screen, 844),
     prefs: AppPreferences(theme: theme, noteFace: noteFace, textSize: textSize),
-    ratio: 2,
+    ratio: layoutRatio == 1 ? 2 : layoutRatio,
+    measuredAt: layoutRatio,
     home: Builder(
       // The page was measured in a browser emulating two device pixels to one, and lays out in whole CSS pixels
       // where a border is concerned: the editor is told one device pixel to the logical one, and the picture is
       // still taken at two (test/editor/view/support.dart).
       builder: (context) => MediaQuery(
-        data: MediaQuery.of(context).copyWith(devicePixelRatio: 1),
+        data: MediaQuery.of(context).copyWith(devicePixelRatio: layoutRatio),
         child: ColoredBox(
           color: context.tokens.color('glacier-bg'),
           child: Align(
             alignment: Alignment.topLeft,
-            child: SizedBox(width: 390, child: SingleChildScrollView(child: EditorColumn(view: view))),
+            child: SizedBox(width: screen, child: SingleChildScrollView(child: EditorColumn(view: view))),
           ),
         ),
       ),
@@ -101,7 +115,7 @@ Future<EditorView> pumpTables(
 }
 
 Future<EditorView> pumpTableFixture(WidgetTester tester, TableFixture fixture) =>
-    pumpTables(tester, fixture.doc, theme: fixture.theme, noteFace: fixture.noteFace, textSize: fixture.textSize, display: fixture.display, readOnly: fixture.readOnly, caret: fixture.caret);
+    pumpTables(tester, fixture.doc, theme: fixture.theme, noteFace: fixture.noteFace, textSize: fixture.textSize, display: fixture.display, readOnly: fixture.readOnly, caret: fixture.caret, screen: fixture.screen, layoutRatio: fixture.ratio);
 
 /// The lines drawn, in document order.
 List<RenderEditorLine> drawnLines(WidgetTester tester) => tester.renderObjectList<RenderEditorLine>(find.byType(EditorLine)).toList()..sort((a, b) => a.from - b.from);

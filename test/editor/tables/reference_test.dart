@@ -31,6 +31,7 @@ void main() {
       await pumpTableFixture(tester, fixture);
       final t = tester.element(find.byType(DrawnTable).evaluate().isEmpty ? find.byType(SingleChildScrollView).first : find.byType(DrawnTable).first).tokens;
       final problems = <String>[];
+      final report = <String>[];
       var worst = 0.0;
       // Where the page's editor grew as wide as its table, what is measured from the far side is not held: here the
       // table scrolls in its wrap and the note keeps the screen's width.
@@ -40,6 +41,7 @@ void main() {
         final off = offs.reduce((a, b) => a > b ? a : b);
         if (off > worst) worst = off;
         if (off > tolerance) problems.add('[$what] $own, the page $page');
+        if (Platform.environment['EDITOR_REPORT'] != null && off > 0.12) report.add('[$what] ${off.toStringAsFixed(3)}: $own, the page $page');
       }
 
       final lines = drawnLines(tester);
@@ -140,7 +142,7 @@ void main() {
       }
 
       // ignore: avoid_print
-      print('$name: ${lines.length} lines, ${wraps.length} tables, $cellCount cells, worst ${worst.toStringAsFixed(3)}');
+      print('$name: ${lines.length} lines, ${wraps.length} tables, $cellCount cells, worst ${worst.toStringAsFixed(3)}${report.isEmpty ? '' : '\n  ${report.take(12).join('\n  ')}'}');
       if (Platform.environment['EDITOR_SHOTS'] != null) {
         await expectLater(find.byType(GhostApp), matchesGoldenFile('shots/$name.png'));
       }

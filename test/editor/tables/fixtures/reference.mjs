@@ -19,7 +19,7 @@
 //
 // Playwright is not this repository's: it is taken from the npx cache, as tool/editor_reference.mjs takes it.
 import { chromium } from '/Users/matt/.npm/_npx/e41f203b7505f1fb/node_modules/playwright/index.mjs';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 
 const BASE = process.env.GLYPH_DEV ?? 'http://127.0.0.1:5272/';
 const OUT = new URL('./', import.meta.url).pathname;
@@ -44,6 +44,9 @@ const DOCS = {
   longhead: ['| A header that is much longer than eighteen ems | b |', '| --- | --- |', '| x | well-known state-of-the-art |', '| y | a/b/c?d=e and on |', '', 'After'].join('\n'),
 };
 
+// A table of three rows between two paragraphs: beside the page on a phone it stood three device pixels tall.
+DOCS.three = ['Before the table.', '', '| Fruit | Colour | Count |', '| --- | --- | --- |', '| Apple | Red | 3 |', '| Pear | Green | 12 |', '| Plum | Purple | 7 |', '', 'After the table.'].join('\n');
+
 const at = (doc, words) => DOCS[doc].indexOf(words);
 
 /** The cases: a note, whether it can be edited, and where the caret is (which focuses the editor). */
@@ -67,9 +70,17 @@ CASES.push({ name: 'align-larger', doc: 'align', textSize: 'larger' });
 CASES.push({ name: 'align-inter', doc: 'align', noteFace: 'inter' });
 CASES.push({ name: 'wrap-inter', doc: 'wrap', noteFace: 'inter' });
 
+// IN A PHONE'S OWN PIXELS. `GLYPH_RATIO=2.625 node …/reference.mjs` draws the plain cases again as a phone lays
+// them out and writes them to fixtures/phone/. Playwright's `deviceScaleFactor` only scales the picture: the page
+// is still laid out in whole CSS pixels (a border of 0.35em at 10.8 px is 3px at any factor). Chromium LAUNCHED at
+// a scale lays out in device pixels, as a phone's does (the same border is nine device pixels, 3.42857px), and a
+// window of 475 x 751 at 2.625 is the Fold's cover screen (1248 x 1972). docs/REFERENCES.md has the measurement.
+const RATIO = Number(process.env.GLYPH_RATIO ?? 0);
+const WIDTH = RATIO ? Math.floor(1248 / RATIO) : 390;
+if (RATIO) mkdirSync(`${OUT}phone`, { recursive: true });
 const only = process.argv.slice(2);
-const browser = await chromium.launch();
-const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const browser = await chromium.launch(RATIO ? { args: [`--force-device-scale-factor=${RATIO}`, `--window-size=${WIDTH},2000`] } : {});
+const context = await browser.newContext(RATIO ? { viewport: null, hasTouch: true } : { viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
 const page = await context.newPage();
 page.on('pageerror', (error) => console.log('page error:', error.message));
 // A page of the dev server's own origin with nothing on it, so the app's modules load and the app does not start.
@@ -110,9 +121,11 @@ await page.evaluate(async () => {
 
 for (const one of CASES) {
   if (only.length && !only.includes(one.name)) continue;
+  // In a phone's pixels: each note as it is, drawn and read-only, and in the dark.
+  if (RATIO && !(one.name === one.doc || one.name === `${one.doc}-readonly` || one.name === 'simple-dark' || one.name === 'simple-inside')) continue;
   const doc = DOCS[one.doc];
   const result = await page.evaluate(
-    async ({ one, doc }) => {
+    async ({ one, doc, WIDTH }) => {
       const { CM, Base, Prefs } = window;
       const theme = one.theme ?? 'light';
       const display = one.display ?? 'mixed';
@@ -123,7 +136,7 @@ for (const one of CASES) {
       stage.replaceChildren();
       document.body.style.background = 'var(--glacier-bg)';
       const host = document.createElement('div');
-      host.style.cssText = 'inline-size: 390px; display: flex; flex-direction: column;';
+      host.style.cssText = `inline-size: ${WIDTH}px; display: flex; flex-direction: column;`;
       stage.append(host);
       const readOnly = one.readOnly || false;
       // Editor.tsx's host: `<div className={styles.editor} data-grow data-view={display}>`.
@@ -236,16 +249,18 @@ for (const one of CASES) {
         page: root.getPropertyValue('--glacier-bg'),
         lines,
         tables,
-        clip: { x: 0, y: 0, width: Math.ceil(origin.width), height: Math.min(844, Math.ceil(view.dom.getBoundingClientRect().bottom - origin.top)) },
+        clip: { x: 0, y: 0, width: Math.ceil(origin.width), height: Math.min(1900, Math.ceil(view.dom.getBoundingClientRect().bottom - origin.top)) },
       };
     },
-    { one, doc },
+    { one, doc, WIDTH },
   );
   const { clip, ...kept } = result;
-  writeFileSync(`${OUT}${one.name}.json`, `${JSON.stringify(kept)}\n`);
+  const out = RATIO ? `${OUT}phone/` : OUT;
+  if (RATIO) Object.assign(kept, { ratio: RATIO, screen: WIDTH });
+  writeFileSync(`${out}${one.name}.json`, `${JSON.stringify(kept)}\n`);
   // The room under the last line (the content's own padding) is left out of the picture: it is only paper.
   const last = Math.max(...kept.lines.map((l) => l.rect.bottom), ...kept.tables.map((t) => t.rect.bottom), 1);
-  writeFileSync(`${OUT}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, Math.min(clip.height, Math.ceil(last) + 24)) } }));
+  writeFileSync(`${out}${one.name}.png`, await page.screenshot({ clip: { ...clip, height: Math.max(1, Math.min(clip.height, Math.ceil(last) + 24)) } }));
   console.log(one.name, kept.lines.length, 'lines', kept.tables.length, 'tables', kept.tables.map((t) => t.cells.length).join(','));
 }
 

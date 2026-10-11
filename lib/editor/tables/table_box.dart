@@ -90,7 +90,10 @@ class DrawnTable extends StatelessWidget {
     final ratio = env?.devicePixelRatio ?? MediaQuery.devicePixelRatioOf(context);
     // '.cm-glyphTableWrap': { overflowX: 'auto', margin: '0.35em 0', paddingInline: 'var(--app-gutter, 1rem)',
     //   cursor: 'text' }
-    final margin = layoutUnitFloor(0.35 * body);
+    // The pixels the page is laid out in: a phone's own (`CssContext.lineDpr`), in which a rule is a whole
+    // number and a padding a sixty-fourth.
+    final layout = t.css.lineDpr > 0 ? t.css.lineDpr : 1.0;
+    final margin = deviceFloor(0.35 * body, layout);
     final parsed = parseTable(text);
     final Widget Function(double room) inside;
     if (parsed == null) {
@@ -103,22 +106,22 @@ class DrawnTable extends StatelessWidget {
       // '.cm-glyphTable': { borderCollapse: 'collapse', fontSize: '0.92em', lineHeight: '1.35',
       //   minInlineSize: '60%' }
       final size = 0.92 * body;
-      final lineHeight = blinkLineHeight(1.35, size);
+      final lineHeight = blinkLineHeight(1.35, size, layout);
       // `.peek .cm-editor .cm-glyphTable th { background: transparent }` (notes/NotePeek.module.css)
       final peek = look != null && look.sheets.any((sheet) => identical(sheet, peekLook()) || identical(sheet, peekLook(whole: true)));
       final tableLook = TableLook(
         // '.cm-glyphTable th': { whiteSpace: 'nowrap', fontWeight: '700',
         //   background: 'var(--app-paper-2, var(--glacier-surface-sunken, transparent))' }
-        head: WordsFace(_faceAt(base, t, size, weight: 700), lineHeight),
-        body: WordsFace(_faceAt(base, t, size), lineHeight),
+        head: WordsFace(_faceAt(base, t, size, weight: 700), lineHeight, ratio: layout),
+        body: WordsFace(_faceAt(base, t, size), lineHeight, ratio: layout),
         // '.cm-glyphTable th, .cm-glyphTable td': { padding: '0.35em 0.7em',
         //   border: '1px solid var(--glacier-border-subtle, rgba(127,127,127,0.3))', textAlign: 'start',
         //   verticalAlign: 'top', whiteSpace: 'pre-wrap', overflowWrap: 'normal', wordBreak: 'normal',
         //   maxInlineSize: '18em' }
-        padX: layoutUnitFloor(0.7 * size),
-        padY: layoutUnitFloor(0.35 * size),
-        rule: 1,
-        most: layoutUnitFloor(18 * size),
+        padX: deviceFloor(0.7 * size, layout),
+        padY: deviceFloor(0.35 * size, layout),
+        rule: deviceRule(1, layout),
+        most: deviceFloor(18 * size, layout),
         ruleColor: t.color('glacier-border-subtle'),
         headGround: peek ? null : t.color('app-paper-2'),
         devicePixelRatio: ratio,
@@ -157,14 +160,15 @@ class DrawnTable extends StatelessWidget {
       // '.cm-tableGrow:hover': { color: 'var(--app-ink, currentColor)',
       //   background: 'color-mix(in oklch, currentColor 8%, transparent)' }
       final size = 0.8 * body;
-      final lineHeight = blinkLineHeight(1.6, size);
+      final lineHeight = blinkLineHeight(1.6, size, layout);
       final ink = t.color('app-ink-3'), pressedInk = t.color('app-ink');
       TableGrowButton grow(String label, String Function(String text) change) => TableGrowButton(
         label: label,
-        face: WordsFace(_faceAt(base, t, size, color: ink), lineHeight),
-        pressedFace: WordsFace(_faceAt(base, t, size, color: pressedInk), lineHeight),
-        padX: layoutUnitFloor(0.6 * size),
-        padY: layoutUnitFloor(0.2 * size),
+        face: WordsFace(_faceAt(base, t, size, color: ink), lineHeight, ratio: layout),
+        pressedFace: WordsFace(_faceAt(base, t, size, color: pressedInk), lineHeight, ratio: layout),
+        padX: deviceFloor(0.6 * size, layout),
+        padY: deviceFloor(0.2 * size, layout),
+        rule: deviceRule(1, layout),
         ruleColor: t.color('glacier-border-subtle'),
         pressedGround: t.colorOf('color-mix(in oklch, currentColor 8%, transparent)', current: pressedInk),
         onPressed: () => growTable(view, from, text, change),
@@ -175,7 +179,7 @@ class DrawnTable extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: <Widget>[
             grow('+ Column', addTableColumn),
-            SizedBox(width: layoutUnitFloor(0.4 * body)),
+            SizedBox(width: deviceFloor(0.4 * body, layout)),
             grow('+ Row', addTableRow),
           ],
         ),
@@ -393,7 +397,11 @@ class TableGrowButton extends StatefulWidget {
     required this.ruleColor,
     required this.pressedGround,
     required this.onPressed,
+    this.rule = 1,
   });
+
+  /// `border: 1px solid`, as wide as the page draws it: a whole number of the screen's own pixels.
+  final double rule;
 
   final String label;
   final WordsFace face;
@@ -435,10 +443,10 @@ class _TableGrowButtonState extends State<TableGrowButton> {
           child: DecoratedBox(
             decoration: ShapeDecoration(
               color: _pressed ? w.pressedGround : null,
-              shape: StadiumBorder(side: BorderSide(color: w.ruleColor)),
+              shape: StadiumBorder(side: BorderSide(color: w.ruleColor, width: w.rule)),
             ),
             child: Padding(
-              padding: EdgeInsets.symmetric(horizontal: 1 + w.padX, vertical: 1 + w.padY),
+              padding: EdgeInsets.symmetric(horizontal: w.rule + w.padX, vertical: w.rule + w.padY),
               child: TableWords(text: w.label, face: _pressed ? w.pressedFace : w.face),
             ),
           ),
