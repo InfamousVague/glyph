@@ -1,0 +1,13 @@
+{
+  "code": "graph TD\n  A[Start] --> B{Ready?}\n  B -->|yes| C[Go]\n  B -->|no| D[Wait]",
+  "dark": false,
+  "viewport": 704.0,
+  "room": 704.0,
+  "gutter": 23.7376128,
+  "em": 18.2176704,
+  "ui": "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  "note": "'Maple Mono', ui-monospace, monospace",
+  "coding": true,
+  "ink": "rgba(13,13,13,1.000)",
+  "ratio": 2.0
+}

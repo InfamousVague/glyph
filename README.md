@@ -32,6 +32,10 @@ with data of its own.
 - **A screen is held to the page by measurement.** `test/launch/launch_screen_test.dart` is the pattern: rectangles
   read from the web app with `getBoundingClientRect` at 390 x 844, asserted to half a pixel, and a picture of the
   screen (`test/support/render.dart`, written to a `shots/` folder beside the test) looked at beside the page's.
+  `docs/REFERENCES.md` is the list: for each drawn thing, the tool that draws it in the original's page, the test
+  that holds the port to it, in which sides and at which widths, and what holds nothing yet. A note's blocks
+  (code, maths, a diagram's box, a word too long for its line) are also held by the picture itself, laid over the
+  page's by a test (`test/editor/blocks/reference_test.dart`, `test/support/page_picture.dart`).
 
 ## Stages
 

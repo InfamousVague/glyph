@@ -1,0 +1,13 @@
+{
+  "code": "graph TD\n  A -->",
+  "dark": true,
+  "viewport": 390.0,
+  "room": 390.0,
+  "gutter": 22.317328000000003,
+  "em": 17.450694,
+  "ui": "'Inter Variable', ui-sans-serif, system-ui, sans-serif",
+  "note": "'Maple Mono', ui-monospace, monospace",
+  "coding": true,
+  "ink": "rgba(243,243,243,1.000)",
+  "ratio": 2.0
+}
