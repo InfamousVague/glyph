@@ -4,6 +4,8 @@ import { WorkingGears } from '../art/WorkingGears.tsx';
 import { useRefining } from '../capture/refine.ts';
 import type { VoiceModelState } from '../capture/useVoiceModel.ts';
 import { megabytes } from '../core/ai.ts';
+import { openLink } from '../core/linkPreview.ts';
+import { MAC_DOWNLOAD, useMacSuccessor } from '../core/macSuccessor.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
 import { sentenceOf } from '../core/notifications/kinds.ts';
 import { useOrgs } from '../core/orgs/orgs.ts';
@@ -26,6 +28,8 @@ import styles from './Notices.module.css';
  */
 export function UpdateNotice({ updates }: { updates: Updates }) {
   const { ready, apk } = updates;
+  // On a Mac, the app that comes after this one, once the site offers it (core/macSuccessor.ts).
+  const successor = useMacSuccessor();
   if (apk.kind === 'available' || apk.kind === 'failed' || apk.kind === 'needs-permission') {
     return (
       <UpdateCard
@@ -57,6 +61,16 @@ export function UpdateNotice({ updates }: { updates: Updates }) {
   }
   if (ready) {
     return <UpdateCard text="A new version of Ghost.md is ready." action="Reload" onAction={updates.reload} ghost />;
+  }
+  if (successor) {
+    return (
+      <UpdateCard
+        text={`Ghost.md ${successor} for Mac is out: a new app, and your notes come with you.`}
+        action="Download"
+        onAction={() => void openLink(MAC_DOWNLOAD)}
+        ghost
+      />
+    );
   }
   return null;
 }
