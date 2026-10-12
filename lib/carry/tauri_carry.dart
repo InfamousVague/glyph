@@ -34,6 +34,12 @@
 /// again on the next launch and comes to the same place. Each half reads back what it wrote before it is marked
 /// done, in `carry/tauri-carry.json`, with a line for every step in `carry/tauri-carry.log` (names and counts;
 /// never a token, a key or a note's words).
+///
+/// **On a Mac the same carry runs over other ground** (lib/carry/mac_carry.dart; docs/CUTOVER.md §7): this app
+/// keeps a folder of its own there and never opens the Tauri app's, so there is a half before the other two,
+/// [TauriCarry.files], that copies the library, the pictures and the recordings across; and what the page kept is
+/// WebKit's, read from copies of its files (webkit_stores.dart), with no web view to ask. Where the things are
+/// read from is a [CarrySource]: a phone's is [PhoneCarrySource], which is all there was before the Mac's.
 library;
 
 import 'dart:async';
@@ -67,6 +73,17 @@ abstract interface class CarryDevice {
 
   /// Lets go of queued work by its unique names.
   Future<void> forgetWork(List<String> names);
+}
+
+/// A device with no web view to ask and no queued work: a Mac.
+class NoCarryDevice implements CarryDevice {
+  const NoCarryDevice();
+
+  @override
+  Future<String> readWeb(String probeContext) => Future.error(StateError('There is no web view to ask here.'));
+
+  @override
+  Future<void> forgetWork(List<String> names) async {}
 }
 
 class ChannelCarryDevice implements CarryDevice {
@@ -109,26 +126,158 @@ class CarryOutcome {
   String toString() => 'ran: $ran, done: $done, carried ${carried.length}, left ${left.length}, failed ${failed.length}';
 }
 
-class TauriCarry {
-  TauriCarry({required this.dataDir, required this.prefs, required this.secure, required this.device, DateTime Function()? now}) : _now = now ?? DateTime.now;
+/// What the Tauri app's page kept, read: by a web view, or from the web view's files.
+class CarryRead {
+  const CarryRead({required this.local, required this.fromWebView, this.webFailure, required this.diskCount, required this.keys, this.idbDamaged = 0, this.web = const {}, this.how, this.accountProbes = const [], this.accountRead, this.notes = const []});
 
+  /// Every key and value of `localStorage`.
+  final Map<String, String> local;
+
+  /// Whether a web view answered; if not, why not, and [local] is from its files.
+  final bool fromWebView;
+  final String? webFailure;
+
+  /// How many keys the files alone gave.
+  final int diskCount;
+
+  /// The three keys, from the files.
+  final DiskKeys keys;
+  final int idbDamaged;
+
+  /// What a web view answered (`databases`, `keys`, `team`), or what the files gave of it (`team`).
+  final Map<String, Object?> web;
+
+  /// One line for the log saying how it was read, where the phone's two lines do not say it.
+  final String? how;
+
+  /// Things the page itself sealed under the account key, each its context and its sealed text: with no web view
+  /// to seal a proof, the key that opens one of these is the page's key.
+  final List<({String context, String blob})> accountProbes;
+
+  /// What is said of an account key that nothing could prove, where "no web view could seal a proof" is not the
+  /// whole of it.
+  final String? accountRead;
+
+  /// Lines for the log about the keys (never a key).
+  final List<String> notes;
+}
+
+/// Where what the Tauri app kept is read from.
+abstract interface class CarrySource {
+  /// The folder the Tauri app's Rust kept `slack.json` and `notion.json` in.
+  String get filesDir;
+
+  /// Whether a Tauri app ever kept anything here.
+  Future<bool> wasHere();
+
+  /// Reads it. Asked once a launch.
+  Future<CarryRead> read();
+}
+
+/// A phone's: the web view's storage is in the app's own data folder, and a web view can be asked.
+class PhoneCarrySource implements CarrySource {
+  const PhoneCarrySource({required this.dataDir, required this.device});
+
+  final String dataDir;
+  final CarryDevice device;
+
+  @override
+  String get filesDir => dataDir;
+
+  @override
+  Future<bool> wasHere() => localStorageFolder(dataDir).exists();
+
+  @override
+  Future<CarryRead> read() async {
+    // The keys first, from the files, while no web view has them open.
+    final idb = await LevelDb.read(indexedDbFolder(dataDir));
+    final keys = DiskKeys.of(idb);
+    final disk = localStorageOf(await LevelDb.read(localStorageFolder(dataDir)));
+    Map<String, Object?>? web;
+    String? webFailure;
+    try {
+      final read = jsonDecode(await device.readWeb(carryProbeContext));
+      if (read is Map && read['local'] is Map) {
+        web = read.cast<String, Object?>();
+      } else {
+        webFailure = 'an answer that is not the page\'s';
+      }
+    } catch (failure) {
+      webFailure = '$failure';
+    }
+    final Map<String, String> local;
+    if (web != null) {
+      local = {
+        for (final entry in (web['local'] as Map).entries)
+          if (entry.key is String && entry.value is String) entry.key as String: entry.value as String,
+      };
+    } else {
+      local = disk;
+    }
+    return CarryRead(local: local, fromWebView: web != null, webFailure: webFailure, diskCount: disk.length, keys: keys, idbDamaged: idb.damaged, web: web ?? const {});
+  }
+}
+
+/// What the files' half did, in numbers: never a name, since a note's file is named by its title.
+class CarryFilesOutcome {
+  const CarryFilesOutcome({this.counts = const {}, this.failed = 0, this.notes = const []});
+
+  /// How many of each kind were copied, were already here, or were left on purpose (`notes`, `notes left`, …).
+  final Map<String, int> counts;
+
+  /// How many could not be copied. Any at all, and the half is not done.
+  final int failed;
+
+  /// Lines for the log.
+  final List<String> notes;
+}
+
+/// The half that comes first where this app does not wake in the Tauri app's folder (a Mac): the Tauri app's
+/// files, copied into this app's own.
+abstract interface class CarryFiles {
+  /// Copies what is not here yet. It never changes what it copies from, and never writes over a file.
+  Future<CarryFilesOutcome> copy();
+}
+
+class TauriCarry {
+  TauriCarry({required this.dataDir, required this.prefs, required this.secure, required this.device, CarrySource? source, this.files, DateTime Function()? now})
+      : source = source ?? PhoneCarrySource(dataDir: dataDir, device: device),
+        _now = now ?? DateTime.now;
+
+  /// This app's own data folder: where the marker, the log and the team documents are written.
   final String dataDir;
   final CarryPrefs prefs;
   final SecureStore secure;
   final CarryDevice device;
+
+  /// Where the Tauri app's things are read from: this folder itself on a phone.
+  final CarrySource source;
+
+  /// The files' half, where there is one (a Mac), or null where the files are already this app's (a phone).
+  final CarryFiles? files;
   final DateTime Function() _now;
 
   Directory get _folder => Directory('$dataDir${Platform.pathSeparator}carry');
   File get _markerFile => File('${_folder.path}${Platform.pathSeparator}tauri-carry.json');
   File get _logFile => File('${_folder.path}${Platform.pathSeparator}tauri-carry.log');
 
-  Future<_Gathered>? _gathering;
+  Future<CarryRead>? _gathering;
+  Future<CarryOutcome>? _copied;
   Future<CarryOutcome>? _settings;
   Future<CarryOutcome>? _secrets;
 
+  /// The half before the first, where there is one ([files]): the Tauri app's files into this app's folder,
+  /// before the core is opened on it. Done at once where there is none. Asked more than once in a launch, it runs
+  /// once. It never throws.
+  Future<CarryOutcome> copied() => _copied ??= _guarded('files', _carryFiles);
+
   /// The first half: `localStorage` into the preferences' store, and the team notes' documents into their files.
-  /// Asked more than once in a launch, it runs once. It never throws.
-  Future<CarryOutcome> settings() => _settings ??= _guarded('settings', _carrySettings);
+  /// Asked more than once in a launch, it runs once. It never throws. It waits for the files' half, and does
+  /// nothing until that is done: the sync's cursors over half a library would read the missing notes as deleted.
+  Future<CarryOutcome> settings() => _settings ??= _guarded('settings', () async {
+        if (!(await copied()).done) return const CarryOutcome(ran: true, done: false, failed: ['files']);
+        return _carrySettings();
+      });
 
   /// The second half: the session, the keys and the plugins' secrets into the secure store. [core] is the loaded
   /// core, for raising each key to prove it (`key_restore`, `open`: neither needs the library open). It waits for
@@ -183,37 +332,30 @@ class TauriCarry {
 
   // --- what the Tauri app left --------------------------------------------------------------------------------
 
-  /// Whether a Tauri app's web view ever kept anything here.
-  Future<bool> _tauriWasHere() => localStorageFolder(dataDir).exists();
+  /// Whether a Tauri app ever kept anything here.
+  Future<bool> _tauriWasHere() => source.wasHere();
 
-  Future<_Gathered> _gather() => _gathering ??= () async {
-        // The keys first, from the files, while no web view has them open.
-        final idb = await LevelDb.read(indexedDbFolder(dataDir));
-        final keys = DiskKeys.of(idb);
-        final disk = localStorageOf(await LevelDb.read(localStorageFolder(dataDir)));
-        Map<String, Object?>? web;
-        String? webFailure;
-        try {
-          final read = jsonDecode(await device.readWeb(carryProbeContext));
-          if (read is Map && read['local'] is Map) {
-            web = read.cast<String, Object?>();
-          } else {
-            webFailure = 'an answer that is not the page\'s';
-          }
-        } catch (failure) {
-          webFailure = '$failure';
-        }
-        final Map<String, String> local;
-        if (web != null) {
-          local = {
-            for (final entry in (web['local'] as Map).entries)
-              if (entry.key is String && entry.value is String) entry.key as String: entry.value as String,
-          };
-        } else {
-          local = disk;
-        }
-        return _Gathered(local: local, fromWebView: web != null, webFailure: webFailure, diskCount: disk.length, keys: keys, idbDamaged: idb.damaged, web: web ?? const {});
-      }();
+  Future<CarryRead> _gather() => _gathering ??= source.read();
+
+  // --- the files' half ----------------------------------------------------------------------------------------
+
+  Future<CarryOutcome> _carryFiles() async {
+    final half = files;
+    if (half == null) return const CarryOutcome(ran: false, done: true);
+    if ((await _marker())['files'] is Map) return const CarryOutcome(ran: false, done: true);
+    if (!await _tauriWasHere()) {
+      await _mark('files', {'found': false});
+      return const CarryOutcome(ran: false, done: true);
+    }
+    final out = await half.copy();
+    for (final note in out.notes) {
+      await _log('files: $note');
+    }
+    await _log('files: ${out.counts.entries.map((entry) => '${entry.value} ${entry.key}').join(', ')}; ${out.failed} could not be copied');
+    if (out.failed > 0) return CarryOutcome(ran: true, done: false, failed: ['${out.failed} files']);
+    await _mark('files', {'found': true, 'counts': out.counts});
+    return const CarryOutcome(ran: true, done: true);
+  }
 
   // --- the first half -----------------------------------------------------------------------------------------
 
@@ -227,9 +369,10 @@ class TauriCarry {
       return const CarryOutcome(ran: false, done: true);
     }
     final all = await _gather();
-    await _log(all.fromWebView
+    await _log(all.how ??
+        (all.fromWebView
         ? 'read the web view at $tauriOrigin: ${all.local.length} keys of localStorage (${all.diskCount} in its files), databases ${all.web['databases']}'
-        : 'no web view answered (${all.webFailure}): read localStorage from its files, ${all.local.length} keys');
+        : 'no web view answered (${all.webFailure}): read localStorage from its files, ${all.local.length} keys'));
     final carried = <String>[], left = <String>[], failed = <String>[];
     final written = <String, String>{};
     for (final entry in all.local.entries) {
@@ -328,12 +471,14 @@ class TauriCarry {
     final account = all.keys.account;
     if (account != null) {
       final probe = webKeys['account'] is Map ? (webKeys['account'] as Map)['probe'] : null;
-      final proof = await _provesAccountKey(core, account.secret, probe is String ? probe : null);
+      var proof = await _provesAccountKey(core, account.secret, probe is String ? probe : null);
+      // With no page to seal a proof now, something the page sealed before is as good.
+      if (proof == null && all.accountProbes.isNotEmpty) proof = await _opensOne(core, account.secret, all.accountProbes);
       if (proof == false) {
         notes.add('the account key read from the files did not open what the page sealed: not carried');
       } else {
         want['account'] = _b64(account.secret);
-        notes.add(proof == true ? 'the account key opened what the page sealed' : 'the account key was read but no web view could seal a proof: carried as read');
+        notes.add(proof == true ? 'the account key opened what the page sealed' : (all.accountRead ?? 'the account key was read but no web view could seal a proof: carried as read'));
       }
     }
     for (final (name, kind, key) in [('device', 'device', all.keys.device), ('encryption', 'pair', all.keys.encryption)]) {
@@ -351,6 +496,7 @@ class TauriCarry {
     if (signedIn && !want.containsKey('account')) {
       notes.add(all.keys.found ? 'signed in, but the account key could not be read: the password is asked once' : 'signed in, with no key database in the files: the password is asked once');
     }
+    notes.addAll(all.notes);
     if (webKeys['account'] is Map && account == null) notes.add('the page holds an account key (${(webKeys['account'] as Map)['algorithm']}) that the files did not give (${all.idbDamaged} damaged)');
 
     final carried = <String>[], left = <String>[], failed = <String>[];
@@ -397,6 +543,26 @@ class TauriCarry {
     }
   }
 
+  /// Whether the key opens any of what the page sealed under its account key ([CarryRead.accountProbes]).
+  Future<bool> _opensOne(CoreInvoke core, Uint8List secret, List<({String context, String blob})> probes) async {
+    int? handle;
+    try {
+      handle = ((await core('key_restore', {'kind': 'account', 'raw': _b64(secret)})) as Map)['key'] as int;
+      for (final probe in probes.take(12)) {
+        try {
+          if (await core('open', {'key': handle, 'context': probe.context, 'blob': probe.blob, 'as': 'text'}) is String) return true;
+        } catch (_) {
+          // Not this one: an older row, or not this key.
+        }
+      }
+      return false;
+    } catch (_) {
+      return false;
+    } finally {
+      if (handle != null) await core('key_forget', {'key': handle}).catchError((Object _) => null);
+    }
+  }
+
   /// The public half the core answers for a private key of [kind], or null for one it will not take.
   Future<String?> _publicOf(CoreInvoke core, String kind, Uint8List secret) async {
     try {
@@ -434,23 +600,11 @@ class TauriCarry {
 
   Future<Object?> _jsonFile(String name) async {
     try {
-      final file = File('$dataDir${Platform.pathSeparator}$name');
+      final file = File('${source.filesDir}${Platform.pathSeparator}$name');
       if (!await file.exists()) return null;
       return jsonDecode(await file.readAsString());
     } catch (_) {
       return null;
     }
   }
-}
-
-class _Gathered {
-  const _Gathered({required this.local, required this.fromWebView, required this.webFailure, required this.diskCount, required this.keys, required this.idbDamaged, required this.web});
-
-  final Map<String, String> local;
-  final bool fromWebView;
-  final String? webFailure;
-  final int diskCount;
-  final DiskKeys keys;
-  final int idbDamaged;
-  final Map<String, Object?> web;
 }

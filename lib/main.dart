@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:ui' show PlatformDispatcher;
 
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
@@ -10,8 +11,10 @@ import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
 import 'app/token_sheet.g.dart';
 import 'account/device_keys.dart' show deviceSecureStore;
+import 'carry/mac_carry.dart';
 import 'carry/tauri_carry.dart';
 import 'core/native/core.dart';
+import 'core/mac_app.dart';
 import 'core/native/device_paths.dart';
 import 'core/native/ghost_core.dart';
 import 'core/locale_dates.dart';
@@ -171,14 +174,20 @@ Future<void> _remembered() async {
   PerfLaunch.step('stored');
 }
 
-/// The carry from the Tauri app, on a phone only (the Mac's and the iPhone's apps have folders of their own, and a
-/// measured build fills a library of its own): one for the launch, since its two halves are asked from two places.
-/// Null where there is none, or where the phone will not say where its files are or open its store.
+/// The carry from the Tauri app: on a phone, and in the Mac app that replaces the Tauri Mac app (any other Mac
+/// build, and the iPhone's app, has a folder of its own and nothing to do with that app's; a measured build fills
+/// a library of its own). One for the launch, since its halves are asked from two places. Null where there is
+/// none, or where the device will not say where its files are or open its store.
 final Future<TauriCarry?> _carry = () async {
-  if (defaultTargetPlatform != TargetPlatform.android || ghostPerf) return null;
+  final mac = runsAsMacApp && replacesTauriApp;
+  if ((defaultTargetPlatform != TargetPlatform.android && !mac) || ghostPerf) return null;
   try {
     final dirs = await DevicePaths.find();
     final kept = await DeviceCarryPrefs.open().timeout(const Duration(seconds: 2));
+    // The Mac's is over other ground: a folder of this app's own, with the Tauri app's copied into it
+    // (lib/carry/mac_carry.dart). `GHOST_CARRY_LIBRARY` names a folder to take for `~/Library`, for a run over a
+    // copy of somebody's data (docs/CUTOVER.md, section 7).
+    if (mac) return macCarry(ownDataDir: dirs.dataDir, prefs: kept, secure: deviceSecureStore(), standIn: Platform.environment['GHOST_CARRY_LIBRARY']);
     return TauriCarry(dataDir: dirs.dataDir, prefs: kept, secure: deviceSecureStore(), device: const ChannelCarryDevice());
   } catch (failure) {
     debugPrint('[carry] not begun: $failure');
@@ -205,6 +214,9 @@ Future<_Opened> _opened() async {
   try {
     // The library's code and where this device keeps things: asked together.
     final (native, dirs) = await (GhostCore.open(), _folders()).wait;
+    // On a Mac the Tauri app's library is copied into this app's folder before the core is opened on it
+    // (lib/carry/mac_carry.dart). A phone has no such half: its library is where the core already looks.
+    if (runsAsMacApp) await (await _carry)?.copied();
     await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
     core = native.invoke;
     whole = native;
