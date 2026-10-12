@@ -322,7 +322,7 @@ describe('the account', () => {
     await service.deviceWrites(aNote('a', '# One', { starred: true }));
     await service.deviceWrites(aNote('b', '# Two', { archivedAt: WRITTEN }));
     const status = JSON.parse((await call('account_status')).text) as Record<string, unknown>;
-    expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, inTrash: 0, archived: 1, pinned: 1, changedSinceLastRead: 2, connections: 1 });
+    expect(status).toEqual({ handle: 'matt', service: 'https://fake.test/glyph/api', notes: 2, inTrash: 0, archived: 1, pinned: 1, changedSinceLastRead: 2, organizations: [], connections: 1 });
     const { tools } = await client.listTools();
     expect(tools.map((t) => t.name)).toEqual(['list_notes', 'read_note', 'search_notes', 'create_note', 'update_note', 'append_to_note', 'add_journal_entry', 'set_note_flags', 'delete_notes', 'restore_notes', 'list_workspaces', 'file_notes', 'get_rules', 'add_rule', 'account_status']);
   });
@@ -594,17 +594,18 @@ describe('workspaces', () => {
     expect(JSON.parse((await call('list_workspaces')).text)).toEqual({
       count: 2,
       workspaces: [
-        { id: 'org-Q1', name: 'Hello Trade', organization: true, notes: 0 },
-        { id: 'w1', name: 'Home', organization: false, notes: 1 },
+        // An organization's workspace in the settings that the service knows no membership of holds nothing readable.
+        { id: 'org-Q1', name: 'Hello Trade', organization: true, notes: 0, archived: 0, notAMember: true },
+        { id: 'w1', name: 'Home', organization: false, notes: 1, archived: 0 },
       ],
     });
   });
 
   it('files notes by the workspace’s name, moving them from any other, and keeps every other setting', async () => {
     const { call, account } = await withWorkspaces();
-    const answer = JSON.parse((await call('file_notes', { ids: ['a', 'b', 'c', 'zz'], workspace: 'hello trade' })).text);
+    const answer = JSON.parse((await call('file_notes', { ids: ['a', 'b', 'c', 'zz'], workspace: 'home' })).text);
     expect(answer).toEqual({
-      workspace: { id: 'org-Q1', name: 'Hello Trade' },
+      workspace: { id: 'w1', name: 'Home', organization: false },
       filed: [
         { id: 'a', title: 'HelloTrade pricing' },
         { id: 'b', title: 'HelloTrade roadmap' },
@@ -616,9 +617,9 @@ describe('workspaces', () => {
     expect(prefs.theme).toBe('dark');
     expect(prefs.somethingNewer).toEqual({ kept: true });
     // A filing naming no workspace was never one, and is not written back.
-    expect((prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'org-Q1', b: 'org-Q1', c: 'org-Q1' });
+    expect((prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'w1', b: 'w1', c: 'w1' });
     await call('file_notes', { ids: ['c'], unfile: true });
-    expect(((await account.readPrefs()).prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'org-Q1', b: 'org-Q1' });
+    expect(((await account.readPrefs()).prefs.workspaces as { notes: unknown }).notes).toEqual({ a: 'w1', b: 'w1' });
   });
 
   it('never makes a workspace, and says which there are, or which of two of a name it means', async () => {
@@ -628,7 +629,7 @@ describe('workspaces', () => {
     expect(await call('file_notes', { ids: ['zz'], workspace: 'Home' })).toEqual({ isError: true, text: 'None of those notes is in this account: zz.' });
     await account.changePrefs((prefs) => ({ ...prefs, workspaces: { list: [{ id: 'w1', name: 'Home' }, { id: 'w2', name: 'home' }], notes: {} } }));
     expect((await call('file_notes', { ids: ['a'], workspace: 'Home' })).text).toBe('More than one workspace is called “Home”: give its id (w1, w2).');
-    expect(JSON.parse((await call('file_notes', { ids: ['a'], workspace: 'w2' })).text).workspace).toEqual({ id: 'w2', name: 'home' });
+    expect(JSON.parse((await call('file_notes', { ids: ['a'], workspace: 'w2' })).text).workspace).toEqual({ id: 'w2', name: 'home', organization: false });
   });
 
   it('writes from the settings another device just wrote, not over them', async () => {

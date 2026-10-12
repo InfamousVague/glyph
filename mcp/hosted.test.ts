@@ -11,7 +11,7 @@ import { toBase64Url } from '../tauri/src/app/core/sync/crypto.ts';
 import { fakeService, FAST } from '../tauri/src/test/fakeService.ts';
 import { freePort } from './freePort.ts';
 import { hostedApp } from './hosted.ts';
-import { aNote, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignInPage, told } from './testKit.ts';
+import { aNote, anOrganization, asText, ClaudeMemory, completeSignIn, playSignInPage, readSignInPage, teamDevice, told } from './testKit.ts';
 
 /**
  * The hosted server, connected to as Claude connects: the client library's own OAuth flow (discovery from the 401,
@@ -299,6 +299,41 @@ describe('a restart of the server', () => {
   const bearer = (at: { url: URL }, token: string) => fetch(at.url, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: '{}' });
 
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
+
+  it('holds an organization’s keys in memory only: nothing more is written, and after a restart they are read again from the member’s own wrap', async () => {
+    const clock = { now: 1_800_000_000_000 };
+    const state = aFile();
+    const first = await hostedOnAPort(clock, { state });
+    const org = await anOrganization(first.service, 'Ghost');
+    const phone = teamDevice(first.service, org);
+    phone.put('t1', '# Roadmap\n\n- ship it');
+    await phone.sync();
+    const { memory, client } = await first.connectAsClaude();
+    const read = async (from: Client) => JSON.parse(asText(await from.callTool({ name: 'read_note', arguments: { id: 't1' } }))) as { body: string; workspace: { name: string } };
+    expect(await read(client)).toMatchObject({ body: '# Roadmap\n\n- ship it', workspace: { name: 'Ghost' } });
+    await client.close();
+    await first.close();
+
+    // The file holds what it held before organizations: per session, the account key and the sync token, sealed.
+    const written = JSON.parse(readFileSync(state, 'utf8')) as { sessions: Record<string, unknown>[] };
+    expect(Object.keys(written.sessions[0]!).sort()).toEqual(['client', 'clientId', 'handle', 'id', 'lastUsed', 'sealedKey', 'sealedToken']);
+    const wrap = first.service.keysOf(org.id).wraps.matt![1]!;
+    for (const secret of [wrap, first.service.encryption!.sealed]) expect(JSON.stringify(written)).not.toContain(secret);
+
+    // Restarted: the session opens with Claude's token, and the organization's key is unwrapped afresh.
+    const second = await hostedOnAPort(clock, { state, after: first });
+    first.service.calls.length = 0;
+    const again = await second.reconnect(memory);
+    phone.put('t1', '# Roadmap\n\n- ship it\n- rest');
+    await phone.sync();
+    expect((await read(again)).body).toBe('# Roadmap\n\n- ship it\n- rest');
+    expect(first.service.calls).toContain('GET account/key');
+    expect(first.service.calls).toContain(`GET orgs/${org.id}/keys`);
+    await again.callTool({ name: 'sign_out_everywhere', arguments: {} });
+    expect(second.hosted.sessions.size).toBe(0);
+    await again.close();
+    await second.close();
+  });
 
   it('signs nobody out: the session comes back closed, and the tokens Claude holds open it, first the access token and then the refresh token', async () => {
     const clock = { now: 1_800_000_000_000 };

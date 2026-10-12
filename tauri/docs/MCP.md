@@ -89,6 +89,37 @@ These steps are also in the app: the Claude plugin's page (Settings › Plugins 
 Copy, and an instructions drawer with the steps for either way, each command with its own Copy
 (`src/app/plugins/claude/`).
 
+## Organizations
+
+A member's connector has that member's access to their organizations' notes, and nothing more (docs/SHARED.md;
+`mcp/team.ts`). A team's notes are sealed under the organization key, which each member holds wrapped under their
+account's encryption key pair, so the connector does what a member's second device does: it reads the pair's private
+half from the service, where the account's first device left it sealed under the account key (`GET account/key`),
+opens its own wrap of each organization's key with it (`GET orgs/:id/keys`), and reads the organization channel -
+the feed of rows by cursor, then `GET orgs/:id/heads` and the log of each note whose head moved.
+
+- **Every note tool works on a team's note.** It is listed, read and searched with the account's own, and says the
+  `workspace` it is in. `list_notes` takes a `workspace`; `list_workspaces` counts what that answers.
+- **A write is a change to the team's document.** `update_note`, `append_to_note`, `add_journal_entry` and `add_rule`
+  reconcile the new words into the note's CRDT document with the app's own code (`core/team/doc.ts`) and post what
+  changed to the note's log (`POST orgs/:id/notes/:nid/updates`, sealed, naming the key's generation), so two
+  members who edited apart merge and a phone with the note open takes the change. A pin or an archive is the whole
+  team's, as in the app, and is put as the note's row.
+- **Filing is sharing.** `file_notes` into an organization puts the note to the team (its pictures first, sealed
+  again under the organization key, then its row) and deletes the account's own row, as a device does; out of one,
+  it writes the note to the account and deletes the team's row. `create_note` with an organization's `workspace`
+  makes a note that is the team's from its first word.
+- **What it cannot read, it says.** No wrap for this account yet, no key made yet, a row sealed under a generation
+  this account has no wrap at: `notReadable` in the answer counts them by organization and says why, and a note's id
+  that is one of them is answered with where it is, never "No note with the id".
+- **It is not a member's device.** It makes no organization's first key, turns none, wraps for nobody, and does not
+  seal a row again because it read it under an older generation. Those wait on one of the member's devices.
+- **The rules note is the account's own.** A note any member of a team can write is not handed to Claude as its
+  instructions.
+
+Nothing new is kept between runs: the pair and the organization keys are key objects in memory, not extractable,
+read again from the service by whoever holds the account key. The hosted server's file is as it was.
+
 ## Setting it up: hosted
 
 Add `https://ghostmarkdown.com/api/mcp` to Claude as a remote MCP server. Where that is:
@@ -255,6 +286,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | | |
 | --- | --- |
 | `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, the conflict rule, and the self notification posted after a write (`postNotification`) |
+| `mcp/team.ts` | the account's organizations as a client: the member's key pair and wraps read, the team's rows and logs read by cursor, writes as updates to a note's document, filing into a team and out of it |
 | `mcp/server.ts` | the tools: thirteen everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
@@ -268,6 +300,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | `scripts/deploy-ota.mjs --mcp` | publishes the local file at https://ghostmarkdown.com/mcp/glyph-mcp.mjs; `scripts/deploy-server.mjs` ships the hosted one |
 | `mcp/testKit.ts` | what the tests share: a note as another device wrote it, a tool's words, and an account in memory with Claude connected |
 | `mcp/glyph.test.ts` | the client against a sync service stood in for in memory: sign-in, renewal, reading, writing, the conflict |
+| `mcp/team.test.ts` | an organization's notes through the tools, against the app's own organization channel as the member's device: read, written and merged, filed, and said to be unreadable with the reason |
 | `mcp/server.test.ts`, `mcp/cli.test.ts`, `mcp/loginPage.test.ts`, `mcp/webcrypto.test.ts` | the tools, the commands, the sign-in page's script, and WebCrypto on an old Node |
 | `mcp/hosted.test.ts` | the hosted server connected to as Claude connects: the client library's own OAuth flow, the page, tokens, refresh, the tools, a week's idleness ending the session, and the server restarted under Claude |
 | `mcp/hostedStore.test.ts` | the sealing and the file by themselves: what is written, what opens it, the lifetimes across a restart, a file that cannot be read |

@@ -167,6 +167,19 @@ export function teamDoc(noteId: string, store: TeamDocStore, seedWords: string |
   return made;
 }
 
+/** A store that keeps nothing: a document held by nobody is read again from the organization's row. */
+const NOWHERE: TeamDocStore = { read: async () => null, write: async () => undefined, remove: async () => undefined };
+
+/**
+ * A document held by nobody and kept nowhere: made from a record (a row's state, with the log's updates applied
+ * after) or seeded with words, used, and let go by whoever made it. For a client that holds no documents between
+ * its calls - the MCP connector (mcp/team.ts), where several accounts share one process and `teamDoc`'s one map by
+ * note id would hand one member's document to another. The same document as `teamDoc` makes, by the same code.
+ */
+export function looseTeamDoc(noteId: string, record: TeamDocRecord | null, seedWords: string | null = null): TeamDoc {
+  return make(noteId, NOWHERE, record, seedWords);
+}
+
 /** The document adopted from the organization's row: its state applied over whatever this device holds. */
 export async function adoptTeamDoc(noteId: string, store: TeamDocStore, state: Uint8Array, seq: number): Promise<TeamDoc> {
   const held = await teamDoc(noteId, store);

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 import * as Y from 'yjs';
 import { memoryDocs } from './docs.ts';
-import { adoptTeamDoc, applyTextDiff, dropTeamDoc, forgetTeamDocs, heldTeamDocs, teamDoc } from './doc.ts';
+import { adoptTeamDoc, applyTextDiff, dropTeamDoc, forgetTeamDocs, heldTeamDocs, looseTeamDoc, teamDoc } from './doc.ts';
 
 /**
  * A team note's document on a device (core/team/doc.ts): seeded from the note's words or read from the store,
@@ -72,6 +72,22 @@ describe('a team document', () => {
     await dropTeamDoc('n2', store);
     expect(heldTeamDocs()).toEqual([]);
     expect(await store.read('n2')).toBeNull();
+  });
+
+  it('makes a document held by nobody and kept nowhere, which reconciles and merges as a held one does', async () => {
+    const seeded = looseTeamDoc('n3', null, '# Plan\n- one');
+    expect(seeded.pending()).toHaveLength(1);
+    const state = seeded.snapshot();
+    await seeded.flush();
+    // Made again from that state, as a client that holds no documents between its calls makes it.
+    const mine = looseTeamDoc('n3', { state, seq: 4, snapshotSeq: 4, pending: [] });
+    const theirs = looseTeamDoc('n3', { state, seq: 4, snapshotSeq: 4, pending: [] });
+    expect(mine.reconcile('# Plan\n- one\n- two')).toBe(true);
+    expect(theirs.reconcile('# The plan\n- one')).toBe(true);
+    expect(theirs.applyRemote(mine.pending(), 5)).toBe('# The plan\n- one\n- two');
+    expect(theirs.seq).toBe(5);
+    await Promise.all([mine.flush(), theirs.flush()]);
+    expect(heldTeamDocs()).toEqual([]);
   });
 
   it('applies the smallest change between two texts', () => {

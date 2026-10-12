@@ -7,7 +7,9 @@ import type { Details, DetailsOf, SelfKind } from '../tauri/src/app/core/notific
 import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
 import type { Note } from '../tauri/src/app/core/store.ts';
 import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
+import type { Bytes } from '../tauri/src/app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../tauri/src/app/core/sync/notes.ts';
+import { TeamNotes, type OrgName } from './team.ts';
 
 /**
  * A Glyph account from outside the app: the sync service (docs/SYNC.md) as a client that signs in, reads the
@@ -29,6 +31,11 @@ import type { FeedItem, NotePayload } from '../tauri/src/app/core/sync/notes.ts'
  * (core/notifications/record.ts), and posts it. Best effort, every time: a notification that does not land - a
  * service from before the route, a limit, a bad answer - is a line on stderr and nothing else, since the note was
  * written and that is what the tool answers about.
+ *
+ * The account's organizations are read and written with it (mcp/team.ts; docs/SHARED.md): `pull` reads each team's
+ * notes after the account's own, `list` and `get` answer a team's note as they answer the account's, with the
+ * organization it is in (`NoteRecord.org`), and `edit` and `create` write one through the team's own channel. A note
+ * a team holds is the team's: a row of the same id left in the account's own feed is a leftover, and is passed over.
  */
 
 export interface StoredSession {
@@ -70,6 +77,8 @@ export interface NoteRecord {
   recording?: string;
   /** The pictures the note's body uses, by name; sent back with every write, minus any the body no longer names. */
   images?: string[];
+  /** The organization the note is the team's in (docs/SHARED.md, S1); absent for one of the account's own. */
+  org?: OrgName;
 }
 
 export const DEFAULT_API = 'https://attack.fm/glyph/api';
@@ -133,12 +142,16 @@ export class GlyphAccount {
   private cursor = 0;
   private readonly cache = new Map<string, NoteRecord>();
   private pulled = false;
+  private readonly teams: TeamNotes;
+  /** Why the organizations could not be read at the last pull; null when they were. */
+  private teamsFault: string | null = null;
 
   constructor(
     private session: StoredSession,
     private readonly hooks: Hooks = {},
   ) {
     this.key = hooks.key ?? null;
+    this.teams = new TeamNotes({ call: (method, path, body) => this.call(method, path, body), bytes: (method, path, body) => this.bytes(method, path, body), accountKey: () => this.accountKey() });
   }
 
   /**
@@ -235,6 +248,33 @@ export class GlyphAccount {
     }
   }
 
+  /** A file's bytes fetched or sent as the account (`recordings/<id>`, `orgs/<id>/files/<id>`); a lapsed token is renewed once. */
+  private async bytes(method: 'GET' | 'PUT', path: string, body?: Bytes, renewed = false): Promise<Bytes> {
+    const headers: Record<string, string> = { Authorization: `Bearer ${this.session.token}` };
+    if (body) headers['Content-Type'] = 'application/octet-stream';
+    let response: Response;
+    try {
+      response = await (this.hooks.fetcher ?? fetch)(`${this.session.api}/v1/${path}`, { method, headers, body: body as unknown as BodyInit | undefined, signal: AbortSignal.timeout(300_000) });
+    } catch (failure) {
+      throw new GlyphApiError(0, `The sync service could not be reached (${failureText(failure)}).`);
+    }
+    if (response.status === 401 && !renewed) {
+      await this.resume();
+      return this.bytes(method, path, body, true);
+    }
+    if (!response.ok) {
+      const text = await response.text();
+      let answer: unknown = null;
+      try {
+        answer = text ? JSON.parse(text) : null;
+      } catch {
+        // Not the service's own words.
+      }
+      throw new GlyphApiError(response.status, `The sync service answered ${response.status}.`, answer);
+    }
+    return new Uint8Array(await response.arrayBuffer());
+  }
+
   private async record(item: FeedItem): Promise<NoteRecord | null> {
     if (item.deleted || !item.blob) return null;
     const payload = await open<NotePayload>(await this.accountKey(), item.blob, `note:${item.id}`);
@@ -261,18 +301,53 @@ export class GlyphAccount {
       if (!page.more) break;
     }
     this.pulled = true;
+    // The organizations after the account's own. Theirs failing is not the account's: said (`notices`), and the
+    // account's notes are answered all the same. A lapsed session is everyone's.
+    try {
+      changed += await this.teams.refresh();
+      this.teamsFault = null;
+    } catch (failure) {
+      if (failure instanceof GlyphApiError && failure.status === 401) throw failure;
+      this.teamsFault = failureText(failure);
+    }
     return { changed };
   }
 
-  /** The account's notes, newest change first; archived ones included when asked. Pulls first if nothing has been. */
-  async list({ archived = false }: { archived?: boolean } = {}): Promise<NoteRecord[]> {
+  /**
+   * The account's own notes: the ones no team holds. A row of the account's with the id of a note a team holds is
+   * what was left when the note went to the team, and is not the note any more.
+   */
+  private own(): NoteRecord[] {
+    return [...this.cache.values()].filter((r) => !this.teams.holds(r.note.id));
+  }
+
+  /**
+   * The notes, newest change first: the account's own and its organizations', archived ones included when asked;
+   * `own` for the account's alone. Pulls first if nothing has been.
+   */
+  async list({ archived = false, own = false }: { archived?: boolean; own?: boolean } = {}): Promise<NoteRecord[]> {
     if (!this.pulled) await this.pull();
-    return [...this.cache.values()].filter((r) => archived || !r.note.archivedAt).sort((a, b) => b.note.updatedAt - a.note.updatedAt);
+    return [...this.own(), ...(own ? [] : this.teams.list())].filter((r) => archived || !r.note.archivedAt).sort((a, b) => b.note.updatedAt - a.note.updatedAt);
   }
 
   async get(id: string): Promise<NoteRecord | null> {
     if (!this.pulled) await this.pull();
-    return this.cache.get(id) ?? null;
+    return this.teams.get(id) ?? (this.teams.holds(id) ? null : (this.cache.get(id) ?? null));
+  }
+
+  /** The organizations the account is a member of, with how many notes of each were read and how many were not. */
+  organizations(): ReturnType<TeamNotes['organizations']> {
+    return this.teams.organizations();
+  }
+
+  /** What of the organizations could not be read, in sentences: nothing is left silently missing. */
+  notices(): string[] {
+    return [...this.teams.notices(), ...(this.teamsFault ? [`This account’s organizations could not be read just now (${this.teamsFault}); their notes are missing from this answer.`] : [])];
+  }
+
+  /** The organization holding a note this connector cannot read, and why; null for a note it knows nothing of. */
+  whereabouts(id: string): ReturnType<TeamNotes['whereabouts']> {
+    return this.teams.whereabouts(id);
   }
 
   /** The note whose title is `title`, exactly or ignoring case; null when none or several. */
@@ -283,7 +358,7 @@ export class GlyphAccount {
   }
 
   /** `record` written to the service from the revision it was read at; the answer is the revision it now has. */
-  private async write(record: NoteRecord, base: number): Promise<NoteRecord> {
+  private async write(record: NoteRecord, base: number, over = false): Promise<NoteRecord> {
     const { note } = record;
     const payload: NotePayload = { v: 1, note };
     if (record.recording) payload.recording = record.recording;
@@ -298,6 +373,8 @@ export class GlyphAccount {
       if (!(failure instanceof GlyphApiError) || failure.status !== 409 || !failure.body) throw failure;
       // Another device wrote first: theirs is the note now, and it is what the caller reads next.
       const winner = failure.body as FeedItem;
+      // `over`: whatever stands at that id is written over, once - a leftover, or a deletion (`move`).
+      if (over) return this.write(record, winner.rev);
       const theirs = await this.record(winner);
       if (theirs) this.cache.set(note.id, theirs);
       else this.cache.delete(note.id);
@@ -305,8 +382,9 @@ export class GlyphAccount {
     }
   }
 
-  /** A new note of `body`, as the app would make one typed in. */
-  async create(body: string, { pinned = false }: { pinned?: boolean } = {}): Promise<NoteRecord> {
+  /** A new note of `body`, as the app would make one typed in; in organization `org`, the team's from its first word. */
+  async create(body: string, { pinned = false, org }: { pinned?: boolean; org?: string } = {}): Promise<NoteRecord> {
+    if (org) return this.teams.create(org, body, { pinned });
     const now = Date.now();
     const note: Note = { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
     const images = imageNames(body);
@@ -321,6 +399,8 @@ export class GlyphAccount {
   async edit(id: string, change: (note: Note) => Note): Promise<NoteRecord> {
     const current = await this.get(id);
     if (!current) throw new GlyphApiError(404, `No note ${id}.`);
+    // A team's note is written through its document (mcp/team.ts): an update to its log, merged, never refused.
+    if (current.org) return this.teams.edit(id, change);
     const before = current.note;
     const next = change({ ...before });
     const note: Note = { ...before, ...next, id, createdAt: before.createdAt, updatedAt: Math.max(Date.now(), before.updatedAt + 1) };
@@ -333,6 +413,38 @@ export class GlyphAccount {
     // on some device, is then fetched by every other one (app core/sync/notes.ts), and one the words dropped goes.
     const images = imageNames(note.body);
     return this.write({ rev: current.rev, note, recording: current.recording, images }, current.rev);
+  }
+
+  /**
+   * A note moved to organization `org`, or - null - back to the account's own, as filing it does on a device
+   * (docs/SHARED.md, S1; core/sync/notes.ts, core/team/sync.ts): into an organization it is put to the team and its
+   * row in the account's feed deleted, so the account's devices take it from the team; out of one it is written to
+   * the account and its row deleted from the team. From one organization to another it goes to the second, then
+   * from the first. Answers the note where it now is, and the pictures that could not be carried to a team.
+   */
+  async move(id: string, org: string | null): Promise<{ record: NoteRecord; left: string[] }> {
+    const current = await this.get(id);
+    if (!current) throw new GlyphApiError(404, `No note ${id}.`);
+    if ((current.org?.id ?? null) === org) return { record: current, left: [] };
+    if (org) {
+      const placed = await this.teams.adopt(org, current.note);
+      if (current.org) await this.teams.remove(current.org.id, id);
+      const mine = this.cache.get(id);
+      if (mine) {
+        // The account's own row goes; one that will not (another device wrote it meanwhile) is a leftover, passed over.
+        await this.call('DELETE', `notes/${encodeURIComponent(id)}`, { base: mine.rev }).catch((failure: unknown) => {
+          if (!(failure instanceof GlyphApiError) || failure.status !== 409) throw failure;
+        });
+        this.cache.delete(id);
+      }
+      return placed;
+    }
+    const from = current.org!;
+    const record: NoteRecord = { rev: 0, note: current.note, ...(current.images?.length ? { images: current.images } : {}) };
+    // Over whatever the account's feed holds at that id: a leftover, or the deletion from when it went to the team.
+    const written = await this.write(record, this.cache.get(id)?.rev ?? 0, true);
+    await this.teams.remove(from.id, id);
+    return { record: written, left: [] };
   }
 
   /**

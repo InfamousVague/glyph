@@ -4,7 +4,11 @@ import { InMemoryTransport } from '@modelcontextprotocol/sdk/inMemory.js';
 import type { OAuthClientInformationFull, OAuthClientMetadata, OAuthTokens } from '@modelcontextprotocol/sdk/shared/auth.js';
 import type { Details } from '../tauri/src/app/core/notifications/kinds.ts';
 import type { Note } from '../tauri/src/app/core/store.ts';
-import { derive, open, passwordSalt, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
+import { exportPrivateKey, newEncryptionKey, publicKeyOf, wrapContext, wrapFor } from '../tauri/src/app/core/orgs/wrap.ts';
+import { derive, open, passwordSalt, seal, toBase64Url, unwrap, type Bytes } from '../tauri/src/app/core/sync/crypto.ts';
+import type { LocalFiles, LocalNotes } from '../tauri/src/app/core/sync/notes.ts';
+import { memoryDocs } from '../tauri/src/app/core/team/docs.ts';
+import { emptyTeamState, syncTeamNotes, type TeamSyncContext, type TeamSyncState } from '../tauri/src/app/core/team/sync.ts';
 import { fakeService, FAST, type FakeService } from '../tauri/src/test/fakeService.ts';
 import { makeNote } from '../tauri/src/test/notes.ts';
 import { GlyphAccount, type Hooks } from './glyph.ts';
@@ -138,4 +142,111 @@ export async function playSignInPage(page: SignInPage, { handle, password, round
   const key = await unwrap(answer.wrapped, wrapKey, true);
   const raw = toBase64Url(new Uint8Array(await crypto.subtle.exportKey('raw', key)));
   return completeSignIn(page, { handle: answer.account.handle, token: answer.token, accountKey: raw });
+}
+
+/** One JSON call to the fake service as a signed-in device of the account. */
+async function asDevice<T>(service: FakeService, method: string, path: string, body?: unknown): Promise<T> {
+  const response = await service.fetcher(`${API}/v1/${path}`, { method, headers: { Authorization: `Bearer ${service.signedIn()}`, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  if (!response.ok) throw new Error(`${method} ${path} answered ${response.status}: ${await response.text()}`);
+  return (await response.json()) as T;
+}
+
+/**
+ * The account's encryption key pair registered as its first device registers it (core/account/encKey.ts): the public
+ * key, and the private half sealed under the account key. Once an account; answers the public key.
+ */
+export async function registerPair(service: FakeService): Promise<string> {
+  if (service.encryption) return service.encryption.pub;
+  const pair = await newEncryptionKey();
+  const pub = await publicKeyOf(pair);
+  await asDevice(service, 'PUT', 'account/key', { pub, sealed: await seal(service.accountKey, await exportPrivateKey(pair), 'encryption-key') });
+  return pub;
+}
+
+/** An organization key as a member's device makes one: its bytes, and the key they are. */
+async function anOrgKey(): Promise<{ raw: Bytes; key: CryptoKey }> {
+  const raw = crypto.getRandomValues(new Uint8Array(32));
+  return { raw, key: await crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, true, ['encrypt', 'decrypt']) };
+}
+
+/**
+ * An organization the account is in, with its key made as a member's device makes it (core/orgs/orgKeys.ts): the
+ * first generation, wrapped for the account unless `wrap` is false - the member whose wrap no device has made yet.
+ * `turn` makes the next generation, as the device of a member does after another has left; `wrapNow` makes the
+ * account's wrap at the generation in force, as another member's device does on its next pass.
+ */
+export async function anOrganization(service: FakeService, name = 'Ghost', { wrap = true }: { wrap?: boolean } = {}) {
+  const pub = await registerPair(service);
+  // As the app's own call makes one (core/orgs/orgs.ts `createOrg`), without the app's settings it also writes.
+  const { org } = await asDevice<{ org: { id: string } }>(service, 'POST', 'orgs', { name });
+  const keys = [await anOrgKey()];
+  const post = async (generation: number, make: boolean, wrapped: boolean) =>
+    asDevice(service, 'POST', `orgs/${org.id}/keys`, { generation, ...(make ? { make: true } : {}), wraps: wrapped ? [{ handle: 'matt', wrapped: await wrapFor(pub, keys[generation - 1]!.raw, wrapContext(org.id, generation)) }] : [] });
+  await post(1, true, wrap);
+  return {
+    id: org.id,
+    name,
+    /** The key in force, and its generation. */
+    get key(): CryptoKey {
+      return keys[keys.length - 1]!.key;
+    },
+    get generation(): number {
+      return keys.length;
+    },
+    keyAt: (generation: number): CryptoKey => keys[generation - 1]!.key,
+    async turn({ wrap: wrapped = true }: { wrap?: boolean } = {}): Promise<void> {
+      keys.push(await anOrgKey());
+      await post(keys.length, true, wrapped);
+    },
+    wrapNow: (): Promise<unknown> => post(keys.length, false, true),
+  };
+}
+
+/**
+ * A member's device in an organization, as the app is one (core/team/sync.ts `syncTeamNotes`, the app's own pass):
+ * its notes in a map, each filed in the organization's workspace, its documents its own. The fake service's one
+ * account stands for every member, as in the app's own tests of the channel.
+ */
+export function teamDevice(service: FakeService, org: { id: string; key: CryptoKey; generation: number }) {
+  const notes = new Map<string, Note>();
+  const filed = new Set<string>();
+  const pictures = new Map<string, Bytes>();
+  const docs = memoryDocs();
+  let state: TeamSyncState = emptyTeamState();
+  const clock = { at: WRITTEN };
+  const local: LocalNotes = {
+    list: async () => [...notes.values()],
+    get: async (id) => notes.get(id) ?? null,
+    apply: async (note) => {
+      notes.set(note.id, note);
+      return note;
+    },
+    remove: async (id) => {
+      notes.delete(id);
+    },
+  };
+  const files: LocalFiles = {
+    read: async (kind, name) => (kind === 'image' ? (pictures.get(name) ?? null) : null),
+    write: async (kind, name, bytes) => {
+      if (kind === 'image') pictures.set(name, bytes);
+    },
+  };
+  return {
+    notes,
+    filed,
+    pictures,
+    clock,
+    /** A note written on this device in the organization's workspace, or one it holds written again. */
+    put(id: string, body: string, over: Partial<Note> = {}): void {
+      clock.at += 1;
+      const was = notes.get(id);
+      notes.set(id, { ...(was ?? { id, createdAt: clock.at, source: 'editor' as const }), body, updatedAt: clock.at, ...over });
+      filed.add(id);
+    },
+    /** One pass of the organization channel, under the key in force unless told otherwise. */
+    sync(over: Partial<TeamSyncContext> = {}) {
+      clock.at += 1;
+      return syncTeamNotes({ token: service.signedIn(), orgId: org.id, key: org.key, generation: org.generation, notes: local, files, docs, state, save: (s) => (state = s), fetcher: service.fetcher, now: () => clock.at, isTeamNote: (id) => filed.has(id), file: (id) => void filed.add(id), ...over });
+    },
+  };
 }

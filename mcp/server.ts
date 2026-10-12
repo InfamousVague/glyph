@@ -11,7 +11,7 @@ import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../tauri
 import { geoTagOf, withGeoTag } from '../tauri/src/app/core/geotag.ts';
 import { plainFills } from '../tauri/src/app/core/blanks.ts';
 import { noteTitle, withoutFrontMatter } from '../tauri/src/app/core/noteTitle.ts';
-import { isOrgWorkspace } from '../tauri/src/app/core/orgs/types.ts';
+import { isOrgWorkspace, orgIdOf, orgWorkspaceId } from '../tauri/src/app/core/orgs/types.ts';
 import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../tauri/src/app/core/properties.ts';
 import { titleKey } from '../tauri/src/app/core/titleKey.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
@@ -39,6 +39,11 @@ import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './g
  * note-appended, journal-entry, rule-added - naming the note and who wrote it, posted after the write and never
  * after a refusal (`GlyphAccount.postNotification`, best effort). The "Claude rules" note is told of only when it is
  * made, not each time a connection finds it.
+ *
+ * An organization's notes are the member's too (mcp/team.ts; docs/SHARED.md): every note tool reads and writes a
+ * team's note as it does the account's own, each note says which workspace it is in, and what of an organization
+ * could not be read is said in the answer (`notReadable`) rather than left out of it. The rules note is only ever
+ * one of the account's own: a note any member of a team can write is not this person's instructions to their AI.
  */
 
 /**
@@ -170,7 +175,8 @@ export async function ensureRulesNote(account: GlyphAccount, seedAuthor = 'Claud
 
 async function findOrMakeRules(account: GlyphAccount, seedAuthor: string): Promise<NoteRecord> {
   await account.pull();
-  const found = rulesNoteIn(await account.list(), await trashOf(account));
+  // Among the account's own notes only: a team's note is every member's to write (see the header).
+  const found = rulesNoteIn(await account.list({ own: true }), await trashOf(account));
   if (found) return found;
   const made = await account.create(withAuthor(DEFAULT_RULES, seedAuthor, account.handle), { pinned: true });
   // Told of once, when it is made: a connection that finds it has written nothing.
@@ -209,6 +215,19 @@ function workspacesIn(prefs: Record<string, unknown>): { list: { id: string; nam
   return { list, notes };
 }
 
+/** The settings with `ids` filed under workspace `into`, or - null - taken out of every workspace; every other key kept. */
+function filedIn(prefs: Record<string, unknown>, ids: readonly string[], into: string | null): Record<string, unknown> {
+  const { list, notes } = workspacesIn(prefs);
+  // A filing may only name a workspace the settings list: an organization's is listed by the app, not made here.
+  const listed = into !== null && list.some((w) => w.id === into);
+  for (const id of ids) {
+    if (listed) notes[id] = into!;
+    else delete notes[id];
+  }
+  const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as Record<string, unknown>;
+  return { ...prefs, workspaces: { ...held, list, notes } };
+}
+
 /**
  * The notes in the trash, by id, with when each went in (core/trash.ts): a synced setting, as the app keeps it, so a
  * note deleted on the phone is in the trash here and one deleted here is in the phone's Trash folder. A note in it is
@@ -228,12 +247,75 @@ async function trashOf(account: GlyphAccount): Promise<Record<string, number>> {
   return trashIn((await account.readPrefs()).prefs);
 }
 
+/** A workspace as a note names the one it is in. */
+interface Space {
+  id: string;
+  name: string;
+  organization: boolean;
+  /** For a note of the account's own that the settings file under an organization the team does not hold it in. */
+  accountOnly?: string;
+}
+
+/** What a tool needs of the settings and the organizations to say where a note is: read once a call. */
+interface Settings {
+  /** Every workspace: the settings' list, and an organization the account is in that the app has not listed yet. */
+  list: { id: string; name: string }[];
+  /** The settings' own list, which is all a filing may name. */
+  listed: Set<string>;
+  filing: Record<string, string>;
+  trash: Record<string, number>;
+}
+
+async function settingsOf(account: GlyphAccount): Promise<Settings> {
+  const { prefs } = await account.readPrefs();
+  const { list, notes } = workspacesIn(prefs);
+  const all = list.map((w) => ({ id: w.id, name: w.name }));
+  for (const org of account.organizations()) if (!all.some((w) => w.id === orgWorkspaceId(org.id))) all.push({ id: orgWorkspaceId(org.id), name: org.name });
+  return { list: all, listed: new Set(list.map((w) => w.id)), filing: notes, trash: trashIn(prefs) };
+}
+
+const ACCOUNT_ONLY = 'In the account only: the settings file it under this organization, but the team does not hold it, so the app does not show it there. file_notes it into the organization again to put it to the team.';
+
+/** The workspace a note is in: its organization's for a team's note, else where the settings file it; null for none. */
+function spaceOf(account: GlyphAccount, record: NoteRecord, settings: Settings): Space | null {
+  if (record.org) return { id: orgWorkspaceId(record.org.id), name: record.org.name, organization: true };
+  const id = settings.filing[record.note.id];
+  const space = id ? settings.list.find((w) => w.id === id) : undefined;
+  if (!space) return null;
+  if (!isOrgWorkspace(space)) return { ...space, organization: false };
+  const there = account.whereabouts(record.note.id);
+  return { ...space, organization: true, accountOnly: there ? `The account’s older copy: the team’s own is not readable by this connector (${there.why}).` : ACCOUNT_ONLY };
+}
+
+/** A note named among a workspace's: by the workspace's id or its name. */
+function resolveSpace(settings: Settings, wanted: string): { id: string; name: string } {
+  const want = wanted.trim();
+  const byId = settings.list.find((w) => w.id === want);
+  const byName = settings.list.filter((w) => w.name.trim().toLowerCase() === want.toLowerCase());
+  if (!byId && byName.length > 1) throw new Error(`More than one workspace is called “${want}”: give its id (${byName.map((w) => w.id).join(', ')}).`);
+  const found = byId ?? byName[0];
+  if (!found) throw new Error(`No workspace is called “${want}”. These are: ${settings.list.map((w) => w.name).join(', ') || 'none'}.`);
+  return found;
+}
+
+/** Whether a note is in a workspace, as list_notes and list_workspaces both count it: a team's note in its organization's, any other where it is filed - but never one of the account's own under an organization. */
+function inSpace(account: GlyphAccount, record: NoteRecord, settings: Settings, id: string): boolean {
+  const space = spaceOf(account, record, settings);
+  return space?.id === id && !space.accountOnly;
+}
+
+/** What could not be read, for an answer that lists or counts notes; nothing when everything was. */
+function unread(account: GlyphAccount): { notReadable?: string[] } {
+  const notices = account.notices();
+  return notices.length ? { notReadable: notices } : {};
+}
+
 function iso(ms: number): string {
   return new Date(ms).toISOString();
 }
 
 /** A note as the tools describe it: what a list needs, and never the whole body unless asked. */
-function summary(record: NoteRecord) {
+function summary(record: NoteRecord, space?: Space | null) {
   const { note } = record;
   const title = noteTitle(note.body);
   // The front matter goes first, as the list's title and the app's peek take it off: a note that opened with it
@@ -252,13 +334,15 @@ function summary(record: NoteRecord) {
     pinned: Boolean(note.starred),
     archived: Boolean(note.archivedAt),
     folder: note.path?.includes('/') ? note.path.slice(0, note.path.lastIndexOf('/')) : null,
+    // Where it is: an organization's workspace for a team's note. Left out where the call did not look.
+    ...(space === undefined ? {} : { workspace: space }),
     hasRecording: Boolean(note.recordingMs),
     preview: after.length > 140 ? `${after.slice(0, 139)}…` : after,
   };
 }
 
-function whole(record: NoteRecord) {
-  return { ...summary(record), rev: record.rev, body: record.note.body };
+function whole(record: NoteRecord, space?: Space | null) {
+  return { ...summary(record, space), rev: record.rev, body: record.note.body };
 }
 
 function text(value: unknown) {
@@ -342,12 +426,38 @@ export function keepKeys(before: string, next: string): string {
 /** `YYYY-MM-DDTHH:MM`, the wall clock an entry is written at. */
 const WALL = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/;
 
+/**
+ * What to say of an id no note answers to. A note that went to an organization is never just missing: one the team
+ * holds sealed under a key this account has no wrap of is said to be there and why it cannot be read, and one the
+ * settings file under an organization is said to be filed there.
+ */
+async function noSuchNote(account: GlyphAccount, id: string): Promise<string> {
+  const there = account.whereabouts(id);
+  if (there) return `The note ${id} is in the organization ${there.org.name}, and is not readable by this connector: ${there.why}.`;
+  const settings = await settingsOf(account).catch(() => null);
+  const filed = settings?.filing[id];
+  const space = filed ? settings!.list.find((w) => w.id === filed) : undefined;
+  if (space && isOrgWorkspace(space)) {
+    const notices = account.notices();
+    return `No note with the id ${id} could be read. The settings file it under the organization ${space.name}${notices.length ? `, and: ${notices.join(' ')}` : ', whose team does not hold a note of that id: it was deleted there, or taken out'}`;
+  }
+  return `No note with the id ${id}. Use list_notes to find it.`;
+}
+
+/** What to say when none of `ids` is a note: as before for ids nothing is known of, and where each is for the rest. */
+async function noneOf(account: GlyphAccount, ids: readonly string[]): Promise<string> {
+  const plain = (id: string) => `No note with the id ${id}. Use list_notes to find it.`;
+  const said = await Promise.all(ids.map(async (id) => ({ id, words: await noSuchNote(account, id) })));
+  const elsewhere = said.filter((each) => each.words !== plain(each.id));
+  return elsewhere.length ? `None of those notes could be read. ${elsewhere.map((each) => each.words).join(' ')}` : `None of those notes is in this account: ${ids.join(', ')}.`;
+}
+
 /** The note `id` or, failing that, the one titled `title`; a clear complaint when neither finds one. */
 async function find(account: GlyphAccount, id: string | undefined, title: string | undefined): Promise<NoteRecord> {
   if (id) {
     const found = await account.get(id);
     if (found) return found;
-    throw new Error(`No note with the id ${id}. Use list_notes to find it.`);
+    throw new Error(await noSuchNote(account, id));
   }
   if (title) {
     // Only the notes out of the trash answer to a title, as only they answer to a link in the app.
@@ -413,24 +523,28 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'List notes',
       description:
-        'The notes in this Ghost.md account, newest change first: id, title, dates, pinned, archived, folder and a line of preview. Optionally only those whose title contains `query`. Notes in the Trash are left out; `in_trash` lists them instead. Reads the account fresh first.',
+        'The notes in this Ghost.md account and in the organizations it is a member of, newest change first: id, title, dates, pinned, archived, folder, the workspace it is in and a line of preview. Optionally only those whose title contains `query`, or those in one `workspace`. Notes in the Trash are left out; `in_trash` lists them instead. Reads the account and its organizations fresh first; `notReadable` says what of an organization could not be read, and why.',
       inputSchema: {
         query: z.string().optional().describe('Only notes whose title contains this (case-insensitive).'),
         include_archived: z.boolean().optional().describe('Include archived notes. Off by default.'),
+        workspace: z.string().optional().describe('Only the notes in this workspace: its name or id, from list_workspaces. An organization’s workspace lists the team’s notes.'),
         in_trash: z.boolean().optional().describe('List the notes in the Trash instead, the most recently deleted first: what restore_notes can bring back.'),
         limit: z.number().int().min(1).max(500).optional().describe('At most this many, default 50.'),
       },
     },
-    async ({ query, include_archived, in_trash, limit }) =>
+    async ({ query, include_archived, workspace, in_trash, limit }) =>
       guarded(async () => {
         await account.pull();
-        const trash = await trashOf(account);
+        const settings = await settingsOf(account);
+        const { trash } = settings;
+        const only = workspace?.trim() ? resolveSpace(settings, workspace) : null;
         const want = query?.trim().toLowerCase();
         const pool = in_trash
           ? (await account.list({ archived: true })).filter((r) => r.note.id in trash).sort((a, b) => trash[b.note.id]! - trash[a.note.id]!)
           : (await account.list({ archived: Boolean(include_archived) })).filter((r) => !(r.note.id in trash));
-        const notes = pool.filter((r) => !want || noteTitle(r.note.body).toLowerCase().includes(want));
-        return text({ count: notes.length, notes: notes.slice(0, limit ?? 50).map((r) => (in_trash ? { ...summary(r), deleted: iso(trash[r.note.id]!) } : summary(r))) });
+        const notes = pool.filter((r) => (!want || noteTitle(r.note.body).toLowerCase().includes(want)) && (!only || inSpace(account, r, settings, only.id)));
+        const told = (r: NoteRecord) => summary(r, spaceOf(account, r, settings));
+        return text({ count: notes.length, notes: notes.slice(0, limit ?? 50).map((r) => (in_trash ? { ...told(r), deleted: iso(trash[r.note.id]!) } : told(r))), ...unread(account) });
       }),
   );
 
@@ -448,8 +562,9 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
       guarded(async () => {
         await account.pull();
         const record = await find(account, id, title);
-        const deleted = (await trashOf(account))[record.note.id];
-        return text({ ...whole(record), ...(deleted ? { inTrash: true, deleted: iso(deleted) } : {}) });
+        const settings = await settingsOf(account);
+        const deleted = settings.trash[record.note.id];
+        return text({ ...whole(record, spaceOf(account, record, settings)), ...(deleted ? { inTrash: true, deleted: iso(deleted) } : {}) });
       }),
   );
 
@@ -457,7 +572,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     'search_notes',
     {
       title: 'Search notes',
-      description: 'Notes whose words contain `query` (case-insensitive), each with a snippet around the first match. Titles and bodies both count; notes in the Trash do not.',
+      description: 'Notes whose words contain `query` (case-insensitive), each with a snippet around the first match. Titles and bodies both count, in the account’s own notes and its organizations’; notes in the Trash do not. `notReadable` says what of an organization could not be searched.',
       inputSchema: {
         query: z.string().min(1).describe('What to look for.'),
         include_archived: z.boolean().optional(),
@@ -467,7 +582,8 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ query, include_archived, limit }) =>
       guarded(async () => {
         await account.pull();
-        const trash = await trashOf(account);
+        const settings = await settingsOf(account);
+        const { trash } = settings;
         const want = query.trim().toLowerCase();
         const hits = (await account.list({ archived: Boolean(include_archived) }))
           .filter((record) => !(record.note.id in trash))
@@ -479,10 +595,10 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
             if (at < 0) return null;
             const from = Math.max(0, at - 80);
             const snippet = `${from > 0 ? '…' : ''}${words.slice(from, at + want.length + 80).replace(/\s+/g, ' ')}${at + want.length + 80 < words.length ? '…' : ''}`;
-            return { ...summary(record), snippet };
+            return { ...summary(record, spaceOf(account, record, settings)), snippet };
           })
           .filter((hit): hit is NonNullable<typeof hit> => hit !== null);
-        return text({ count: hits.length, notes: hits.slice(0, limit ?? 20) });
+        return text({ count: hits.length, notes: hits.slice(0, limit ?? 20), ...unread(account) });
       }),
   );
 
@@ -491,22 +607,31 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Create a note',
       description:
-        'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync.',
+        'A new note in the account, as if typed in the app: markdown, with the first line as its title. Give a `title` and it becomes a `# Title` heading above the body. It appears on every signed-in device at its next sync. Give a `workspace` to make it there: in an organization’s, it is the team’s from its first word, on every member’s devices.',
       inputSchema: {
         body: z.string().describe(`The note’s markdown. Ghost.md’s marks all work: headings, lists, \`- [ ]\` to-dos, tables, \`\`\`board fences. ${BLANKS}`),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
+        workspace: z.string().optional().describe('The workspace to make it in: its name or id, from list_workspaces. Left out, the note is the account’s own and in no workspace.'),
         author: authorField,
       },
     },
-    async ({ body, title, pinned, author }) =>
+    async ({ body, title, pinned, workspace, author }) =>
       guarded(async () => {
         const heading = title?.trim();
         const words = heading && !/^#\s/.test(body.trimStart()) ? `# ${heading}\n\n${body.trim()}` : body;
         if (!words.trim()) return failed('A note needs some words.');
-        const made = await account.create(authored(words, author), { pinned: Boolean(pinned) });
+        let into: { id: string; name: string } | null = null;
+        if (workspace?.trim()) {
+          await account.pull();
+          into = resolveSpace(await settingsOf(account), workspace);
+        }
+        const org = into ? orgIdOf(into.id) : null;
+        const made = await account.create(authored(words, author), { pinned: Boolean(pinned), ...(org ? { org } : {}) });
+        // A personal workspace is a filing in the settings, as the app's own is.
+        if (into && !org) await account.changePrefs((prefs) => filedIn(prefs, [made.note.id], into!.id));
         await account.postNotification('note-created', { noteId: made.note.id, title: titled(made), by: by(author) });
-        return text({ created: whole(made) });
+        return text({ created: whole(made, into ? { ...into, organization: Boolean(org) } : null) });
       }),
   );
 
@@ -515,7 +640,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Replace a note’s body',
       description:
-        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it.',
+        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. An organization’s note is not refused: the lines that differ are written into the team’s shared document as a change, which merges with what the other members are writing. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe(`The new markdown body, whole. ${BLANKS}`),
@@ -534,7 +659,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           return { ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author) };
         });
         await account.postNotification('note-edited', { noteId: id, title: titled(written), by: by(author), ...lineDiff(before, written.note.body) });
-        return text({ updated: whole(written) });
+        return text({ updated: whole(written, spaceOf(account, written, await settingsOf(account))) });
       }),
   );
 
@@ -566,7 +691,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           return { ...note, body: authored(placed.body, author) };
         });
         await account.postNotification('note-appended', { noteId: written.note.id, title: titled(written), by: by(author), lines: added.length, first: firstLine(added[0] ?? '') });
-        return text({ added, note: summary(written) });
+        return text({ added, note: summary(written, spaceOf(account, written, await settingsOf(account))) });
       }),
   );
 
@@ -615,9 +740,11 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         // clean. The entry first, it was left with no line, and the second try made it again with " (2)". A line whose
         // entry never came is an entry's name with no note, which the journal does not draw.
         const listed = await account.edit(target.note.id, (note) => ({ ...note, body: withEntry(note.body, title) }));
-        const made = await account.create(authored(body, author));
+        // A team's journal has the team's entries: the entry is made where the journal is.
+        const made = await account.create(authored(body, author), target.org ? { org: target.org.id } : {});
         await account.postNotification('journal-entry', { noteId: made.note.id, title, by: by(author), journal: name, first: firstLine(words) });
-        return text({ created: whole(made), journal: summary(listed) });
+        const settings = await settingsOf(account);
+        return text({ created: whole(made, spaceOf(account, made, settings)), journal: summary(listed, spaceOf(account, listed, settings)) });
       }),
   );
 
@@ -625,7 +752,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     'set_note_flags',
     {
       title: 'Pin or archive a note',
-      description: 'Pin a note to the top of the list, or archive it (out of the list, kept). Either can be undone by setting it back.',
+      description: 'Pin a note to the top of the list, or archive it (out of the list, kept). Either can be undone by setting it back. An organization’s note is pinned or archived for the whole team, as it is in the app.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         pinned: z.boolean().optional(),
@@ -641,7 +768,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           ...(pinned === undefined ? {} : { starred: pinned }),
           ...(archived === undefined ? {} : { archivedAt: archived ? (note.archivedAt ?? Date.now()) : null }),
         }));
-        return text({ note: summary(written) });
+        return text({ note: summary(written, spaceOf(account, written, await settingsOf(account))) });
       }),
   );
 
@@ -659,7 +786,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
       if (record) found.push(record);
       else missing.push(id);
     }
-    if (!found.length) return failed(`None of those notes is in this account: ${missing.join(', ')}.`);
+    if (!found.length) return failed(await noneOf(account, missing));
     let unmoved: NoteRecord[] = [];
     await account.changePrefs((prefs) => {
       const trash = trashIn(prefs);
@@ -711,15 +838,35 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'List workspaces',
       description:
-        'The workspaces notes can be filed under, as the app lists them: id, name, whether it is an organization’s, and how many notes are filed in it. An organization’s workspace is made by the app for each organization the person is a member of.',
+        'The workspaces notes can be filed under, as the app lists them: id, name, whether it is an organization’s, and how many notes are in it - the number list_notes answers for that workspace with archived notes included. An organization’s workspace holds the team’s notes; `notReadable` on one counts the notes there this connector could not read and says why, and `accountOnly` the notes of the account’s own that the settings file there but the team does not hold.',
       inputSchema: {},
     },
     async () =>
       guarded(async () => {
-        const { list, notes } = workspacesIn((await account.readPrefs()).prefs);
-        const counts = new Map<string, number>();
-        for (const id of Object.values(notes)) counts.set(id, (counts.get(id) ?? 0) + 1);
-        return text({ count: list.length, workspaces: list.map((w) => ({ id: w.id, name: w.name, organization: isOrgWorkspace(w), notes: counts.get(w.id) ?? 0 })) });
+        await account.pull();
+        const settings = await settingsOf(account);
+        const notes = (await account.list({ archived: true })).filter((r) => !(r.note.id in settings.trash));
+        const orgs = new Map(account.organizations().map((org) => [orgWorkspaceId(org.id), org]));
+        return text({
+          count: settings.list.length,
+          workspaces: settings.list.map((w) => {
+            const here = notes.filter((r) => inSpace(account, r, settings, w.id));
+            const org = orgs.get(w.id);
+            const only = isOrgWorkspace(w) ? notes.filter((r) => !r.org && settings.filing[r.note.id] === w.id).length : 0;
+            return {
+              id: w.id,
+              name: w.name,
+              organization: isOrgWorkspace(w),
+              notes: here.length,
+              archived: here.filter((r) => r.note.archivedAt).length,
+              ...(org?.unreadable ? { notReadable: { notes: org.unreadable, why: org.why } } : {}),
+              ...(only ? { accountOnly: only } : {}),
+              // An organization the account is no longer in, or one this service cannot say anything of.
+              ...(isOrgWorkspace(w) && !org ? { notAMember: true } : {}),
+            };
+          }),
+          ...unread(account),
+        });
       }),
   );
 
@@ -728,7 +875,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'File notes in a workspace',
       description:
-        'Files notes under a workspace (an organization’s or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. `workspace` is a name or id from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one.',
+        'Files notes under a workspace (an organization’s or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. Filing a note into an organization’s workspace shares it: it is put to the team, on every member’s devices, and stays readable and editable here. Taking a note out of an organization’s workspace, by `unfile` or by filing it elsewhere, takes it from the team for every member and back to this account alone. `workspace` is a name or id from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one.',
       inputSchema: {
         ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes or search_notes.'),
         workspace: z.string().optional().describe('The workspace’s name (case-insensitive) or id.'),
@@ -746,29 +893,32 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           if (record) found.push(record);
           else missing.push(id);
         }
-        if (!found.length) return failed(`None of those notes is in this account: ${missing.join(', ')}.`);
-        let into: { id: string; name: string } | null = null;
-        await account.changePrefs((prefs) => {
-          const { list, notes } = workspacesIn(prefs);
-          if (!unfile) {
-            const want = workspace!.trim();
-            const byId = list.find((w) => w.id === want);
-            const byName = list.filter((w) => w.name.trim().toLowerCase() === want.toLowerCase());
-            if (!byId && byName.length > 1) throw new Error(`More than one workspace is called “${want}”: give its id (${byName.map((w) => w.id).join(', ')}).`);
-            into = byId ?? byName[0] ?? null;
-            if (!into) throw new Error(`No workspace is called “${want}”. These are: ${list.map((w) => w.name).join(', ') || 'none'}.`);
+        if (!found.length) return failed(await noneOf(account, missing));
+        const settings = await settingsOf(account);
+        const into = unfile ? null : resolveSpace(settings, workspace!);
+        const org = into ? orgIdOf(into.id) : null;
+        // The note itself first - to the team, or back from one - and the settings after, for the notes that went:
+        // a filing that names an organization the team does not hold the note in is what the app never shows.
+        const moved: NoteRecord[] = [];
+        const notFiled: { id: string; title: string; why: string }[] = [];
+        const picturesNotCarried: { id: string; pictures: string[] }[] = [];
+        for (const record of found) {
+          try {
+            const { record: now, left } = record.org || org ? await account.move(record.note.id, org) : { record, left: [] };
+            moved.push(now);
+            if (left.length) picturesNotCarried.push({ id: record.note.id, pictures: left });
+          } catch (failure) {
+            if (failure instanceof GlyphApiError && failure.status === 401) throw failure;
+            notFiled.push({ id: record.note.id, title: titled(record), why: failureText(failure) });
           }
-          for (const record of found) {
-            if (into) notes[record.note.id] = into.id;
-            else delete notes[record.note.id];
-          }
-          const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as Record<string, unknown>;
-          return { ...prefs, workspaces: { ...held, list, notes } };
-        });
-        const chosen = into as { id: string; name: string } | null;
+        }
+        if (moved.length) await account.changePrefs((prefs) => filedIn(prefs, moved.map((r) => r.note.id), into?.id ?? null));
+        if (!moved.length) return failed(`None of those notes was ${into ? 'filed' : 'unfiled'}: ${notFiled.map((n) => `${n.title} (${n.id}): ${n.why}`).join(' ')}`);
         return text({
-          workspace: chosen ? { id: chosen.id, name: chosen.name } : null,
-          [chosen ? 'filed' : 'unfiled']: found.map((r) => ({ id: r.note.id, title: noteTitle(r.note.body) || 'Untitled' })),
+          workspace: into ? { id: into.id, name: into.name, organization: Boolean(org) } : null,
+          [into ? 'filed' : 'unfiled']: moved.map((r) => ({ id: r.note.id, title: titled(r) })),
+          ...(notFiled.length ? { notFiled } : {}),
+          ...(picturesNotCarried.length ? { picturesNotCarried } : {}),
           ...(missing.length ? { missing } : {}),
         });
       }),
@@ -815,7 +965,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     'account_status',
     {
       title: 'Account status',
-      description: 'Which Ghost.md account this is signed in to, where its sync service is, and how many notes it holds.',
+      description: 'Which Ghost.md account this is signed in to, where its sync service is, how many notes it holds, and the organizations it is a member of with how many of each one’s notes this connector could read.',
       inputSchema: {},
     },
     async () =>
@@ -832,6 +982,8 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
           archived: notes.filter((r) => r.note.archivedAt).length,
           pinned: notes.filter((r) => r.note.starred).length,
           changedSinceLastRead: changed,
+          organizations: account.organizations().map((org) => ({ id: org.id, name: org.name, notes: org.notes, ...(org.unreadable ? { notReadable: org.unreadable, why: org.why } : {}) })),
+          ...unread(account),
           // Several Claude accounts, or Claude on several computers, can be signed in to one Ghost.md account (docs/
           // MCP.md); this says how many are, so a person can tell (Matt: "can I connect multiple Claude accounts").
           connections: hosted ? hosted.connections() : 1,
