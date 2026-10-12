@@ -20,6 +20,13 @@
 //!   DELETE /api/v1/orgs/{id}/links/{link}                       a link turned off
 //!   GET    /api/v1/joins/{code}                                 what a link joins, before it is followed
 //!   POST   /api/v1/joins/{code}                                 the caller in, by the link
+//!   POST   /api/v1/orgs/{id}/ais               { name }         an AI seen through the caller's connector: its entry made, or seen again
+//!   DELETE /api/v1/orgs/{id}/ais/{ai}                           an entry removed, by the owner, an admin, or the member it came through
+//!
+//! An AI's entry (store/org_ais.rs; Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)") is a
+//! record beside the members, answered as `ais` on the organization: a name, the member it came through, first and
+//! last seen. It is not a member - no key wrap, no seat, nothing the key's `missing` or its turn counts - and removing
+//! one removes the record, not the member's access, which is what their connector reads with.
 //!
 //! And, for notes shared in an organization (docs/SHARED.md): colours, the account's encryption key pair, and the
 //! organization key wrapped per member (store/keys.rs). A colour is one of the app's hues, or null for none.
@@ -48,7 +55,7 @@
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
-use crate::store::{AccountKey, InviteCaps, KeyWrite, LinkPreview, Member, Org, OrgKeys, OrgLink, OrgRow, OrgWrite, Role, Wrap};
+use crate::store::{AccountKey, InviteCaps, KeyWrite, LinkPreview, Member, Org, OrgAi, OrgKeys, OrgLink, OrgRow, OrgWrite, Role, Wrap};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::{ConnectInfo, DefaultBodyLimit, Path, Query, State};
 use axum::http::{HeaderMap, StatusCode};
@@ -87,6 +94,10 @@ const LINK_LIFETIME: std::ops::RangeInclusive<i64> = 3600..=30 * 24 * 3600;
 /// A code is a fresh id: 22 characters.
 const CODE_LENGTH: std::ops::RangeInclusive<usize> = 16..=64;
 /// A body here is a name, a hue, a handle or a role.
+/// An AI's name, as its app gave it (store/org_ais.rs).
+const AI_NAME_LENGTH: std::ops::RangeInclusive<usize> = 1..=40;
+/// AI names one member holds at once in one organization; past it the one seen longest ago goes.
+const AIS_PER_MEMBER: i64 = 8;
 const BODY_LIMIT: usize = 16 * 1024;
 
 pub struct Orgs {
@@ -187,6 +198,7 @@ fn refused(err: OrgWrite) -> Response {
         OrgWrite::NotInvited => error(StatusCode::NOT_FOUND, "You were not invited."),
         OrgWrite::NoSuchLink => error(StatusCode::NOT_FOUND, "That invite link has expired or was turned off."),
         OrgWrite::TooManyLinks => error(StatusCode::CONFLICT, "This organization has as many invite links as it can. Turn one off first."),
+        OrgWrite::NoSuchAi => error(StatusCode::NOT_FOUND, "No such AI in this organization."),
         OrgWrite::Failed => error(StatusCode::INTERNAL_SERVER_ERROR, "That could not be stored."),
     }
 }
@@ -214,7 +226,12 @@ fn org_json(org: &Org) -> Value {
         "invitedBy": org.invited_by, "createdAt": millis(org.created_at),
         "colour": org.colour, "keys": { "generation": org.key_generation, "mine": org.key_mine, "missing": org.key_missing, "stale": org.key_stale },
         "members": org.members.iter().map(member_json).collect::<Vec<_>>(),
+        "ais": org.ais.iter().map(ai_json).collect::<Vec<_>>(),
     })
+}
+
+fn ai_json(ai: &OrgAi) -> Value {
+    json!({ "id": ai.id, "name": ai.name, "via": ai.via, "firstSeen": millis(ai.first_seen), "lastSeen": millis(ai.last_seen) })
 }
 
 fn key_json(key: &AccountKey) -> Value {
@@ -440,6 +457,43 @@ async fn drop_link(State(orgs): State<Arc<Orgs>>, Path((id, link)): Path<(String
     }
 }
 
+#[derive(Deserialize)]
+struct AiBody {
+    name: String,
+}
+
+/// An AI's name as it is kept: trimmed, 1 to 40 characters, none of them a control character.
+fn ai_name(name: &str) -> Result<&str, Response> {
+    let name = name.trim();
+    if AI_NAME_LENGTH.contains(&name.chars().count()) && !name.chars().any(char::is_control) {
+        Ok(name)
+    } else {
+        Err(error(StatusCode::BAD_REQUEST, "An AI's name is 1 to 40 characters."))
+    }
+}
+
+async fn see_ai(State(orgs): State<Arc<Orgs>>, Path(id): Path<String>, who: Claims, Json(body): Json<AiBody>) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    let name = ai_name(&body.name)?;
+    match orgs.accounts.store.ai_seen(who.sub, &id, &fresh_id(), name, now_secs(), AIS_PER_MEMBER) {
+        Ok(ai) => Ok(Json(json!({ "ai": ai_json(&ai) })).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
+async fn drop_ai(State(orgs): State<Arc<Orgs>>, Path((id, ai)): Path<(String, String)>, who: Claims) -> Result<Response, Response> {
+    org_id(&id)?;
+    orgs.change(&who)?;
+    if !valid_id(&ai) {
+        return Err(refused(OrgWrite::NoSuchAi));
+    }
+    match orgs.accounts.store.drop_ai(who.sub, &id, &ai) {
+        Ok(()) => Ok(Json(json!({ "removed": true })).into_response()),
+        Err(err) => Err(refused(err)),
+    }
+}
+
 async fn preview_join(State(orgs): State<Arc<Orgs>>, Path(code): Path<String>, who: Claims) -> Result<Response, Response> {
     let code = code_of(&code)?;
     orgs.change(&who)?;
@@ -600,6 +654,8 @@ pub fn router(accounts: Arc<Accounts>) -> Router {
         .route("/api/v1/orgs/{id}/invite", post(answer_invite))
         .route("/api/v1/orgs/{id}/links", get(list_links).post(make_link))
         .route("/api/v1/orgs/{id}/links/{link}", axum::routing::delete(drop_link))
+        .route("/api/v1/orgs/{id}/ais", post(see_ai))
+        .route("/api/v1/orgs/{id}/ais/{ai}", axum::routing::delete(drop_ai))
         .route("/api/v1/joins/{code}", get(preview_join).post(join))
         .layer(DefaultBodyLimit::max(BODY_LIMIT))
         .with_state(Orgs::new(accounts))

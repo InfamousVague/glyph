@@ -94,6 +94,8 @@ pub enum OrgWrite {
     NoSuchLink,
     /// The organization has as many invite links working as it may.
     TooManyLinks,
+    /// No AI entry by that id in the organization (store/org_ais.rs).
+    NoSuchAi,
     /// Something below the rules failed.
     Failed,
 }
@@ -157,6 +159,8 @@ pub struct Org {
     pub key_missing: i64,
     pub key_stale: bool,
     pub members: Vec<Member>,
+    /// The AIs seen in it through a member's connector (store/org_ais.rs): records beside the members, not among them.
+    pub ais: Vec<super::OrgAi>,
 }
 
 /// The limits an invitation is checked against, the route's numbers passed in (src/orgs.rs keeps them).
@@ -274,6 +278,7 @@ impl Store {
             key_missing: row.key_missing,
             key_stale: row.key_stale,
             members,
+            ais: Self::ais_in(conn, org)?,
         }))
     }
 

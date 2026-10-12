@@ -24,6 +24,7 @@ mod keys;
 mod notes;
 mod org_notes;
 mod notifications;
+mod org_ais;
 mod org_links;
 mod orgs;
 mod prefs;
@@ -37,6 +38,7 @@ pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow, UPDATES_KEPT};
 #[cfg(test)]
 pub use notifications::KEPT;
 pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
+pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use shares::ShareWrite;
@@ -152,6 +154,19 @@ CREATE TABLE IF NOT EXISTS org_links (
     uses       INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS org_links_by_org ON org_links(org_id);
+-- An AI that has read or written the organization's notes through a member's connector (store/org_ais.rs): its
+-- name, the member, and when it was first and last seen. A record only: not a member, no key wrap, no seat. One per
+-- member and name; it goes with the member's row in the organization, and so with the organization and the account.
+CREATE TABLE IF NOT EXISTS org_ais (
+    id         TEXT PRIMARY KEY,
+    org_id     TEXT NOT NULL,
+    account_id INTEGER NOT NULL,
+    name       TEXT NOT NULL,
+    first_seen INTEGER NOT NULL,
+    last_seen  INTEGER NOT NULL,
+    UNIQUE (org_id, account_id, name),
+    FOREIGN KEY (org_id, account_id) REFERENCES org_members(org_id, account_id) ON DELETE CASCADE
+);
 -- An account's encryption key pair (docs/SHARED.md, S3; store/keys.rs): the public key in the clear, for a member
 -- wrapping an organization key to it, and the private key sealed under the account key, for the account's other
 -- devices. Written once: the first registration stands, and a second is answered with it.

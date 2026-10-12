@@ -694,3 +694,110 @@ async fn the_key_owes_a_turn_when_a_member_goes_and_the_next_generation_answers_
     let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{id}/keys"), Some(&matt), None).await;
     assert_eq!(keys["stale"], true);
 }
+
+/// `POST orgs/{id}/ais` as a member's connector: the entry.
+async fn seen(h: &Harness, token: &str, org: &str, name: &str) -> (StatusCode, Value) {
+    h.call(Method::POST, &format!("/api/v1/orgs/{org}/ais"), Some(token), Some(json!({ "name": name }))).await
+}
+
+async fn org_of(h: &Harness, token: &str, org: &str) -> Value {
+    let (status, body) = h.call(Method::GET, &format!("/api/v1/orgs/{org}"), Some(token), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    body["org"].clone()
+}
+
+#[tokio::test]
+async fn an_ai_seen_through_a_members_connector_is_a_record_beside_the_members_and_nothing_to_the_keys() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let kit = h.signup("kit", &device()).await;
+    let ada = h.signup("ada", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    invite(&h, &matt, &org, "sam").await;
+    answer(&h, &sam, &org, true).await;
+    invite(&h, &matt, &org, "ada").await;
+    // Both have a public key, and the key is made with a wrap for matt alone: sam lacks one.
+    for (token, name) in [(&matt, "matt"), (&sam, "sam")] {
+        h.call(Method::PUT, "/api/v1/account/key", Some(token), Some(json!({ "pub": format!("pub-{name}"), "sealed": format!("sealed-{name}") }))).await;
+    }
+    let (status, _) = h.call(Method::POST, &format!("/api/v1/orgs/{org}/keys"), Some(&matt), Some(json!({ "generation": 1, "make": true, "wraps": [{ "handle": "matt", "wrapped": "wrap-matt" }] }))).await;
+    assert_eq!(status, StatusCode::OK);
+    let before = org_of(&h, &matt, &org).await;
+    assert_eq!(before["ais"], json!([]));
+    assert_eq!(before["keys"], json!({ "generation": 1, "mine": true, "missing": 1, "stale": false }));
+
+    let (status, body) = seen(&h, &matt, &org, "  Claude  ").await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let ai = body["ai"].clone();
+    assert_eq!((ai["name"].clone(), ai["via"].clone()), (json!("Claude"), json!("matt")));
+    assert_eq!(ai["id"].as_str().unwrap().len(), 22);
+    assert!(ai["firstSeen"].is_i64() && ai["lastSeen"].as_i64() >= ai["firstSeen"].as_i64());
+
+    // Read by any member, beside the members and not among them; the keys, the seats and the list are as they were.
+    let after = org_of(&h, &sam, &org).await;
+    assert_eq!(after["ais"], json!([ai]));
+    assert_eq!(after["members"], org_of(&h, &sam, &org).await["members"]);
+    assert_eq!(after["members"].as_array().unwrap().len(), 3);
+    assert_eq!(org_of(&h, &matt, &org).await["keys"], before["keys"]);
+    assert_eq!(org_of(&h, &matt, &org).await["members"], before["members"]);
+    let (_, keys) = h.call(Method::GET, &format!("/api/v1/orgs/{org}/keys"), Some(&matt), None).await;
+    assert_eq!(keys["missing"], json!([{ "handle": "sam", "pub": "pub-sam" }]));
+    assert_eq!(keys["stale"], json!(false));
+    let (_, list) = h.call(Method::GET, "/api/v1/orgs", Some(&matt), None).await;
+    assert_eq!((list["orgs"][0]["members"].clone(), list["orgs"][0]["keys"].clone()), (json!(2), before["keys"].clone()));
+
+    // Seen again is the same entry; another name, or the same name through another member, is another.
+    let (_, again) = seen(&h, &matt, &org, "Claude").await;
+    assert_eq!((again["ai"]["id"].clone(), again["ai"]["firstSeen"].clone()), (ai["id"].clone(), ai["firstSeen"].clone()));
+    seen(&h, &matt, &org, "Cursor").await;
+    seen(&h, &sam, &org, "Claude").await;
+    let listed = org_of(&h, &matt, &org).await["ais"].clone();
+    let told: Vec<(String, String)> = listed.as_array().unwrap().iter().map(|a| (a["name"].as_str().unwrap().to_string(), a["via"].as_str().unwrap().to_string())).collect();
+    assert_eq!(told, [("Claude".to_string(), "matt".to_string()), ("Cursor".to_string(), "matt".to_string()), ("Claude".to_string(), "sam".to_string())]);
+
+    // A stranger, and someone invited who has not joined, learn nothing; a name that is none is refused.
+    assert_eq!(seen(&h, &kit, &org, "Claude").await, refusal(StatusCode::NOT_FOUND, "No such organization."));
+    assert_eq!(seen(&h, &ada, &org, "Claude").await, refusal(StatusCode::NOT_FOUND, "No such organization."));
+    assert_eq!(seen(&h, &matt, &org, "   ").await, refusal(StatusCode::BAD_REQUEST, "An AI's name is 1 to 40 characters."));
+    assert_eq!(seen(&h, &matt, &org, &"x".repeat(41)).await, refusal(StatusCode::BAD_REQUEST, "An AI's name is 1 to 40 characters."));
+    assert_eq!(org_of(&h, &matt, &org).await["ais"].as_array().unwrap().len(), 3);
+}
+
+#[tokio::test]
+async fn an_ais_entry_is_removed_by_whoever_manages_or_the_member_it_came_through_and_goes_with_that_member() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let sam = h.signup("sam", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    invite(&h, &matt, &org, "sam").await;
+    answer(&h, &sam, &org, true).await;
+    let id_of = |body: &Value| body["ai"]["id"].as_str().unwrap().to_string();
+    let mine = id_of(&seen(&h, &matt, &org, "Claude").await.1);
+    let theirs = id_of(&seen(&h, &sam, &org, "Claude").await.1);
+    let other = id_of(&seen(&h, &sam, &org, "Cursor").await.1);
+    let drop = |token: String, ai: String| {
+        let (h, org) = (&h, org.clone());
+        async move { h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/ais/{ai}"), Some(&token), None).await }
+    };
+
+    // A member may not remove another's; their own they may; the owner may remove anyone's.
+    assert_eq!(drop(sam.clone(), mine.clone()).await, refusal(StatusCode::FORBIDDEN, "Only the owner or an admin can do that."));
+    assert_eq!(drop(sam.clone(), theirs.clone()).await, (StatusCode::OK, json!({ "removed": true })));
+    assert_eq!(drop(sam.clone(), theirs.clone()).await, refusal(StatusCode::NOT_FOUND, "No such AI in this organization."));
+    assert_eq!(drop(matt.clone(), "bad.id".to_string()).await.0, StatusCode::NOT_FOUND);
+    assert_eq!(drop(matt.clone(), other.clone()).await, (StatusCode::OK, json!({ "removed": true })));
+    let left = org_of(&h, &matt, &org).await;
+    assert_eq!(left["ais"].as_array().unwrap().iter().map(|a| a["id"].clone()).collect::<Vec<_>>(), [json!(mine)]);
+    // Removing a record is no member leaving: the key owes no turn for it.
+    assert_eq!(left["keys"]["stale"], json!(false));
+
+    // Seen again after a removal, it is a new entry: the record was removed, not the member's access.
+    let back = id_of(&seen(&h, &sam, &org, "Claude").await.1);
+    assert_ne!(back, theirs);
+    // And a member's entries go with the member.
+    let (status, _) = h.call(Method::DELETE, &format!("/api/v1/orgs/{org}/members/sam"), Some(&matt), None).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(org_of(&h, &matt, &org).await["ais"].as_array().unwrap().iter().map(|a| a["via"].clone()).collect::<Vec<_>>(), [json!("matt")]);
+    assert_eq!(seen(&h, &sam, &org, "Claude").await, refusal(StatusCode::NOT_FOUND, "No such organization."));
+}
