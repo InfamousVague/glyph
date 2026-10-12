@@ -8,7 +8,7 @@ import { usePresence, type Jump, type Seen } from '../core/live/presence.ts';
 import { useNotifications } from '../core/notifications/feed.ts';
 import { KIND_HUES, sentenceOf, type Notification } from '../core/notifications/kinds.ts';
 import { fetchOrg, inviteByHandle, setOrgColour, useOrgs } from '../core/orgs/orgs.ts';
-import type { Member, Org, OrgRow } from '../core/orgs/types.ts';
+import type { Member, Org, OrgAi, OrgRow } from '../core/orgs/types.ts';
 import { usePreferences } from '../core/preferences.ts';
 import type { Note } from '../core/store.ts';
 import { syncNotificationsNow, syncNow } from '../core/sync/engine.ts';
@@ -250,7 +250,15 @@ export function OrganizationScreen({ orgId, notes, onBack, onOpenNote, onNew, on
                   </div>
                   <ul className={styles.members} aria-label="Members">
                     {org ? (
-                      [...joined, ...invited].map((m, i) => <MemberLine key={m.handle} member={m} me={me} index={i} seen={seen} onJump={onJumpTo} />)
+                      <>
+                        {[...joined, ...invited].map((m, i) => (
+                          <MemberLine key={m.handle} member={m} me={me} index={i} seen={seen} onJump={onJumpTo} />
+                        ))}
+                        {/* The AIs seen here through a member's connector, after the people and never counted with them. */}
+                        {(org.ais ?? []).map((ai, i) => (
+                          <AiLine key={ai.id} ai={ai} me={me} index={joined.length + invited.length + i} />
+                        ))}
+                      </>
                     ) : (
                       <li className={styles.reading}>Reading the members…</li>
                     )}
@@ -424,6 +432,33 @@ function MemberLine({ member, me, index, seen, onJump }: { member: Member; me: s
           ) : null}
         </div>
       ) : null}
+    </li>
+  );
+}
+
+/**
+ * An AI seen in the organization through a member's connector (core/orgs/types.ts `OrgAi`): a line as a member's
+ * is - an initial, the name with an AI chip, and whose connector it came through and when it was last seen - that
+ * opens nothing, since there is no one to find in the app. Removing one is in the organization's settings.
+ */
+function AiLine({ ai, me, index }: { ai: OrgAi; me: string; index: number }) {
+  const mine = ai.via.toLowerCase() === me.toLowerCase();
+  return (
+    <li className={styles.member} data-state="ai" style={{ '--i': Math.min(index, 12) } as CSSProperties}>
+      <div className={styles.aiRow}>
+        <span className={styles.avatar} aria-hidden="true">
+          {ai.name.slice(0, 1).toUpperCase()}
+        </span>
+        <span className={styles.memberWords}>
+          <span className={styles.handle}>
+            {ai.name}
+            <span className={styles.role} data-role="ai">
+              AI
+            </span>
+          </span>
+          <span className={styles.since}>{`Through ${mine ? 'you' : ai.via} · last seen ${since(ai.lastSeen)}`}</span>
+        </span>
+      </div>
     </li>
   );
 }

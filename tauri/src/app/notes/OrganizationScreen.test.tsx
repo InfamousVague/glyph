@@ -151,6 +151,24 @@ describe('an organization’s dashboard', () => {
     expect(passes.count).toBe(1);
   });
 
+  // Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)".
+  it('lists an AI seen through a member’s connector under the members, labelled AI, and counts only the people', async () => {
+    const id = await made('Ghost');
+    await sam(id, true);
+    service.peerAi(id, 'Claude', 'matt');
+    service.peerAi(id, 'Cursor', 'sam', { lastSeen: Date.now() - 24 * 60 * 60_000 });
+    page(id);
+    await waitUntil(() => expect(members()).toHaveLength(4));
+    expect(members().slice(2)).toEqual(['CClaudeAIThrough you · last seen just now', 'CCursorAIThrough sam · last seen yesterday']);
+    const lines = [...document.querySelectorAll<HTMLElement>('ul[aria-label="Members"] li')];
+    expect(lines.map((li) => li.dataset.state)).toEqual(['member', 'member', 'ai', 'ai']);
+    // A line that opens nothing: there is no one to find in the app.
+    expect(lines[2]!.querySelector('button')).toBeNull();
+    expect(lines[2]!.querySelector('[data-role="ai"]')?.textContent).toBe('AI');
+    expect(document.querySelector('#org-members')?.textContent).toBe('Members2');
+    expect(document.body.textContent).toContain('2 members · You are owner');
+  });
+
   it('puts its settings behind a cog in the bar, and the + and the way home on the page', async () => {
     const onSettings = vi.fn();
     const onNew = vi.fn();

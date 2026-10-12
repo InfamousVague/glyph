@@ -2,7 +2,7 @@ import type { SignedIn } from '../app/core/account/account.ts';
 import { NO_SUCH_ROUTE } from '../app/core/account/api.ts';
 import { shortId } from '../app/core/ids.ts';
 import { isSelfKind, type Kind, type Notification } from '../app/core/notifications/kinds.ts';
-import type { InviteLink, Member, Org, OrgRow, Role } from '../app/core/orgs/types.ts';
+import type { InviteLink, Member, Org, OrgAi, OrgRow, Role } from '../app/core/orgs/types.ts';
 import type { Note } from '../app/core/store.ts';
 import { derive, fromBase64Url, newAccountKey, open, passwordSalt, seal, wrap, type Bytes } from '../app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../app/core/sync/notes.ts';
@@ -73,6 +73,8 @@ export interface FakeServiceOptions {
   teams?: boolean;
   /** Handles that resolve for an invitation without being the account (`'sam'` by default). */
   peers?: string[];
+  /** False: a service with organizations but from before their AI entries, answering those routes `no such route`. */
+  ais?: boolean;
 }
 
 /** A row of an organization as the service keeps it: who, their role, and whether they joined, wait, or declined. */
@@ -110,6 +112,8 @@ interface StoredOrg {
   updates?: Map<string, { seq: number; blob: string; by: string; at: number }[]>;
   seqs?: Map<string, number>;
   files?: Map<string, { rev: number; bytes: Bytes }>;
+  /** The AIs seen in it through a member's connector (server/src/store/org_ais.rs), by id. */
+  ais?: Map<string, OrgAi>;
 }
 
 /** A team note's row as the service keeps it (server/src/store/org_notes.rs). */
@@ -130,7 +134,7 @@ const DECLINE_GAP_MS = 24 * 60 * 60_000;
 const encoder = new TextEncoder();
 
 /** The service in memory. `seed`: an account it already holds, signed up with that password. */
-export async function fakeService(seed?: { handle: string; password: string }, { head = true, teams = true, peers = ['sam'] }: FakeServiceOptions = {}) {
+export async function fakeService(seed?: { handle: string; password: string }, { head = true, teams = true, peers = ['sam'], ais = true }: FakeServiceOptions = {}) {
   let account: Account | null = null;
   if (seed) {
     const key = await newAccountKey();
@@ -216,6 +220,8 @@ export async function fakeService(seed?: { handle: string; password: string }, {
     colour: colourOf(me),
     keys: keysJson(org, me),
     members: [...org.rows.values()].filter((r) => r.state !== 'declined').map(memberJson),
+    // Only those that came through someone still in it, as the server's join answers them.
+    ...(ais ? { ais: [...(org.ais?.values() ?? [])].filter((ai) => rowOf(org, ai.via)?.state === 'member') } : {}),
   });
   const rowJson = (org: StoredOrg, me: Row): OrgRow => ({
     id: org.id,
@@ -512,6 +518,30 @@ export async function fakeService(seed?: { handle: string; password: string }, {
           const rev = (org.rev = (org.rev ?? 0) + 1);
           org.files.set(id, { rev, bytes: new Uint8Array(init?.body as Bytes) });
           return json(200, { rev });
+        }
+      }
+      // The AIs seen in an organization through a member's connector (server/src/orgs.rs, store/org_ais.rs).
+      const seenAi = /^orgs\/([^/]+)\/ais(?:\/([^/]+))?$/.exec(path);
+      if (seenAi) {
+        if (!ais) return refuse(404, NO_SUCH_ROUTE);
+        const found = inOrg(decodeURIComponent(seenAi[1]!));
+        if (!found) return refuse(404, 'No such organization.');
+        const { org, row } = found;
+        org.ais ??= new Map();
+        if (method === 'POST' && seenAi[2] === undefined) {
+          const name = String(body.name ?? '').trim();
+          if (!name || name.length > 40) return refuse(400, 'An AI’s name is 1 to 40 characters.');
+          const had = [...org.ais.values()].find((ai) => ai.name === name && lower(ai.via) === lower(me));
+          const ai: OrgAi = had ? { ...had, lastSeen: Date.now() } : { id: shortId(), name, via: row.handle, firstSeen: Date.now(), lastSeen: Date.now() };
+          org.ais.set(ai.id, ai);
+          return json(200, { ai });
+        }
+        if (method === 'DELETE' && seenAi[2] !== undefined) {
+          const ai = org.ais.get(decodeURIComponent(seenAi[2]));
+          if (!ai) return refuse(404, 'No such AI in this organization.');
+          if (lower(ai.via) !== lower(me) && row.role === 'member') return refuse(403, 'Only the owner or an admin can do that.');
+          org.ais.delete(ai.id);
+          return json(200, { removed: true });
         }
       }
       // The caller's colour in one organization (docs/SHARED.md, S7), and the organization key's wraps (S2).
@@ -855,6 +885,17 @@ export async function fakeService(seed?: { handle: string; password: string }, {
       org.rows.set(lower(by), { handle: by, role: 'owner', state: 'member', since: org.createdAt, invitedBy: null });
       orgs.set(org.id, org);
       return linkTo(org, by, terms.expiresAt ?? null, terms.maxUses ?? null).code;
+    },
+    /** The AIs seen in an organization, as stored; and one seen through a peer's connector, as their own would tell it. */
+    aisOf(orgId: string): OrgAi[] {
+      return [...(orgs.get(orgId)?.ais?.values() ?? [])];
+    },
+    peerAi(orgId: string, name: string, via: string = peers[0] ?? 'sam', seen: { firstSeen?: number; lastSeen?: number } = {}): OrgAi {
+      const org = orgs.get(orgId);
+      if (!org) throw new Error('No such organization in the fake service.');
+      const ai: OrgAi = { id: shortId(), name, via, firstSeen: seen.firstSeen ?? Date.now(), lastSeen: seen.lastSeen ?? Date.now() };
+      (org.ais ??= new Map()).set(ai.id, ai);
+      return ai;
     },
     /** The account's row in an organization, as the service holds it; null when it has none. */
     rowIn(orgId: string): { role: Role; state: 'member' | 'invited' | 'declined' } | null {

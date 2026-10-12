@@ -400,6 +400,20 @@
   min-inline-size: 0;
 }
 
+/* An AI seen through a member's connector: a member's row in every measure, which is not a button and opens nothing. */
+.aiRow {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+}
+
+/* Its initial in an outline, not a fill: listed with the people, and not one of them. */
+.member[data-state='ai'] .avatar {
+  background: none;
+  border: var(--glacier-hairline) solid var(--app-ink-3);
+  color: var(--app-ink-2);
+}
+
 .handle {
   font-size: var(--glacier-font-size-md);
   font-weight: var(--glacier-font-weight-medium);

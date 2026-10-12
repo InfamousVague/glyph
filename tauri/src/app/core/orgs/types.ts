@@ -59,9 +59,28 @@ export interface Member {
   pub?: string | null;
 }
 
+/**
+ * An AI that has read or written the organization's notes through a member's connector (docs/MCP.md,
+ * "Organizations"; server/src/store/org_ais.rs). Matt: "when an AI has accessed an ORG add it as a member labeled
+ * as (AI)". A record beside the members, never one of them: it holds no key wrap and takes no seat, and its access is
+ * the member's own, so removing the entry removes the record and not the access.
+ */
+export interface OrgAi {
+  id: string;
+  /** What the AI's app called itself: "Claude". */
+  name: string;
+  /** The handle of the member whose connector it came through. */
+  via: string;
+  /** When it was first and last seen, in ms. */
+  firstSeen: number;
+  lastSeen: number;
+}
+
 /** An organization in full: what `GET orgs/{id}` answers a member. */
 export interface Org extends Omit<OrgRow, 'members'> {
   members: Member[];
+  /** The AIs seen in it; absent from a service before them, which is none. */
+  ais?: OrgAi[];
 }
 
 /**

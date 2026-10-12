@@ -5,8 +5,8 @@ import { useAccount } from '../core/account/account.ts';
 import { failureText } from '../core/failure.ts';
 import { fireNativeHaptic } from '../core/haptics.ts';
 import { openLink } from '../core/linkPreview.ts';
-import { deleteOrg, fetchOrg, inviteByHandle, removeMember, setOrgColour, setRole, updateOrg, useOrgs } from '../core/orgs/orgs.ts';
-import type { Member, Org, OrgRow, Role } from '../core/orgs/types.ts';
+import { deleteOrg, fetchOrg, inviteByHandle, removeMember, removeOrgAi, setOrgColour, setRole, updateOrg, useOrgs } from '../core/orgs/orgs.ts';
+import type { Member, Org, OrgAi, OrgRow, Role } from '../core/orgs/types.ts';
 import { setPreferences, usePreferences } from '../core/preferences.ts';
 import { orgWorkspaceId, useWorkspaces, type WorkspaceHue } from '../core/workspaces.ts';
 import { WorkspaceSwatch } from '../notes/WorkspaceSwatch.tsx';
@@ -269,8 +269,58 @@ function Invite({ onInvite }: { onInvite: (handle: string) => Promise<void> }) {
   );
 }
 
-function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | null; me: string; onInvite: (handle: string) => Promise<void>; onDo: (what: 'remove' | 'admin' | 'member' | 'owner', handle: string) => Promise<void> }) {
+/** What the Members section says under itself once an AI is listed there: whose access it is, and what Remove removes. */
+const AI_NOTES = 'An AI reads and writes through its member’s own access, with their connector. Removing it takes it off this list, not out of the notes: it is listed again when it next reads them.';
+
+/**
+ * An AI seen in the organization through a member's connector (core/orgs/types.ts `OrgAi`; Matt: "when an AI has
+ * accessed an ORG add it as a member labeled as (AI)"): a row as a member's is, its name with an AI chip, whose
+ * connector it came through and when it was last seen under it, and Remove for the owner, an admin, or that member.
+ */
+function AiRow({ ai, me, role, onRemove }: { ai: OrgAi; me: string; role: Role; onRemove: (ai: OrgAi) => Promise<void> }) {
+  const [busy, setBusy] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
+  const mine = ai.via.toLowerCase() === me.toLowerCase();
+  const canRemove = mine || role === 'owner' || role === 'admin';
+  const remove = async () => {
+    setBusy(true);
+    setProblem(null);
+    try {
+      await onRemove(ai);
+    } catch (failure) {
+      setProblem(failureText(failure));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <SettingRow
+      label={
+        <>
+          {ai.name}
+          <span className={styles.role} data-role="ai">
+            AI
+          </span>
+        </>
+      }
+      hint={problem ?? `Through ${mine ? 'you' : ai.via} · last seen ${since(ai.lastSeen)}`}
+      layout={canRemove ? 'stacked' : 'trailing'}
+      control={
+        canRemove ? (
+          <span className={styles.memberWords}>
+            <RowAction onPress={() => void remove()} disabled={busy}>
+              Remove
+            </RowAction>
+          </span>
+        ) : undefined
+      }
+    />
+  );
+}
+
+function Members({ row, org, me, onInvite, onDo, onRemoveAi }: { row: OrgRow; org: Org | null; me: string; onInvite: (handle: string) => Promise<void>; onDo: (what: 'remove' | 'admin' | 'member' | 'owner', handle: string) => Promise<void>; onRemoveAi: (ai: OrgAi) => Promise<void> }) {
   const joined = org?.members.filter((m) => m.state === 'member').length ?? row.members;
+  const ais = org?.ais ?? [];
   const canInvite = row.state === 'member' && (row.role === 'owner' || row.role === 'admin');
   return (
     <>
@@ -282,8 +332,12 @@ function Members({ row, org, me, onInvite, onDo }: { row: OrgRow; org: Org | nul
           <SettingRow label={row.invitedBy ? `${row.invitedBy} invited you` : 'You are invited'} hint="Accept to join, and its workspace is made on each of your devices." layout="stacked" control={<InviteActions orgId={row.id} />} />
         </PaneSection>
       ) : (
-        <PaneSection title="Members">
+        <PaneSection title="Members" footer={ais.length ? AI_NOTES : undefined}>
           {org ? org.members.map((member) => <MemberRow key={member.handle} member={member} me={me} role={row.role} onDo={onDo} />) : <SettingRow label="Reading the members…" />}
+          {/* The AIs after the people: beside the members, never counted among them. */}
+          {ais.map((ai) => (
+            <AiRow key={ai.id} ai={ai} me={me} role={row.role} onRemove={onRemoveAi} />
+          ))}
         </PaneSection>
       )}
       {row.state === 'member' ? <YourColour row={row} /> : null}
@@ -424,6 +478,10 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers
     else await setRole(orgId, handle, what);
     await read();
   };
+  const onRemoveAi = async (ai: OrgAi) => {
+    await removeOrgAi(orgId, ai.id);
+    await read();
+  };
   const leave = async () => {
     await removeMember(orgId, me);
     onClose();
@@ -475,6 +533,7 @@ export function OrganizationSheet({ orgId, from, onClose, onNotes, landOnMembers
               await read();
             }}
             onDo={onDo}
+            onRemoveAi={onRemoveAi}
           />
         </>
       ) : (

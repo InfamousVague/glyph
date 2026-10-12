@@ -322,6 +322,29 @@ as a new one is made, and every link goes with its organization. A code that is 
 the same 404 in the same words. The routes share the sixty-a-minute change limit: a link names nobody, so it is no
 handle oracle, and 128 bits are not guessed at sixty a minute.
 
+## AIs in an organization
+
+Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)". A member's connector reads a team's notes
+with the member's own access (MCP.md, "Organizations"), and says so to the organization, so it is visible to
+everyone in it.
+
+    POST   /api/v1/orgs/{id}/ais        { name }   an AI seen through the caller's connector: made, or seen again
+    DELETE /api/v1/orgs/{id}/ais/{ai}              removed: the owner, an admin, or the member it came through
+
+An entry (`org_ais`, `server/src/store/org_ais.rs`) is the AI's name as its app gave it (1 to 40 characters), the
+member, and when it was first and last seen; one per member and name, eight names a member at most, the one seen
+longest ago going first. `GET orgs/{id}` answers them as `ais: [{ id, name, via, firstSeen, lastSeen }]` beside
+`members`, which an app from before them never reads. It is not a member: it is in no row of `org_members`, holds
+no wrap, is never in `missing`, makes the key owe no turn, takes none of the fifty seats and cannot be invited. It
+goes with the member's row, the organization and the account. Removing one removes the record and nothing else: the
+access is the member's, and the AI is listed again when it next reads. The refusals are the organization's own - a
+stranger and an invitee get "No such organization." - with "No such AI in this organization." for an entry that is
+not there, and "An AI's name is 1 to 40 characters.".
+
+On the page the entries stand under the members in both lists - the dashboard's (`notes/OrganizationScreen.tsx`
+`AiLine`) and the settings sheet's (`settings/OrganizationSheet.tsx` `AiRow`, with Remove) - as the name, an **AI**
+chip where a member has their role, and "Through sam · last seen yesterday" ("Through you" for your own).
+
 ## On the phone
 
 Matt: "also send notifications as actual phone notifications too". From native generation 23, an Android phone shows

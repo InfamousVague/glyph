@@ -245,6 +245,14 @@ export async function removeMember(id: string, handle: string, ctx: CallContext 
   }
 }
 
+/**
+ * An AI's entry removed from the organization's list (owner or admin, or the member it came through). The record
+ * goes; the member's own access, which is what their connector reads with, is as it was.
+ */
+export async function removeOrgAi(id: string, ai: string, ctx: CallContext = signedIn()): Promise<void> {
+  await orgs<{ removed: true }>('DELETE', `orgs/${encodeURIComponent(id)}/ais/${encodeURIComponent(ai)}`, ctx);
+}
+
 /** A member's role set by the owner; `owner` hands the organization over, and the old owner becomes an admin. */
 export async function setRole(id: string, handle: string, role: Role, ctx: CallContext = signedIn()): Promise<Member> {
   const { member } = await orgs<{ member: Member }>('PUT', `orgs/${encodeURIComponent(id)}/members/${encodeURIComponent(handle.trim())}`, ctx, { role });

@@ -224,6 +224,52 @@ describe('Members', () => {
     expect(labels(host)).toEqual(['General', 'Members', 'Workspace', 'Notifications', 'Report', 'Leave']);
   });
 
+  // Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)".
+  it('lists an AI seen through a member’s connector after the members, with whose it came through, and removes it for the owner', async () => {
+    const id = await ghost();
+    await sam(id, true);
+    const day = 24 * 60 * 60_000;
+    const mine = service.peerAi(id, 'Claude', 'matt', { firstSeen: Date.now() - 3 * day, lastSeen: Date.now() });
+    const theirs = service.peerAi(id, 'Cursor', 'sam', { firstSeen: Date.now() - 3 * day, lastSeen: Date.now() - day });
+    const host = sheet(id);
+    await waitUntil(() => expect(member(host, 'Claude')?.chip).toBe('AI'));
+    expect(member(host, 'Claude')).toMatchObject({ hint: 'Through you · last seen just now', words: ['Remove'] });
+    expect(member(host, 'Cursor')).toMatchObject({ chip: 'AI', hint: 'Through sam · last seen yesterday', words: ['Remove'] });
+    // After the people, and not counted with them.
+    const order = [...host.querySelectorAll('.setk-row__label')].map((l) => l.textContent);
+    expect(order.indexOf('ClaudeAI')).toBeGreaterThan(order.indexOf('samMember'));
+    expect(host.querySelector('.setk-hero__meta')?.textContent).toBe('2 members · You are owner');
+    expect(host.textContent).toContain('Removing it takes it off this list, not out of the notes');
+    act(() => button('Remove', member(host, 'Cursor')!.row).click());
+    await waitUntil(() => expect(member(host, 'Cursor')).toBeNull());
+    expect(service.aisOf(id).map((ai) => ai.id)).toEqual([mine.id]);
+    expect(theirs.via).toBe('sam');
+    // sam is still a member: an AI's row going is no person going.
+    expect(member(host, 'sam')?.chip).toBe('Member');
+  });
+
+  it('lets a member remove the AI that came through them and no one else’s, and says nothing of AIs where there are none', async () => {
+    const id = await ghost();
+    await sam(id, true);
+    const none = sheet(id);
+    await waitUntil(() => expect(member(none, 'sam')?.chip).toBe('Member'));
+    expect(none.textContent).not.toContain('An AI reads and writes');
+    unmount();
+    service.peerAi(id, 'Claude', 'matt');
+    service.peerAi(id, 'Cursor', 'sam');
+    // matt as a plain member: sam owns it now.
+    service.orgs.get(id)!.rows.get('matt')!.role = 'member';
+    service.orgs.get(id)!.rows.get('sam')!.role = 'owner';
+    await syncOrgs({ token: service.signedIn(), fetcher: service.fetcher, save: (state) => saveOrgs(7, state) });
+    const host = sheet(id);
+    await waitUntil(() => expect(member(host, 'Cursor')?.chip).toBe('AI'));
+    expect(member(host, 'Cursor')?.words).toEqual([]);
+    expect(member(host, 'Claude')?.words).toEqual(['Remove']);
+    act(() => button('Remove', member(host, 'Claude')!.row).click());
+    await waitUntil(() => expect(member(host, 'Claude')).toBeNull());
+    expect(service.aisOf(id).map((ai) => ai.name)).toEqual(['Cursor']);
+  });
+
   it('shows the service’s refusal under the row it was asked on', async () => {
     const id = await ghost();
     await sam(id, false);
