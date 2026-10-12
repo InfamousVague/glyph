@@ -196,6 +196,8 @@ void main() {
       final three = tester.getSize(find.byType(WholeMarks)).width;
       expect(three, greaterThan(40));
       expect(tester.getRect(find.byType(WholeMarks)).right, lessThan(tester.getRect(find.text('1 hr ago')).left));
+      // At the line's end, beside when it was last touched, not after the name.
+      expect(tester.getRect(find.text('1 hr ago')).left - tester.getRect(find.byType(WholeMarks)).right, lessThan(24));
       expect(find.bySemanticsLabel('Plan, by matt, Claude and ana, 1 hr ago'), findsOneWidget);
       await away(tester);
 
@@ -207,6 +209,7 @@ void main() {
       await show(tester, HomeRow(note: makeNote('n', body: body, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
       expect(tester.getSize(find.byType(WholeMarks)).width, three);
       expect(tester.getRect(find.byType(WholeMarks)).left, greaterThan(tester.getRect(find.text('Plan')).right));
+      expect(tester.getRect(find.text('1 hr ago')).left - tester.getRect(find.byType(WholeMarks)).right, lessThan(24));
       await away(tester);
 
       await show(tester, HomeRow(note: makeNote('n', body: long, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);

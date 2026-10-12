@@ -194,7 +194,8 @@ class HomeRow extends StatelessWidget {
     final marked = listedTicket(facts, notebook: notebook, workflow: workflow);
     final ticket = TicketMark.shows(marked);
     final hasLead = lead.isNotEmpty || bookName != null || kind == HomeKind.tape || ticket;
-    // Who wrote it with the person, where anyone did: their marks after the name, in what room the name leaves.
+    // Who wrote it with the person, where anyone did: their marks at the row's end, beside when it was last
+    // touched, in what room the name leaves.
     final authors = _authorsOf(note);
     final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', ?bookName, if (lead.isNotEmpty) lead, if (authors.isNotEmpty) 'by ${spokenNames(authors)}', when(note.updatedAt, now)].join(', ');
     final Widget name = Text(
@@ -240,7 +241,7 @@ class HomeRow extends StatelessWidget {
                                   BottomBaseline(child: Transform.rotate(angle: -12 * math.pi / 180, child: HomeIcon(HomeGlyph.pin, size: 0.85 * md, color: ink3))),
                                   SizedBox(width: 0.35 * md),
                                 ],
-                                Flexible(child: authors.isEmpty ? name : ThenIfRoom(first: name, then: AuthorMarks(authors: authors, em: sm), gap: t.space(2))),
+                                Flexible(child: authors.isEmpty ? name : ThenIfRoom(first: name, then: AuthorMarks(authors: authors, em: sm), gap: t.space(2), toEnd: true)),
                               ],
                             ),
                             if (hasLead) ...[
@@ -388,10 +389,10 @@ class HomeLine extends StatelessWidget {
                     minWidth: 0.55 * xs * 2 + 2 + (space.org != null ? 1.25 * xs + t.space(1) : 0) + t.lenOf('4ch', em: xs),
                     child: _LinePlace(space: space),
                   ),
-                // Who wrote it, the first thing to give way, a whole mark at a time.
-                if (authors.isNotEmpty) Shrink(shrink: 1000, child: AuthorMarks(authors: authors, em: sm)),
+                // Who wrote it, at the line's end beside when: the first thing to give way, a whole mark at a time.
+                if (authors.isNotEmpty) Shrink(shrink: 1000, toEnd: true, child: AuthorMarks(authors: authors, em: sm)),
                 Shrink(
-                  toEnd: true,
+                  toEnd: authors.isEmpty,
                   child: Padding(
                     padding: EdgeInsetsDirectional.only(start: t.space(2)),
                     child: Text(when(note.updatedAt, now), softWrap: false, style: tabular(pageText(t, xs, color: ink3))),

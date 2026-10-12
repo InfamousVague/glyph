@@ -267,18 +267,30 @@ class _RenderWholeMarks extends RenderBox with ContainerRenderObjectMixin<Render
 /// [first], and [then] after it only in the room [first] leaves: [first] is as wide as it wants, up to the whole
 /// width, and [then] is given what is left past a [gap]. Its baseline is [first]'s.
 class ThenIfRoom extends MultiChildRenderObjectWidget {
-  ThenIfRoom({super.key, required Widget first, required Widget then, this.gap = 0}) : super(children: [first, then]);
+  ThenIfRoom({super.key, required Widget first, required Widget then, this.gap = 0, this.toEnd = false}) : super(children: [first, then]);
   final double gap;
 
-  @override
-  RenderObject createRenderObject(BuildContext context) => _RenderThenIfRoom(gap);
+  /// [then] stands at the far edge of the width allowed, not straight after [first].
+  final bool toEnd;
 
   @override
-  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderThenIfRoom).gap = gap;
+  RenderObject createRenderObject(BuildContext context) => _RenderThenIfRoom(gap, toEnd);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderThenIfRoom)
+    ..gap = gap
+    ..toEnd = toEnd;
 }
 
 class _RenderThenIfRoom extends RenderBox with ContainerRenderObjectMixin<RenderBox, _WholeData>, RenderBoxContainerDefaultsMixin<RenderBox, _WholeData> {
-  _RenderThenIfRoom(this._gap);
+  _RenderThenIfRoom(this._gap, this._toEnd);
+
+  bool _toEnd;
+  set toEnd(bool value) {
+    if (value == _toEnd) return;
+    _toEnd = value;
+    markNeedsLayout();
+  }
 
   double _gap;
   set gap(double value) {
@@ -315,8 +327,10 @@ class _RenderThenIfRoom extends RenderBox with ContainerRenderObjectMixin<Render
     then.layout(BoxConstraints(maxWidth: room), parentUsesSize: true);
     final height = math.max(first.size.height, then.size.height);
     (first.parentData! as _WholeData).offset = Offset(0, (height - first.size.height) / 2);
-    (then.parentData! as _WholeData).offset = Offset(first.size.width + _gap, (height - then.size.height) / 2);
-    size = constraints.constrain(Size(first.size.width + (then.size.width > 0 ? _gap + then.size.width : 0), height));
+    final shown = then.size.width > 0;
+    final atEnd = _toEnd && shown && constraints.maxWidth.isFinite;
+    (then.parentData! as _WholeData).offset = Offset(atEnd ? constraints.maxWidth - then.size.width : first.size.width + _gap, (height - then.size.height) / 2);
+    size = constraints.constrain(Size(atEnd ? constraints.maxWidth : first.size.width + (shown ? _gap + then.size.width : 0), height));
   }
 
   @override
