@@ -14,7 +14,10 @@
 /// `~/Library/Caches/com.mattssoftware.glyph.flutter`: beside the Tauri app's
 /// `~/Library/Application Support/com.mattssoftware.glyph`, never it and never in it. The app is not sandboxed, so
 /// that is held here, in code: whatever is answered is refused if it is the Tauri app's folder or a place inside
-/// it ([isRealAppPath], lib/core/mac_app.dart), and the core is then never opened.
+/// it ([isRealAppPath], lib/core/mac_app.dart), and the core is then never opened. The build that replaces the
+/// Tauri Mac app has that app's bundle id and so is answered another name, `com.mattssoftware.glyph.v2`
+/// (GhostChannels.swift `cutoverFolder`): still beside the Tauri app's folder, never it, and the same refusal
+/// stands for it. What the Tauri app kept is copied into it once (lib/carry/mac_carry.dart).
 ///
 /// **In the iPhone app** they are the same two names inside the app's container
 /// (`<container>/Library/Application Support/com.mattssoftware.glyph.flutter` and `…/Library/Caches/…`), answered

@@ -24,8 +24,16 @@ bool _inMacApp({required String executable, required bool macOS, required bool t
 /// (`~/Library/Application Support/com.mattssoftware.glyph`) and its caches under.
 const String realAppId = 'com.mattssoftware.glyph';
 
+/// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`: tool/cutover-build.sh
+/// for a phone, tool/cutover-build-mac.sh for a Mac; docs/CUTOVER.md). On a Mac that build has the Tauri app's
+/// bundle id and still a folder of its own (`com.mattssoftware.glyph.v2`, macos/Runner/GhostChannels.swift
+/// `cutoverFolder`), into which what the Tauri app kept is copied once (lib/carry/mac_carry.dart).
+const bool replacesTauriApp = bool.fromEnvironment('GHOST_CUTOVER');
+
 /// Whether [path] is the Tauri app's own folder or a place inside it: any path with a folder named exactly
-/// [realAppId] in it. This app's own folder is `com.mattssoftware.glyph.flutter`, a different name beside it.
+/// [realAppId] in it. This app's own folder is `com.mattssoftware.glyph.flutter`, a different name beside it, and
+/// the folder of the build that replaces the Tauri app is `com.mattssoftware.glyph.v2`, another: in no build is
+/// this app's folder the Tauri app's, so this is asked the same of every build.
 ///
 /// The Mac app is not sandboxed (Matt, 2026-10-09: "un sandbox it"), so nothing but the app's own code keeps it out
 /// of the Tauri app's files. The directories the core is opened on are asked this before anything is opened

@@ -3,14 +3,25 @@
 // The Mac app installs beside the Tauri Mac app, never over it: a name and a bundle id of its own, as the Android
 // app has (android/app/build.gradle.kts `applicationId`). The id is also where its files are: a sandboxed app
 // keeps everything under ~/Library/Containers/<this id>, which is not where the Tauri app (com.mattssoftware.glyph)
-// keeps anything. Never set this to the Tauri app's id: macos/Runner/GhostChannels.swift refuses to open a library
-// for a build that carries it.
+// keeps anything.
+//
+// THE BUILD THAT REPLACES THE TAURI MAC APP is the one exception, and is asked for by name: GHOST_CUTOVER=1 in the
+// environment of the build (tool/cutover-build-mac.sh; xcodebuild reads its environment as build settings). It is
+// that app's next version, so it has that app's name and id; it still keeps a folder of its own
+// (GhostChannels.swift `cutoverFolder`) and only ever copies out of the Tauri app's (docs/CUTOVER.md, section 7).
+// Told nothing, or 0, a build is Ghost Flutter beside the real app, as it always was.
+GHOST_APP_NAME_ = Ghost Flutter
+GHOST_APP_NAME_0 = Ghost Flutter
+GHOST_APP_NAME_1 = Ghost.md
+GHOST_APP_ID_ = com.mattssoftware.glyph.flutter
+GHOST_APP_ID_0 = com.mattssoftware.glyph.flutter
+GHOST_APP_ID_1 = com.mattssoftware.glyph
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = Ghost Flutter
+PRODUCT_NAME = $(GHOST_APP_NAME_$(GHOST_CUTOVER))
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.mattssoftware.glyph.flutter
+PRODUCT_BUNDLE_IDENTIFIER = $(GHOST_APP_ID_$(GHOST_CUTOVER))
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 MattsSoftware. All rights reserved.

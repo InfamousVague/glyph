@@ -1,6 +1,7 @@
 import Cocoa
 import FlutterMacOS
 import ImageIO
+import LocalAuthentication
 import Security
 import UniformTypeIdentifiers
 
@@ -18,9 +19,22 @@ import UniformTypeIdentifiers
 /// `~/Library/Application Support/com.mattssoftware.glyph`: [ownDirectory] names a folder only for an id that is
 /// not the Tauri app's and refuses any path that is that folder or inside it, `dirs` answers nothing for a build
 /// that fails it, and lib/core/native/device_paths.dart asks the same of the answer before the core is opened.
+///
+/// THE BUILD THAT REPLACES THE TAURI MAC APP (tool/cutover-build-mac.sh; docs/CUTOVER.md §7) has that app's bundle
+/// id, since it is that app's next version, and STILL a folder of its own: `com.mattssoftware.glyph.v2` under
+/// Application Support and under Caches ([cutoverFolder]). Not the Tauri app's folder, and not a folder inside it:
+/// the rule above then holds for every build with nothing taken out of it (no path with a folder named
+/// `com.mattssoftware.glyph` in it is ever written), the Tauri app's own reset and export never meet this app's
+/// files, and somebody who puts the Tauri app back finds its folder exactly as it left it. Not
+/// `com.mattssoftware.glyph.flutter` either, which is where a development build ("Ghost Flutter") keeps its
+/// made-up notes: a person's library and a build under test never share a folder. What the Tauri app kept is
+/// copied in once (lib/carry/mac_carry.dart).
 final class GhostChannels: NSObject {
-  /// The Tauri app's bundle id: never this app's.
+  /// The Tauri app's bundle id: this app's only in the build that replaces it, and never the name of its folder.
   static let realApp = "com.mattssoftware.glyph"
+
+  /// The folder of the build that replaces the Tauri app, under Application Support and under Caches.
+  static let cutoverFolder = "com.mattssoftware.glyph.v2"
 
   private let files: FilesChannel
   private let tape: TapeChannel
@@ -45,6 +59,21 @@ final class GhostChannels: NSObject {
         return result(FlutterError(code: "paths", message: "Ghost Flutter will not open another app's files.", details: nil))
       }
       result(["dataDir": dirs.data.path, "cacheDir": dirs.cache.path])
+    }
+
+    // The carry from the Tauri app (lib/carry/mac_carry.dart `MacCarryDevice`): the two things only the Mac can do
+    // for it. Nothing here writes outside this app's own folder, and nothing is asked of the person.
+    listen("ghost_md/tauri_carry", messenger) { call, result in
+      let args = call.arguments as? [String: Any]
+      switch call.method {
+      case "masterKey":
+        result(GhostChannels.webCryptoMasterKey())
+      case "clone":
+        guard let from = args?["from"] as? String, let to = args?["to"] as? String else { return result(false) }
+        result(GhostChannels.clone(from: from, to: to))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
 
     listen("ghost_md/open", messenger) { call, result in
@@ -130,16 +159,59 @@ final class GhostChannels: NSObject {
   }
 
   /// `<Application Support>/<bundle id>` and `<Caches>/<bundle id>`, as Tauri names its two (`app_data_dir`,
-  /// `app_cache_dir`). Nil for a build with the Tauri app's id, or should either ever come out as the Tauri app's
-  /// folder or a place inside it.
+  /// `app_cache_dir`); for the build that has the Tauri app's id, [cutoverFolder] in place of the id. Nil should
+  /// either ever come out as the Tauri app's folder or a place inside it.
   static func dirs() -> (data: URL, cache: URL)? {
     let manager = FileManager.default
     guard let id = Bundle.main.bundleIdentifier, let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first, let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
-      let data = ownDirectory(in: support, id: id), let cache = ownDirectory(in: caches, id: id)
+      let data = ownDirectory(in: support, id: folderName(id: id)), let cache = ownDirectory(in: caches, id: folderName(id: id))
     else { return nil }
     try? manager.createDirectory(at: data, withIntermediateDirectories: true)
     try? manager.createDirectory(at: cache, withIntermediateDirectories: true)
     return (data, cache)
+  }
+
+  /// What this app's folder is called for a build with the bundle id `id`.
+  static func folderName(id: String) -> String { id == realApp ? cutoverFolder : id }
+
+  // MARK: the carry from the Tauri app
+
+  /// What the login Keychain holds as the Tauri app's "WebCrypto Master Key" (WebKit's own item: a generic
+  /// password, account `com.apple.WebKit.WebCrypto.master+<bundle id>`), as base64, for the carry to open the keys
+  /// that app's web view kept (lib/carry/webkit_stores.dart). READ, never changed or removed.
+  ///
+  /// Only the build that replaces the Tauri app asks, and the Keychain is told not to ask the person: it hands
+  /// the item over in silence to an app it takes for the one that made it (the same bundle id, signed by the same
+  /// team), and to any other build it answers nothing, which the carry takes as "the password is asked once".
+  static func webCryptoMasterKey() -> String? {
+    guard Bundle.main.bundleIdentifier == realApp else { return nil }
+    let context = LAContext()
+    context.interactionNotAllowed = true
+    let query: [CFString: Any] = [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrAccount: "com.apple.WebKit.WebCrypto.master+\(realApp)",
+      kSecReturnData: true,
+      kSecMatchLimit: kSecMatchLimitOne,
+      kSecUseAuthenticationContext: context,
+    ]
+    // The login keychain's own switch for its "wants to use your confidential information" panel, off for this
+    // one question and put back after it.
+    var allowed: DarwinBoolean = true
+    let known = SecKeychainGetUserInteractionAllowed(&allowed) == errSecSuccess
+    SecKeychainSetUserInteractionAllowed(false)
+    defer { if known { SecKeychainSetUserInteractionAllowed(allowed.boolValue) } }
+    var found: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &found) == errSecSuccess, let data = found as? Data else { return nil }
+    return data.base64EncodedString()
+  }
+
+  /// A clone of one file: a second name for the same blocks on a disk that can (APFS), each then changing alone.
+  /// Only ever INTO this app's own folder, and never over a file.
+  static func clone(from: String, to: String) -> Bool {
+    guard let dirs = dirs() else { return false }
+    let target = URL(fileURLWithPath: to).standardizedFileURL.path
+    guard target.hasPrefix(dirs.data.standardizedFileURL.path + "/") else { return false }
+    return clonefile(from, target, UInt32(CLONE_NOFOLLOW)) == 0
   }
 
   /// This app's folder under `base`: `<base>/<id>`, for an id that is not the Tauri app's, and never the Tauri
