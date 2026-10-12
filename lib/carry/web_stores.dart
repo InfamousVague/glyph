@@ -140,6 +140,10 @@ class DiskKeys {
   }
 }
 
+/// The scalar of a P-256 private key written as PKCS#8, as the core keeps one (32 bytes), or null for bytes that
+/// are not one. WebKit keeps a private key in the same form (lib/carry/webkit_stores.dart).
+Uint8List? p256ScalarOfPkcs8(Uint8List pkcs8) => _SerialKey(kind: 'ec', isPublic: false, extractable: false, data: pkcs8).secret();
+
 bool _startsWith(Uint8List bytes, List<int> prefix) {
   if (bytes.length < prefix.length) return false;
   for (var i = 0; i < prefix.length; i += 1) {
