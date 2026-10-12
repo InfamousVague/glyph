@@ -38,7 +38,7 @@ void main() {
 
     final byWords = findNotes(all, 'claude')[1];
     final snippet = byWords.snippet!;
-    expect(snippet.text, 'Ask **Claude** to move the ticket when it is done');
+    expect(snippet.text, 'Ask Claude to move the ticket when it is done');
     expect([for (final (from, to) in snippet.marks) snippet.text.substring(from, to)], ['Claude']);
 
     // A near word is marked as the note has it.

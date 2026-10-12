@@ -251,6 +251,7 @@ List<(int, int)> marksIn(String shown, List<String> needles) {
 /// What a line of Markdown opens with, which a snippet leaves out: a heading's signs, a quote's, a list's, a box.
 final RegExp _lead = RegExp(r'^\s*(?:#{1,6}\s+|>\s*|[-*+]\s+(?:\[[ xX]\]\s+)?|\d+[.)]\s+)*');
 final RegExp _spaces = RegExp(r'\s+');
+final RegExp _signs = RegExp(r'\*\*|__|`|\[\[|\]\]|==');
 
 /// The line of [note] the [needles] stand in, past its name: the first line with one that is not the name's own,
 /// cut to about a hundred and forty letters around the first, with every needle in it marked. Null where the words
@@ -295,7 +296,8 @@ Snippet? snippetOf(Note note, List<String> needles, {int before = 36, int most =
     end = start + most;
     runs = true;
   }
-  final cut = text.substring(start, end).replaceAll(_spaces, ' ').trim();
+  // Without the signs that make words bold, code or a link to a note: a row draws none of them.
+  final cut = text.substring(start, end).replaceAll(_signs, '').replaceAll(_spaces, ' ').trim();
   if (cut.isEmpty) return null;
   final shown = '${opens ? '…' : ''}$cut${runs ? '…' : ''}';
   return Snippet(shown, marksIn(shown, needles));
