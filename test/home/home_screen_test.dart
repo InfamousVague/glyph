@@ -353,7 +353,7 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('asks the phone for a line under the cards it lays out, what it searched for included', (tester) async {
+    testWidgets('lists what it found as lines, and asks the phone for no line under a card while it stands', (tester) async {
       final before = stored;
       useStored(MemoryStored());
       addTearDown(() => useStored(before));
@@ -370,18 +370,17 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
       await settle(tester);
-      // The phone has its engine from here: the search's one card is the first the runner is shown.
+      // The phone has its engine from here: what a search finds is a line each, and no card is shown to the runner.
       useAiBackend(phone);
       await tester.enterText(find.byType(EditableText), 'cabin friday');
       await settle(tester);
-      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['cabin-canvas']);
+      expect(find.byType(NoteCard), findsNothing);
+      expect(key('line-cabin-canvas'), findsOneWidget);
       await tester.pump(const Duration(seconds: 2));
       await tester.pump(const Duration(milliseconds: 50));
       await tester.pump(const Duration(seconds: 3));
-      // One card on the page, one line asked for: the pinned line above it is no card, and no other note is asked
-      // about while the search stands.
-      expect(phone.requests, hasLength(1));
-      expect(tester.widget<NoteCard>(key('card-cabin-canvas')).gist, 'What the weekend is for');
+      // No card on the page, so no line asked for while the search stands.
+      expect(phone.requests, isEmpty);
       forgetGistRunner();
       await away(tester);
     });
@@ -392,10 +391,12 @@ void main() {
       await settle(tester);
       await tester.enterText(find.byType(EditableText), 'cabin friday');
       await settle(tester);
-      // The trip's note, pinned, and the canvas that lays the same weekend out.
-      expect(headings(tester), ['Pinned 1', 'Recent']);
+      // The trip's note and the canvas that lays the same weekend out: what was found, a line each, the nearest
+      // first, with the words it matched under a note found by its words (lib/core/search_hits.dart).
+      expect(headings(tester), ['Found 2']);
       expect(key('line-weekend'), findsOneWidget);
-      expect([for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.id], ['cabin-canvas']);
+      expect(key('line-cabin-canvas'), findsOneWidget);
+      expect(find.byType(NoteCard), findsNothing);
       // The count at the foot is the library's, not the search's.
       expect(find.text('All notes · 20'), findsOneWidget);
 

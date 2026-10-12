@@ -15,6 +15,7 @@ import 'package:flutter/foundation.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
+import '../core/search_hits.dart';
 
 // How a note starts, on one line (`firstLine`): lib/core/note_text.dart's, where a note's facts read it.
 export '../core/note_text.dart' show firstLine;
@@ -175,8 +176,9 @@ List<({Span span, List<Note> notes})> timeline(HomeLists lists, [int? now]) => s
 /// A section's mark before its heading: a notebook's, a note's, the pin, the clock of the recent ones. A span has none.
 enum SectionMark { notebook, note, pinned, recent }
 
-/// How a section draws its notes: as cards, as rows, or as lines - one short line a note, its name and when.
-enum SectionDraw { cards, rows, lines }
+/// How a section draws its notes: as cards, as rows, or as lines - one short line a note, its name and when; and
+/// what a search found, a line each with the words it matched under it.
+enum SectionDraw { cards, rows, lines, found }
 
 /// A section under a heading of words: "Notebooks", "Today" (`WordsSection`). [count] is how many in all, where drawn.
 @immutable
@@ -245,3 +247,22 @@ List<Note> cardsIn(HomePlan plan) => [
       for (final section in plan.sections)
         if (section.draw == SectionDraw.cards) ...section.notes,
     ];
+
+/// What a search found on the page, the nearest first (lib/core/search_hits.dart): never the archive, and only what
+/// the filter shows. The port's own: the page lists what it found in its layout, in no order of nearness.
+List<Found> homeFound(Iterable<Note> all, String query, HomeFilter filter) => findNotes(
+      all.where((n) =>
+          n.archivedAt == null &&
+          (filter != HomeFilter.pinned || n.starred) &&
+          (filter != HomeFilter.books || NoteFacts.of(n).isBook) &&
+          (filter != HomeFilter.notes || !NoteFacts.of(n).isBook)),
+      query,
+    );
+
+/// The page under a search: one section, what was found, in whichever layout the page is in.
+HomePlan foundPlan(List<Found> found) => HomePlan(
+      sections: [
+        if (found.isNotEmpty) HomeSection(key: 'found', heading: 'Found', mark: null, count: found.length, draw: SectionDraw.found, notes: [for (final one in found) one.note]),
+      ],
+      cut: 0,
+    );

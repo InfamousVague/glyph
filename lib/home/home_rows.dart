@@ -14,6 +14,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/note.dart';
 import '../core/note_facts.dart';
+import '../core/search_hits.dart';
 import '../core/workspaces.dart';
 import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
@@ -300,12 +301,17 @@ class HomeLine extends StatelessWidget {
     this.space,
     this.onMenu,
     this.since = Duration.zero,
+    this.found,
   });
 
   final Note note;
   final int index;
   final ValueChanged<String> onOpen;
   final int? now;
+
+  /// What a search matched of the note: its letters are inked in the name, and the line of the note they stand in
+  /// is under it. The port's own (lib/core/search_hits.dart).
+  final Found? found;
 
   /// How long the line has been on its page, for its entrance ([HomeRow.since]).
   final Duration since;
@@ -332,7 +338,11 @@ class HomeLine extends StatelessWidget {
     final ink3 = t.color('app-ink-3');
     final space = this.space;
     final tape = _tapeWords(t, note, live: live, em: md, dot: false);
-    final said = [title.isEmpty ? 'Untitled' : title, ?bookName, if (space != null) space.name, when(note.updatedAt, now)].join(', ');
+    final snippet = found?.snippet;
+    final said = [title.isEmpty ? 'Untitled' : title, ?bookName, if (space != null) space.name, when(note.updatedAt, now), ?snippet?.text].join(', ');
+    final shown = title.isNotEmpty ? facts.shownTitle : 'Untitled';
+    final wash = t.colorOf('color-mix(in oklch, var(--app-ink) 18%, transparent)');
+    final nameStyle = pageText(t, md, weight: 'medium', color: title.isEmpty ? ink3 : t.color('app-ink'));
 
     final line = GlacierPressable(
       onPressed: () => onOpen(note.id),
@@ -344,7 +354,11 @@ class HomeLine extends StatelessWidget {
           padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(1)),
           color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)') : null,
           child: ExcludeSemantics(
-            child: ShrinkRow(
+            child: _under(
+              t,
+              snippet,
+              wash,
+              ShrinkRow(
               gap: t.space(3),
               // `min-block-size: var(--glacier-space-10)`, less the line's own padding.
               minHeight: math.max(0, t.space(10) - t.space(2) * 2),
@@ -352,12 +366,12 @@ class HomeLine extends StatelessWidget {
                 KindMark(kind: kind),
                 Shrink(
                   shrink: 1,
-                  child: Text(
-                    title.isNotEmpty ? facts.shownTitle : 'Untitled',
+                  child: Text.rich(
+                    TextSpan(children: markedSpans(shown, found == null || title.isEmpty ? const [] : marksIn(shown, found!.needles), wash: wash)),
                     maxLines: 1,
                     softWrap: false,
                     overflow: TextOverflow.ellipsis,
-                    style: pageText(t, md, weight: 'medium', color: title.isEmpty ? ink3 : t.color('app-ink')),
+                    style: nameStyle,
                   ),
                 ),
                 // Its notebook after the name, quieter, and the first to give way on a narrow line.
@@ -379,6 +393,7 @@ class HomeLine extends StatelessWidget {
                   ),
                 ),
               ],
+              ),
             ),
           ),
         ),
@@ -386,6 +401,44 @@ class HomeLine extends StatelessWidget {
     );
     return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(swipe, compact: true, child: line)));
   }
+
+  /// The line with what a search matched in the note under it: two lines at most, quieter, in from the mark, the
+  /// matched letters in the page's ink on a wash of it.
+  static Widget _under(Tokens t, Snippet? snippet, Color wash, Widget line) {
+    if (snippet == null) return line;
+    final sm = t.fontSize('sm');
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        line,
+        Padding(
+          padding: EdgeInsetsDirectional.only(start: 16 + t.space(3), bottom: t.space(1)),
+          child: Text.rich(
+            TextSpan(children: markedSpans(snippet.text, snippet.marks, wash: wash, ink: t.color('app-ink'), weight: t.textAt(sm, weight: 'medium').fontWeight)),
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: pageText(t, sm, color: t.color('app-ink-3')),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// [text] as spans, the [marks] (ranges, in order) on a [wash], and in [ink] and [weight] where those are given.
+List<InlineSpan> markedSpans(String text, List<(int, int)> marks, {required Color wash, Color? ink, FontWeight? weight}) {
+  if (marks.isEmpty) return [TextSpan(text: text)];
+  final spans = <InlineSpan>[];
+  var at = 0;
+  for (final (from, to) in marks) {
+    if (from < at || to > text.length) continue;
+    if (from > at) spans.add(TextSpan(text: text.substring(at, from)));
+    spans.add(TextSpan(text: text.substring(from, to), style: TextStyle(backgroundColor: wash, color: ink, fontWeight: weight)));
+    at = to;
+  }
+  if (at < text.length) spans.add(TextSpan(text: text.substring(at)));
+  return spans;
 }
 
 /// `.linePlace`: the workspace a pinned note is filed in, as a small pill in its hue, with the organization's mark

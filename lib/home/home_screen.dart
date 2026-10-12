@@ -58,6 +58,7 @@ import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/search_ahead.dart';
+import '../core/search_hits.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
@@ -278,6 +279,7 @@ class _Read {
     required this.inBooks,
     required this.journals,
     required this.plan,
+    required this.found,
   });
 
   // What it was made from.
@@ -294,6 +296,9 @@ class _Read {
   final Map<String, BookPlace> inBooks;
   final Map<String, JournalCard> journals;
   final HomePlan plan;
+
+  /// Under a search, what it found of each note listed, by the note's id; empty with nothing searched for.
+  final Map<String, Found> found;
 }
 
 /// Everything the page's widgets are made from besides what [_Read] holds. Two builds with the same of all of it
@@ -460,7 +465,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final workspace = spaces.current?.id;
     final inSpace = widget.workspaces.inWorkspace(notes, workspace, (note) => note.id);
     final began = ghostPerf ? Perf.now() : 0;
-    final lists = homeLists(inSpace, _query, _filter);
+    // Under a search the page is what was found, the nearest first, whatever its layout.
+    final searching = _query.trim().isNotEmpty;
+    final found = searching ? homeFound(inSpace, _query, _filter) : const <Found>[];
+    final lists = searching
+        ? HomeLists(books: [for (final one in found) if (NoteFacts.of(one.note).isBook) one.note], notes: [for (final one in found) if (!NoteFacts.of(one.note).isBook) one.note])
+        : homeLists(inSpace, _query, _filter);
     if (ghostPerf) Perf.add('home.lists', began);
     final read = _Read(
       // A list of the page's own: the one handed over may be changed after.
@@ -476,7 +486,8 @@ class _HomeScreenState extends State<HomeScreen> {
       inBooks: bookIndex(inSpace),
       journals: journalCards(notes),
       // The day the spans are counted from: a new plan when it turns, not on every draw.
-      plan: homePlan(widget.layout, lists, now: today),
+      plan: searching ? foundPlan(found) : homePlan(widget.layout, lists, now: today),
+      found: {for (final one in found) one.note.id: one},
     );
     // Whatever the page lists now has arrived, or arrives now.
     _arrivals.keep([
@@ -672,6 +683,7 @@ class _HomeScreenState extends State<HomeScreen> {
           );
         case SectionDraw.rows:
         case SectionDraw.lines:
+        case SectionDraw.found:
           final last = list.length - 1;
           return SliverList(
             delegate: SliverChildBuilderDelegate(
@@ -707,6 +719,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         space: filedIn(note),
                         onMenu: onMenu,
                         since: since,
+                        found: section.draw == SectionDraw.found ? read.found[note.id] : null,
                       );
                 // A hairline over the list, between its rows, and under it: the list's own over its first row and
                 // under its last, and each row after the first with one over it.
