@@ -9,6 +9,7 @@ code kept on a branch.
 This file is what that takes on Android: what is built (branch `cutover`), what was proven and how, what was not,
 and what whoever publishes has to do, in order. **Nothing in sections 1 to 4 and 6 has been published, deployed or put on a
 phone.** The Tauri app's tree was read and never changed for them. Section 5, the repository's move, is done.
+Section 7 is the same for the Mac, where almost nothing is where it is on a phone.
 
 Paths under `src/`, `src-tauri/`, `scripts/` are the Tauri app's, which is `tauri/` of this repository since the
 move (`../glyph` while this was written); everything else is the root's.
@@ -46,7 +47,7 @@ Not carried, on purpose or by necessity:
   workspaces. Every version since reads and removes them on its first launch.
 - The spoken assistant role. A phone where Ghost.md was the digital assistant loses that with the update, since the
   service is disabled by default now (section 4).
-- Anything on an iPhone, a Mac or Windows. This is Android's.
+- Anything on an iPhone or Windows. Sections 1 to 4 are Android's; the Mac's carry is section 7.
 
 ### How it is carried (lib/carry/)
 
@@ -321,3 +322,200 @@ the `tauri` branch. It splits one Rust library into two copies; it is not recomm
    size `glyph.apk` is served at.
 7. Watch one Tauri install offer it and take it. Then say so in the changelog the Tauri page reads, if wanted.
 8. The repository move (section 5): done; it did not gate the release.
+
+## 7. The Mac
+
+Matt, 2026-10-12: "Carry notes over first". The Mac app that replaces the Tauri Mac app is built and its carry is
+proven on a copy of a real Mac's data. **Nothing in this section has been signed with a Developer ID, notarised,
+published or installed**, and the Tauri app's own files were only ever read.
+
+### What the Tauri Mac app (1.15.0) keeps, and where
+
+A Mac is not a phone: the page's storage is not in the app's folder, and it is WebKit's, not Chromium's.
+
+| What | Where |
+| --- | --- |
+| The notes, their `.versions` files, each note's sidecar, the core's index | `~/Library/Application Support/com.mattssoftware.glyph/Library/`, `Library/.glyph/notes/`, `Library/.glyph/index.sqlite` |
+| Pictures, recordings, films, models | `…/com.mattssoftware.glyph/images/`, `recordings/`, `video/`, `models/` |
+| A library folder the person chose, and its index | `…/library-root.json` (`{"kind":"folder","path":…}`), `…/index/<key>.sqlite` |
+| Downloaded pages, a write-up's config, the notes before 1.3.0 | `…/ota/`, `…/jobs/`, `…/glyph.sqlite` |
+| Slack's webhooks, Notion's sign-in | `…/slack.json`, `…/notion.json`, in the clear, mode 0600. The Rust uses no Keychain. |
+| Every `glyph-…` key of `localStorage`: the preferences (with the workspaces, the trash, the open tabs, the shares), the sync's cursors and marks (`glyph-sync-<account>-…`), versions not yet written beside a note (`glyph-versions-…`), the once-flags | `~/Library/WebKit/com.mattssoftware.glyph/WebsiteData/Default/<hash>/<hash>/LocalStorage/localstorage.sqlite3`, the folder of the origin `tauri://localhost`; a value is UTF-16 text in a BLOB |
+| The session (`glyph-account-session`: token, handle, account id) and GitHub's token (`glyph-github-token`) | the same `localStorage`, in the clear |
+| The account key (AES-256-GCM), the device's signing key (Ed25519), the account's pair (P-256), each a `CryptoKey` that cannot be exported | `…/<hash>/<hash>/IndexedDB/<hash of "glyph-account">/IndexedDB.sqlite3`, store `keys`. **Wrapped**, unlike Chromium's: each is AES-128-GCM under a fresh key that is itself wrapped (RFC 3394) under WebKit's "WebCrypto Master Key". |
+| WebKit's master key for this app | The login Keychain: a generic password, account `com.apple.WebKit.WebCrypto.master+com.mattssoftware.glyph`, label "Glyph WebCrypto Master Key". Its access list is the app that made it. |
+| A team note's document, with what was typed and not yet sent | `…/IndexedDB/<hash of "glyph-team">/IndexedDB.sqlite3`, store `docs`, in WebKit's `SerializedScriptValue` |
+
+Nothing is kept in `~/Library/Preferences` (there is no `com.mattssoftware.glyph.plist`), and `~/Library/Caches/com.mattssoftware.glyph` holds nothing of the person's.
+
+### Where the replacing app keeps its own, and why
+
+**`~/Library/Application Support/com.mattssoftware.glyph.v2`** (and `~/Library/Caches/com.mattssoftware.glyph.v2`),
+`cutoverFolder` in macos/Runner/GhostChannels.swift. The build has the Tauri app's bundle id, since it is that app's
+next version (the same icon in the Dock, the same `ghostmd:` links, the same Keychain identity); it does not have
+its folder.
+
+- Not the Tauri app's folder. That folder and `~/Library/WebKit/com.mattssoftware.glyph` are **the way back**: this
+  app never writes, moves or removes anything in either, so somebody who puts 1.15.0 back finds every note, setting
+  and key as that app left them. (What they would not find is what was written in this app since.)
+- Not a folder inside it. The rule every build is held to, in Swift (`ownDirectory`) and in Dart (`isRealAppPath`,
+  `DevicePaths.own`), is "no path with a folder named exactly `com.mattssoftware.glyph` in it is ever opened or
+  written". A sibling keeps that rule whole, with nothing carved out of it for one build. The Tauri app's reset
+  and export also walk named children of its folder; a sibling can never be one of them.
+- Not `com.mattssoftware.glyph.flutter`, where a development build ("Ghost Flutter") keeps made-up notes: a
+  person's library and a build under test never share a folder.
+
+Beside the folder, the app keeps its preferences in `~/Library/Preferences/com.mattssoftware.glyph.plist` (the
+system's store for the bundle id, every key prefixed `flutter.`; the Tauri app keeps no such file) and its secrets
+in the login Keychain under the service `com.mattssoftware.glyph.secure`. Every other Mac build is unchanged:
+"Ghost Flutter", `com.mattssoftware.glyph.flutter`, its own folder, and no carry.
+
+### What is carried, and what is not (lib/carry/mac_carry.dart)
+
+On the first launch, in three halves, each marked in `…glyph.v2/carry/tauri-carry.json` and logged in
+`carry/tauri-carry.log` (counts and names of settings; never a note's name or words, a key, a token or the
+session). A reset does not remove `carry/`, so notes erased in this app do not come back from the Tauri app's.
+
+1. **`files`, before the core is opened.** Copied into this app's folder, each file under another name until it
+   is whole, with the time it was last written, and never over a file already there: `Library/` (the notes, the
+   `.versions` files, the sidecars and `library.json`), `images/`, `recordings/`, `video/`, `library-root.json`,
+   `glyph.sqlite`. A file is cloned where the disk can (APFS: no bytes copied) and copied where it cannot.
+2. **`settings`**: every `glyph-` key of `localStorage` but the two secrets into the preferences, text for text,
+   and the team documents to `team/<account>/<note>.json`. Read from **copies** of WebKit's SQLite files, made in
+   a temporary folder with their `-wal` and `-shm` and removed after (lib/carry/webkit_stores.dart): the originals
+   are never opened by SQLite at all. It does not run until `files` is done, so the sync's cursors are never
+   carried over half a library, which would read the missing notes as deleted.
+3. **`secrets`**: the session, GitHub's token, Slack's webhooks, Notion's sign-in and the three keys into the
+   Keychain, each read back.
+
+**The keys, and the same rule as on a phone: a key is proven before it is believed.** The app reads WebKit's master
+key from the Keychain (read, never changed; `GhostChannels.webCryptoMasterKey`), with the Keychain told not to ask
+the person: an app the Keychain takes for the Tauri app (the same bundle id, signed by the same team) is handed it
+in silence, and any other build is refused in silence. With it each key is unwrapped in Dart
+(lib/carry/aes_unwrap.dart), GCM's tag checked. Then:
+
+- the device's key and the account's pair must each, raised in the core, answer the public key WebKit kept beside it;
+- the account key must open something the page itself sealed under it: a notification's words, of which the page
+  keeps its sealed copies in `localStorage` (`glyph-sync-<account>-notifications`, context `notification:<id>`).
+  With none of those to try, it is carried on the tag alone, which says the bytes are the ones WebKit wrapped.
+
+A key that cannot be read or does not prove itself is not carried. The person is then signed in and asked for
+their password once, as on a device that lost its key; nothing is lost, since the service holds the account key
+wrapped.
+
+Not carried:
+
+- `Library/.glyph/index.sqlite`, and a chosen folder's `index/`: the core makes its index again from the notes.
+  The one thing lost with it is the undo log of spoken commands.
+- **Models.** Cloned where the disk can, which costs no space and leaves two files that cannot change each other;
+  where it cannot (not APFS, or another volume), left to be downloaded again. They are gigabytes, never a
+  person's writing, and a link into the Tauri app's folder would be a way to write to it. Never a `.part`.
+- `ota/`, `jobs/`: nothing in this app reads them.
+- `slack.json`, `notion.json` as files: their contents go to the Keychain, not to a second file in the clear.
+- **A library folder the person chose** is not copied: `library-root.json` is, and the same folder is opened where
+  it is, as on a phone. It is the person's folder; both apps would then write the same notes.
+- A Mac whose WebKit still keeps the older layout (`WebsiteData/LocalStorage/` and `WebsiteData/IndexedDB/` with
+  no `Default/<hash>/<hash>/` for the origin; on this Mac those two folders are there and empty): its files are
+  carried, its settings and session are not, and the person signs in again. Not built, because there was no such
+  storage to hold a reader to.
+- The Tauri app's window place, and anything of the system's (`ghostmd:` is claimed by the same id as before).
+
+With nothing to carry (no Tauri folder and no storage for `tauri://localhost`) all three halves are marked at once
+and nothing is asked of anything, ever.
+
+### The build, and updates
+
+`tool/cutover-build-mac.sh 2.0.3` leaves `build/release-mac/Ghost.md.app`: "Ghost.md", `com.mattssoftware.glyph`,
+version 2.0.3, build 2000003, stamped with `GHOST_BUILD` and `GHOST_COMMIT`, universal (the app, Flutter's two
+frameworks and the Rust core are each `x86_64 arm64`; the script refuses a bundle in which any is not). It is the
+one switch in two halves, as on Android: `GHOST_CUTOVER=1` in the build's environment (the name and the id,
+macos/Runner/Configs/AppInfo.xcconfig) and `--dart-define=GHOST_CUTOVER=true` (the carry). A release is on
+`https://ghostmarkdown.com/api` by itself. The app is signed ad hoc, as every local build is;
+`node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app` signs and notarises it.
+
+**Updates: the Mac app has none of its own.** `Updates.forBuild` hands a Mac nothing (lib/core/updates.dart), the
+script gives the build no address, and About says "Updates from: Nowhere in this build". A new version reaches a
+Mac as a new download. The Tauri Mac app, for its part, offers its people the 2.x download
+(tauri/src/app/core/macSuccessor.ts); it migrates nothing itself.
+
+### Proven
+
+- **The readers, against a real WebKit.** tool/webkit_fixture.swift runs a WKWebView at `tauri://localhost` that
+  keeps what the page keeps the way it keeps it (keys that cannot be exported, an Ed25519 key generated in place,
+  a key written and deleted first, team documents, 70,000 characters in one `localStorage` value), handing WebKit
+  a master key of its own so that no Keychain is touched. `flutter test test/carry/webkit_stores_test.dart` reads
+  that storage with the app's reader and finds every value the page said it wrote: the account key's bytes, the
+  pair's scalar and public point, an Ed25519 seed, and each private key raised in the core answers its public
+  key. The same tests run against storage made in Dart in the same layout, so they pass from a fresh checkout
+  (the WebKit fixture holds made-up keys and is not in git; where it is absent that group is skipped and says so).
+- **The crypto**, against FIPS 197, RFC 3394 and the GCM specification's own vectors (test/carry/aes_unwrap_test.dart).
+- **The carry** (test/carry/mac_carry_test.dart, 18): a whole made-up Mac carried and read back by `DeviceKeyStore`;
+  once only; never over a file already here; cut short (a note that cannot be read) carries no setting and no
+  session, and run again is whole; no master key; the wrong master key; an account key that does not open what the
+  page sealed; no sealed thing to try; models cloned or left; a chosen folder; a signed-out app; a Mac the Tauri
+  app was never on; the guard; and that not a byte, name or time of the Tauri app's folders changes.
+- **On a copy of this Mac's real data** (2026-10-12; `test/carry/mac_carry_proof_test.dart` says how the copy is
+  made, and prints numbers only). The Tauri app's folder without `models` and its WebKit folder, cloned into
+  `build/`, and the carry run over the clone:
+
+  | | The Tauri app kept | Carried |
+  | --- | --- | --- |
+  | Notes | 338 | 338, and the core lists 338 on the carried library |
+  | `.versions` files | 20 | 20 |
+  | Sidecars | 13 | 13 |
+  | Pictures | 28 | 28 |
+  | Recordings | 12 | 12 |
+  | Films | 0 | 0 |
+  | `localStorage` keys | 23, all `glyph-` | 22 into the preferences, the session into the secure store |
+  | Workspaces | 4, in the preferences | with the preferences |
+  | Versions held in `localStorage` | 1 | with the settings |
+  | Team documents | 109 | 109 |
+  | A session | yes | yes |
+  | Stored keys | 3 records, 5 wrapped keys (account, device, encryption) | **found, not opened** (below) |
+  | Things the page sealed under the account key | 94 | what the account key will be proven on |
+
+  412 files the same byte for byte and time for time, none missing; nothing that could not be read; and the copy
+  itself unchanged afterwards (1,248 files and folders, each length, time and hash). GitHub, Slack and Notion are
+  not set up on this Mac, so none was there to carry.
+- **The built app, started once on the copy.** `build/release-mac/Ghost.md.app`'s own binary, in a copy whose bundle
+  id was changed to `com.mattssoftware.glyph.carryproof` (so that its preferences could not land in the real id's),
+  with `CFFIXED_USER_HOME` naming a folder under `build/` whose `Library` held the copy, under `sandbox-exec` with
+  the network and every real folder of the Tauri app's denied, and with the `secrets` half marked done by hand so
+  that it could not sign in. It opened a window, copied the files itself (338 notes, 28 pictures, 12 recordings),
+  carried the settings (22 keys, 109 team documents), and its core made an index of **338 notes** in the carried
+  library. The copy still matched the real folders file for file afterwards, and the real `~/Library` was as it
+  had been once the proof's own preferences file was removed. The copy was then deleted.
+- **The Keychain question** (the query `webCryptoMasterKey` makes, on an item made and removed for the purpose): a
+  program that made the item reads it; another program is refused at once, with no panel.
+
+### Not proven, and what would prove it
+
+- **The keys on real data.** WebKit's master key was never read: only a build signed as the Tauri app is handed it
+  without asking, and nothing here may be signed. The first signed build, started on a Mac with the Tauri app's
+  data, proves it or does not: `~/Library/Application Support/com.mattssoftware.glyph.v2/carry/tauri-carry.log`
+  must say "WebKit's key opened 3 of 3 stored keys", "the account key opened what the page sealed", and that the
+  device and encryption keys answer their public keys. If the Keychain refuses (the log says "the Keychain did not
+  give WebKit's key"), the app is signed in and asks for the password once: worse, not broken.
+- **That the Keychain takes the signed Flutter app for the Tauri app.** It should: the item's access list is the
+  app's designated requirement (the id and the team), which is how each Tauri update kept reading it. It is the
+  one thing above this cannot show without the certificate.
+- **The exact build's own folder.** The run on the copy had another bundle id, so `folderName`'s one line (the
+  Tauri id gives `com.mattssoftware.glyph.v2`) was held by a test of the source and by the build's settings, not
+  by a launch. The unchanged build was not started against the copy because the system keeps preferences by
+  bundle id wherever the home is said to be, and they would have gone into the real id's file.
+- **A real account against the real service after the carry**, as on Android: the session and the sync's cursors
+  are carried; that the service takes them and the engine syncs was not run.
+- **An Intel Mac**, a Mac on an older macOS (WebKit's serialisation is version 15 here), a library of thousands of
+  notes, and a chosen library folder with real notes in it.
+
+### To publish, in order
+
+1. `tool/cutover-build-mac.sh <version>` from a clean `main`.
+2. `node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app` (signs, notarises, makes the image).
+3. **Before anything is uploaded**, on a Mac with the Tauri app's data and with the Tauri app quit: start the
+   signed app from where `--prepare` left it and read `carry/tauri-carry.log`. This is the proof this section
+   lacks. To try it without the real folders, `GHOST_CARRY_LIBRARY=<a copy of ~/Library>` makes the carry read from
+   the copy; the app's own folder and preferences are still the real ones, so do that on a spare account.
+4. The way back for one Mac: quit, delete `~/Library/Application Support/com.mattssoftware.glyph.v2` and
+   `~/Library/Preferences/com.mattssoftware.glyph.plist`, remove the Keychain items of the service
+   `com.mattssoftware.glyph.secure`, and put 1.15.0 back. Its folder and its web view's storage were never touched.
