@@ -32,6 +32,17 @@ String memberLine(Member member, {required bool self, int? now}) => member.state
     ? '${self ? 'You, ' : ''}${member.role == 'owner' ? 'owner since' : 'joined'} ${sinceWords(member.since, now)}'
     : 'Invited${member.invitedBy != null && member.invitedBy!.isNotEmpty ? ' by ${member.invitedBy}' : ''} ${sinceWords(member.since, now)}';
 
+/// An AI's line, in both lists (`AiLine`'s line, `AiRow`'s hint): whose connector it came through and when it was
+/// last seen; "Through you" for the signed-in member's own.
+String aiLine(OrgAi ai, {required String me, int? now}) => 'Through ${aiIsMine(ai, me) ? 'you' : ai.via} · last seen ${sinceWords(ai.lastSeen, now)}';
+
+/// Whether an AI came through the signed-in member's own connector.
+bool aiIsMine(OrgAi ai, String me) => ai.via.toLowerCase() == me.toLowerCase();
+
+/// What the Members section says under itself once an AI is listed there: whose access it is, and what Remove
+/// removes (`AI_NOTES`).
+const String aiNotes = 'An AI reads and writes through its member’s own access, with their connector. Removing it takes it off this list, not out of the notes: it is listed again when it next reads them.';
+
 /// A round of a hue (`data-hue` over `background: var(--app-space, var(--app-ink-3))`), [size] across: the
 /// organization's colour as its hero's glyph, its title's dot, a pill's.
 class HueRound extends StatelessWidget {
@@ -55,21 +66,27 @@ class HueRound extends StatelessWidget {
 /// The chip after a handle: the role, or that they have not joined yet (`RoleChip`, `.role`). A small outlined
 /// word: the owner's in ink, the others in the quiet ink, an invitation's outline dashed.
 class RoleChip extends StatelessWidget {
-  const RoleChip({super.key, required this.member});
-  final Member member;
+  const RoleChip({super.key, required Member this.member});
+
+  /// The chip after an AI's name, where a member has their role (`data-role="ai"`): the quiet chip, reading `AI`.
+  const RoleChip.ai({super.key}) : member = null;
+
+  /// Whose chip; null for an AI's.
+  final Member? member;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final xs = t.fontSize('xs');
-    final owner = member.role == 'owner';
-    final invited = member.state == 'invited';
+    final member = this.member;
+    final owner = member?.role == 'owner';
+    final invited = member?.state == 'invited';
     final line = snapBorder(context, t.len('glacier-hairline'));
     final rule = owner ? t.color('app-ink-2') : t.color('app-rule');
     final words = Padding(
       // `padding: 0.1em 0.5em; line-height: 1.4`
       padding: EdgeInsets.symmetric(vertical: 0.1 * xs + line, horizontal: 0.5 * xs + line),
-      child: Text(invited ? 'Invited' : roleWords(member.role), style: pageText(t, xs, weight: 'medium', height: 1.4, color: owner ? t.color('app-ink') : t.color('app-ink-2')), softWrap: false),
+      child: Text(member == null ? 'AI' : (invited ? 'Invited' : roleWords(member.role)), style: pageText(t, xs, weight: 'medium', height: 1.4, color: owner ? t.color('app-ink') : t.color('app-ink-2')), softWrap: false),
     );
     return CustomPaint(painter: _Outline(color: rule, width: line, dashed: invited), child: words);
   }

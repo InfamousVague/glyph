@@ -380,6 +380,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                 for (final m in [...joined, ...invited]) _MemberLine(key: ValueKey('member:${m.handle}'), member: m, me: me, seen: widget.seen, now: now, onJump: widget.onJumpTo ?? widget.onOpenNote)
               else
                 Text('Reading the members…', style: pageText(t, sm, color: t.color('app-ink-3'))),
+              // The AIs seen here through a member's connector, after the people and never counted with them.
+              for (final ai in org?.ais ?? const <OrgAi>[]) _AiLine(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, now: now),
             ],
           ),
         ),
@@ -949,6 +951,73 @@ class _MemberLineState extends State<_MemberLine> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+/// An AI seen in the organization through a member's connector (lib/orgs/types.dart `OrgAi`; `AiLine`): a line as a
+/// member's is - an initial, the name with an AI chip, and whose connector it came through and when it was last
+/// seen - that opens nothing, since there is no one to find in the app. Removing one is in the organization's
+/// settings.
+///
+/// `.aiRow` is `.memberRow`'s measures without the button. The initial stands in an outline, not a fill
+/// (`.member[data-state='ai'] .avatar`): listed with the people, and not one of them.
+class _AiLine extends StatelessWidget {
+  const _AiLine({super.key, required this.ai, required this.me, this.now});
+  final OrgAi ai;
+  final String me;
+  final int? now;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    final md = t.fontSize('md');
+    final hair = snapBorder(context, t.len('glacier-hairline'));
+    final side = t.lenOf('2.25rem');
+    final avatar = CustomPaint(
+      painter: _PillOutline(color: t.color('app-ink-3'), width: hair, dashed: false),
+      child: Container(
+        key: const ValueKey('ai-avatar'),
+        width: side,
+        height: side,
+        alignment: Alignment.center,
+        child: Text(ai.name.isEmpty ? '' : ai.name.substring(0, 1).toUpperCase(), style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
+      ),
+    );
+    return Container(
+      padding: EdgeInsets.symmetric(vertical: t.space(3)),
+      decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule'), width: hair))),
+      // One thing to a reader, as a member's row is one button: the name, that it is an AI, and its line.
+      child: MergeSemantics(
+        child: Row(
+          children: [
+            ExcludeSemantics(child: avatar),
+            SizedBox(width: t.space(3)),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // `.handle` with its chip, measured as a member's is (see `_MemberLine`).
+                  SizedBox(
+                    height: 1.6 * t.fontSize('xs') + 2 * hair + 1.75,
+                    child: Row(
+                      children: [
+                        Flexible(child: Text(ai.name, style: pageText(t, md, weight: 'medium', color: t.color('app-ink')), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                        SizedBox(width: t.space(2)),
+                        const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 1.75), child: RoleChip.ai())),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 0.15 * 16),
+                  Text(aiLine(ai, me: me, now: now), key: const ValueKey('ai-since'), style: pageText(t, sm, color: t.color('app-ink-3'))),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

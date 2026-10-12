@@ -197,6 +197,38 @@ class Member {
   String toString() => 'Member($handle, $role, $state)';
 }
 
+/// An AI that has read or written the organization's notes through a member's connector (docs/MCP.md,
+/// "Organizations"; server/src/store/org_ais.rs; `OrgAi`). Matt: "when an AI has accessed an ORG add it as a member
+/// labeled as (AI)". A record beside the members, never one of them: it holds no key wrap and takes no seat, and its
+/// access is the member's own, so removing the entry removes the record and not the access.
+@immutable
+class OrgAi {
+  const OrgAi({required this.id, required this.name, required this.via, this.firstSeen = 0, this.lastSeen = 0});
+
+  /// An entry as the service answers it; null for one without its id, its name or whose connector it came through.
+  static OrgAi? fromJson(Object? raw) {
+    if (raw is! Map) return null;
+    final id = raw['id'], name = raw['name'], via = raw['via'], firstSeen = raw['firstSeen'], lastSeen = raw['lastSeen'];
+    if (id is! String || name is! String || via is! String) return null;
+    return OrgAi(id: id, name: name, via: via, firstSeen: firstSeen is num ? firstSeen.toInt() : 0, lastSeen: lastSeen is num ? lastSeen.toInt() : 0);
+  }
+
+  final String id;
+
+  /// What the AI's app called itself: "Claude".
+  final String name;
+
+  /// The handle of the member whose connector it came through.
+  final String via;
+
+  /// When it was first and last seen, in ms.
+  final int firstSeen;
+  final int lastSeen;
+
+  @override
+  String toString() => 'OrgAi($id, $name, via $via)';
+}
+
 /// An organization in full: what `GET orgs/{id}` answers a member (`Org`).
 @immutable
 class Org implements OrgLike {
@@ -207,6 +239,7 @@ class Org implements OrgLike {
     required this.role,
     required this.state,
     this.members = const [],
+    this.ais = const [],
     this.invitedBy,
     this.createdAt = 0,
     this.colour,
@@ -217,7 +250,7 @@ class Org implements OrgLike {
   factory Org.fromJson(Object? raw) {
     final row = OrgRow.fromJson(raw is Map ? {...raw, 'members': 0} : raw);
     if (row == null || raw is! Map) throw const FormatException('The service answered without the organization.');
-    final members = raw['members'];
+    final members = raw['members'], ais = raw['ais'];
     return Org(
       id: row.id,
       name: row.name,
@@ -227,6 +260,10 @@ class Org implements OrgLike {
       members: List.unmodifiable([
         if (members is List)
           for (final each in members) ?Member.fromJson(each),
+      ]),
+      ais: List.unmodifiable([
+        if (ais is List)
+          for (final each in ais) ?OrgAi.fromJson(each),
       ]),
       invitedBy: row.invitedBy,
       createdAt: row.createdAt,
@@ -244,6 +281,9 @@ class Org implements OrgLike {
   final String role;
   final String state;
   final List<Member> members;
+
+  /// The AIs seen in it; none from a service before them, which never says.
+  final List<OrgAi> ais;
   final String? invitedBy;
   final int createdAt;
   final String? colour;

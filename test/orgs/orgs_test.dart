@@ -63,6 +63,52 @@ void main() {
       expect((await here.orgs.fetchOrg(org.id, ctx: here.ctx)).id, org.id);
     });
 
+    test('read the AIs seen in an organization beside its members, and remove one; none from a service before them', () async {
+      final service = await FakeService.start(seed: testAccount);
+      final here = Here(service);
+      final org = await here.orgs.createOrg('Ghost', ctx: here.ctx);
+      expect(org.ais, isEmpty);
+      final mine = service.peerAi(org.id, 'Claude', via: 'matt', firstSeen: 10, lastSeen: 20);
+      // One through someone who is not in it is not answered, as the server's join leaves it out.
+      service.peerAi(org.id, 'Cursor', via: 'sam');
+      final read = await here.orgs.fetchOrg(org.id, ctx: here.ctx);
+      expect(read.ais.map((ai) => (ai.id, ai.name, ai.via, ai.firstSeen, ai.lastSeen)), [(mine, 'Claude', 'matt', 10, 20)]);
+      // Never a member, and never counted as one.
+      expect(read.members, hasLength(1));
+      expect(read.row.members, 1);
+      await here.orgs.removeOrgAi(org.id, mine, ctx: here.ctx);
+      expect(service.calls.last, startsWith('DELETE orgs/${org.id}/ais/$mine'));
+      expect((await here.orgs.fetchOrg(org.id, ctx: here.ctx)).ais, isEmpty);
+      await expectLater(here.orgs.removeOrgAi(org.id, mine, ctx: here.ctx), throwsWords('No such AI in this organization.'));
+
+      final old = await FakeService.start(seed: testAccount, ais: false);
+      final there = Here(old);
+      final before = await there.orgs.createOrg('Ghost', ctx: there.ctx);
+      expect((await there.orgs.fetchOrg(before.id, ctx: there.ctx)).ais, isEmpty);
+    });
+
+    test('read an AI entry forgivingly: one without its id, name or member is dropped, and a time that is no number is 0', () {
+      final org = Org.fromJson({
+        'id': 'o1',
+        'name': 'Ghost',
+        'role': 'owner',
+        'state': 'member',
+        'members': <Object?>[],
+        'ais': [
+          {'id': 'a1', 'name': 'Claude', 'via': 'matt', 'firstSeen': 5, 'lastSeen': 9.0},
+          {'id': 'a2', 'name': 'Cursor', 'via': 'sam', 'lastSeen': 'soon'},
+          {'id': 'a3', 'name': 'No one'},
+          {'name': 'No id', 'via': 'matt'},
+          {'id': 4, 'name': 'Numbered', 'via': 'matt'},
+          'rubbish',
+          null,
+        ],
+      });
+      expect(org.ais.map((ai) => (ai.id, ai.name, ai.via, ai.firstSeen, ai.lastSeen)), [('a1', 'Claude', 'matt', 5, 9), ('a2', 'Cursor', 'sam', 0, 0)]);
+      expect(Org.fromJson({'id': 'o1', 'name': 'Ghost', 'role': 'owner', 'state': 'member', 'ais': 'none'}).ais, isEmpty);
+      expect(Org.fromJson({'id': 'o1', 'name': 'Ghost', 'role': 'owner', 'state': 'member'}).ais, isEmpty);
+    });
+
     test('invite by handle, and say so in the service’s words when nobody has it', () async {
       final service = await FakeService.start(seed: testAccount);
       final here = Here(service);

@@ -238,6 +238,12 @@ class Orgs extends ChangeNotifier {
     }
   }
 
+  /// An AI's entry removed from the organization's list (owner or admin, or the member it came through). The record
+  /// goes; the member's own access, which is what their connector reads with, is as it was (`removeOrgAi`).
+  Future<void> removeOrgAi(String id, String ai, {CallContext? ctx}) async {
+    await _call('DELETE', 'orgs/${_enc(id)}/ais/${_enc(ai)}', ctx);
+  }
+
   /// A member's role set by the owner; `owner` hands the organization over, and the old owner becomes an admin
   /// (`setRole`).
   Future<Member> setRole(String id, String handle, String role, {CallContext? ctx}) async {

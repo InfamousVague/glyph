@@ -181,6 +181,11 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
     await _read();
   }
 
+  Future<void> _onRemoveAi(OrgAi ai) async {
+    await _orgs.removeOrgAi(widget.orgId, ai.id);
+    await _read();
+  }
+
   @override
   Widget build(BuildContext context) {
     final services = _services;
@@ -241,6 +246,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
                   await _read();
                 },
                 onDo: _onDo,
+                onRemoveAi: _onRemoveAi,
               )
             : const PaneBody(children: [SettingsCallout(child: Text('This organization is not in your list any more.'))]),
       ),
@@ -484,7 +490,7 @@ class _GeneralState extends State<_General> {
 // --- Members ---------------------------------------------------------------------------------------------------------
 
 class _Members extends StatelessWidget {
-  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvite, required this.onDo, this.onSendLink});
+  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvite, required this.onDo, required this.onRemoveAi, this.onSendLink});
 
   final AccountServices services;
   final OrgRow row;
@@ -494,6 +500,7 @@ class _Members extends StatelessWidget {
   final int now;
   final Future<void> Function(String handle) onInvite;
   final Future<void> Function(String what, String handle) onDo;
+  final Future<void> Function(OrgAi ai) onRemoveAi;
   final void Function(String title, String url)? onSendLink;
 
   @override
@@ -501,6 +508,7 @@ class _Members extends StatelessWidget {
     final t = context.tokens;
     final org = this.org;
     final joined = org != null ? org.members.where((m) => m.state == 'member').length : row.members;
+    final ais = org?.ais ?? const <OrgAi>[];
     final canInvite = row.state == 'member' && (row.role == 'owner' || row.role == 'admin');
     final problem = this.problem;
     return PaneBody(
@@ -532,11 +540,14 @@ class _Members extends StatelessWidget {
         else
           PaneSection(
             title: 'Members',
+            footer: ais.isNotEmpty ? const Text(aiNotes) : null,
             children: [
               if (org != null)
                 for (final member in org.members) MemberRow(key: ValueKey('member:${member.handle}'), member: member, me: me, role: row.role, now: now, onDo: onDo)
               else
                 const SettingRow(label: 'Reading the members…'),
+              // The AIs after the people: beside the members, never counted among them.
+              for (final ai in ais) AiRow(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, role: row.role, now: now, onRemove: onRemoveAi),
             ],
           ),
         if (row.state == 'member') YourColourCard(services: services, row: row),
@@ -650,6 +661,57 @@ class _MemberRowState extends State<MemberRow> {
                 ],
               ),
             ),
+    );
+  }
+}
+
+/// An AI seen in the organization through a member's connector (lib/orgs/types.dart `OrgAi`; Matt: "when an AI has
+/// accessed an ORG add it as a member labeled as (AI)"; `AiRow`): a row as a member's is, its name with an AI chip,
+/// whose connector it came through and when it was last seen under it, and Remove for the owner, an admin, or that
+/// member.
+class AiRow extends StatefulWidget implements PaneRow {
+  const AiRow({super.key, required this.ai, required this.me, required this.role, required this.onRemove, this.now});
+  final OrgAi ai;
+  final String me;
+
+  /// The signed-in person's own role here.
+  final String role;
+  final Future<void> Function(OrgAi ai) onRemove;
+  final int? now;
+
+  @override
+  State<AiRow> createState() => _AiRowState();
+}
+
+class _AiRowState extends State<AiRow> {
+  bool _busy = false;
+  String? _problem;
+
+  Future<void> _remove() async {
+    setState(() {
+      _busy = true;
+      _problem = null;
+    });
+    try {
+      await widget.onRemove(widget.ai);
+    } catch (failure) {
+      if (mounted) setState(() => _problem = accountFailureText(failure));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ai = widget.ai;
+    final role = widget.role;
+    final canRemove = aiIsMine(ai, widget.me) || role == 'owner' || role == 'admin';
+    return SettingRow(
+      label: ai.name,
+      labelAfter: Padding(padding: EdgeInsetsDirectional.only(start: t.space(2)), child: const RoleChip.ai()),
+      hint: Text(_problem ?? aiLine(ai, me: widget.me, now: widget.now)),
+      layout: canRemove ? SettingRowLayout.stacked : SettingRowLayout.trailing,
+      control: canRemove ? Align(alignment: AlignmentDirectional.centerStart, child: RowAction(key: const ValueKey('ai-remove'), onPress: () => unawaited(_remove()), disabled: _busy, child: const Text('Remove'))) : null,
     );
   }
 }

@@ -16,6 +16,28 @@ import 'support.dart';
 /// The card titled [title] on the page.
 Finder card(String title) => find.byWidgetPredicate((w) => w is PaneSection && w.title == title);
 
+/// An AI's row on Members, by name, with its chip's words, its hint and the words under it.
+({String? chip, String? hint, List<String> words})? ai(WidgetTester tester, String name) {
+  final row = find.byWidgetPredicate((w) => w is AiRow && w.ai.name == name);
+  if (row.evaluate().isEmpty) return null;
+  final chip = find.descendant(of: row, matching: find.descendant(of: find.byType(RoleChip), matching: find.byType(Text)));
+  final setting = tester.widget<SettingRow>(find.descendant(of: row, matching: find.byType(SettingRow)));
+  return (
+    chip: chip.evaluate().isEmpty ? null : tester.widget<Text>(chip.first).data,
+    hint: (setting.hint as Text?)?.data,
+    words: [for (final action in tester.widgetList<RowAction>(find.descendant(of: row, matching: find.byType(RowAction)))) (action.child as Text).data!],
+  );
+}
+
+/// Presses Remove under the AI called [name].
+Future<void> removeAi(WidgetTester tester, String name) async {
+  final target = find.descendant(of: find.byWidgetPredicate((w) => w is AiRow && w.ai.name == name), matching: find.text('Remove'));
+  await tester.ensureVisible(target);
+  await tester.pump();
+  await tester.tap(target);
+  await settle(tester, 10);
+}
+
 String? footerOf(WidgetTester tester, String title) => (tester.widget<PaneSection>(card(title)).footer as Text?)?.data;
 
 void main() {
@@ -130,7 +152,7 @@ void main() {
       await tapKey(tester, 'organization-invite');
       await settle(tester, 10);
       expect(member(tester, 'sam')?.chip, 'Invited');
-      expect(tester.widget<RoleChip>(find.descendant(of: find.byKey(const ValueKey('member:sam')), matching: find.byType(RoleChip))).member.state, 'invited');
+      expect(tester.widget<RoleChip>(find.descendant(of: find.byKey(const ValueKey('member:sam')), matching: find.byType(RoleChip))).member?.state, 'invited');
       expect(find.text('sam is invited. They see it in their notifications.'), findsOneWidget);
       expect(member(tester, 'sam')?.hint, startsWith('Invited by matt'));
       // An invitee can be withdrawn, not made anything.
@@ -164,6 +186,75 @@ void main() {
       expect(member(tester, 'sam')?.words, isEmpty);
       await goBack(tester);
       expect(labels(tester), ['General', 'Members', 'Workspace', 'Notifications', 'Report', 'Leave']);
+      await endSettings(tester);
+    });
+
+    // Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)".
+    testWidgets('lists an AI seen through a member’s connector after the members, with whose it came through, and removes it for the owner', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await sam(device, id, joined: true);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      const day = 24 * 60 * 60000;
+      final mine = device.service.peerAi(id, 'Claude', via: 'matt', firstSeen: now - 3 * day, lastSeen: now);
+      device.service.peerAi(id, 'Cursor', via: 'sam', firstSeen: now - 3 * day, lastSeen: now - day);
+      await pumpSheet(tester, device, id);
+      expect(ai(tester, 'Claude')?.chip, 'AI');
+      expect(ai(tester, 'Claude')?.hint, 'Through you · last seen just now');
+      expect(ai(tester, 'Claude')?.words, ['Remove']);
+      expect(ai(tester, 'Cursor')?.chip, 'AI');
+      expect(ai(tester, 'Cursor')?.hint, 'Through sam · last seen yesterday');
+      expect(ai(tester, 'Cursor')?.words, ['Remove']);
+      // After the people, and not counted with them.
+      final order = [for (final row in tester.widgetList<SettingRow>(find.descendant(of: card('Members'), matching: find.byType(SettingRow)))) row.label];
+      expect(order, ['matt', 'sam', 'Claude', 'Cursor']);
+      expect(heroMeta(tester), '2 members · You are owner');
+      expect(footerOf(tester, 'Members'), 'An AI reads and writes through its member’s own access, with their connector. Removing it takes it off this list, not out of the notes: it is listed again when it next reads them.');
+      await removeAi(tester, 'Cursor');
+      expect(ai(tester, 'Cursor'), isNull);
+      expect(device.service.calls.where((call) => call.startsWith('DELETE orgs/$id/ais/')), hasLength(1));
+      expect(device.service.aisOf(id).map((ai) => ai['id']), [mine]);
+      // sam is still a member: an AI's row going is no person going.
+      expect(member(tester, 'sam')?.chip, 'Member');
+      await endSettings(tester);
+    });
+
+    testWidgets('lets a member remove the AI that came through them and no one else’s, and says nothing of AIs where there are none', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await sam(device, id, joined: true);
+      await pumpSheet(tester, device, id);
+      expect(member(tester, 'sam')?.chip, 'Member');
+      expect(footerOf(tester, 'Members'), isNull);
+      expect(find.textContaining('An AI reads and writes'), findsNothing);
+      await endSettings(tester);
+      device.service.peerAi(id, 'Claude', via: 'matt');
+      device.service.peerAi(id, 'Cursor', via: 'sam');
+      // matt as a plain member: sam owns it now.
+      device.service.orgs[id]!.rows['matt']!.role = 'member';
+      device.service.orgs[id]!.rows['sam']!.role = 'owner';
+      await listed(device);
+      await pumpSheet(tester, device, id);
+      expect(ai(tester, 'Cursor')?.chip, 'AI');
+      expect(ai(tester, 'Cursor')?.hint, 'Through sam · last seen just now');
+      expect(ai(tester, 'Cursor')?.words, isEmpty);
+      expect(ai(tester, 'Claude')?.words, ['Remove']);
+      await removeAi(tester, 'Claude');
+      expect(ai(tester, 'Claude'), isNull);
+      expect(device.service.aisOf(id).map((ai) => ai['name']), ['Cursor']);
+      await endSettings(tester);
+    });
+
+    testWidgets('shows the service’s refusal under the AI’s row it was asked on', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      final mine = device.service.peerAi(id, 'Claude', via: 'matt');
+      await pumpSheet(tester, device, id);
+      expect(ai(tester, 'Claude')?.words, ['Remove']);
+      // Gone from another device meanwhile.
+      device.service.orgs[id]!.ais.remove(mine);
+      await removeAi(tester, 'Claude');
+      expect(ai(tester, 'Claude')?.hint, 'No such AI in this organization.');
       await endSettings(tester);
     });
 

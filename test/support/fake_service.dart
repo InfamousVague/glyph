@@ -156,6 +156,9 @@ class StoredOrg {
   /// The key wrapped per member, by handle lower-cased, then by generation.
   final Map<String, Map<int, String>> wraps = {};
 
+  /// The AIs seen in it through a member's connector (server/src/store/org_ais.rs), by id.
+  final Map<String, Map<String, Object?>> ais = {};
+
   /// The team's notes (S4), its write counter, each note's log and its next seq, and its files.
   int rev = 0;
   final Map<String, TeamRow> notes = {};
@@ -207,7 +210,7 @@ bool _isHue(Object? hue) => hue == null || (hue is String && workspaceHues.conta
 
 /// The service in memory (`fakeService`).
 class FakeService {
-  FakeService._(this.crypto, this._verify, this._account, {required this.head, required this.teams, required this.peers});
+  FakeService._(this.crypto, this._verify, this._account, {required this.head, required this.teams, required this.peers, this.ais = true});
 
   /// The service, holding the account [seed] names, signed up with that password, or none. [head] false: a HEAD
   /// never reaches the service, and the fetch throws as a browser's does when something drops it. [teams] false: a
@@ -220,6 +223,7 @@ class FakeService {
     bool head = true,
     bool teams = true,
     List<String> peers = const ['sam'],
+    bool ais = true,
     AccountCrypto? crypto,
     Future<bool> Function(String publicKey, String nonce, String signature)? verify,
   }) async {
@@ -232,7 +236,7 @@ class FakeService {
       final derived = await fake.derive(seed.password, passwordSalt(seed.handle), iterations: fastRounds);
       account = _Account(handle: seed.handle, loginSecret: derived.login, wrapped: await fake.wrap(key, derived.wrapKey), devices: [], recovery: {}, key: key);
     }
-    return FakeService._(fake, checked, account, head: head, teams: teams, peers: List.of(peers));
+    return FakeService._(fake, checked, account, head: head, teams: teams, peers: List.of(peers), ais: ais);
   }
 
   /// The crypto this service seals with: a device in the same test uses the same kind.
@@ -240,6 +244,9 @@ class FakeService {
   final Future<bool> Function(String publicKey, String nonce, String signature) _verify;
   final bool head;
   final bool teams;
+
+  /// False: a service with organizations but from before their AI entries, answering those routes `no such route`.
+  final bool ais;
 
   /// The handles that resolve for an invitation without being the account.
   final List<String> peers;
@@ -366,6 +373,8 @@ class FakeService {
         'colour': _colourOf(me),
         'keys': _keysJson(org, me),
         'members': [for (final r in org.rows.values) if (r.state != 'declined') _memberJson(r)],
+        // Only those that came through someone still in it, as the server's join answers them.
+        if (ais) 'ais': [for (final ai in org.ais.values) if (_rowOf(org, ai['via']! as String)?.state == 'member') ai],
       };
   Map<String, Object?> _rowJson(StoredOrg org, OrgRowKept me) => {
         'id': org.id,
@@ -735,6 +744,32 @@ class FakeService {
         return _json(200, {'rev': rev});
       }
     }
+    // The AIs seen in an organization through a member's connector (server/src/orgs.rs, store/org_ais.rs).
+    final seenAi = RegExp(r'^orgs/([^/]+)/ais(?:/([^/]+))?$').firstMatch(path);
+    if (seenAi != null) {
+      if (!ais) return _refuse(404, noSuchRoute);
+      final found = inOrg(Uri.decodeComponent(seenAi[1]!));
+      if (found == null) return _refuse(404, 'No such organization.');
+      final org = found.org;
+      if (method == 'POST' && seenAi[2] == null) {
+        final name = (body['name'] == null ? '' : '${body['name']}').trim();
+        if (name.isEmpty || name.length > 40) return _refuse(400, 'An AI’s name is 1 to 40 characters.');
+        Map<String, Object?>? had;
+        for (final ai in org.ais.values) {
+          if (ai['name'] == name && _lower(ai['via']! as String) == _lower(me)) had = ai;
+        }
+        final ai = had != null ? {...had, 'lastSeen': clock()} : <String, Object?>{'id': shortId(), 'name': name, 'via': found.row.handle, 'firstSeen': clock(), 'lastSeen': clock()};
+        org.ais[ai['id']! as String] = ai;
+        return _json(200, {'ai': ai});
+      }
+      if (method == 'DELETE' && seenAi[2] != null) {
+        final ai = org.ais[Uri.decodeComponent(seenAi[2]!)];
+        if (ai == null) return _refuse(404, 'No such AI in this organization.');
+        if (_lower(ai['via']! as String) != _lower(me) && found.row.role == 'member') return _refuse(403, 'Only the owner or an admin can do that.');
+        org.ais.remove(ai['id']);
+        return _json(200, {'removed': true});
+      }
+    }
     // The caller's colour in one organization (docs/SHARED.md, S7), and the organization key's wraps (S2).
     final colour = RegExp(r'^orgs/([^/]+)/colour$').firstMatch(path);
     if (colour != null && method == 'PUT') {
@@ -1029,6 +1064,18 @@ class FakeService {
   /// A row the service wrote into the account's feed - another account's doing - at a new revision. Answers it.
   FeedNotification notifies({required String kind, String? id, int? at, int? readAt, bool hidden = false, String? from, NotificationOrg? org, Map<String, Object?>? body, String? blob, String? state}) =>
       _fed(kind: kind, id: id, at: at, readAt: readAt, hidden: hidden, from: from, org: org, body: body, blob: blob, state: state);
+
+  /// The AIs seen in an organization, as stored (`aisOf`).
+  List<Map<String, Object?>> aisOf(String orgId) => [...?orgs[orgId]?.ais.values];
+
+  /// An AI seen in an organization through [via]'s connector, as their own would tell it (`peerAi`). Answers its id.
+  String peerAi(String orgId, String name, {String? via, int? firstSeen, int? lastSeen}) {
+    final org = orgs[orgId];
+    if (org == null) throw StateError('No such organization in the fake service.');
+    final id = shortId();
+    org.ais[id] = {'id': id, 'name': name, 'via': via ?? (peers.isNotEmpty ? peers.first : 'sam'), 'firstSeen': firstSeen ?? clock(), 'lastSeen': lastSeen ?? clock()};
+    return id;
+  }
 
   /// An organization [by] (a peer) made and invited the account to: the invitation lands in the feed. Answers the
   /// organization's id.

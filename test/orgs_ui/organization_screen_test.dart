@@ -8,6 +8,7 @@ import 'package:ghost_md/home/home_organizations.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
+import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/invite_actions.dart';
 import 'package:ghost_md/settings/invite_links.dart';
 import 'package:glacier/glacier.dart';
@@ -57,6 +58,12 @@ List<String> members(WidgetTester tester) => [
         find.descendant(of: find.byWidget(row.widget), matching: find.byType(RichText)).evaluate().map((e) => (e.widget as RichText).text.toPlainText().replaceAll('￼', '')).join(),
     ];
 
+/// Each AI's row as its words run together, in the page's order.
+List<String> ais(WidgetTester tester) => [
+      for (final row in find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('ai:')).evaluate())
+        find.descendant(of: find.byWidget(row.widget), matching: find.byType(RichText)).evaluate().map((e) => (e.widget as RichText).text.toPlainText().replaceAll('￼', '')).join(),
+    ];
+
 List<String> cards(WidgetTester tester) => [for (final card in tester.widgetList<NoteCard>(find.byType(NoteCard))) card.note.body];
 
 List<String> news(WidgetTester tester) => [
@@ -95,6 +102,45 @@ void main() {
       // One whole pass as the page opened.
       expect(device.services.status.lastAt, isNotNull);
       expect(device.service.calls.where((call) => call.startsWith('GET notifications')), hasLength(1));
+      await endSettings(tester);
+    });
+
+    // Matt: "when an AI has accessed an ORG add it as a member labeled as (AI)".
+    testWidgets('lists an AI seen through a member’s connector under the members, labelled AI, and counts only the people', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await sam(device, id, joined: true);
+      device.service.peerAi(id, 'Claude', via: 'matt');
+      device.service.peerAi(id, 'Cursor', via: 'sam', lastSeen: DateTime.now().millisecondsSinceEpoch - 24 * 60 * 60000);
+      await page(tester, device, id);
+      expect(members(tester), hasLength(2));
+      expect(ais(tester), ['CClaudeAIThrough you · last seen just now', 'CCursorAIThrough sam · last seen yesterday']);
+      // After the people, in the one list.
+      final list = find.bySemanticsLabel('Members');
+      final rows = [
+        for (final row in find.descendant(of: list, matching: find.byWidgetPredicate((w) => w.key is ValueKey<String> && RegExp('^(member|ai):').hasMatch((w.key! as ValueKey<String>).value))).evaluate())
+          (row.widget.key! as ValueKey<String>).value.split(':').first,
+      ];
+      expect(rows, ['member', 'member', 'ai', 'ai']);
+      // A line that opens nothing: there is no one to find in the app.
+      final first = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('ai:')).first;
+      expect(find.descendant(of: first, matching: find.byType(GlacierPressable)), findsNothing);
+      expect(tester.widget<Text>(find.descendant(of: first, matching: find.descendant(of: find.byType(RoleChip), matching: find.byType(Text)))).data, 'AI');
+      // Its initial in an outline, not a fill.
+      expect((tester.widget<Container>(find.descendant(of: first, matching: find.byKey(const ValueKey('ai-avatar')))).decoration), isNull);
+      // One thing to a reader: the name, that it is an AI, and its line.
+      expect(tester.getSemantics(find.descendant(of: first, matching: find.byType(MergeSemantics))).label.replaceAll('\n', ' '), 'Claude AI Through you · last seen just now');
+      expect(tester.widget<Text>(find.byKey(const ValueKey('org-hero-meta'))).data, '2 members · You are owner');
+      expect(find.descendant(of: find.byKey(const ValueKey('org-heading-members')), matching: find.text('2')), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('lists no AI from a service before them', (tester) async {
+      final device = await Device.make(service: await FakeService.start(seed: seeded, ais: false));
+      final id = await ghost(device);
+      await page(tester, device, id);
+      expect(members(tester), hasLength(1));
+      expect(ais(tester), isEmpty);
       await endSettings(tester);
     });
 
