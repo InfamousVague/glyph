@@ -22,6 +22,8 @@ import 'package:glacier/glacier.dart';
 import '../core/make_note.dart';
 import '../support/render.dart';
 import '../support/editor_text.dart';
+import 'package:ghost_md/note/byline.dart' show WholeMarks;
+
 import 'support.dart';
 
 /// The home page's pieces, each alone: a note drawn small, a card, a pinned line giving way, a ticket's mark, the
@@ -181,6 +183,40 @@ void main() {
       expect(tester.getSize(find.text('Engineering handbook')).width, lessThan(20));
       expect(tester.getSize(find.text('HelloTrade')).width, greaterThan(20));
       expect(find.byType(OrgMark), findsOneWidget);
+      await away(tester);
+    });
+  });
+
+  group('who wrote a note', () {
+    const body = '---\nauthors: matt, Claude, ana\n---\n# Plan';
+    const long = '---\nauthors: matt, Claude, ana\n---\n# A plan with a name far too long for any line or row to hold whole';
+
+    testWidgets('is their marks on a line and a row where the name leaves room, a whole mark at a time, and none where it leaves none', (tester) async {
+      await show(tester, HomeLine(note: makeNote('n', body: body, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
+      final three = tester.getSize(find.byType(WholeMarks)).width;
+      expect(three, greaterThan(40));
+      expect(tester.getRect(find.byType(WholeMarks)).right, lessThan(tester.getRect(find.text('1 hr ago')).left));
+      expect(find.bySemanticsLabel('Plan, by matt, Claude and ana, 1 hr ago'), findsOneWidget);
+      await away(tester);
+
+      await show(tester, HomeLine(note: makeNote('n', body: long, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(WholeMarks)).width, 0);
+      await away(tester);
+
+      await show(tester, HomeRow(note: makeNote('n', body: body, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
+      expect(tester.getSize(find.byType(WholeMarks)).width, three);
+      expect(tester.getRect(find.byType(WholeMarks)).left, greaterThan(tester.getRect(find.text('Plan')).right));
+      await away(tester);
+
+      await show(tester, HomeRow(note: makeNote('n', body: long, updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
+      expect(tester.takeException(), isNull);
+      expect(tester.getSize(find.byType(WholeMarks)).width, 0);
+      await away(tester);
+
+      // A note of the person's own names nobody, and draws no marks.
+      await show(tester, HomeLine(note: makeNote('n', body: '# Plan', updatedAt: seedNow - 3600000), index: 0, onOpen: (_) {}, now: seedNow), width: 330);
+      expect(find.byType(WholeMarks), findsNothing);
       await away(tester);
     });
   });

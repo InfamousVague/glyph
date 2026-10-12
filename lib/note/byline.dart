@@ -14,6 +14,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -154,4 +155,173 @@ class _SparkPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SparkPainter old) => old.color != color;
+}
+
+/// A note's authors as their marks alone, each tucked under the one before, for a list's row: as many whole marks
+/// as the room it is given holds, [most] at the most, and none where there is no room for one. The port's own (Matt,
+/// 2026-10-12: "if space is available show the avatar icons for editors of a note"); the marks are the byline's.
+class AuthorMarks extends StatelessWidget {
+  const AuthorMarks({super.key, required this.authors, required this.em, this.most = 3});
+
+  final List<String> authors;
+
+  /// The size of the text it stands beside; a mark is 0.85 of it, in a ring half as wide again.
+  final double em;
+  final int most;
+
+  @override
+  Widget build(BuildContext context) {
+    final markEm = 0.85 * em;
+    final ring = 1.5 * markEm;
+    return ExcludeSemantics(
+      child: WholeMarks(
+        step: ring - 0.35 * markEm,
+        children: [for (final name in authors.take(most)) _AuthorMark(key: ValueKey('author:$name'), name: name, ring: ring, em: markEm)],
+      ),
+    );
+  }
+}
+
+/// Children in a row, each [step] on from the one before, of which only those that fit whole in the width allowed
+/// are drawn. It asks for the width of them all.
+class WholeMarks extends MultiChildRenderObjectWidget {
+  const WholeMarks({super.key, required this.step, super.children});
+  final double step;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderWholeMarks(step);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderWholeMarks).step = step;
+}
+
+class _WholeData extends ContainerBoxParentData<RenderBox> {}
+
+class _RenderWholeMarks extends RenderBox with ContainerRenderObjectMixin<RenderBox, _WholeData>, RenderBoxContainerDefaultsMixin<RenderBox, _WholeData> {
+  _RenderWholeMarks(this._step);
+
+  double _step;
+  set step(double value) {
+    if (value == _step) return;
+    _step = value;
+    markNeedsLayout();
+  }
+
+  /// How many of the children are drawn.
+  int _shown = 0;
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _WholeData) child.parentData = _WholeData();
+  }
+
+  double get _one => firstChild?.getMaxIntrinsicWidth(double.infinity) ?? 0;
+  double _across(int count) => count <= 0 ? 0 : _one + (count - 1) * _step;
+  int _fits(double width) {
+    var count = 0;
+    while (count < childCount && _across(count + 1) <= width + 0.01) {
+      count += 1;
+    }
+    return count;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => _across(childCount);
+
+  @override
+  double computeMinIntrinsicHeight(double width) => firstChild?.getMaxIntrinsicHeight(double.infinity) ?? 0;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => computeMinIntrinsicHeight(width);
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(Size(_across(_fits(constraints.maxWidth)), computeMinIntrinsicHeight(0)));
+
+  @override
+  void performLayout() {
+    var height = 0.0, at = 0;
+    for (var child = firstChild; child != null; child = childAfter(child), at += 1) {
+      child.layout(const BoxConstraints(), parentUsesSize: true);
+      (child.parentData! as _WholeData).offset = Offset(at * _step, 0);
+      if (child.size.height > height) height = child.size.height;
+    }
+    _shown = _fits(constraints.maxWidth);
+    size = constraints.constrain(Size(_across(_shown), height));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    var at = 0;
+    for (var child = firstChild; child != null && at < _shown; child = childAfter(child), at += 1) {
+      context.paintChild(child, offset + (child.parentData! as _WholeData).offset);
+    }
+  }
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => false;
+}
+
+/// [first], and [then] after it only in the room [first] leaves: [first] is as wide as it wants, up to the whole
+/// width, and [then] is given what is left past a [gap]. Its baseline is [first]'s.
+class ThenIfRoom extends MultiChildRenderObjectWidget {
+  ThenIfRoom({super.key, required Widget first, required Widget then, this.gap = 0}) : super(children: [first, then]);
+  final double gap;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderThenIfRoom(gap);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) => (renderObject as _RenderThenIfRoom).gap = gap;
+}
+
+class _RenderThenIfRoom extends RenderBox with ContainerRenderObjectMixin<RenderBox, _WholeData>, RenderBoxContainerDefaultsMixin<RenderBox, _WholeData> {
+  _RenderThenIfRoom(this._gap);
+
+  double _gap;
+  set gap(double value) {
+    if (value == _gap) return;
+    _gap = value;
+    markNeedsLayout();
+  }
+
+  @override
+  void setupParentData(RenderBox child) {
+    if (child.parentData is! _WholeData) child.parentData = _WholeData();
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => firstChild!.getMaxIntrinsicWidth(height) + _gap + lastChild!.getMaxIntrinsicWidth(height);
+
+  @override
+  double computeMinIntrinsicHeight(double width) => firstChild!.getMaxIntrinsicHeight(width);
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => firstChild!.getMaxIntrinsicHeight(width);
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) => firstChild!.getDistanceToActualBaseline(baseline);
+
+  @override
+  void performLayout() {
+    final first = firstChild!, then = lastChild!;
+    first.layout(BoxConstraints(maxWidth: constraints.maxWidth), parentUsesSize: true);
+    final room = math.max(0.0, constraints.maxWidth - first.size.width - _gap);
+    then.layout(BoxConstraints(maxWidth: room), parentUsesSize: true);
+    final height = math.max(first.size.height, then.size.height);
+    (first.parentData! as _WholeData).offset = Offset(0, (height - first.size.height) / 2);
+    (then.parentData! as _WholeData).offset = Offset(first.size.width + _gap, (height - then.size.height) / 2);
+    size = constraints.constrain(Size(first.size.width + (then.size.width > 0 ? _gap + then.size.width : 0), height));
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
+
+  @override
+  bool hitTestChildren(BoxHitTestResult result, {required Offset position}) => defaultHitTestChildren(result, position: position);
 }

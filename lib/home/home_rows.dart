@@ -16,6 +16,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/search_hits.dart';
 import '../core/workspaces.dart';
+import '../note/byline.dart' show AuthorMarks, ThenIfRoom, authorsOf, spokenNames;
 import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
@@ -193,7 +194,16 @@ class HomeRow extends StatelessWidget {
     final marked = listedTicket(facts, notebook: notebook, workflow: workflow);
     final ticket = TicketMark.shows(marked);
     final hasLead = lead.isNotEmpty || bookName != null || kind == HomeKind.tape || ticket;
-    final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', ?bookName, if (lead.isNotEmpty) lead, when(note.updatedAt, now)].join(', ');
+    // Who wrote it with the person, where anyone did: their marks after the name, in what room the name leaves.
+    final authors = _authorsOf(note);
+    final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', ?bookName, if (lead.isNotEmpty) lead, if (authors.isNotEmpty) 'by ${spokenNames(authors)}', when(note.updatedAt, now)].join(', ');
+    final Widget name = Text(
+      title.isNotEmpty ? facts.shownTitle : 'Untitled',
+      maxLines: 1,
+      softWrap: false,
+      overflow: TextOverflow.ellipsis,
+      style: pageText(t, md, weight: 'semibold', color: title.isEmpty ? ink3 : t.color('app-ink')),
+    );
 
     final row = GlacierPressable(
       onPressed: () => onOpen(note.id),
@@ -230,15 +240,7 @@ class HomeRow extends StatelessWidget {
                                   BottomBaseline(child: Transform.rotate(angle: -12 * math.pi / 180, child: HomeIcon(HomeGlyph.pin, size: 0.85 * md, color: ink3))),
                                   SizedBox(width: 0.35 * md),
                                 ],
-                                Flexible(
-                                  child: Text(
-                                    title.isNotEmpty ? facts.shownTitle : 'Untitled',
-                                    maxLines: 1,
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    style: pageText(t, md, weight: 'semibold', color: title.isEmpty ? ink3 : t.color('app-ink')),
-                                  ),
-                                ),
+                                Flexible(child: authors.isEmpty ? name : ThenIfRoom(first: name, then: AuthorMarks(authors: authors, em: sm), gap: t.space(2))),
                               ],
                             ),
                             if (hasLead) ...[
@@ -339,7 +341,8 @@ class HomeLine extends StatelessWidget {
     final space = this.space;
     final tape = _tapeWords(t, note, live: live, em: md, dot: false);
     final snippet = found?.snippet;
-    final said = [title.isEmpty ? 'Untitled' : title, ?bookName, if (space != null) space.name, when(note.updatedAt, now), ?snippet?.text].join(', ');
+    final authors = _authorsOf(note);
+    final said = [title.isEmpty ? 'Untitled' : title, ?bookName, if (space != null) space.name, if (authors.isNotEmpty) 'by ${spokenNames(authors)}', when(note.updatedAt, now), ?snippet?.text].join(', ');
     final shown = title.isNotEmpty ? facts.shownTitle : 'Untitled';
     final wash = t.colorOf('color-mix(in oklch, var(--app-ink) 18%, transparent)');
     final nameStyle = pageText(t, md, weight: 'medium', color: title.isEmpty ? ink3 : t.color('app-ink'));
@@ -385,6 +388,8 @@ class HomeLine extends StatelessWidget {
                     minWidth: 0.55 * xs * 2 + 2 + (space.org != null ? 1.25 * xs + t.space(1) : 0) + t.lenOf('4ch', em: xs),
                     child: _LinePlace(space: space),
                   ),
+                // Who wrote it, the first thing to give way, a whole mark at a time.
+                if (authors.isNotEmpty) Shrink(shrink: 1000, child: AuthorMarks(authors: authors, em: sm)),
                 Shrink(
                   toEnd: true,
                   child: Padding(
@@ -424,6 +429,18 @@ class HomeLine extends StatelessWidget {
       ],
     );
   }
+}
+
+/// A note's authors (its front matter's `authors:`), read once for the words it has now.
+final Expando<({String body, List<String> authors})> _authorsHad = Expando<({String body, List<String> authors})>();
+
+List<String> _authorsOf(Note note) {
+  final had = _authorsHad[note];
+  if (had != null && identical(had.body, note.body)) return had.authors;
+  // Asked of the front matter only where the note has one that names anyone.
+  final authors = note.body.startsWith('---') && note.body.contains('authors:') ? authorsOf(note.body) : const <String>[];
+  _authorsHad[note] = (body: note.body, authors: authors);
+  return authors;
 }
 
 /// [text] as spans, the [marks] (ranges, in order) on a [wash], and in [ink] and [weight] where those are given.
