@@ -18,4 +18,5 @@ GHOST_CUTOVER=1 exec flutter build apk "$mode" --no-pub --target-platform androi
   --build-name="$version" \
   --dart-define=GHOST_CUTOVER=true \
   --dart-define=GHOST_BUILD="$(date -u +%Y%m%d%H%M%S)" \
+  --dart-define=GHOST_COMMIT="$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- . 2>/dev/null || echo +)" \
   "$@"

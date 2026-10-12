@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
+import 'package:ghost_md/core/build_facts.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/notes/workspace_sheet.dart';
@@ -214,9 +215,15 @@ void main() {
     testWidgets('with no updater, is the version and Help; its rows open the pages behind them and run what they are given', (tester) async {
       final ran = <String>[];
       await openPane(tester, 'about', onAcademy: () => ran.add('academy'), onGuideBook: () => ran.add('book'));
-      expect(cardTitles(tester), [null, 'Help']);
+      expect(cardTitles(tester), [null, 'Help', 'This build']);
       expect(tester.widget<PaneHero>(find.byType(PaneHero)).title, ghostVersion);
-      expect(rowLabels(tester), ['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples']);
+      // Help's six, then what the build says of itself (lib/core/build_facts.dart).
+      expect(rowLabels(tester), [
+        'Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples',
+        'Version', 'Built', 'Commit', 'Kind', 'Dart', 'Runs on', 'Account service', 'Updates from',
+      ]);
+      expect(hintOf(tester, 'Version'), '$ghostVersion (${versionCodeOf(ghostVersion)})');
+      expect(hintOf(tester, 'Built'), 'Not stamped');
       expect(hintOf(tester, 'Ghost.md: The Guide'), 'The whole app in 44 short chapters. Added to your notes the first time, and opened after that.');
       await tapOn(tester, rowCalled('Ghost.md Academy'));
       await tapOn(tester, rowCalled('Ghost.md: The Guide'));
@@ -288,7 +295,7 @@ void main() {
         ],
       );
       await openPane(tester, 'about', updates: updates, size: const Size(390, 1800));
-      expect(cardTitles(tester), [null, 'Updates', 'Alerts', 'Help', "What's new"]);
+      expect(cardTitles(tester), [null, 'Updates', 'Alerts', 'Help', "What's new", 'This build']);
       expect(tester.widget<PaneHero>(find.byType(PaneHero)).title, '1.15.0');
       expect(find.text('Updated over the air · Oct 8, 02:55 AM · app 1.15.0 · updates from ghostmarkdown.com'), findsOneWidget);
       expect(rowLabels(tester, 'Updates'), ['Ghost.md 1.16.0 is ready to install.']);

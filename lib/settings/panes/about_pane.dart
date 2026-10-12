@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../core/build_facts.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -159,6 +160,15 @@ class AboutPane extends StatelessWidget {
         ),
         // The releases are over-the-air builds, which an iPhone never runs: the App Store says what's new there.
         if (updates != null && updates.store != 'appstore') releasesSection(updates),
+        // What this build is made of, as the build itself knows it: for saying which one a thing was seen in. Last on the
+        // page, under everything the web app's About has (the owner asked for it on 2026-10-11; the page has none).
+        PaneSection(
+          title: 'This build',
+          children: [
+            for (final fact in buildFacts(version: updates?.version ?? ghostVersion, updatesFrom: updates?.sourceHost))
+              SettingRow(label: fact.name, hint: Text(fact.words)),
+          ],
+        ),
       ],
     );
   }
