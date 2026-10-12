@@ -511,6 +511,14 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
   };
   /** Who a notification says wrote: the author's name, or Claude when a connection gave none (docs/TEAMS.md). */
   const by = (said: string | undefined): string => authorName(said) ?? 'Claude';
+  /**
+   * The account and its organizations read fresh, as this AI: an organization read is told the AI's name, so its
+   * members see it listed beside them (mcp/team.ts `announce`).
+   */
+  const fresh = () => {
+    account.actsAs(by(undefined));
+    return account.pull();
+  };
   /** A note's title as a notification names it, as the list does. */
   const titled = (record: NoteRecord): string => noteTitle(record.note.body) || 'Untitled';
   const authorField = z
@@ -534,7 +542,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ query, include_archived, workspace, in_trash, limit }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const settings = await settingsOf(account);
         const { trash } = settings;
         const only = workspace?.trim() ? resolveSpace(settings, workspace) : null;
@@ -560,7 +568,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ id, title }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const record = await find(account, id, title);
         const settings = await settingsOf(account);
         const deleted = settings.trash[record.note.id];
@@ -581,7 +589,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ query, include_archived, limit }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const settings = await settingsOf(account);
         const { trash } = settings;
         const want = query.trim().toLowerCase();
@@ -623,7 +631,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         if (!words.trim()) return failed('A note needs some words.');
         let into: { id: string; name: string } | null = null;
         if (workspace?.trim()) {
-          await account.pull();
+          await fresh();
           into = resolveSpace(await settingsOf(account), workspace);
         }
         const org = into ? orgIdOf(into.id) : null;
@@ -649,7 +657,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ id, body, author }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
         // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
         // it was written, nor the keys that make it a notebook, a journal or an entry.
@@ -679,7 +687,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ id, title, text: words, as, author }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const target = await find(account, id, title);
         // A journal's words are the list of its entries: an entry is a note of its own, with its line (below).
         if (isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is a journal: its words are the list of its entries. Use add_journal_entry to write one.`);
@@ -718,7 +726,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ journal, text: words, at, author }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const target = (await account.get(journal)) ?? (await find(account, undefined, journal));
         if (!isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not a journal. Use append_to_note or create_note for it.`);
         // The hosted server's clock is the box's, not the person's: an entry named and filed by it would be an hour or a
@@ -761,7 +769,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async ({ id, pinned, archived }) =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         if (pinned === undefined && archived === undefined) return failed('Say what to set: pinned, archived, or both.');
         const written = await account.edit(id, (note) => ({
           ...note,
@@ -778,7 +786,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
    * person empties the trash in the app, so whatever Claude deletes, restore_notes or the Trash folder brings back.
    */
   const trashing = async (ids: string[], into: boolean) => {
-    await account.pull();
+    await fresh();
     const found: NoteRecord[] = [];
     const missing: string[] = [];
     for (const id of new Set(ids)) {
@@ -843,7 +851,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async () =>
       guarded(async () => {
-        await account.pull();
+        await fresh();
         const settings = await settingsOf(account);
         const notes = (await account.list({ archived: true })).filter((r) => !(r.note.id in settings.trash));
         const orgs = new Map(account.organizations().map((org) => [orgWorkspaceId(org.id), org]));
@@ -885,7 +893,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ ids, workspace, unfile }) =>
       guarded(async () => {
         if (Boolean(unfile) === Boolean(workspace?.trim())) return failed('Say one of: a workspace to file the notes in, or unfile.');
-        await account.pull();
+        await fresh();
         const found: NoteRecord[] = [];
         const missing: string[] = [];
         for (const id of new Set(ids)) {
@@ -934,6 +942,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async () =>
       guarded(async () => {
+        account.actsAs(by(undefined));
         const note = await ensureRulesNote(account, by(undefined));
         return text(whole(note));
       }),
@@ -953,6 +962,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     async ({ rule, author }) =>
       guarded(async () => {
         if (!rule.trim()) return failed('Say the rule to remember.');
+        account.actsAs(by(undefined));
         const note = await ensureRulesNote(account, by(undefined));
         const written = await account.edit(note.note.id, (n) => ({ ...n, body: authored(withRule(n.body, rule), author) }));
         const added = rule.trim().replace(/\s+/g, ' ');
@@ -970,7 +980,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     },
     async () =>
       guarded(async () => {
-        const { changed } = await account.pull();
+        const { changed } = await fresh();
         const trash = await trashOf(account);
         const all = await account.list({ archived: true });
         const notes = all.filter((r) => !(r.note.id in trash));

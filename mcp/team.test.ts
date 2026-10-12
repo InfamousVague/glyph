@@ -223,7 +223,7 @@ describe('writing an organization’s notes', () => {
     expect(service.teamUpdates(org.id, 't1')).toHaveLength(1);
     expect(service.teamNotes(org.id).get('t1')).toBe(row);
     expect(service.notes.has('t1')).toBe(false);
-    expect(service.calls.filter((c) => c.startsWith('POST orgs/') || c.startsWith('PUT orgs/'))).toEqual([`POST orgs/${org.id}/keys`, `PUT orgs/${org.id}/notes/t1`, `POST orgs/${org.id}/notes/t1/updates`]);
+    expect(service.calls.filter((c) => c.startsWith('POST orgs/') || c.startsWith('PUT orgs/'))).toEqual([`POST orgs/${org.id}/keys`, `PUT orgs/${org.id}/notes/t1`, `POST orgs/${org.id}/ais`, `POST orgs/${org.id}/notes/t1/updates`]);
 
     await phone.sync();
     const merged = phone.notes.get('t1')!.body;
@@ -392,5 +392,72 @@ describe('filing', () => {
     expect(refused.text).toContain('Pricing (p1): HelloTrade’s notes cannot be written by this connector: this account has no wrap of its key at generation 1 yet');
     expect(service.notes.get('p1')).toMatchObject({ deleted: false });
     expect((await account.readPrefs()).prefs.workspaces).toBeUndefined();
+  });
+});
+
+describe('an AI in an organization', () => {
+  const posts = (service: { calls: string[] }) => service.calls.filter((c) => c.startsWith('POST orgs/') && c.endsWith('/ais'));
+
+  it('is told to each organization it reads, by the name its app gave, once a session and not once a call', async () => {
+    const { service, call, account } = await connected();
+    const ghost = await anOrganization(service, 'Ghost');
+    const trade = await anOrganization(service, 'HelloTrade');
+    // An organization it cannot read has not been accessed, and is told nothing.
+    const sealed = await anOrganization(service, 'Sealed', { wrap: false });
+    await call('list_notes');
+    await call('search_notes', { query: 'anything' });
+    await call('account_status');
+    expect(posts(service).sort()).toEqual([`POST orgs/${ghost.id}/ais`, `POST orgs/${trade.id}/ais`].sort());
+    expect(service.aisOf(ghost.id)).toMatchObject([{ name: 'Claude', via: 'matt' }]);
+    expect(service.aisOf(trade.id)).toMatchObject([{ name: 'Claude', via: 'matt' }]);
+    expect(service.aisOf(sealed.id)).toEqual([]);
+    // It is a record: no member, no wrap, nothing owed by the key.
+    expect(service.orgs.get(ghost.id)!.rows.size).toBe(1);
+    expect(service.keysOf(ghost.id)).toMatchObject({ generation: 1 });
+    expect(Object.keys(service.keysOf(ghost.id).wraps)).toEqual(['matt']);
+
+    // Its wrap made, the third is read, and told then; and the others are told again only hours on.
+    await sealed.wrapNow();
+    await call('list_notes');
+    expect(posts(service)).toHaveLength(3);
+    const first = service.aisOf(ghost.id)[0]!;
+    const teams = (account as unknown as { teams: { announce(name: string, now: number): Promise<void> } }).teams;
+    await teams.announce('Claude', Date.now() + 5 * 60 * 60_000);
+    expect(posts(service)).toHaveLength(3);
+    await teams.announce('Claude', Date.now() + 7 * 60 * 60_000);
+    expect(posts(service)).toHaveLength(6);
+    expect(service.aisOf(ghost.id)).toMatchObject([{ id: first.id, firstSeen: first.firstSeen }]);
+  });
+
+  it('carries what another app calls itself', async () => {
+    const { service, call } = await connected({ clientName: 'Cursor' });
+    const org = await anOrganization(service);
+    await call('list_notes');
+    expect(service.aisOf(org.id)).toMatchObject([{ name: 'Cursor', via: 'matt' }]);
+  });
+
+  it('never fails a tool: a service without the route, and one that refuses or drops the call, answer the notes all the same', async () => {
+    for (const how of ['no route', 'refused', 'dropped'] as const) {
+      const service = await fakeService({ handle: 'matt', password: 'correct horse' }, { ais: how !== 'no route' ? true : false });
+      const org = await anOrganization(service);
+      const phone = teamDevice(service, org);
+      phone.put('t1', '# Plan');
+      await phone.sync();
+      const fetcher: typeof fetch = async (input, init) => {
+        if (how !== 'no route' && String(input).endsWith('/ais')) {
+          if (how === 'dropped') throw new TypeError('Failed to fetch');
+          return new Response(JSON.stringify({ error: 'Too many changes in a minute. Try again shortly.' }), { status: 429 });
+        }
+        return service.fetcher(input, init);
+      };
+      const account = new GlyphAccount(await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher }), { fetcher });
+      account.actsAs('Claude');
+      await account.pull();
+      expect((await account.get('t1'))?.note.body, how).toBe('# Plan');
+      expect(account.notices(), how).toEqual([]);
+      const written = await account.edit('t1', (note) => ({ ...note, body: '# Plan\n\nStill written.' }));
+      expect(written.note.body, how).toBe('# Plan\n\nStill written.');
+      expect(service.aisOf(org.id), how).toEqual([]);
+    }
   });
 });

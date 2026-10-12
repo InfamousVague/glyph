@@ -145,6 +145,8 @@ export class GlyphAccount {
   private readonly teams: TeamNotes;
   /** Why the organizations could not be read at the last pull; null when they were. */
   private teamsFault: string | null = null;
+  /** The AI this client is working for, by the name its app gave (`actsAs`); null until it is known. */
+  private ai: string | null = null;
 
   constructor(
     private session: StoredSession,
@@ -306,6 +308,8 @@ export class GlyphAccount {
     try {
       changed += await this.teams.refresh();
       this.teamsFault = null;
+      // And each organization read told which AI read it, so its members see it listed (mcp/team.ts `announce`).
+      if (this.ai) await this.teams.announce(this.ai);
     } catch (failure) {
       if (failure instanceof GlyphApiError && failure.status === 401) throw failure;
       this.teamsFault = failureText(failure);
@@ -333,6 +337,14 @@ export class GlyphAccount {
   async get(id: string): Promise<NoteRecord | null> {
     if (!this.pulled) await this.pull();
     return this.teams.get(id) ?? (this.teams.holds(id) ? null : (this.cache.get(id) ?? null));
+  }
+
+  /**
+   * Whose hands this client is: the AI's name, as its app gave it when it connected (core/authors.ts `aiName`). An
+   * organization whose notes are read is told this name, and only this, so its members see the AI listed.
+   */
+  actsAs(name: string): void {
+    this.ai = name.trim().slice(0, 40) || null;
   }
 
   /** The organizations the account is a member of, with how many notes of each were read and how many were not. */

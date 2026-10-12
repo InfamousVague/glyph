@@ -117,6 +117,16 @@ the feed of rows by cursor, then `GET orgs/:id/heads` and the log of each note w
 - **The rules note is the account's own.** A note any member of a team can write is not handed to Claude as its
   instructions.
 
+- **An AI in an organization is listed there.** Matt: "when an AI has accessed an ORG add it as a member labeled as
+  (AI)". The first time a session reads an organization's notes, and then at most every six hours, the connector
+  tells the service the name the AI's app connected with and nothing else (`POST orgs/:id/ais { name }`,
+  `mcp/team.ts` `announce`). The service keeps one entry per member and name - the name, the member it came
+  through, first and last seen (`server/src/store/org_ais.rs`) - and answers them as `ais` beside an organization's
+  `members`. It is a record, not a member: no key wrap, no seat, nothing the key's `missing` or its turn counts. The
+  app lists each under the members as its name with an **AI** chip, "Through sam · last seen yesterday", and the
+  owner, an admin or that member can remove it; removing it removes the record, not the access, which is the
+  member's own. A service without the route, or any refusal, is nothing to do and never a tool's failure.
+
 Nothing new is kept between runs: the pair and the organization keys are key objects in memory, not extractable,
 read again from the service by whoever holds the account key. The hosted server's file is as it was.
 

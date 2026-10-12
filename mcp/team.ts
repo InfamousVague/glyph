@@ -114,6 +114,8 @@ interface Held {
   notes: Map<string, Entry>;
   /** Live rows that would not open. */
   unreadable: Set<string>;
+  /** The AI names this organization was last told of, and when (`announce`). */
+  told: Map<string, number>;
 }
 
 const noteContext = (orgId: string, id: string) => `org:${orgId}:note:${id}`;
@@ -151,6 +153,9 @@ async function release(doc: TeamDoc): Promise<void> {
   await doc.flush();
   doc.doc.destroy();
 }
+
+/** How long before an organization is told again that the same AI is still reading it: its last seen, kept fresh. */
+const TELL_EVERY_MS = 6 * 60 * 60_000;
 
 const WAITING = 'one of its members’ devices makes it at their next sync';
 
@@ -399,7 +404,7 @@ export class TeamNotes {
     for (const id of [...this.orgs.keys()]) if (!ids.has(id)) this.orgs.delete(id);
     let changed = 0;
     for (const row of members) {
-      const held: Held = this.orgs.get(row.id) ?? { row, generation: 0, key: null, older: new Map(), keyWhy: null, fault: null, cursor: 0, notes: new Map(), unreadable: new Set() };
+      const held: Held = this.orgs.get(row.id) ?? { row, generation: 0, key: null, older: new Map(), keyWhy: null, fault: null, cursor: 0, notes: new Map(), unreadable: new Set(), told: new Map() };
       held.row = row;
       this.orgs.set(row.id, held);
       for (const [generation, key] of held.older) if (!key) held.older.delete(generation);
@@ -423,6 +428,22 @@ export class TeamNotes {
       this.refreshing = null;
     });
     return this.refreshing;
+  }
+
+  /**
+   * Each organization whose notes this can read told which AI is reading them through this member (`POST
+   * orgs/:id/ais { name }`; server/src/store/org_ais.rs), so its members see it listed beside them: once when the
+   * organization's key is first in hand, and again only after `TELL_EVERY_MS`. The name is what the AI's app called
+   * itself and nothing else. Never a tool's failure: a service without the route, or any refusal, is nothing to do.
+   */
+  async announce(name: string, now = Date.now()): Promise<void> {
+    for (const held of this.orgs.values()) {
+      if (!held.key) continue;
+      const at = held.told.get(name);
+      if (at !== undefined && now - at < TELL_EVERY_MS) continue;
+      held.told.set(name, now);
+      await this.service.call('POST', this.route(held, 'ais'), { name }).catch(() => undefined);
+    }
   }
 
   private record(held: Held, entry: Entry): TeamRecord {
