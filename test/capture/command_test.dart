@@ -255,4 +255,51 @@ void main() {
       expect(onlyFiller('Pick up the parcel.'), false);
     });
   });
+
+  group('a new list said slowly, as Whisper writes it', () {
+    Object? made(String said) {
+      final result = planCommand(said, notes: notes);
+      return result is PlanCreateList ? {'title': result.title, 'items': result.items ?? const <String>[]} : result;
+    }
+
+    test('splits the items at the sentences and leaves "?" off the name', () {
+      expect(made('make me a new list called games? Add to that list. The legend of Zelda. Hello, Kitty Island Adventure. Stardew Valley. Lego Batman. . Mario Party.'), {
+        'title': 'games',
+        'items': ['The legend of Zelda', 'Hello, Kitty Island Adventure', 'Stardew Valley', 'Lego Batman', 'Mario Party'],
+      });
+    });
+
+    test('drops the "also", "and" and "can you also add?" between items, and the name said again', () {
+      expect(made('make a new list called games? Add to the games list. Zelda. Can you also add? Spiderman PS4. And Lego Star Wars. Also. Stardew Valley. And Hello Kitty Island Adventure. Go.'), {
+        'title': 'games',
+        'items': ['Zelda', 'Spiderman PS4', 'Lego Star Wars', 'Stardew Valley', 'Hello Kitty Island Adventure'],
+      });
+    });
+
+    test('ends the name before "and on that list put"', () {
+      expect(made('Make me a new list called house chores. And on that list put change light bulbs. . Vacuum carpet. End of mop floors.'), {
+        'title': 'house chores',
+        'items': ['change light bulbs', 'Vacuum carpet', 'End of mop floors'],
+      });
+      expect(made("Make me a new list called house to do's. And on that list. Put. Change light bulbs. Vacuum carpet. . Mop floors."), {
+        'title': "house to do's",
+        'items': ['Change light bulbs', 'Vacuum carpet', 'Mop floors'],
+      });
+    });
+
+    test('still reads commas and "and" when there are no sentences', () {
+      expect(made('make a new list called snacks and add to the list chips, salsa and cookies'), {
+        'title': 'snacks',
+        'items': ['chips', 'salsa', 'cookies'],
+      });
+    });
+  });
+
+  group('adding to "my list of …"', () {
+    test('finds the note by what follows "list of"', () {
+      final result = planCommand('add to my list of vegetables? Lettuce, yams and broccoli.', notes: const [Candidate(id: 'v', title: 'Vegetables')]);
+      expect(result?.kind, 'place');
+      if (result is PlanPlace<Candidate>) expect(result.note.title, 'Vegetables');
+    });
+  });
 }

@@ -1,9 +1,11 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../capture/voice_log.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -17,6 +19,7 @@ import 'settings_host.dart';
 List<SettingsFindable> recordingFindable({required bool android}) => [
       const SettingsFindable('Stop when I go quiet', 'silence auto stop'),
       const SettingsFindable('Review after recording', 'check transcript'),
+      const SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
       const SettingsFindable('Better words', 'refine clean up transcript'),
       const SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
       if (android) ...const [
@@ -71,11 +74,67 @@ class RecordingPane extends StatefulWidget {
 }
 
 class _RecordingPaneState extends State<RecordingPane> {
+  /// What happened to each recording, step by step (capture/voice_log.dart): the words heard, which step decided, the
+  /// model's raw answers, what the checks dropped and what was chosen. Copied whole, to read back a recording that went
+  /// wrong exactly (`VoiceLogSection`).
+  Widget _voiceLogSection(BuildContext context) {
+    final t = context.tokens;
+    return ValueListenableBuilder<List<VoiceLogEntry>>(
+      valueListenable: _voiceLog,
+      builder: (context, entries, _) {
+        final count = entries.length;
+        return PaneSection(
+          title: 'Voice log',
+          description: const Text('What the app understood from each recording and why: the words it heard, the model’s answers and what you chose. Kept only on this phone.'),
+          footer: _copied == null ? null : Text(_copied!),
+          children: [
+            SettingRow(
+              label: count == 0 ? 'Nothing yet' : '$count ${count == 1 ? 'recording' : 'recordings'}',
+              hint: const Text('Copy it and paste it into a message when something went wrong.'),
+              control: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RowAction(
+                    disabled: count == 0,
+                    onPress: () {
+                      unawaited(Clipboard.setData(ClipboardData(text: voiceLogText(entries))));
+                      setState(() => _copied = 'Copied $count ${count == 1 ? 'recording' : 'recordings'}.');
+                    },
+                    child: const Text('Copy'),
+                  ),
+                  RowAction(
+                    disabled: count == 0,
+                    onPress: () {
+                      clearVoiceLog();
+                      setState(() => _copied = null);
+                    },
+                    child: const Text('Clear'),
+                  ),
+                ],
+              ),
+            ),
+            if (count > 0)
+              Padding(
+                padding: EdgeInsets.symmetric(vertical: t.space(2)),
+                child: Text(voiceLogText(entries.take(5).toList()), style: t.textAt(12, color: t.color('app-ink-2'))),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
   /// What a removal did, or why it could not: the Tapes card's footer in place of the room.
   String? _said;
 
   /// Allow was pressed and the phone refused outright.
   bool _blocked = false;
+
+  /// The voice log (capture/voice_log.dart), followed as it is written.
+  final ValueListenable<List<VoiceLogEntry>> _voiceLog = useVoiceLog();
+
+  /// What Copy did, in the voice log's footer.
+  String? _copied;
 
   @override
   void initState() {
@@ -136,6 +195,7 @@ class _RecordingPaneState extends State<RecordingPane> {
                 ),
               ],
             ),
+            _voiceLogSection(context),
             PaneSection(
               title: 'After recording',
               children: [

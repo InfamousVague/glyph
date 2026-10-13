@@ -15,12 +15,12 @@ library;
 
 import 'command.dart' show FinalPlan;
 import 'markdown.dart' show RenderOptions, Segment, renderNote;
-import 'offers.dart' show Offer, OfferPlace, offerFor;
-import 'take_host.dart' show Haptic, RouteViewMoved, TakeHost;
+import 'offers.dart' show Offer, OfferPlace, OfferPlan, offerFor;
+import 'take_host.dart' show Haptic, RouteViewDone, RouteViewMoved, TakeHost;
 import 'take_types.dart' show Span, TakeCandidate;
 
 // The confirm card reads offers from here, where the recorder's take makes them.
-export 'offers.dart' show Offer, OfferNew, OfferPlace;
+export 'offers.dart' show Offer, OfferNew, OfferPlace, OfferPlan;
 
 final RegExp _leadingMarks = RegExp(r'^[\s.,;:!?…]+');
 
@@ -62,6 +62,16 @@ class Take<N extends Object> {
     _host.haptic(Haptic.selection);
   }
 
+  /// Offer a finished recording's changes: shown, and on a tap left to the recorder to carry out
+  /// (`offerChanges`; capture_screen.dart `_confirmPending`).
+  void offerChanges({required String heading, required String action, required List<String> lines, String? detail}) {
+    segments = [];
+    _host.changed();
+    _setPending(OfferPlan<N>(heading: heading, action: action, lines: lines, detail: detail));
+    _host.route(null);
+    _host.haptic(Haptic.selection);
+  }
+
   /// Add or Create, tapped: the command does what it showed. A new list is made by the recorder once this is done.
   /// No review follows the card, so nothing is logged for one.
   void confirm() {
@@ -70,6 +80,10 @@ class Take<N extends Object> {
     _setPending(null);
     if (held is OfferPlace<N>) {
       _host.addItems(held.note, held.text, held.placement);
+    } else if (held is OfferPlan<N>) {
+      // The recorder writes these itself, so the card's words stay up as the outcome and the phone says it worked.
+      _host.route(RouteViewDone(text: held.heading));
+      _host.haptic(Haptic.success);
     } else {
       _host.route(RouteViewMoved(title: held.title));
     }

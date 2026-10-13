@@ -37,7 +37,7 @@ import '../core/preferences.dart' show Preferences;
 import '../editor/media/clip_refs.dart' show TapeIds, freshTapeId;
 import 'audio.dart';
 import 'engine.dart';
-import 'instruction_intent.dart' show InferenceRun;
+import 'voice_plan.dart' show VoiceStep;
 import 'landing.dart';
 import 'meeting_live.dart';
 import 'refine.dart';
@@ -228,7 +228,8 @@ class Recorder {
     this.spokenFormats = _noFormats,
     this.pluginTips = _noTips,
     this.published = _never,
-    this.startInference,
+    this.voiceStep,
+    this.diagnostics,
     this.systemSound,
     this.canRecordMeeting = false,
     double Function()? now,
@@ -305,9 +306,12 @@ class Recorder {
   /// is never written to.
   final bool Function(String id) published;
 
-  /// The on-device model's reading of a command the rules could not place (`instructionIntent.ts`
-  /// `inferInstruction`), or null where there is no model to ask: then the reader says it is unavailable.
-  final InferenceRun Function(String words)? startInference;
+  /// The on-device model, one step of reading a finished recording (voice_plan.dart `voiceStepOver`), or null where
+  /// there is no model to ask: then the reader says it is unavailable and the recording is kept as a note.
+  final VoiceStep? voiceStep;
+
+  /// What the engine was doing, for the voice log when a step fails (voice_plan.dart `diagnosticsOver`).
+  final Future<List<String>> Function()? diagnostics;
 
   /// The Mac's own sound for a meeting (system_sound.dart), or null where it cannot be had.
   final SystemSound? systemSound;

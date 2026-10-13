@@ -44,7 +44,7 @@ import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
 import '../capture/audio.dart';
 import '../capture/device_mic.dart';
 import '../capture/engine.dart';
-import '../capture/instruction_intent.dart' show inferInstruction;
+import '../capture/voice_plan.dart' show diagnosticsOver, voiceStepOver;
 import '../capture/meeting.dart' show canRecordMeeting;
 import '../capture/meeting_host.dart';
 import '../capture/meeting_live.dart';
@@ -518,12 +518,13 @@ class Voice {
           if (format.cue case final String cue when cue.isNotEmpty) SpokenFormat(word: cue, delimiter: format.delimiter),
       ],
       pluginTips: (recent) => [for (final tip in plugins.tips(recent)) Tip(say: tip.say, does: tip.does)],
-      // A command the rules could not place, read by the model on this phone; a long job in the core.
-      startInference: (words) => inferInstruction(
-        words,
-        invoke: (command, args) async => command == 'ai_infer_command' ? (await core.startJob(command, args)).done : core.invoke(command, args),
+      // A recording the rules could not place, read by the model on this phone in steps (`ai_voice_step`, a long job in
+      // the core), and what the engine was doing, for the voice log.
+      voiceStep: (stage, kind, transcript, titles, [draft]) => voiceStepOver(
+        (command, args) async => command == 'ai_voice_step' ? (await core.startJob(command, args)).done : core.invoke(command, args),
         preferredModel: preferences.value.formatModel,
-      ),
+      )(stage, kind, transcript, titles, draft),
+      diagnostics: diagnosticsOver((command, args) async => core.invoke(command, args)),
       // The review after a recording, where this binary and the switch allow it, and a take's summary.
       reviewAvailable: reviewAvailable,
       enqueueSummary: (id, kind) => summaries.enqueueSummary(id, SummaryKind.of(kind)),

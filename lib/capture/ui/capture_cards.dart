@@ -431,6 +431,11 @@ class ConfirmCard<N extends Object> extends StatelessWidget {
         action = 'Create';
         lines = [...?items];
         if (items != null && items.isNotEmpty) detail = 'As a new list';
+      case OfferPlan<N>(heading: final said, action: final word, lines: final shown, detail: final note):
+        heading = said;
+        action = word;
+        lines = shown;
+        detail = note;
     }
     return _ConfirmShell(
       label: heading,

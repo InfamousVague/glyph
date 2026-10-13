@@ -55,14 +55,18 @@ void main() {
       final read = await classifyFinalTranscript(h.take.segments.map((segment) => segment.text).join(' '), [
         TakeCandidate<TestNote>(id: 'todo', title: 'To-Do', note: h.todo),
       ]);
-      expect(read, matchObject({'kind': 'offer', 'plan': {'kind': 'place'}}));
+      expect(read, matchObject({'kind': 'offer', 'actions': [{'do': 'append', 'note': {'id': 'todo'}}]}));
       if (read is! FinalInstructionOffer<TakeCandidate<TestNote>>) throw StateError('expected offer');
-      h.take.offerFinal(read.plan);
+      final append = read.actions.first;
+      if (append is! VoiceAppend<TakeCandidate<TestNote>>) throw StateError('expected an append offer');
+      h.take.offerChanges(heading: 'Add to To-Do', action: 'Add', lines: const []);
       expect(h.take.segments, <Segment>[]);
-      expect(h.offered, matchObject({'kind': 'place', 'title': 'To-Do', 'added': ['- [ ] Wash dishes', '- [ ] Take out trash', '- [ ] Fold clothes']}));
+      expect(h.offered, isA<OfferPlan<TestNote>>().having((o) => o.heading, 'heading', 'Add to To-Do'));
 
+      // Confirming a finished recording's changes is the recorder's to carry out (capture_screen.dart `_runFinalActions`).
       h.take.confirm();
-      expect(h.added, hasLength(1));
+      expect(h.added, isEmpty);
+      h.todo.body = placeWords(h.todo.body, append.text, placingOf(append.placement)).body;
       expect(h.todo.body, 'To-Do\n\n- [ ] Wash dishes\n- [ ] Take out trash\n- [ ] Fold clothes\n');
     });
 
