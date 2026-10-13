@@ -270,7 +270,7 @@ What the seven are and how they are shot again: `apple/listing.md`.
 
 The record has a macOS version too (`f4ee033b-5f84-40f1-ba6c-991aa10bba2e`, now 2.0.5, `PREPARE_FOR_SUBMISSION`):
 the Flutter app, sandboxed, built by `tool/cutover-build-mac-store.sh`. Its listing, seven `APP_DESKTOP`
-screenshots and review notes are in place; Apple takes no What's New for a platform's first version. **No Mac
-build is uploaded and nothing is submitted**: the package waits on the Keychain's panel for the installer key,
-which is Matt's to answer. `docs/CUTOVER.md`, section 9, has all of it and the three steps left.
-
+screenshots and review notes are in place; Apple takes no What's New for a platform's first version. Build
+2000005 (`b708d138-b806-41c7-8d2a-7e7aea8589ae`) was validated, uploaded and processed `VALID` on 2026-10-13 and
+the version was submitted at 16:20:02 UTC in review submission `3084faf2-e892-480c-b2c0-bb13b0c6b77a`:
+**Waiting for Review**, released automatically once approved. `docs/CUTOVER.md`, section 9, has all of it.

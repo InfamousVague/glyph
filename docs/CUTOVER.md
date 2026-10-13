@@ -1005,10 +1005,22 @@ without the Guide; "Submit now, fix on rejection", with no hand test first.
 - **Not done**: no build attached, no review submission made. The iOS version and the custom product page were
   not touched; no territory, price, category, age rating or privacy answer was changed.
 
-### To finish
+### Sent for review (2026-10-13, UTC)
 
-1. Answer the Keychain's panel with "Always Allow" (or run `tool/cutover-build-mac-store.sh 2.0.5` again and
-   answer it then). `pkgutil --check-signature` on the package must name the installer certificate.
-2. `xcrun altool --validate-app -f <pkg> -t macos --apiKey … --apiIssuer …`, then `--upload-app`; wait for the
-   build to be `VALID`.
-3. Attach the build to the macOS version, make a review submission holding that version alone, and submit.
+Matt answered the Keychain's panel: the package was signed at 16:15:59
+(`build/mac-store/Ghost.md-2.0.5-2000005.pkg`, 52,322,420 bytes, "3rd Party Mac Developer Installer").
+
+- **Validated** 16:17 (`xcrun altool --validate-app -t macos`): "VERIFY SUCCEEDED with no errors, 1 warning". The
+  warning (90889): the app has no provisioning profile, so the build cannot be used with TestFlight. It does not
+  stop a build going to the store, and nothing was changed for it.
+- **Uploaded** 16:18: "UPLOAD SUCCEEDED", delivery `b708d138-b806-41c7-8d2a-7e7aea8589ae`.
+- **Processed** by 16:19: build `b708d138-b806-41c7-8d2a-7e7aea8589ae`, 2000005, `VALID`, macOS 13.1 and later,
+  `usesNonExemptEncryption` false as the Info.plist says, so nothing more was asked.
+- **Attached** to the macOS version (read back: 2.0.5, `AFTER_APPROVAL`, no phased release, the seven screenshots
+  `COMPLETE`, the listing and review notes as written).
+- **Submitted** 16:20:02 in a review submission of its own, `3084faf2-e892-480c-b2c0-bb13b0c6b77a`, holding the
+  macOS version alone: it reads **`WAITING_FOR_REVIEW`**. The iPhone's submission (a02dc6ed-…) and the custom
+  product page's (97437960-…) were not touched and still wait.
+
+Still unproven, by Matt's word ("Submit now, fix on rejection"): the list under "Not proven" above. A Mac
+TestFlight build would need a Mac App Store provisioning profile in the app.
