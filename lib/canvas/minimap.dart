@@ -36,6 +36,7 @@ import 'json_canvas.dart';
 import 'map_detail.dart';
 import 'paint.dart';
 import 'viewport.dart';
+import '../app/plain.dart';
 
 /// The map's frame and the room inside it, in the map's own units; grown, it is drawn half again as big.
 const double mapWidth = 204;
@@ -273,7 +274,7 @@ class _MinimapState extends State<Minimap> {
           borderRadius: radius,
           // One of the window's group of glass (BackdropGroup, at the app's root): what lies behind is read once
           // for the bars, the tools, the picked card's bar and this, where each read the screen for itself.
-          child: BackdropFilter.grouped(
+          child: BackdropFilter.grouped(enabled: !ghostPlain, 
             filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
             child: DecoratedBox(
               decoration: BoxDecoration(

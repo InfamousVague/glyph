@@ -13,6 +13,7 @@ const String ghostCommit = String.fromEnvironment('GHOST_COMMIT');
 const bool _cutover = bool.fromEnvironment('GHOST_CUTOVER');
 const String _api = String.fromEnvironment('GHOST_API');
 const bool _perf = bool.fromEnvironment('GHOST_PERF');
+const bool _plain = bool.fromEnvironment('GHOST_PLAIN');
 
 /// `20261011223058` as `2026-10-11 22:30:58 UTC`; anything else as it is.
 String builtWhen(String stamp) => stamp.length == 14 && int.tryParse(stamp) != null
@@ -36,7 +37,7 @@ List<({String name, String words})> buildFacts({required String version, String?
     (name: 'Version', words: versionCodeOf(version).isEmpty ? version : '$version (${versionCodeOf(version)})'),
     (name: 'Built', words: ghostBuild.isEmpty ? 'Not stamped' : builtWhen(ghostBuild)),
     (name: 'Commit', words: ghostCommit.isEmpty ? 'Not stamped' : ghostCommit),
-    (name: 'Kind', words: [mode, 'Flutter', if (_cutover) 'replaces the first Ghost.md', if (_perf) 'measured'].join(' · ')),
+    (name: 'Kind', words: [mode, 'Flutter', if (_cutover) 'replaces the first Ghost.md', if (_perf) 'measured', if (_plain) 'plain: no smoke or blur'].join(' · ')),
     (name: 'Dart', words: dart),
     (name: 'Runs on', words: '${Platform.operatingSystem} ${Platform.operatingSystemVersion}'),
     (name: 'Account service', words: serviceHost == null || serviceHost.isEmpty ? 'None in this build' : serviceHost),

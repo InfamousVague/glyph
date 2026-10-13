@@ -12,6 +12,7 @@ import '../tokens/tokens.dart';
 import 'anchored_position.dart';
 import 'popover.dart';
 import 'pressable.dart';
+import '../plain.dart';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Styles: what an app's stylesheet did to the menu through `className`.
@@ -314,7 +315,7 @@ class _MenuGlass extends StatelessWidget {
         alwaysIncludeSemantics: true,
         child: ClipRRect(
           borderRadius: BorderRadius.circular(radius),
-          child: BackdropFilter(
+          child: BackdropFilter(enabled: !glacierPlain, 
             filterConfig: glacierGlassFilter(t),
             child: CustomPaint(
               painter: _SurfacePainter(

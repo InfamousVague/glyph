@@ -26,6 +26,7 @@ import '../../core/back.dart';
 import '../../settings/kit/settings_kit.dart' show Copied;
 import '../../sheet/css.dart';
 import 'steps.dart';
+import '../../app/plain.dart';
 
 class ClaudeGuide extends StatefulWidget {
   const ClaudeGuide({super.key, required this.way, required this.handle, required this.onClose});
@@ -158,7 +159,7 @@ class _ClaudeGuideState extends State<ClaudeGuide> with SingleTickerProviderStat
           ),
           child: ClipRRect(
             borderRadius: shape,
-            child: BackdropFilter(
+            child: BackdropFilter(enabled: !ghostPlain, 
               // `backdrop-filter: var(--app-float-blur)`
               filter: ui.ImageFilter.blur(sigmaX: blurSigma(t, 'app-float-blur'), sigmaY: blurSigma(t, 'app-float-blur')),
               child: ColoredBox(

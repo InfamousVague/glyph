@@ -11,6 +11,7 @@ import '../motion/motion.dart';
 import '../tokens/theme.dart';
 import '../tokens/tokens.dart';
 import 'anchored_position.dart';
+import '../plain.dart';
 
 // ---------------------------------------------------------------------------------------------------------------------
 // What Popover and Menu share: the trigger's handle, the glass, and the anchored layer both float their panels in.
@@ -502,7 +503,7 @@ class GlacierArrowGlass extends StatelessWidget {
           boxed(
             ClipPath(
               clipper: _OutlineClipper(shape, key),
-              child: BackdropFilter(
+              child: BackdropFilter(enabled: !glacierPlain, 
                 filterConfig: glacierGlassFilter(t, blur: blur),
                 child: ColoredBox(color: t.color('glacier-glass-thick'), child: const SizedBox.expand()),
               ),

@@ -8,6 +8,7 @@ import 'package:glacier/glacier.dart';
 import '../core/back.dart';
 import '../sheet/css.dart';
 import '../sheet/press_group.dart';
+import '../app/plain.dart';
 
 /// The name the sidebar's icon and its card share (`[data-sidebar-toggle]`): what [FloatingCardToggle] wraps the
 /// icon in, and what the notes drawer names as its toggle.
@@ -143,7 +144,7 @@ class _FloatingCardState extends State<FloatingCard> with SingleTickerProviderSt
         child: ClipRRect(
           // `border-radius: var(--glacier-radius-lg); overflow: hidden`
           borderRadius: BorderRadius.circular(radius),
-          child: BackdropFilter(
+          child: BackdropFilter(enabled: !ghostPlain, 
             // `backdrop-filter: var(--app-float-blur)`: the ordinary blur under the clip (a bounded one filled only
             // part of a panel on the Fold, packages/glacier popover.dart).
             filter: ui.ImageFilter.blur(sigmaX: blurSigma(t, 'app-float-blur'), sigmaY: blurSigma(t, 'app-float-blur')),

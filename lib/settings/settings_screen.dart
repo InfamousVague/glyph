@@ -18,6 +18,7 @@ import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'section_steps.dart';
 import 'settings_search.dart';
+import '../app/plain.dart';
 
 /// One section of a settings screen (`SettingsSection`, SettingsScreen.tsx): a row on the list, or a sub-page off
 /// it, and the page it opens.
@@ -773,7 +774,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                         left: 0,
                         right: 0,
                         child: ClipRect(
-                          child: BackdropFilter(
+                          child: BackdropFilter(enabled: !ghostPlain, 
                             // `backdrop-filter: var(--app-glass-blur)`: blur(18px) saturate(1.1), the blur alone here.
                             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                             child: ColoredBox(

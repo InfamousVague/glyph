@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import 'bar_icon.dart';
+import '../../app/plain.dart';
 
 // The pieces the top bar is made of that are not tabs (notes/NoteTabs.module.css): a ring, a word, a capsule of
 // glass, a colour's dot, and the page's own text as the bar sets it.
@@ -191,7 +192,7 @@ class BarGlass extends StatelessWidget {
                   // One of a group where a group is said above it (BackdropGroup, at the app's root): the bars'
                   // glass and the dock's then read what is behind them once between them, where each read it for
                   // itself. With no group above, this is the filter by itself, as before.
-                  ? BackdropFilter.grouped(filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t)))
+                  ? BackdropFilter.grouped(enabled: !ghostPlain, filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t)))
                   : ColoredBox(color: tint ?? glassTint(t)),
             ),
           ),

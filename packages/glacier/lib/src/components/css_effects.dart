@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import '../tokens/css_value.dart';
 import '../tokens/theme.dart';
 import '../tokens/tokens.dart';
+import '../plain.dart';
 
 // What a stylesheet paints that Flutter's BoxDecoration does not, shared by the components that need it (the switch,
 // the segmented control, the pill, the toast): the inset layers of a `box-shadow`, the outer layers kept out from
@@ -175,7 +176,7 @@ class GlacierBackdrop extends StatelessWidget {
         Positioned.fill(
           child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
-            child: BackdropFilter(filter: filter, child: const SizedBox.expand()),
+            child: BackdropFilter(enabled: !glacierPlain, filter: filter, child: const SizedBox.expand()),
           ),
         ),
         child,

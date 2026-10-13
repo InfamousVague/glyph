@@ -11,6 +11,7 @@ import 'wisp_mask.dart';
 import 'wisp_probe.dart';
 import 'wisp_settings.dart';
 import 'wisp_strips.dart';
+import '../app/plain.dart';
 
 // ---- the numbers (art/wispEdge.ts) ---------------------------------------------------------------------------------
 
@@ -584,7 +585,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
   }
 
   List<WispStrip> _strips(Size size) {
-    if (!_wanted || (!_worn && !_footWorn && !_blurHead) || WispProbe.has('noedge')) return const [];
+    if (!_wanted || (!_worn && !_footWorn && !_blurHead) || WispProbe.has('noedge') || ghostPlain) return const [];
     final mode = _mode;
     final width = size.width, height = size.height;
     // With no header the page means the status bar to play the part (`beneath = height || safeTop()`), but its

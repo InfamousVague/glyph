@@ -75,6 +75,7 @@ import 'home_rows.dart';
 import 'home_text.dart';
 import 'lazy_page.dart';
 import 'note_card.dart';
+import '../app/plain.dart';
 
 /// Which ghost an empty page asks for (`<Ghost scene=...>`): a library with nothing in it, a workspace with nothing
 /// in it, or a search or filter that found nothing.
@@ -1327,7 +1328,7 @@ class _Dock extends StatelessWidget {
       child: ClipRRect(
         borderRadius: radius,
         // One of the bars' group where there is one (lib/notes/tabs/bar_parts.dart `BarGlass`).
-        child: BackdropFilter.grouped(
+        child: BackdropFilter.grouped(enabled: !ghostPlain, 
           filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
           child: Container(
             padding: EdgeInsets.all(gap + t.len('glacier-hairline')),

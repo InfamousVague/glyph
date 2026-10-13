@@ -10,6 +10,7 @@ import '../tokens/theme.dart';
 import '../tokens/tokens.dart';
 import 'pressable.dart';
 import '../tokens/line_height.dart';
+import '../plain.dart';
 
 // What GlacierInput, GlacierSearchField, GlacierKbd and GlacierCommandPalette draw with and share: the kit's text in
 // a browser's `line-height: normal`, a CSS box (background, border, ring, shadows, the glass highlight), the glass
@@ -82,7 +83,7 @@ class GlassBackdrop extends StatelessWidget {
     if (strength != 1) filter = ui.ImageFilter.compose(outer: saturateFilter(strength), inner: filter);
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
-      child: BackdropFilter(filter: filter, child: const SizedBox.expand()),
+      child: BackdropFilter(enabled: !glacierPlain, filter: filter, child: const SizedBox.expand()),
     );
   }
 }

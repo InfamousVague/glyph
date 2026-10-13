@@ -30,6 +30,7 @@ import 'edits.dart';
 import 'json_canvas.dart';
 import 'paint.dart';
 import 'world.dart';
+import '../app/plain.dart';
 
 /// How far outside the card the middle of the ring's line is: its offset and half its width (`--ring`).
 const double ringOut = 3.75;
@@ -299,7 +300,7 @@ class GlassPill extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(999),
         // One of the window's group of glass (BackdropGroup, at the app's root), as the map is.
-        child: BackdropFilter.grouped(
+        child: BackdropFilter.grouped(enabled: !ghostPlain, 
           filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
           child: DecoratedBox(
             decoration: BoxDecoration(

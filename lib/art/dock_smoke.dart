@@ -15,6 +15,7 @@ import 'wisp_probe.dart';
 import 'wisp_settings.dart';
 import 'wisp_smoke.dart';
 import 'wisp_strips.dart';
+import '../app/plain.dart';
 
 /// The wisp around the home page's floating dock (art/dockSmoke.ts, home/HomeScreen.module.css `.dockHalo`): what
 /// scrolls toward the dock is softened and washed toward the page's paper, and the halo's edge is the header's
@@ -328,7 +329,7 @@ class _DockHaloState extends State<DockHalo> {
   Widget build(BuildContext context) {
     final dock = widget.dock;
     final strips = <WispStrip>[];
-    if (dock != null && dock.width >= 2 && dock.height >= 2 && !WispProbe.has('nodock')) {
+    if (dock != null && dock.width >= 2 && dock.height >= 2 && !WispProbe.has('nodock') && !ghostPlain) {
       final tokens = GlacierTheme.maybeOf(context);
       strips.add(DockHaloStrip(
         rect: dock.inflate(dockSmokeReach),
