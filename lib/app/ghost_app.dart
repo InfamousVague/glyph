@@ -235,9 +235,12 @@ class _Page extends StatelessWidget {
         statusBarColor: const Color(0x00000000),
         systemNavigationBarColor: const Color(0x00000000),
         statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-        // An iPhone's bar follows the PHONE's light or dark, whatever theme is chosen here: the real app's page
-        // never tells its window a theme (it only reads `prefers-color-scheme`), so the bar is the system's own.
-        statusBarBrightness: MediaQuery.platformBrightnessOf(context),
+        // An iPhone's bar is told the PAGE's light or dark, so its ink is always the one that shows on the paper.
+        // It followed the phone's setting until 2026-10-13, on the reading that the real app's page never tells
+        // its window a theme; then the real app was run beside this one in a simulator set to light, under its
+        // Boreal theme, and its bar was light ink on the dark page where this app's was dark on dark and could
+        // not be read (docs/CUTOVER.md §8, the pictures before and after).
+        statusBarBrightness: dark ? Brightness.dark : Brightness.light,
         systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
         systemNavigationBarContrastEnforced: false,
       ),
