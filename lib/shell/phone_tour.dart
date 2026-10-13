@@ -53,6 +53,24 @@ import '../editor/editor_widget.dart';
 import '../editor/input/ime.dart';
 import '../editor/view/line.dart' show RenderEditorLine;
 
+/// Whether the script waiting asks for the invented library (its first step is `invented`): the notes the store's
+/// pictures are taken over (lib/core/sample_library.dart `seedLibrary`, in memory, with its workspaces), drawn in
+/// place of the phone's own library for that one start. lib/main.dart asks before it opens the core, and opens none
+/// when this is true, which is the path a phone whose core will not load already takes. For shooting the App
+/// Store's screenshots in a simulator (tauri/docs/store/apple/listing.md). A DEBUG BUILD'S ONLY, as the whole tour
+/// is: `kDebugMode` is a constant false in a release, so the compiler takes this away to `return false`.
+Future<bool> tourWantsInventedLibrary() async {
+  if (!kDebugMode || !runsAsIPhoneApp) return false;
+  try {
+    final waiting = File('${(await DevicePaths.find()).cacheDir}/tour/script.txt');
+    final asked = waiting.existsSync() && waiting.readAsStringSync().trimLeft().startsWith('invented');
+    if (asked) debugPrint('[tour] the invented library, for the store pictures: no core is opened for this start');
+    return asked;
+  } catch (_) {
+    return false;
+  }
+}
+
 /// Runs the script waiting in the app's cache folder, if this is a debug build of the iPhone app and there is
 /// one (tool/ios-tour.sh leaves it). The file is taken away as it is read, so the next start is an ordinary one.
 Future<void> runPhoneTour() async {
@@ -152,6 +170,9 @@ class PhoneTour {
 
   Future<void> _step(String name, String arg) async {
     switch (name) {
+      case 'invented':
+        // Read before the app was made ([tourWantsInventedLibrary]); nothing to do by now.
+        break;
       case 'wait':
         await Future<void>.delayed(Duration(milliseconds: int.parse(arg)));
       case 'shot':
@@ -171,6 +192,10 @@ class PhoneTour {
       case 'swipe' || 'flick':
         final n = _numbers(arg);
         await _swipe(Offset(n[0], n[1]), Offset(n[2], n[3]), ms: n.length > 4 ? n[4].round() : 220, settle: name == 'swipe');
+      case 'pinch':
+        // `pinch:<x>,<y>,<from>,<to>`: two fingers either side of a point, from one distance apart to another.
+        final n = _numbers(arg);
+        await _pinch(Offset(n[0], n[1]), n[2], n[3]);
       case 'taptext' || 'holdtext' || 'where' || 'tapif':
         final at = _textAt(arg);
         // `tapif` is for what may or may not be up (a first run's welcome and its Skip): not there is not a fault.
@@ -439,6 +464,34 @@ class PhoneTour {
     GestureBinding.instance.handlePointerEvent(PointerRemovedEvent(pointer: pointer, position: to, timeStamp: _now()));
     await _frames();
     _say('${settle ? 'swipe' : 'flick'} ${from.dx.toStringAsFixed(0)},${from.dy.toStringAsFixed(0)} -> ${to.dx.toStringAsFixed(0)},${to.dy.toStringAsFixed(0)}');
+  }
+
+  /// Two fingers on a line through [at], [from] apart, moved until they are [to] apart, and lifted at rest.
+  Future<void> _pinch(Offset at, double from, double to) async {
+    final a = _pointer += 1, b = _pointer += 1;
+    Offset left(double apart) => at - Offset(apart / 2, 0);
+    Offset right(double apart) => at + Offset(apart / 2, 0);
+    final binding = GestureBinding.instance;
+    binding.handlePointerEvent(PointerAddedEvent(pointer: a, position: left(from), timeStamp: _now()));
+    binding.handlePointerEvent(PointerDownEvent(pointer: a, position: left(from), timeStamp: _now()));
+    binding.handlePointerEvent(PointerAddedEvent(pointer: b, position: right(from), timeStamp: _now()));
+    binding.handlePointerEvent(PointerDownEvent(pointer: b, position: right(from), timeStamp: _now()));
+    const steps = 30;
+    var last = from;
+    for (var i = 1; i <= steps; i += 1) {
+      final apart = from + (to - from) * i / steps;
+      await Future<void>.delayed(const Duration(milliseconds: 16));
+      binding.handlePointerEvent(PointerMoveEvent(pointer: a, position: left(apart), delta: left(apart) - left(last), timeStamp: _now()));
+      binding.handlePointerEvent(PointerMoveEvent(pointer: b, position: right(apart), delta: right(apart) - right(last), timeStamp: _now()));
+      last = apart;
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 150));
+    binding.handlePointerEvent(PointerUpEvent(pointer: a, position: left(to), timeStamp: _now()));
+    binding.handlePointerEvent(PointerRemovedEvent(pointer: a, position: left(to), timeStamp: _now()));
+    binding.handlePointerEvent(PointerUpEvent(pointer: b, position: right(to), timeStamp: _now()));
+    binding.handlePointerEvent(PointerRemovedEvent(pointer: b, position: right(to), timeStamp: _now()));
+    await _frames();
+    _say('pinch at ${at.dx.toStringAsFixed(0)},${at.dy.toStringAsFixed(0)} from ${from.toStringAsFixed(0)} to ${to.toStringAsFixed(0)}');
   }
 
   /// The note's editor that holds the keyboard, by its text client.
