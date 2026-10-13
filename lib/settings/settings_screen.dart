@@ -778,7 +778,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                             // `backdrop-filter: var(--app-glass-blur)`: blur(18px) saturate(1.1), the blur alone here.
                             filter: ImageFilter.blur(sigmaX: 18, sigmaY: 18),
                             child: ColoredBox(
-                              color: t.colorOf('color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)'),
+                              color: t.colorOf(ghostPlain ? 'color-mix(in srgb, var(--glacier-bg) 94%, transparent)' : 'color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)'),
                               child: _find(t, hits, padding: columnPad.copyWith(top: t.space(1), bottom: t.space(3))),
                             ),
                           ),

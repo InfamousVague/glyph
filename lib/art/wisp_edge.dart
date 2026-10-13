@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -574,7 +575,7 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
   /// Scrolling moves the smoke; a pause in it holds the smoke where it is. A desktop's plain edges have no smoke to
   /// move, so their scrolling starts no loop.
   void _onScroll() {
-    if ((!_worn && !_footWorn) || _still || _mode == WispMode.fade || !_wanted) return;
+    if ((!_worn && !_footWorn) || _still || _mode == WispMode.fade || !_wanted || ghostPlain) return;
     if (!_moving) {
       _moving = true;
       _band = widget.band;
@@ -693,7 +694,15 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
             _laid = size;
             return ListenableBuilder(
               listenable: Listenable.merge([WispDrift.instance.of(widget.band), WispDrift.instance.of(WispBand.page), _blur, _ready]),
-              builder: (context, child) => WispStrips(strips: _strips(size), repaint: _ready, child: child),
+              // A plain build shades the page's two edges with its own ground, and takes no picture of the view.
+              builder: (context, child) => ghostPlain
+                  ? CustomPaint(
+                      foregroundPainter: _wanted && (_worn || _footWorn)
+                          ? PlainShade(ground: _ground, top: _worn ? (widget.under > 0 ? widget.under - _lift : 0) : null, foot: _footWorn ? size.height - (_foot ? widget.footOver : 0) : null)
+                          : null,
+                      child: child,
+                    )
+                  : WispStrips(strips: _strips(size), repaint: _ready, child: child),
               // Where there is a mouse, a view under a header wears the page's own scrollbar, from the header's
               // foot down (app.css `[data-under-header]`); nothing on a phone.
               child: widget.scrollbar ? DesktopScrollbar(under: widget.under, child: widget.child) : widget.child,
@@ -703,4 +712,43 @@ class _WispEdgeState extends State<WispEdge> with SingleTickerProviderStateMixin
       ),
     );
   }
+}
+
+/// How far a plain build's shade runs from a page's edge, and how much of the ground it is where it begins.
+const double plainShadeDepth = 36;
+const double plainShadeFull = 0.92;
+
+/// A plain build's edges (lib/app/plain.dart; Matt, 2026-10-12: "use a slight mask gradient that fades content under
+/// it or a gradient overlay"): the page's ground laid over what scrolls under a header and into the foot, fading to
+/// nothing over [plainShadeDepth]. Two rectangles and no layer, where the smoke took a picture of the view on every
+/// frame of a scroll.
+class PlainShade extends CustomPainter {
+  const PlainShade({required this.ground, this.top, this.foot});
+
+  final Color ground;
+
+  /// Where the header ends, when the page is scrolled under it; null with nothing to shade there.
+  final double? top;
+
+  /// Where the foot begins (the dock's top, or the view's own end), when more is under it; null otherwise.
+  final double? foot;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final full = ground.withValues(alpha: plainShadeFull), none = ground.withValues(alpha: 0);
+    if (top case final at?) {
+      // Whatever is behind the header is under its own darker glass; from its edge the shade runs out.
+      final rect = Rect.fromLTRB(0, at, size.width, math.min(size.height, at + plainShadeDepth));
+      if (!rect.isEmpty) canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [full, none]));
+    }
+    if (foot case final at?) {
+      final rect = Rect.fromLTRB(0, math.max(0, at - plainShadeDepth), size.width, at);
+      if (!rect.isEmpty) canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(rect.topCenter, rect.bottomCenter, [none, full]));
+      // Past the foot's edge (beside and under the dock) the ground stands whole.
+      if (at < size.height) canvas.drawRect(Rect.fromLTRB(0, at, size.width, size.height), Paint()..color = full);
+    }
+  }
+
+  @override
+  bool shouldRepaint(PlainShade old) => old.ground != ground || old.top != top || old.foot != foot;
 }

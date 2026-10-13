@@ -1333,7 +1333,7 @@ class _Dock extends StatelessWidget {
           child: Container(
             padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
             foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
-            decoration: BoxDecoration(color: t.colorOf('color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
+            decoration: BoxDecoration(color: t.colorOf(ghostPlain ? 'color-mix(in srgb, var(--glacier-bg) 94%, transparent)' : 'color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

@@ -135,7 +135,11 @@ Color inkWash(Tokens t, int percent) => t.colorOf('color-mix(in oklch, var(--app
 
 /// The header's glass (app.css `--app-glass-mix`, `--app-glass-blur`): the page's paper at two thirds, over a blur of
 /// whatever runs under it.
-Color glassTint(Tokens t) => t.colorOf('color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)');
+Color glassTint(Tokens t) => t.colorOf(ghostPlain ? plainGlass : 'color-mix(in srgb, var(--glacier-bg) var(--app-glass-mix), transparent)');
+
+/// A plain build's glass (lib/app/plain.dart): with no blur behind it the pane is nearly the page's own ground, so
+/// what scrolls under a bar is a shadow of itself and not words read through it.
+const String plainGlass = 'color-mix(in srgb, var(--glacier-bg) 94%, transparent)';
 
 /// The colour matrix of CSS's `saturate()`.
 List<double> _saturate(double s) => [
