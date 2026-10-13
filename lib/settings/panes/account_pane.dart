@@ -21,6 +21,7 @@ import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
+import '../../core/iphone_app.dart' show recordsVoice;
 
 export '../privacy_card.dart' show PrivacyCard, privacyUrl;
 
@@ -49,7 +50,8 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
     ? (ported
         ? [
             const SettingsFindable('Sync now', 'devices'),
-            const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+            // An iPhone records nothing, so it has no such switch (the row below).
+            if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
             const SettingsFindable('Live typing (trial)', 'realtime collaborate'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
@@ -353,7 +355,8 @@ class _AccountPaneState extends State<AccountPane> {
               const Ghost(scene: GhostScene.signedOut, align: GhostAlign.center),
               PaneSection(
                 title: mode == 'up' ? 'New account' : (mode == 'recover' ? 'Recover' : 'Sign in'),
-                description: const Text('Keep your notes, recordings and settings the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read.'),
+                // An iPhone records nothing ([recordsVoice]): its sentences leave recordings and the model out.
+                description: Text('Keep your ${recordsVoice ? 'notes, recordings and settings' : 'notes and settings'} the same on your phone and computer. They are encrypted on the device first. The service stores only what it cannot read.'),
                 children: [WayInForm(form: _form)],
               ),
               PaneSection(
@@ -427,11 +430,11 @@ class _AccountPaneState extends State<AccountPane> {
           PaneSection(
             title: 'Sync',
             footer: Text(
-              'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone.' : ''}',
+              '${recordsVoice ? 'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.' : 'Notes, their pictures, and your settings. Developer settings stay on each device.'}${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone.' : ''}',
             ),
             children: [
               SettingRow(icon: const AppIcon(Lucide.refreshCw, size: 20), label: 'Sync now', onPress: () => unawaited(services.syncNow()), disabled: status.phase == 'syncing'),
-              SettingRow(
+              if (recordsVoice) SettingRow(
                 label: 'Sync meeting recordings',
                 hint: const Text("A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."),
                 control: GlacierSwitch(ariaLabel: 'Sync meeting recordings', checked: prefs.syncMeetingRecordings, onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on))),
@@ -852,7 +855,7 @@ class LocationCard extends StatelessWidget {
             ),
             SettingRow(
               label: 'Tag new notes with my location',
-              hint: const Text('Every note you make here starts with where you were, typed or spoken. Off, you add a location by hand from More on a note. This switch stays on this device.'),
+              hint: Text('Every note you make here starts with where you were${recordsVoice ? ', typed or spoken' : ''}. Off, you add a location by hand from More on a note. This switch stays on this device.'),
               control: GlacierSwitch(
                 ariaLabel: 'Tag new notes with my location',
                 checked: prefs.tagNewNotes,

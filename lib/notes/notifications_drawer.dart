@@ -10,6 +10,7 @@ import '../sheet/css.dart';
 import 'floating_card.dart';
 import 'when.dart';
 import '../shell/wide_screen.dart' show hoverPointer;
+import '../core/iphone_app.dart' show recordsVoice;
 
 /// The notifications, in a drawer hung from the bell (docs/TEAMS.md; Matt: "implement a full notification system and
 /// put the invites in there with an inline accept and deny"). A port of `src/app/notes/NotificationsDrawer.tsx` and
@@ -172,7 +173,7 @@ class _NotificationsDrawerState extends State<NotificationsDrawer> {
             children: widget.signedIn
                 ? [go('Local only'), const TextSpan(text: ' is on, so nothing arrives until it is off.')]
                 : [
-                    const TextSpan(text: 'Notifications come with an account: an invitation to a team, what Claude wrote, a meeting written up. Sign in under '),
+                    TextSpan(text: 'Notifications come with an account: an invitation to a team, what Claude wrote${recordsVoice ? ', a meeting written up' : ''}. Sign in under '),
                     go('Account'),
                     const TextSpan(text: '.'),
                   ],

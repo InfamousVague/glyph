@@ -4,6 +4,7 @@ import 'package:glacier/glacier.dart';
 import '../art/art.dart';
 import '../core/preferences.dart';
 import 'kit/settings_kit.dart';
+import '../core/iphone_app.dart' show recordsVoice;
 
 /// The privacy policy (landing/privacy.html), on the download site (`PRIVACY_URL`).
 const String privacyUrl = 'https://ghostmarkdown.com/privacy.html';
@@ -30,8 +31,9 @@ class PrivacyCard extends StatelessWidget {
       valueListenable: store,
       builder: (context, prefs, _) => PaneSection(
         title: 'Privacy',
-        footer: const Text(
-          'Your notes, recordings and pictures stay on this device, and your voice is turned into text here. Signed in, they sync encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.',
+        // An iPhone records nothing ([recordsVoice]), so its card says nothing of recordings or a voice.
+        footer: Text(
+          '${recordsVoice ? 'Your notes, recordings and pictures stay on this device, and your voice is turned into text here.' : 'Your notes and pictures stay on this device.'} Signed in, they sync encrypted on the device first, so only your own devices can read them. No ads, no analytics, no tracking.',
         ),
         children: [
           SettingRow(

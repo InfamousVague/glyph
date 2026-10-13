@@ -19,7 +19,7 @@ const String _started = 'glyph-guide-started';
 const String _page = 'glyph-guide-page';
 
 /// The page that hands over. Pages before it are reading.
-final int _lastPage = GuidePage.values.length - 1;
+int get _lastPage => walkthroughPagesNow.length - 1;
 
 /// The guide is on screen for the first time (`markGuideStarted`).
 void markGuideStarted() {

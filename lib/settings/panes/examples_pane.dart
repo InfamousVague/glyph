@@ -4,6 +4,7 @@ import '../../art/art.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import 'settings_host.dart';
+import '../../core/iphone_app.dart' show recordsVoice;
 
 /// What Settings' search finds on Examples (`findable`, src/app/settings/ExamplesPane.findable.ts).
 const List<SettingsFindable> examplesFindable = [
@@ -44,7 +45,7 @@ class ExamplesPane extends StatelessWidget {
             row(Lucide.fileText, 'Add the sample note', 'Every mark in one note: headings, lists, a table, a picture, a secret in smoke.', onSample),
             row(Lucide.layoutGrid, 'Add the example board', 'Columns, cards and the items they point at, written in markdown.', onBoard),
             row(Lucide.workflow, 'Add the example canvas', "Cards on a page with lines between them, in Obsidian's canvas file.", onCanvas),
-            row(Lucide.compass, 'Add the “How Ghost.md works” canvas', 'Eight plain cards, in order: say it, it lands as a note, and where a note can go.', onHowCanvas),
+            row(Lucide.compass, 'Add the “How Ghost.md works” canvas', 'Eight plain cards, in order: ${recordsVoice ? 'say' : 'write'} it, it lands as a note, and where a note can go.', onHowCanvas),
           ],
         ),
       ],

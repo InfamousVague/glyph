@@ -18,7 +18,10 @@ import '../../art/shapes.dart';
 import 'parts.dart';
 
 class GuideStart extends StatelessWidget {
-  const GuideStart({super.key, required this.onAcademy});
+  const GuideStart({super.key, required this.onAcademy, this.recordsVoice = true});
+
+  /// Whether this phone records: where it does not, the page promises no words to say.
+  final bool recordsVoice;
 
   /// The page's other way out: the Academy, for the rest.
   final VoidCallback onAcademy;
@@ -36,8 +39,8 @@ class GuideStart extends StatelessWidget {
           child: TipsShape(size: t.lenOf('7.5rem'), color: t.color('app-ink-3')),
         ),
         const GuideTitle('Learn it, or just start.'),
-        const GuideLead(
-          'The marks, the words you can say, boards, canvases and the rest are in the Ghost.md Academy: short lessons inside the app, a few minutes each. '
+        GuideLead(
+          '${recordsVoice ? 'The marks, the words you can say, boards' : 'The marks, boards'}, canvases and the rest are in the Ghost.md Academy: short lessons inside the app, a few minutes each. '
           'Take it now, or start writing and find it on the home page any time.',
         ),
         Padding(

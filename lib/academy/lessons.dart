@@ -56,6 +56,7 @@ import '../editor/syntax/language.dart' show glyphMarkdown;
 import '../editor/syntax/markdown.dart' show MarkdownParser;
 import '../editor/view/extended.dart' show calloutKind;
 import '../plugins/registry.dart' show plugins;
+import '../core/iphone_app.dart' show recordsVoice;
 
 part 'lessons.g.dart';
 
@@ -268,6 +269,17 @@ final Map<String, _Check> _checks = <String, _Check>{
   'shimmer': _parsed('Shimmer'),
   'haunt': _parsed('Haunt'),
 };
+
+/// What a lesson teaches, as this device words it. The words are the web app's (lessons.g.dart), and one of them
+/// names another platform and a + an iPhone does not have ("on Android, the + beside an empty line writes it when
+/// you choose A video"): where nothing is recorded or filmed ([recordsVoice] false, the iPhone app; Matt,
+/// 2026-10-13) the video lesson says what the line is and leaves out how another phone makes it.
+String teachOf(Lesson lesson, {bool? voice}) => lesson.id == 'video' && !(voice ?? recordsVoice)
+    ? 'A picture of the film’s first frame, linked to the film itself. The film stays on the device it was added on; everywhere else the still shows.'
+    : lesson.teach;
+
+/// What a lesson asks for, as this device words it ([teachOf]).
+String taskOf(Lesson lesson, {bool? voice}) => lesson.id == 'video' && !(voice ?? recordsVoice) ? 'Write a video’s line.' : lesson.task;
 
 /// The lessons on offer now: every one whose plugin mark, where it needs one, is switched on; and without standard
 /// Markdown, for a person who knows it already ([readSkipStandard]).

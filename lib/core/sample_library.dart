@@ -20,6 +20,7 @@
 library;
 
 import 'images.dart' show imageMarkdown;
+import 'iphone_app.dart' show recordsVoice;
 import 'dart:math';
 
 import 'package:flutter/foundation.dart';
@@ -686,12 +687,29 @@ const String sampleSmokeAsset = 'assets/sample/sample-smoke.jpg';
 
 /// The sample note's body, with the picture's section when there is a picture to show (`sampleNoteBody(image)`):
 /// [image] is its name among the library's pictures. Without one the note says nothing of a picture.
-String sampleNoteWith(String? image) {
+///
+/// [voice] false is the note for a build that records nothing, null asks the platform ([recordsVoice]): an iPhone
+/// is given [sampleNoteTyped], the same note without the words to say.
+String sampleNoteWith(String? image, {bool? voice}) {
+  final sampleNoteBody = (voice ?? recordsVoice) ? _spokenSampleNote : sampleNoteTyped();
   if (image == null || image.isEmpty) return sampleNoteBody;
   const after = '## Without typing';
   final picture = '## Pictures\n\nPaste one, or press and hold and choose Add image. It sits under its own line, and the line stays:\n\n${imageMarkdown(image, 'A wisp of smoke, by Jocelyn Morales')}\n\n';
   return sampleNoteBody.replaceFirst(after, '$picture$after');
 }
+
+const String _spokenSampleNote = sampleNoteBody;
+
+final RegExp _sayIt = RegExp(r'^Say "[^\n]*?\.(?: |$)| Say "[^\n]*?\.(?= |$)', multiLine: true);
+
+/// The sample note for a build that records nothing (the iPhone app; Matt, 2026-10-13): every mark is still taught
+/// by what to type, and each sentence that says what to say aloud is left out, with the three other places the
+/// note speaks of saying. Made from [sampleNoteBody], so a mark added there is here too.
+String sampleNoteTyped() => sampleNoteBody
+    .replaceFirst('Type a mark, or say its word while recording, and Ghost.md draws it.', 'Type a mark and Ghost.md draws it.')
+    .replaceAll(_sayIt, '')
+    .replaceFirst('> Say it now, and fix it after.', '> Write it now, and fix it after.')
+    .replaceFirst('A[Say it] --> B[A note]', 'A[Write it] --> B[A note]');
 
 /// The sample note (`core/sampleNote.ts` `sampleNoteBody(null)`): a short tutorial for formatting everything, one mark
 /// at a time, here without its picture ([sampleNoteWith] puts it in).

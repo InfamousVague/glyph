@@ -92,8 +92,9 @@ class _GuideState extends State<Guide> {
   final NoGuideModels _noModels = NoGuideModels();
   ScrollController _scroll = ScrollController();
 
-  GuidePage get _page => walkthroughPages[widget.index.clamp(0, walkthroughPages.length - 1)];
-  bool get _last => widget.index == walkthroughPages.length - 1;
+  List<GuidePage> get _pages => walkthroughPagesNow;
+  GuidePage get _page => _pages[widget.index.clamp(0, _pages.length - 1)];
+  bool get _last => widget.index == _pages.length - 1;
 
   @override
   void initState() {
@@ -166,7 +167,7 @@ class _GuideState extends State<Guide> {
     GuidePage.welcome => GuideWelcome(recordsVoice: widget.recordsVoice),
     GuidePage.theme => GuideTheme(store: widget.preferences),
     GuidePage.model => GuideModel(phone: widget.models ?? _noModels, store: widget.preferences),
-    GuidePage.start => GuideStart(onAcademy: widget.onAcademy),
+    GuidePage.start => GuideStart(onAcademy: widget.onAcademy, recordsVoice: widget.recordsVoice),
   };
 
   @override
@@ -194,7 +195,7 @@ class _GuideState extends State<Guide> {
       child: _onLights(lights > 0, Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          _Progress(at: widget.index, count: walkthroughPages.length),
+          _Progress(at: widget.index, count: _pages.length),
           // Nearly the size of Back and Next below: the page's corners read as one set of controls.
           GuideWord(_last ? 'Close' : 'Skip', onPressed: widget.onClose, style: t.textAt(barPx, weight: 'semibold')),
         ],

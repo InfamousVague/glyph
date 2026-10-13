@@ -9,6 +9,7 @@ import '../settings_search.dart';
 import '../settings_sheet.dart' show developerMode;
 import 'pane_parts.dart';
 import 'settings_host.dart';
+import '../../core/iphone_app.dart' show recordsVoice;
 
 /// The version this app is, as pubspec.yaml has it (a test holds the two together). About draws it when no updater
 /// has said which build this is. The build that goes to the App Store has no updater to say, and is told its
@@ -25,13 +26,19 @@ const int guideChapters = 44;
 /// draws, in its order. The cheat sheet, the specification and the examples are pages of their own, found by their
 /// own names. The updates' names are listed where the page draws them: with an updater, and What's new not for a
 /// copy from the App Store.
+/// Whether About offers Ghost.md: The Guide. Not on an iPhone (Matt, 2026-10-13, before the Flutter build went to
+/// the App Store): the book is the manual of the whole product, and its chapters are about recording, the side
+/// key, the Fold, the Mac and how the Android app is built and updated, none of which an iPhone has. A copy an
+/// account already holds still syncs and reads as the notebook it is.
+bool get offersGuideBook => recordsVoice;
+
 List<SettingsFindable> aboutFindable({required bool updates, required bool alerts, required bool whatsNew}) => [
       if (updates) const SettingsFindable('Updates', 'update check upgrade install'),
       // Android's own switch, drawn only where the activity has alerts to switch.
       if (alerts) const SettingsFindable('Update alerts', 'notifications notify'),
       const SettingsFindable('Ghost.md Academy', 'learn tutorial lessons'),
       const SettingsFindable('The welcome walkthrough', 'guide onboarding set-up first launch side key how to talk to ghost.md voice commands cues hey ghost keyword'),
-      const SettingsFindable(guideTitle, 'guide manual help book notebook chapters add'),
+      if (offersGuideBook) const SettingsFindable(guideTitle, 'guide manual help book notebook chapters add'),
       if (updates && whatsNew) const SettingsFindable("What's new", 'changelog releases'),
     ];
 
@@ -153,10 +160,10 @@ class AboutPane extends StatelessWidget {
           children: [
             help(Lucide.graduationCap, 'Ghost.md Academy', 'Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format.', onAcademy),
             // What guide/pages.ts shows: four pages, the last of which offers the Academy.
-            help(Lucide.bookOpen, 'The welcome walkthrough', 'The pages from the first launch: the theme, the model, and where the rest is taught.', onGuide),
+            help(Lucide.bookOpen, 'The welcome walkthrough', recordsVoice ? 'The pages from the first launch: the theme, the model, and where the rest is taught.' : 'The pages from the first launch: the theme, and where the rest is taught.', onGuide),
             help(Lucide.listChecks, 'Cheat sheet', 'Every mark you can type, and what it looks like, on one page.', open == null ? null : () => open('cheatsheet')),
             help(Lucide.fileCode, 'Specification', 'Exactly how every extension and AI fill is written, and the standard Markdown under them.', open == null ? null : () => open('spec')),
-            help(Lucide.bookOpenText, guideTitle, 'The whole app in $guideChapters short chapters. Added to your notes the first time, and opened after that.', onGuideBook),
+            if (offersGuideBook) help(Lucide.bookOpenText, guideTitle, 'The whole app in $guideChapters short chapters. Added to your notes the first time, and opened after that.', onGuideBook),
             help(Lucide.shapes, 'Examples', 'A sample note, a board and two canvases, to add to your notes.', open == null ? null : () => open('examples')),
           ],
         ),

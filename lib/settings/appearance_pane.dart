@@ -13,6 +13,7 @@ import 'theme_cards.dart';
 import 'top_bar_cards.dart';
 import 'typeface_cards.dart';
 import 'words.dart';
+import '../core/iphone_app.dart' show recordsVoice;
 
 /// What Settings' search finds on Appearance (`findable`, src/app/settings/AppearancePane.findable.ts), by the names
 /// the page draws, in its order. Type, Motion and Touch were pages of their own until docs/DESIGN.md §138: each
@@ -38,7 +39,7 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
       const SettingsFindable('Animation speed', 'motion fast slow'),
       const SettingsFindable('Ghostly typing', 'wisp letters'),
       const SettingsFindable('Smoke at the edges', 'wisp fade scroll'),
-      const SettingsFindable('Ripples while recording', 'waves voice'),
+      if (recordsVoice) const SettingsFindable('Ripples while recording', 'waves voice'),
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
     ];
 
@@ -252,7 +253,8 @@ class AppearancePane extends StatelessWidget {
                   hint: const Text('A page turns to smoke as it passes under the header or the dock.'),
                   control: GlacierSwitch(ariaLabel: 'Smoke at the edges', checked: prefs.wispEdge, onCheckedChange: (wispEdge) => set((now) => now.copyWith(wispEdge: wispEdge))),
                 ),
-                SettingRow(
+                // Nothing is recorded on an iPhone ([recordsVoice]), so there is nothing to ripple.
+                if (recordsVoice) SettingRow(
                   label: 'Ripples while recording',
                   hint: const Text('The newest words move with your voice as the phone hears it.'),
                   control: GlacierSwitch(ariaLabel: 'Ripples while recording', checked: prefs.ripples, onCheckedChange: (ripples) => set((now) => now.copyWith(ripples: ripples))),

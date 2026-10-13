@@ -11,6 +11,7 @@ import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
+import '../../core/iphone_app.dart' show recordsVoice;
 
 /// What Settings' search finds on Notifications (`findable`, src/app/settings/NotificationsPane.findable.ts): the four
 /// switches, and the card of organizations to mute once there is one to draw it for.
@@ -135,7 +136,8 @@ class NotificationsPane extends StatelessWidget {
                   SettingRow(
                     key: ValueKey(category),
                     label: _switches[category]!.$1,
-                    hint: Text(_switches[category]!.$2),
+                    // An iPhone has no Recording section and writes up no meeting itself ([recordsVoice]).
+                    hint: Text(category == 'summaries' && !recordsVoice ? 'A meeting written up on another of your devices.' : _switches[category]!.$2),
                     control: GlacierSwitch(ariaLabel: _switches[category]!.$1, checked: notifications.isOn(category), onCheckedChange: (on) => flip(category, on)),
                   ),
               ],

@@ -10,25 +10,41 @@
 /// `capture/markdown.ts`); the recorder is stage 8, so that half of its test waits for it.
 library;
 
+import '../core/iphone_app.dart' show recordsVoice;
 import 'json_canvas.dart';
 import 'sample_canvas.dart';
 
 /// `HOW_TITLE`.
 const String howTitle = 'How Ghost.md works';
 
-Canvas howCanvas() {
+/// The canvas as an iPhone is given it (Matt, 2026-10-13, before the Flutter build went to the App Store): the
+/// iPhone app records nothing ([recordsVoice]), so its cards speak of writing, name no microphone and no side key,
+/// and say nothing of an AI that hears. The cards' ids, places and lines are the same; only the words differ. A
+/// canvas already made (the one an account holds from another device) keeps the words it was made with.
+const Map<String, String> _typedWords = {
+  'saying': 'From your words to the page',
+  'speak': '# Write it\n\nTap **+** on the home page and type. Ghost.md keeps the words as you write them.',
+  'marks': '# Type the marks too\n\nA `#` for a heading, a dash for a point, a dash and a box for a to-do, and Ghost.md draws them. No menus.',
+  'note': '# It lands as a note\n\nPlain Markdown you can read anywhere. Fix a word with a finger.',
+  'phone': '# It stays on your phone\n\nNo account is needed. Without one, nothing you write goes anywhere else.',
+};
+
+/// [voice] false is the canvas for a build that records nothing; null asks the platform ([recordsVoice]).
+Canvas howCanvas({bool? voice}) {
+  final spoken = voice ?? recordsVoice;
+  String words(String id, String said) => spoken ? said : _typedWords[id]!;
   return Canvas(
     nodes: [
       // Saying it, in a group on the left: the three steps from a voice to a note.
-      CanvasNode.group(id: 'saying', x: -40, y: -60, width: 640, height: 480, label: 'From your voice to the page', color: '5'),
-      CanvasNode.text(id: 'speak', x: 0, y: 0, width: 260, height: 170, color: '4', text: '# Say it\n\nTap the **microphone**, or press the side key, and talk. Ghost.md writes the words as you say them.'),
-      CanvasNode.text(id: 'marks', x: 320, y: 0, width: 260, height: 170, text: '# Say the marks too\n\nSay *heading*, *bullet point*, *check box* or *done task*, and Ghost.md draws them. No menus.'),
-      CanvasNode.text(id: 'note', x: 160, y: 220, width: 260, height: 170, text: '# It lands as a note\n\nPlain Markdown you can read anywhere. Fix a word with a finger or with your voice.'),
+      CanvasNode.group(id: 'saying', x: -40, y: -60, width: 640, height: 480, label: words('saying', 'From your voice to the page'), color: '5'),
+      CanvasNode.text(id: 'speak', x: 0, y: 0, width: 260, height: 170, color: '4', text: words('speak', '# Say it\n\nTap the **microphone**, or press the side key, and talk. Ghost.md writes the words as you say them.')),
+      CanvasNode.text(id: 'marks', x: 320, y: 0, width: 260, height: 170, text: words('marks', '# Say the marks too\n\nSay *heading*, *bullet point*, *check box* or *done task*, and Ghost.md draws them. No menus.')),
+      CanvasNode.text(id: 'note', x: 160, y: 220, width: 260, height: 170, text: words('note', '# It lands as a note\n\nPlain Markdown you can read anywhere. Fix a word with a finger or with your voice.')),
       // Where a note goes, on the right.
       CanvasNode.text(id: 'library', x: 760, y: -40, width: 260, height: 170, text: '# All your notes\n\nThe sidebar keeps them. Search finds any word. Tabs hold the ones you are using.'),
       CanvasNode.file(id: 'board', x: 760, y: 170, width: 260, height: 150, file: '$boardTitle.md'),
       CanvasNode.text(id: 'canvas', x: 760, y: 360, width: 260, height: 190, text: '# Or a canvas\n\nCards on a page with lines between them. This is one: hold a card to move it, double-tap the page to add one.'),
-      CanvasNode.text(id: 'phone', x: 160, y: 480, width: 260, height: 170, color: '2', text: '# It stays on your phone\n\nThe AI that hears you runs on the phone itself. Nothing you say goes anywhere else.'),
+      CanvasNode.text(id: 'phone', x: 160, y: 480, width: 260, height: 170, color: '2', text: words('phone', '# It stays on your phone\n\nThe AI that hears you runs on the phone itself. Nothing you say goes anywhere else.')),
       CanvasNode.file(id: 'every', x: 1120, y: 170, width: 260, height: 150, file: '$sampleTitle.md'),
     ],
     edges: [
@@ -43,4 +59,4 @@ Canvas howCanvas() {
   );
 }
 
-String howCanvasBody() => canvasNoteBody(howTitle, howCanvas());
+String howCanvasBody({bool? voice}) => canvasNoteBody(howTitle, howCanvas(voice: voice));

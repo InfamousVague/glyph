@@ -170,8 +170,11 @@ class Where {
 
 /// The rules, pure, so each is a test (`availability`).
 Availability availability(List<ModelInfo> models, String chosen, Where where) {
-  if (!where.tauri) return const Unavailable(reason: 'The AI runs on the phone. Install Ghost.md on Android to use it.', get: null, waiting: false);
+  // An iPhone first (Matt, 2026-10-13: nothing an iPhone shows names another platform): the page asked whether it
+  // was in the app before it asked which phone, and an iPhone whose backend had not answered would have been told
+  // to install Ghost.md on Android. There is no browser build here for that order to serve.
   if (where.ios) return const Unavailable(reason: 'The AI is not on iOS yet.', get: null, waiting: false);
+  if (!where.tauri) return const Unavailable(reason: 'The AI runs on the phone. Install Ghost.md on Android to use it.', get: null, waiting: false);
   final generation = where.generation;
   if (generation != null && generation < aiGeneration) {
     return const Unavailable(reason: 'The AI needs the newest Ghost.md. Install it from attack.fm/glyph.', get: null, waiting: false);

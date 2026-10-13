@@ -440,7 +440,7 @@ class _LessonCard extends StatelessWidget {
       children: [
         _eyebrow(t, 'Chapter ${chapters.indexOf(lesson.chapter) + 1} · ${lesson.chapter} · $at of ${chapter.length}'),
         _title(t, lesson.title),
-        _teach(t, lesson.teach),
+        _teach(t, teachOf(lesson)),
         // `.example`: the line to look at, in the typewriter face, with a way to have it written for you.
         DecoratedBox(
           key: const ValueKey('academy-example'),
@@ -462,7 +462,7 @@ class _LessonCard extends StatelessWidget {
           ),
         ),
         // `.task`
-        Text(lesson.task, key: const ValueKey('academy-task'), style: t.textAt(_rem(t), weight: 'semibold', color: ink)),
+        Text(taskOf(lesson), key: const ValueKey('academy-task'), style: t.textAt(_rem(t), weight: 'semibold', color: ink)),
         Playground(value: typed, onChange: onTyped, placeholder: lesson.example, extensions: extensions),
         _Foot(
           start: said,
