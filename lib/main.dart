@@ -220,7 +220,7 @@ Future<_Opened> _opened() async {
   try {
     // A debug build in the iPhone's simulator, asked for the store pictures' invented notes, opens no core
     // (lib/shell/phone_tour.dart). Never true in a release: the compiler folds it to false.
-    if (await tourWantsInventedLibrary()) throw StateError('the tour asked for the invented library');
+    if (await tourWantsInventedLibrary() || macTourWantsInventedLibrary()) throw StateError('the tour asked for the invented library');
     // The library's code and where this device keeps things: asked together.
     final (native, dirs) = await (GhostCore.open(), _folders()).wait;
     // On a Mac the Tauri app's library is copied into this app's folder before the core is opened on it

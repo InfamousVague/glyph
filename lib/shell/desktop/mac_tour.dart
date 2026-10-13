@@ -56,6 +56,18 @@ import '../../editor/editor_widget.dart';
 import '../../editor/input/ime.dart';
 import 'mac_window.dart';
 
+/// Whether the script asks for the invented library (its first step is `invented`): the notes the store's
+/// pictures are taken over (lib/core/sample_library.dart `seedLibrary`), drawn in place of this Mac's own library
+/// for that one start, as the iPhone's tour does (lib/shell/phone_tour.dart `tourWantsInventedLibrary`). lib/main.dart
+/// asks before it opens the core, and opens none when this is true. A DEBUG BUILD'S ONLY: `kDebugMode` is a
+/// constant false in a release, so the compiler takes this away to `return false`.
+bool macTourWantsInventedLibrary() {
+  if (!kDebugMode || !runsAsMacApp) return false;
+  final asked = (Platform.environment['GHOST_TOUR'] ?? '').trimLeft().startsWith('invented');
+  if (asked) debugPrint('[tour] the invented library, for the store pictures: no core is opened for this start');
+  return asked;
+}
+
 /// Runs the script in `GHOST_TOUR`, if this is a debug build of the Mac app started with one.
 Future<void> runMacTour() async {
   if (!kDebugMode || !runsAsMacApp) return;
@@ -109,6 +121,9 @@ class _Tour {
 
   Future<void> _step(String name, String arg) async {
     switch (name) {
+      case 'invented':
+        // Read before the app was made ([macTourWantsInventedLibrary]); nothing to do by now.
+        break;
       case 'wait':
         await Future<void>.delayed(Duration(milliseconds: int.parse(arg)));
       case 'shot':
