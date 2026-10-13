@@ -29,17 +29,26 @@
 # the Tauri build was signed (tauri/docs/store/APP_STORE.md). The key is named by ~/.config/mattssoftware/signing/
 # asc-api.env (ASC_KEY_ID, ASC_ISSUER_ID, ASC_KEY_PATH); nothing of it is printed. `flutter build ipa` cannot be
 # handed a key, so Flutter writes the build's settings (`--config-only`) and xcodebuild archives and exports.
+#
+# THE LOOK. Matt chose this look for iPhone on 2026-10-13: the plain one with the slight blur behind the header
+# (lib/app/plain.dart: GHOST_PLAIN=true and GHOST_BAR_BLUR=true; no smoke at a page's edges, no halo round the
+# dock, each pane of glass its tint alone, and one small backdrop filter under the header). Both builds here are
+# given it, so what a simulator shows is what the store's build draws; About's "This build" says "plain: no smoke
+# or blur" on its Kind line (lib/core/build_facts.dart, which names the first define). `--full-look` leaves the
+# two defines out.
 set -eu
 version="${1:?the version, three numbers above 1.10.0: tool/cutover-build-ios.sh 2.0.5}"
 shift
 again=""
 simulator=""
 api=""
+look="--dart-define=GHOST_PLAIN=true --dart-define=GHOST_BAR_BLUR=true"
 while [ $# -gt 0 ]; do
   case "$1" in
     --build) again="${2:?--build takes a number}"; shift 2 ;;
     --simulator) simulator=1; shift ;;
     --api) api="${2:?--api takes an address}"; shift 2 ;;
+    --full-look) look=""; shift ;;
     *) break ;;
   esac
 done
@@ -75,6 +84,7 @@ if [ -n "$simulator" ]; then
     --dart-define=GHOST_VERSION="$version" \
     --dart-define=GHOST_BUILD="$stamp" \
     --dart-define=GHOST_COMMIT="$commit" \
+    $look \
     ${api:+--dart-define=GHOST_API="$api"} \
     "$@"
   built="build/ios/iphonesimulator/Runner.app"
@@ -109,6 +119,7 @@ GHOST_CUTOVER=1 flutter build ios --release --no-codesign --config-only --no-pub
   --dart-define=GHOST_VERSION="$version" \
   --dart-define=GHOST_BUILD="$stamp" \
   --dart-define=GHOST_COMMIT="$commit" \
+  $look \
   "$@"
 
 archive="$out/Ghost.md.xcarchive"
