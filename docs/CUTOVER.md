@@ -970,20 +970,45 @@ Pictures: `build/mac-store-proof/` (not in git; made-up notes). Tests: `test/cor
 - A chosen library folder across a quit; the microphone's prompt and a take; the Mac's own sound in a meeting; a
   model downloaded and run; an export saved; a picture added; an Intel Mac; a Mac that also has the website's build.
 
-### Stopped, and what Matt decides
+### Matt's answers, and what was sent (2026-10-13, UTC)
 
-1. Ship to the store **without carrying over** a website install's notes (sign in and sync is the way across), or
-   build the "bring over" first.
-2. Ship **without Backup to a drive** and without the Guide book, or have them made to work sandboxed first.
-3. Whether the unproven four (folder, microphone, the Mac's sound, models) are tried by hand in the `--proof`
-   build before a reviewer meets them.
+Matt: ship with sign-in and sync and no carry-over from a website install; ship without Backup to a drive and
+without the Guide; "Submit now, fix on rejection", with no hand test first.
 
-### To publish, once decided
+- **Built again** from d7bad1e3 (15:03): the app in `build/mac-store/Ghost.md.app` is signed and verifies (Apple
+  Distribution, hardened runtime, the five entitlements, build 2000005, the export key false). The only change to
+  `lib/` since is the debug tour's `invented` step (9af2f5c3), which a release compiles away.
+- **The package is not signed, so nothing is uploaded.** `productbuild` has been waiting since 15:03 on the
+  Keychain's own panel ("productbuild wants to sign using key …"): the installer certificate's private key lets
+  `codesign` use it in silence and asks for anything else. The first package (14:57) was signed because the panel
+  was answered then; answering "Allow" covers one run, "Always Allow" every run after. It is Matt's to answer: the
+  login password is typed there. The process was left waiting (so answering it finishes
+  `build/mac-store/Ghost.md-2.0.5-2000005.pkg`), and the build lock was let go.
+- **App Store Connect, the macOS version only** (`f4ee033b-…`), through the API
+  (`ghost-md-app-store-pack/tools/mac-listing.mjs`), each read back at 15:23:
+  - the version string 1.0 to **2.0.5**; copyright "2026 Matt Wisniewski"; release `AFTER_APPROVAL`; no phased
+    release exists;
+  - the en-US description (the iPhone's with the Mac's truths: "on your Mac", "until you click it", pictures "from
+    a file or the clipboard", one sentence that a note can be said, a paragraph on tabs, the sidebar, the command
+    palette and the menu's keys), and the iPhone's keywords, promotional text and support address; no marketing
+    address, as on iOS;
+  - **What's New is refused by Apple for a platform's first version** ("Attribute 'whatsNew' cannot be edited at
+    this time"), so there is none;
+  - seven `APP_DESKTOP` screenshots, 2880 x 1800, no alpha, each `COMPLETE`: home, the marks, a board, a query, a
+    ticket, a notebook read through, a canvas. Shot from the store build's debug tour over the invented library
+    (`invented;…`, a 1440 x 900 window) and set under the iPhone set's kicker and caption
+    (`tools/compose-mac-flutter.mjs`); in `ghost-md-app-store-pack/screenshots/2026-10-13-flutter-2.0.5/mac/`;
+  - review details made for the version (`a936cf43-…`): the iPhone's contact, and notes that say an account is
+    optional, the demo account, that this version is sandboxed with its library in its own container, that it is
+    a separate install from the website's and gets a person's notes by signing in, when the microphone is asked
+    for, and that files outside the container are reached only through the system's panels.
+- **Not done**: no build attached, no review submission made. The iOS version and the custom product page were
+  not touched; no territory, price, category, age rating or privacy answer was changed.
 
-1. `tool/cutover-build-mac-store.sh 2.0.5` from a clean, pushed `main`.
-2. `xcrun altool --validate-app -f <pkg> -t macos --apiKey … --apiIssuer …`, then `--upload-app`.
-3. In App Store Connect, on the macOS version only: the version string 1.0 to 2.0.5, the build attached, a Mac
-   description (the iPhone's with "iPhone" made "Mac", and recording, since a Mac records), What's New, Mac
-   screenshots at 2880x1800 (none exist; the tour takes them at `size:1440,900`, flattened of their alpha), the
-   review notes with the demo account and a line that the Mac version is sandboxed and keeps its library in its
-   own container, then submit. Never the iOS version or the custom product page.
+### To finish
+
+1. Answer the Keychain's panel with "Always Allow" (or run `tool/cutover-build-mac-store.sh 2.0.5` again and
+   answer it then). `pkgutil --check-signature` on the package must name the installer certificate.
+2. `xcrun altool --validate-app -f <pkg> -t macos --apiKey … --apiIssuer …`, then `--upload-app`; wait for the
+   build to be `VALID`.
+3. Attach the build to the macOS version, make a review submission holding that version alone, and submit.

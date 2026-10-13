@@ -265,3 +265,12 @@ place is counted from 14:58, not 14:23.**
   touched.
 
 What the seven are and how they are shot again: `apple/listing.md`.
+
+## The Mac App Store (2026-10-13)
+
+The record has a macOS version too (`f4ee033b-5f84-40f1-ba6c-991aa10bba2e`, now 2.0.5, `PREPARE_FOR_SUBMISSION`):
+the Flutter app, sandboxed, built by `tool/cutover-build-mac-store.sh`. Its listing, seven `APP_DESKTOP`
+screenshots and review notes are in place; Apple takes no What's New for a platform's first version. **No Mac
+build is uploaded and nothing is submitted**: the package waits on the Keychain's panel for the installer key,
+which is Matt's to answer. `docs/CUTOVER.md`, section 9, has all of it and the three steps left.
+
