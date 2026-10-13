@@ -7,7 +7,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>Ghost Flutter</string>
+	<string>$(GHOST_APP_NAME)</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>Ghost Flutter</string>
+	<string>$(GHOST_APP_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>
@@ -25,7 +25,8 @@
 	<!-- The app's own links, as the real iPhone app claims them (tauri/src-tauri/Info.ios.plist): a shared
 	     note, an invitation, "written up" (lib/share/app_links.dart). An iPhone with both apps hands a link to
 	     whichever it chooses (README, "What the iPhone app left open"). `glyph://`, which the real app keeps for
-	     a voice-note shortcut nothing answers yet, is not claimed. -->
+	     a voice-note shortcut nothing answers yet, is not claimed. The real app claims no universal links (its
+	     entitlements are empty and its deep-link plugin has `appLink` false), so neither does this. -->
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -41,6 +42,18 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
+	<!-- Export compliance, answered for THIS binary and not carried over from the Tauri app's. Its answer was
+	     false because all its encryption on an iPhone was Apple's own (WebCrypto in WKWebView). This app seals
+	     notes with standard algorithms in code it carries itself (the Rust core, native/src/crypto.rs: AES-256-GCM,
+	     PBKDF2 and HKDF over SHA-256, ECDH on P-256, Ed25519), and its HTTPS is the Flutter engine's BoringSSL, not
+	     URLSession. Apple's table (App Store Connect Help, "Export compliance documentation for encryption") puts
+	     "an industry standard algorithm, not provided within the Apple operating system" under a French encryption
+	     declaration when the app is sold in France, so the honest value while that is so is true, and App Store
+	     Connect then asks its questions for the build. THE CHOICE IS MATT'S (docs/CUTOVER.md, section 8, "Export
+	     compliance"): answer and file the declaration, or move the iPhone's encryption and HTTPS onto Apple's
+	     frameworks and put false back. -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<true/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSRequiresIPhoneOS</key>

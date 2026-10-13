@@ -25,9 +25,10 @@ bool _inMacApp({required String executable, required bool macOS, required bool t
 const String realAppId = 'com.mattssoftware.glyph';
 
 /// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`: tool/cutover-build.sh
-/// for a phone, tool/cutover-build-mac.sh for a Mac; docs/CUTOVER.md). On a Mac that build has the Tauri app's
-/// bundle id and still a folder of its own (`com.mattssoftware.glyph.v2`, macos/Runner/GhostChannels.swift
-/// `cutoverFolder`), into which what the Tauri app kept is copied once (lib/carry/mac_carry.dart).
+/// for a phone, tool/cutover-build-mac.sh for a Mac, tool/cutover-build-ios.sh for an iPhone; docs/CUTOVER.md). On
+/// a Mac and on an iPhone that build has the Tauri app's bundle id and still a folder of its own
+/// (`com.mattssoftware.glyph.v2`, `cutoverFolder` in each Runner's GhostChannels.swift), into which what the Tauri
+/// app kept is copied once (lib/carry/mac_carry.dart, lib/carry/iphone_carry.dart).
 const bool replacesTauriApp = bool.fromEnvironment('GHOST_CUTOVER');
 
 /// Whether [path] is the Tauri app's own folder or a place inside it: any path with a folder named exactly

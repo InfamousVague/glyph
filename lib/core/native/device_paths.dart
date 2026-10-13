@@ -22,7 +22,10 @@
 /// **In the iPhone app** they are the same two names inside the app's container
 /// (`<container>/Library/Application Support/com.mattssoftware.glyph.flutter` and `…/Library/Caches/…`), answered
 /// by ios/Runner/GhostChannels.swift: where Tauri's `app_data_dir` and `app_cache_dir` are on an iPhone. No other
-/// app's files can be reached from there, the real Ghost.md's included.
+/// app's files can be reached from there, the real Ghost.md's included. The build that replaces the Tauri iPhone
+/// app has that app's bundle id and so wakes in that app's own container, beside its folder; it is answered
+/// `com.mattssoftware.glyph.v2` as the Mac's is, the same refusal stands for it, and what the Tauri app kept is
+/// copied in once (lib/carry/iphone_carry.dart; docs/CUTOVER.md §8).
 ///
 /// **Anywhere else** (a test on the Mac, a `flutter run` outside an app bundle) it is a folder under the system's
 /// temporary directory, so the app runs and nothing of a person's is mistaken for it.

@@ -1,0 +1,21 @@
+// Which app an iPhone build is: its name under the icon and its bundle id. Included by Debug.xcconfig and
+// Release.xcconfig, and read by the Runner target (Runner.xcodeproj: PRODUCT_BUNDLE_IDENTIFIER) and its Info.plist
+// (CFBundleDisplayName, CFBundleName). The Mac's twin is macos/Runner/Configs/AppInfo.xcconfig.
+//
+// Told nothing, or 0, a build is Ghost Flutter, com.mattssoftware.glyph.flutter: an app of its own beside the real
+// one, with a container of its own, as it always was.
+//
+// THE BUILD THAT REPLACES THE TAURI iPHONE APP is the one exception, and is asked for by name: GHOST_CUTOVER=1 in
+// the environment of the build (tool/cutover-build-ios.sh; xcodebuild reads its environment as build settings). It
+// is that app's next version in the App Store (Ghost Markdown, 6818598896), so it has that app's name and id and
+// wakes in that app's container; it still keeps a folder of its own there (ios/Runner/GhostChannels.swift
+// `cutoverFolder`) and only ever copies out of the Tauri app's (docs/CUTOVER.md, section 8).
+GHOST_APP_NAME_ = Ghost Flutter
+GHOST_APP_NAME_0 = Ghost Flutter
+GHOST_APP_NAME_1 = Ghost.md
+GHOST_APP_ID_ = com.mattssoftware.glyph.flutter
+GHOST_APP_ID_0 = com.mattssoftware.glyph.flutter
+GHOST_APP_ID_1 = com.mattssoftware.glyph
+
+GHOST_APP_NAME = $(GHOST_APP_NAME_$(GHOST_CUTOVER))
+GHOST_APP_ID = $(GHOST_APP_ID_$(GHOST_CUTOVER))

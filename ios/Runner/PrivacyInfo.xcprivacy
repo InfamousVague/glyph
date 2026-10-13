@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  The iPhone app's privacy manifest, which App Store Connect requires (tauri/docs/store/APP_STORE.md, "The 2.x
+  build"). A resource of the Runner: Xcode copies it to the top of the app. The Tauri iPhone app's
+  (tauri/src-tauri/gen/apple/glyph_iOS/PrivacyInfo.xcprivacy) is what this was made from, and the App Privacy
+  answers in App Store Connect were given to match that one.
+
+  Tracking: none. No analytics, no ads, no third-party SDK (landing/privacy.html).
+
+  Collected data: only with an account, and only to sync, as the Tauri app's four. The handle is the account's
+  user id; notes and their pictures are uploaded sealed on the phone, which the service cannot read, and are
+  declared all the same rather than argued out of the label. Audio stays declared although an iPhone records
+  nothing: a recording made on another device is fetched and can be played here, and the store's answers already
+  say it. Location is not here: an iPhone build finds no position (README, "What the iPhone app left open").
+
+  Required-reason APIs, for the app's own code (the Rust core linked into the Runner, and the Dart). What links
+  them was read from the core's library (nm: stat, lstat, fstat, fstatat; statfs, fstatfs, statvfs; clock_gettime).
+  The engine (Flutter.framework: FileTimestamp, SystemBootTime) and the one plugin (shared_preferences_foundation:
+  UserDefaults) carry manifests of their own for what they call.
+    FileTimestamp C617.1  the times and sizes of files in the app's own container: the library's notes (the core
+                          lists them by when each was written), SQLite, and the carry, which keeps a note's time.
+    DiskSpace E174.1      SQLite asks what kind of volume its file is on (statfs), and the core's backup asks how
+                          much room a drive has before it writes to it (statvfs; not offered on an iPhone, but
+                          linked): nothing is shown but the app's own sentence, and nothing leaves the phone.
+    SystemBootTime 35F9.1 std::time::Instant (clock_gettime), for measuring time within the app.
+    UserDefaults CA92.1   the app's own settings, kept through shared_preferences in the app's own defaults.
+-->
+<plist version="1.0">
+<dict>
+	<key>NSPrivacyTracking</key>
+	<false/>
+	<key>NSPrivacyTrackingDomains</key>
+	<array/>
+	<key>NSPrivacyCollectedDataTypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeUserID</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeOtherUserContent</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypePhotosorVideos</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyCollectedDataType</key>
+			<string>NSPrivacyCollectedDataTypeAudioData</string>
+			<key>NSPrivacyCollectedDataTypeLinked</key>
+			<true/>
+			<key>NSPrivacyCollectedDataTypeTracking</key>
+			<false/>
+			<key>NSPrivacyCollectedDataTypePurposes</key>
+			<array>
+				<string>NSPrivacyCollectedDataTypePurposeAppFunctionality</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSPrivacyAccessedAPITypes</key>
+	<array>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryFileTimestamp</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>C617.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryDiskSpace</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>E174.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategorySystemBootTime</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>35F9.1</string>
+			</array>
+		</dict>
+		<dict>
+			<key>NSPrivacyAccessedAPIType</key>
+			<string>NSPrivacyAccessedAPICategoryUserDefaults</string>
+			<key>NSPrivacyAccessedAPITypeReasons</key>
+			<array>
+				<string>CA92.1</string>
+			</array>
+		</dict>
+	</array>
+</dict>
+</plist>

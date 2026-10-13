@@ -100,8 +100,9 @@ class NoMacCarryDevice implements MacCarryDevice {
 }
 
 /// The whole carry for a Mac: [TauriCarry] over the Mac's ground. [ownDataDir] is this app's own folder, which
-/// must not be the Tauri app's or inside it.
-TauriCarry macCarry({required String ownDataDir, required CarryPrefs prefs, required SecureStore secure, MacCarryDevice device = const ChannelMacCarryDevice(), String? standIn, DateTime Function()? now}) {
+/// must not be the Tauri app's or inside it. [host] is what the log calls the device: an iPhone's carry is this
+/// one over the same ground inside the app's container (lib/carry/iphone_carry.dart).
+TauriCarry macCarry({required String ownDataDir, required CarryPrefs prefs, required SecureStore secure, MacCarryDevice device = const ChannelMacCarryDevice(), String? standIn, DateTime Function()? now, String host = 'a Mac'}) {
   if (isRealAppPath(ownDataDir)) throw StateError('The carry writes into this app’s own folder, never Ghost.md’s first one.');
   final places = MacPlaces.beside(ownDataDir, standIn: standIn);
   return TauriCarry(
@@ -109,7 +110,7 @@ TauriCarry macCarry({required String ownDataDir, required CarryPrefs prefs, requ
     prefs: prefs,
     secure: secure,
     device: const NoCarryDevice(),
-    source: MacCarrySource(places: places, device: device),
+    source: MacCarrySource(places: places, device: device, host: host),
     files: MacCarryFiles(from: places.tauriData, to: ownDataDir, device: device),
     now: now,
   );
@@ -139,10 +140,13 @@ List<({String context, String blob})> accountProbesIn(Map<String, String> local)
 }
 
 class MacCarrySource implements CarrySource {
-  MacCarrySource({required this.places, required this.device});
+  MacCarrySource({required this.places, required this.device, this.host = 'a Mac'});
 
   final MacPlaces places;
   final MacCarryDevice device;
+
+  /// What the log calls the device.
+  final String host;
 
   @override
   String get filesDir => places.tauriData;
@@ -179,7 +183,7 @@ class MacCarrySource implements CarrySource {
     return CarryRead(
       local: web.local,
       fromWebView: false,
-      webFailure: 'a Mac has none to ask',
+      webFailure: '$host has none to ask',
       diskCount: web.local.length,
       keys: keys,
       idbDamaged: web.damaged,

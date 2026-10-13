@@ -1,6 +1,7 @@
 import Flutter
 import ImageIO
 import PhotosUI
+import Security
 import UIKit
 import UniformTypeIdentifiers
 
@@ -20,10 +21,26 @@ import UniformTypeIdentifiers
 ///
 /// THE APP'S FILES ARE ITS OWN. The bundle id is `com.mattssoftware.glyph.flutter`, and an iPhone app sees nothing
 /// outside its container, so the real Ghost.md's library (`com.mattssoftware.glyph`) cannot be opened, moved or
-/// written from here. `dirs` refuses to answer at all should a build ever carry the real app's own id.
+/// written from here.
+///
+/// THE BUILD THAT REPLACES THE TAURI iPHONE APP (tool/cutover-build-ios.sh; docs/CUTOVER.md §8) has that app's
+/// bundle id, since it is that app's next version in the App Store, and so WAKES IN THAT APP'S CONTAINER, beside
+/// what 1.10.0 kept there: `Library/Application Support/com.mattssoftware.glyph` (the notes, the pictures) and
+/// `Library/WebKit/com.mattssoftware.glyph` (the page's settings, session and keys). It keeps a folder of its
+/// own all the same, as the Mac's build does and for the Mac's reasons: `com.mattssoftware.glyph.v2` under
+/// Application Support and under Caches ([cutoverFolder]). Not the Tauri app's folder and not a folder inside it,
+/// so the rule every build is held to stays whole (no path with a folder named `com.mattssoftware.glyph` in it is
+/// ever written, [ownDirectory]) and what 1.10.0 kept is exactly as it left it for as long as the app is
+/// installed. Beside it and under the same two parents, so it is kept the way the old folder was: Application
+/// Support is in an iCloud or computer backup and is not shown in Files (the app shares no Documents), Caches is
+/// in neither. What the Tauri app kept is copied in once (lib/carry/iphone_carry.dart). `dirs` answers nothing
+/// for a build whose folder would come out as the Tauri app's.
 final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
-  /// The real app's bundle id: never this app's.
+  /// The Tauri app's bundle id: this app's only in the build that replaces it, and never the name of its folder.
   static let realApp = "com.mattssoftware.glyph"
+
+  /// The folder of the build that replaces the Tauri app, under Application Support and under Caches.
+  static let cutoverFolder = "com.mattssoftware.glyph.v2"
 
   private let tape: TapeChannel
   private let clips: TapeChannel
@@ -45,6 +62,22 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
         return result(FlutterError(code: "paths", message: "Ghost Flutter will not open another app's files.", details: nil))
       }
       result(["dataDir": dirs.data.path, "cacheDir": dirs.cache.path])
+    }
+
+    // The carry from the Tauri app (lib/carry/iphone_carry.dart, over the Mac's `MacCarryDevice`): the two things
+    // only the phone can do for it. Nothing here writes outside this app's own folder, and nothing is asked of
+    // the person.
+    listen("ghost_md/tauri_carry", messenger) { call, result in
+      let args = call.arguments as? [String: Any]
+      switch call.method {
+      case "masterKey":
+        result(GhostChannels.webCryptoMasterKey())
+      case "clone":
+        guard let from = args?["from"] as? String, let to = args?["to"] as? String else { return result(false) }
+        result(GhostChannels.clone(from: from, to: to))
+      default:
+        result(FlutterMethodNotImplemented)
+      }
     }
 
     listen("ghost_md/open", messenger) { call, result in
@@ -151,18 +184,67 @@ final class GhostChannels: NSObject, FlutterSceneLifeCycleDelegate {
   // MARK: files
 
   /// `<Application Support>/<bundle id>` and `<Caches>/<bundle id>`, as Tauri names its two (`app_data_dir`,
-  /// `app_cache_dir`) and the Mac app's are, inside this app's own container. Nil for a build with the real app's
-  /// id.
+  /// `app_cache_dir`), inside this app's own container; for the build that has the Tauri app's id,
+  /// [cutoverFolder] in place of the id. Nil should either ever come out as the Tauri app's folder or a place
+  /// inside it.
   static func dirs() -> (data: URL, cache: URL)? {
-    guard let id = Bundle.main.bundleIdentifier, id != realApp, !id.isEmpty else { return nil }
     let manager = FileManager.default
-    guard let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first, let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else { return nil }
-    let data = support.appendingPathComponent(id, isDirectory: true), cache = caches.appendingPathComponent(id, isDirectory: true)
-    // Belt and braces: whatever the container says, never the real app's folder.
-    if data.lastPathComponent == realApp || cache.lastPathComponent == realApp { return nil }
+    guard let id = Bundle.main.bundleIdentifier, let support = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first, let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first,
+      let data = ownDirectory(in: support, id: folderName(id: id)), let cache = ownDirectory(in: caches, id: folderName(id: id))
+    else { return nil }
     try? manager.createDirectory(at: data, withIntermediateDirectories: true)
     try? manager.createDirectory(at: cache, withIntermediateDirectories: true)
     return (data, cache)
+  }
+
+  /// What this app's folder is called for a build with the bundle id `id`.
+  static func folderName(id: String) -> String { id == realApp ? cutoverFolder : id }
+
+  /// This app's folder under `base`: `<base>/<id>`, for an id that is not the Tauri app's, and never the Tauri
+  /// app's folder there or anything inside it (an id with a `/` or a `..` in it could otherwise name one). The
+  /// Mac's rule, word for word (macos/Runner/GhostChannels.swift).
+  static func ownDirectory(in base: URL, id: String) -> URL? {
+    guard !id.isEmpty, id != realApp, !id.contains("/"), !id.contains("..") else { return nil }
+    let own = base.appendingPathComponent(id, isDirectory: true).standardizedFileURL
+    let theirs = base.appendingPathComponent(realApp, isDirectory: true).standardizedFileURL
+    let ownParts = own.pathComponents, theirParts = theirs.pathComponents
+    if ownParts.count >= theirParts.count && Array(ownParts.prefix(theirParts.count)) == theirParts { return nil }
+    return own
+  }
+
+  // MARK: the carry from the Tauri app
+
+  /// What the phone's Keychain holds as the Tauri app's "WebCrypto Master Key", as base64, for the carry to open
+  /// the keys that app's web view kept (lib/carry/webkit_stores.dart). READ, never changed or removed.
+  ///
+  /// It is WebKit's own item, made in the app's process the first time its page stored a `CryptoKey`: a generic
+  /// password with the account `com.apple.WebKit.WebCrypto.master+<bundle id>` and no service, readable while the
+  /// phone is unlocked, in the app's own access group, `<team>.<bundle id>` (seen in a simulator's keychain as
+  /// `F6ZAL7ANAD.com.mattssoftware.glyph`). An iPhone hands an item to whatever is signed into its access group
+  /// and to nothing else, with no panel either way: the build that replaces the Tauri app is the same id signed
+  /// by the same team, so it is handed it, and any other build asks for another account's item and finds none.
+  /// Only that build asks.
+  static func webCryptoMasterKey() -> String? {
+    guard Bundle.main.bundleIdentifier == realApp else { return nil }
+    let query: [CFString: Any] = [
+      kSecClass: kSecClassGenericPassword,
+      kSecAttrAccount: "com.apple.WebKit.WebCrypto.master+\(realApp)",
+      kSecAttrSynchronizable: false,
+      kSecReturnData: true,
+      kSecMatchLimit: kSecMatchLimitOne,
+    ]
+    var found: CFTypeRef?
+    guard SecItemCopyMatching(query as CFDictionary, &found) == errSecSuccess, let data = found as? Data else { return nil }
+    return data.base64EncodedString()
+  }
+
+  /// A clone of one file: a second name for the same blocks (an iPhone's disk is APFS), each then changing alone.
+  /// Only ever INTO this app's own folder, and never over a file.
+  static func clone(from: String, to: String) -> Bool {
+    guard let dirs = dirs() else { return false }
+    let target = URL(fileURLWithPath: to).standardizedFileURL.path
+    guard target.hasPrefix(dirs.data.standardizedFileURL.path + "/") else { return false }
+    return clonefile(from, target, UInt32(CLONE_NOFOLLOW)) == 0
   }
 
   // MARK: pictures
