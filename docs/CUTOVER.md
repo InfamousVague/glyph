@@ -888,3 +888,102 @@ behind the header (`GHOST_PLAIN`, `GHOST_BAR_BLUR`, which `tool/cutover-build-io
 6. There is no way back on a phone: the App Store installs no earlier version. The Tauri app's folders are still
    in the container, untouched, for a later build to read if this one's carry failed somebody.
 
+
+## 9. The Mac App Store
+
+Matt, 2026-10-13: "upload a newer Mac version (the flutter port) and submit it for review". The build is made,
+signed and proven under its sandbox. **Nothing has been uploaded and nothing in App Store Connect was changed**: the
+store's build leaves out things a Mac from the website has, and whether to ship without them is Matt's to say
+("Stopped, and what Matt decides" below).
+
+### What was true before anything was built (App Store Connect, read only)
+
+- The record (Ghost Markdown, 6818598896) already has a macOS platform: a version "1.0"
+  (`f4ee033b-5f84-40f1-ba6c-991aa10bba2e`), made 2026-10-02, `PREPARE_FOR_SUBMISSION`, release after approval, with
+  an empty en-US listing and no screenshots. No Mac build was ever uploaded. No other record is a Mac Ghost.md.
+- The bundle id `com.mattssoftware.glyph` is registered `UNIVERSAL`, so the Mac build shares it and the purchase.
+- The Keychain holds both certificates a Mac store upload needs: "Apple Distribution" and "3rd Party Mac Developer
+  Installer", team F6ZAL7ANAD. No Mac App Store provisioning profile exists; none is needed for these entitlements
+  (one would be for TestFlight on a Mac).
+- Apple's pages, fetched that day: the App Sandbox entitlement "is an App Store requirement for any app that you
+  submit to the Mac App Store"; a Mac build for an existing iOS record is uploaded "from a separate Xcode target"
+  with the same bundle id and may have its own version and build numbers; Mac screenshots are required, 16:10, one
+  of 1280x800, 1440x900, 2560x1600, 2880x1800, no alpha.
+
+### The build: `tool/cutover-build-mac-store.sh 2.0.5`
+
+`build/mac-store/Ghost.md-2.0.5-2000005.pkg`: Ghost.md, `com.mattssoftware.glyph`, 2.0.5 (2000005), universal (the
+app, Flutter's frameworks and the Rust core each `x86_64 arm64`), macOS 13.1 and later, the app signed "Apple
+Distribution" with the hardened runtime and macos/Runner/Store.entitlements, the package signed "3rd Party Mac
+Developer Installer", about 52 MB. The script uploads nothing. The website's build
+(`tool/cutover-build-mac.sh`), the Xcode project, its Info.plist and its entitlements are untouched: the store's
+differences are a Dart define (`GHOST_MAC_STORE=true`, lib/core/mac_app.dart `macAppStore`), what the Swift does
+when it finds itself sandboxed (`GhostChannels.sandboxed`), and what the script does to a copy of the built app
+(the export key at false, the privacy manifest, the signature). The look is the Mac's own, not the iPhone's plain
+one.
+
+Entitlements, five: `app-sandbox`; `network.client` (sync, the relay, model downloads, link previews, map tiles,
+plugins); `device.audio-input` (the microphone while recording); `files.user-selected.read-write` (the library
+folder, an export's zip, a picture, each chosen in a panel); `files.bookmarks.app-scope` (the chosen folder kept
+past a quit).
+
+### What the sandbox changes
+
+| | In the store's build |
+| --- | --- |
+| Where the files are | `~/Library/Containers/com.mattssoftware.glyph/Data/Library/Application Support/com.mattssoftware.glyph.v2` (and `…/Caches/…`): the same two names, inside the container, with no code changed. The container's own name is the Tauri app's id, so `isRealAppPath` is not asked of a build that is the store's and really sandboxed; the kernel keeps it to its files. |
+| What a Mac from the website kept (1.15.0's folder, 2.0.x's `…glyph.v2`, WebKit's files, the Keychain items) | **Not carried.** A sandboxed app cannot read them. The store's build starts as a new install; signing in brings every synced note. Notes of a website install that was never signed in do not appear. A one-time "bring over" through an open panel was not built: the files could be copied, the keys could not, and merging a copied library with a fresh sign-in was not something to guess at. |
+| The Keychain | A service of its own, `com.mattssoftware.glyph.store.secure`, so it never asks for the website build's items (which would put the Keychain's panel up). |
+| A library folder the person chose | Kept as a security-scoped bookmark in the app's defaults and taken up again before the core opens (FilesChannel.swift). **Written, not proven**: the panel has to be answered by a hand. |
+| Backup to a drive | **Hidden.** The core asks `diskutil` which disks are removable and writes a drive by its path; neither is a sandboxed app's to do. Export is still there. |
+| Export, adding a picture | The Mac's own panels: unchanged. |
+| Recording, a meeting with the Mac's own sound | The microphone has its entitlement and its sentence. The tap on the Mac's sound (the core, CoreAudio) is unchanged and **not proven sandboxed**. |
+| Models | Downloaded by the core into the container (gigabytes, there); run in the app's own process. Nothing downloaded is executed. No process is started but `diskutil`, which only Backup called. |
+| Updates | None checked anywhere, as on every Mac build; About says "Ghost.md updates through the App Store." |
+| Ghost.md: The Guide | Not offered (it is about the side key, the Fold and how the Android app is built). The example canvas says "Click the microphone" and "on your Mac". |
+| Links, `ghostmd://`, the Claude connector | Unchanged: links open through the system; the connector is the hosted one and starts nothing on the Mac. |
+
+### Proven (2026-10-13)
+
+`--tour` and `--proof` make the same source under the same entitlements, to run here: another bundle id
+(`com.mattssoftware.glyph.storeproof`), `ghostmd:` not claimed, signed ad hoc, a local service
+(`tool/local-server.sh`) and a dead address for models; the tour is a debug build, so it also has `cs.allow-jit`
+and `cs.disable-library-validation`.
+
+- The debug build, walked from inside over seven launches: secinitd says "AppSandbox request successful"; the
+  folders it is told are in its container; a secret written, read and removed; an account made on the local
+  service; a note written (`…/Library/Inbox/Sandbox proof note.md`, in the container); a second device
+  (`tool/web_client.mjs`) read its nine notes and wrote one, which arrived in the container; after a quit it was
+  still signed in ("storeproof · synced just now", "End-to-end encrypted") with its notes; Settings lists no
+  Backup; About says the App Store's sentence and offers no Guide. One denial each launch, `network-bind local:*:0`:
+  Dart's debugging service, which a release has not.
+- The release build, started once: sandboxed, every file it held open inside its container, **no denial**.
+- The package: the app inside verifies, with exactly the five entitlements, the hardened runtime, the export key
+  false, the privacy manifest and a universal core.
+
+Pictures: `build/mac-store-proof/` (not in git; made-up notes). Tests: `test/core/mac_store_test.dart` (17).
+
+### Not proven
+
+- The package itself running (macOS starts a store-signed app only from the store): TestFlight or review is its
+  first launch. `xcrun altool --validate-app` was not run.
+- A chosen library folder across a quit; the microphone's prompt and a take; the Mac's own sound in a meeting; a
+  model downloaded and run; an export saved; a picture added; an Intel Mac; a Mac that also has the website's build.
+
+### Stopped, and what Matt decides
+
+1. Ship to the store **without carrying over** a website install's notes (sign in and sync is the way across), or
+   build the "bring over" first.
+2. Ship **without Backup to a drive** and without the Guide book, or have them made to work sandboxed first.
+3. Whether the unproven four (folder, microphone, the Mac's sound, models) are tried by hand in the `--proof`
+   build before a reviewer meets them.
+
+### To publish, once decided
+
+1. `tool/cutover-build-mac-store.sh 2.0.5` from a clean, pushed `main`.
+2. `xcrun altool --validate-app -f <pkg> -t macos --apiKey … --apiIssuer …`, then `--upload-app`.
+3. In App Store Connect, on the macOS version only: the version string 1.0 to 2.0.5, the build attached, a Mac
+   description (the iPhone's with "iPhone" made "Mac", and recording, since a Mac records), What's New, Mac
+   screenshots at 2880x1800 (none exist; the tour takes them at `size:1440,900`, flattened of their alpha), the
+   review notes with the demo account and a line that the Mac version is sandboxed and keeps its library in its
+   own container, then submit. Never the iOS version or the custom product page.
