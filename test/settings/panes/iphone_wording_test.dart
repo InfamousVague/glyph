@@ -11,6 +11,7 @@ import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/guide/pages.dart';
 import 'package:ghost_md/guide/too_soon.dart';
 import 'package:ghost_md/settings/panes/about_pane.dart';
+import 'package:ghost_md/settings/settings_sheet.dart';
 
 import 'support.dart';
 
@@ -118,6 +119,11 @@ void main() {
   });
 
   group('Settings on an iPhone', () {
+    test('About’s row says whose the updates are, where another build says how its check stands', () {
+      expect(updatesSummary(SettingsUpdates(version: '2.0.5', store: 'appstore')), 'Updates through the App Store');
+      expect(updatesSummary(SettingsUpdates(version: '2.0.5', onCheck: () {})), 'Not checked yet');
+    });
+
     testWidgets('About offers no Guide and promises no model; elsewhere both are as they were', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await openPane(tester, 'about');

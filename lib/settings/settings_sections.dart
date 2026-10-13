@@ -275,7 +275,8 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.hardDriveDownload,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
-    summary: (facts) => _static('Everything as one zip', facts),
+    // An iPhone exports nothing yet, and its page says so (export_pane.dart): the row does not promise a zip.
+    summary: (facts) => _static(facts.ios ? 'Not on iPhone yet' : 'Everything as one zip', facts),
     settings: (facts) => exportFindable,
     pane: ExportPane.hosted,
   ),

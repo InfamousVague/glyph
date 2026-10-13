@@ -55,6 +55,8 @@ String updatesStatus(SettingsUpdates updates) {
 
 /// About's reading in the list of sections, after the version: the same ladder, shorter (`updatesSummary`).
 String updatesSummary(SettingsUpdates updates) {
+  // An iPhone's copy checks nothing (Matt, 2026-10-13): its row says whose its updates are, as its page does.
+  if (updates.store == 'appstore') return 'Updates through the App Store';
   if (updates.checking) return 'Checking';
   if (updates.installable != null) return '${updates.installable} ready to install';
   if (updates.ready) return 'New version downloaded';
