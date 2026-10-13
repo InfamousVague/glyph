@@ -865,6 +865,12 @@ behind the header (`GHOST_PLAIN`, `GHOST_BAR_BLUR`, which `tool/cutover-build-io
   ("Markdown, supercharged!") was already waiting for review from 06:08 that day; it is somebody else's
   submission and was not touched.
 
+- **Sent.** Built again from b656aca3 with the key at false, validated and uploaded with `xcrun altool` (14:21),
+  processed `VALID` with `usesNonExemptEncryption` false (build c178c4e6-fbcd-4eb2-8d01-4a6ec6fbda79), attached
+  to version 2.0.5 and submitted at 14:23:46 (review submission 5345088b-60f0-498e-b522-244704ccb652): **2.0.5 is
+  Waiting for Review**, to be released automatically once approved. The reviewers' demo account still holds the
+  canvas with "press the side key"; nobody signed in to it.
+
 ### To publish, in order
 
 1. `tool/cutover-build-ios.sh <version>` from a clean, pushed `main`. It prints the IPA's path.

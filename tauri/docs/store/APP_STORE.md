@@ -229,3 +229,21 @@ status.
 2. The key left out, and the build's question answered in App Store Connect by Matt himself.
 3. Keep `true`, put France back and file the French declaration, and use the code Apple gives.
 
+
+### Sent for review (2026-10-13, UTC)
+
+- **Built again** from b656aca3 at 14:16 with the key at `false`: the same IPA facts (2.0.5, 2000005, iPhone only,
+  the privacy manifest, Apple Distribution, the plain look), `ITSAppUsesNonExemptEncryption` false and no
+  `ITSEncryptionExportComplianceCode`.
+- **Validated** (14:19, "VERIFY SUCCEEDED with no errors") and **uploaded** (14:21, "UPLOAD SUCCEEDED with no
+  errors", delivery c178c4e6-fbcd-4eb2-8d01-4a6ec6fbda79) with `xcrun altool`, `API_PRIVATE_KEYS_DIR` naming the
+  folder of the suite's key.
+- **Processed** by 14:23: build `c178c4e6-fbcd-4eb2-8d01-4a6ec6fbda79`, `VALID`, `usesNonExemptEncryption` false
+  as the Info.plist says it, so App Store Connect asked nothing more of it.
+- **Attached** to version 2.0.5 (`5ae0a271-d667-4d63-b228-b3ad1b06cd61`); What's New, `AFTER_APPROVAL` and no
+  phased release read back as set.
+- **Submitted** at 14:23:46 in a review submission of its own, `5345088b-60f0-498e-b522-244704ccb652`: the
+  version reads `WAITING_FOR_REVIEW`. The custom product page's submission (97437960-…, waiting since 06:08)
+  was not touched and did not stand in the way.
+- **For Matt still**: the reviewers' demo account holds the old "How Ghost.md works" canvas ("press the side
+  key"); nobody signed in to it. The yearly U.S. self-classification report, if one is owed.
