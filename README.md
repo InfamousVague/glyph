@@ -557,6 +557,11 @@ tools, Settings › Plugins and Notion's own page, a `{?…}` blank drawn in a n
 on the keyboard's bar with its count, and a ticket's Due sheet with the phone's calendar opened from Pick a date.
 The pictures of both walks were the session's own and are not kept.
 
+**The build that goes to the App Store is made since 2026-10-13** (`tool/cutover-build-ios.sh`; `docs/CUTOVER.md`,
+section 8: the real id, a folder of its own in the real app's container, the carry, the privacy manifest, the
+signed IPA, and what is still to prove on a phone). What follows is the list as it stood on 2026-10-09, kept for
+its reasons.
+
 **What a TestFlight or App Store build needs** (none of it done: nothing was signed with a distribution identity,
 uploaded, or asked of App Store Connect). The real app's own road is `tauri/docs/store/APP_STORE.md` and
 `~/Development/Apps/ghost-md-app-store-pack`; what carries over and what does not:

@@ -135,3 +135,35 @@ Xcode 27.0 (Swift 6.4), Tauri CLI 2.11, from a worktree at main:
 5. `xcrun altool --validate-app` then `--upload-app -t ios --apiKey ... --apiIssuer ...`.
 
 The next version's build number must be higher than 1.10.0.
+
+## The 2.x build (2026-10-13)
+
+1.10.0 was accepted. The next version sent for review is the Flutter app at the repository's root, under the same
+record and id, as an update over it: `docs/CUTOVER.md`, section 8, is the whole of it (what 1.10.0 keeps on an
+iPhone, what the new app carries across and how that was proven in a simulator, and what a real iPhone has still
+to show). What changes of this file's:
+
+- **The build** is `tool/cutover-build-ios.sh <version>` at the root, not `tauri ios build`. It signs the same way
+  (automatic, team F6ZAL7ANAD, the suite's App Store Connect key handed to `xcodebuild`, Xcode keeping "iOS Team
+  Store Provisioning Profile: com.mattssoftware.glyph"), runs the export with `/usr/bin` first in `PATH`, makes the
+  checks of step 4 above itself, and uploads nothing. None of the three breakages above apply: there is no
+  swift-rs and no Tauri in it.
+- **The version and the build**: 2.0.5, build 2000005 (one number, above "1.10.0" at its first; a second upload
+  of the same version is `--build 2`, 2000005.2).
+- **The privacy manifest** is `ios/Runner/PrivacyInfo.xcprivacy`: the same four collected types and the same four
+  required-reason APIs as this app's, so the App Privacy answers stand.
+- **The Info.plist** is `ios/Runner/Info.plist`: Ghost.md, the camera's sentence, **no microphone sentence** (the
+  build opens none), `ghostmd://` and not `glyph://`, the scene manifest, no entitlements.
+- **Export compliance is no longer "false: all encryption is Apple's".** The Flutter app seals notes with its own
+  Rust (AES-256-GCM, PBKDF2, HKDF, ECDH P-256, Ed25519) and its HTTPS is the engine's BoringSSL. Apple's table puts
+  "an industry standard algorithm, not provided within the Apple operating system" under a French encryption
+  declaration where the app is sold in France. The key is `true` in the new plist until Matt chooses: answer and
+  file, or move the iPhone's encryption onto Apple's frameworks and put `false` back (`docs/CUTOVER.md`, section
+  8, "Export compliance").
+- **Still true as written**: delete account, the privacy policy, "Ghost.md updates through the App Store", no
+  downloaded code, nothing paid, no social sign-in, iPhone only, and the reviewers' demo account.
+- **Still the page's own words, in both apps**: "press the side key" on the How Ghost.md works canvas, "on
+  Android" in the Academy's video lesson, and Settings › Account's "Sync meeting recordings".
+- **The listing** (`apple/listing.md`): the seven screenshots are of the Tauri page and are to be shot again from
+  the new build; What's New needs its text; the rest stands.
+

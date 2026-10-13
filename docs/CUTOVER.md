@@ -9,7 +9,8 @@ code kept on a branch.
 This file is what that takes on Android: what is built (branch `cutover`), what was proven and how, what was not,
 and what whoever publishes has to do, in order. **Nothing in sections 1 to 4 and 6 has been published, deployed or put on a
 phone.** The Tauri app's tree was read and never changed for them. Section 5, the repository's move, is done.
-Section 7 is the same for the Mac, where almost nothing is where it is on a phone.
+Section 7 is the same for the Mac, where almost nothing is where it is on a phone, and section 8 for the iPhone,
+which is the Mac's carry inside an app's container and the App Store's rules around it.
 
 Paths under `src/`, `src-tauri/`, `scripts/` are the Tauri app's, which is `tauri/` of this repository since the
 move (`../glyph` while this was written); everything else is the root's.
@@ -47,7 +48,7 @@ Not carried, on purpose or by necessity:
   workspaces. Every version since reads and removes them on its first launch.
 - The spoken assistant role. A phone where Ghost.md was the digital assistant loses that with the update, since the
   service is disabled by default now (section 4).
-- Anything on an iPhone or Windows. Sections 1 to 4 are Android's; the Mac's carry is section 7.
+- Anything on Windows. Sections 1 to 4 are Android's; the Mac's carry is section 7 and the iPhone's section 8.
 
 ### How it is carried (lib/carry/)
 
@@ -519,3 +520,273 @@ Mac as a new download. The Tauri Mac app, for its part, offers its people the 2.
 4. The way back for one Mac: quit, delete `~/Library/Application Support/com.mattssoftware.glyph.v2` and
    `~/Library/Preferences/com.mattssoftware.glyph.plist`, remove the Keychain items of the service
    `com.mattssoftware.glyph.secure`, and put 1.15.0 back. Its folder and its web view's storage were never touched.
+
+## 8. The iPhone
+
+Matt, 2026-10-13: the Tauri iPhone app, 1.10.0, was accepted into the App Store (Ghost Markdown, 6818598896,
+`com.mattssoftware.glyph`, iPhone only, notes only), and the next version sent for review is this app ("Option b
+now"). The build that does that is made and signed, and its carry was walked end to end in a simulator over data
+the Tauri app itself made. **Nothing in this section has been uploaded to App Store Connect or TestFlight, and no
+real iPhone has run it.**
+
+### What the Tauri iPhone app keeps, and where
+
+Seen in the container of the Tauri app built from `tauri/` as it stands (1.15.0's page; the nearest thing to 1.10.0
+that builds) in an iPhone 18 Pro simulator on iOS 27.0. Tauri names its folders on an iPhone as it does on a Mac
+(`dirs`' `data_dir` is `$HOME/Library/Application Support`, and an iPhone app's `$HOME` is its container), and the
+web view is the same WebKit, so inside the container the layout is the Mac's `~/Library`, file for file:
+
+| What | Where, under `<container>/Library` |
+| --- | --- |
+| The notes (an organization's under `orgs/<its name>/`), their `.versions` files, each note's sidecar, `library.json`, the core's index | `Application Support/com.mattssoftware.glyph/Library/`, `…/Library/.glyph/` |
+| Pictures | `Application Support/com.mattssoftware.glyph/images/` |
+| The page updater's own note of itself | `Application Support/com.mattssoftware.glyph/ota/installed.json` (an iPhone downloads no page) |
+| Every `glyph-…` key of `localStorage`: the preferences (theme, workspaces, tabs, the trash), the workspace filtered by, the sync's cursors and marks, the bell's rows, the session (`glyph-account-session`), GitHub's token | `WebKit/com.mattssoftware.glyph/WebsiteData/Default/<hash>/<hash>/LocalStorage/localstorage.sqlite3`, the origin `tauri://localhost` |
+| The account key, the device's signing key (an iPhone's WebKit has Ed25519), the account's pair, each a `CryptoKey` that cannot be exported; the team notes' documents | `…/<hash>/<hash>/IndexedDB/<hash>/IndexedDB.sqlite3`, one to a database; each key wrapped under WebKit's master key as on the Mac |
+| WebKit's master key for the app | The Keychain: a generic password, account `com.apple.WebKit.WebCrypto.master+com.mattssoftware.glyph`, no service, in the app's own access group `F6ZAL7ANAD.com.mattssoftware.glyph`, readable while the phone is unlocked (`ak`), not synchronised |
+| WebKit's own caches, the launch pictures, the saved scene | `Caches/com.mattssoftware.glyph/WebKit/`, `Caches/com.apple.WebKit.*`, `SplashBoard/`, `Saved Application State/` |
+
+**Nothing else.** `Library/Preferences` is empty (no `com.mattssoftware.glyph.plist`), `Documents` is empty, and
+there is no `recordings/`, `video/`, `models/`, `slack.json` or `notion.json`: an iPhone's Tauri app records
+nothing, runs no model, and its Slack and Notion commands are not built (tauri/src-tauri/src/unsupported.rs).
+
+**Who can see it, and what a backup takes.** The app shares no documents (`UIFileSharingEnabled` and
+`LSSupportsOpeningDocumentsInPlace` are in neither app's Info.plist, and `Documents` holds nothing), so nothing of
+it is shown in Files. Everything under `Library` but `Caches` is in an iCloud or computer backup, and nothing in
+the Tauri app marks a file as left out of one: the notes, the pictures and the page's storage are all backed up.
+The master key's class goes to another phone only in an encrypted backup or an iCloud one.
+
+### Where this app keeps its own, and why
+
+**`<container>/Library/Application Support/com.mattssoftware.glyph.v2`** (and `Library/Caches/com.mattssoftware.glyph.v2`),
+`cutoverFolder` in ios/Runner/GhostChannels.swift: the Mac's answer, for the Mac's reasons (section 7). An update
+from the App Store keeps the app's container, so this build wakes beside everything 1.10.0 kept (iOS gives the
+container a new path at each update, and the files inside it are the same files).
+
+- Not the Tauri app's folder and not inside it. This app never writes, moves or removes anything in
+  `Application Support/com.mattssoftware.glyph` or `WebKit/com.mattssoftware.glyph`: the rule every build is held
+  to in Swift (`ownDirectory`), in Dart (`isRealAppPath`, `DevicePaths.own`) and in the tests stays whole, with
+  nothing carved out for a phone. An iPhone cannot be put back to an earlier version from the store, so here the
+  untouched folders are less a way back than a second copy: if a carry goes wrong on somebody's phone, what they
+  wrote is still there to be read by a fixed build.
+- Beside it, under the same two parents, so it is kept exactly as the old folder was: in a backup, not in Files;
+  the cache in neither. A folder under `Documents` would have shown people's notes in Files; a folder under
+  `Caches` or `tmp` would have left them out of a backup and let the system delete them.
+- The copy costs no room: each file is a clone on the phone's APFS (`clonefile`), a second name for the same
+  blocks. A backup counts both, which for notes and pictures is small.
+
+Beside the folder: the preferences in the system's own store for the id (`Library/Preferences/com.mattssoftware.glyph.plist`,
+every key prefixed `flutter.`; the Tauri app keeps no such file), and the secrets in the Keychain under the service
+`com.mattssoftware.glyph.secure`, this device only, after first unlock (apple/Keychain.swift). Every other iPhone
+build is unchanged: "Ghost Flutter", `com.mattssoftware.glyph.flutter`, a container of its own, and no carry.
+
+### What is carried, and what is not (lib/carry/iphone_carry.dart)
+
+The Mac's carry, called over the container's `Library` (the same three halves, the same marker
+`…glyph.v2/carry/tauri-carry.json`, the same log beside it, once only):
+
+1. **`files`**, before the core is opened: `Library/` whole (notes, `.versions`, sidecars, `library.json`),
+   `images/`, and `recordings/`, `video/`, `library-root.json`, `glyph.sqlite` if a phone ever has them.
+2. **`settings`**: every `glyph-` key of `localStorage` but the two secrets, text for text, and the team
+   documents; read from copies of WebKit's SQLite files (with their `-wal` and `-shm`) made in the app's temporary
+   folder and removed, with the system's SQLite (`/usr/lib/libsqlite3.dylib`, which an iPhone has).
+3. **`secrets`**: the session, GitHub's token and the three keys into the Keychain, each read back. The keys are
+   opened under WebKit's master key, which the Keychain hands to this build because it is signed into the same
+   access group (the same team and the same id: `tool/cutover-build-ios.sh` refuses an IPA whose
+   `application-identifier` is anything but `F6ZAL7ANAD.com.mattssoftware.glyph`), and **proven before they are
+   believed**, as everywhere: a pair must answer its public key, the account key must open something the page
+   sealed. A key that cannot be read or proven is not carried, and the person is asked for their password once.
+
+Not carried: the core's index (made again), `ota/`, WebKit's caches, and what an iPhone's Tauri app never had.
+With nothing to carry (a new install) all three halves are marked at once and nothing is asked of anything.
+
+### The build
+
+`tool/cutover-build-ios.sh 2.0.5` leaves `build/ios-store/Ghost.md-2.0.5-2000005.ipa`: "Ghost.md",
+`com.mattssoftware.glyph`, version 2.0.5, **build 2000005**, iPhone only (`UIDeviceFamily` [1]), arm64, iOS 15 and
+later, release, compiled with `--no-load_cse`, stamped `GHOST_BUILD` and `GHOST_COMMIT`, on
+`https://ghostmarkdown.com/api` by itself, signed "Apple Distribution: Matt Wisniewski (F6ZAL7ANAD)" with the
+profile Xcode keeps ("iOS Team Store Provisioning Profile: com.mattssoftware.glyph"), about 40 MB. It is the one
+switch in two halves, as on Android and the Mac: `GHOST_CUTOVER=1` in the build's environment (the name and the
+id, ios/Flutter/AppInfo.xcconfig) and `--dart-define=GHOST_CUTOVER=true` (the carry). The script checks what it
+built (id, version, build, name, devices, the link scheme, the camera's sentence and no microphone's, the privacy
+manifest, the core's five functions, the signature, the access group) and **uploads nothing**.
+
+**The build number.** `CFBundleVersion` is one to three whole numbers with dots, compared number by number, and
+each upload must be above the last. The store holds "1.10.0". This build's is the version made into one number the
+way the phone's version code and the Mac's build are (2.0.5 is 2000005): above 1.10.0 at its first number. The
+same version uploaded again is `--build 2`, which gives `2000005.2`.
+
+`tool/cutover-build-ios.sh 2.0.5 --simulator --api http://127.0.0.1:<port>/api` makes the same app for a
+simulator (a debug build, which is all a simulator runs), with a local service: what the proof below installed.
+
+### Proven, in a simulator (2026-10-13)
+
+A simulator made for it ("ghost-cutover", iPhone 18 Pro, iOS 27.0: the newest runtime that makes an ordinary
+iPhone; 27.1 here makes only the folding one), a throwaway service on this Mac (`tool/local-server.sh`), and an
+account made on it. Nothing asked ghostmarkdown.com or attack.fm: the Tauri app was built from a scratch copy of
+`tauri/` with no `.env`, `VITE_GLYPH_API` naming the local service, and the two addresses its page asks at launch
+(the changelog's and the Mac successor's) pointed at a closed port. Nothing in `tauri/` was changed.
+
+1. **The Tauri app, used.** `npx tauri ios build --debug --target aarch64-sim`, installed, launched. Driven
+   through its own page over the simulator's web inspector (its buttons clicked and its fields typed into by
+   script; no finger can be sent to a simulator from here): an account made with its Sign up form; four notes
+   typed (accents, a table, a to-do, a link between notes); a picture added through "Add image" (the phone's
+   chooser cannot be pressed, so the page's file input was answered with a picture drawn on a canvas, and the app
+   shrank and kept it itself); the Boreal theme, a font and an accent chosen; a workspace made and filtered by; an
+   organization made and a note filed in it (a team document); one note edited on the phone and on a second
+   device apart (the web client of `tool/web_client.mjs`, signed in to the same account), which the app kept
+   twice and recorded as a sealed row in the bell; and a last note written with the page's requests failing as
+   they do with no network, so it was never sent. The app was then stopped.
+2. **What it left**: 14 notes, 1 `.versions` file, 1 sidecar, 2 pictures; 15 keys of `localStorage`; 3 key
+   records (5 wrapped keys); 1 team document; 1 sealed notification; a session. 40 files and 28 folders in its two
+   folders, each recorded with its length, time and hash.
+3. **The update.** `xcrun simctl install` of this app's simulator build over it (an upgrade: the data stayed, in a
+   container with a new path), and one launch. The log, whole:
+
+   ```text
+   files: 14 notes, 3 index files left, 1 sidecars, 1 versions files, 2 pictures; 0 could not be copied
+   read copies of WebKit’s files: 15 keys of localStorage, 1 team documents, 5 wrapped keys
+   settings: carried 15 (… 14 keys …), 1 team documents, left 0 this app already held (), failed 0 ()
+   secrets: the account key opened what the page sealed
+   secrets: the device key answers its public key
+   secrets: the encryption key answers its public key
+   secrets: WebKit’s key opened 3 of 3 stored keys (account, device, encryption)
+   secrets: carried 4 (glyph-account-session, account, device, encryption), left 0 this app already held (), failed 0 ()
+   ```
+
+   The 18 carried files are byte for byte the Tauri app's. The first screen was the Tauri app's last: the same
+   theme, the same open tabs, the same workspace filter, the unsent note, the bell's dot.
+4. **The same account, syncing.** Without anyone signing in: Settings › Account read "cutover", "End-to-end
+   encrypted", "Synced just now"; the note never sent reached the second device; a note and a line in the team
+   note written on the second device arrived in this app; a note typed in this app arrived on the second device.
+5. **Nothing of the Tauri app's changed**: after six launches and the syncing, its two folders matched the record
+   of step 2 file for file (length, time, hash), and later launches added nothing to the log.
+
+The pictures before and after are in `build/ios-proof/` (not in git; made-up notes only).
+
+Tests (`flutter test test/carry/iphone_carry_test.dart`, 14): a made-up container in that layout carried whole and
+read back by `DeviceKeyStore`; once only; no key from the Keychain; a disk that will not clone; a new install; the
+guard in Dart and in the iPhone's Swift (word for word the Mac's); what a build is without the switch and with
+it; the Info.plist, the privacy manifest and the script's promises.
+
+### Not proven, and what would prove it
+
+- **A real iPhone.** The simulator's Keychain put WebKit's key in the access group `F6ZAL7ANAD.com.mattssoftware.glyph`
+  and handed it to this app's build, which carries the same `application-identifier`; a phone enforces the same
+  rule from the signature, and the IPA's is checked, but no phone has run it. Proof: a phone with 1.10.0 from the
+  store, signed in, with an unsent note; this build from TestFlight installed over it; then the first screen, and
+  Settings › Account saying the handle and "Synced". If the Keychain refuses, the app is signed in and asks for
+  the password once. The log is in the app's container, which a TestFlight build does not let anyone read off a
+  phone: a development-signed build of the same commit installed over a development-signed Tauri build shows it
+  (Xcode › Devices › Download Container), or About could be given a line that says how the carry went.
+- **1.10.0 itself.** The Tauri app here was built from today's `tauri/` (its page is 1.15.0's). The storage
+  layout is WebKit's and Tauri's, not the page's, and the keys' names have not changed since 1.10.0
+  (`glyph-account`, `keys`), but the build in the store was not the one carried from.
+- **An older iOS.** WebKit's serialisation and its folder layout were read on iOS 27.0. An iPhone whose WebKit
+  keeps the older layout (no `Default/<hash>/<hash>/`) carries its files and not its settings or session, as on
+  the Mac: the person signs in again and nothing is lost.
+- **A phone restored from a backup onto another phone** before updating: the files come, and the master key
+  comes only with an encrypted or iCloud backup. Without it, the password is asked once.
+- **A release build's first launch.** The simulator's build is a debug one (a simulator runs no other). The
+  release differs in the compiler, not in the carry's code; the first TestFlight launch is its proof.
+- **A real account against the real service**, as on Android and the Mac.
+
+### Store compliance for this binary
+
+- **Privacy manifest**: `ios/Runner/PrivacyInfo.xcprivacy`, in the app. No tracking. Collected, only with an
+  account, linked, for app function: User ID, Other User Content, Photos or Videos, Audio (the Tauri app's four,
+  which the store's App Privacy answers already match; no location, which an iPhone build does not find).
+  Required-reason APIs for the app's own code, read from what the core links: FileTimestamp C617.1, DiskSpace
+  E174.1, SystemBootTime 35F9.1, UserDefaults CA92.1. The engine and `shared_preferences_foundation` (the one
+  plugin) carry their own manifests.
+- **Info.plist**: the name Ghost.md; the camera's sentence (Take Photo in the picture menu) and no other: no
+  microphone, speech, location or photo-library sentence, since the build opens none of them (`PHPicker` needs
+  none); `ghostmd://` claimed, `glyph://` dropped (the Tauri app claimed it for a shortcut nothing answered);
+  no universal links (the Tauri app had none); the scene manifest; portrait and both landscapes; arm64 and Metal.
+  **No entitlements file**, as the Tauri app's was empty.
+- **Export compliance: see below. Flagged for Matt.**
+- **Delete account**: Settings › Account › Delete account (lib/settings/panes/account_pane.dart).
+- **Updates**: About says "Ghost.md updates through the App Store." and lists no releases; an iPhone build has no
+  `ghost_md/updates` channel, checks no address and can install nothing.
+- **Other platforms' names** (guideline 2.3.10), where an iPhone can reach them. Each is the page's own, so
+  1.10.0 was accepted with it, and none was changed here: the "How Ghost.md works" example canvas says "Tap the
+  microphone, or press the side key" (and the reviewers' demo account holds that canvas); the Academy's video
+  lesson says "on Android"; three sentences that a core too old for a feature would say name attack.fm ("Sync
+  needs the newest Ghost.md. Install it from attack.fm/glyph."), which this app's core never is.
+- **Voice**: no way into a recording is drawn (`recordsVoice`). Two rows still speak of it, as the Tauri page's
+  do: Settings › Account's "Sync meeting recordings" switch and the line under it about "the model you
+  downloaded". Hiding both on an iPhone is a small change and a departure from the page; not made.
+- **The reviewers' demo account** (tauri/docs/store/APP_STORE.md) stands as written: the release is on the same
+  service, and the handle and the examples are an account's, not an app's.
+- **Shown broken on an iPhone**: nothing found in the walk. One thing was wrong and is mended: on a dark theme with
+  the phone set to light, the status bar's ink was dark on dark; it now follows the page (lib/app/ghost_app.dart).
+
+### Export compliance
+
+The Tauri app answered `ITSAppUsesNonExemptEncryption` false, truthfully: on an iPhone every cipher it used was
+Apple's (WebCrypto in WKWebView, and WebKit's HTTPS). This app's are not Apple's: it seals notes in the Rust core
+(native/src/crypto.rs: AES-256-GCM, PBKDF2 and HKDF over SHA-256, ECDH on P-256, Ed25519, with the `aes-gcm`,
+`sha2`, `hmac`, `hkdf`, `p256` and `ed25519-dalek` crates), and its HTTPS is Dart's own (BoringSSL, inside
+Flutter's engine), not `URLSession`. All of it is standard, published cryptography; none is proprietary.
+
+Apple's own words, fetched 2026-10-13:
+
+- "Set the value to `NO` if your app—including any third-party libraries it links against—doesn't use
+  encryption, or if it only uses forms of encryption that are exempt from export compliance documentation
+  requirements. Otherwise, set it to `YES`." and "Typically, the use of encryption that's built into the operating
+  system—for example, when your app makes HTTPS connections using URLSession—is exempt from export documentation
+  upload requirements, whereas the use of proprietary encryption is not." (Complying with Encryption Export
+  Regulations)
+- The table of App Store Connect Help, "Export compliance documentation for encryption": "Your app uses encryption
+  limited to that within the Apple operating system": "No documentation required in App Store Connect." "Your app
+  uses an industry standard algorithm, not provided within the Apple operating system": "Upload your French
+  encryption declaration in App Store Connect." with the note "French encryption declaration form is only required
+  if you're distributing your app on the App Store in France." Proprietary algorithms: a CCATS and the French
+  declaration.
+- "If your app uses exempt forms of encryption, you might alternatively be required to submit a year-end
+  self-classification report to the U.S. government." (the same page as the first)
+
+So, without deciding the law for anybody: **this binary falls in the second row**, where the Tauri one was in the
+first. The Info.plist says `true`, which makes App Store Connect ask its questions for the build rather than wave
+it through on the old answer. The ways on, for Matt:
+
+1. Answer the questions as they are (standard algorithms, not Apple's), and either file the French declaration or
+   take France out of where the app is sold.
+2. Make the iPhone build's encryption Apple's (CryptoKit and CommonCrypto behind the core's crypto, and HTTPS
+   through `URLSession`), and put `false` back with the Tauri app's reason. What that takes is set out below.
+
+Whether a yearly self-classification report is owed in either case is a question of the U.S. rules that Apple's
+pages point at and do not answer, and is not answered here.
+
+### What the listing no longer matches
+
+- **The screenshots** were shot from the Tauri page in WebKit. This app draws the same screens from the same
+  design, but they are not pictures of this binary: shoot the seven again from the simulator build
+  (`tool/ios-tour.sh` takes them) before the version is sent.
+- **What's New** has no text for 2.0.5. Nothing a person sees is new by design; "A new engine under the same
+  app. Your notes, settings and sign-in carry over." is the honest whole of it.
+- **The description, subtitle, keywords and promotional text** name nothing this app lacks on an iPhone, as far
+  as was walked (notes, the marks, pictures from photos or the camera, boards, tickets, queries, notebooks,
+  journals, a canvas, workspaces, organizations, sync, a shared link, delete account). docs/PARITY.md is the list
+  to hold it to before sending.
+- **The App Privacy answers** stand (the manifest declares the same four).
+- **The export compliance answer** in App Store Connect is the one above.
+
+### To publish, in order
+
+1. `tool/cutover-build-ios.sh <version>` from a clean, pushed `main`. It prints the IPA's path.
+2. Decide export compliance (above). If the answer becomes Apple's own encryption only, that is a new build.
+3. Upload, which nothing here does: with the suite's key,
+   `xcrun altool --validate-app -f <the ipa> -t ios --apiKey "$ASC_KEY_ID" --apiIssuer "$ASC_ISSUER_ID"` and then
+   the same with `--upload-app` (the key file is found from `~/.appstoreconnect/private_keys/` or
+   `API_PRIVATE_KEYS_DIR`), as 1.10.0 was sent; or Transporter.
+4. **Before it is sent for review**, on a real iPhone that has 1.10.0 from the store, signed in, with a note
+   written offline: install the build from TestFlight over it. The first screen must be the old app's last, and
+   Settings › Account must say the handle and then "Synced". That is the proof this section lacks.
+5. In App Store Connect: a new version 2.0.5 on the record, the build attached, What's New, the seven
+   screenshots shot again, the export compliance answers, the review notes and demo account as before; check the
+   demo account still holds its examples.
+6. There is no way back on a phone: the App Store installs no earlier version. The Tauri app's folders are still
+   in the container, untouched, for a later build to read if this one's carry failed somebody.
+
