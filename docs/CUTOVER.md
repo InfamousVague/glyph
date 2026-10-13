@@ -762,6 +762,9 @@ Apple's own words, fetched 2026-10-13:
 - "If your app uses exempt forms of encryption, you might alternatively be required to submit a year-end
   self-classification report to the U.S. government." (the same page as the first)
 
+**Decided 2026-10-13 (Matt): France out of availability, and the key at false.** See "Sent so far" below for
+why true could not be uploaded. The rest of this heading is as it was written before the decision.
+
 So, without deciding the law for anybody: **this binary falls in the second row**, where the Tauri one was in the
 first. The Info.plist says `true`, which makes App Store Connect ask its questions for the build rather than wave
 it through on the old answer. The ways on, for Matt:
@@ -847,6 +850,13 @@ behind the header (`GHOST_PLAIN`, `GHOST_BAR_BLUR`, which `tool/cutover-build-io
 - **App Store Connect**: France out of availability (174 territories to 173, France alone); version 2.0.5 made
   (`5ae0a271-d667-4d63-b228-b3ad1b06cd61`), What's New set, the review notes given their sentence, release
   after approval, not phased. `tauri/docs/store/APP_STORE.md` has each with its reading back.
+- **The export key is false** (Matt, later that day, the first of the three ways): standard algorithms only
+  (AES-256-GCM, PBKDF2 and HKDF over SHA-256, ECDH on P-256, Ed25519, and TLS from BoringSSL), nothing
+  proprietary, not sold in France, so exempt from providing documentation as Apple's help page has such an app
+  say of itself. The reason is beside the key in ios/Runner/Info.plist, and the build script refuses any other
+  value. Apple says an exempt app "might" owe a yearly self-classification report to the U.S. government: Matt's
+  to check. Putting France back means coming back to this: the French declaration, a code, the key at true, and
+  the EU trader status France also waits on. What follows is how the first build, which said true, stopped.
 - **Stopped at the upload.** Apple refuses the build (error 90592): `true` asks for the code Apple gives after
   reviewing export documentation, and for standard algorithms with France off there is no documentation to
   review (the API will not make the declaration). Apple's own answer for that case is the key at `false`, or left

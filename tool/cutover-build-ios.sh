@@ -184,7 +184,9 @@ check "the devices" "$(value UIDeviceFamily | tr -d ' \n')" "Array{1}"
 check "the link scheme" "$(value CFBundleURLTypes:0:CFBundleURLSchemes:0)" "ghostmd"
 [ -n "$(value NSCameraUsageDescription)" ] || { echo "error: no camera sentence." >&2; failed=1; }
 [ -z "$(value NSMicrophoneUsageDescription)" ] || { echo "error: a microphone sentence in an app that records nothing." >&2; failed=1; }
-[ -n "$(value ITSAppUsesNonExemptEncryption)" ] || { echo "error: the export-compliance answer is not in the Info.plist." >&2; failed=1; }
+# false: exempt from export documentation (standard algorithms, none proprietary, not sold in France; Matt,
+# 2026-10-13, ios/Runner/Info.plist). Apple refuses an upload that says true without the code it gives.
+check "the export-compliance answer" "$(value ITSAppUsesNonExemptEncryption)" "false"
 [ -f "$app/PrivacyInfo.xcprivacy" ] || { echo "error: no privacy manifest in the app." >&2; failed=1; }
 binary="$app/$(value CFBundleExecutable)"
 check "the app's architectures" "$(lipo -archs "$binary")" "arm64"

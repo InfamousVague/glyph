@@ -297,7 +297,7 @@ void main() {
         expect(plist, isNot(contains('<key>$absent</key>')), reason: absent);
       }
       expect(plist, contains('<string>ghostmd</string>'));
-      expect(plist, contains('<key>ITSAppUsesNonExemptEncryption</key>'), reason: 'answered in the build, whichever way (docs/CUTOVER.md §8, "Export compliance")');
+      expect(plist, contains('<key>ITSAppUsesNonExemptEncryption</key>\n\t<false/>'), reason: 'exempt from documentation: standard algorithms, not sold in France (Matt, 2026-10-13; docs/CUTOVER.md §8, "Export compliance")');
       final privacy = File('ios/Runner/PrivacyInfo.xcprivacy').readAsStringSync();
       expect(privacy, contains('<key>NSPrivacyTracking</key>\n\t<false/>'));
       for (final declared in ['NSPrivacyAccessedAPICategoryFileTimestamp', 'C617.1', 'NSPrivacyAccessedAPICategoryDiskSpace', 'E174.1', 'NSPrivacyAccessedAPICategorySystemBootTime', '35F9.1', 'NSPrivacyAccessedAPICategoryUserDefaults', 'CA92.1', 'NSPrivacyCollectedDataTypeUserID', 'NSPrivacyCollectedDataTypeOtherUserContent', 'NSPrivacyCollectedDataTypePhotosorVideos']) {

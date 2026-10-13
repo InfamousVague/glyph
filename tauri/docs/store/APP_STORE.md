@@ -217,6 +217,11 @@ encryption or is exempt from providing documentation", which is the key at `fals
 answer given for the build in App Store Connect). Matt's decision was that the key stays `true`, and what the key
 says is his to say, so nothing was changed and nothing was uploaded. The ways on, each a word from Matt:
 
+**Matt chose the first (2026-10-13): the key is `false`.** The reason is beside it in ios/Runner/Info.plist.
+Apple says an exempt app "might" owe a yearly self-classification report to the U.S. government, which is his to
+check. Putting France back means revisiting this: the French declaration, the code, `true`, and the EU trader
+status.
+
 1. The key `false` (ios/Runner/Info.plist), with the reason beside it: standard algorithms only, none
    proprietary, not sold in France, so exempt from documentation by Apple's table. Then build, upload, attach,
    submit. Whether a yearly self-classification report to the U.S. government is owed is his to look into

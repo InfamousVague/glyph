@@ -42,18 +42,22 @@
 	</array>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
-	<!-- Export compliance, answered for THIS binary and not carried over from the Tauri app's. Its answer was
-	     false because all its encryption on an iPhone was Apple's own (WebCrypto in WKWebView). This app seals
-	     notes with standard algorithms in code it carries itself (the Rust core, native/src/crypto.rs: AES-256-GCM,
-	     PBKDF2 and HKDF over SHA-256, ECDH on P-256, Ed25519), and its HTTPS is the Flutter engine's BoringSSL, not
-	     URLSession. Apple's table (App Store Connect Help, "Export compliance documentation for encryption") puts
-	     "an industry standard algorithm, not provided within the Apple operating system" under a French encryption
-	     declaration when the app is sold in France, so the honest value while that is so is true, and App Store
-	     Connect then asks its questions for the build. THE CHOICE IS MATT'S (docs/CUTOVER.md, section 8, "Export
-	     compliance"): answer and file the declaration, or move the iPhone's encryption and HTTPS onto Apple's
-	     frameworks and put false back. -->
+	<!-- Export compliance: false, decided by Matt on 2026-10-13. What it says, in Apple's meaning of the key: the
+	     app's encryption is exempt from providing export documentation. Not that it has none. It seals notes with
+	     industry-standard algorithms in code it carries itself (the Rust core, native/src/crypto.rs: AES-256-GCM,
+	     PBKDF2 and HKDF over SHA-256, ECDH on P-256, Ed25519), and its HTTPS is TLS from the Flutter engine's
+	     BoringSSL. Nothing in it is proprietary, and the app is not sold in France (taken out of its availability
+	     the same day). Why false and not true: a build that said true was refused by Apple at validation (error
+	     90592, it wants the code Apple gives after reviewing export documentation); App Store Connect refused to
+	     make a declaration for this case ("Cannot create appEncryptionDeclarations unless either
+	     containsProprietaryCryptography is True or containsThirdPartyCryptography and availableOnFrenchStore are
+	     both True"); and Apple's help page says an app that needs no documentation marks itself in its Info.plist
+	     as one that "doesn't use encryption or is exempt from providing documentation". Apple also says such an
+	     app "might" owe a yearly self-classification report to the U.S. government: Matt's to check. PUTTING
+	     FRANCE BACK MEANS COMING BACK TO THIS: a French encryption declaration, a code, and true (and the EU
+	     trader status France also waits on). docs/CUTOVER.md, section 8, "Export compliance". -->
 	<key>ITSAppUsesNonExemptEncryption</key>
-	<true/>
+	<false/>
 	<key>LSApplicationCategoryType</key>
 	<string>public.app-category.productivity</string>
 	<key>LSRequiresIPhoneOS</key>
