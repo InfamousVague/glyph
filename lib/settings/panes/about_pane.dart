@@ -11,8 +11,10 @@ import 'pane_parts.dart';
 import 'settings_host.dart';
 
 /// The version this app is, as pubspec.yaml has it (a test holds the two together). About draws it when no updater
-/// has said which build this is.
-const String ghostVersion = '0.1.0';
+/// has said which build this is. The build that goes to the App Store has no updater to say, and is told its
+/// version outright (`--dart-define=GHOST_VERSION=2.0.5`, tool/cutover-build-ios.sh), so About on an iPhone reads
+/// what the store's page reads; told nothing, it is pubspec's, as it always was.
+const String ghostVersion = String.fromEnvironment('GHOST_VERSION', defaultValue: '0.1.0');
 
 /// The book's name and how many chapters it has (guidebook/guidebook.ts `GUIDE_TITLE`, `GUIDE_CHAPTERS`, as the web
 /// app counted them on 2026-10-07).

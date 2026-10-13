@@ -604,7 +604,8 @@ With nothing to carry (a new install) all three halves are marked at once and no
 
 `tool/cutover-build-ios.sh 2.0.5` leaves `build/ios-store/Ghost.md-2.0.5-2000005.ipa`: "Ghost.md",
 `com.mattssoftware.glyph`, version 2.0.5, **build 2000005**, iPhone only (`UIDeviceFamily` [1]), arm64, iOS 15 and
-later, release, compiled with `--no-load_cse`, stamped `GHOST_BUILD` and `GHOST_COMMIT`, on
+later, release, compiled with `--no-load_cse`, stamped `GHOST_BUILD`, `GHOST_COMMIT` and `GHOST_VERSION` (About
+reads "2.0.5", where every build told nothing reads pubspec's 0.1.0), on
 `https://ghostmarkdown.com/api` by itself, signed "Apple Distribution: Matt Wisniewski (F6ZAL7ANAD)" with the
 profile Xcode keeps ("iOS Team Store Provisioning Profile: com.mattssoftware.glyph"), about 40 MB. It is the one
 switch in two halves, as on Android and the Mac: `GHOST_CUTOVER=1` in the build's environment (the name and the

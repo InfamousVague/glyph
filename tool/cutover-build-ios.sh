@@ -72,6 +72,7 @@ if [ -n "$simulator" ]; then
   GHOST_CUTOVER=1 flutter build ios --simulator --debug --no-pub \
     --build-name="$version" --build-number="$build" \
     --dart-define=GHOST_CUTOVER=true \
+    --dart-define=GHOST_VERSION="$version" \
     --dart-define=GHOST_BUILD="$stamp" \
     --dart-define=GHOST_COMMIT="$commit" \
     ${api:+--dart-define=GHOST_API="$api"} \
@@ -105,6 +106,7 @@ tool/build-native.sh ios
 GHOST_CUTOVER=1 flutter build ios --release --no-codesign --config-only --no-pub \
   --build-name="$version" --build-number="$build" \
   --dart-define=GHOST_CUTOVER=true \
+  --dart-define=GHOST_VERSION="$version" \
   --dart-define=GHOST_BUILD="$stamp" \
   --dart-define=GHOST_COMMIT="$commit" \
   "$@"

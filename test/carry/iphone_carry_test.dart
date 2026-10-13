@@ -309,7 +309,7 @@ void main() {
 
     test('the build script gives both halves of the switch, a number above the store\'s, and uploads nothing', () {
       final script = File('tool/cutover-build-ios.sh').readAsStringSync();
-      expect(script, allOf(contains('GHOST_CUTOVER=1 flutter build ios'), contains('--dart-define=GHOST_CUTOVER=true'), contains('--dart-define=GHOST_BUILD='), contains('--dart-define=GHOST_COMMIT=')));
+      expect(script, allOf(contains('GHOST_CUTOVER=1 flutter build ios'), contains('--dart-define=GHOST_CUTOVER=true'), contains('--dart-define=GHOST_VERSION="\$version"'), contains('--dart-define=GHOST_BUILD='), contains('--dart-define=GHOST_COMMIT=')));
       expect(script, contains(r'[ "$code" -gt 1010000 ]'), reason: 'above the Tauri app\'s 1.10.0');
       expect(script, allOf(contains('<string>app-store-connect</string>'), contains('<string>export</string>'), contains('-allowProvisioningUpdates')));
       final commands = script.split('\n').where((line) => !line.trimLeft().startsWith('#')).join('\n');
