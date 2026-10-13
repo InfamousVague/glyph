@@ -147,38 +147,174 @@ pub fn parse(text: &str, truncated: bool) -> Result<CommandIntent, String> {
     }
 }
 
-/// A model is not asked to reinterpret requests outside the single safe set.
+/// A model is not asked to reinterpret requests outside the single safe set:
+/// a destructive verb aimed at a note, a list or everything in one. The verb
+/// alone is not enough - people say "remind me to send the invoice" and name
+/// films like "Send Help" - so it needs its object within a few words.
+/// Several steps ("make a list and add…") are one request now: the model
+/// answers them as a create with content, or none.
 pub fn refusal(utterance: &str) -> Option<NoneReason> {
-    let lower = utterance.to_lowercase();
-    let destructive = [
-        "delete",
-        "remove",
-        "erase",
-        "destroy",
-        "archive",
-        "overwrite",
-        "replace",
-        "rename",
-        "share",
-        "email",
-        "send ",
+    const DESTRUCTIVE: &[&str] = &[
+        "delete", "remove", "erase", "destroy", "archive", "overwrite", "replace", "rename", "clear",
+        "wipe", "empty", "share", "email", "send",
     ];
-    if destructive.iter().any(|word| lower.contains(word)) {
-        return Some(NoneReason::Destructive);
-    }
-    let action_words = lower
-        .split(|c: char| !c.is_alphanumeric())
-        .filter(|word| {
-            matches!(
-                *word,
-                "add" | "append" | "put" | "create" | "make" | "start"
-            )
-        })
-        .count();
-    if lower.contains(" and then ") || lower.contains(';') || action_words > 1 {
-        return Some(NoneReason::Compound);
+    const OBJECTS: &[&str] = &[
+        "note", "notes", "list", "lists", "page", "everything", "all", "it", "them", "that", "this",
+    ];
+    const REACH: usize = 6;
+    let lower = utterance.to_lowercase();
+    let words: Vec<&str> = lower
+        .split(|c: char| !c.is_alphanumeric() && c != '\'')
+        .filter(|word| !word.is_empty())
+        .collect();
+    for (at, word) in words.iter().enumerate() {
+        if DESTRUCTIVE.contains(word)
+            && words[at + 1..].iter().take(REACH).any(|next| OBJECTS.contains(next))
+        {
+            return Some(NoneReason::Destructive);
+        }
     }
     None
+}
+
+/// The model's question: the person's note titles, then what they said. Titles
+/// are cleaned of control characters and cut short; bodies and ids never go in.
+pub fn user_prompt(utterance: &str, titles: &[String]) -> String {
+    let titles: Vec<String> = titles
+        .iter()
+        .map(|title| {
+            title
+                .chars()
+                .map(|c| if c.is_control() { ' ' } else { c })
+                .take(80)
+                .collect::<String>()
+                .trim()
+                .to_string()
+        })
+        .filter(|title| !title.is_empty())
+        .take(60)
+        .collect();
+    let notes = if titles.is_empty() { "(none)".to_string() } else { titles.join("; ") };
+    format!("Notes: {notes}\nSaid: {utterance}")
+}
+
+// ---- conversational voice: sort, then plan -----------------------------------------------------
+
+/// Step one of reading a recording: what kind of thing it is. One word, so a
+/// small model answers it fast and reliably.
+pub const SORT_GRAMMAR: &str = r#"
+root ::= "{" ws "\"kind\"" ws ":" ws kind ws "}"
+kind ::= "\"note\"" | "\"add\"" | "\"new\"" | "\"mixed\""
+ws ::= " "?
+"#;
+
+pub const SORT_SYSTEM: &str = r#"You sort one recording made in a notes app. People talk naturally: they dictate, think out loud, and sometimes ask the app to change their notes, often after other talk. Their notes are listed first. Answer with JSON: {"kind": "..."}.
+- "note": they are dictating or thinking out loud, or talking about something someone else will do or something for later. Nothing to change.
+- "add": they ask for things to go into one or more of their existing notes.
+- "new": they ask for a new list or note to be made.
+- "mixed": they ask for a change and also say other things worth keeping as a note, or ask for a new list and an addition to an existing note.
+
+Examples:
+Notes: Movies; Groceries
+Said: So I was at the store and it was packed. Anyway can you put oat milk and bread on the groceries list?
+{"kind":"add"}
+Notes: Movies
+Said: I really need a list of comic books, like Spider-Man, Batman and the Fantastic Four.
+{"kind":"new"}
+Notes: Groceries
+Said: Meeting went long today, Sam wants the report by Friday. Oh and add coffee to groceries.
+{"kind":"mixed"}
+Notes: Groceries
+Said: I told Sam I would add the photos to the album later, and I need to make dinner.
+{"kind":"note"}"#;
+
+/// Step two: the plan. Items are a real JSON array, so the model - not a
+/// comma rule - says where one item ends and the next begins.
+pub const PLAN_GRAMMAR: &str = r#"
+root ::= "{" ws "\"actions\"" ws ":" ws actions ws "," ws "\"note\"" ws ":" ws nstring ws "}"
+actions ::= "[" ws "]" | "[" ws action ws ("," ws action ws)? ("," ws action ws)? "]"
+action ::= append | create
+append ::= "{" ws "\"do\"" ws ":" ws "\"append\"" ws "," ws "\"note\"" ws ":" ws string ws "," ws "\"items\"" ws ":" ws items ws "," ws "\"text\"" ws ":" ws nstring ws "," ws "\"as\"" ws ":" ws as ws "}"
+create ::= "{" ws "\"do\"" ws ":" ws "\"create\"" ws "," ws "\"title\"" ws ":" ws string ws "," ws "\"items\"" ws ":" ws items ws "," ws "\"text\"" ws ":" ws nstring ws "," ws "\"as\"" ws ":" ws as ws "}"
+items ::= "[" ws "]" | "[" ws string ws ("," ws string ws)* "]"
+as ::= "\"list\"" | "\"tasks\"" | "\"text\""
+nstring ::= string | "null"
+string ::= "\"" char* "\""
+char ::= [^"\\\x00-\x1F] | "\\" (["\\/bfnrt] | "u" [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F] [0-9a-fA-F])
+ws ::= " "?
+"#;
+
+pub const PLAN_SYSTEM: &str = r#"Turn one recording made in a notes app into a plan, in JSON: {"actions": [...], "note": ...}. Their notes are listed first, then what kind of request it is, then what they said.
+Actions:
+- {"do":"append","note":"<one of their note titles>","items":["..."],"text":null,"as":"list"} puts items into an existing note. "as" is "tasks" for to-dos or tasks. For words that are not a list, "items":[], "text":"<the words>", "as":"text".
+- {"do":"create","title":"<the new note's title>","items":["..."],"text":null,"as":"list"} makes a new list; "items" may be []. When they ask for a new note with words in it rather than a list, "items":[], "text":"<the words, as clean sentences>", "as":"text".
+Rules:
+- Each item is one whole thing, in their words: "Parkersburg, West Virginia", "The Fantastic Four", "Back to the Future". Never add a thing they did not say.
+- Leave the request out of items and titles: no "can you", "add to", "make a list called", "like", "and".
+- "note" is anything else they said worth keeping, without the request and without filler (um, so, anyway, okay), or null.
+- At most three actions, and only for what they asked this time. The examples below show the format only: never copy their notes, titles or items.
+
+Examples:
+Notes: Groceries; Movies
+Kind: add
+Said: So I was at the store and it was packed. Anyway can you put oat milk and bread on the groceries list?
+{"actions":[{"do":"append","note":"Groceries","items":["oat milk","bread"],"text":null,"as":"list"}],"note":"I was at the store and it was packed."}
+Notes: Go
+Kind: add
+Said: add to my note labeled go a list with parkersburg west virginia marietta ohio and detroit michigan
+{"actions":[{"do":"append","note":"Go","items":["Parkersburg, West Virginia","Marietta, Ohio","Detroit, Michigan"],"text":null,"as":"list"}],"note":null}
+Notes: Movies
+Kind: new
+Said: okay I really need a list of comic books like spider man batman superman the fantastic four and the green lantern
+{"actions":[{"do":"create","title":"Comic Books","items":["Spider-Man","Batman","Superman","The Fantastic Four","The Green Lantern"],"text":null,"as":"list"}],"note":null}
+Notes: Movies
+Kind: new
+Said: make me a new note called trip ideas and in that note put we should check the ferry times and book the hotel early
+{"actions":[{"do":"create","title":"Trip Ideas","items":[],"text":"We should check the ferry times and book the hotel early.","as":"text"}],"note":null}
+Notes: Work; Groceries
+Kind: mixed
+Said: Meeting went long today, Sam wants the report by Friday. Put call the printer guy on my work to-dos and add coffee to groceries.
+{"actions":[{"do":"append","note":"Work","items":["call the printer guy"],"text":null,"as":"tasks"},{"do":"append","note":"Groceries","items":["coffee"],"text":null,"as":"list"}],"note":"Meeting went long today. Sam wants the report by Friday."}"#;
+
+/// Step three, for what the rules read: the last editor. The app has a draft
+/// (titles, items, text); the model fixes what Whisper's punctuation left ugly
+/// and what the rules could not split or join. Same grammar as the plan.
+pub const POLISH_SYSTEM: &str = r#"You are the last editor in a notes app. A recording was made by voice and Whisper wrote it down, so its punctuation is poor and every pause became a full stop. The app has made a draft of what to write, as JSON: {"actions": [...], "note": ...}. Answer with the same JSON, corrected.
+Rules:
+- Keep the same actions in the same order, with the same "do", "note" and "as" values.
+- A list has one thing per item. If one item holds several things, split it into items. If a pause cut one thing in two, join the pieces. No item ends in a full stop or a question mark, and none starts with "and", "also" or "then".
+- A title is short and capitalised, with no full stop or question mark.
+- Text reads as the person would have written it: right capitalisation and punctuation, no stray full stops, no filler (um, uh, so, anyway) and no "go" or "end" said to stop the recording. Keep every other word.
+- Never add a thing they did not say, never answer them, never change a name or a number."#;
+
+/// The question for the polish step: what they said, then the draft.
+pub fn polish_prompt(transcript: &str, draft: &str) -> String {
+    let clean = |text: &str| text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect::<String>();
+    format!("Said: {}\nDraft: {}", clean(transcript), clean(draft))
+}
+
+/// The question for a voice step: the person's note titles, the kind step one
+/// found (for the plan), then the whole recording.
+pub fn voice_prompt(transcript: &str, titles: &[String], kind: Option<&str>) -> String {
+    let asked = user_prompt(transcript, titles);
+    match kind {
+        Some(kind) => asked.replacen("\nSaid: ", &format!("\nKind: {kind}\nSaid: "), 1),
+        None => asked,
+    }
+}
+
+/// A voice step's answer: exactly one JSON object, not cut short. Its shape is
+/// checked field by field in TypeScript before anything is offered.
+pub fn check_answer(text: &str, truncated: bool) -> Result<serde_json::Value, String> {
+    if truncated {
+        return Err("the model's answer was cut short".into());
+    }
+    let value: serde_json::Value = serde_json::from_str(text.trim())
+        .map_err(|_| "the model's answer was not one valid JSON object".to_string())?;
+    if !value.is_object() {
+        return Err("the model's answer was not an object".into());
+    }
+    Ok(value)
 }
 
 #[cfg(test)]
@@ -230,18 +366,57 @@ mod tests {
     }
 
     #[test]
-    fn destructive_and_compound_requests_are_refused_before_inference() {
+    fn destructive_requests_are_refused_before_inference_and_several_steps_are_not() {
         assert_eq!(
             refusal("delete my work note"),
             Some(NoneReason::Destructive)
         );
+        assert_eq!(refusal("create errands and then add milk to it"), None);
         assert_eq!(
-            refusal("create errands and then add milk to it"),
-            Some(NoneReason::Compound)
+            refusal("I watched Send Help last night, can you add it to my movies list"),
+            None
+        );
+        assert_eq!(
+            refusal("so yeah, remove everything from the groceries list"),
+            Some(NoneReason::Destructive)
         );
         assert_eq!(
             refusal("put a bug about losing position in Attack FM"),
             None
         );
+    }
+
+    #[test]
+    fn the_prompt_carries_titles_but_nothing_else_of_a_note() {
+        let titles = vec!["Go".to_string(), "Movies\u{0}".to_string(), "  ".to_string()];
+        assert_eq!(user_prompt("add Heat to movies", &titles), "Notes: Go; Movies\nSaid: add Heat to movies");
+        assert_eq!(user_prompt("new note", &[]), "Notes: (none)\nSaid: new note");
+    }
+
+    #[test]
+    fn voice_steps_ask_with_titles_and_kind_and_accept_only_whole_objects() {
+        let titles = vec!["Movies".to_string()];
+        assert_eq!(voice_prompt("add Heat", &titles, None), "Notes: Movies\nSaid: add Heat");
+        assert_eq!(voice_prompt("add Heat", &titles, Some("add")), "Notes: Movies\nKind: add\nSaid: add Heat");
+        assert!(check_answer(r#"{"kind":"add"}"#, false).is_ok());
+        assert!(check_answer(r#"{"kind":"add"}"#, true).is_err());
+        assert!(check_answer("add", false).is_err());
+        assert!(check_answer(r#"["add"]"#, false).is_err());
+    }
+
+    #[test]
+    fn the_polish_prompt_is_the_recording_then_the_draft_without_control_characters() {
+        assert_eq!(polish_prompt("make a list.\nTools", "{\"actions\":[]}"), "Said: make a list. Tools\nDraft: {\"actions\":[]}");
+    }
+
+    #[test]
+    fn the_worked_examples_are_answers_the_grammars_describe() {
+        for system in [SORT_SYSTEM, PLAN_SYSTEM] {
+            for line in system.lines().filter(|line| line.starts_with('{') && line.contains("\":")) {
+                if line.starts_with("{\"kind\"") || line.starts_with("{\"actions\"") {
+                    assert!(check_answer(line, false).is_ok(), "{line}");
+                }
+            }
+        }
     }
 }
