@@ -7,12 +7,12 @@
 
   /*
    * The stores. Null until a listing is live, and the button says "Coming soon"; set a listing's address here and it
-   * is a link. Google Play is docs/store/PLAY_STORE.md's; the App Store waits on voice notes for iOS
-   * (docs/store/APP_STORE.md).
+   * is a link. Google Play is docs/store/PLAY_STORE.md's. The App Store's listing has been live since 2026-10-13
+   * (tauri/docs/store/APP_STORE.md): the address has no country in it, so the App Store opens each person's own.
    */
   var STORES = {
     play: null, // 'https://play.google.com/store/apps/details?id=com.mattssoftware.glyph'
-    appStore: null,
+    appStore: 'https://apps.apple.com/app/ghost-markdown/id6818598896',
   };
 
   var $ = function (selector, root) {
@@ -50,7 +50,11 @@
     var get = $('#hero-get');
     var word = $('#hero-get-word');
     var gets = { android: ['/glyph.apk', 'Download for Android'], mac: ['/glyph.dmg', 'Download for Mac'], windows: ['/glyph-setup.exe', 'Download for Windows'] };
-    if (gets[first]) {
+    if (ios && STORES.appStore) {
+      // An iPhone's way is the App Store's listing: a link out, not a file to keep.
+      get.href = STORES.appStore;
+      word.textContent = 'Get it on the App Store';
+    } else if (gets[first]) {
       get.href = gets[first][0];
       get.setAttribute('download', '');
       word.textContent = gets[first][1];
