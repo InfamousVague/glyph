@@ -509,6 +509,7 @@ class _NoteTabsState extends State<NoteTabs> {
       frame: !capsule
           ? null
           : (row) => BarGlass(
+                head: true,
                 radius: t.radius('full'),
                 border: BorderSide(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')),
                 shadows: t.cssShadows('app-float-shadow'),

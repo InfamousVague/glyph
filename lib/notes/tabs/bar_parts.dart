@@ -165,7 +165,10 @@ ui.ImageFilter glassFilter(Tokens t) {
 /// and, outside it only, the floating cards' shadow. The filter is laid under the child rather than round it, so
 /// what the child draws past its own box is not clipped.
 class BarGlass extends StatelessWidget {
-  const BarGlass({super.key, this.radius = 0, this.border, this.shadows = const [], this.tint, this.blur = true, required this.child});
+  const BarGlass({super.key, this.radius = 0, this.border, this.shadows = const [], this.tint, this.blur = true, this.head = false, required this.child});
+
+  /// This is the app's header: the one pane a plain build may still blur, slightly (lib/app/plain.dart `ghostBarBlur`).
+  final bool head;
 
   final double radius;
 
@@ -196,7 +199,13 @@ class BarGlass extends StatelessWidget {
                   // One of a group where a group is said above it (BackdropGroup, at the app's root): the bars'
                   // glass and the dock's then read what is behind them once between them, where each read it for
                   // itself. With no group above, this is the filter by itself, as before.
-                  ? BackdropFilter.grouped(enabled: !ghostPlain, filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t)))
+                  ? (ghostPlain && ghostBarBlur && head
+                      // One group with the tabs' strip under it: what is behind the two is read once.
+                      ? BackdropFilter.grouped(
+                          filter: ui.ImageFilter.blur(sigmaX: plainBarBlurSigma, sigmaY: plainBarBlurSigma, tileMode: TileMode.clamp),
+                          child: ColoredBox(color: tint ?? t.colorOf(plainBarBlurGlass)),
+                        )
+                      : BackdropFilter.grouped(enabled: !ghostPlain, filter: glassFilter(t), child: ColoredBox(color: tint ?? glassTint(t))))
                   : ColoredBox(color: tint ?? glassTint(t)),
             ),
           ),

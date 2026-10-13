@@ -29,6 +29,7 @@ class HeaderPane extends StatelessWidget {
       pane = content;
     } else if (t.attrs.containsKey('split')) {
       pane = BarGlass(
+        head: true,
         tint: const Color(0x00000000),
         child: Stack(
           fit: StackFit.passthrough,
@@ -39,7 +40,7 @@ class HeaderPane extends StatelessWidget {
         ),
       );
     } else {
-      pane = BarGlass(child: content);
+      pane = BarGlass(head: true, child: content);
     }
     return Positioned(top: 0, left: 0, right: 0, child: pane);
   }
