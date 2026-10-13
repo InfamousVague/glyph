@@ -24,7 +24,18 @@ enum Keychain {
     }
   }
 
-  static var service: String { "\(Bundle.main.bundleIdentifier ?? "ghost-flutter").secure" }
+  /// The Mac App Store's build (sandboxed) keeps its secrets under a service of its own, `<bundle id>.store.secure`.
+  /// It has the same bundle id as the build from the website, whose items in the login Keychain are that build's
+  /// (another signature made them): asked for one of those, the Keychain would put its "wants to use your
+  /// confidential information" panel in front of the person, or refuse. With a name of its own the store's build
+  /// never meets them, and the person signs in to it once.
+  static var service: String {
+    let id = Bundle.main.bundleIdentifier ?? "ghost-flutter"
+    #if os(macOS)
+    if !(ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] ?? "").isEmpty { return "\(id).store.secure" }
+    #endif
+    return "\(id).secure"
+  }
 
   private static func query(_ name: String?) -> [CFString: Any] {
     var query: [CFString: Any] = [kSecClass: kSecClassGenericPassword, kSecAttrService: service]

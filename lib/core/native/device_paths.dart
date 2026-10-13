@@ -60,7 +60,9 @@ class DevicePaths {
     if (data == null || cache == null) {
       throw StateError('The device did not say where Ghost.md keeps its files.');
     }
-    return DevicePaths.told(dataDir: data, cacheDir: cache, sandboxed: Platform.isAndroid);
+    // The Mac App Store's build is sandboxed by the Mac: its container is named by the bundle id, so its own path
+    // has a folder called `com.mattssoftware.glyph` in it, and the kernel, not this check, keeps it to its own files.
+    return DevicePaths.told(dataDir: data, cacheDir: cache, sandboxed: Platform.isAndroid || macSandboxKeepsFiles);
   }
 
   /// What a device said its two directories are. [sandboxed] is an Android phone, where the system gives every app

@@ -36,6 +36,15 @@ final class GhostChannels: NSObject {
   /// The folder of the build that replaces the Tauri app, under Application Support and under Caches.
   static let cutoverFolder = "com.mattssoftware.glyph.v2"
 
+  /// Whether this process runs in the App Sandbox: the Mac App Store's build (Runner/Store.entitlements,
+  /// tool/cutover-build-mac-store.sh; docs/CUTOVER.md, section 9), and no other. macOS gives a sandboxed app its
+  /// container's id in its environment. Sandboxed, `urls(for:in:)` answers inside the container
+  /// (`~/Library/Containers/<bundle id>/Data/Library/…`), so [dirs] is there with no word changed; the Mac, not
+  /// this code, keeps the app out of every other app's files; nothing is carried from an app outside the
+  /// container ([webCryptoMasterKey] answers nothing); a folder the person chose is kept as a security-scoped
+  /// bookmark (FilesChannel.swift); and the secure store has a service of its own (apple/Keychain.swift).
+  static let sandboxed = !(ProcessInfo.processInfo.environment["APP_SANDBOX_CONTAINER_ID"] ?? "").isEmpty
+
   private let files: FilesChannel
   private let tape: TapeChannel
   private let clips: TapeChannel
@@ -53,8 +62,11 @@ final class GhostChannels: NSObject {
     mic = MicChannel(messenger: messenger)
     super.init()
 
-    listen("ghost_md/device_paths", messenger) { call, result in
+    listen("ghost_md/device_paths", messenger) { [unowned self] call, result in
       guard call.method == "dirs" else { return result(FlutterMethodNotImplemented) }
+      // Asked once at launch, before the core is opened on the library: a sandboxed build takes up again the
+      // folder the person chose for it (FilesChannel `restoreGrants`; nothing to do in a build that is not).
+      self.files.restoreGrants()
       guard let dirs = GhostChannels.dirs() else {
         return result(FlutterError(code: "paths", message: "Ghost Flutter will not open another app's files.", details: nil))
       }
@@ -185,6 +197,9 @@ final class GhostChannels: NSObject {
   /// team), and to any other build it answers nothing, which the carry takes as "the password is asked once".
   static func webCryptoMasterKey() -> String? {
     guard Bundle.main.bundleIdentifier == realApp else { return nil }
+    // Never from inside a sandbox: the item is another app's, and asking would only put a panel in front of the
+    // person. The store's build carries nothing (lib/main.dart `_carry`), so nothing asks; this holds it here too.
+    guard !sandboxed else { return nil }
     let context = LAContext()
     context.interactionNotAllowed = true
     let query: [CFString: Any] = [

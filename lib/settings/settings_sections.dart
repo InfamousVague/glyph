@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../account/ui_state.dart';
+import '../core/mac_app.dart' show macAppStore;
 import '../core/preferences.dart';
 import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
@@ -262,7 +263,10 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.hardDriveUpload,
     group: 1,
     webFile: 'settings/BackupPane.tsx',
-    where: (facts) => !facts.ios,
+    // Not in the Mac App Store's build ([macAppStore]): a sandboxed app cannot ask the Mac which disks are
+    // removable (the core asks `diskutil`) nor write a drive by its path, so the page is left out rather than
+    // shown empty. Export is the way to a copy there.
+    where: (facts) => backupOffered(ios: facts.ios),
     summary: (facts) => _static('To a USB drive or SD card', facts),
     settings: (facts) => backupFindable,
     pane: BackupPane.hosted,
@@ -434,3 +438,6 @@ class SettingsNotPortedCard extends StatelessWidget {
         body: Text('${spec.label} is still the web app’s. Its page will come from src/app/${spec.webFile}.'),
       );
 }
+
+/// Whether Settings has a Backup page: not on an iPhone, and not in the Mac App Store's build.
+bool backupOffered({required bool ios, bool? macStore}) => !ios && !(macStore ?? macAppStore);

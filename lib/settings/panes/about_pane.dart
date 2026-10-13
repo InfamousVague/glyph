@@ -10,6 +10,7 @@ import '../settings_sheet.dart' show developerMode;
 import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
+import '../../core/mac_app.dart' show macAppStore;
 
 /// The version this app is, as pubspec.yaml has it (a test holds the two together). About draws it when no updater
 /// has said which build this is. The build that goes to the App Store has no updater to say, and is told its
@@ -30,7 +31,13 @@ const int guideChapters = 44;
 /// the App Store): the book is the manual of the whole product, and its chapters are about recording, the side
 /// key, the Fold, the Mac and how the Android app is built and updated, none of which an iPhone has. A copy an
 /// account already holds still syncs and reads as the notebook it is.
-bool get offersGuideBook => recordsVoice;
+///
+/// Not in the Mac App Store's build either ([macAppStore]): the same book, and a copy from that store names no
+/// other platform and nowhere else to get the app (guideline 2.3.10).
+bool get offersGuideBook => offersGuideBookFor(records: recordsVoice, macStore: macAppStore);
+
+/// [offersGuideBook]'s rule, for a test.
+bool offersGuideBookFor({required bool records, required bool macStore}) => records && !macStore;
 
 List<SettingsFindable> aboutFindable({required bool updates, required bool alerts, required bool whatsNew}) => [
       if (updates) const SettingsFindable('Updates', 'update check upgrade install'),

@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  What the Mac App Store's build may do (tool/cutover-build-mac-store.sh signs the app with this file;
+  docs/CUTOVER.md, section 9). The store requires the App Sandbox, so unlike the build on the website
+  (Release.entitlements, not sandboxed) everything this one keeps is in its own container,
+  ~/Library/Containers/com.mattssoftware.glyph/Data, and it reaches nothing else but what is named here. This file
+  is not named in the Xcode project: no other build is signed with it.
+
+  app-sandbox: the store's rule.
+  network.client: outgoing connections only. Sync and sign-in (the service), the live relay's socket, the speech
+    and language models' downloads, a link's preview, a map's tiles, and the plugins' services (GitHub, Notion,
+    Slack). The app listens on no port, so there is no network.server.
+  device.audio-input: the microphone, only while a take or a meeting is recorded (macos/Runner/MicChannel.swift).
+    Without it a sandboxed, hardened app gets no prompt and records silence.
+  files.user-selected.read-write: what the person chooses in one of the Mac's own panels, and nothing else: the
+    folder chosen for the library (written to), the zip an export is saved as (written), the picture added to a
+    note (read).
+  files.bookmarks.app-scope: the chosen library folder kept past a launch, as a security-scoped bookmark in the
+    app's own defaults (macos/Runner/FilesChannel.swift `restoreGrants`). Without it the folder would be lost at
+    every quit.
+
+  Not here, on purpose: no camera, no location, no contacts or calendars, no Apple Events, no home-relative or
+  absolute-path exceptions, no Downloads/Pictures/Music folders, no JIT, no unsigned memory, no disabled library
+  validation (every library in the bundle is signed by the same team), no app groups.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.files.user-selected.read-write</key>
+	<true/>
+	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+</dict>
+</plist>

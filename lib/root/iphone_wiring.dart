@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatf
 import '../ai/available.dart';
 import '../ai/fills/queue.dart' show lookupsHere;
 import '../core/blanks_syntax.dart' show hasBlank;
+import '../core/mac_app.dart' show macAppStore;
 import '../core/updates.dart' show describeBuild, ghostBuild;
 import '../editor/ai/blanks.dart' show BlankHooks, blanks;
 import '../editor/ai/fill_panel.dart' show fillPanel;
@@ -38,8 +39,11 @@ bool _iPhone(TargetPlatform? platform) => (platform ?? defaultTargetPlatform) ==
 
 /// What Settings › About is told on an iPhone: the version, and that the App Store is where its updates come from.
 /// Null anywhere else, where the update client says (lib/root/update_wiring.dart `settingsUpdatesOf`).
-SettingsUpdates? appStoreUpdates({TargetPlatform? platform}) =>
-    _iPhone(platform) ? SettingsUpdates(version: ghostVersion, built: ghostBuild.isEmpty ? null : describeBuild(ghostBuild), store: 'appstore') : null;
+///
+/// The Mac App Store's build is told the same ([macAppStore], lib/core/mac_app.dart): no Mac build has an updater,
+/// and the one from the store says whose its updates are.
+SettingsUpdates? appStoreUpdates({TargetPlatform? platform, bool? macStore}) =>
+    _iPhone(platform) || ((macStore ?? macAppStore) && (platform ?? defaultTargetPlatform) == TargetPlatform.macOS) ? SettingsUpdates(version: ghostVersion, built: ghostBuild.isEmpty ? null : describeBuild(ghostBuild), store: 'appstore') : null;
 
 /// Whether the + beside a line offers A picture here (`canPickPicture`).
 bool plusOffersPicture({TargetPlatform? platform}) => !_iPhone(platform);

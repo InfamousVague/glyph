@@ -22,6 +22,61 @@ final class FilesChannel: NSObject {
   /// The file an export is being written to, until it is done or discarded.
   private var exporting: URL?
 
+  // MARK: grants (the Mac App Store's build only)
+
+  /// IN THE SANDBOXED BUILD (GhostChannels.sandboxed; Runner/Store.entitlements) a folder outside the container is
+  /// reached only because the person chose it in a panel, and only until the app ends. So the choice is kept as a
+  /// security-scoped bookmark in this app's own defaults (`files.bookmarks.app-scope`) and taken up again at each
+  /// launch before the core opens the library ([restoreGrants]); the core then reads and writes the folder by its
+  /// plain path, as it does in the build that is not sandboxed. That build keeps no bookmark and none of this runs.
+  private static let folderGrants = "ghost.folderGrants"
+  /// The library's folder is one at a time; a few of the last chosen are kept so going back to one still opens.
+  private static let foldersKept = 4
+  /// The folders being reached through a grant now, by path: each is let go when the app ends.
+  private var reached: [String: URL] = [:]
+  private var restored = false
+
+  private func grants() -> [String: Data] {
+    (UserDefaults.standard.dictionary(forKey: FilesChannel.folderGrants) as? [String: Data]) ?? [:]
+  }
+
+  /// Keeps the person's choice of `url` past this run. A folder whose bookmark cannot be made is still reached
+  /// until the app ends, and false says it will not be after: the caller tells the person.
+  private func grant(_ url: URL) -> Bool {
+    var kept = grants()
+    guard let bookmark = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) else { return false }
+    kept[url.path] = bookmark
+    // The oldest go: a dictionary keeps no order, so the ones not reached this run.
+    for path in kept.keys.sorted() where kept.count > FilesChannel.foldersKept && path != url.path && reached[path] == nil { kept[path] = nil }
+    UserDefaults.standard.set(kept, forKey: FilesChannel.folderGrants)
+    reach(url)
+    return true
+  }
+
+  private func reach(_ url: URL) {
+    guard reached[url.path] == nil else { return }
+    if url.startAccessingSecurityScopedResource() { reached[url.path] = url }
+  }
+
+  /// Every folder the person chose before, reached again: called once, before the core opens the library. A grant
+  /// that no longer resolves (the folder was removed, the drive is not plugged in) is skipped, and the core then
+  /// says of the folder what it says of any folder it cannot open. One macOS says is stale is made again.
+  func restoreGrants() {
+    guard GhostChannels.sandboxed, !restored else { return }
+    restored = true
+    var kept = grants(), changed = false
+    for (path, bookmark) in kept {
+      var stale = false
+      guard let url = try? URL(resolvingBookmarkData: bookmark, options: [.withSecurityScope], relativeTo: nil, bookmarkDataIsStale: &stale) else { continue }
+      reach(url)
+      if stale, let fresh = try? url.bookmarkData(options: [.withSecurityScope], includingResourceValuesForKeys: nil, relativeTo: nil) {
+        kept[path] = fresh
+        changed = true
+      }
+    }
+    if changed { UserDefaults.standard.set(kept, forKey: FilesChannel.folderGrants) }
+  }
+
   init(messenger: FlutterBinaryMessenger, window: NSWindow) {
     self.window = window
     super.init()
@@ -62,8 +117,11 @@ final class FilesChannel: NSObject {
     panel.canChooseDirectories = true
     panel.canCreateDirectories = true
     panel.allowsMultipleSelection = false
-    Panels.show(panel, on: window) { url in
+    Panels.show(panel, on: window) { [weak self] url in
       guard let url = url else { return result(FilesChannel.json(["cancelled": true])) }
+      if GhostChannels.sandboxed, self?.grant(url) != true {
+        return result(FilesChannel.json(["error": "Ghost.md could not keep its way into that folder, so it would lose it the next time it opened. Choose another folder."]))
+      }
       result(FilesChannel.json(["path": url.path, "name": FileManager.default.displayName(atPath: url.path)]))
     }
   }

@@ -17,6 +17,9 @@
 /// - `wait:<ms>`; `shot:<name>`; `size:<w>,<h>`; `quit`
 /// - `key:<chord>`: a key pressed in this window alone, through AppKit as the keyboard's would be, so the menu's
 ///   shortcuts are walked too: `cmd+n`, `cmd+shift+z`, `escape`, `return`, `left`… `keys:<letters>` types them.
+/// - `type:<words>` gives words to the note's editor or the focused field as the Mac's text input would, and
+///   `enter` a new line: for a window that is not the key window (the app started behind another), which the Mac
+///   routes no typing to.
 /// - `tap:<x>,<y>`, `dtap:` (double), `ttap:` (triple), `rtap:` (the right button), `hover:`,
 ///   `drag:<x1>,<y1>,<x2>,<y2>`, `scroll:<x>,<y>,<dy>`: a mouse's, given to Flutter's own gesture binding.
 /// - `taplabel:<name>`: the same for a control with no words on it, by the name it gives a screen reader.
@@ -49,6 +52,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../core/mac_app.dart';
 import '../../core/stored_device.dart';
+import '../../editor/editor_widget.dart';
 import '../../editor/input/ime.dart';
 import 'mac_window.dart';
 
@@ -237,6 +241,10 @@ class _Tour {
           await Future<void>.delayed(const Duration(milliseconds: 30));
         }
         await _frames();
+      case 'type':
+        await _type(arg);
+      case 'enter':
+        await _type('\n');
       case 'tap' || 'dtap' || 'ttap' || 'rtap':
         final n = _numbers(arg);
         await _click(Offset(n[0], n[1]), count: name == 'dtap' ? 2 : name == 'ttap' ? 3 : 1, right: name == 'rtap');
@@ -364,6 +372,69 @@ class _Tour {
     _mouse = to;
     await _frames();
     _say('drag $from -> $to');
+  }
+
+  /// Words given to whatever holds the keyboard, one letter at a time, each as the change the Mac's text input
+  /// would hand over for it (lib/shell/phone_tour.dart `_type`, which this is): for a window that is not the key
+  /// window, where the Mac routes no typing at all and `keys:` reaches nothing. A note's editor first, else the
+  /// focused field of Flutter's own.
+  Future<void> _type(String words) async {
+    EditorIme? editor;
+    void visit(Element element) {
+      final widget = element.widget;
+      if (widget is Editor) {
+        final ime = widget.controller?.ime;
+        if (ime != null && ime.attached) editor = ime;
+      }
+      element.visitChildren(visit);
+    }
+
+    WidgetsBinding.instance.rootElement?.visitChildren(visit);
+    EditableTextState? field;
+    if (editor == null) {
+      final context = FocusManager.instance.primaryFocus?.context;
+      field = context?.findAncestorStateOfType<EditableTextState>();
+      if (field == null && context != null) {
+        void inside(Element element) {
+          if (field != null) return;
+          if (element is StatefulElement && element.state is EditableTextState) {
+            field = element.state as EditableTextState;
+            return;
+          }
+          element.visitChildren(inside);
+        }
+
+        context.visitChildElements(inside);
+      }
+    }
+    final ime = editor, typed = field;
+    if (ime == null && typed == null) {
+      _say('type "$words" NOTHING HOLDS THE KEYBOARD');
+      return;
+    }
+    for (final char in words.characters) {
+      if (ime != null) {
+        final held = ime.held;
+        final at = held.selection.isValid ? held.selection : TextSelection.collapsed(offset: held.text.length);
+        final after = TextSelection.collapsed(offset: at.start + char.length);
+        ime.updateEditingValueWithDeltas([
+          at.isCollapsed
+              ? TextEditingDeltaInsertion(oldText: held.text, textInserted: char, insertionOffset: at.start, selection: after, composing: TextRange.empty)
+              : TextEditingDeltaReplacement(oldText: held.text, replacementText: char, replacedRange: TextRange(start: at.start, end: at.end), selection: after, composing: TextRange.empty),
+        ]);
+      } else {
+        final value = typed!.textEditingValue;
+        final at = value.selection.isValid ? value.selection : TextSelection.collapsed(offset: value.text.length);
+        if (char == '\n') {
+          typed.performAction(typed.widget.textInputAction ?? TextInputAction.done);
+        } else {
+          typed.userUpdateTextEditingValue(value.replaced(TextRange(start: at.start, end: at.end), char), SelectionChangedCause.keyboard);
+        }
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 25));
+    }
+    await _frames();
+    _say('type "${words.replaceAll('\n', '⏎')}" into ${ime != null ? 'the editor' : 'a field'}');
   }
 
   final Stopwatch _clock = Stopwatch()..start();

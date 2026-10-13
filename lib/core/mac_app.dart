@@ -31,6 +31,29 @@ const String realAppId = 'com.mattssoftware.glyph';
 /// app kept is copied once (lib/carry/mac_carry.dart, lib/carry/iphone_carry.dart).
 const bool replacesTauriApp = bool.fromEnvironment('GHOST_CUTOVER');
 
+/// Whether this is the Mac build made for the Mac App Store (`--dart-define=GHOST_MAC_STORE=true`:
+/// tool/cutover-build-mac-store.sh; docs/CUTOVER.md, section 9). It has Ghost.md's name and bundle id and runs in
+/// the App Sandbox, which the store requires, so it differs from the build on the website in what a sandbox
+/// changes: its files are in its own container (`~/Library/Containers/com.mattssoftware.glyph/Data/…`), it carries
+/// nothing from an app outside that container (it starts as a new install, and an account brings the notes), a
+/// folder the person chose is reached again through a bookmark the Mac keeps, it backs up to no drive, and it says
+/// its updates are the App Store's. False in every other build, by a constant.
+const bool macAppStore = bool.fromEnvironment('GHOST_MAC_STORE');
+
+/// Whether this process runs in the Mac's App Sandbox: macOS gives a sandboxed app its container's id in its
+/// environment, and an app that is not sandboxed has no such variable.
+final bool inMacSandbox = Platform.isMacOS && (Platform.environment['APP_SANDBOX_CONTAINER_ID'] ?? '').isNotEmpty;
+
+/// Whether the Mac itself, and not this app's code, keeps the app out of every other app's files: the store's
+/// build, when it really is running sandboxed. Its container is a folder named by the bundle id, which is the
+/// Tauri app's id, so [isRealAppPath] would read the container's own path as that app's folder; there the kernel
+/// holds the rule and the path is taken as told (lib/core/native/device_paths.dart). A store build that somehow
+/// runs outside a sandbox is held to [isRealAppPath] like any other.
+bool get macSandboxKeepsFiles => macSandboxKeepsFilesFor(store: macAppStore, sandboxed: inMacSandbox);
+
+/// [macSandboxKeepsFiles]'s rule, for a test.
+bool macSandboxKeepsFilesFor({required bool store, required bool sandboxed}) => store && sandboxed;
+
 /// Whether [path] is the Tauri app's own folder or a place inside it: any path with a folder named exactly
 /// [realAppId] in it. This app's own folder is `com.mattssoftware.glyph.flutter`, a different name beside it, and
 /// the folder of the build that replaces the Tauri app is `com.mattssoftware.glyph.v2`, another: in no build is

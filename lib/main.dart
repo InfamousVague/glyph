@@ -180,7 +180,9 @@ Future<void> _remembered() async {
 /// fills a library of its own). One for the launch, since its halves are asked from two places. Null where there is
 /// none, or where the device will not say where its files are or open its store.
 final Future<TauriCarry?> _carry = () async {
-  final mac = runsAsMacApp && replacesTauriApp;
+  // Never the Mac App Store's build: a sandboxed app cannot read another app's folder or its Keychain item, so
+  // it carries nothing and starts as a new install (lib/core/mac_app.dart `macAppStore`).
+  final mac = runsAsMacApp && replacesTauriApp && !macAppStore;
   final iPhone = runsAsIPhoneApp && replacesTauriApp;
   if ((defaultTargetPlatform != TargetPlatform.android && !mac && !iPhone) || ghostPerf) return null;
   try {
