@@ -1,7 +1,6 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_md/capture/command.dart';
 import 'package:ghost_md/capture/live_take.dart';
 import 'package:ghost_md/capture/take_types.dart';
 import 'package:ghost_md/capture/ui/read_instruction.dart';
