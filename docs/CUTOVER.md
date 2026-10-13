@@ -710,14 +710,28 @@ it; the Info.plist, the privacy manifest and the script's promises.
 - **Delete account**: Settings › Account › Delete account (lib/settings/panes/account_pane.dart).
 - **Updates**: About says "Ghost.md updates through the App Store." and lists no releases; an iPhone build has no
   `ghost_md/updates` channel, checks no address and can install nothing.
-- **Other platforms' names** (guideline 2.3.10), where an iPhone can reach them. Each is the page's own, so
-  1.10.0 was accepted with it, and none was changed here: the "How Ghost.md works" example canvas says "Tap the
-  microphone, or press the side key" (and the reviewers' demo account holds that canvas); the Academy's video
-  lesson says "on Android"; three sentences that a core too old for a feature would say name attack.fm ("Sync
-  needs the newest Ghost.md. Install it from attack.fm/glyph."), which this app's core never is.
-- **Voice**: no way into a recording is drawn (`recordsVoice`). Two rows still speak of it, as the Tauri page's
-  do: Settings › Account's "Sync meeting recordings" switch and the line under it about "the model you
-  downloaded". Hiding both on an iPhone is a small change and a departure from the page; not made.
+- **Other platforms' names and what an iPhone lacks** (guideline 2.3.10), mended 2026-10-13 on Matt's word,
+  for an iPhone only (`recordsVoice`, lib/core/iphone_app.dart; Android and the Mac read as before;
+  test/settings/panes/iphone_wording_test.dart):
+  - the "How Ghost.md works" canvas is made in typed words (no microphone, no side key, no AI that hears), and
+    the sample note a new install is given leaves out every "Say …" sentence;
+  - the walkthrough has three pages, without the one that chooses a model, and promises no "words you can say";
+  - About does not offer Ghost.md: The Guide (the manual of the whole product: recording, the side key, the
+    Fold, the Mac, how the Android app is built), and its row and Export's say what their pages say;
+  - the Academy's video lesson no longer says "on Android, the +";
+  - Settings › Account has no "Sync meeting recordings" and says nothing of recordings, a model or "spoken";
+    Privacy says nothing of a voice; Appearance has no "Ripples while recording"; Notifications' Summaries reads
+    "A meeting written up on another of your devices.";
+  - the AI's "Install Ghost.md on Android" can no longer be said to an iPhone (it is asked which phone first).
+  Left, with the reason: "Sync needs the newest Ghost.md. Install it from attack.fm/glyph." (nothing gives the
+  engine the question that leads to it) and the AI's sentence of the same kind (an iPhone is answered before
+  it); attack.fm/glyph as a link in the sample note, the example canvas, the cheat sheet and a placeholder (an
+  address, not a platform); Slack's and GitHub's descriptions in Plugins ("a meeting's summary", "the model on
+  your phone"); "your phone and computer", "this Mac"/"Android" in pages an iPhone has not (Recording, AI,
+  Library folder, Backup, Developer) or in branches it does not take; device names in a list of one's own
+  devices; and a copy of the Guide or the old canvas that an account already holds, which syncs as the notes
+  they are. **The reviewers' demo account holds such a canvas**: delete it there and add it again from the new
+  build's Examples.
 - **The reviewers' demo account** (tauri/docs/store/APP_STORE.md) stands as written: the release is on the same
   service, and the handle and the examples are an account's, not an app's.
 - **Shown broken on an iPhone**: nothing found in the walk. One thing was wrong and is mended: on a dark theme with
@@ -813,6 +827,33 @@ engine and not called.
   to hold it to before sending.
 - **The App Privacy answers** stand (the manifest declares the same four).
 - **The export compliance answer** in App Store Connect is the one above.
+
+### Sent so far (2026-10-13, UTC), and where it stopped
+
+Matt answered every question above that day: the honest export answers with France taken out; no real iPhone,
+the simulator's proof stands; the seven screenshots stay; the iPhone's words mended; What's New drafted and
+used; submit when ready, released automatically after approval to everyone; the plain look with the slight blur
+behind the header (`GHOST_PLAIN`, `GHOST_BAR_BLUR`, which `tool/cutover-build-ios.sh` now passes).
+
+- **Built** from 27db0a5f at 14:01: `build/ios-store/Ghost.md-2.0.5-2000005.ipa`, 2.0.5 (2000005),
+  `com.mattssoftware.glyph`, iPhone only, the privacy manifest in it, `ITSAppUsesNonExemptEncryption` true, Apple
+  Distribution, the store profile. The plain look was read two ways: the build's defines
+  (ios/Flutter/Generated.xcconfig holds `GHOST_PLAIN=true` and `GHOST_BAR_BLUR=true`) and the compiled Dart, which
+  holds About's "plain: no smoke or blur" only when the constant is true.
+- **Walked in a simulator** made and deleted for it (iPhone 18 Pro, iOS 27.0, a new install, no service): the
+  walkthrough in three pages, the home page in the plain look with the typed sample note, Settings, About
+  ("Ghost.md updates through the App Store.", no Guide, Kind "… plain: no smoke or blur"), Account and Privacy
+  without recordings, Examples, and the canvas in typed words. Pictures in `build/ios-proof/2.0.5/`.
+- **App Store Connect**: France out of availability (174 territories to 173, France alone); version 2.0.5 made
+  (`5ae0a271-d667-4d63-b228-b3ad1b06cd61`), What's New set, the review notes given their sentence, release
+  after approval, not phased. `tauri/docs/store/APP_STORE.md` has each with its reading back.
+- **Stopped at the upload.** Apple refuses the build (error 90592): `true` asks for the code Apple gives after
+  reviewing export documentation, and for standard algorithms with France off there is no documentation to
+  review (the API will not make the declaration). Apple's own answer for that case is the key at `false`, or left
+  out. The key is Matt's to change: APP_STORE.md, "Sent so far, and where it stopped", has the three ways on.
+  **No build is uploaded, none is attached, nothing is submitted.** A custom product page of the app's
+  ("Markdown, supercharged!") was already waiting for review from 06:08 that day; it is somebody else's
+  submission and was not touched.
 
 ### To publish, in order
 

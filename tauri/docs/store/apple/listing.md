@@ -57,6 +57,18 @@ SYNC AND PRIVACY
 No account is needed. Without one, your notes stay on your iPhone and nothing of yours is on any server. Sign in and your notes are the same on your iPhone, on a Mac and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. Delete the account in Settings and everything it kept goes with it. Share a note or a notebook as a read-only link: its key rides in the link after the #, so the server cannot read what it holds. No ads, no analytics, no tracking.
 ```
 
+## What's New, 2.0.5 (4,000)
+
+Set on version 2.0.5 through the API on 2026-10-13 (en-US, the only localization).
+
+```
+Ghost.md has been rebuilt and is faster. Your notes and your sign-in carry over when you update.
+
+Search on the home page puts the nearest note first, forgives a typo and shows the line that matched.
+A note's authors show on the home list.
+An organization's members list shows the AIs that read its notes.
+```
+
 ## The rest of the version page
 
 - Support URL: https://ghostmarkdown.com/privacy.html (its Contact section has the address; the home page has none).
@@ -66,6 +78,7 @@ No account is needed. Without one, your notes stay on your iPhone and nothing of
 - Age rating: every answer None or No (4+). No user-generated content: notes are private, a shared link is a
   read-only page in a browser, and an organization shares no notes yet.
 - Price: free. Available everywhere but mainland China, which asks for an ICP filing number.
+  And, since 2026-10-13, but France (Matt: no French encryption declaration for now; `../APP_STORE.md`).
 
 ## The screenshots
 

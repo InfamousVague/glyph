@@ -162,8 +162,65 @@ to show). What changes of this file's:
   8, "Export compliance").
 - **Still true as written**: delete account, the privacy policy, "Ghost.md updates through the App Store", no
   downloaded code, nothing paid, no social sign-in, iPhone only, and the reviewers' demo account.
-- **Still the page's own words, in both apps**: "press the side key" on the How Ghost.md works canvas, "on
-  Android" in the Academy's video lesson, and Settings › Account's "Sync meeting recordings".
-- **The listing** (`apple/listing.md`): the seven screenshots are of the Tauri page and are to be shot again from
-  the new build; What's New needs its text; the rest stands.
+- **The iPhone's words** (2026-10-13, Matt: fix them before submitting): an iPhone is no longer shown "press the
+  side key" (the How Ghost.md works canvas and the sample note are given in typed words), "on Android" (the
+  Academy's video lesson), "Sync meeting recordings" or "the model you downloaded" (Settings › Account), the
+  walkthrough's model page, or Ghost.md: The Guide in About. `docs/CUTOVER.md`, section 8, lists each and what was
+  left. **The reviewers' demo account still holds the canvas made by the Tauri app, with the old card**: sign in
+  as it, delete "How Ghost.md works", and add it again from Settings › About › Examples in the new build (or edit
+  the first card's words on any device).
+- **The listing** (`apple/listing.md`): the seven screenshots stay for now (Matt, 2026-10-13); What's New is
+  written; the rest stands.
+
+### Sent so far, and where it stopped (2026-10-13, UTC)
+
+Matt's decisions that day: answer export compliance honestly and take France out of where the app is sold; no
+real iPhone test; keep the seven screenshots; fix the iPhone's words; draft What's New and use it; submit as soon
+as it is ready, released automatically after approval, to everyone at once; the plain look with the slight blur
+behind the header.
+
+Done in App Store Connect, through the API with the suite's key (`ghost-md-app-store-pack/tools/asc.mjs`):
+
+- **France removed from availability** (14:06). Before: 175 territories, 174 available, China alone off. After:
+  173 available, China and France off, nothing else changed. France was already marked `CANNOT_SELL` with
+  `TRADER_STATUS_NOT_PROVIDED`: the EU trader status has never been given for this account.
+- **Version 2.0.5 created** for iOS (14:07), id `5ae0a271-d667-4d63-b228-b3ad1b06cd61`, `PREPARE_FOR_SUBMISSION`,
+  release type `AFTER_APPROVAL`, no phased release. The one localization is en-US. Its description, keywords,
+  support address, promotional text and the seven `APP_IPHONE_67` screenshots are 1.10.0's (the promotional text
+  did not come across by itself and was set again, word for word).
+- **What's New** (en-US): see `apple/listing.md`.
+- **Review notes**: one sentence added, "Version 2.0.5 is a rebuild of the same app: updating from 1.10.0 keeps
+  the person's notes and their sign-in." The contact is there. The demo account is in the notes' own text
+  (Username `test`), not in the Sign-In Information fields, which are empty with "required" off: that is how
+  1.10.0 was reviewed and accepted, and it was left so. Nobody signed in as it to check it today.
+
+**Not done: no build is uploaded, none is attached, and nothing is submitted.** The build made that day
+(`build/ios-store/Ghost.md-2.0.5-2000005.ipa`, from 27db0a5f, the plain look) was refused by
+`xcrun altool --validate-app` (14:05):
+
+> Invalid Export Compliance Code. The export compliance key value [] in the app's Info.plist doesn't match the
+> key value of the app's export compliance documentation. (90592)
+
+`ITSAppUsesNonExemptEncryption` `true` tells Apple the build needs export documentation, and Apple then wants
+the code it gives once that documentation is reviewed (`ITSEncryptionExportComplianceCode`). There is no such
+documentation to give for this app with France off. Asked to make the declaration with the honest answers
+(proprietary cryptography: no; standard algorithms instead of, or in addition to, Apple's: yes; on the French
+store: no), the API answers:
+
+> Cannot create appEncryptionDeclarations unless either containsProprietaryCryptography is True or
+> containsThirdPartyCryptography and availableOnFrenchStore are both True
+
+So by Apple's own rule an app with standard algorithms of its own, not sold in France, files nothing and gets no
+code, and its Info.plist is meant to say so: Apple's page says of an app that needs no documentation, "update
+your app's information property list (Info.plist) file in Xcode to let us know that your app doesn't use
+encryption or is exempt from providing documentation", which is the key at `false` (or left out, and the same
+answer given for the build in App Store Connect). Matt's decision was that the key stays `true`, and what the key
+says is his to say, so nothing was changed and nothing was uploaded. The ways on, each a word from Matt:
+
+1. The key `false` (ios/Runner/Info.plist), with the reason beside it: standard algorithms only, none
+   proprietary, not sold in France, so exempt from documentation by Apple's table. Then build, upload, attach,
+   submit. Whether a yearly self-classification report to the U.S. government is owed is his to look into
+   (Apple's page says an app with exempt encryption "might" owe one).
+2. The key left out, and the build's question answered in App Store Connect by Matt himself.
+3. Keep `true`, put France back and file the French declaration, and use the code Apple gives.
 
