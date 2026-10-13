@@ -2,6 +2,7 @@
 // `src/app/settings/AccountPane.test.tsx`, case for case, where the page's own modules are the objects of
 // test/account_ui/support.dart; then this port's own: the three ways in run for real, the recovery codes shown once,
 // the password changed, signing out, and that with no services the page is what it was before there was an account.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
@@ -153,6 +154,25 @@ void main() {
       await tester.tap(toggle);
       await settle(tester);
       expect(preferences.value.syncMeetingRecordings, isTrue);
+      await endSettings(tester);
+    });
+
+    testWidgets('on an iPhone, which records nothing, has no such switch and says nothing of recordings or a model', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      final device = await Device.make();
+      await device.pump(tester, AccountPane(services: device.services));
+      final switches = tester.widgetList<GlacierSwitch>(find.byType(GlacierSwitch)).map((w) => w.ariaLabel).toList();
+      final footer = find.text('Notes, their pictures, and your settings. Developer settings stay on each device.').evaluate().length;
+      final spoken = find.textContaining('The model you downloaded').evaluate().length;
+      final listed = accountFindable(signedIn: true, ported: true).map((found) => found.name).toList();
+      debugDefaultTargetPlatformOverride = null;
+      expect(switches, isNot(contains('Sync meeting recordings')));
+      expect(switches, contains('Live typing'));
+      expect(footer, 1);
+      expect(spoken, 0);
+      expect(listed, isNot(contains('Sync meeting recordings')));
+      expect(listed, contains('Sync now'));
+      expect(accountFindable(signedIn: true, ported: true).map((found) => found.name), contains('Sync meeting recordings'));
       await endSettings(tester);
     });
 
