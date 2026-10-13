@@ -82,8 +82,33 @@ An organization's members list shows the AIs that read its notes.
 
 ## The screenshots
 
-Seven, 1290 x 2796 for the 6.9-inch slot (`APP_IPHONE_67` in the API), shot in WebKit with an iPhone user agent
-over an invented library with nothing recorded in it, Speak hidden as the iPhone app hides it, each under a kicker and a
-caption as the Play set is: Home (Your day on one page.), The marks (Plain Markdown, with marks of its own.), Boards
-(A list can be a board.), Queries (Ask across every note. Drawn live.), Tickets (A note can be a ticket.), Notebooks
-(A notebook, read straight through.), Canvas (Cards on a canvas, lines between them.).
+Seven, 1290 x 2796 for the 6.9-inch slot (`APP_IPHONE_67` in the API; Apple takes 1260 x 2736, 1290 x 2796 or
+1320 x 2868 there), each under a kicker and a caption as the Play set is: Home (Your day on one page.), The marks
+(Plain Markdown, with marks of its own.), Boards (A list can be a board.), Queries (Ask across every note. Drawn
+live.), Tickets (A note can be a ticket.), Notebooks (A notebook, read straight through.), Canvas (Cards on a
+canvas, lines between them.).
+
+**Since 2026-10-13 they are pictures of the Flutter app** (Matt: "update the screenshots and resubmit"), the same
+seven scenes in the same order over the same invented library, in `ghost-md-app-store-pack/screenshots/2026-10-13-flutter-2.0.5/`
+(`raw/` and `iphone-6.9/`; the Tauri page's set is still in `screenshots/iphone-6.9/`, untouched). How they are
+shot:
+
+1. `tool/cutover-build-ios.sh 2.0.5 --simulator`: the store build's code and look (plain, the slight blur behind
+   the header) as a debug build. Shot from f84d01f0, which is the uploaded build's commit (b656aca3) with two
+   debug-only additions to the tour and nothing else in the app.
+2. A simulator of an iPhone 16 Plus (430 x 932 points at 3, which is 1290 x 2796), dark, its status bar set with
+   `xcrun simctl status_bar … override --time 9:41 --batteryState discharging --batteryLevel 100 --cellularBars 4
+   --wifiBars 3`.
+3. The app's own debug tour (lib/shell/phone_tour.dart), with `invented` as the script's first step: the app
+   opens no core and draws the store pictures' invented notes (`seedLibrary`, lib/core/sample_library.dart). A
+   fresh install for each scene, so no tab is left from the one before; each note opened through Search and
+   commands by its title. Weekend trip is scrolled 236 points; Portugal is put in Read straight through; the
+   canvas is fitted, moved and pinched (`pinch:`) to the Before we go group. The two scripts are
+   `tools/shoot-ios-flutter-tour.sh` and `tools/shoot-ios-flutter-scene.sh` in the pack.
+4. `tools/compose-ios-flutter.mjs` in the pack: `compose-ios.mjs` reading and writing the dated folder, the same
+   frame and captions.
+
+What differs from the Tauri set: each picture has the phone's status bar (the web page had none); due dates that
+have passed are drawn red, since the simulator's clock is today's and the notes' dates are September's and early
+October's; the home page's times read from today. Nothing recorded is in any of them, no scene was replaced, and
+the names in them are the invented library's (Sam, Ana, Ali, and "Matt" on one made-up ticket, as before).

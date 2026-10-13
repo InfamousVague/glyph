@@ -247,3 +247,21 @@ status.
   was not touched and did not stand in the way.
 - **For Matt still**: the reviewers' demo account holds the old "How Ghost.md works" canvas ("press the side
   key"); nobody signed in to it. The yearly U.S. self-classification report, if one is owed.
+
+### The screenshots replaced, and sent again (2026-10-13, UTC)
+
+Matt: "Go ahead and update the screenshots and resubmit for approval". A version waiting for review cannot have
+its screenshots changed, so it was taken out and sent again, **which puts it at the back of Apple's queue: its
+place is counted from 14:58, not 14:23.**
+
+- 14:54:07 the version's submission (5345088b-…) cancelled; by 14:54:20 it read `COMPLETE` and the version
+  `DEVELOPER_REJECTED` (Apple's name for "taken back by the developer"), which can be edited.
+- 14:54:38 to 14:55:01 the en-US `APP_IPHONE_67` set (4a951c1b-…): the seven new pictures uploaded and each read
+  back `COMPLETE` at 1290 x 2796 with our checksum, the seven old ones deleted, the order set. A set holds ten at
+  most, so it went three new, four old out, four new, three old out; the old files are still in the pack.
+- The build (c178c4e6-…, 2000005), What's New, `AFTER_APPROVAL` and no phased release read back unchanged.
+- 14:58:43 submitted again in a new submission, **a02dc6ed-4f02-43d5-b585-c687d01240d7**: the version reads
+  `WAITING_FOR_REVIEW`. The custom product page's submission and its pictures, and the macOS version, were not
+  touched.
+
+What the seven are and how they are shot again: `apple/listing.md`.
