@@ -754,10 +754,50 @@ it through on the old answer. The ways on, for Matt:
 1. Answer the questions as they are (standard algorithms, not Apple's), and either file the French declaration or
    take France out of where the app is sold.
 2. Make the iPhone build's encryption Apple's (CryptoKit and CommonCrypto behind the core's crypto, and HTTPS
-   through `URLSession`), and put `false` back with the Tauri app's reason. What that takes is set out below.
+   through `URLSession`), and put `false` back with the Tauri app's reason. What that takes is the next heading.
 
 Whether a yearly self-classification report is owed in either case is a question of the U.S. rules that Apple's
 pages point at and do not answer, and is not answered here.
+
+### Making the iPhone's encryption Apple's: what there is, what maps, what it would take
+
+Matt, 2026-10-13: open to the iPhone build doing its encryption with Apple's own code, to keep the answer 1.10.0
+gave. **Not begun**: it is not a small change, and two things in it do not come out clean. This is the inventory
+and the design, for the decision.
+
+**Every cryptographic operation in the iPhone build.**
+
+| What | Where | With | Apple's, bit for bit |
+| --- | --- | --- | --- |
+| Sealing and opening everything synced or shared (notes, settings, files, versions, the bell's rows, team documents, a share): AES-256-GCM, a 12-byte IV, a 16-byte tag, the context as associated data | native/src/crypto.rs `seal_bytes`, `open_bytes`, `seal_file`, `open_file`, `seal_share`, `open_share` | `aes-gcm` | CryptoKit `AES.GCM`. Yes. |
+| The password and a recovery code into a login secret and a wrap key: PBKDF2-HMAC-SHA-256, 600,000 rounds, 64 bytes | crypto.rs `derive_bytes` (its own two-block PBKDF2 over `hmac`) | `hmac`, `sha2` | CommonCrypto `CCKeyDerivationPBKDF`. Yes. |
+| The account key wrapped under a wrap key, and the recovery sheet's eight wraps: AES-256-GCM again | crypto.rs `wrap_account`, `unwrap_account`, `recovery_sheet` | `aes-gcm` | CryptoKit. Yes. |
+| The account's pair and an organization key's wrap to a member: a P-256 pair, an ephemeral pair, ECDH, HKDF-SHA-256 with an empty salt, AES-256-GCM; the private half as a JWK | crypto.rs `new_pair`, `agreed`, `wrap_for`, `unwrap_with`, `jwk_of`, `pair_of_jwk` | `p256`, `hkdf`, `aes-gcm` | CryptoKit `P256.KeyAgreement` (a 32-byte scalar, a 65-byte point), `HKDF<SHA256>`. Yes. |
+| The device's signing key: Ed25519 from a 32-byte seed, a nonce signed for the service | crypto.rs `device_key_new`, `device_key_sign`, `device_key_verify` | `ed25519-dalek` | CryptoKit `Curve25519.Signing`. The keys and the signatures are the standard's and verify anywhere; CryptoKit's signatures are salted, so two of one message differ, where dalek's are the same each time. No format changes; a fixture that compares a signature byte for byte would. |
+| An update's signature checked (Ed25519) | native/src/kept/updates.rs | `ed25519-dalek` | Compiled into an iPhone's core and never called there (no updater). It would be compiled out. |
+| Digests that are not secrets: a file's name on the wire, a recording's, a picture's (SHA-256, sixteen bytes of it) | crypto.rs `sha256`, `sha256_16`, `digest_file`; native/src/recording.rs | `sha2` | CommonCrypto `CC_SHA256`. Yes. |
+| Random bytes: keys, IVs, codes, ids | crypto.rs `random` (`getrandom`); `Random.secure()` in Dart | `getrandom` | Already the system's: on an iPhone `getrandom` is `CCRandomGenerateBytes`, and Dart's is the system's too. |
+| Notion's sign-in challenge (SHA-256 of a verifier) | lib/plugins/notion/sha256.dart, written out in Dart | none | A hash, not a cipher. Could ask the core. |
+| The carry: WebKit's wrap opened once (AES key unwrap, RFC 3394; AES-128-GCM **with an empty IV**) | lib/carry/aes_unwrap.dart, written out in Dart | none | **Half.** CommonCrypto unwraps a key (`CCSymmetricKeyUnwrap`). CryptoKit refuses an IV shorter than 12 bytes (tried on this Mac: `AES.GCM.Nonce` of 0 and of 8 bytes, `incorrectParameterSize`), and WebKit wraps with none, through a call of CommonCrypto's that is not public. What can be done: Apple's AES (`CCCrypt`) for the cipher, with GCM's counter and its tag (GHASH, which is arithmetic and no cipher) still worked in the app. |
+| HTTPS to the service, to GitHub, to a link's page, to a map's tiles; the live relay's WebSocket | `HttpClient`, `WebSocket.connect`, `SecureSocket` of `dart:io` in lib/account/api.dart, lib/live/transport.dart, lib/root/plugin_ground.dart, lib/core/link_preview.dart, lib/core/geocode.dart, lib/ai/fills/web.dart, lib/editor/media/map_tiles.dart | BoringSSL, inside Flutter's engine | **Not as it stands, and never wholly.** The requests can be sent through `URLSession` (a channel in Swift, or the `cupertino_http` package, with `URLSessionWebSocketTask` for the relay), and then the app USES only Apple's TLS. BoringSSL is still in `Flutter.framework`, in this and every Flutter app; "contains" is one of the words in Apple's sentence, and what that comes to is not for this file to say. |
+
+**The design, if it is taken up.** One seam in the core: crypto.rs's handful of primitives (seal and open, PBKDF2,
+HKDF, the pair, the signing key, SHA-256) behind a small module with two bodies chosen at build time: the Rust
+crates everywhere, and on iOS `extern "C"` calls to a Swift file compiled into the Runner (CryptoKit and
+CommonCrypto), as the core's five functions are already found across the same link. The table of keys, the
+formats, the contexts and every command stay crypto.rs's own, so no byte on the wire or on disk changes. The
+crates then leave the iPhone's library (a feature), which is what makes the answer checkable: `nm` on the app
+shows no AES of its own. Cross tests in both directions for every operation (the fixtures the web code wrote,
+tests/crypto_vectors.rs, already hold the Rust to WebCrypto; the same file run against the Apple body on the Mac,
+where CryptoKit is the same framework, and once in the simulator), then the simulator's carry walked again on that
+build. HTTPS: one `Transport` behind lib/account/api.dart's and the other six callers' requests, `URLSession` on
+an iPhone, `dart:io` elsewhere, with uploads and downloads streamed and the relay's socket moved with it.
+
+**What it comes to**: the core's seam, the Swift, the build and the cross tests, two to three days; the requests
+through `URLSession`, one to two, most of it in what a request's failure says and in the relay; the carry's
+unwrap, half a day and the caveat above. Then a build, the proof again, and `false` goes back in the Info.plist
+with a reason that is nearly the Tauri app's: every cipher the app runs is Apple's, with BoringSSL carried by the
+engine and not called.
 
 ### What the listing no longer matches
 
