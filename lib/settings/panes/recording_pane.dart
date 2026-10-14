@@ -195,7 +195,6 @@ class _RecordingPaneState extends State<RecordingPane> {
                 ),
               ],
             ),
-            _voiceLogSection(context),
             PaneSection(
               title: 'After recording',
               children: [
@@ -297,6 +296,8 @@ class _RecordingPaneState extends State<RecordingPane> {
                 ),
               ],
             ),
+            // Last, so every card above it stays where the page puts it (panes_test.dart, rect for rect).
+            _voiceLogSection(context),
           ],
         );
       },
