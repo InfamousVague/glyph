@@ -533,9 +533,19 @@ final RegExp _these = RegExp(r'^(?:(?:these|the\s+following)(?:\s+(?:items?|thin
     final items = spokenListItems(said.substring(listed.end).replaceFirst(_these, ''));
     if (items.length > 1) return (title: _cleanTitle(said.substring(0, listed.start)), items: items, rest: null);
   }
+  // Whisper ends a name said before the note's words with a question mark or a full stop ("called stream ideas? I want
+  // to stream…"): the name is the sentence it ends, and the rest is the note's. A full stop only counts after a word
+  // of four letters or more, so "Mr. Smith's trip" stays whole.
+  final named = _nameThenWords.firstMatch(said);
+  if (named != null) {
+    final title = _cleanTitle(named.group(1)!);
+    final rest = named.group(2)!.trim();
+    if (title.isNotEmpty && title.split(_spaces).length <= 6 && rest.isNotEmpty) return (title: title, items: const [], rest: rest);
+  }
   return (title: _cleanTitle(said), items: const [], rest: null);
 }
 
+final RegExp _nameThenWords = RegExp(r'^(.+?(?:[?!]|(?<=\p{L}{4})\.))\s+(\S.*)$', unicode: true, dotAll: true);
 final RegExp _pauses = RegExp(r'(?:\s*[.!?]+){2,}');
 final RegExp _runOfSpaces = RegExp(r'\s+');
 final RegExp _leadingJunk = RegExp(r'^[\s,.;:]+');

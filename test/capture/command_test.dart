@@ -295,6 +295,22 @@ void main() {
     });
   });
 
+  group('a new note whose name Whisper ends with a question mark', () {
+    test('is the name, and the sentences after it are the note', () {
+      final plan = planFinalCommand('make a new note called stream ideas? I want to stream a cat game. It is like It Takes Two.', notes: const <Candidate>[]);
+      expect(plan, isA<PlanCreateNote<Candidate>>());
+      plan as PlanCreateNote<Candidate>;
+      expect(plan.title, 'stream ideas');
+      expect(plan.body, 'I want to stream a cat game. It is like It Takes Two.');
+    });
+
+    test('keeps a name with an abbreviation whole', () {
+      final plan = planFinalCommand("make a new note called Mr. Smith's trip", notes: const <Candidate>[]);
+      expect(plan, isA<PlanCreateNote<Candidate>>());
+      expect((plan as PlanCreateNote<Candidate>).title, "Mr. Smith's trip");
+    });
+  });
+
   group('adding to "my list of …"', () {
     test('finds the note by what follows "list of"', () {
       final result = planCommand('add to my list of vegetables? Lettuce, yams and broccoli.', notes: const [Candidate(id: 'v', title: 'Vegetables')]);

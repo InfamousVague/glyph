@@ -110,6 +110,15 @@ List<String>? _sentenceItems(String text) {
   return items.length >= 2 ? items : null;
 }
 
+/// Three or more short sentences said one after another ("Chicken. Ground chicken. Beef. Pork belly."): the items of a
+/// list that Whisper wrote as sentences, for words going onto a list that were not told apart by the command. Null for
+/// prose, where a sentence is a thought and not a thing: fewer than three, or any longer than six words.
+List<String>? spokenSentenceItems(String text) {
+  final items = _sentenceItems(text.trim().replaceFirst(_stopsAtEnd, '').trim());
+  if (items == null || items.length < 3) return null;
+  return items.every((item) => item.split(_space).length <= 6) ? items : null;
+}
+
 /// The items of a spoken list, one string each, in the order said.
 List<String> spokenListItems(String text) {
   final cleaned = text.trim().replaceFirst(_stopsAtEnd, '').trim();
