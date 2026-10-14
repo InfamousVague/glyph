@@ -1,10 +1,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_md/capture/command.dart';
 import 'package:ghost_md/capture/live_take.dart';
 import 'package:ghost_md/capture/take_types.dart';
 import 'package:ghost_md/capture/ui/read_instruction.dart';
+import 'package:ghost_md/capture/voice_plan.dart';
 import 'package:ghost_md/core/note.dart' show Segment;
 import 'package:ghost_md/guide/phrases.dart';
 
@@ -71,13 +71,13 @@ void main() {
       for (final said in ways(command.say)) {
         final read = await readInstruction(said, candidates());
         expect(read.kind, 'command', reason: said);
-        final plan = (read as ReadCommand<TakeCandidate<TakeNote>>).plan;
-        expect(plan, isA<PlanPlace<TakeCandidate<TakeNote>>>(), reason: 'not a command to place words');
-        plan as PlanPlace<TakeCandidate<TakeNote>>;
-        expect(plan.note.title, command.note);
-        expect(plan.text, command.words);
-        // One thing, not a list of them.
-        expect(plan.items, isNull);
+        final actions = (read as ReadCommand<TakeCandidate<TakeNote>>).actions;
+        expect(actions, hasLength(1), reason: 'one request, one change');
+        final action = actions.single;
+        expect(action, isA<VoiceAppend<TakeCandidate<TakeNote>>>(), reason: 'not a command to place words');
+        action as VoiceAppend<TakeCandidate<TakeNote>>;
+        expect(action.note.title, command.note);
+        expect(action.text, command.words);
       }
     });
 

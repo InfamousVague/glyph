@@ -89,12 +89,44 @@ final RegExp _semicolon = RegExp(r'\s*;\s*');
 final RegExp _commaOrAnd = RegExp(r'\s*(?:,|\band\b)\s*', caseSensitive: false);
 final RegExp _bareWord = RegExp(r"^[\p{L}\p{N}'-]+$", unicode: true);
 
+/// What Whisper writes between the items of a list said slowly: "Also." "And." "Can you also add?" "Go."
+final RegExp _filler = RegExp(
+  r'^(?:(?:can|could|would)\s+you\s+(?:also\s+|please\s+)?(?:add|put)(?:\s+(?:these|them|those))?|(?:and|also|then|next|okay|ok|um|uh|please|go|end|stop|done|add|put)(?:\s+(?:and|also|then|next|add|put))*)$',
+  caseSensitive: false,
+);
+final RegExp _sentenceBreak = RegExp(r'[.!?]\s+\S');
+final RegExp _sentenceSplit = RegExp(r'\s*[.!?]+\s+');
+final RegExp _pieceEdges = RegExp(r'^[\s.,]+|[\s.,!?]+$');
+final RegExp _leadingJoiners = RegExp(r'^(?:(?:and|also|then|next)\s+)+', caseSensitive: false);
+
+/// Items said with a pause between them come back as sentences: "Zelda. Spiderman PS4. And Lego Star Wars. Also.
+/// Stardew Valley." Two or more of those are the items, with the filler between them and a leading "and" left out.
+List<String>? _sentenceItems(String text) {
+  if (text.contains(';') || !_sentenceBreak.hasMatch(text)) return null;
+  final items = [
+    for (final piece in text.split(_sentenceSplit).map((piece) => piece.replaceAll(_pieceEdges, '')))
+      if (piece.isNotEmpty && !_filler.hasMatch(piece)) piece.replaceFirst(_leadingJoiners, '').trim(),
+  ].where((item) => item.isNotEmpty).toList();
+  return items.length >= 2 ? items : null;
+}
+
+/// Three or more short sentences said one after another ("Chicken. Ground chicken. Beef. Pork belly."): the items of a
+/// list that Whisper wrote as sentences, for words going onto a list that were not told apart by the command. Null for
+/// prose, where a sentence is a thought and not a thing: fewer than three, or any longer than six words.
+List<String>? spokenSentenceItems(String text) {
+  final items = _sentenceItems(text.trim().replaceFirst(_stopsAtEnd, '').trim());
+  if (items == null || items.length < 3) return null;
+  return items.every((item) => item.split(_space).length <= 6) ? items : null;
+}
+
 /// The items of a spoken list, one string each, in the order said.
 List<String> spokenListItems(String text) {
   final cleaned = text.trim().replaceFirst(_stopsAtEnd, '').trim();
   if (cleaned.isEmpty) return [];
   final places = _placesIn(cleaned);
   if (places != null) return places;
+  final sentences = _sentenceItems(cleaned);
+  if (sentences != null) return sentences;
   // A model is asked to separate its items with semicolons, which keeps a comma inside one item.
   if (cleaned.contains(';')) return cleaned.split(_semicolon).map((item) => item.trim()).where((item) => item.isNotEmpty).toList();
   final said = cleaned.split(_commaOrAnd).map((item) => item.trim()).where((item) => item.isNotEmpty).toList();

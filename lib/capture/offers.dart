@@ -7,14 +7,14 @@
 ///
 /// Pure, so every plan's offer is a test.
 ///
-/// What differs: the shapes. `Offer` is a sealed class ([OfferPlace], [OfferNew]), generic in any note (see
-/// take_types.dart). A place offer's `placement` is the plan's `Placement` alone, where the web hands over the whole
+/// What differs: the shapes. `Offer` is a sealed class ([OfferPlace], [OfferNew], [OfferPlan]), generic in any note
+/// (see take_types.dart). A place offer's `placement` is the plan's `Placement` alone, where the web hands over the whole
 /// plan because a plan has a placement's fields; and `into` is list_append.dart's `PlacedInto`. [placingOf] is new:
 /// the `Placement` a command read, as the `Placing` that `placeWords` (list_append.dart) takes, which on the web is
 /// the same object under two type names.
 library;
 
-import 'command.dart' show FinalPlan, Placement, PlanCreateList, PlanPlace;
+import 'command.dart' show FinalPlan, Placement, PlanCreateList, PlanCreateNote, PlanPlace;
 import 'list_append.dart' show PlacedInto, Placing, PlacingHow, placeWords;
 import 'take_types.dart' show TakeCandidate;
 
@@ -31,7 +31,7 @@ bool _sameList<T>(List<T>? a, List<T>? b) {
 sealed class Offer<N extends Object> {
   const Offer();
 
-  /// The web's `kind`: `place` or `new`.
+  /// The web's `kind`: `place`, `new` or `plan`.
   String get kind;
 
   String get title;
@@ -90,6 +90,34 @@ final class OfferNew<N extends Object> extends Offer<N> {
   String toString() => '{kind: new, title: $title${lines == null ? '' : ', lines: $lines'}}';
 }
 
+/// A finished recording's changes, all of them on one card: the lines as they will land, which the recorder itself
+/// carries out once the card is confirmed (final_instruction.dart; capture_screen.dart `_runFinalActions`).
+final class OfferPlan<N extends Object> extends Offer<N> {
+  const OfferPlan({required this.heading, required this.action, required this.lines, this.detail});
+
+  final String heading;
+
+  /// The confirm button's word: "Add", "Create" or "Do it".
+  final String action;
+  final List<String> lines;
+  final String? detail;
+
+  @override
+  String get title => heading;
+
+  @override
+  String get kind => 'plan';
+
+  @override
+  bool operator ==(Object other) => other is OfferPlan && other.heading == heading && other.action == action && _sameList(other.lines, lines) && other.detail == detail;
+
+  @override
+  int get hashCode => Object.hash(kind, heading, action, Object.hashAll(lines), detail);
+
+  @override
+  String toString() => '{kind: plan, heading: $heading, action: $action, lines: $lines, detail: $detail}';
+}
+
 /// A command's placement as `placeWords` (list_append.dart) takes it.
 Placing placingOf(Placement placement) => Placing(
   how: PlacingHow.values.byName(placement.how.name),
@@ -105,6 +133,8 @@ Offer<N>? offerFor<N extends Object>(FinalPlan<TakeCandidate<N>> plan) {
   switch (plan) {
     case PlanCreateList(:final title, :final items):
       return OfferNew<N>(title: title, lines: items != null && items.isNotEmpty ? items : null);
+    case PlanCreateNote(:final title, :final body):
+      return OfferNew<N>(title: title, lines: body.isEmpty ? null : [body]);
     case PlanPlace():
       final note = plan.note.note;
       final preview = placeWords(plan.note.noteBody ?? '', plan.text, placingOf(plan.placement));

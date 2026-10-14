@@ -33,6 +33,7 @@ Object? shapeOf(Object? value) => switch (value) {
   final PlanMove plan => {'kind': 'move', 'note': shapeOf(plan.note)},
   PlanNew() => {'kind': 'new'},
   final PlanCreateList plan => {'kind': 'create-list', 'title': plan.title, if (plan.items != null) 'items': plan.items},
+  final PlanCreateNote plan => {'kind': 'create-note', 'title': plan.title, 'body': plan.body},
   final PlanTable plan => {'kind': 'table', 'note': shapeOf(plan.note), 'columns': plan.columns},
   PlanBoard() => {'kind': 'board'},
   final PlanBook plan => {'kind': 'book', 'title': plan.title, 'pages': plan.pages},
@@ -82,7 +83,14 @@ Object? shapeOf(Object? value) => switch (value) {
   final InterpretedCommandInferred read => {'source': 'inferred', 'intent': shapeOf(read.intent), if (read.note != null) 'note': shapeOf(read.note)},
   final InterpretedCommandRejected read => {'source': 'rejected', 'reason': read.reason},
   final FinalInstructionOrdinary read => {'kind': 'ordinary', 'notice': read.notice},
-  final FinalInstructionOffer read => {'kind': 'offer', 'plan': shapeOf(read.plan)},
+  final FinalInstructionOffer read => {
+    'kind': 'offer',
+    'actions': shapeOf(read.actions),
+    'note': read.note,
+    'conversational': read.conversational,
+  },
+  final VoiceAppend action => {'do': 'append', 'note': shapeOf(action.note), 'text': action.text, 'placement': _placement(action.placement)},
+  final VoiceCreate action => {'do': 'create', 'title': action.title, 'items': action.items, 'tasks': action.tasks, if (action.body != null) 'body': action.body},
   final FinalInstructionRejected read => {'kind': 'rejected', 'reason': read.reason},
   _ => value,
 };

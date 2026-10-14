@@ -74,6 +74,15 @@ void main() {
       expect(leaveNote(body, 'an idea for voice shortcuts').body, matches(RegExp(r'- Shared notes\n- An idea for voice shortcuts\n$')));
     });
 
+    test('is an item for each short sentence said one after another, as a slowly said list arrives', () {
+      const body = '# Groceries\n\n- Eggs\n';
+      final left = leaveNote(body, 'Chicken. Ground chicken. Beef. Ground beef. Pork. Pork belly');
+      expect(left.into, PlacedInto.list);
+      expect(left.added, ['- Chicken', '- Ground chicken', '- Beef', '- Ground beef', '- Pork', '- Pork belly']);
+      // Two sentences are a thought, not a list.
+      expect(leaveNote(body, 'Call Sam. Book the flights').added, ['- Call Sam. Book the flights']);
+    });
+
     test('is a paragraph in a note with no list, or when it is a long thought', () {
       final left = leaveNote('# Weekend trip\n\nCabin by the lake.\n', 'we need to book it by Thursday');
       expect(left.body, '# Weekend trip\n\nCabin by the lake.\n\nWe need to book it by Thursday.\n');

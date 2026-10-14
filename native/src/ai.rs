@@ -21,8 +21,14 @@
 //!   `done`, `error` or `cancelled`. Runs queue. A cancelled run's job ends with the err "cancelled".
 //! - `ai_cancel {id}` -> whether there was a run with that request id to stop.
 //! - `ai_unload` -> `null`: the loaded model is dropped now rather than after five idle minutes.
-//! - `ai_infer_command {request: {id, utterance, preferredModel}}` (job) -> `{status: "intent", intent, model}`
+//! - `ai_infer_command {request: {id, utterance, titles?, preferredModel}}` (job) -> `{status: "intent", intent, model}`
 //!   or `{status: "unavailable", reason}`: one spoken command read under this binary's own prompt and grammar.
+//! - `ai_voice_step {request: {id, transcript, titles?, stage, kind?, draft?, preferredModel}}` (job) ->
+//!   `{status: "answer", answer, raw, model}`, `{status: "refused", reason}` or `{status: "unavailable", reason}`:
+//!   one step of reading a finished recording ("sort", "plan" with the `kind` sorting found, or "polish" with the
+//!   app's `draft`), under this binary's own prompts and grammars (llm/command.rs). Titles only, never a body.
+//! - `ai_diagnostics` -> `{engineStarted, modelLoaded, runs: [{id, what, ageMs}], events: [{at, line}]}`: the
+//!   engine as the voice log sees it, so a step that did not answer can say why.
 //!
 //! What differs from ai_commands.rs:
 //!
@@ -33,9 +39,10 @@
 //! - **Nothing for Tauri's Exit** (`ai_commands::shutdown` stopped the worker so C++'s static destructors never
 //!   met a decode): an Android process is not exited by its app, and the Mac target that will need it is stage 10's.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -52,7 +59,7 @@ use crate::lock::lock;
 /// the backup's tree) and this number says nothing of them: only the capture and the formatter may gate on it.
 pub const NATIVE_GENERATION: u32 = 25;
 
-const COMMANDS: &[&str] = &["ai_device", "ai_models", "ai_fetch_model", "ai_delete_model", "ai_generate", "ai_unload", "ai_cancel", "ai_infer_command"];
+const COMMANDS: &[&str] = &["ai_device", "ai_models", "ai_fetch_model", "ai_delete_model", "ai_generate", "ai_unload", "ai_cancel", "ai_infer_command", "ai_voice_step", "ai_diagnostics"];
 
 /// Whether `command` is one of this file's that works on the open core's directories.
 pub fn has(command: &str) -> bool {
@@ -123,7 +130,39 @@ impl From<GenerateRequest> for Request {
 pub struct CommandInferenceRequest {
     pub id: String,
     pub utterance: String,
+    /// The titles of the person's notes, so the model can tell which one was meant. Titles only: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
     pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VoiceStepRequest {
+    pub id: String,
+    /// The whole finished recording.
+    pub transcript: String,
+    /// The titles of the person's notes: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
+    /// "sort", "plan" with the `kind` sorting found, or "polish" with a `draft`.
+    pub stage: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// For "polish": the app's draft, as the plan's JSON.
+    #[serde(default)]
+    pub draft: Option<String>,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum VoiceStepResult {
+    /// The model's JSON, checked to be one whole object, and its raw text for the voice log.
+    Answer { answer: Value, raw: String, model: String },
+    /// A destructive request: not given to the model at all.
+    Refused { reason: String },
+    Unavailable { reason: String },
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -144,19 +183,110 @@ pub struct ModelInfo {
     pub path: String,
 }
 
-/// The cancel flag of every run in flight, by the app's request id.
-static RUNS: Mutex<Option<HashMap<String, Arc<AtomicBool>>>> = Mutex::new(None);
+/// How long a voice step waits for the model, queueing and loading included, before it gives up and lets the
+/// recording be saved as a note.
+const STEP_WAIT: Duration = Duration::from_secs(120);
+/// The polish is only an improvement on a draft that already works: it gets less time.
+const POLISH_WAIT: Duration = Duration::from_secs(60);
+/// Lines the diagnostics keep.
+const EVENTS_KEPT: usize = 200;
+
+/// One generation in flight.
+struct Run {
+    cancel: Arc<AtomicBool>,
+    what: &'static str,
+    started: Instant,
+}
+
+/// What `ai_diagnostics` says about one run in flight.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunInfo {
+    id: String,
+    what: String,
+    age_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Event {
+    /// Unix milliseconds.
+    at: u64,
+    line: String,
+}
+
+/// The engine as the app can see it, for the voice log: is a model in memory, what is running or waiting, and the
+/// last things that happened.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostics {
+    pub engine_started: bool,
+    pub model_loaded: bool,
+    pub runs: Vec<RunInfo>,
+    pub events: Vec<Event>,
+}
+
+/// The run of every generation in flight, by the app's request id.
+static RUNS: Mutex<Option<HashMap<String, Run>>> = Mutex::new(None);
+
+/// The last [`EVENTS_KEPT`] things the engine did, for `ai_diagnostics`.
+static EVENTS: Mutex<VecDeque<Event>> = Mutex::new(VecDeque::new());
 
 /// One download at a time: two would write the same `.part` at once.
 static FETCHING: Mutex<()> = Mutex::new(());
 
-fn runs<R>(with: impl FnOnce(&mut HashMap<String, Arc<AtomicBool>>) -> R) -> R {
+fn runs<R>(with: impl FnOnce(&mut HashMap<String, Run>) -> R) -> R {
     with(lock(&RUNS).get_or_insert_with(HashMap::new))
 }
 
 /// Raises every run's cancel flag.
 fn cancel_all() {
-    runs(|runs| runs.values().for_each(|flag| flag.store(true, Ordering::Relaxed)));
+    runs(|runs| runs.values().for_each(|run| run.cancel.store(true, Ordering::Relaxed)));
+}
+
+fn log(line: impl Into<String>) {
+    let at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+    let mut events = lock(&EVENTS);
+    if events.len() >= EVENTS_KEPT {
+        events.pop_front();
+    }
+    events.push_back(Event { at, line: line.into() });
+}
+
+/// A run's entry in [`RUNS`], removed when this drops: on success, on an error, on a panic and when the job that
+/// holds it is dropped. Nothing else removes it, so one failed request can never leave the engine looking busy.
+struct RunGuard {
+    id: String,
+    what: &'static str,
+    started: Instant,
+}
+
+impl Drop for RunGuard {
+    fn drop(&mut self) {
+        runs(|runs| runs.remove(&self.id));
+        log(format!("{} {} finished after {} ms", self.what, self.id, self.started.elapsed().as_millis()));
+    }
+}
+
+/// Records a run and says what it is queued behind.
+fn begin(id: &str, what: &'static str, cancel: &Arc<AtomicBool>) -> RunGuard {
+    let started = Instant::now();
+    let ahead = runs(|runs| {
+        let ahead = runs.len();
+        runs.insert(id.to_string(), Run { cancel: Arc::clone(cancel), what, started });
+        ahead
+    });
+    log(if ahead == 0 { format!("{what} {id} started") } else { format!("{what} {id} queued behind {ahead} run(s)") });
+    RunGuard { id: id.to_string(), what, started }
+}
+
+/// The engine's state and last events: `ai_diagnostics`. Reads only.
+fn diagnostics() -> Diagnostics {
+    let llm = crate::llm::started();
+    let mut in_flight: Vec<RunInfo> =
+        runs(|runs| runs.iter().map(|(id, run)| RunInfo { id: id.clone(), what: run.what.to_string(), age_ms: run.started.elapsed().as_millis() as u64 }).collect());
+    in_flight.sort_by(|a, b| b.age_ms.cmp(&a.age_ms));
+    let events = lock(&EVENTS).iter().cloned().collect();
+    Diagnostics { engine_started: llm.is_some(), model_loaded: llm.is_some_and(|llm| llm.loaded()), runs: in_flight, events }
 }
 
 fn info(dir: &std::path::Path, spec: &LlmSpec) -> ModelInfo {
@@ -188,6 +318,11 @@ struct Generate {
 #[derive(Deserialize)]
 struct Infer {
     request: CommandInferenceRequest,
+}
+
+#[derive(Deserialize)]
+struct Step {
+    request: VoiceStepRequest,
 }
 
 fn started(kind: &'static str, work: impl FnOnce(&crate::work::Job) -> Result<Value, String> + Send + 'static) -> Result<Value, String> {
@@ -233,24 +368,21 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
                 return Err(format!("The model {} is not on this phone yet.", spec.id));
             }
             let cancel = Arc::new(AtomicBool::new(false));
-            let run = request.id.clone();
-            // In the table before the command answers, so an `ai_cancel` sent straight after it finds the run.
-            runs(|runs| runs.insert(run.clone(), Arc::clone(&cancel)));
-            let asked = started("generate", {
-                let run = run.clone();
-                move |_| {
-                    let answer = crate::llm::shared().generate(std::path::Path::new(&status.path), Request::from(request), cancel, |progress| crate::events::emit("ai://progress", &progress));
-                    let received = answer.recv();
-                    // The run is over however it ended, so its cancel flag goes before an error is answered.
-                    runs(|runs| runs.remove(&run));
-                    let output = received.map_err(|_| "the formatting engine went away".to_string())?.map_err(|failure| failure.to_string())?;
-                    said(output)
-                }
-            });
-            if asked.is_err() {
-                runs(|runs| runs.remove(&run));
-            }
-            asked
+            // In the table before the command answers, so an `ai_cancel` sent straight after it finds the run. The
+            // guard goes with the job, however it ends, or with the closure if the job never starts.
+            let run = begin(&request.id, "format", &cancel);
+            started("generate", move |_| {
+                let id = request.id.clone();
+                let answer = crate::llm::shared().generate(std::path::Path::new(&status.path), Request::from(request), cancel, |progress| crate::events::emit("ai://progress", &progress));
+                let received = answer.recv();
+                // The run is over however it ended, so its cancel flag goes before an error is answered.
+                drop(run);
+                let output = received.map_err(|_| "the formatting engine went away".to_string())?.map_err(|failure| {
+                    log(format!("format {id} failed: {failure}"));
+                    failure.to_string()
+                })?;
+                said(output)
+            })
         }
         "ai_unload" => {
             if let Some(llm) = crate::llm::started() {
@@ -260,38 +392,50 @@ pub fn call(core: &Arc<Core>, command: &str, args: Value) -> Result<Value, Strin
         }
         "ai_cancel" => {
             let ById { id } = read(command, args)?;
-            Ok(Value::Bool(runs(|runs| runs.get(&id).map(|flag| flag.store(true, Ordering::Relaxed)).is_some())))
+            Ok(Value::Bool(runs(|runs| runs.get(&id).map(|run| run.cancel.store(true, Ordering::Relaxed)).is_some())))
         }
         "ai_infer_command" => {
             let Infer { request } = read(command, args)?;
             started("infer-command", move |_| said(infer(&dir, request)))
         }
+        "ai_voice_step" => {
+            let Step { request } = read(command, args)?;
+            started("voice-step", move |_| said(voice_step(&dir, request)))
+        }
+        "ai_diagnostics" => said(diagnostics()),
         _ => Err(format!("Ghost.md's core has no command named {command}.")),
     }
 }
 
 /// The command model's standing instructions: ai_commands.rs's `COMMAND_SYSTEM`, which a test holds to it.
 // copied:begin
-const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
+const COMMAND_SYSTEM: &str = r#"Read what someone said into a notes app and work out whether they asked for a change to their notes, and if so what they want in the end. They talk naturally: the request can come after other talk ("so I was thinking… can you make me a list"), and a request someone else was given, or talk about adding things later, is not one. Answer with JSON. Allowed actions: append to an existing note, create a new note, or none.
+- Their notes are listed first. For append, "target" should be one of those titles, allowing for misheard words.
 - append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
 - When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
 - For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
 - create: "target" is the new note's title and "content" is its body, or null.
-- none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
+- "Make a list called X and add A and B" is one request: create X with content "A; B".
+- none: destructive (delete, remove, clear) or unsupported requests; "unclear" when it is ordinary talk, not a request.
 Never invent content or a title. Output exactly one object in the required schema.
 
 Examples:
-Command: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+Notes: Go, Work
+Said: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
 {"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
-Command: put call Sam and book the flights on my work to-do list
+Said: put call Sam and book the flights on my work to-do list
 {"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
-Command: add to the note called Weekend trip that we should book the ferry early
+Said: add to the note called Weekend trip that we should book the ferry early
 {"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
-Command: add eggs milk and bread to groceries
+Said: add eggs milk and bread to groceries
 {"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
-Command: make a new note called Packing
+Said: make a new note called Packing
 {"action":"create","target":"Packing","content":null}
-Command: delete everything in my Go note
+Said: ok so I was watching stuff last night, can you make me a list called movies with Jaws, Alien and Heat
+{"action":"create","target":"Movies","content":"Jaws; Alien; Heat"}
+Said: I told Sam I would add the photos to the album later
+{"action":"none","reason":"unclear"}
+Said: delete everything in my Go note
 {"action":"none","reason":"destructive"}"#;
 // copied:end
 
@@ -312,21 +456,12 @@ fn infer(dir: &std::path::Path, request: CommandInferenceRequest) -> CommandInfe
     };
     let status = crate::model_files::status(dir, &spec.spec);
     let cancel = Arc::new(AtomicBool::new(false));
-    let busy = runs(|runs| {
-        if !runs.is_empty() {
-            return true;
-        }
-        runs.insert(request.id.clone(), Arc::clone(&cancel));
-        false
-    });
-    if busy {
-        return CommandInferenceResult::Unavailable { reason: "The on-device model is already working.".into() };
-    }
+    let _run = begin(&request.id, "command", &cancel);
     let engine_request = Request {
         id: request.id.clone(),
         system: COMMAND_SYSTEM.into(),
         context: None,
-        prompt: format!("Command: {utterance}"),
+        prompt: command::user_prompt(utterance, &request.titles),
         // Room for a spoken list of a dozen places; a truncated answer fails closed.
         max_tokens: 384,
         temperature: 0.0,
@@ -336,17 +471,89 @@ fn infer(dir: &std::path::Path, request: CommandInferenceRequest) -> CommandInfe
         // A voice command is the person waiting: it goes before, and preempts, a write-up's piece.
         background: false,
     };
-    let answer = crate::llm::shared().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
-    let received = answer.recv();
-    runs(|runs| runs.remove(&request.id));
-    match received {
-        Err(_) => CommandInferenceResult::Unavailable { reason: "the command inference engine went away".into() },
+    let answer = crate::llm::shared().generate(std::path::Path::new(&status.path), engine_request, Arc::clone(&cancel), |_| {});
+    match answer.recv_timeout(STEP_WAIT) {
+        Err(why) => CommandInferenceResult::Unavailable { reason: waited_in_vain(&request.id, &cancel, why, STEP_WAIT) },
         Ok(Ok(output)) => match command::parse(&output.text, output.truncated) {
             Ok(intent) => CommandInferenceResult::Intent { intent, model: spec.id.into() },
             Err(reason) => CommandInferenceResult::Unavailable { reason },
         },
         Ok(Err(failure)) => CommandInferenceResult::Unavailable { reason: failure.to_string() },
     }
+}
+
+/// One step of reading a finished recording (llm/command.rs): "sort" says what kind of thing it is, "plan" turns it
+/// into actions with real item lists, "polish" tidies the app's own draft. Only an installed model, a native fixed
+/// prompt and a native fixed grammar: ai_commands.rs's `ai_voice_step`, on a job's thread.
+fn voice_step(dir: &std::path::Path, request: VoiceStepRequest) -> VoiceStepResult {
+    let transcript = request.transcript.trim();
+    if request.id.is_empty() || transcript.is_empty() || transcript.chars().count() > 4_000 {
+        return VoiceStepResult::Unavailable { reason: "The recording was empty or too long.".into() };
+    }
+    let draft = request.draft.as_deref().map(str::trim).filter(|draft| !draft.is_empty() && draft.chars().count() <= 6_000);
+    let (system, grammar, kind, max_tokens, what, wait): (&str, &'static str, Option<&str>, u32, &'static str, Duration) = match (request.stage.as_str(), request.kind.as_deref()) {
+        ("sort", _) => (command::SORT_SYSTEM, command::SORT_GRAMMAR, None, 16, "voice sort", STEP_WAIT),
+        ("plan", Some(kind @ ("add" | "new" | "mixed"))) => (command::PLAN_SYSTEM, command::PLAN_GRAMMAR, Some(kind), 640, "voice plan", STEP_WAIT),
+        ("polish", _) if draft.is_some() => (command::POLISH_SYSTEM, command::PLAN_GRAMMAR, None, 640, "voice polish", POLISH_WAIT),
+        _ => return VoiceStepResult::Unavailable { reason: "Unknown voice step.".into() },
+    };
+    if command::refusal(transcript).is_some() {
+        return VoiceStepResult::Refused { reason: "Deleting, clearing or sending notes by voice is not supported.".into() };
+    }
+    let preferred = model::find(&request.preferred_model).filter(|spec| crate::model_files::status(dir, &spec.spec).present);
+    let fallback = model::find("qwen3.5-2b").filter(|spec| crate::model_files::status(dir, &spec.spec).present);
+    let Some(spec) = preferred.or(fallback) else {
+        return VoiceStepResult::Unavailable { reason: "No compatible installed model is available for voice commands.".into() };
+    };
+    let status = crate::model_files::status(dir, &spec.spec);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let _run = begin(&request.id, what, &cancel);
+    let engine_request = Request {
+        id: request.id.clone(),
+        system: system.into(),
+        context: None,
+        prompt: match draft {
+            Some(draft) if request.stage == "polish" => command::polish_prompt(transcript, draft),
+            _ => command::voice_prompt(transcript, &request.titles, kind),
+        },
+        max_tokens,
+        temperature: 0.0,
+        think: false,
+        think_budget: 0,
+        grammar: Some(grammar),
+        // A voice step is the person waiting: it goes before, and preempts, a write-up's piece.
+        background: false,
+    };
+    let answer = crate::llm::shared().generate(std::path::Path::new(&status.path), engine_request, Arc::clone(&cancel), |_| {});
+    match answer.recv_timeout(wait) {
+        Err(why) => VoiceStepResult::Unavailable { reason: waited_in_vain(&request.id, &cancel, why, wait) },
+        Ok(Ok(output)) => {
+            log(format!(
+                "voice step {} ran: load {} ms, prefill {} ms ({} cached), {} tokens at {:.1}/s, {} ms in all",
+                request.id, output.load_ms, output.prefill_ms, output.cached_tokens, output.output_tokens, output.tokens_per_second, output.ms
+            ));
+            match command::check_answer(&output.text, output.truncated) {
+                Ok(answer) => VoiceStepResult::Answer { answer, raw: output.text, model: spec.id.into() },
+                Err(reason) => VoiceStepResult::Unavailable { reason: format!("{reason}: {}", output.text.chars().take(300).collect::<String>()) },
+            }
+        }
+        Ok(Err(failure)) => {
+            log(format!("voice step {} failed: {failure}", request.id));
+            VoiceStepResult::Unavailable { reason: failure.to_string() }
+        }
+    }
+}
+
+/// A step whose answer did not come: cancels it so a queued job does not run later for nobody, and says why in
+/// words for the log.
+fn waited_in_vain(id: &str, cancel: &AtomicBool, why: std::sync::mpsc::RecvTimeoutError, wait: Duration) -> String {
+    cancel.store(true, Ordering::Relaxed);
+    let reason = match why {
+        std::sync::mpsc::RecvTimeoutError::Timeout => format!("The on-device model did not answer within {} seconds.", wait.as_secs()),
+        std::sync::mpsc::RecvTimeoutError::Disconnected => "The on-device model engine went away.".to_string(),
+    };
+    log(format!("step {id}: {reason}"));
+    reason
 }
 
 #[cfg(test)]
@@ -363,6 +570,63 @@ mod tests {
         let mine = include_str!("ai.rs").split("// copied:begin\n").nth(1).and_then(|rest| rest.split("// copied:end").next()).expect("the marks").trim();
         assert!(source.contains(mine), "ai_commands.rs no longer has this COMMAND_SYSTEM, word for word");
         assert!(source.contains("max_tokens: 384,") && source.contains("grammar: Some(command::GRAMMAR),") && source.contains("model::find(\"qwen3.5-2b\")"));
+    }
+
+    #[test]
+    fn a_run_leaves_the_table_when_its_guard_drops_however_it_ends() {
+        let _one = lock(&crate::guards::TEST_SERIAL);
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let _first = begin("guard-a", "format", &cancel);
+            let _second = begin("guard-b", "voice sort", &cancel);
+            assert!(runs(|runs| runs.contains_key("guard-a") && runs.contains_key("guard-b")));
+        }
+        assert!(runs(|runs| !runs.contains_key("guard-a") && !runs.contains_key("guard-b")), "a finished or failed run must never leave the engine looking busy");
+        assert!(lock(&EVENTS).iter().any(|event| event.line.contains("guard-b queued behind")));
+    }
+
+    #[test]
+    fn the_event_log_keeps_only_the_latest_lines() {
+        let _one = lock(&crate::guards::TEST_SERIAL);
+        for n in 0..EVENTS_KEPT + 10 {
+            log(format!("line {n}"));
+        }
+        let events = lock(&EVENTS);
+        assert_eq!(events.len(), EVENTS_KEPT);
+        assert_eq!(events.back().map(|e| e.line.clone()), Some(format!("line {}", EVENTS_KEPT + 9)));
+    }
+
+    #[test]
+    fn a_voice_step_is_refused_unknown_or_unavailable_before_any_model() {
+        let root = crate::test_support::TempDir::new("ai-voice-step");
+        let dir = root.join("data/models");
+        std::fs::create_dir_all(&dir).unwrap();
+        let step = |stage: &str, kind: Option<&str>, draft: Option<&str>, transcript: &str| {
+            let request = VoiceStepRequest {
+                id: "s1".into(),
+                transcript: transcript.into(),
+                titles: vec![],
+                stage: stage.into(),
+                kind: kind.map(Into::into),
+                draft: draft.map(Into::into),
+                preferred_model: String::new(),
+            };
+            serde_json::to_value(voice_step(&dir, request)).unwrap()
+        };
+        assert_eq!(step("sort", None, None, "  ")["status"], "unavailable");
+        assert_eq!(step("plan", Some("note"), None, "add milk to groceries"), json!({ "status": "unavailable", "reason": "Unknown voice step." }));
+        assert_eq!(step("polish", None, None, "add milk to groceries")["reason"], "Unknown voice step.");
+        assert_eq!(step("sort", None, None, "delete everything in my Go note")["status"], "refused");
+        assert_eq!(step("sort", None, None, "add milk to groceries"), json!({ "status": "unavailable", "reason": "No compatible installed model is available for voice commands." }));
+    }
+
+    #[test]
+    fn diagnostics_say_what_the_engine_is_doing() {
+        let _one = lock(&crate::guards::TEST_SERIAL);
+        let said = serde_json::to_value(diagnostics()).unwrap();
+        for key in ["engineStarted", "modelLoaded", "runs", "events"] {
+            assert!(said.get(key).is_some(), "diagnostics has {key}");
+        }
     }
 
     #[test]
@@ -416,9 +680,9 @@ mod tests {
         assert_eq!((removed["id"].as_str(), removed["present"].as_bool()), (Some("qwen3.5-2b"), Some(false)));
         assert_eq!(std::fs::read_dir(&dir).unwrap().count(), 0, "the file and its .part both go");
         // With no model at all a spoken command is unavailable, and a destructive one is refused before any model.
-        let none = infer(&dir, CommandInferenceRequest { id: "c1".into(), utterance: "add milk to groceries".into(), preferred_model: "qwen3.5-4b".into() });
+        let none = infer(&dir, CommandInferenceRequest { id: "c1".into(), utterance: "add milk to groceries".into(), titles: vec![], preferred_model: "qwen3.5-4b".into() });
         assert_eq!(serde_json::to_value(none).unwrap(), json!({ "status": "unavailable", "reason": "No compatible installed model is available for instruction commands." }));
-        let empty = infer(&dir, CommandInferenceRequest { id: "c2".into(), utterance: "  ".into(), preferred_model: String::new() });
+        let empty = infer(&dir, CommandInferenceRequest { id: "c2".into(), utterance: "  ".into(), titles: vec![], preferred_model: String::new() });
         assert_eq!(serde_json::to_value(empty).unwrap(), json!({ "status": "unavailable", "reason": "The command was empty or too long." }));
     }
 

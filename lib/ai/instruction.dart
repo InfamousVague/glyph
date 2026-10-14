@@ -21,18 +21,20 @@
 /// - `Read` is a sealed class ([ReadRun], [ReadCommand], [ReadReject], [ReadAsk], [ReadWords]), each with the web's
 ///   `kind` as a word.
 /// - A candidate's body is `Candidate.noteBody` (capture/route.dart), the web's optional `note?.body`.
-/// - The inference is the optional third argument, handed on to `classifyFinalTranscript`, which the web binds to the
-///   native call inside `instructionIntent.ts`.
+/// - The model is the optional third argument, a [VoiceStep], handed on to `classifyFinalTranscript` with the voice
+///   log's [VoiceTrace] and the engine's diagnostics; the recorder binds them to the native call. A command is
+///   [ReadCommand]: the recording's changes as [VoiceAction]s, not one plan (capture/final_instruction.dart).
 /// - The recorder's files keep a run's kind as the web's word (lib/capture/run_of.dart and
 ///   lib/capture/ui/read_instruction.dart, which call this file and say [RunKind.id]); here it is the [RunKind].
 library;
 
-import '../capture/command.dart' show FinalPlan, PlanPlace, findKeyword, findMisheard, isStandaloneCommandLike, leadIns, onlyFiller;
+import '../capture/command.dart' show findKeyword, findMisheard, isStandaloneCommandLike, leadIns, onlyFiller;
 import '../capture/final_instruction.dart';
-import '../capture/instruction_intent.dart' show InferenceRun;
 import '../capture/live_command.dart' show Reading, bareCommand, bareShape, misheardShape, readRoute;
 import '../capture/note_find.dart' show FoundResolved, findNote;
 import '../capture/route.dart' show Candidate;
+import '../capture/voice_log.dart' show VoiceTrace;
+import '../capture/voice_plan.dart' show VoiceStep;
 import '../core/book.dart' show isBookBody;
 import 'kinds.dart';
 
@@ -58,11 +60,16 @@ final class ReadRun<N extends Candidate> extends Read<N> {
   String get kind => 'run';
 }
 
-/// A command on a note by name, to be confirmed first.
+/// The changes a recording asks for, to be confirmed first. [note] is the rest of what was said, kept as a note of its
+/// own; [conversational] is whether they were found inside the talk rather than at its start (then declining keeps the
+/// recording as a note); [trace] is the recording's entry in the voice log.
 final class ReadCommand<N extends Candidate> extends Read<N> {
-  const ReadCommand({required this.plan});
+  const ReadCommand({required this.actions, this.note, this.conversational = false, this.trace});
 
-  final FinalPlan<N> plan;
+  final List<VoiceAction<N>> actions;
+  final String? note;
+  final bool conversational;
+  final int? trace;
 
   @override
   String get kind => 'command';
@@ -200,10 +207,24 @@ String _savedAsWords(String reason) {
 final RegExp _noteWord = RegExp(r'\bnote\b', caseSensitive: false);
 final RegExp _namedWords = RegExp('called|matches|No unambiguous', caseSensitive: false);
 
-/// Reads a spoken instruction. [notes] are the person's notes, for a command that names one.
-Future<Read<N>> readInstruction<N extends Candidate>(String text, List<N> notes, [InferenceRun Function(String words)? startInference]) async {
+ReadCommand<N> _commandOf<N extends Candidate>(FinalInstructionOffer<N> offer) =>
+    ReadCommand<N>(actions: offer.actions, note: offer.note, conversational: offer.conversational, trace: offer.trace);
+
+/// Reads a spoken instruction. [notes] are the person's notes, for a command that names one. [step] is the model,
+/// [trace] this recording's entry in the voice log (one is made when none is given) and [diagnose] what the engine
+/// was doing, for that log.
+Future<Read<N>> readInstruction<N extends Candidate>(
+  String text,
+  List<N> notes, [
+  VoiceStep? step,
+  VoiceTrace? trace,
+  Future<List<String>> Function()? diagnose,
+]) async {
   final bare = bareWords(text);
-  if (bare == null || bare.words.isEmpty) return ReadWords<N>();
+  if (bare == null || bare.words.isEmpty) {
+    trace?.decide('note: no instruction');
+    return ReadWords<N>();
+  }
   if (bare.misheard && !bare.keyed) {
     // "Hey, like, make sure the door is locked" is how people talk: after a mishearing of the keyword only a command
     // that passes the gate every bare phrase passes counts, as it does for the live reader, which its card asks
@@ -214,18 +235,27 @@ Future<Read<N>> readInstruction<N extends Candidate>(String text, List<N> notes,
       final body = found.note.noteBody ?? '';
       return !isBookBody(body) && bareCommand(reading, (title: found.note.title, body: body), found.score, atStart: true);
     });
-    if (!clear) return ReadWords<N>();
-    final decision = await classifyFinalTranscript<N>(bare.words, notes, startInference);
-    return decision is FinalInstructionOffer<N> ? ReadCommand<N>(plan: decision.plan) : ReadWords<N>();
+    if (!clear) {
+      trace?.decide('note: a mishearing of the keyword, not a command');
+      return ReadWords<N>();
+    }
+    final decision = await classifyFinalTranscript<N>(bare.words, notes, step, trace, diagnose);
+    return decision is FinalInstructionOffer<N> ? _commandOf<N>(decision) : ReadWords<N>();
   }
   final run = runOf(bare.words, whole: !bare.keyed);
-  if (run != null) return ReadRun<N>(run: run);
-  final decision = await classifyFinalTranscript<N>(bare.words, notes, startInference);
+  if (run != null) {
+    trace?.decide('run: ${run.name}');
+    return ReadRun<N>(run: run);
+  }
+  final decision = await classifyFinalTranscript<N>(bare.words, notes, step, trace, diagnose);
   if (decision is FinalInstructionOffer<N>) {
     // Without the keyword, what the live reader's gate kept as words is words here too, not a card.
-    final plan = decision.plan;
-    if (!bare.keyed && plan is PlanPlace<N> && _turnedDown<N>(bare.words, plan.note, notes)) return ReadWords<N>();
-    return ReadCommand<N>(plan: plan);
+    final only = decision.actions.length == 1 && decision.note == null ? decision.actions.first : null;
+    if (!bare.keyed && !decision.conversational && only is VoiceAppend<N> && _turnedDown<N>(bare.words, only.note, notes)) {
+      trace?.step('the live reader had kept these words as the note’s, so no card');
+      return ReadWords<N>();
+    }
+    return _commandOf<N>(decision);
   }
   // A command that named a note fails closed after the keyword, with its reason; without it the words are the
   // note's, and the reason is the chip's. One the reader could make nothing of is an ask.

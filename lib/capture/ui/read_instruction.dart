@@ -10,9 +10,9 @@
 library;
 
 import '../../ai/instruction.dart' as ai;
-import '../command.dart' show FinalPlan;
-import '../instruction_intent.dart' show InferenceRun;
 import '../route.dart' show Candidate;
+import '../voice_log.dart' show VoiceTrace;
+import '../voice_plan.dart' show VoiceAction, VoiceStep;
 
 export '../../ai/instruction.dart' show bareWords;
 
@@ -34,11 +34,14 @@ final class ReadRun<N extends Candidate> extends Read<N> {
   String get kind => 'run';
 }
 
-/// A command on a note by name, to be confirmed first.
+/// The changes a recording asks for, to be confirmed first (lib/ai/instruction.dart `ReadCommand`).
 final class ReadCommand<N extends Candidate> extends Read<N> {
-  const ReadCommand({required this.plan});
+  const ReadCommand({required this.actions, this.note, this.conversational = false, this.trace});
 
-  final FinalPlan<N> plan;
+  final List<VoiceAction<N>> actions;
+  final String? note;
+  final bool conversational;
+  final int? trace;
 
   @override
   String get kind => 'command';
@@ -77,10 +80,17 @@ final class ReadWords<N extends Candidate> extends Read<N> {
 
 /// Reads a spoken instruction (lib/ai/instruction.dart `readInstruction`). [notes] are the person's notes, for a
 /// command that names one.
-Future<Read<N>> readInstruction<N extends Candidate>(String text, List<N> notes, [InferenceRun Function(String words)? startInference]) async =>
-    switch (await ai.readInstruction<N>(text, notes, startInference)) {
+Future<Read<N>> readInstruction<N extends Candidate>(
+  String text,
+  List<N> notes, [
+  VoiceStep? step,
+  VoiceTrace? trace,
+  Future<List<String>> Function()? diagnose,
+]) async =>
+    switch (await ai.readInstruction<N>(text, notes, step, trace, diagnose)) {
       ai.ReadRun<N>(:final run) => ReadRun<N>(run: run.id),
-      ai.ReadCommand<N>(:final plan) => ReadCommand<N>(plan: plan),
+      ai.ReadCommand<N>(:final actions, :final note, :final conversational, :final trace) =>
+        ReadCommand<N>(actions: actions, note: note, conversational: conversational, trace: trace),
       ai.ReadReject<N>(:final reason) => ReadReject<N>(reason: reason),
       ai.ReadAsk<N>(:final instruction) => ReadAsk<N>(instruction: instruction),
       ai.ReadWords<N>(:final notice) => ReadWords<N>(notice: notice),
