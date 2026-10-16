@@ -1,6 +1,6 @@
 # Pictures and voice memos
 
-_How a picture gets into a note and where it is kept, the + beside the line and the places and films it adds, the recording behind a spoken note, and the voice memos that play from it._
+_How a picture gets into a note and where it is kept, the + beside the line and the places, films and files it adds, the words read in pictures and scans, the recording behind a spoken note, and the voice memos that play from it._
 
 ## Putting a picture in
 
@@ -21,6 +21,8 @@ Tap it, or click it, and it turns into a × and a short list opens beside it. Th
 |---|---|
 | A picture | A picture from the phone's picker, on a line of its own |
 | A video | A film from the phone's Photo Picker, on a line of its own, drawn as a still you tap to play. On Android only |
+| A file | Any file, from the phone's file picker or the Mac's open panel, on a line of its own, drawn as a card. In the Android and Mac apps |
+| Scan a document | Pages scanned with Google's document scanner, kept as one PDF. On Android, where Google Play services is |
 | A place | Where you are now, as a line naming the place, with its map under it |
 | The date and time | The date and time as the row shows it, such as 28 Sept 2026, 14:05, where the caret is |
 | A table | A small table, its first heading picked out to write over |
@@ -57,6 +59,26 @@ A film is one line, its still linked to it:
 Away from the caret the line reads video 0:12, with the still under it and the length at its foot. Tap it to play, with sound, and tap again to pause. The corner opens it full screen, and the back gesture closes it. Nothing plays by itself, and one film plays at a time.
 
 The film stays on the phone you added it on. It is not synced, not shared, and not sent to Google's backup. Moving to a new phone by cable is meant to carry it, though that has not yet been tried with Smart Switch. The still goes wherever the note goes, as any picture does. So your other devices show the still, and say the film stays on the phone it was added on, and a shared note shows the still and says only a still is shared. On a phone where the film is not, the card says "This video isn’t on this phone." instead of offering to play. A film that is there but that the phone cannot play says "This video can’t be played on this phone." An app older than the films says to update it.
+
+## A file, and a scanned document
+
+**A file** opens the phone's own file picker, which asks for no permission: the app sees only the file you choose. It is copied into the app and written as one line, a link named for the file with its size:
+
+```
+[Lease 2026.pdf](file/8d1e4b7c….pdf "2.4 MB")
+```
+
+Away from the caret the line reads as the file's name, with a card under it: the file's mark (a PDF's first page), its name, and what it is and how big. Tap the card to open it. A PDF opens in Ghost.md, a page at a time: pinch to zoom, tap Page 1 of 12 to go to a page, find words on its pages, copy a page's words, share it or open it in another app. Anything else opens in the app your phone uses for it, and so does the mark at the card's end, for a PDF too. A file of up to 25 MB goes to your other devices with its note, sealed the way the note is. A larger one stays on the device it was added on, and the card says so elsewhere.
+
+**Scan a document** opens Google's document scanner, which finds the page's edges, straightens it and cleans it up. Ghost.md never has the camera: the scanner is Google's own screen, and hands back what it made. Every page goes into one PDF, named for the minute, such as Scan 2026-10-16 14.05.pdf.
+
+Taking the line out of a note does not delete the file, so Undo and an older version still find it. It goes when the note is deleted for good and no other note links it, as a picture does. The files are kept beside the pictures, and Export and Backup carry them.
+
+## The words in pictures
+
+The words in pictures, scans and PDFs are read on the phone, and a search then finds the note they are in. A row found that way says where: "Rent is due monthly in Lease 2026.pdf, page 2". Put the caret on a picture's line and Copy the words in it is under the picture. Each one is read soon after you add it, and what your notes already show is read slowly while you are not using the app, never with Battery saver on.
+
+Nothing is sent anywhere to be read. The reader comes from Google Play services the first time it is needed, and then works with no connection. The words are kept in a plain text file beside each picture or file, and go to your other devices with it, sealed. Settings › Library folder › Files and scans turns the reading off, reads what is already in your notes now, and says how much the files take. The iPhone app has no files or scans yet, and the Mac app adds files but reads no words.
 
 ## What it is written as
 
