@@ -6,6 +6,11 @@
 /// ground a painted layer; so the caret just before a tag stands inside the chip's edge where the page has it
 /// either side of the padding by which way it leans. `white-space: nowrap` is not kept: a tag has no space in it,
 /// and breaks where a word would.
+///
+/// **A tap on a chip opens the tag's page** (the port's own, 2026-10-16; lib/notes/collection_screen.dart), where
+/// whoever made the editor says how ([tagOpener]): the press is the chip's, as a note link's is (wiki_links.dart),
+/// and the caret stays where it was; the arrow keys, or a tap beside the chip, put it inside to edit the tag. Only a
+/// tag drawn as a chip answers, so a `#word` in code or a blank's question is words like any other.
 library;
 
 import '../../core/blanks_syntax.dart';
@@ -19,6 +24,10 @@ import '../view/syntax_tree.dart';
 import 'inline_box.dart';
 
 final Decoration _chip = Decoration.mark(className: 'cm-tag');
+
+/// What a tap on a tag's chip does: open its page, by its name (lower case, no `#`). Absent, a tap is the editor's.
+final Facet<void Function(String tag), void Function(String tag)?> tagOpener =
+    Facet.define<void Function(String tag), void Function(String tag)?>(combine: (values) => values.isEmpty ? null : values.first);
 
 /// `padding: 0 0.3em` of a chip at `font-size: 0.92em`, in the line's own ems.
 const double _pad = 0.3 * 0.92;
@@ -88,7 +97,39 @@ class _Tags extends PluginValue {
   }
 }
 
-final Extension _tags = Extension.list(<Extension>[ViewPlugin.define<_Tags>(_Tags.new, decorations: (value) => value.decorations), baseTheme(_theme)]);
+final ViewPlugin<_Tags> _tagsPlugin = ViewPlugin.define<_Tags>(
+    _Tags.new,
+    decorations: (value) => value.decorations,
+    eventHandlers: EditorEventHandlers(
+      mouseDown: (event, view) {
+        final open = view.state.facet(tagOpener);
+        if (open == null) return false;
+        final pos = view.posAtCoords(event.position);
+        if (pos == null) return false;
+        // Only a tag drawn as a chip: one the decorations put a chip on, which leaves out code and the other quiet
+        // places, and a blank's question.
+        final chips = view.plugin(_tagsPlugin)?.decorations;
+        if (chips == null) return false;
+        String? hit;
+        chips.between(pos, pos, (from, to, value) {
+          if (identical(value, _chip) && pos >= from && pos <= to) {
+            final line = view.state.doc.lineAt(from);
+            for (final tag in tagsIn(line.text, line.from)) {
+              if (tag.from == from) hit = tag.name;
+            }
+            return false;
+          }
+          return null;
+        });
+        final name = hit;
+        if (name == null) return false;
+        open(name);
+        return true;
+      },
+    ),
+  );
+
+final Extension _tags = Extension.list(<Extension>[_tagsPlugin, baseTheme(_theme)]);
 
 /// `#tags` drawn as small chips.
 Extension tags() => _tags;

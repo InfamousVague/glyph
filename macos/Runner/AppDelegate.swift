@@ -93,6 +93,7 @@ class AppDelegate: FlutterAppDelegate {
 
     _ = add("File", [
       item("New Note", "n", said: "newNote"),
+      item("Today’s Note", "d", said: "today", modifiers: [.command, .shift]),
       .separator(),
       item("Sync Now", "r", said: "sync"),
       .separator(),

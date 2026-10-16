@@ -21,11 +21,13 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/search_query.dart' show parseSearch;
 import '../core/workspaces.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
 import 'home_text.dart';
 import 'marks.dart';
+import 'search_hints.dart';
 
 /// The search field and the filters' button with its panel and chips (`src/app/home/HomeFilters.tsx`). The
 /// workspaces are a [WorkspaceStore] handed in, and the field is an `EditableText` with the kit's handles where the
@@ -43,6 +45,7 @@ class HomeFilters extends StatefulWidget {
     this.onNewOrganization,
     this.onOrganization,
     this.onSearching,
+    this.onSaveSearch,
   });
 
   final String query;
@@ -66,6 +69,10 @@ class HomeFilters extends StatefulWidget {
 
   /// An organization's own screen, for "Edit" on its workspace.
   final ValueChanged<String>? onOrganization;
+
+  /// Keeps what is typed as a smart notebook (lib/core/smart_notebooks.dart); left out, the row under the search
+  /// offers no Save.
+  final VoidCallback? onSaveSearch;
 
   @override
   State<HomeFilters> createState() => HomeFiltersState();
@@ -226,7 +233,22 @@ class HomeFiltersState extends State<HomeFilters> {
         ),
       ],
     );
-    if (chosen.isEmpty) return row;
+    // The operators a search reads, offered while the field is empty and has the keyboard, and what it understood
+    // of what is typed (lib/home/search_hints.dart): the port's own.
+    final typed = widget.query.trim().isNotEmpty;
+    final hinted = typed ? (parseSearch(widget.query).parts.isNotEmpty || widget.onSaveSearch != null) : _field.hasFocus;
+    final hints = hinted
+        ? SearchHints(
+            query: widget.query,
+            focused: _field.hasFocus,
+            onQuery: (next) {
+              widget.onQuery(next);
+              _field.requestFocus();
+            },
+            onSave: widget.onSaveSearch,
+          )
+        : null;
+    if (chosen.isEmpty && hints == null) return row;
 
     // What is chosen, under the search: a chip for each, its cross taking it off.
     return Column(
@@ -234,6 +256,8 @@ class HomeFiltersState extends State<HomeFilters> {
       mainAxisSize: MainAxisSize.min,
       children: [
         row,
+        if (hints != null) ...[SizedBox(height: t.space(3)), hints],
+        if (chosen.isNotEmpty) ...[
         SizedBox(height: t.space(3)),
         Semantics(
           container: true,
@@ -271,6 +295,7 @@ class HomeFiltersState extends State<HomeFilters> {
             ],
           ),
         ),
+        ],
       ],
     );
   }

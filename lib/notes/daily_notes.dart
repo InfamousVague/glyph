@@ -30,8 +30,6 @@ import '../core/front_matter.dart' show quotedTitle;
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/preferences.dart';
-import '../core/properties.dart' show withFrontMatterValue;
-import '../core/template.dart' show formatStamp;
 import '../core/title_key.dart' show titleKey;
 import 'note_templates.dart';
 

@@ -1,10 +1,12 @@
 import 'package:flutter/widgets.dart';
 
 import '../../art/art.dart';
+import '../../core/preferences.dart' show preferences;
 import '../../core/workspaces.dart';
 import '../../notes/workspace_sheet.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
+import 'daily_notes_pane.dart' show dailyNotesLibrary, dailyNotesSummary;
 import 'pane_parts.dart';
 import 'settings_host.dart';
 
@@ -35,7 +37,7 @@ String workspaceSummary(int count) => count == 0
 /// - The sheet is the Flutter port's `WorkspaceManageSheet`, built beside the page's cards while it is up; it draws
 ///   itself over the window.
 class WorkspacesPane extends StatefulWidget {
-  const WorkspacesPane({super.key, required this.store, this.onOrganization, this.notesIn, this.onTrashNotes});
+  const WorkspacesPane({super.key, required this.store, this.onOrganization, this.notesIn, this.onTrashNotes, this.onDailyNotes});
 
   final WorkspaceStore store;
 
@@ -43,6 +45,10 @@ class WorkspacesPane extends StatefulWidget {
   final void Function(String orgId)? onOrganization;
   final List<String> Function(String workspaceId)? notesIn;
   final void Function(List<String> noteIds)? onTrashNotes;
+
+  /// Settings › Daily notes, the page behind this one (the port's own, 2026-10-16): its row is drawn only where the
+  /// app has a library for today's note to be made in ([dailyNotesLibrary]).
+  final VoidCallback? onDailyNotes;
 
   /// The page as Settings mounts it: the sheet's store and callbacks.
   static Widget hosted(BuildContext context) {
@@ -52,6 +58,7 @@ class WorkspacesPane extends StatefulWidget {
       onOrganization: host?.onOrganization,
       notesIn: host?.notesInWorkspace,
       onTrashNotes: host?.onTrashNotes,
+      onDailyNotes: host == null || dailyNotesLibrary == null ? null : () => host.go('daily'),
     );
   }
 
@@ -116,6 +123,19 @@ class _WorkspacesPaneState extends State<WorkspacesPane> {
               const SettingsFootnote(
                 child: Text('Deleting a workspace asks first whether its notes stay, unfiled, or go to the Trash with it. Nothing is deleted for good until the Trash is emptied.'),
               ),
+              if (widget.onDailyNotes != null)
+                PaneSection(
+                  title: 'Daily notes',
+                  children: [
+                    SettingRow(
+                      key: const ValueKey('workspaces-daily'),
+                      icon: const AppIcon(Lucide.calendarDays, size: 20),
+                      label: 'Where today’s note goes',
+                      hint: Text(dailyNotesSummary(preferences.value, list)),
+                      onPress: widget.onDailyNotes,
+                    ),
+                  ],
+                ),
             ],
           );
           return Column(

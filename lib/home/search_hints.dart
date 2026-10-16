@@ -120,7 +120,7 @@ class _Hint extends StatelessWidget {
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         child: Container(
-          constraints: BoxConstraints(minHeight: t.space(7)),
+          constraints: BoxConstraints(minHeight: t.space(8) * 0.875),
           alignment: Alignment.center,
           padding: EdgeInsets.symmetric(horizontal: t.space(3)),
           decoration: BoxDecoration(
@@ -162,7 +162,7 @@ class _Understood extends StatelessWidget {
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         child: Container(
-          constraints: BoxConstraints(minHeight: t.space(7)),
+          constraints: BoxConstraints(minHeight: t.space(8) * 0.875),
           padding: EdgeInsetsDirectional.only(start: t.space(2), end: t.space(2)),
           decoration: BoxDecoration(
             color: t.colorOf('color-mix(in oklch, var(--app-ink) 10%, transparent)'),
@@ -205,7 +205,7 @@ class _Save extends StatelessWidget {
         return GlacierFocusRing(
           visible: state.focused,
           child: Container(
-            constraints: BoxConstraints(minHeight: t.space(7)),
+            constraints: BoxConstraints(minHeight: t.space(8) * 0.875),
             padding: EdgeInsets.symmetric(horizontal: t.space(2)),
             child: ExcludeSemantics(
               child: Row(

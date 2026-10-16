@@ -75,7 +75,7 @@ List<PaletteNote> paletteJournals(List<Note> notes) {
 /// The app as it stands, for the palette (`paletteWorld`, App.tsx): the shell's notes, tabs, screen and trail, the
 /// workspaces, and the two preferences a command's words turn on. [blanks] is how many blanks the open note's
 /// editor counted, once there is one to count them.
-PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0}) {
+PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const []}) {
   final screen = shell.screen;
   Note? open;
   if (screen is ScreenNote) {
@@ -102,6 +102,7 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     theme: prefs.theme,
     tabGroups: [for (final group in groups.list) (id: group.id, name: group.name)],
     tabGroup: open == null ? null : groups.of[open.id],
+    smartNotebooks: smartNotebooks,
   );
 }
 
@@ -137,6 +138,9 @@ PaletteDoing paletteDoingFor({
   VoidCallback? guide,
   VoidCallback? academy,
   void Function(String id, String kind)? noteAi,
+  VoidCallback? today,
+  VoidCallback? tags,
+  void Function(String id)? openSmart,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -170,6 +174,9 @@ PaletteDoing paletteDoingFor({
     groupTab: (id) => shell.tabs.setGroups(newGroup(shell.tabs.groups, id).groups),
     joinTabGroup: (id, group) => shell.tabs.setGroups(joinGroup(shell.tabs.groups, id, group)),
     leaveTabGroup: (id) => shell.tabs.setGroups(leaveGroup(shell.tabs.groups, id)),
+    today: today,
+    tags: tags,
+    openSmart: openSmart,
   );
 }
 

@@ -513,7 +513,7 @@ class _TagChip extends StatelessWidget {
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         child: Container(
-          constraints: BoxConstraints(minHeight: t.space(7)),
+          constraints: BoxConstraints(minHeight: t.space(8) * 0.875),
           padding: EdgeInsets.symmetric(horizontal: t.space(3)),
           decoration: BoxDecoration(
             color: t.colorOf(state.hovered ? 'color-mix(in oklch, var(--app-ink) 10%, transparent)' : 'color-mix(in oklch, var(--app-ink) 6%, transparent)'),

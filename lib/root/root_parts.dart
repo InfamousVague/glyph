@@ -52,6 +52,8 @@ extension _RootParts on _GhostRootState {
         ),
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
+        // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
+        OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
           _part('organization', () => (_organization, _accountAt, _syncAt), (context) => _organizationSheetPart(services)),
           _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
@@ -231,6 +233,27 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : shell.openOrganization,
           onOrganizationSettings: _services == null ? null : _openOrganizationSettings,
           wisp: preferences.value.wispEdge,
+          onSaveSearch: _organize.saveSearch,
+        ),
+      ),
+      // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
+      collectionBuilder: (context, shell, screen) => _part(
+        'collection',
+        () => (screen, shell.notes, _workspaces.value),
+        (context) => CollectionScreen(
+          kind: screen.kind,
+          name: screen.key,
+          notes: shell.notes,
+          workspaces: _workspaces.value,
+          smart: _organize.smart,
+          onOpen: (id) => _openWhereLeft(shell, id),
+          onBack: screen.kind == CollectionKind.tag && screen.fromTags ? _organize.showTags : shell.backToList,
+          onTag: (tag) => _organize.showTag(tag, fromTags: screen.kind == CollectionKind.tags),
+          onRenameTag: _organize.renameTag,
+          onEditSmart: _organize.editSmart,
+          onNoteMenu: _menu.open,
+          stored: _stored,
+          clock: widget.clock,
         ),
       ),
       sidebarBuilder: (context, shell, close) => _part(
@@ -274,6 +297,16 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : _openOrganizationSettings,
           onNoteMenu: _menu.open,
           emptyArt: const Ghost(scene: GhostScene.noNotes),
+          smart: _organize.smart,
+          onSmart: (id) {
+            close();
+            _organize.showSmart(id);
+          },
+          onManageSmart: _organize.editSmart,
+          onTags: () {
+            close();
+            _organize.showTags();
+          },
         ),
       ),
       dockedSidebarBuilder: (context, shell) => _part('tree', () => _sidebarReads(shell), (context) => _tree(shell)),
@@ -397,6 +430,7 @@ extension _RootParts on _GhostRootState {
       headerEdge: _headerEdge,
       dockHalo: _dockHalo,
       ghost: _homeGhost,
+      onSaveSearch: _organize.saveSearch,
     );
   }
 
@@ -482,6 +516,7 @@ extension _RootParts on _GhostRootState {
           final counted? when counted.noteId == _shell.currentState!.shown => counted.count,
           _ => 0,
         },
+        smartNotebooks: [for (final each in _organize.smart.value) (id: each.id, name: each.name)],
       ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
@@ -521,6 +556,9 @@ extension _RootParts on _GhostRootState {
         },
         settings: _openSettings,
         settingsPage: _openSettingsAt,
+        today: _organize.today,
+        tags: _organize.showTags,
+        openSmart: _organize.showSmart,
       ),
     );
   }
@@ -557,6 +595,8 @@ extension _RootParts on _GhostRootState {
       onNote: () => _new(into),
       onCanvas: () => _newCanvas(into),
       onBook: () => _newBook(NewBookKind.notebook, into),
+      // Today's note (lib/notes/daily_notes.dart): the account's own, not offered from an organization's +.
+      onToday: into != null ? null : () => _organize.today(),
       // A journal's entry is the account's own, and is not offered from an organization's +.
       entry: into != null || !_newSheet ? null : _entryRow(),
       // A shared link's copy is read from the account's service: not offered in a build with none.
@@ -706,6 +746,16 @@ extension _RootParts on _GhostRootState {
       // A mouse's right-click on a row: the note's menu, where the pointer is.
       onNoteMenu: _menu.open,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
+      smart: _organize.smart,
+      onSmart: (id) {
+        onClose?.call();
+        _organize.showSmart(id);
+      },
+      onManageSmart: _organize.editSmart,
+      onTags: () {
+        onClose?.call();
+        _organize.showTags();
+      },
     );
   }
 
