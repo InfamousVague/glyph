@@ -141,6 +141,7 @@ import '../editor/items/items.dart';
 import '../editor/marks/marks.dart';
 import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
+import '../editor/media/note_embeds.dart';
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
@@ -712,6 +713,9 @@ class NoteDeskState extends State<NoteDesk> {
     // ![[A canvas]] on a line of its own draws that canvas in a frame (Editor.tsx `canvasFrames`).
     if (_world.bodyOf != null)
       canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor))),
+    // Any other note, a section of one, a named line or a picture, embedded the same way and drawn in place
+    // (lib/editor/media/note_embeds.dart).
+    if (_world.bodyOf != null) noteEmbeds(EmbedOptions(body: (title) => _world.bodyOf?.call(title), open: (title, [anchor]) => _world.open(title, anchor), formats: _formats)),
     // Each `[^c1]` a round in its author's colour, and the ```comments fence drawn as its threads (Editor.tsx
     // `noteComments`).
     noteComments(() => _comments.hooks),
