@@ -62,7 +62,7 @@ import 'query_templates.dart';
 /// choosing a note or a canvas.
 enum AddStep { more, board, database, note, canvas }
 
-/// A row as the list draws it. [id] is one of `picture`, `video`, `place`, `time`, `table`, `note`, `todo`, `more`,
+/// A row as the list draws it. [id] is one of `picture`, `video`, `file`, `scan`, `place`, `time`, `table`, `note`, `todo`, `more`,
 /// `heading`, `bullets`, `numbers`, `quote`, `callout`, `choice`, `code`, `divider`, `board`, `query`,
 /// `query:<template>`, `dated`, `ticket`, `chart`, `formula`, `canvas`, `footnote`, `tag`, `counter`, `sum`,
 /// `blank`, `blankCells`, `effect:<name>`.
@@ -104,6 +104,8 @@ class AddGates {
   const AddGates({
     required this.picture,
     required this.video,
+    this.file = false,
+    this.scan = false,
     required this.place,
     required this.note,
     required this.canvas,
@@ -117,6 +119,10 @@ class AddGates {
 
   final bool picture;
   final bool video;
+
+  /// Any file, kept beside the pictures and linked (lib/files/), and a document scanned into one.
+  final bool file;
+  final bool scan;
   final PlaceGate place;
   final bool note;
   final bool canvas;
@@ -144,6 +150,8 @@ class AddGates {
 AddGates readGates({
   required bool picture,
   required bool video,
+  bool file = false,
+  bool scan = false,
   required bool place,
   required bool note,
   required bool canvas,
@@ -157,6 +165,8 @@ AddGates readGates({
 }) => AddGates(
   picture: picture,
   video: video,
+  file: file,
+  scan: scan,
   place: !place ? PlaceGate.absent : (localOnly ? PlaceGate.dimmed : PlaceGate.on),
   note: note,
   canvas: canvas,
@@ -235,6 +245,8 @@ List<AddRow> topRows(AddGates gates, DateTime now, [bool naming = false]) {
   return <AddRow>[
     if (gates.picture) const AddRow(id: 'picture', words: 'A picture'),
     if (gates.video) const AddRow(id: 'video', words: 'A video'),
+    if (gates.file) const AddRow(id: 'file', words: 'A file'),
+    if (gates.scan) const AddRow(id: 'scan', words: 'Scan a document'),
     if (gates.place != PlaceGate.absent) AddRow(id: 'place', words: 'A place', dimmed: gates.place == PlaceGate.dimmed ? 'Local only is on.' : null),
     AddRow(id: 'time', words: time.words, label: time.label),
     const AddRow(id: 'table', words: 'A table'),

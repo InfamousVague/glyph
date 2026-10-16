@@ -17,6 +17,8 @@ import android.webkit.MimeTypeMap
 import androidx.core.content.FileProvider
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
+import com.google.android.gms.common.moduleinstall.ModuleInstall
+import com.google.android.gms.common.moduleinstall.ModuleInstallRequest
 import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.documentscanner.GmsDocumentScannerOptions
@@ -33,6 +35,7 @@ import java.nio.ByteBuffer
 import java.util.UUID
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -49,9 +52,11 @@ import kotlin.math.roundToInt
  *   permission. What it made (one PDF of every page, and each page as a JPEG) is copied into `cacheDir/picked/`.
  *   It needs Google Play services, which delivers the scanner's screen the first time it is asked for.
  * - `read {path, pdf, most}` -> `{pages}`: the words in a picture, or in each of a PDF's first `most` pages, read on
- *   the phone by ML Kit's text recognition, its Latin model inside the app (com.google.mlkit:text-recognition), so
- *   nothing is fetched and nothing leaves. A PDF page's own words are taken where Android 15 can give them, and
- *   the page is drawn and read where it has none (a scan). On its own low-priority thread.
+ *   the phone by ML Kit's Latin text recognition (play-services-mlkit-text-recognition): its model is fetched once
+ *   by Google Play services (asked for here the first time, `readerReady`), and kept, so after that it reads with
+ *   no connection; nothing read leaves the phone. A PDF page's own words are taken where Android 15 can give them,
+ *   and the page is drawn and read where it has none (a scan). On its own low-priority thread.
+ * - `readerReady` -> whether that model is on the phone yet.
  * - `pdfOpen`, `pdfPage`, `pdfText`, `pdfFind`, `pdfClose`: a PDF drawn by Android's own PdfRenderer (PDFium, in
  *   the system), a page at a time on asking, as RGBA pixels; its words and where a word stands from Android 15.
  * - `openWith`, `share {path, name}`: the file copied into `cacheDir/open/<id>/<name>`, so the other app sees its
@@ -83,6 +88,7 @@ class Documents(private val activity: Activity) {
         "canScan" -> result.success(canScan())
         "scan" -> scan(result)
         "read" -> off(reading, result) { read(call) }
+        "readerReady" -> off(reading, result) { readerReady() }
         "pdfOpen" -> off(drawing, result) { pdfOpen(call.argument<String>("path")) }
         "pdfPage" -> off(drawing, result) { pdfPage(call) }
         "pdfText" -> off(drawing, result) { pdfText(call) }
@@ -271,12 +277,39 @@ class Documents(private val activity: Activity) {
 
   // ---- reading the words --------------------------------------------------------------------------------------
 
+  /** Whether the reader's model is here, asked of Play services once and remembered once it is. */
+  @Volatile private var ready = false
+
+  private fun readerReady(): Boolean {
+    if (ready) return true
+    ready = try {
+      Tasks.await(ModuleInstall.getClient(activity).areModulesAvailable(recognizer), 20, TimeUnit.SECONDS).areModulesAvailable()
+    } catch (error: Throwable) {
+      false
+    }
+    return ready
+  }
+
+  /** The reader's model, fetched by Play services where it is not here yet: waited for, on the reading thread. */
+  private fun readyToRead() {
+    if (readerReady()) return
+    try {
+      val request = ModuleInstallRequest.newBuilder().addApi(recognizer).build()
+      Tasks.await(ModuleInstall.getClient(activity).installModules(request), 3, TimeUnit.MINUTES)
+    } catch (error: Throwable) {
+      Log.w(TAG, "reader not fetched", error)
+      throw Said("The reader comes from Google Play services, and could not be fetched yet.")
+    }
+    ready = true
+  }
+
   private fun recognised(image: InputImage): String = Tasks.await(recognizer.process(image)).text
 
   private fun read(call: MethodCall): Map<String, Any> {
     val path = call.argument<String>("path") ?: throw Said("Nothing to read.")
     val file = File(path)
     if (!file.isFile) throw Said("That file is not here.")
+    readyToRead()
     if (call.argument<Boolean>("pdf") != true) return mapOf("pages" to listOf(recognised(InputImage.fromFilePath(activity, Uri.fromFile(file)))))
     val most = call.argument<Int>("most") ?: 60
     val words = ArrayList<String>()

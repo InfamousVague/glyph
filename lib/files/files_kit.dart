@@ -64,6 +64,7 @@ class FilesKit implements sync_local.MediaFiles {
 
     final kit = FilesKit(dataDir: dataDir, store: AttachmentStore(dataDir: dataDir), texts: ReadTexts(dataDir: dataDir), device: device ?? PhoneDocuments(), bodies: bodies);
     kit.install();
+    unawaited(kit.device.canScan().then((can) => kit.scans = can));
     unawaited(kit.texts.load().then<void>((_) {
       if (kit.pass.on) Timer(after, () => unawaited(kit.pass.readExisting().catchError((Object _) {})));
     }, onError: (Object failure) => debugPrint('[files] the words read before were not read in: $failure')));
@@ -82,6 +83,13 @@ class FilesKit implements sync_local.MediaFiles {
   }
 
   final String dataDir;
+
+  /// Whether the document scanner opens here, once the device has said (Google Play services): false until then.
+  bool scans = false;
+
+  /// Whether a file can be chosen here.
+  bool get picks => device.picks;
+
   final AttachmentStore store;
   final ReadTexts texts;
   final DocumentDevice device;

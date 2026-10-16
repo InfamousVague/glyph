@@ -256,6 +256,11 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/ghost_update_paths" />
         </provider>
+        <!-- The reader of words in pictures (ML Kit's text recognition, Documents.kt), fetched by Google Play
+             services with the app where the Play Store installs it, and the first time it is wanted otherwise. -->
+        <meta-data
+            android:name="com.google.mlkit.vision.DEPENDENCIES"
+            android:value="ocr" />
         <!-- A file in a note, handed to another app to open or share (Documents.kt): a copy under its own name in
              <cacheDir>/open and nothing else (res/xml/ghost_attachment_paths.xml), each grant for the one intent. -->
         <provider

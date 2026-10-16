@@ -149,6 +149,9 @@ import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/text_panel.dart' show EditorTextPanels, TextPanel, textPanels;
+import '../files/attachment_store.dart' show KeptAttachment;
+import '../files/files_kit.dart';
+import '../files/plus_files.dart';
 import '../note/note_editor.dart';
 import '../note/note_place.dart';
 import '../note/note_place.dart' as reading show caretPlace, placeOf;
@@ -1381,6 +1384,9 @@ class NoteDeskState extends State<NoteDesk> {
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),
+          // Any file, and a document scanned into a PDF (lib/files/), where the device can.
+          onFile: FilesKit.current?.picks != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, FilesKit.current!.pick)),
+          onScan: FilesKit.current?.scans != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, () => FilesKit.current!.scan(name: scanName(DateTime.now())))),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),
@@ -1619,6 +1625,15 @@ class NoteDeskState extends State<NoteDesk> {
     } finally {
       if (mounted && identical(_view, editor)) editor.dispatch(releaseSpot(editor.state, spot));
     }
+  }
+
+  /// A file the + brought in, written where the caret was (lib/files/plus_files.dart).
+  Future<void> _putFile(EditorView editor, Future<KeptAttachment?> Function() get) {
+    final haptics = HapticsProvider.of(context);
+    return putFileIn(editor, get, still: () => mounted && identical(_view, editor), say: (message) {
+      haptics(HapticKind.warning);
+      _sayOnNote(message);
+    }, landed: () => haptics(HapticKind.light));
   }
 
   /// The map at the top of a tagged note (editor/MapCard.tsx as NoteScreen.tsx draws it).
