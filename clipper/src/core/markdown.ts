@@ -331,9 +331,9 @@ function withoutTitle(markdown: string, title: string | undefined): string {
 export function toMarkdown(root: Element | DocumentFragment | string, { base, title, doc }: { base: string; title?: string; doc?: Document }): Converted {
   let node: Element | DocumentFragment;
   if (typeof root === 'string') {
-    const parsed = (doc?.implementation ?? document.implementation).createHTMLDocument('');
-    parsed.body.innerHTML = root;
-    node = parsed.body;
+    // An inert document of its own: nothing in it runs or loads.
+    const Parser = (doc?.defaultView as (Window & typeof globalThis) | null)?.DOMParser ?? DOMParser;
+    node = new Parser().parseFromString(root, 'text/html').body;
   } else node = root;
   prepare(node, base);
   const pictures: PictureRef[] = [];

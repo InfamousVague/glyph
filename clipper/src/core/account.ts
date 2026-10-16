@@ -61,12 +61,14 @@ export class ClipperAccount {
     const info: SessionInfo = { v: 1, api: API_BASE, handle: answer.account.handle, accountId: answer.account.id, token: answer.token, stay };
     await deps.keeper.clear();
     if (stay) {
-      const pair = await newDeviceKey();
       try {
+        // Ed25519 is in Chrome from 137 and Firefox from 129: an older browser stays signed in for the token's week.
+        const pair = await newDeviceKey();
         await call('POST', 'device', { token: answer.token, fetcher: deps.fetcher, body: { devicePublicKey: await publicKeyOf(pair), label: DEVICE_LABEL } });
         await deps.keeper.setDeviceKey(pair);
       } catch {
-        // No signing key: the session still lasts as long as its token, a week, and then the password is asked again.
+        // No signing key (the service said no, or the browser has no Ed25519): the session still lasts as long as its
+        // token, a week, and then the password is asked again.
       }
     }
     await deps.keeper.save(info, key);
