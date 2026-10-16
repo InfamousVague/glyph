@@ -689,10 +689,10 @@ Future<NotePayload> _sendFilesOf(SyncContext ctx, Note note) async {
     final bytes = await ctx.files.read(FileKind.image, name);
     if (bytes != null) await sendFile(ctx, FileKind.image, name, bytes);
   }
-  final files = attachmentNames(note.body);
-  for (final name in files) {
-    await sendAttachment(ctx, name);
-  }
+  final files = <String>[
+    for (final name in attachmentNames(note.body))
+      if (await sendAttachment(ctx, name)) name,
+  ];
   final texts = await sendTextsOf(ctx, note.body);
   // Whatever this device owed of the note's files has gone with it: its versions (sent above) and its words.
   ctx.files.settled(note.id);
@@ -700,14 +700,18 @@ Future<NotePayload> _sendFilesOf(SyncContext ctx, Note note) async {
 }
 
 /// A file a note links, sent where the account lacks it and it is no larger than [attachmentSyncLimit]; one
-/// larger stays on the device it was added on. Its length is asked first, so a large one is never read.
-Future<void> sendAttachment(SyncContext ctx, String name) async {
+/// larger stays on the device it was added on. Its length is asked first, so a large one is never read. Answers
+/// whether the file travels, for the payload to name it: false only for one here that is too large.
+Future<bool> sendAttachment(SyncContext ctx, String name) async {
   final id = fileId(FileKind.attachment, name);
-  if (id == null || ctx.state.files.containsKey(id)) return;
+  if (id == null) return false;
+  if (ctx.state.files.containsKey(id)) return true;
   final length = await ctx.files.lengthOf(FileKind.attachment, name);
-  if (length == null || length > attachmentSyncLimit) return;
+  if (length == null) return true;
+  if (length > attachmentSyncLimit) return false;
   final bytes = await ctx.files.read(FileKind.attachment, name);
   if (bytes != null) await sendFile(ctx, FileKind.attachment, name, bytes);
+  return true;
 }
 
 /// The words read in the pictures and files of [body], sent where the account lacks them; answers the things
@@ -756,8 +760,8 @@ Future<void> _fetchFilesOf(SyncContext ctx, NotePayload payload) async {
 }
 
 /// The files a note links and the words read in its things, fetched where this device lacks them: what a note's
-/// payload names beside its pictures. A file still on its way, or one that stays on the device it was added on,
-/// is not in the account yet (a 404), and is asked for again by the settling.
+/// payload names beside its pictures (never a file too large to travel, which the device that has it leaves out).
+/// A file still on its way is not in the account yet (a 404), and is asked for again by the settling.
 Future<void> fetchFilesNamed(SyncContext ctx, List<String> files, List<String> texts) async {
   if (!ctx.files.keepsMedia) return;
   for (final name in files) {

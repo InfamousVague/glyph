@@ -274,8 +274,13 @@ AttachmentStore? keptAttachments;
 /// Keeps a file brought into the app, by anything (the + menu, a share, an import), in the app's own store, and
 /// answers it: the one door ([AttachmentStore.keep]). Throws a [StateError] with a sentence where there is no store
 /// yet or the file cannot be kept.
-Future<KeptAttachment> storeAttachment(AttachmentSource source, {required String name}) {
+Future<KeptAttachment> storeAttachment(AttachmentSource source, {required String name}) async {
   final store = keptAttachments;
   if (store == null) throw StateError('This build cannot add files yet.');
-  return store.keep(source, original: name);
+  final kept = await store.keep(source, original: name);
+  attachmentKept?.call(kept);
+  return kept;
 }
+
+/// Told of each file [storeAttachment] keeps: the words in it are read soon after (lib/files/files_kit.dart).
+void Function(KeptAttachment kept)? attachmentKept;

@@ -529,10 +529,10 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     if (bytes != null) await sendFile(files, FileKind.image, name, bytes);
   }
   // The files it links and the words read in its things, as the account's own notes carry them (lib/sync/notes.dart).
-  final linked = attachmentNames(note.body);
-  for (final name in linked) {
-    await sendAttachment(files, name);
-  }
+  final linked = <String>[
+    for (final name in attachmentNames(note.body))
+      if (await sendAttachment(files, name)) name,
+  ];
   final texts = await sendTextsOf(files, note.body);
   // Owed for its words read since it last went (KeptFiles.owed): going now.
   ctx.files.settled(note.id);

@@ -80,6 +80,7 @@ class FilesKit implements sync_local.MediaFiles {
     note_text.searchExtra = texts;
     noteGoneForGood = (id, body) => noteDeleted(body, id: id);
     pictureAdopted = pictureAdded;
+    attachmentKept = (kept) => pass.readSoon(ReadThing.file(kept.name));
   }
 
   final String dataDir;

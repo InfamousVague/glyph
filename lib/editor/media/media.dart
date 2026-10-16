@@ -29,6 +29,7 @@ import 'link_cards.dart';
 import 'linked_rows.dart';
 import 'links.dart';
 import 'map_card.dart';
+import 'picture_words.dart';
 import 'place_cards.dart';
 import 'videos.dart';
 
@@ -124,8 +125,9 @@ Extension mediaExtensions({MediaSeams seams = const MediaSeams(), PlaceMode plac
   inlineImages(store: seams.pictures),
   placeCards(places, dark: seams.dark, switches: seams.placeSwitches, changed: seams.switches, onOpen: seams.onOpenPlace, tiles: seams.mapTiles),
   videoCards(videos, seams: seams.films),
-  // Files in the words (attachments.dart), where the app keeps files.
+  // Files in the words (attachments.dart), where the app keeps files, and a picture's words (picture_words.dart).
   attachmentCards(),
+  if (!peek) pictureWords(),
   shortLinks(still: peek, onOpen: seams.onLinkTap),
   if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink),
   linkedRows(seams.linkMenus),
