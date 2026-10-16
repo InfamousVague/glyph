@@ -31,10 +31,13 @@ import '../share/share.dart' show SharePictures;
 import 'local.dart';
 import 'notes.dart' show FileKind;
 
+/// The core's kind for a file it keeps; a note's linked files and the words read in its things are Dart's
+/// (lib/sync/local.dart [MediaFiles]), and never asked of the core.
 CoreFileKind _kind(FileKind kind) => switch (kind) {
       FileKind.recording => CoreFileKind.recording,
       FileKind.image => CoreFileKind.image,
       FileKind.versions => CoreFileKind.versions,
+      FileKind.attachment || FileKind.text => throw StateError('The core keeps no ${kind.name} files.'),
     };
 
 /// [DeviceBytes] over the core.

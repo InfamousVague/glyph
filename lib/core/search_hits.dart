@@ -276,7 +276,8 @@ Snippet? snippetOf(Note note, List<String> needles, {int before = 36, int most =
     }
     if (at >= 0) break;
   }
-  if (at < 0 || at >= text.length) return null;
+  // Found in the words read in a picture or a file the note shows (note_text.dart's [searchExtra]): that line, and where.
+  if (at < 0 || at >= text.length) return _readSnippet(note, needles);
 
   var start = text.lastIndexOf('\n', at) + 1;
   var end = text.indexOf('\n', at);
@@ -301,4 +302,12 @@ Snippet? snippetOf(Note note, List<String> needles, {int before = 36, int most =
   if (cut.isEmpty) return null;
   final shown = '${opens ? '…' : ''}$cut${runs ? '…' : ''}';
   return Snippet(shown, marksIn(shown, needles));
+}
+
+/// The line of the words read in one of [note]'s pictures or files that holds a needle, and where it was read:
+/// "…total due 42.10 in Lease.pdf, page 2", the needles marked in the words and not in where.
+Snippet? _readSnippet(Note note, List<String> needles) {
+  final found = searchExtra?.snippet(note.body, needles);
+  if (found == null) return null;
+  return Snippet('${found.text} ${found.where}', marksIn(found.text, needles));
 }

@@ -51,6 +51,10 @@ class DeviceFiles implements LocalFiles {
   /// Recordings by note id.
   final Map<String, Uint8List> tapes = {};
 
+  /// Files notes link, by name, and the words read in a picture or a file, by `image/<name>` or `file/<name>`.
+  final Map<String, Uint8List> attachments = {};
+  final Map<String, Uint8List> texts = {};
+
   /// Versions files by note id, as text, and the notes whose file changed here since it was sent.
   final Map<String, String> versions = {};
   final Set<String> owing = {};
@@ -70,16 +74,33 @@ class DeviceFiles implements LocalFiles {
       return text == null ? null : utf8.encode(text);
     }
     if (kind == FileKind.recording) tapeReads += 1;
-    return (kind == FileKind.image ? pictures : tapes)[name];
+    if (kind == FileKind.attachment) attachmentReads += 1;
+    return _mapOf(kind)[name];
   }
+
+  Map<String, Uint8List> _mapOf(FileKind kind) => switch (kind) {
+        FileKind.image => pictures,
+        FileKind.attachment => attachments,
+        FileKind.text => texts,
+        _ => tapes,
+      };
 
   @override
   Future<void> write(FileKind kind, String name, Uint8List bytes) async {
     if (kind == FileKind.versions) {
       versions[name] = utf8.decode(bytes);
     } else {
-      (kind == FileKind.image ? pictures : tapes)[name] = bytes;
+      _mapOf(kind)[name] = bytes;
     }
+  }
+
+  /// How many times a file a note links was read whole.
+  int attachmentReads = 0;
+
+  @override
+  Future<int?> lengthOf(FileKind kind, String name) async {
+    if (kind == FileKind.versions) return versions[name]?.length;
+    return _mapOf(kind)[name]?.length;
   }
 
   /// The notes whose versions file changed here since it was last sent.
