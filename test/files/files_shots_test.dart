@@ -8,7 +8,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/rendering.dart' show debugDisableShadows;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';

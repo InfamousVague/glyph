@@ -17,6 +17,8 @@ import 'package:flutter/foundation.dart';
 import '../core/attachment_refs.dart';
 import '../core/native/core.dart';
 import '../core/phone_pictures.dart' show pictureAdopted;
+import '../core/shared_files.dart' show SharedBytes, SharedCopy, SharedFileSource, SharedPath, sharedFileDoor, sharedFilesFolder;
+import '../mail/mail_note.dart' show mailFileStore;
 import '../core/note_text.dart' as note_text;
 import '../core/stored.dart';
 import '../sync/local.dart' as sync_local;
@@ -65,6 +67,7 @@ class FilesKit implements sync_local.MediaFiles {
     final kit = FilesKit(dataDir: dataDir, store: AttachmentStore(dataDir: dataDir), texts: ReadTexts(dataDir: dataDir), device: device ?? PhoneDocuments(), bodies: bodies);
     kit.install();
     unawaited(kit.device.canScan().then((can) => kit.scans = can));
+    unawaited(kit.takeInSharedFiles());
     unawaited(kit.texts.load().then<void>((_) {
       if (kit.pass.on) Timer(after, () => unawaited(kit.pass.readExisting().catchError((Object _) {})));
     }, onError: (Object failure) => debugPrint('[files] the words read before were not read in: $failure')));
@@ -81,6 +84,39 @@ class FilesKit implements sync_local.MediaFiles {
     noteGoneForGood = (id, body) => noteDeleted(body, id: id);
     pictureAdopted = pictureAdded;
     attachmentKept = (kept) => pass.readSoon(ReadThing.file(kept.name));
+    // What a share, an import (lib/core/shared_files.dart) and a mail (lib/mail/mail_note.dart) bring in.
+    sharedFileDoor = (source, name) async => (await storeAttachment(_attachmentSource(source), name: name)).ref;
+    mailFileStore = (file, index) async => (await storeAttachment(AttachmentBytes(file.bytes), name: file.name)).markdown;
+  }
+
+  static AttachmentSource _attachmentSource(SharedFileSource source) => switch (source) {
+        SharedBytes(:final bytes) => AttachmentBytes(bytes),
+        SharedPath(:final path, :final move) => AttachmentPath(path, move: move),
+        SharedCopy(:final copyTo) => AttachmentCopy(copyTo),
+      };
+
+  /// Files the share sheet kept before the attachments' store was its door (`<data>/attachments/`), moved in once
+  /// under the names their notes link them by. One whose name is not one of the store's stays where it is.
+  Future<void> takeInSharedFiles() async {
+    final old = Directory('$dataDir/$sharedFilesFolder');
+    try {
+      if (!await old.exists()) return;
+      await store.dir.create(recursive: true);
+      await for (final entry in old.list(followLinks: false)) {
+        if (entry is! File) continue;
+        final name = entry.uri.pathSegments.last;
+        final to = store.pathOf(name);
+        if (to == null || await File(to).exists()) continue;
+        try {
+          await entry.rename(to);
+        } on FileSystemException {
+          await entry.copy(to);
+          await entry.delete();
+        }
+      }
+    } on FileSystemException catch (failure) {
+      debugPrint('[files] the shared files were not taken in: $failure');
+    }
   }
 
   /// Takes the app's kit away again, and everything that found it: for a test.
@@ -94,6 +130,8 @@ class FilesKit implements sync_local.MediaFiles {
     noteGoneForGood = null;
     pictureAdopted = null;
     attachmentKept = null;
+    sharedFileDoor = null;
+    mailFileStore = null;
   }
 
   final String dataDir;

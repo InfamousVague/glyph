@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The words of the files' pieces on the phone's side (lib/files/): the icon's Scan document shortcut. -->
+<resources>
+    <string name="ghost_shortcut_scan_short">Scan</string>
+    <string name="ghost_shortcut_scan_long">Scan a document</string>
+</resources>

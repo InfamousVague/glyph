@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/attachment_refs.dart';
+import 'package:ghost_md/core/shared_files.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/files/attachment_store.dart';
 import 'package:ghost_md/files/files_kit.dart';
@@ -14,6 +15,7 @@ import 'package:ghost_md/files/phone_documents.dart';
 import 'package:ghost_md/files/plus_files.dart';
 import 'package:ghost_md/files/read_pass.dart';
 import 'package:ghost_md/files/read_text.dart';
+import 'package:ghost_md/mail/mail_note.dart';
 import 'package:ghost_md/sync/notes.dart' show FileKind;
 
 import 'support.dart';
@@ -174,5 +176,29 @@ void main() {
     final body = await scanToNewNote(kit: it, at: DateTime(2026, 10, 16, 14, 5));
     expect(body, startsWith('# Scan 2026-10-16 14.05\n\n[Scan 2026-10-16 14.05.pdf](file/'));
     expect(scanName(DateTime(2026, 1, 2, 3, 4)), 'Scan 2026-01-02 03.04.pdf');
+  });
+
+  test('a share, an import and a mail keep their files in the attachments’ store once the kit is the app’s', () async {
+    final it = kit()..install();
+    addTearDown(FilesKit.uninstall);
+    final ref = await storeSharedFile(SharedBytes(Uint8List.fromList([1, 2, 3])), name: 'Shared.pdf', dataDir: data.path);
+    expect(ref, startsWith('file/'));
+    expect(await it.store.sizeOf(ref.substring(5)), 3, reason: 'kept in images/files, where the cards and sync look');
+    final line = await keepMailFile(MailFile(name: 'Invoice.pdf', type: 'application/pdf', bytes: Uint8List.fromList([4, 5])), 0);
+    expect(line, startsWith('[Invoice.pdf](file/'));
+    expect(attachmentOfLine(line), isNotNull);
+    FilesKit.uninstall();
+    expect(await keepMailFile(MailFile(name: 'x.zip', type: 'application/zip', bytes: Uint8List(1)), 0), startsWith('Came with it, not kept'));
+  });
+
+  test('files the share sheet kept before are taken into the store under the names their notes link', () async {
+    final it = kit();
+    File('${data.path}/attachments/0a1b2c3d-0000-4000-8000-000000000009.pdf')
+      ..createSync(recursive: true)
+      ..writeAsBytesSync([7, 7]);
+    File('${data.path}/attachments/no-extension').writeAsBytesSync([1]);
+    await it.takeInSharedFiles();
+    expect(await it.store.sizeOf('0a1b2c3d-0000-4000-8000-000000000009.pdf'), 2);
+    expect(File('${data.path}/attachments/no-extension').existsSync(), isTrue, reason: 'not a name the store keeps');
   });
 }

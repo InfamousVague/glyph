@@ -171,6 +171,22 @@ typedef MailFileKeeper = Future<String> Function(MailFile file, int index);
 /// The keeper until general attachments land: the file named, with its size, and said plainly not to be kept.
 Future<String> notKeptLine(MailFile file, int index) async => 'Came with it, not kept: ${file.name} (${sizeWords(file.bytes.length)}).';
 
+/// The attachments' store, where the app keeps files (lib/files/files_kit.dart): answers the file's line.
+MailFileKeeper? mailFileStore;
+
+/// A mailed file that is not a picture: kept with the attachments where the app keeps files, its line the note's
+/// ([mailFileStore]); else named and said not to be kept ([notKeptLine]).
+Future<String> keepMailFile(MailFile file, int index) async {
+  final store = mailFileStore;
+  if (store == null) return notKeptLine(file, index);
+  try {
+    return await store(file, index);
+  } catch (failure) {
+    debugPrint('[mail] a file was not kept: $failure');
+    return notKeptLine(file, index);
+  }
+}
+
 /// A size as a person says it.
 String sizeWords(int bytes) {
   if (bytes < 1000) return bytes == 1 ? '1 byte' : '$bytes bytes';

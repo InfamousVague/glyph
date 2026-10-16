@@ -21,6 +21,9 @@ class Door implements PhoneEntryDoor {
   void search() => did.add('search');
 
   @override
+  void scan() => did.add('scan');
+
+  @override
   void openNoteAt(String noteId, int line, String find) => did.add('note $noteId $line "$find"');
 }
 
@@ -31,6 +34,7 @@ void main() {
     expect(readPhoneEntry('ghostmd://voice'), const VoiceNoteEntry());
     expect(readPhoneEntry('ghostmd://today'), const TodayEntry());
     expect(readPhoneEntry('ghostmd://search'), const SearchEntry());
+    expect(readPhoneEntry('ghostmd://scan'), const ScanEntry());
     expect(readPhoneEntry('ghostmd://note/n_12?line=7&find=Call%20the%20plumber'), const NoteAtEntry('n_12', line: 7, find: 'Call the plumber'));
     expect(readPhoneEntry('ghostmd://note/n_12?line=x'), const NoteAtEntry('n_12'));
   });

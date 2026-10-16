@@ -590,8 +590,11 @@ and Today opened the palette and today's entry; the tile opened a new note. Inex
   yet: it needs `FilesKit.start` on iOS, a Swift half of `ghost_md/documents` (the scanner, `openWith` through
   UIDocumentInteractionController, PDFKit for the viewer, Vision for the words), and a store review.
 - Words are not read on an iPhone (no files there yet).
-- A home-screen quick action for scanning is not wired here (the launcher's shortcuts are `feat/reminders`'). Its entry
-  point is `scanToNewNote()` in lib/files/plus_files.dart: it opens the scanner and answers the words of a new note
-  (`# Scan 2026-10-16 14.05` and the PDF's line), or null; the caller makes the note and opens it.
+- (Wired after the merge with main.) The icon's **Scan document** shortcut (`ghostmd://scan`, in the four shortcut files,
+  `ScanEntry` in lib/home_screen/phone_entries.dart, `_PhoneDoor.scan` in lib/root/ghost_root.dart) calls
+  `scanToNewNote()` (lib/files/plus_files.dart) and opens the new note. The share sheet's and the importers'
+  `storeSharedFile` (lib/core/shared_files.dart, `sharedFileDoor`) and the mail's other files
+  (lib/mail/mail_note.dart `keepMailFile`, `mailFileStore`) now keep their files in the attachments' store; files the
+  share sheet kept under `<data>/attachments/` before are moved in at the next start (`FilesKit.takeInSharedFiles`).
 - A shared page (a share's reader) carries no files: a file's card there says it is not on this device.
 - The PDF viewer shows one page at a time (swiped), not a continuous scroll; text selection in a PDF is not offered.

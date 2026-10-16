@@ -73,6 +73,7 @@ import '../core/native/files.dart';
 import '../core/native/ghost_core.dart' show GhostCore;
 import '../core/native/device_paths.dart' show DevicePaths;
 import '../core/shared_files.dart' show storeSharedFile;
+import '../files/plus_files.dart' show scanToNewNote;
 import '../core/note.dart';
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
@@ -1668,6 +1669,22 @@ class _PhoneDoor implements PhoneEntryDoor {
   /// The palette, to type a note's name or a command in.
   @override
   void search() => _withShell((_) => WidgetsBinding.instance.addPostFrameCallback((_) => root._search()));
+
+  /// The icon's Scan document: Google's scanner, then a new note holding the PDF it made, opened
+  /// (lib/files/plus_files.dart `scanToNewNote`). Nothing on a device that cannot scan, or when the scanner is left.
+  @override
+  void scan() => unawaited(() async {
+        final String? body;
+        try {
+          body = await scanToNewNote();
+        } catch (failure) {
+          debugPrint('[files] the scan was not kept: $failure');
+          return;
+        }
+        if (body == null || !root.mounted) return;
+        final note = await root._library.createNote(body);
+        if (root.mounted) _withShell((shell) => shell.openNote(note.id));
+      }());
 
   /// A note at a line (a reminder, a Today or Pinned row, a recent note): the line where the item now is, by its
   /// words where lines were written above it since; a note gone or in the Trash opens nothing.

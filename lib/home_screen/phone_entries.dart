@@ -7,6 +7,7 @@
 /// | `ghostmd://voice`                   | the icon's Voice note, Quick note's microphone      | a new note, recording       |
 /// | `ghostmd://today`                   | the icon's Today's note                             | today's entry               |
 /// | `ghostmd://search`                  | the icon's Search                                   | the palette, to type in     |
+/// | `ghostmd://scan`                    | the icon's Scan document                            | a new note of a scan        |
 /// | `ghostmd://note/<id>?line=12&find=` | a reminder, a Today or Pinned row, a recent note    | the note, at that line      |
 ///
 /// A voice note's microphone opens only on the tap that asks for it, as the dock's does: nothing listens before.
@@ -50,6 +51,15 @@ class SearchEntry extends PhoneEntry {
   int get hashCode => 4;
 }
 
+/// Google's document scanner, its pages kept as a new note's PDF (lib/files/plus_files.dart `scanToNewNote`).
+class ScanEntry extends PhoneEntry {
+  const ScanEntry();
+  @override
+  bool operator ==(Object other) => other is ScanEntry;
+  @override
+  int get hashCode => 6;
+}
+
 /// A note at a line: [line] counting from 1 (0 for none, the note where it was left), [find] the item's words, for
 /// a line that has moved since.
 class NoteAtEntry extends PhoneEntry {
@@ -87,6 +97,8 @@ PhoneEntry? readPhoneEntry(String link) {
       return const TodayEntry();
     case 'search' when segments.isEmpty:
       return const SearchEntry();
+    case 'scan' when segments.isEmpty:
+      return const ScanEntry();
     // Only with a query: the bare note link stays the app's own.
     case 'note' when segments.length == 1 && _id.hasMatch(segments.first) && uri.hasQuery:
       final line = int.tryParse(uri.queryParameters['line'] ?? '') ?? 0;
@@ -107,6 +119,9 @@ abstract interface class PhoneEntryDoor {
   void voiceNote();
   void today();
   void search();
+
+  /// A document scanned into a new note; nothing where this device cannot scan.
+  void scan();
   void openNoteAt(String noteId, int line, String find);
 }
 
@@ -121,6 +136,8 @@ bool followPhoneEntry(String link, PhoneEntryDoor door) {
       door.today();
     case SearchEntry():
       door.search();
+    case ScanEntry():
+      door.scan();
     case NoteAtEntry(:final noteId, :final line, :final find):
       door.openNoteAt(noteId, line, find);
     case null:

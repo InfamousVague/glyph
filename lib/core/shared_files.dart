@@ -6,14 +6,11 @@
 /// the way a picture is `![](image/<name>)` (lib/core/images.dart): a path relative to the note, so the link still
 /// says what it is anywhere Markdown is read.
 ///
-/// **One door, [storeSharedFile].** The app has no attachments of its own yet (they are being built on another
-/// branch); until they arrive this keeps the file under `<data>/attachments/<a fresh UUID>.<its extension>` and
-/// answers `file/<that name>`. Not `<data>/files/`: on Android that is the app's own `filesDir`, which Android's
-/// libraries write into. Whoever brings attachments in points this one function at their store, and the share sheet
-/// and both importers follow.
-///
-/// What it does not do yet: sync does not carry these files (only pictures, recordings and versions files), and
-/// deleting the note does not remove its file. Both are the attachments' to do.
+/// **One door, [storeSharedFile].** Where the app keeps files (lib/files/files_kit.dart sets [sharedFileDoor]), it
+/// is the attachments' store (lib/files/attachment_store.dart `storeAttachment`): the file kept in
+/// `<data>/images/files/`, its words read, synced with its note, and gone with the last note that links it. Where
+/// there is none (a test, an iPhone) it keeps the file under `<data>/attachments/<a fresh UUID>.<its extension>` as
+/// before, which the attachments' store takes in at its next start.
 library;
 
 import 'dart:io';
@@ -66,9 +63,14 @@ String sharedFileWords(String name) {
 /// The Markdown that links a kept file: `[Lease.pdf](file/<name>)`.
 String sharedFileMarkdown(String name, String ref) => '[${sharedFileWords(name)}]($ref)';
 
+/// The attachments' store, where the app keeps files: answers `file/<name>` for what it kept (files_kit.dart).
+Future<String> Function(SharedFileSource source, String name)? sharedFileDoor;
+
 /// Keeps [source] under the app's data folder [dataDir] and answers what a note links it by, `file/<name>`.
 /// [name] is the file's own name, for its extension. Throws with a sentence when it cannot be kept.
 Future<String> storeSharedFile(SharedFileSource source, {required String name, required String dataDir}) async {
+  final door = sharedFileDoor;
+  if (door != null) return door(source, name);
   final ext = sharedExtension(name);
   final kept = '${randomId('file')}${ext.isEmpty ? '' : '.$ext'}';
   final dir = Directory('$dataDir/$sharedFilesFolder');
