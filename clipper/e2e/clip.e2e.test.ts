@@ -344,7 +344,7 @@ describe.skipIf(!ON)('the clipper, end to end', () => {
     const popup = await popupFor(page);
     await ready(popup);
     await popup.click('[data-mode="page"]');
-    await popup.waitFor('document.querySelector("#preview pre")?.textContent?.includes("# Sorting in place")');
+    await popup.waitFor('document.querySelector("#preview pre")?.textContent?.includes("| Method | Average | Stable |")');
     await ready(popup);
     await shot(popup, 'popup-full-page');
     titles.page = await save(popup);
@@ -405,7 +405,7 @@ describe.skipIf(!ON)('the clipper, end to end', () => {
     await shot(popup, 'popup-screenshot');
     titles.screenshot = await save(popup);
     const record = await note('The garden, as it looked');
-    expect(record.note.body).toMatch(/!\[Screenshot of The Quiet Garden \| Field Notes\]\(image\/clip-[\w-]+\.jpg\)/);
+    expect(record.note.body).toMatch(/!\[Screenshot of The Quiet Garden\]\(image\/clip-[\w-]+\.jpg\)/);
     const size = jpegSize(Object.values(await pictures(record))[0]!);
     expect(size?.width).toBe(1200);
     expect(size?.height).toBe(800);
@@ -445,7 +445,7 @@ describe.skipIf(!ON)('the clipper, end to end', () => {
     const quick = (tab: number, mode: string | null) =>
       worker.evaluate(([id, m]: readonly [number, string | null]) => (globalThis as unknown as { ghostClipper: { quickSave(t: number, m: string | null): Promise<{ ok: boolean; title?: string; error?: string }> } }).ghostClipper.quickSave(id as number, m as string | null), [tab, mode] as const);
     // What the menu item and the shortcut call (src/background.ts `quickSave`): a test cannot open the browser's own menu.
-    expect(await quick(await tabOf(page), 'selection')).toEqual({ ok: true, title: 'Sorting in place - Reference' });
+    expect(await quick(await tabOf(page), 'selection')).toEqual({ ok: true, title: 'Sorting in place' });
     await page.goto(`${SITE}/article.html`);
     (await popupFor(page)).close();
     expect(await quick(await tabOf(page), null)).toEqual({ ok: true, title: 'The Quiet Garden' });
@@ -463,6 +463,8 @@ describe.skipIf(!ON)('the clipper, end to end', () => {
     const all = await claude.list();
     // The notebook, the six clips from the popup, and the two saved straight away.
     expect(all.length).toBe(1 + 6 + 2);
+    // Every note and its pictures, opened, beside each other in e2e/out/notes: a library folder as the app keeps one.
+    for (const record of all) await pictures(record);
     writeFileSync(join(OUT, 'notes.json'), JSON.stringify(all.map((r) => ({ id: r.note.id, title: noteTitle(r.note.body), images: r.images ?? [] })), null, 2));
   });
 });

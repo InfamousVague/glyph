@@ -90,7 +90,7 @@ describe('a clip, sealed', () => {
     const { prefs } = await claude.readPrefs();
     expect((prefs.workspaces as { notes: Record<string, string> }).notes[saved.id]).toBe('w-garden');
     const book = await claude.get('book-reading');
-    expect(book?.note.body).toContain('- [[An older page]]\n- [[Sorting in place - Reference]]');
+    expect(book?.note.body).toContain('- [[An older page]]\n- [[Sorting in place]]');
     // The settings the clipper did not touch are as the connector left them.
     expect((prefs.workspaces as { list: unknown[] }).list).toHaveLength(2);
   });

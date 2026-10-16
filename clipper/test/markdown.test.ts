@@ -197,3 +197,18 @@ describe('the pieces', () => {
     expect(markdown).toBe('## Hi\n\nText top\n');
   });
 });
+
+describe('the title', () => {
+  it('is the page’s heading where its title holds it with the site’s name, and is not said twice', () => {
+    const got = extract(loadPage('table-code', 'https://docs.example/sorting/'), 'page');
+    expect(got.title).toBe('Sorting in place');
+    expect(got.markdown).not.toMatch(/^# Sorting in place$/m);
+    expect(got.markdown.startsWith('Three ways to sort an array')).toBe(true);
+  });
+
+  it('is the document’s title where the heading says something else', () => {
+    const got = extract(loadPage('article'), 'page');
+    expect(got.title).toBe('The Quiet Garden');
+    expect(extract(loadPage('selection', 'https://pages.example/select'), 'screenshot').title).toBe('A page to select from');
+  });
+});

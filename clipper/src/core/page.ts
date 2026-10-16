@@ -62,9 +62,15 @@ function absolute(href: string, base: string): string {
   }
 }
 
-/** The page's own name for itself: the document's title, else its first heading, else where it is. */
+/**
+ * The page's own name for itself: its first heading where the document's title holds it ("Sorting in place" of
+ * "Sorting in place - Reference", without the site's name), else the document's title, else the heading, else where
+ * it is.
+ */
 export function pageTitle(doc: Document, url: string): string {
-  const said = doc.title?.trim() || doc.querySelector('h1')?.textContent?.trim() || meta(doc, 'og:title');
+  const heading = doc.querySelector('h1')?.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+  const titled = doc.title?.replace(/\s+/g, ' ').trim() ?? '';
+  const said = (heading && titled.toLowerCase().includes(heading.toLowerCase()) ? heading : '') || titled || heading || meta(doc, 'og:title');
   if (said) return said.replace(/\s+/g, ' ');
   try {
     return new URL(url).hostname;
