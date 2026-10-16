@@ -717,11 +717,11 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('Export is one row, which waits for the export', (tester) async {
+    testWidgets('Export is one row, which waits for the export, and the way to Import', (tester) async {
       // With nothing handed to it: the row in the device's words, and not to be pressed. What it does once it is
       // handed the export is export_pane_test.dart's.
       await openPane(tester, 'export');
-      expect(rowLabels(tester), ['Export everything']);
+      expect(rowLabels(tester), ['Export everything', 'Import']);
       expect(hintOf(tester, 'Export everything'), 'Every note, picture, film and recording, as one zip. Plug in a USB drive and choose it, or any folder.');
       expect(rowOff(tester, 'Export everything'), isTrue);
       expect(tester.getRect(inRow('Export everything', find.text('Export everything'))).topLeft, offsetMoreOrLessEquals(const Offset(78.69, 136.13), epsilon: 0.5));

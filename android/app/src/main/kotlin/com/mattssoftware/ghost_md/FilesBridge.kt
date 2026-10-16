@@ -5,6 +5,7 @@ import android.content.Intent
 import android.util.Log
 import com.mattssoftware.glyph.files.BackupDrives
 import com.mattssoftware.glyph.files.ExportTarget
+import com.mattssoftware.glyph.files.ImportTree
 import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
@@ -30,6 +31,8 @@ import org.json.JSONObject
  * - `canBrowseFiles` -> true: this activity can show the notes' folder (the page asked whether its `GlyphHost` had
  *   `browseFiles`). `browseFiles` -> null: the phone's Files app opened at the notes (LibraryFiles.kt, over
  *   files/LibraryDocuments.kt; lib/core/library_files.dart). Not a picker: nothing is answered later.
+ * - `chooseImportFolder`, `chooseImportFiles`, `importList`, `importRead`, `importCopy`: what Settings › Import reads,
+ *   a vault's folder or some Evernote exports, granted for the run only (files/ImportTree.kt says each).
  *
  * ONE CALL, ANSWERED LATER, where the Tauri activity answered "started" at once and said the rest as an event on
  * its page: a method channel's result can wait, so the call that opens a picker is the call its answer comes back
@@ -65,6 +68,16 @@ class FilesBridge(private val activity: Activity) {
           result.success(null)
         }
         "chooseBackupDrive" -> asked(DRIVE, result) { BackupDrives.ask(activity, call.argument<String>("id") ?: "", tell(DRIVE)) }
+        // Settings › Import (files/ImportTree.kt; lib/importer/import_sources.dart): a vault's folder or some
+        // exports chosen, then walked, read and copied off the main thread.
+        "chooseImportFolder" -> asked(IMPORT_FOLDER, result) { ImportTree.chooseFolder(activity, tell(IMPORT_FOLDER)) }
+        "chooseImportFiles" -> asked(IMPORT_FILES, result) { ImportTree.chooseFiles(activity, tell(IMPORT_FILES)) }
+        "importList" -> away(result) { ImportTree.list(activity, call.argument<String>("tree") ?: "") }
+        "importRead" -> away(result) { ImportTree.read(activity, call.argument<String>("uri") ?: "") }
+        "importCopy" -> away(result) {
+          if (!ImportTree.copy(activity, call.argument<String>("uri") ?: "", call.argument<String>("to") ?: "")) throw IllegalStateException("That file could not be copied.")
+          null
+        }
         "canBrowseFiles" -> result.success(true)
         "browseFiles" -> {
           LibraryFiles.browse(activity)
@@ -80,7 +93,20 @@ class FilesBridge(private val activity: Activity) {
     if (LibraryTree.answered(activity, requestCode, resultCode, data, tell(FOLDER))) return true
     if (BackupDrives.answered(activity, requestCode, resultCode, data, tell(DRIVE))) return true
     if (ExportTarget.answered(activity, requestCode, resultCode, data, tell(EXPORT))) return true
+    if (ImportTree.answered(activity, requestCode, resultCode, data, tell(IMPORT_FOLDER), tell(IMPORT_FILES))) return true
     return false
+  }
+
+  /** `work` off the main thread, its answer (or its failure, as the error's words) back on it. */
+  private fun away(result: MethodChannel.Result, work: () -> Any?) {
+    Thread {
+      try {
+        val answer = work()
+        activity.runOnUiThread { result.success(answer) }
+      } catch (error: Exception) {
+        activity.runOnUiThread { result.error("failed", error.message ?: "That did not work.", null) }
+      }
+    }.start()
   }
 
   /** Keeps `result` for `kind`'s answer and starts its picker; a start that says anything but "started" is the answer. */
@@ -102,6 +128,8 @@ class FilesBridge(private val activity: Activity) {
     private const val FOLDER = "libraryFolder"
     private const val DRIVE = "backupDrive"
     private const val EXPORT = "exportTarget"
+    private const val IMPORT_FOLDER = "importFolder"
+    private const val IMPORT_FILES = "importFiles"
     private val CANCELLED = JSONObject().put("cancelled", true).toString()
   }
 }

@@ -56,6 +56,7 @@ import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
+import '../importer/importer.dart' show Importer;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/ids.dart' show randomId;
 import '../core/images.dart';
@@ -628,6 +629,9 @@ class _GhostRootState extends State<GhostRoot> {
       : LibraryFolder(invoke: _native.invoke, onNotesChanged: () => unawaited(_library.refresh().catchError((Object _) {})));
   late final Backups? _backups = _native == null ? null : Backups.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
   late final ExportAll? _export = _native == null ? null : ExportAll.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
+
+  /// Settings › Import: an Obsidian vault or Evernote's exports, into a workspace of their own (lib/importer/).
+  late final Importer? _importer = _native == null ? null : Importer.overLibrary(library: _library, workspaces: _workspaces, invoke: _native.invoke);
 
   /// The notes' folder in the phone's Files app, for the sidebar's Browse files (lib/core/library_files.dart): the
   /// phone is asked the first time a sidebar is built, and the tool is there once it has said it can.

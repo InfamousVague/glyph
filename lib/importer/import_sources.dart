@@ -186,7 +186,9 @@ class PhoneFile implements ImportFile {
   final String name;
   @override
   final int size;
-  final String cacheDir;
+
+  /// The app's cache folder, asked when the copy is made.
+  final Future<String> Function() cacheDir;
   final MethodChannel _channel;
   String? _copy;
 
@@ -194,7 +196,7 @@ class PhoneFile implements ImportFile {
   Future<String> localPath() async {
     final made = _copy;
     if (made != null) return made;
-    final dir = Directory('$cacheDir/import');
+    final dir = Directory('${await cacheDir()}/import');
     await dir.create(recursive: true);
     final to = '${dir.path}/${DateTime.now().microsecondsSinceEpoch}.enex';
     await _channel.invokeMethod<void>('importCopy', {'uri': uri, 'to': to});
@@ -211,16 +213,19 @@ class PhoneFile implements ImportFile {
 
 /// The device's pickers for an import: a folder, or some files.
 class ImportPicker {
-  ImportPicker({MethodChannel channel = filesChannel, TargetPlatform? platform, String? cacheDir}) : _channel = channel, _platform = platform, _cacheDir = cacheDir;
+  ImportPicker({MethodChannel channel = filesChannel, TargetPlatform? platform, Future<String> Function()? cacheDir})
+      : _channel = channel,
+        _platform = platform,
+        _cacheDir = cacheDir ?? (() async => Directory.systemTemp.path);
 
   final MethodChannel _channel;
   final TargetPlatform? _platform;
-  final String? _cacheDir;
+  final Future<String> Function() _cacheDir;
 
   TargetPlatform get _on => _platform ?? defaultTargetPlatform;
 
   /// Whether this device can choose what to import: Android, and the Mac app. Never an iPhone.
-  bool get offered => !runsAsIPhoneApp && (_on == TargetPlatform.android || (_on == TargetPlatform.macOS && runsAsMacApp));
+  bool get offered => !runsAsIPhoneApp && (_on == TargetPlatform.android || (_on == TargetPlatform.macOS && (runsAsMacApp || _platform != null)));
 
   /// A folder, or null when the picker was closed. Throws what went wrong in the app's words.
   Future<ImportFolder?> chooseFolder() async {
@@ -242,7 +247,7 @@ class ImportPicker {
         if (raw['path'] is String)
           DirectoryFile(raw['path'] as String)
         else
-          PhoneFile(uri: raw['uri'] as String, name: raw['name'] as String? ?? 'Export.enex', size: (raw['size'] as num?)?.toInt() ?? 0, cacheDir: _cacheDir ?? Directory.systemTemp.path, channel: _channel),
+          PhoneFile(uri: raw['uri'] as String, name: raw['name'] as String? ?? 'Export.enex', size: (raw['size'] as num?)?.toInt() ?? 0, cacheDir: _cacheDir, channel: _channel),
     ];
   }
 
