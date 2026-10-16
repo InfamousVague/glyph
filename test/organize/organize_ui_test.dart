@@ -8,7 +8,6 @@ import 'package:ghost_md/commands/palette.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_marks.dart';
-import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/smart_notebooks.dart';
 import 'package:ghost_md/core/stored.dart';

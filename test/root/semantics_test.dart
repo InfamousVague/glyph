@@ -9,6 +9,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
+import 'package:ghost_md/notes/daily_notes.dart' show dailyTitle;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 
@@ -53,6 +54,8 @@ void main() {
     final rows = [for (final node in nodes) if (node.flagsCollection.isButton && node.hasAction(SemanticsAction.tap)) node.label];
     expect(rows, [
       'Note\nA page of markdown, typed or said.',
+      // Today's note (lib/notes/daily_notes.dart), the port's own, named by the phone's day.
+      'Today\nThe note for ${dailyTitle(DateTime.now())}, opened, or made the first time.',
       'Canvas\nCards on a page with lines between them.',
       'Notebook\nNotes in an order with an index, or a journal of dated entries.',
     ]);
