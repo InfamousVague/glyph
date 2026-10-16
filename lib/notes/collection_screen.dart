@@ -282,6 +282,8 @@ class _CollectionScreenState extends State<CollectionScreen> {
     }
 
     add(tree, 0);
+    // A library whose tags are all at the top keeps no room for a fold none of them has.
+    final folds = tree.any((node) => node.children.isNotEmpty);
     return [
       SliverToBoxAdapter(
         child: _tally(
@@ -305,6 +307,7 @@ class _CollectionScreenState extends State<CollectionScreen> {
             key: ValueKey('tag-row-${row.node.name}'),
             node: row.node,
             depth: row.depth,
+            foldRoom: folds,
             open: !_closed.contains(row.node.name),
             onFold: row.node.children.isEmpty ? null : () => _fold(row.node.name),
             onOpen: () => widget.onTag(row.node.name),
@@ -423,10 +426,13 @@ class _Word extends StatelessWidget {
 
 /// A tag on the Tags page: its fold where it has tags inside it, its mark, its name and its count.
 class _TagRow extends StatelessWidget {
-  const _TagRow({super.key, required this.node, required this.depth, required this.open, required this.onFold, required this.onOpen});
+  const _TagRow({super.key, required this.node, required this.depth, this.foldRoom = true, required this.open, required this.onFold, required this.onOpen});
 
   final TagNode node;
   final int depth;
+
+  /// Whether the row keeps a fold's room at its start, as every row does where any tag holds others.
+  final bool foldRoom;
   final bool open;
   final VoidCallback? onFold;
   final VoidCallback onOpen;
@@ -441,6 +447,7 @@ class _TagRow extends StatelessWidget {
       padding: EdgeInsetsDirectional.only(start: depth * t.space(5)),
       child: Row(
         children: [
+          if (foldRoom)
           SizedBox(
             width: t.space(8),
             height: t.space(12),
@@ -571,6 +578,8 @@ class _TagRenameSheetState extends State<TagRenameSheet> {
       note = 'A tag starts with a letter, then letters, numbers, dashes, underscores or slashes, and has no spaces.';
     } else if (joins) {
       note = '#$to is a tag already: the two become one. This changes $counted.';
+    } else if (!valid) {
+      note = 'A new name for it in $counted, and for the tags inside it.';
     } else {
       note = 'This changes $counted, and the tags inside it with it: #${widget.from}/… becomes #$to/…';
     }

@@ -1388,7 +1388,8 @@ class _SmartRow extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(color: state.hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('md'))),
                     child: Padding(
-                      padding: EdgeInsets.symmetric(vertical: 0.32 * look.em, horizontal: 0.6 * look.em),
+                      // The count's end where a folder's count ends, beside the More.
+                      padding: EdgeInsetsDirectional.fromSTEB(0.6 * look.em, 0.32 * look.em, 0.35 * size, 0.32 * look.em),
                       child: ExcludeSemantics(
                         child: Row(
                           spacing: 0.5 * look.em,
