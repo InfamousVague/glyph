@@ -89,8 +89,9 @@ List<ReadThing> thingsIn(String body) {
 /// The pages of a sidecar's words.
 List<String> pagesOf(String text) => text.split(pageBreak);
 
-/// A sidecar's words for these pages.
-String textOfPages(List<String> pages) => pages.map((page) => page.replaceAll(pageBreak, ' ').trimRight()).join(pageBreak);
+/// A sidecar's words for these pages: each page's lines ending in `\n` (a PDF's own words come with `\r\n`), and
+/// no form feed inside a page.
+String textOfPages(List<String> pages) => pages.map((page) => page.replaceAll('\r\n', '\n').replaceAll('\r', '\n').replaceAll(pageBreak, ' ').trimRight()).join(pageBreak);
 
 /// The sidecars of one data folder, and every one's words in memory.
 class ReadTexts extends ChangeNotifier implements SearchExtra {

@@ -34,6 +34,8 @@ void main() {
     expect(File('${data.path}/images/$picture.ocr.txt').readAsStringSync(), 'TOTAL 42.10\nThank you');
     expect(File('${data.path}/images/files/$lease.ocr.txt').readAsStringSync(), 'Lease agreement\f\fRent is due monthly');
     expect(pagesOf(texts.wordsOf(const ReadThing.file(lease))!), ['Lease agreement', '', 'Rent is due monthly']);
+    // A PDF's own words, as Android hands them: their line ends made plain, a page's form feed kept out of it.
+    expect(textOfPages(['Lease agreement \r\n \r\nThis lease\r\n', 'a\fb']), 'Lease agreement \n \nThis lease\fa b');
 
     final again = ReadTexts(dataDir: data.path);
     expect(again.has(const ReadThing.picture(picture)), isFalse);
