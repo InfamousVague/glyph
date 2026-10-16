@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../core/note.dart';
+import '../core/smart_notebooks.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart' show WorkspaceStore;
 import 'floating_card.dart';
@@ -45,6 +46,10 @@ class NotesDrawer extends StatelessWidget {
     this.stored,
     this.peek = NotePeek.plain,
     this.emptyArt,
+    this.smart,
+    this.onSmart,
+    this.onManageSmart,
+    this.onTags,
   });
 
   final bool open;
@@ -79,6 +84,12 @@ class NotesDrawer extends StatelessWidget {
   final Stored? stored;
   final NotePeekBuilder peek;
   final Widget? emptyArt;
+
+  /// The smart notebooks and the Tags page, passed through to the tree.
+  final SmartNotebookStore? smart;
+  final void Function(String id)? onSmart;
+  final void Function(SmartNotebook notebook)? onManageSmart;
+  final VoidCallback? onTags;
 
   @override
   Widget build(BuildContext context) {
@@ -117,6 +128,10 @@ class NotesDrawer extends StatelessWidget {
         stored: stored,
         peek: peek,
         emptyArt: emptyArt,
+        smart: smart,
+        onSmart: onSmart,
+        onManageSmart: onManageSmart,
+        onTags: onTags,
       ),
     );
   }

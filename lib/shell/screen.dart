@@ -75,6 +75,9 @@ sealed class Screen {
   /// An organization's dashboard, or with [page] its audit log.
   const factory Screen.organization(String orgId, {OrganizationPage? page}) = ScreenOrganization;
 
+  /// The Tags page, one tag's notes, or a smart notebook's (lib/notes/collection_screen.dart).
+  const factory Screen.collection(CollectionKind kind, {String key, bool fromTags}) = ScreenCollection;
+
   /// The union's tag: `list`, `notes`, `note`, `capture`, `meeting`, `academy`, `organization`.
   String get name;
 
@@ -93,7 +96,7 @@ sealed class Screen {
 
   /// Whether the screen is one of the places, which carry the app's tab row and take a pane beside the sidebar on a
   /// wide window: the three on the trail, and an organization's dashboard, drawn where All notes is.
-  bool get isPlace => place != null || this is ScreenOrganization;
+  bool get isPlace => place != null || this is ScreenOrganization || this is ScreenCollection;
 
   /// The id of the note on screen, or null when the screen is not a note.
   String? get noteOnScreen => switch (this) { ScreenNote(:final note) => note.id, _ => null };
@@ -272,4 +275,29 @@ class ScreenOrganization extends Screen {
 
   @override
   int get hashCode => Object.hash(name, orgId, page);
+}
+
+/// Which collection of notes a [ScreenCollection] is: every tag, the notes of one, or a smart notebook's.
+enum CollectionKind { tags, tag, smart }
+
+/// A page of notes gathered by what they say rather than where they are filed (the port's own, 2026-10-16): the Tags
+/// page, a tag's notes ([key] is the tag), or a smart notebook's ([key] is its id). A place, drawn where All notes
+/// is, with the tab row over it and the sidebar beside it on a wide window; not on the trail the arrows walk, as an
+/// organization's dashboard is not. Its way out goes home, and a tag's opened from the Tags page ([fromTags]) goes
+/// back there.
+class ScreenCollection extends Screen {
+  const ScreenCollection(this.kind, {this.key = '', this.fromTags = false});
+
+  final CollectionKind kind;
+  final String key;
+  final bool fromTags;
+
+  @override
+  String get name => 'collection';
+
+  @override
+  bool operator ==(Object other) => other is ScreenCollection && other.kind == kind && other.key == key && other.fromTags == fromTags;
+
+  @override
+  int get hashCode => Object.hash(name, kind, key, fromTags);
 }

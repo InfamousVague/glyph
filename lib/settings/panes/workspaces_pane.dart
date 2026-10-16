@@ -128,6 +128,7 @@ class _WorkspacesPaneState extends State<WorkspacesPane> {
                 WorkspaceManageSheet(
                   store: widget.store,
                   editing: editing,
+                  folders: true,
                   onClose: () => setState(() => _manage = null),
                   onOrganization: widget.onOrganization,
                   notesIn: widget.notesIn,

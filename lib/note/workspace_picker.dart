@@ -96,7 +96,8 @@ class _WorkspacePickerState extends State<WorkspacePicker> {
           SheetGroup(
             children: [
               for (final workspace in list)
-                SheetRow(key: ValueKey('workspace:${workspace.id}'), icon: const DrawnIconView(AppIcons.workspace, size: 18), label: workspace.name, chosen: filed?.id == workspace.id, onPress: () => _choose(workspace.id)),
+                // A folder inside another says where: "Work › Clients".
+                SheetRow(key: ValueKey('workspace:${workspace.id}'), icon: const DrawnIconView(AppIcons.workspace, size: 18), label: workspace.parent == null ? workspace.name : workspacePathName(list, workspace.id), chosen: filed?.id == workspace.id, onPress: () => _choose(workspace.id)),
             ],
           ),
         SheetGroup(

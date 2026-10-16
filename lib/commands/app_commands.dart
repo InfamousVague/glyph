@@ -90,7 +90,8 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     notes: paletteNotes(shell.notes),
     journals: paletteJournals(shell.notes),
     tabs: [for (final note in shell.tabs.tabs) PaletteNote(id: note.id, title: NoteFacts.of(note).title)],
-    workspaces: [for (final space in workspaces.list) (id: space.id, name: space.name)],
+    // A folder inside another is named with its parents: "Work › Clients".
+    workspaces: [for (final space in workspaces.list) (id: space.id, name: space.parent == null ? space.name : workspacePathName(workspaces.list, space.id))],
     workspace: workspaces.current?.id,
     note: open == null ? null : PaletteNote(id: open.id, title: NoteFacts.of(open).title, journal: NoteFacts.of(open).isJournal, blanks: blanks),
     filedIn: open == null ? null : workspaces.of[open.id],
