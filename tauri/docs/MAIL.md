@@ -102,7 +102,7 @@ The device's step runs in every sync pass, before the notes (`lib/sync/engine.da
 
 ## To go live (Matt)
 
-1. Deploy glyph-api with `GLYPH_MAILGUN_SIGNING_KEY` set in its env file (Mailgun › Settings › API Security › HTTP webhook signing key). Without it the service takes no mail and the setting does not show.
+1. Put Mailgun's HTTP webhook signing key (Mailgun › Settings › API Security) in `tauri/.env` as `GLYPH_MAILGUN_SIGNING_KEY=…`, and deploy glyph-api (`node scripts/deploy-server.mjs`), which writes it into the box's `/opt/glyph-api/glyph-api.env` with the token. That script rewrites the env file on every run, so a key added there by hand would be lost at the next deploy. Without the key the service takes no mail and the app does not offer an address.
 2. In Mailgun, add the domain `in.ghostmarkdown.com`.
 3. At Gandi, on ghostmarkdown.com, the records Mailgun shows for it: two MX records on `in` (for the US region `mxa.mailgun.org.` and `mxb.mailgun.org.`, priority 10; the EU region names its own), and the TXT records for its verification. Nothing on the root domain changes.
 4. In Mailgun › Receiving, one route: expression `match_recipient(".*@in.ghostmarkdown.com")`, action `forward("https://ghostmarkdown.com/api/v1/mail/inbound/mime")`, and `stop()`.
