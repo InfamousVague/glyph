@@ -81,8 +81,11 @@ Append-only: one section per piece of work, headed with who did it.
 
 ### Not done
 
-- iPhone: nothing (no kit is made there; a file's line is the link it always was, and sync neither fetches nor sends
-  files). VisionKit's scanner would need `NSCameraUsageDescription`, which the store build does not have.
+- iPhone: nothing, hidden (no kit is made there; a file's line is the link it always was, and sync neither fetches
+  nor sends files). VisionKit's `VNDocumentCameraViewController` would fit under the camera string the store build
+  already has (`NSCameraUsageDescription`, "…when you take a photo to add to a note"), but the iPhone keeps no files
+  yet: it needs `FilesKit.start` on iOS, a Swift half of `ghost_md/documents` (the scanner, `openWith` through
+  UIDocumentInteractionController, PDFKit for the viewer, Vision for the words), and a store review.
 - Words are not read on the Mac or an iPhone (Apple's Vision would do it; not built). They do arrive there by sync.
 - A home-screen quick action for scanning is not wired here (the launcher's shortcuts are `feat/reminders`'). Its entry
   point is `scanToNewNote()` in lib/files/plus_files.dart: it opens the scanner and answers the words of a new note
