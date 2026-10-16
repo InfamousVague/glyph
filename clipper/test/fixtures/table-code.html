@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Sorting in place - Reference</title></head>
+<body>
+  <main>
+    <h1>Sorting in place</h1>
+    <p>Three ways to sort an array without making a copy, and what each costs.</p>
+    <table>
+      <thead><tr><th>Method</th><th align="right">Average</th><th>Stable</th></tr></thead>
+      <tbody>
+        <tr><td>Insertion</td><td>O(n²)</td><td>yes</td></tr>
+        <tr><td>Heap</td><td>O(n log n)</td><td>no</td></tr>
+        <tr><td>Quick | median of three</td><td>O(n log n)</td><td>no</td></tr>
+      </tbody>
+    </table>
+    <h2>A table with no heading row</h2>
+    <table>
+      <tr><td>Monday</td><td>Water the beds</td></tr>
+      <tr><td>Tuesday</td><td colspan="2">Rest</td></tr>
+    </table>
+    <h2>A table with code and a list in its cells</h2>
+    <table>
+      <tr><th>Call</th><th>Notes</th></tr>
+      <tr><td><code>arr.sort()</code></td><td><ul><li>sorts in place</li><li>returns the array</li></ul></td></tr>
+    </table>
+    <h2>Code</h2>
+    <pre><code class="language-js">function insertionSort(a) {
+  for (let i = 1; i &lt; a.length; i++) {
+    let j = i;
+    while (j &gt; 0 &amp;&amp; a[j - 1] &gt; a[j]) { [a[j - 1], a[j]] = [a[j], a[j - 1]]; j--; }
+  }
+  return a;
+}</code></pre>
+    <pre data-lang="python">def heap_sort(a):
+    heapq.heapify(a)
+    return [heapq.heappop(a) for _ in range(len(a))]</pre>
+    <div class="highlight highlight-source-rust"><pre>fn main() { println!("```"); }</pre></div>
+    <h2>Checklist</h2>
+    <ul class="contains-task-list">
+      <li class="task-list-item"><input type="checkbox" disabled checked> Read the paper</li>
+      <li class="task-list-item"><input type="checkbox" disabled> Try it on real data</li>
+    </ul>
+    <p>The old way was <del>bubble sort</del> and it is gone. See <a href="docs/heap.html">the heap notes</a>
+      and [[not a link]] in passing.</p>
+  </main>
+</body>
+</html>

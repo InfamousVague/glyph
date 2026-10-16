@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>A page to select from</title></head>
+<body>
+  <h1>A page to select from</h1>
+  <p id="before">This paragraph is before the selection and must not be clipped.</p>
+  <div id="chosen">
+    <p id="first">The first chosen paragraph, with a <a href="/linked">relative link</a> and <strong>bold words</strong>.</p>
+    <ul id="list">
+      <li>One item of the chosen list</li>
+      <li>Another item, with <code>inline code</code></li>
+    </ul>
+    <p id="last">The last chosen paragraph, and a picture: <img src="/pictures/beds.png" alt="Beds"></p>
+  </div>
+  <p id="after">This paragraph is after the selection and must not be clipped.</p>
+  <pre id="code"><code class="language-sh">git log --oneline -3
+git push -u origin main</code></pre>
+</body>
+</html>
