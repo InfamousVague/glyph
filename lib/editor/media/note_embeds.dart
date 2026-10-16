@@ -108,7 +108,11 @@ String? _sectionOf(String body, String? anchor) {
   for (final kept in _sections) {
     if (kept.anchor == anchor && (identical(kept.body, body) || kept.body == body)) return kept.words;
   }
-  final words = anchor == null ? _withoutTitle(body.substring(frontMatterOffset(body)).trim(), noteTitle(body)) : sectionOf(body, anchor);
+  final section = anchor == null ? null : sectionOf(body, anchor);
+  // The bar names the note, and the heading: neither is drawn again under it.
+  final words = anchor == null
+      ? _withoutTitle(body.substring(frontMatterOffset(body)).trim(), noteTitle(body))
+      : (section != null && !anchor.startsWith('^') ? _withoutTitle(section, anchor) : section);
   _sections.add((body: body, anchor: anchor, words: words));
   if (_sections.length > 24) _sections.removeAt(0);
   return words;
