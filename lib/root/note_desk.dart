@@ -141,6 +141,7 @@ import '../editor/items/items.dart';
 import '../editor/marks/marks.dart';
 import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
+import '../editor/media/source_line.dart';
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
@@ -699,6 +700,8 @@ class NoteDeskState extends State<NoteDesk> {
       doneSyncs: true,
     ),
     drawnTables(),
+    // A clip's `source:` as a line under its title (lib/editor/media/source_line.dart).
+    sourceLine(open: _world.openLink),
     // Pick a date, on a list item's date page, in a ticket's panel and in a query: the phone's calendar.
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
