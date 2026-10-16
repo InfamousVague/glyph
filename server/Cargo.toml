@@ -29,6 +29,17 @@ rusqlite = { version = "0.32", features = ["bundled"] }
 argon2 = { version = "0.5", features = ["std"] }
 ed25519-dalek = { version = "2", default-features = false, features = ["std", "rand_core"] }
 rand = "0.8"
+# Email to a note (src/mail.rs, docs/MAIL.md): Mailgun's signature is an HMAC; a mail is sealed on arrival to the
+# account's encryption public key, ECIES exactly as an organization key's wrap (core/orgs/wrap.ts, native/src/crypto.rs
+# `wrap_for`): ECDH on P-256, HKDF-SHA-256, AES-256-GCM, the same crates and versions the core uses. mail-parser reads the
+# MIME (every charset, with full_encoding), htmd turns an HTML body into Markdown, and zeroize wipes the clear copy.
+hmac = "0.12"
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "std"] }
+hkdf = "0.12"
+aes-gcm = "0.10"
+zeroize = "1"
+mail-parser = { version = "0.11", features = ["full_encoding"] }
+htmd = "0.5"
 
 [profile.release]
 lto = true
