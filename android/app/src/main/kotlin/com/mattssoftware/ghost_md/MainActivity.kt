@@ -71,6 +71,9 @@ class MainActivity : FlutterActivity() {
     /** The phone's picture chooser, answered when its activity result arrives (Pictures.kt). */
     private val pictures = Pictures(this)
 
+    /** Something shared from another app, read and kept until Dart asks (ShareIn.kt). */
+    private val shares = ShareIn(this, pictures)
+
     /** The phone's video picker, answered when its activity result arrives (Films.kt). */
     private val films = Films(this)
 
@@ -97,6 +100,7 @@ class MainActivity : FlutterActivity() {
         // Before super: a capture launch decides the window's lock-screen behaviour before the window is shown.
         meeting = MeetingBridge(this).also { it.onCreate(intent) }
         links.onCreate(intent, restored = savedInstanceState != null)
+        shares.onCreate(intent, restored = savedInstanceState != null)
         // Before the engine starts, and so before the core opens the library: the library may be in a folder chosen
         // through Android's picker (files/LibraryTree.kt), and Rust can reach Kotlin only once it has been handed the
         // class. The tidy lets go of grants for folders that are not the library any more.
@@ -135,6 +139,8 @@ class MainActivity : FlutterActivity() {
         ResetChannel(this, secrets).register(messenger)
         // Links that open the app, handed over when asked for (AppLinks.kt; lib/core/phone_links.dart).
         links.register(messenger)
+        // Something shared from another app, and back to it when done (ShareIn.kt; lib/share/share_in.dart).
+        shares.register(messenger)
         // A note's recording, played (TapePlayer.kt; lib/tapes/phone_player.dart).
         tape = TapePlayer(applicationContext).also { it.register(messenger) }
         clips = TapePlayer(applicationContext, TapePlayer.CLIPS).also { it.register(messenger) }
@@ -178,6 +184,7 @@ class MainActivity : FlutterActivity() {
         setIntent(intent)
         meeting?.onNewIntent(intent)
         links.onNewIntent(intent)
+        shares.onNewIntent(intent)
     }
 
     override fun onResume() {

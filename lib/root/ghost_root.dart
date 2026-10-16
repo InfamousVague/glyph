@@ -69,6 +69,8 @@ import '../core/kept_workspaces.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/native/ghost_core.dart' show GhostCore;
+import '../core/native/device_paths.dart' show DevicePaths;
+import '../core/shared_files.dart' show storeSharedFile;
 import '../core/note.dart';
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
@@ -135,6 +137,9 @@ import '../settings/settings_sheet.dart';
 import '../settings/tapes.dart' show oldTapes, tapeBytes;
 import '../settings/tapes_here.dart';
 import '../share/app_links.dart';
+import '../share/share_in.dart';
+import '../share/share_in_keep.dart';
+import '../share/ui/share_in_sheet.dart';
 import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
@@ -193,7 +198,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -233,6 +238,9 @@ class GhostRoot extends StatefulWidget {
   /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// What other apps share into this one (lib/share/share_in.dart): the phone's on Android. Absent, nothing is.
+  final ShareSource? shares;
 
   /// The whole core, for what is a job there and says the rest as events: Settings' Library folder, Backup and
   /// Export (lib/core/library_folder.dart, backup.dart, export_all.dart). Absent, as in a test, those pages say
@@ -681,6 +689,21 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
+
+  /// The same for what other apps share in: each share waits here for its sheet (lib/share/ui/share_in_sheet.dart),
+  /// one at a time, the oldest first.
+  void Function()? _stopShares;
+  final List<SharedIn> _sharing = [];
+
+  /// Writes a share into the library: a picture as the editor's own Add a picture keeps one, any other file beside
+  /// the pictures (lib/share/share_in_keep.dart).
+  late final ShareKeeper _shareKeeper = ShareKeeper(
+    library: _library,
+    workspaces: _workspaces,
+    adoptPicture: widget.core == null ? null : corePictureAdopter(CoreFiles(widget.core!)),
+    keepFile: (source, name) async => storeSharedFile(source, name: name, dataDir: (await DevicePaths.find()).dataDir),
+    kept: _stored,
+  );
 
   /// An invite link that arrived, each arrival asked about again (`joinRequest`).
   JoinRequest? _joinRequest;
@@ -1138,6 +1161,7 @@ class _GhostRootState extends State<GhostRoot> {
     widget.updates?.removeListener(_updatesChanged);
     if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
+    _stopShares?.call();
     _previews.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
@@ -1304,6 +1328,9 @@ class _GhostRootState extends State<GhostRoot> {
         openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure'));
       }, links);
     }
+    // And what another app shared, which waits for the notes for the same reasons: its sheet offers them to add to.
+    final shares = widget.shares;
+    if (mounted && shares != null) _stopShares = followShares((share) => setState(() => _sharing.add(share)), shares);
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     if (seeded.isMarked) return;

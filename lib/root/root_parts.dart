@@ -83,6 +83,8 @@ extension _RootParts on _GhostRootState {
           if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
           return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
         }, _guidePart),
+        // Something another app shared: its sheet, over the app, one share at a time (lib/share/ui/share_in_sheet.dart).
+        _part('shareIn', () => _sharing.isEmpty || _launching ? null : _sharing.first, _shareInPart),
         _part('launch', () => _launching ? (_launchLoading, _launchNotes, _updatesAt, _launchSync, _voice) : null, _launchPart),
       ],
     ),
@@ -542,6 +544,23 @@ extension _RootParts on _GhostRootState {
         onArchive: (note, archived) => _actions.archive(note, archived: archived),
         onDelete: (note) => _delete(note.id),
       );
+
+  /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the
+  /// next share, if one came meanwhile, has its sheet.
+  Widget _shareInPart(BuildContext context) {
+    if (_sharing.isEmpty) return _nothing;
+    final share = _sharing.first;
+    return ShareInSheet(
+      key: ValueKey('share-in:${share.id}'),
+      share: share,
+      keeper: _shareKeeper,
+      notes: shareTargets(_library.value, trashed: _trash.isTrashed),
+      onDone: (kept) {
+        _told(() => _sharing.remove(share));
+        unawaited(widget.shares?.done());
+      },
+    );
+  }
 
   Widget _newSheetPart(BuildContext context) {
     final services = _services;
