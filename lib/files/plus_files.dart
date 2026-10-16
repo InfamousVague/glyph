@@ -9,6 +9,7 @@ import '../editor/editor.dart';
 import '../editor/media/images.dart' show failureWords;
 import '../notes/note_templates.dart' show formatStamp;
 import 'attachment_store.dart';
+import 'files_kit.dart';
 
 /// A scan's name, for the moment it was made: "Scan 2026-10-16 14.05.pdf", the minute as a journal entry names it,
 /// with nothing a drive's file names refuse.
@@ -30,4 +31,18 @@ Future<void> putFileIn(EditorViewLike editor, Future<KeptAttachment?> Function()
   } finally {
     if (still()) editor.dispatch(releaseSpot(editor.state, spot));
   }
+}
+
+/// The home screen's quick action, Scan a document (the launcher's shortcuts are `feat/reminders`'): opens the
+/// scanner and answers the words of a new note holding what was scanned, named for the minute, or null when the
+/// person left the scanner or this device cannot scan. Throws a [StateError] with a sentence when the scan could
+/// not be kept. Whoever calls it makes the note with these words and opens it.
+Future<String?> scanToNewNote({DateTime? at, FilesKit? kit}) async {
+  final files = kit ?? FilesKit.current;
+  if (files == null || !files.scans) return null;
+  final when = at ?? DateTime.now();
+  final name = scanName(when);
+  final scan = await files.scan(name: name);
+  if (scan == null) return null;
+  return '# ${name.substring(0, name.length - 4)}\n\n${scan.markdown}\n';
 }

@@ -11,6 +11,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/files/attachment_store.dart';
 import 'package:ghost_md/files/files_kit.dart';
 import 'package:ghost_md/files/phone_documents.dart';
+import 'package:ghost_md/files/plus_files.dart';
 import 'package:ghost_md/files/read_pass.dart';
 import 'package:ghost_md/files/read_text.dart';
 import 'package:ghost_md/sync/notes.dart' show FileKind;
@@ -160,5 +161,18 @@ void main() {
     expect(await it.store.fileOf(shared.name), isNotNull);
     expect((await it.used()).files, 1);
     expect(attachmentNames(shared.markdown), [shared.name]);
+  });
+
+  test('the quick action scans into a new note’s words, named for the minute, and is nothing where nothing scans', () async {
+    final it = kit();
+    expect(await scanToNewNote(kit: it), isNull, reason: 'the device has not said it scans');
+    final pdf = File('${data.path}/picked/q.pdf')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(tinyPdf(pages: 1));
+    device.scanned = ScannedDocument(pdf: pdf.path, pages: const []);
+    it.scans = true;
+    final body = await scanToNewNote(kit: it, at: DateTime(2026, 10, 16, 14, 5));
+    expect(body, startsWith('# Scan 2026-10-16 14.05\n\n[Scan 2026-10-16 14.05.pdf](file/'));
+    expect(scanName(DateTime(2026, 1, 2, 3, 4)), 'Scan 2026-01-02 03.04.pdf');
   });
 }
