@@ -33,12 +33,14 @@ import '../../art/lucide.g.dart';
 import '../../core/days.dart';
 import '../../core/locale_dates.dart';
 import '../../core/task_fields.dart';
+import '../../reminders/remind_choices.dart' show clockWords;
+import '../../reminders/reminder_syntax.dart' show readReminderTime;
 import '../looks/look.dart' show FaceMetrics, lineBoxHeight;
 import '../view/line.dart' show EditorRunScope;
 import 'inline_box.dart';
 
 /// Which page of the press-and-hold menu a tap on a chip opens; null, a tap edits it.
-enum FieldMenu { date, priority, person }
+enum FieldMenu { date, priority, person, remind }
 
 /// How a chip is coloured: a day by when it is, a priority by its rank (its name), and the rest plain or quiet.
 typedef ChipTone = String;
@@ -172,6 +174,13 @@ ChipLook? chipLook(FieldSpan span, {required String today, required bool done, S
     return ChipLook(text: shown, icon: null, tone: done ? 'done' : 'plain', label: 'Assigned to $shown', menu: FieldMenu.person, key: span.value, initial: shown.isEmpty ? '' : shown.substring(0, 1).toUpperCase());
   }
   if (span.kind == FieldKind.recurs) return ChipLook(text: span.value, icon: Lucide.repeat, tone: done ? 'done' : 'quiet', label: 'Repeats ${span.value}', menu: null, key: 'recurs');
+  if (span.kind == FieldKind.tasks && span.key == 'reminder') {
+    // A reminder, `⏰ 2026-10-03 09:00` (lib/reminders): its day as a due day says it, and its time on the clock.
+    final at = readReminderTime(span.value);
+    if (at == null) return null;
+    final time = clockWords(at.hour, at.minute);
+    return ChipLook(text: '${dayLabel(at.day, today, locale)} $time', icon: Lucide.alarmClock, tone: done ? 'done' : 'quiet', label: 'Reminder ${daySaid(at.day, today, locale)} at $time', menu: FieldMenu.remind, key: 'reminder');
+  }
   if (span.kind == FieldKind.inline) {
     // Dataview's `[due:: 2026-10-03]` is the due day, written its way: drawn as one, and changed in its own form.
     final day = _dataviewDays[span.key];

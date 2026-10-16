@@ -15,7 +15,10 @@
 /// that still reads in another app (docs/MARKDOWN.md). Tasks also writes 🆔 an id, ⛔ the ids it waits on and 🏁
 /// what to do when it is done; they are read here and kept where they are, so they are never taken for words,
 /// though nothing in the app acts on them yet. The `@sam` is ours: nothing else gives a person to a line of
-/// Markdown, and an at sign before a name is what every chat and tracker already writes.
+/// Markdown, and an at sign before a name is what every chat and tracker already writes. So is `⏰ 2026-10-03 09:00`,
+/// a reminder (lib/reminders, docs/FEATURES_2_1.md), in the form the Obsidian Reminder plugin reads beside Tasks: read
+/// here as one of Tasks' others (key `reminder`), and written where a named field goes, before the run of Tasks'
+/// fields, so Tasks still reads the dates after it ([withWrittenField]).
 ///
 /// Where a field goes. Tasks reads its fields from the end of the line, a block link (`^login-loop`) aside and tags
 /// among them, and stops at the first thing that is not one. So the writer here keeps them in a run at the end of
@@ -281,6 +284,11 @@ final List<_Reader> _readers = [
   _Reader(
     RegExp('${_signOf('onCompletion')}$_gap([A-Za-z]+)', unicode: true),
     (found) => (kind: FieldKind.tasks, key: 'onCompletion', value: found.group(1) ?? '', at: found.start, length: found.end - found.start),
+  ),
+  // A reminder: `⏰ 2026-10-03 09:00`, a day and a time on the clock, its value kept as `2026-10-03 09:00`.
+  _Reader(
+    RegExp('⏰$_vs?$_gap(\\d{4}-\\d{2}-\\d{2})[ \\t]+([01]?\\d|2[0-3]):([0-5]\\d)(?!\\d)', unicode: true),
+    (found) => (kind: FieldKind.tasks, key: 'reminder', value: '${found.group(1)} ${found.group(2)!.padLeft(2, '0')}:${found.group(3)}', at: found.start, length: found.end - found.start),
   ),
   _Reader(_person, (found) {
     final lead = (found.group(1) ?? '').length;
@@ -643,6 +651,24 @@ String withField(String line, String key, String? value) {
     if (tasksOrder.indexOf(field.key) > order) return _inserted(line, field.from, text);
   }
   return _inserted(line, run.fields.isNotEmpty ? run.fields.last.to : words.to, text);
+}
+
+/// The line with every field under [key] that is not a person or a named one taken off (a reminder's `⏰`), and
+/// [text] put in as written where a field Tasks does not read goes: before the run of Tasks' fields at the end of the
+/// words, so Tasks still reads the dates after it, or at the words' end. Null [text] only takes them off. The writer of
+/// a reminder (lib/reminders/reminder_syntax.dart), which says what the text is.
+String withWrittenField(String line, String key, String? text) {
+  var out = line;
+  final before = _wordsOf(out);
+  final mine = fieldsIn(out).where((span) => span.from >= before.from && span.to <= before.to && _isEmojiField(span) && span.key == key).toList();
+  for (final span in mine.reversed) {
+    out = _removed(out, span, before.from);
+  }
+  if (text == null || jsTrim(text).isEmpty) return out;
+  final words = _wordsOf(out);
+  final spans = fieldsIn(out).where((span) => span.from >= words.from && span.to <= words.to).toList();
+  final run = _tasksRun(out, spans, words);
+  return _inserted(out, run.fields.isNotEmpty ? run.at : words.to, jsTrim(text));
 }
 
 /// The line with a person added to its people ([on]), or taken off them: `@sam` before the run of Tasks' fields, so

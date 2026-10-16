@@ -103,6 +103,11 @@ final class FieldAssignPage extends FieldPage {
   const FieldAssignPage();
 }
 
+/// A reminder's times (lib/reminders), where the phone reminds ([BandFields.reminds]).
+final class FieldRemindPage extends FieldPage {
+  const FieldRemindPage();
+}
+
 /// What a field page is drawn from (`FieldItemsProps`, editor/FieldItems.tsx).
 class FieldItemsRequest {
   const FieldItemsRequest({required this.view, required this.line, required this.page, required this.onBack, required this.onClose, required this.refocus, required this.felt, required this.redraw});
@@ -131,13 +136,16 @@ class FieldItemsRequest {
 /// The fields of a list item, for the band: which lines take them, and the rows of a field's page
 /// (`takesFields` and `FieldItems`; lib/editor/items hands this in).
 class BandFields {
-  const BandFields({required this.items, this.takes = takesFields});
+  const BandFields({required this.items, this.takes = takesFields, this.reminds});
 
   /// A page's rows, [MenuItem]s and the like, Back first where the request has one.
   final List<Widget> Function(BuildContext context, FieldItemsRequest request) items;
 
   /// Whether a line can take fields from the menu.
   final bool Function(String lineText) takes;
+
+  /// Whether the editor offers Remind me: only where the phone reminds. Absent, never.
+  final bool Function(EditorViewLike view)? reminds;
 }
 
 /// Whether a line can take fields from the menu: a list item, a bullet, a step or a to-do (`takesFields`).
@@ -573,6 +581,7 @@ class _ContextBandState extends State<ContextBand> {
         MenuItem(key: const ValueKey<String>('due'), icon: Lucide.calendarDays, label: 'Due date', onPress: fieldPage(const FieldDatePage('due'))),
         MenuItem(key: const ValueKey<String>('priority'), icon: Lucide.flag, label: 'Priority', onPress: fieldPage(const FieldPriorityPage())),
         MenuItem(key: const ValueKey<String>('assign'), icon: Lucide.userPlus, label: 'Assign', onPress: fieldPage(const FieldAssignPage())),
+        if (widget.fields?.reminds?.call(view) ?? false) MenuItem(key: const ValueKey<String>('remind'), icon: Lucide.alarmClock, label: 'Remind me', onPress: fieldPage(const FieldRemindPage())),
       ],
       if (boards.joinable) MenuItem(key: const ValueKey<String>('join-board'), icon: Lucide.layoutGrid, label: 'Add to board', onPress: _act(view, putOnBoard)),
       if (boards.list != null) MenuItem(key: const ValueKey<String>('list-board'), icon: Lucide.squareKanban, label: 'Board from list', onPress: _act(view, listToBoard)),

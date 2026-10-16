@@ -3,6 +3,8 @@ package com.mattssoftware.ghost_md
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
+import com.mattssoftware.ghost_md.home.HomeScreen
+import com.mattssoftware.ghost_md.reminders.Reminders
 import com.mattssoftware.glyph.capture.DictationMic
 import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.embedding.android.FlutterActivity
@@ -177,6 +179,10 @@ class MainActivity : FlutterActivity() {
         connection.register(messenger)
         // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).
         battery.register(messenger)
+        // Reminders, and the home screen's widgets and shortcuts (reminders/Reminders.kt, home/HomeScreen.kt;
+        // lib/reminders, lib/home_screen).
+        Reminders.register(applicationContext, this, messenger)
+        HomeScreen.register(applicationContext, messenger)
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -222,6 +228,7 @@ class MainActivity : FlutterActivity() {
         connection.release()
         battery.release()
         carry?.close()
+        Reminders.released(this)
         meeting?.onDestroy()
         super.onDestroy()
     }

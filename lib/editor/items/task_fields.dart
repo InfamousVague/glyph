@@ -34,7 +34,7 @@ import 'field_menu.dart';
 
 /// What a line with a drawn field has in it: an at sign, a named field's `::`, or one of the signs. A line with
 /// none has no chip, and is passed over without reading it.
-final RegExp _signs = RegExp('@|::|📅|📆|🗓|🛫|⏳|⌛|✅|➕|❌|🔁|🔺|⏫|🔼|🔽|⏬', unicode: true);
+final RegExp _signs = RegExp('@|::|📅|📆|🗓|🛫|⏳|⌛|✅|➕|❌|🔁|🔺|⏫|🔼|🔽|⏬|⏰', unicode: true);
 
 /// The day the chips count from; the device's own where none is said.
 final Facet<String Function(), String Function()?> fieldsToday = Facet.define<String Function(), String Function()?>(combine: (values) => values.isEmpty ? null : values.first);
@@ -47,10 +47,14 @@ String _today(EditorState state) => state.facet(fieldsToday)?.call() ?? isoDay(D
 /// The menu a chip opens, as the page of the band it turns to; null for a chip a tap edits.
 FieldPage? pageOf(ChipLook look) {
   if (look.menu == FieldMenu.priority) return const PriorityPage();
+  if (look.menu == FieldMenu.remind) return const RemindPage();
   if (look.menu == FieldMenu.person) return PersonPage(look.key);
   if (look.menu == FieldMenu.date && (look.key == 'due' || look.key == 'start' || look.key == 'scheduled')) return DatePage(look.key);
   return null;
 }
+
+/// [look] with no menu: a tap on it is the editor's.
+ChipLook _noMenu(ChipLook look) => ChipLook(text: look.text, icon: look.icon, tone: look.tone, label: look.label, menu: null, key: look.key, initial: look.initial, name: look.name);
 
 class FieldWidget extends EditorWidget {
   const FieldWidget(this.look, this.tappable);
@@ -118,6 +122,7 @@ DecorationSet _decorate(EditorViewLike view, String today) {
   final front = frontMatter(state.doc);
   final tree = syntaxTree(state);
   final locale = state.facet(fieldsLocale);
+  final reminds = state.facet(reminderPicker) != null;
   final doc = state.doc;
   for (final range in view.visibleRanges) {
     // Only the lines on screen with a field on them, as the tree keeps them.
@@ -129,7 +134,9 @@ DecorationSet _decorate(EditorViewLike view, String today) {
       for (final span in line.fact.spans) {
         final from = line.from + span.from;
         if (inQuietText(tree, from) || blanks.any((b) => from > b.from && from < b.to)) continue;
-        final look = chipLook(span, today: today, done: done, locale: locale);
+        final read = chipLook(span, today: today, done: done, locale: locale);
+        // A reminder's chip opens Remind me only where the phone reminds; elsewhere it is words to edit.
+        final look = read != null && read.menu == FieldMenu.remind && !reminds ? _noMenu(read) : read;
         if (look != null) builder.add(from, line.from + span.to, Decoration.replace(widget: FieldWidget(look, editable)));
       }
     }

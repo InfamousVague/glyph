@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Quick note (home/QuickNoteWidget.kt): a new note with the keyboard up, or a voice note, which opens the microphone on
+  that tap and never before. Two cells wide and one high by default, the pen alone; made wider, the words beside it
+  (home/Widgets.kt says how wide).
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_quick"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_widget_back"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:padding="5dp">
+
+    <LinearLayout
+        android:id="@+id/ghost_quick_new"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_weight="1"
+        android:background="@drawable/ghost_widget_press"
+        android:contentDescription="@string/ghost_shortcut_new_long"
+        android:gravity="center"
+        android:minHeight="40dp"
+        android:orientation="horizontal"
+        android:paddingStart="12dp"
+        android:paddingEnd="12dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_ic_note" />
+
+        <TextView
+            android:id="@+id/ghost_quick_new_words"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="10dp"
+            android:ellipsize="end"
+            android:fontFamily="sans-serif-medium"
+            android:maxLines="1"
+            android:text="@string/ghost_shortcut_new_short"
+            android:textColor="@color/ghost_widget_ink"
+            android:textSize="15sp"
+            android:visibility="gone" />
+    </LinearLayout>
+
+    <FrameLayout
+        android:layout_width="1dp"
+        android:layout_height="22dp"
+        android:background="@color/ghost_widget_rule" />
+
+    <FrameLayout
+        android:id="@+id/ghost_quick_voice"
+        android:layout_width="52dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/ghost_widget_press"
+        android:contentDescription="@string/ghost_shortcut_voice_long"
+        android:minHeight="40dp">
+
+        <ImageView
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_ic_mic" />
+    </FrameLayout>
+</LinearLayout>

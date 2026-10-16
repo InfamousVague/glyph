@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick note (home/QuickNoteWidget.kt): two cells by one, wider or taller as it is made. Never updated on a clock. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_quick_note_about"
+    android:initialLayout="@layout/ghost_widget_quick_note"
+    android:minWidth="110dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="96dp"
+    android:minResizeHeight="40dp"
+    android:previewLayout="@layout/ghost_widget_quick_note"
+    android:resizeMode="horizontal|vertical"
+    android:targetCellWidth="2"
+    android:targetCellHeight="1"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

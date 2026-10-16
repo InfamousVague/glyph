@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The icon's search shortcut's glyph on its 108 dp adaptive ground: Lucide's search, 42 dp across in the middle. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group
+        android:scaleX="1.75"
+        android:scaleY="1.75"
+        android:translateX="33"
+        android:translateY="33">
+        <path
+            android:pathData="m21 21-4.34-4.34"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#F3F3F3"
+            android:strokeWidth="1.6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M3 11A8 8 0 1 0 19 11A8 8 0 1 0 3 11Z"
+            android:fillColor="@android:color/transparent"
+            android:strokeColor="#F3F3F3"
+            android:strokeWidth="1.6"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
+</vector>

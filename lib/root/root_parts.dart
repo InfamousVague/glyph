@@ -155,8 +155,9 @@ extension _RootParts on _GhostRootState {
         _left();
       },
       // And the walkthrough steps aside for a recorder, so the parts that read the screen are told.
-      onScreenChanged: (_) {
+      onScreenChanged: (screen) {
         _left();
+        _extras?.screen(screen);
         _tick.tell();
       },
       untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,

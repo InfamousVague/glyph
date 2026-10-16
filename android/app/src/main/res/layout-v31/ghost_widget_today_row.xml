@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One to-do on the Today widget from Android 12: a box a widget can tick (RemoteViews' CheckBox), then its words. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="44dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <CheckBox
+        android:id="@+id/ghost_row_check"
+        android:layout_width="36dp"
+        android:layout_height="match_parent"
+        android:buttonTint="@color/ghost_widget_ink_2"
+        android:contentDescription="@string/ghost_widget_tick" />
+
+    <include layout="@layout/ghost_widget_today_words" />
+</LinearLayout>
