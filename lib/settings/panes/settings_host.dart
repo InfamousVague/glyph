@@ -331,7 +331,7 @@ class PreferencesWorkspaceStorage implements WorkspaceStorage {
   WorkspaceSheet read() {
     final kept = store.value.workspaces;
     return WorkspaceSheet(
-      list: [for (final w in kept.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue)],
+      list: [for (final w in kept.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue, parent: w.parent)],
       notes: kept.notes,
       current: _current,
     );
@@ -341,7 +341,7 @@ class PreferencesWorkspaceStorage implements WorkspaceStorage {
   void write(WorkspaceSheet sheet) {
     _current = sheet.current;
     final next = KeptWorkspaces(
-      list: [for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue)],
+      list: [for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue, parent: w.parent)],
       notes: Map.unmodifiable(sheet.notes),
     );
     if (next != store.value.workspaces) store.update((now) => now.copyWith(workspaces: next));

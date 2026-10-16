@@ -342,7 +342,7 @@ class _GhostRootState extends State<GhostRoot> {
   late final KeptWorkspaceStorage? _keptSpaces = widget.workspaces == null && _real ? KeptWorkspaceStorage() : null;
   late final WorkspaceStore _workspaces = widget.workspaces ??
       (_keptSpaces != null
-          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
+          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library, workspaces: () => _workspaces.value.list).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
   // Who keeps a version here: the account's handle, read as each is kept (core/versions/record.ts `keeper`).

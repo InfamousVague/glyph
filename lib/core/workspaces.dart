@@ -17,6 +17,12 @@
 ///   is trashed, as in a browser with no library.
 /// - The move of a set kept under the old `glyph-workspaces` key into the preferences is the web's own history and
 ///   is not carried.
+/// - **Folders inside folders** are the port's own (2026-10-16): a personal workspace may have a [Workspace.parent],
+///   kept beside its name as `parent` in the preferences, and its folder on disk is inside its parent's
+///   (`workspaces/Work/Clients/`, lib/core/note_folders.dart). Choosing a workspace shows the notes of the folders
+///   inside it too ([WorkspaceStore.inWorkspace]); renaming or moving one moves the files of every folder under it;
+///   removing one keeps the folders inside it, a level up. An organization's workspace is never inside another and
+///   never holds one. A build without this reads `parent` as nothing and shows every folder at the top.
 library;
 
 import 'dart:math';
@@ -48,10 +54,11 @@ bool isOrgWorkspace(String workspaceId) => orgIdOf(workspaceId) != null;
 /// A workspace (`Workspace`).
 @immutable
 class Workspace {
-  const Workspace({required this.id, required this.name, this.hue});
+  const Workspace({required this.id, required this.name, this.hue, this.parent});
 
   /// A workspace as it is kept, with a hue this build does not know, and ink, read as none.
-  factory Workspace.kept({required String id, required String name, Object? hue}) => Workspace(id: id, name: name, hue: _wornHue(hue));
+  factory Workspace.kept({required String id, required String name, Object? hue, Object? parent}) =>
+      Workspace(id: id, name: name, hue: _wornHue(hue), parent: parent is String && parent.isNotEmpty ? parent : null);
 
   final String id;
   final String name;
@@ -59,18 +66,53 @@ class Workspace {
   /// Its colour, worn by its pill and its tag on a note. Null is `ink`, the app's own.
   final String? hue;
 
+  /// The workspace this one is a folder inside, by id; null at the top (docs/FEATURES_2_1.md, organize). Its
+  /// folder on disk is inside its parent's: `workspaces/Work/Clients/`. Only a personal workspace has one, and only
+  /// a personal one is a parent.
+  final String? parent;
+
   /// The organization it stands for, by id; null for a personal one. Read from the id, never kept.
   String? get org => orgIdOf(id);
 
-  @override
-  bool operator ==(Object other) => other is Workspace && other.id == id && other.name == name && other.hue == hue;
+  /// The same workspace with another name, hue or parent; [parent] is a function so null can be said.
+  Workspace copyWith({String? name, String? hue, String? Function()? parent}) => Workspace(id: id, name: name ?? this.name, hue: hue ?? this.hue, parent: parent == null ? this.parent : parent());
 
   @override
-  int get hashCode => Object.hash(id, name, hue);
+  bool operator ==(Object other) => other is Workspace && other.id == id && other.name == name && other.hue == hue && other.parent == parent;
 
   @override
-  String toString() => 'Workspace($id, $name${hue == null ? '' : ', $hue'})';
+  int get hashCode => Object.hash(id, name, hue, parent);
+
+  @override
+  String toString() => 'Workspace($id, $name${hue == null ? '' : ', $hue'}${parent == null ? '' : ', in $parent'})';
 }
+
+/// The workspaces [id] stands over, itself first, then every folder inside it however deep, in [list]'s order.
+List<String> workspaceFamily(List<Workspace> list, String id) {
+  final out = <String>[id];
+  for (var at = 0; at < out.length; at += 1) {
+    for (final w in list) {
+      if (w.parent == out[at] && !out.contains(w.id)) out.add(w.id);
+    }
+  }
+  return out;
+}
+
+/// The workspaces from the top down to [id], itself last; empty for an id [list] does not have.
+List<Workspace> workspacePath(List<Workspace> list, String id) {
+  final byId = {for (final w in list) w.id: w};
+  final path = <Workspace>[];
+  var at = byId[id];
+  while (at != null && !path.contains(at)) {
+    path.insert(0, at);
+    at = at.parent == null ? null : byId[at.parent];
+  }
+  return path;
+}
+
+/// A workspace's name with its parents' before it, as a list that holds folders inside folders says it:
+/// "Work › Clients".
+String workspacePathName(List<Workspace> list, String id) => workspacePath(list, id).map((w) => w.name).join(' › ');
 
 /// What the page reads of the workspaces at a moment (`Workspaces`).
 @immutable
@@ -161,8 +203,13 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
 
   WorkspaceSheet _read() {
     final held = _storage.read();
-    final list = [for (final w in held.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue)];
-    final ids = {for (final w in list) w.id};
+    final kept = [for (final w in held.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue, parent: w.parent)];
+    final ids = {for (final w in kept) w.id};
+    // A parent that is gone, an organization's, or a loop back to itself is no parent: the folder is at the top.
+    final list = [
+      for (final w in kept)
+        w.parent != null && (!ids.contains(w.parent) || isOrgWorkspace(w.id) || isOrgWorkspace(w.parent!) || _loops(kept, w)) ? w.copyWith(parent: () => null) : w,
+    ];
     // The filings that point at one of the list's workspaces.
     final notes = {
       for (final entry in held.notes.entries)
@@ -172,6 +219,18 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   }
 
   WorkspaceSheet get _current => _sheet ??= _read();
+
+  /// Whether following [w]'s parents comes back to it.
+  static bool _loops(List<Workspace> list, Workspace w) {
+    final byId = {for (final each in list) each.id: each};
+    final seen = <String>{w.id};
+    var at = w.parent == null ? null : byId[w.parent];
+    while (at != null) {
+      if (!seen.add(at.id)) return true;
+      at = at.parent == null ? null : byId[at.parent];
+    }
+    return false;
+  }
 
   void _write(WorkspaceSheet next) {
     _sheet = next;
@@ -220,15 +279,17 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   }
 
   /// A new workspace called [name], in [hue], or the personal one already called that; null for an empty name. An
-  /// organization's workspace of that name is not the one.
-  Workspace? addWorkspace(String name, [String hue = 'ink']) {
+  /// organization's workspace of that name is not the one. With [parent], a folder inside that workspace (a
+  /// personal one; an organization's has none inside it).
+  Workspace? addWorkspace(String name, [String hue = 'ink', String? parent]) {
     final clean = _tidy(name);
     if (clean.isEmpty) return null;
     final sheet = _current;
     for (final w in sheet.list) {
       if (!isOrgWorkspace(w.id) && w.name.toLowerCase() == clean.toLowerCase()) return w;
     }
-    final made = Workspace(id: _freshId(sheet.list), name: clean, hue: _wornHue(hue));
+    final inside = parent != null && !isOrgWorkspace(parent) && sheet.list.any((w) => w.id == parent) ? parent : null;
+    final made = Workspace(id: _freshId(sheet.list), name: clean, hue: _wornHue(hue), parent: inside);
     _write(WorkspaceSheet(list: [...sheet.list, made], notes: sheet.notes, current: sheet.current));
     return made;
   }
@@ -239,7 +300,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     final sheet = _current;
     if (!_isHue(hue) || !sheet.list.any((w) => w.id == id) || isOrgWorkspace(id)) return;
     _write(WorkspaceSheet(
-      list: [for (final w in sheet.list) w.id == id ? Workspace(id: w.id, name: w.name, hue: _wornHue(hue)) : w],
+      list: [for (final w in sheet.list) w.id == id ? Workspace(id: w.id, name: w.name, hue: _wornHue(hue), parent: w.parent) : w],
       notes: sheet.notes,
       current: sheet.current,
     ));
@@ -259,14 +320,55 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       if (w.id == id) was = w;
     }
     if (clean.isEmpty || was == null) return;
-    final renamed = Workspace(id: was.id, name: clean, hue: was.hue);
+    final renamed = was.copyWith(name: clean);
     _write(WorkspaceSheet(
       list: [for (final w in sheet.list) w.id == id ? renamed : w],
       notes: sheet.notes,
       current: sheet.current,
     ));
-    // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
-    onFiled?.call(_filedIn(sheet.notes, id), renamed);
+    // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name, and
+    // the notes of every folder inside it, whose folders are inside that one.
+    _refile(id);
+  }
+
+  /// Tells [onFiled] where the notes of [id] and of every folder inside it now belong.
+  void _refile(String id) {
+    final sheet = _current;
+    for (final each in workspaceFamily(sheet.list, id)) {
+      final notes = _filedIn(sheet.notes, each);
+      final space = sheet.list.where((w) => w.id == each).firstOrNull;
+      if (notes.isNotEmpty && space != null) onFiled?.call(notes, space);
+    }
+  }
+
+  /// The workspaces inside [id], one level down, in the order they were made; the ones at the top for null.
+  List<Workspace> childrenOf(String? id) => [for (final w in _current.list) if (w.parent == id) w];
+
+  /// Whether [id] may be put inside [parent] (null, the top): both personal, and [parent] not [id] itself nor any
+  /// folder inside it.
+  bool canMove(String id, String? parent) {
+    if (isOrgWorkspace(id)) return false;
+    final list = _current.list;
+    if (!list.any((w) => w.id == id)) return false;
+    if (parent == null) return true;
+    if (isOrgWorkspace(parent) || !list.any((w) => w.id == parent)) return false;
+    return !workspaceFamily(list, id).contains(parent);
+  }
+
+  /// Puts workspace [id] inside [parent], or at the top with null: its folder, and every folder inside it, move with
+  /// it on disk, and their notes with them. Not an organization's, and never into one; never into itself or a
+  /// folder inside it.
+  void moveWorkspace(String id, String? parent) {
+    if (!canMove(id, parent)) return;
+    final sheet = _current;
+    final was = sheet.list.firstWhere((w) => w.id == id);
+    if (was.parent == parent) return;
+    _write(WorkspaceSheet(
+      list: [for (final w in sheet.list) w.id == id ? w.copyWith(parent: () => parent) : w],
+      notes: sheet.notes,
+      current: sheet.current,
+    ));
+    _refile(id);
   }
 
   /// The notes filed in workspace [id], from the sheet's filings (`filedIn`).
@@ -310,15 +412,24 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     final sheet = _current;
     // Its notes are not filed any more, so their files go back to the inbox.
     onFiled?.call(_filedIn(sheet.notes, id), null);
-    if (!sheet.list.any((w) => w.id == id)) return;
+    final gone = sheet.list.where((w) => w.id == id).firstOrNull;
+    if (gone == null) return;
+    // The folders inside it are kept, one level up: inside its parent, or at the top.
+    final inside = [for (final w in sheet.list) if (w.parent == id) w.id];
     _write(WorkspaceSheet(
-      list: [for (final w in sheet.list) if (w.id != id) w],
+      list: [
+        for (final w in sheet.list)
+          if (w.id != id) w.parent == id ? w.copyWith(parent: () => gone.parent) : w,
+      ],
       notes: {
         for (final entry in sheet.notes.entries)
           if (entry.value != id) entry.key: entry.value,
       },
       current: sheet.current == id ? null : sheet.current,
     ));
+    for (final child in inside) {
+      _refile(child);
+    }
   }
 
   /// The organization's workspace, made if this device has none: `org-<orgId>`, named and coloured after it. Found, it
@@ -402,11 +513,15 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     _write(WorkspaceSheet(list: sheet.list, notes: sheet.notes, current: next));
   }
 
-  /// Of [notes], those filed in workspace [id]; all of them for null. [idOf] reads a note's id.
+  /// Of [notes], those filed in workspace [id] or in a folder inside it; all of them for null. [idOf] reads a
+  /// note's id.
   List<T> inWorkspace<T>(Iterable<T> notes, String? id, String Function(T note) idOf) {
     if (id == null) return [...notes];
     final filed = _current.notes;
-    return [for (final note in notes) if (filed[idOf(note)] == id) note];
+    final family = workspaceFamily(_current.list, id);
+    if (family.length == 1) return [for (final note in notes) if (filed[idOf(note)] == id) note];
+    final ids = family.toSet();
+    return [for (final note in notes) if (ids.contains(filed[idOf(note)])) note];
   }
 
   @override
