@@ -43,6 +43,9 @@ Future<void> showPdf(BuildContext context, {required FilesKit kit, required Stri
     if (context.mounted) _toast(context, failure is StateError ? failure.message : 'This PDF can’t be opened.');
     return;
   }
+  // The note's caret and keyboard go: the viewer's own fields take the keyboard, and what is typed into them must
+  // never reach the note under it.
+  FocusManager.instance.primaryFocus?.unfocus();
   late final OverlayEntry entry;
   VoidCallback? off;
   var shut = false;
@@ -141,6 +144,10 @@ class PdfViewState extends State<PdfView> {
 
   final TextEditingController _query = TextEditingController();
   final TextEditingController _jump = TextEditingController();
+
+  /// The two fields' focus, asked for as each is opened: the layer's own focus (its keys) is already in the scope,
+  /// and a field's `autoFocus` would not take it from there.
+  final FocusNode _findFocus = FocusNode(), _jumpFocus = FocusNode();
   List<PdfHit>? _hits;
   int _hit = 0;
   bool _finding = false;
@@ -153,10 +160,19 @@ class PdfViewState extends State<PdfView> {
     _pager.dispose();
     _query.dispose();
     _jump.dispose();
+    _findFocus.dispose();
+    _jumpFocus.dispose();
     super.dispose();
   }
 
   void _say(String message) => _toast(context, message);
+
+  void _open(_Bar bar) {
+    setState(() => _bar = bar);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) (bar == _Bar.find ? _findFocus : _jumpFocus).requestFocus();
+    });
+  }
 
   /// Goes to page [index] (from 0).
   void goTo(int index) {
@@ -240,8 +256,8 @@ class PdfViewState extends State<PdfView> {
               child: GlacierSearchField(
                 key: const ValueKey<String>('pdf-find'),
                 controller: _query,
+                focusNode: _findFocus,
                 placeholder: 'Find in this PDF',
-                autoFocus: true,
                 size: GlacierFieldSize.sm,
                 enterKeyHint: TextInputAction.search,
                 onSubmitted: (query) => unawaited(find(query)),
@@ -267,8 +283,8 @@ class PdfViewState extends State<PdfView> {
               child: GlacierInput(
                 key: const ValueKey<String>('pdf-jump'),
                 controller: _jump,
+                focusNode: _jumpFocus,
                 size: GlacierFieldSize.sm,
-                autoFocus: true,
                 inputMode: TextInputType.number,
                 enterKeyHint: TextInputAction.go,
                 ariaLabel: 'Page number',
@@ -297,10 +313,10 @@ class PdfViewState extends State<PdfView> {
                   behavior: HitTestBehavior.opaque,
                   onTap: count < 2
                       ? null
-                      : () => setState(() {
-                            _jump.text = '${_page + 1}';
-                            _bar = _Bar.jump;
-                          }),
+                      : () {
+                          _jump.text = '${_page + 1}';
+                          _open(_Bar.jump);
+                        },
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -312,7 +328,7 @@ class PdfViewState extends State<PdfView> {
                 ),
               ),
             ),
-            _button(context, Lucide.search, 'Find in this PDF', () => setState(() => _bar = _Bar.find), key: const ValueKey<String>('pdf-find-open')),
+            _button(context, Lucide.search, 'Find in this PDF', () => _open(_Bar.find), key: const ValueKey<String>('pdf-find-open')),
             _button(context, Lucide.copy, 'Copy the words on this page', () => unawaited(_copy()), key: const ValueKey<String>('pdf-copy')),
             if (widget.onShare != null) _button(context, Lucide.share2, 'Share', () => unawaited(_hand(widget.onShare))),
             if (widget.onOpenWith != null) _button(context, Lucide.externalLink, 'Open with another app', () => unawaited(_hand(widget.onOpenWith))),

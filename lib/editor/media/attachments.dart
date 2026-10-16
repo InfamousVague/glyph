@@ -370,4 +370,5 @@ class _Folds extends PluginValue {
 final ViewPlugin<_Folds> _folds = ViewPlugin.define<_Folds>(_Folds.new, decorations: (plugin) => plugin.decorations);
 
 /// Files in the words: a card under each line and the lines folded to their words, where the app keeps files.
-Extension attachmentCards() => FilesKit.current == null ? Extension.list(const <Extension>[]) : Extension.list(<Extension>[_cardField, _folds]);
+/// Without [cards] (a note drawn small on its card), the lines are folded to their words and nothing is drawn.
+Extension attachmentCards({bool cards = true}) => FilesKit.current == null ? Extension.list(const <Extension>[]) : Extension.list(<Extension>[if (cards) _cardField, _folds]);

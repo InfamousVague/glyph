@@ -118,4 +118,16 @@ void main() {
     await settle(tester);
     expect(it.handed, ['shared', 'opened', 'closed']);
   });
+
+  testWidgets('its Find and Go to page take the keyboard as they open, whatever had the focus', (tester) async {
+    await open(tester);
+    await tester.tap(find.byKey(const ValueKey<String>('pdf-find-open')));
+    await settle(tester);
+    expect(tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus, isTrue);
+    await tester.tap(find.byKey(const ValueKey<String>('pdf-find-close')));
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey<String>('pdf-page')));
+    await settle(tester);
+    expect(tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus, isTrue);
+  });
 }

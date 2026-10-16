@@ -125,8 +125,9 @@ Extension mediaExtensions({MediaSeams seams = const MediaSeams(), PlaceMode plac
   inlineImages(store: seams.pictures),
   placeCards(places, dark: seams.dark, switches: seams.placeSwitches, changed: seams.switches, onOpen: seams.onOpenPlace, tiles: seams.mapTiles),
   videoCards(videos, seams: seams.films),
-  // Files in the words (attachments.dart), where the app keeps files, and a picture's words (picture_words.dart).
-  attachmentCards(),
+  // Files in the words (attachments.dart), where the app keeps files, and a picture's words (picture_words.dart):
+  // neither drawn in a note drawn small, where a file's line reads as its name.
+  attachmentCards(cards: !peek),
   if (!peek) pictureWords(),
   shortLinks(still: peek, onOpen: seams.onLinkTap),
   if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink),

@@ -246,6 +246,18 @@ class ReadPass extends ChangeNotifier {
     List<String>? pages;
     try {
       pages = await device.read(path, pdf: pdf, most: readPagesMost);
+    } on PlatformException catch (failure) {
+      if (failure.code == 'notready') {
+        // The reader is still on its way (Play services fetches it once): this one waits at the back, a while.
+        _say(waiting: 'Waiting for the reader to arrive.');
+        _slow.add(thing);
+        _progress = _progress == null ? null : ReadProgress(done: _progress!.done, total: _progress!.total + 1, waiting: _progress!.waiting);
+        await Future<void>.delayed(const Duration(seconds: 20));
+        return;
+      }
+      _failed.add(thing.key);
+      debugPrint('[files] the words in ${thing.key} were not read: ${failure.message}');
+      return;
     } catch (failure) {
       // One that will not be read is not asked again this run.
       _failed.add(thing.key);

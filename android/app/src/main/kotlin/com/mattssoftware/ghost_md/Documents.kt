@@ -114,14 +114,17 @@ class Documents(private val activity: Activity) {
       activity.runOnUiThread {
         answer.fold(
           onSuccess = { result.success(it) },
-          onFailure = { result.error("documents", (it as? Said)?.message ?: "That didn't work.", null) },
+          onFailure = { result.error(if (it is NotReady) "notready" else "documents", (it as? Said)?.message ?: "That didn't work.", null) },
         )
       }
     }
   }
 
   /** A failure whose message is the sentence a person reads. */
-  private class Said(message: String) : Exception(message)
+  private open class Said(message: String) : Exception(message)
+
+  /** The reader's model is still on its way from Play services: asked again later, not given up on. */
+  private class NotReady(message: String) : Said(message)
 
   // ---- choosing a file ----------------------------------------------------------------------------------------
 
@@ -290,27 +293,51 @@ class Documents(private val activity: Activity) {
     return ready
   }
 
-  /** The reader's model, fetched by Play services where it is not here yet: waited for, on the reading thread. */
+  /**
+   * The reader's model, fetched by Play services where it is not here yet: asked for, then waited for on the
+   * reading thread (the install's task ends once the request is taken, not once the model is here), up to three
+   * minutes, after which the caller asks again later.
+   */
   private fun readyToRead() {
     if (readerReady()) return
     try {
       val request = ModuleInstallRequest.newBuilder().addApi(recognizer).build()
-      Tasks.await(ModuleInstall.getClient(activity).installModules(request), 3, TimeUnit.MINUTES)
+      Tasks.await(ModuleInstall.getClient(activity).installModules(request), 1, TimeUnit.MINUTES)
     } catch (error: Throwable) {
       Log.w(TAG, "reader not fetched", error)
-      throw Said("The reader comes from Google Play services, and could not be fetched yet.")
+      throw NotReady("The reader comes from Google Play services, and could not be fetched yet.")
     }
-    ready = true
+    val until = System.currentTimeMillis() + 180_000
+    while (!readerReady()) {
+      if (System.currentTimeMillis() > until) throw NotReady("The reader is still coming from Google Play services.")
+      Thread.sleep(2_000)
+    }
   }
 
-  private fun recognised(image: InputImage): String = Tasks.await(recognizer.process(image)).text
+  private fun recognised(image: InputImage): String = try {
+    Tasks.await(recognizer.process(image)).text
+  } catch (error: java.util.concurrent.ExecutionException) {
+    // Play services said the model was here and is still unpacking it: not this picture's fault.
+    val cause = error.cause
+    if (cause is com.google.mlkit.common.MlKitException && cause.errorCode == com.google.mlkit.common.MlKitException.UNAVAILABLE) {
+      ready = false
+      throw NotReady("The reader is still coming from Google Play services.")
+    }
+    throw error
+  }
 
   private fun read(call: MethodCall): Map<String, Any> {
     val path = call.argument<String>("path") ?: throw Said("Nothing to read.")
     val file = File(path)
     if (!file.isFile) throw Said("That file is not here.")
     readyToRead()
-    if (call.argument<Boolean>("pdf") != true) return mapOf("pages" to listOf(recognised(InputImage.fromFilePath(activity, Uri.fromFile(file)))))
+    if (call.argument<Boolean>("pdf") != true) {
+      // A picture too small to hold a letter (an icon, a spacer) has no words, and ML Kit refuses one under 32 px.
+      val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+      android.graphics.BitmapFactory.decodeFile(file.absolutePath, bounds)
+      if (bounds.outWidth in 1 until 32 || bounds.outHeight in 1 until 32) return mapOf("pages" to listOf(""))
+      return mapOf("pages" to listOf(recognised(InputImage.fromFilePath(activity, Uri.fromFile(file)))))
+    }
     val most = call.argument<Int>("most") ?: 60
     val words = ArrayList<String>()
     ParcelFileDescriptor.open(file, ParcelFileDescriptor.MODE_READ_ONLY).use { fd ->
