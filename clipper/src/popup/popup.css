@@ -1,0 +1,410 @@
+/*
+ * The clipper's popup in the app's look: ink on near-black paper, Inter, and the Glacier kit's spacing and radii.
+ * The values are the app's own, read from tauri/src/app/ink.css (the dark scale and the named tokens) and
+ * packages/glacier/assets/css/tokens.css (space, radius, the type scale at a popup's width), so the popup is the
+ * app's paper and ink and not a lookalike. Dark always: the brief for the clipper, and the app's own default.
+ */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('fonts/inter-latin-wght-normal.woff2') format('woff2-variations');
+}
+
+:root {
+  color-scheme: dark;
+  /* ink.css, [data-theme='dark'] */
+  --app-gray-1: oklch(0.11 0 0);
+  --app-gray-2: oklch(0.14 0 0);
+  --app-gray-3: oklch(0.17 0 0);
+  --app-gray-4: oklch(0.205 0 0);
+  --app-gray-5: oklch(0.24 0 0);
+  --app-gray-6: oklch(0.28 0 0);
+  --app-gray-7: oklch(0.34 0 0);
+  --app-gray-8: oklch(0.44 0 0);
+  --app-gray-9: oklch(0.6 0 0);
+  --app-gray-10: oklch(0.69 0 0);
+  --app-gray-11: oklch(0.8 0 0);
+  --app-gray-12: oklch(0.965 0 0);
+  --app-paper: var(--app-gray-1);
+  --app-paper-2: var(--app-gray-3);
+  --app-paper-3: var(--app-gray-5);
+  --app-rule: var(--app-gray-4);
+  --app-ink: var(--app-gray-12);
+  --app-ink-2: var(--app-gray-11);
+  --app-ink-3: var(--app-gray-9);
+  --app-ink-4: var(--app-gray-7);
+  /* tokens.css at 380 px */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.625rem;
+  --radius-full: 9999px;
+  --text-xs: 0.72rem;
+  --text-sm: 0.8333rem;
+  --text-md: 0.95rem;
+  --text-lg: 1.2rem;
+  --font: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--app-paper);
+  color: var(--app-ink);
+  font-family: var(--font);
+  font-size: 15px;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  width: 380px;
+  min-height: 200px;
+}
+
+main {
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.top {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 28px;
+}
+
+.top .mark {
+  width: 22px;
+  height: 22px;
+  display: block;
+}
+
+.top .name {
+  font-weight: 600;
+  font-size: var(--text-md);
+  letter-spacing: -0.01em;
+}
+
+.top .who {
+  margin-left: auto;
+  color: var(--app-ink-3);
+  font-size: var(--text-xs);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.lede {
+  margin: 0;
+  color: var(--app-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+label.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  color: var(--app-ink-3);
+  font-weight: 500;
+}
+
+input[type='text'],
+input[type='password'],
+select,
+textarea {
+  font: inherit;
+  font-size: var(--text-sm);
+  color: var(--app-ink);
+  background: var(--app-paper-2);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.625rem;
+  width: 100%;
+  outline: none;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+button:focus-visible {
+  border-color: var(--app-ink-3);
+  box-shadow: 0 0 0 2px oklch(0.965 0 0 / 0.12);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--app-ink-4);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 3.2rem;
+  line-height: 1.4;
+}
+
+select {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--app-ink-3) 50%), linear-gradient(135deg, var(--app-ink-3) 50%, transparent 50%);
+  background-position: calc(100% - 14px) 52%, calc(100% - 9px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  padding-right: 1.6rem;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-2);
+}
+
+.check {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  font-size: var(--text-sm);
+  color: var(--app-ink-2);
+  line-height: 1.35;
+}
+
+.check input {
+  margin: 0.15rem 0 0;
+  accent-color: var(--app-gray-12);
+  width: 14px;
+  height: 14px;
+}
+
+.check small {
+  display: block;
+  color: var(--app-ink-3);
+  font-size: var(--text-xs);
+  margin-top: 0.15rem;
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+}
+
+button.solid {
+  background: var(--app-ink);
+  color: var(--app-paper);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  padding: 0.6rem 1rem;
+  width: 100%;
+}
+
+button.solid:disabled {
+  background: var(--app-paper-3);
+  color: var(--app-ink-3);
+  cursor: default;
+}
+
+button.quiet {
+  background: transparent;
+  color: var(--app-ink-2);
+  font-size: var(--text-xs);
+  padding: 0.2rem 0.5rem;
+  border-color: var(--app-rule);
+}
+
+button.quiet:hover {
+  background: var(--app-paper-2);
+}
+
+.modes {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  background: var(--app-paper-2);
+  border-radius: var(--radius-full);
+  padding: 3px;
+  gap: 2px;
+}
+
+.modes button {
+  background: transparent;
+  color: var(--app-ink-3);
+  font-size: 0.7rem;
+  font-weight: 500;
+  padding: 0.38rem 0;
+  white-space: nowrap;
+}
+
+.modes button[aria-pressed='true'] {
+  background: var(--app-paper-3);
+  color: var(--app-ink);
+}
+
+.modes button:disabled {
+  color: var(--app-ink-4);
+  cursor: default;
+}
+
+.preview {
+  background: var(--app-paper-2);
+  border: 1px solid var(--app-rule);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+  max-height: 168px;
+  overflow: hidden;
+  position: relative;
+  font-size: var(--text-xs);
+  color: var(--app-ink-2);
+  line-height: 1.5;
+}
+
+.preview pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--app-ink-2);
+}
+
+.preview::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 36px;
+  background: linear-gradient(transparent, var(--app-paper-2));
+}
+
+.preview.picture::after,
+.preview.quiet::after {
+  display: none;
+}
+
+.preview.picture {
+  padding: 0;
+  max-height: none;
+}
+
+.preview.picture img {
+  display: block;
+  width: 100%;
+  max-height: 200px;
+  object-fit: cover;
+  object-position: top;
+  border-radius: calc(var(--radius-md) - 1px);
+}
+
+.bookmark {
+  display: flex;
+  gap: var(--space-3);
+}
+
+.bookmark img {
+  width: 72px;
+  height: 72px;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  flex: none;
+  background: var(--app-paper-3);
+}
+
+.bookmark strong {
+  display: block;
+  color: var(--app-ink);
+  font-size: var(--text-sm);
+  margin-bottom: 0.2rem;
+}
+
+.facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--app-ink-3);
+  min-height: 1.2rem;
+}
+
+.note {
+  font-size: var(--text-xs);
+  color: var(--app-ink-2);
+  border-left: 2px solid var(--app-ink-4);
+  padding-left: var(--space-2);
+  line-height: 1.4;
+}
+
+.error {
+  font-size: var(--text-sm);
+  color: var(--app-ink);
+  background: var(--app-paper-3);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  line-height: 1.4;
+}
+
+.error:empty {
+  display: none;
+}
+
+.done {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3) 0 var(--space-2);
+}
+
+.done h1 {
+  margin: 0;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+}
+
+.done p {
+  margin: 0;
+  color: var(--app-ink-2);
+  font-size: var(--text-sm);
+  line-height: 1.45;
+}
+
+.done .title {
+  color: var(--app-ink);
+  font-weight: 500;
+}
+
+.actions {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.actions button {
+  flex: 1;
+}
+
+button.outline {
+  background: transparent;
+  color: var(--app-ink);
+  border-color: var(--app-gray-7);
+  font-weight: 500;
+  font-size: var(--text-sm);
+  padding: 0.6rem 1rem;
+}
+
+.quietline {
+  color: var(--app-ink-3);
+  font-size: var(--text-xs);
+}
