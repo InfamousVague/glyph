@@ -26,6 +26,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../core/attachment_refs.dart' show noteGoneForGood, tellNoteGone;
 import '../core/native/core.dart';
 import '../core/note.dart';
 import '../core/note_json.dart';
@@ -52,10 +53,13 @@ class LibraryNotes implements LocalNotes {
     return stored;
   }
 
-  /// `deleteNote`: for good. One already gone is not an error.
+  /// `deleteNote`: for good. One already gone is not an error. The files it linked go where no other note links
+  /// them, as the core takes its pictures.
   @override
   Future<void> remove(String id) async {
+    final body = noteGoneForGood == null ? null : (await get(id))?.body;
     await _invoke('delete_note', {'id': id});
+    tellNoteGone(id, body);
   }
 }
 
@@ -73,32 +77,77 @@ abstract interface class DeviceBytes {
   Future<String?> recordingSha256(String name);
 }
 
-/// [LocalFiles] on this device: the versions files in the [VersionsStore], the rest in [DeviceBytes].
+/// The files notes link and the words read in their pictures and files (lib/files/): kept by Dart beside the
+/// pictures, not by the core, which keeps only what it can check (a picture is what its name says, a recording is
+/// a RIFF file). [owed] is the notes whose words were read here since they were last sent.
+abstract interface class MediaFiles {
+  Future<Uint8List?> read(FileKind kind, String name);
+  Future<void> write(FileKind kind, String name, Uint8List bytes);
+  Future<int?> lengthOf(FileKind kind, String name);
+  List<String> owed();
+  void settled(String noteId);
+}
+
+/// This device's [MediaFiles], once lib/files/files_kit.dart has made them; none before, and none in a run with no
+/// data folder, where a note's files are nothing this device has.
+MediaFiles? mediaFiles;
+
+bool _media(FileKind kind) => kind == FileKind.attachment || kind == FileKind.text;
+
+/// [LocalFiles] on this device: the versions files in the [VersionsStore], a note's files and the words read in its
+/// things in [MediaFiles], the rest in [DeviceBytes].
 class KeptFiles implements LocalFiles {
-  const KeptFiles({required this.versions, required this.bytes});
+  const KeptFiles({required this.versions, required this.bytes, this.media});
 
   final VersionsStore versions;
   final DeviceBytes bytes;
 
+  /// The files notes link, and the words read; the app's own ([mediaFiles]) unless given.
+  final MediaFiles? media;
+
+  MediaFiles? get _files => media ?? mediaFiles;
+
   @override
   Future<Uint8List?> read(FileKind kind, String name) async {
+    if (_media(kind)) return _files?.read(kind, name);
     if (kind != FileKind.versions) return bytes.read(kind, name);
     final text = await versions.readVersionsFile(name);
     return text == null ? null : utf8.encode(text);
   }
 
   @override
-  Future<void> write(FileKind kind, String name, Uint8List bytes) {
+  Future<void> write(FileKind kind, String name, Uint8List bytes) async {
+    if (_media(kind)) {
+      final files = _files;
+      if (files == null) throw StateError('This device keeps no files.');
+      return files.write(kind, name, bytes);
+    }
     // A versions file from the account is not owed back to it; what this device adds to it is, when it adds it.
     if (kind == FileKind.versions) return versions.writeVersionsFile(name, utf8.decode(bytes, allowMalformed: true), owed: false);
     return this.bytes.write(kind, name, bytes);
   }
 
   @override
-  List<String> owed() => versions.unsentVersions();
+  Future<int?> lengthOf(FileKind kind, String name) async {
+    if (_media(kind)) return _files?.lengthOf(kind, name);
+    return (await read(kind, name))?.length;
+  }
 
   @override
-  void settled(String name) => versions.sentVersions(name);
+  bool get keepsMedia => _files != null;
+
+  @override
+  List<String> owed() {
+    final words = _files?.owed() ?? const <String>[];
+    final kept = versions.unsentVersions();
+    return words.isEmpty ? kept : <String>{...kept, ...words}.toList();
+  }
+
+  @override
+  void settled(String name) {
+    versions.sentVersions(name);
+    _files?.settled(name);
+  }
 
   /// The same first sixteen bytes of the SHA-256 the pass would take itself.
   @override

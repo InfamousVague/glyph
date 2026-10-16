@@ -57,4 +57,17 @@
             android:targetPackage="com.mattssoftware.glyph.flutter"
             android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
     </shortcut>
+    <!-- Scan document: Google's document scanner, its pages kept as a new note's PDF (lib/files/plus_files.dart). -->
+    <shortcut
+        android:shortcutId="scan"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_scan"
+        android:shortcutShortLabel="@string/ghost_shortcut_scan_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_scan_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://scan"
+            android:targetPackage="com.mattssoftware.glyph.flutter"
+            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+    </shortcut>
 </shortcuts>

@@ -48,6 +48,7 @@ import 'dart:typed_data';
 
 import '../account/api.dart';
 import '../account/crypto_api.dart';
+import '../core/attachment_refs.dart' show attachmentNames;
 import '../core/bytes.dart';
 import '../core/note.dart';
 import '../core/note_json.dart';
@@ -238,12 +239,12 @@ class _Tally {
 /// A row's blob, opened (`TeamPayload`): the note as it stood, the document's whole state then, the seq it covered,
 /// and the files.
 class _Payload {
-  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions});
+  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions, this.files = const [], this.texts = const []});
 
   factory _Payload.fromJson(Object? raw, String id) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
     final note = noteFromJson(map['note']);
-    final state = map['state'], seq = map['seq'], images = map['images'], versions = map['versions'];
+    final state = map['state'], seq = map['seq'], images = map['images'], versions = map['versions'], files = map['files'], texts = map['texts'];
     if (note == null || state is! String) throw const FormatException('That note of the team’s could not be read.');
     return _Payload(
       note: withId(note, id),
@@ -251,6 +252,8 @@ class _Payload {
       seq: seq is num ? seq.toInt() : 0,
       images: images is List ? images.whereType<String>().toList() : const [],
       versions: versions is String && versions.isNotEmpty ? versions : null,
+      files: files is List ? files.whereType<String>().toList() : const [],
+      texts: texts is List ? texts.whereType<String>().toList() : const [],
     );
   }
 
@@ -259,6 +262,10 @@ class _Payload {
   final int seq;
   final List<String> images;
   final String? versions;
+
+  /// The files the note links, and the things whose words were read (lib/sync/notes.dart's payload has the same).
+  final List<String> files;
+  final List<String> texts;
 }
 
 /// A row in the organization's feed, and what a refused write answers with (`TeamFeedItem`).
@@ -389,6 +396,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
       if (await ctx.files.read(FileKind.image, name) != null) continue;
       await fetchFile(ctx._files, FileKind.image, name);
     }
+    await fetchFilesNamed(ctx._files, payload.files, payload.texts);
   });
   // The words are the document's; or, open in an editor bound to it, the ones the editor last saved.
   var theirs = _withWords(payload.note, doc.editing && local != null ? local.body : doc.words);
@@ -520,6 +528,14 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     final bytes = await ctx.files.read(FileKind.image, name);
     if (bytes != null) await sendFile(files, FileKind.image, name, bytes);
   }
+  // The files it links and the words read in its things, as the account's own notes carry them (lib/sync/notes.dart).
+  final linked = <String>[
+    for (final name in attachmentNames(note.body))
+      if (await sendAttachment(files, name)) name,
+  ];
+  final texts = await sendTextsOf(files, note.body);
+  // Owed for its words read since it last went (KeptFiles.owed): going now.
+  ctx.files.settled(note.id);
   final covered = (await doc.pending()).length;
   // The note whole, as its file has it: the list's has no phrases and no formatted version.
   final whole = await ctx.notes.get(note.id) ?? note;
@@ -530,6 +546,8 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     'seq': doc.seq,
     if (images.isNotEmpty) 'images': images,
     'versions': ?versions,
+    if (linked.isNotEmpty) 'files': linked,
+    if (texts.isNotEmpty) 'texts': texts,
   };
   final blob = await ctx.crypto.seal(ctx.key, payload, _noteContext(ctx.orgId, note.id));
   try {

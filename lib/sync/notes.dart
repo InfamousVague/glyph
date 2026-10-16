@@ -12,7 +12,10 @@
 ///
 /// A note's recording and pictures travel beside it as sealed files on the `recordings` route: the note says which
 /// (by hash, for a recording; by name, for a picture, whose name is never reused), and a device fetches what it
-/// lacks. So does its versions file, by hash, with one difference: two devices that each kept versions are merged,
+/// lacks. So do the files it links (`file/<name>`, lib/core/attachment_refs.dart), by name as a picture is, when
+/// they are no larger than [attachmentSyncLimit], and the words read in its pictures and files (lib/files/
+/// read_text.dart), by the thing they were read in: a device that reads a picture after its note was sent owes the
+/// note again ([LocalFiles.owed]), so the others hear of the words and fetch them. So does its versions file, by hash, with one difference: two devices that each kept versions are merged,
 /// version by version ([sendVersionsOf], [fetchVersionsOf]), and a version kept by hand with no change to the words
 /// is sent on its own ([LocalFiles.owed]).
 ///
@@ -45,6 +48,7 @@ import 'package:flutter/foundation.dart';
 
 import '../account/api.dart';
 import '../account/crypto_api.dart';
+import '../core/attachment_refs.dart';
 import '../core/book.dart';
 import '../core/bytes.dart';
 import '../core/ids.dart';
@@ -68,8 +72,9 @@ abstract interface class LocalNotes {
   Future<void> remove(String id);
 }
 
-/// Which of a device's files (`FileKind`): a recording or a versions file, by note id, or a picture, by name.
-enum FileKind { recording, image, versions }
+/// Which of a device's files (`FileKind`): a recording or a versions file, by note id, a picture or a file a note
+/// links, by name, or the words read in one of those, by `image/<name>` or `file/<name>` (lib/files/read_text.dart).
+enum FileKind { recording, image, versions, attachment, text }
 
 /// A recording's fingerprint as the device itself made it: [sha] as [sha] would give it, or null for no file.
 @immutable
@@ -90,6 +95,14 @@ typedef FileDigest = Future<RecordingDigest?> Function(String name);
 abstract interface class LocalFiles {
   Future<Uint8List?> read(FileKind kind, String name);
   Future<void> write(FileKind kind, String name, Uint8List bytes);
+
+  /// How long the file is, in bytes, without reading it; null where this device has none. Asked before a file a
+  /// note links is read, so one past [attachmentSyncLimit] is never read into the app to be refused.
+  Future<int?> lengthOf(FileKind kind, String name);
+
+  /// Whether this device keeps the files notes link and the words read in them at all: where it does not (an
+  /// iPhone, for now), they are neither fetched nor sent.
+  bool get keepsMedia;
 
   /// The notes whose versions file changed here since it was last sent (core/versions/store.ts `unsentVersions`).
   List<String> owed();
@@ -323,19 +336,21 @@ SyncState emptyState() => SyncState();
 
 /// A note as it is sealed: the note, and the files it needs (`NotePayload`).
 class NotePayload {
-  const NotePayload({required this.note, this.recording, this.images = const [], this.versions});
+  const NotePayload({required this.note, this.recording, this.images = const [], this.versions, this.files = const [], this.texts = const []});
 
   /// A payload as opened, or a [FormatException] for one with no note in it.
   factory NotePayload.fromJson(Object? raw, String id) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
     final note = noteFromJson(map['note']);
     if (note == null) throw const FormatException('That note could not be read.');
-    final images = map['images'], recording = map['recording'], versions = map['versions'];
+    final images = map['images'], recording = map['recording'], versions = map['versions'], files = map['files'], texts = map['texts'];
     return NotePayload(
       note: withId(note, id),
       recording: recording is String && recording.isNotEmpty ? recording : null,
       images: images is List ? images.whereType<String>().toList() : const [],
       versions: versions is String && versions.isNotEmpty ? versions : null,
+      files: files is List ? files.whereType<String>().toList() : const [],
+      texts: texts is List ? texts.whereType<String>().toList() : const [],
     );
   }
 
@@ -348,12 +363,21 @@ class NotePayload {
   /// The hash of the note's versions file as sent, where it keeps one.
   final String? versions;
 
+  /// The files the note links, by name: the ones the account holds and those that stay on the device they were
+  /// added on alike, so a device knows which to fetch.
+  final List<String> files;
+
+  /// The things whose words were read and sent (`image/<name>`, `file/<name>`).
+  final List<String> texts;
+
   Map<String, Object?> toJson() => {
         'v': 1,
         'note': noteToJson(note),
         if (recording != null) 'recording': recording,
         if (images.isNotEmpty) 'images': images,
         if (versions != null) 'versions': versions,
+        if (files.isNotEmpty) 'files': files,
+        if (texts.isNotEmpty) 'texts': texts,
       };
 }
 
@@ -413,16 +437,30 @@ String mark(Note note) => jsonEncode([
 
 final RegExp _plainId = RegExp(r'^[A-Za-z0-9_-]{1,62}$');
 final RegExp _pictureName = RegExp(r'^([A-Za-z0-9_-]+)\.([A-Za-z]+)$');
+final RegExp _keptName = RegExp(r'^([A-Za-z0-9_-]+)\.([a-z0-9]{1,10})$');
 
 /// The service's name for a file: `r-<note id>` for a recording, `v-<note id>` for a versions file,
-/// `i-<ext>-<stem>` for a picture; null for a name it would not take (`fileId`).
+/// `i-<ext>-<stem>` for a picture, `a-<ext>-<stem>` for a file a note links, and `t-i-<ext>-<stem>` or
+/// `t-a-<ext>-<stem>` for the words read in a picture or a file (named `image/<name>` or `file/<name>`); null for a
+/// name it would not take (`fileId`).
 String? fileId(FileKind kind, String name) {
   if (kind == FileKind.recording) return _plainId.hasMatch(name) ? 'r-$name' : null;
   if (kind == FileKind.versions) return _plainId.hasMatch(name) ? 'v-$name' : null;
+  String? short(String id) => id.length <= 64 ? id : null;
+  if (kind == FileKind.attachment) {
+    final match = _keptName.firstMatch(name);
+    return match == null ? null : short('a-${match.group(2)!}-${match.group(1)!}');
+  }
+  if (kind == FileKind.text) {
+    final picture = name.startsWith('image/');
+    if (!picture && !name.startsWith('file/')) return null;
+    final inner = name.substring(picture ? 6 : 5);
+    final match = (picture ? _pictureName : _keptName).firstMatch(inner);
+    return match == null ? null : short('t-${picture ? 'i' : 'a'}-${match.group(2)!.toLowerCase()}-${match.group(1)!}');
+  }
   final match = _pictureName.firstMatch(name);
   if (match == null) return null;
-  final id = 'i-${match.group(2)!.toLowerCase()}-${match.group(1)!}';
-  return id.length <= 64 ? id : null;
+  return short('i-${match.group(2)!.toLowerCase()}-${match.group(1)!}');
 }
 
 /// A file's fingerprint: the first sixteen bytes of its SHA-256, as hex (`sha`).
@@ -472,10 +510,11 @@ Future<void> sendFile(SyncContext ctx, FileKind kind, String name, Uint8List byt
     final turned = turnedKey(failure);
     if (turned != null) throw turned;
     if (failure is! ApiError || failure.status != 409) rethrow;
-    // A picture's name is never reused, so one already there is this one. A recording taken again on two devices:
-    // the note that carries it decides which is meant, and this device's note is the one being sent.
+    // A picture's name is never reused, so one already there is this one, and so is a linked file's; words read in
+    // one on two devices are the same words. A recording taken again on two devices: the note that carries it
+    // decides which is meant, and this device's note is the one being sent.
     final winner = _revOf(failure.body);
-    if (kind == FileKind.image) {
+    if (kind == FileKind.image || kind == FileKind.attachment || kind == FileKind.text) {
       ctx.state.files[id] = FileMark(rev: winner);
       return;
     }
@@ -650,8 +689,55 @@ Future<NotePayload> _sendFilesOf(SyncContext ctx, Note note) async {
     final bytes = await ctx.files.read(FileKind.image, name);
     if (bytes != null) await sendFile(ctx, FileKind.image, name, bytes);
   }
-  return NotePayload(note: note, recording: recording, images: images, versions: versions);
+  final files = <String>[
+    for (final name in attachmentNames(note.body))
+      if (await sendAttachment(ctx, name)) name,
+  ];
+  final texts = await sendTextsOf(ctx, note.body);
+  // Whatever this device owed of the note's files has gone with it: its versions (sent above) and its words.
+  ctx.files.settled(note.id);
+  return NotePayload(note: note, recording: recording, images: images, versions: versions, files: files, texts: texts);
 }
+
+/// A file a note links, sent where the account lacks it and it is no larger than [attachmentSyncLimit]; one
+/// larger stays on the device it was added on. Its length is asked first, so a large one is never read. Answers
+/// whether the file travels, for the payload to name it: false only for one here that is too large.
+Future<bool> sendAttachment(SyncContext ctx, String name) async {
+  final id = fileId(FileKind.attachment, name);
+  if (id == null) return false;
+  if (ctx.state.files.containsKey(id)) return true;
+  final length = await ctx.files.lengthOf(FileKind.attachment, name);
+  if (length == null) return true;
+  if (length > attachmentSyncLimit) return false;
+  final bytes = await ctx.files.read(FileKind.attachment, name);
+  if (bytes != null) await sendFile(ctx, FileKind.attachment, name, bytes);
+  return true;
+}
+
+/// The words read in the pictures and files of [body], sent where the account lacks them; answers the things
+/// whose words this device holds, for the note's payload to name.
+Future<List<String>> sendTextsOf(SyncContext ctx, String body) async {
+  final held = <String>[];
+  for (final key in readKeysIn(body)) {
+    final id = fileId(FileKind.text, key);
+    if (id == null) continue;
+    if ((ctx.state.files[id]?.rev ?? 0) > 0) {
+      held.add(key);
+      continue;
+    }
+    final bytes = await ctx.files.read(FileKind.text, key);
+    if (bytes == null) continue;
+    await sendFile(ctx, FileKind.text, key, bytes);
+    held.add(key);
+  }
+  return held;
+}
+
+/// Every picture and file of [body] words could be read in, as the words are named: `image/<name>`, `file/<name>`.
+List<String> readKeysIn(String body) => <String>{
+      for (final name in imageNames(body)) 'image/$name',
+      for (final name in attachmentNames(body)) 'file/$name',
+    }.toList();
 
 /// What a note from another device needs fetched: its recording, pictures and versions, where this device lacks
 /// them (`fetchFilesOf`).
@@ -669,6 +755,26 @@ Future<void> _fetchFilesOf(SyncContext ctx, NotePayload payload) async {
     // Here already, by some other road than sync: whether the account has it too is the settling's to find out.
     if (await ctx.files.read(FileKind.image, name) != null) continue;
     await fetchFile(ctx, FileKind.image, name);
+  }
+  await fetchFilesNamed(ctx, payload.files, payload.texts);
+}
+
+/// The files a note links and the words read in its things, fetched where this device lacks them: what a note's
+/// payload names beside its pictures (never a file too large to travel, which the device that has it leaves out).
+/// A file still on its way is not in the account yet (a 404), and is asked for again by the settling.
+Future<void> fetchFilesNamed(SyncContext ctx, List<String> files, List<String> texts) async {
+  if (!ctx.files.keepsMedia) return;
+  for (final name in files) {
+    final id = fileId(FileKind.attachment, name);
+    if (id == null || ctx.state.files.containsKey(id)) continue;
+    if (await ctx.files.lengthOf(FileKind.attachment, name) != null) continue;
+    await fetchFile(ctx, FileKind.attachment, name);
+  }
+  for (final key in texts) {
+    final id = fileId(FileKind.text, key);
+    if (id == null || ctx.state.files.containsKey(id)) continue;
+    if (await ctx.files.lengthOf(FileKind.text, key) != null) continue;
+    await fetchFile(ctx, FileKind.text, key);
   }
 }
 
@@ -696,6 +802,7 @@ Future<void> settlePictures(SyncContext ctx) async {
   final now = ctx.now ?? () => DateTime.now().millisecondsSinceEpoch;
   final seen = <String>{};
   for (final note in await ctx.notes.list()) {
+    await _settleAttachmentsOf(ctx, note.body, seen, now);
     for (final name in imageNames(note.body)) {
       final id = fileId(FileKind.image, name);
       if (id == null || !seen.add(id)) continue;
@@ -720,6 +827,52 @@ Future<void> settlePictures(SyncContext ctx) async {
     }
   }
   ctx.save(ctx.state);
+}
+
+/// The files a note links, made whole on both sides as its pictures are ([settlePictures]): one this device holds
+/// and the account lacks is sent (when it is no larger than [attachmentSyncLimit]), one the account holds and this
+/// device lacks is fetched, and one its line says is larger is not asked for. Then the words read in its things
+/// that this device holds and the account lacks are sent; the others fetch them by the note that names them.
+Future<void> _settleAttachmentsOf(SyncContext ctx, String body, Set<String> seen, int Function() now) async {
+  if (!ctx.files.keepsMedia) return;
+  if (body.contains('](file/')) {
+    for (final match in attachmentRef.allMatches(body)) {
+      final name = match.group(2)!;
+      final id = fileId(FileKind.attachment, name);
+      if (id == null || !seen.add(id)) continue;
+      if ((ctx.state.files[id]?.rev ?? 0) > 0) continue;
+      final length = await ctx.files.lengthOf(FileKind.attachment, name);
+      if (length != null) {
+        if (length > attachmentSyncLimit) continue;
+        final held = await _heldRev(ctx, id);
+        if (held != null && held > 0) {
+          ctx.state.files[id] = FileMark(rev: held);
+        } else {
+          final bytes = await ctx.files.read(FileKind.attachment, name);
+          if (bytes != null) await sendFile(ctx, FileKind.attachment, name, bytes);
+        }
+        continue;
+      }
+      // Larger than travels, as the line that links it says: it stays where it was added, and nobody asks.
+      if ((bytesOfSize(match.group(3)) ?? 0) > attachmentSyncLimit) continue;
+      final asked = _unsent[id];
+      if (asked != null && now() - asked < askAgainMs) continue;
+      if (await fetchFile(ctx, FileKind.attachment, name)) {
+        _unsent.remove(id);
+      } else {
+        _unsent[id] = now();
+      }
+    }
+  }
+  if (!body.contains('](image/') && !body.contains('](file/')) return;
+  for (final key in readKeysIn(body)) {
+    final id = fileId(FileKind.text, key);
+    if (id == null || !seen.add(id)) continue;
+    if ((ctx.state.files[id]?.rev ?? 0) > 0) continue;
+    if (await ctx.files.lengthOf(FileKind.text, key) == null) continue;
+    final bytes = await ctx.files.read(FileKind.text, key);
+    if (bytes != null) await sendFile(ctx, FileKind.text, key, bytes);
+  }
 }
 
 // --- merging one note ------------------------------------------------------------------------------------------------

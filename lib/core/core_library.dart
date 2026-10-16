@@ -38,6 +38,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../perf/frame_log.dart';
+import 'attachment_refs.dart' show noteGoneForGood, tellNoteGone;
 import 'command_mutations.dart';
 import 'library.dart';
 import 'native/core.dart';
@@ -426,7 +427,17 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
 
   @override
   Future<void> destroy(String id) async {
+    var body = _listed.where((note) => note.id == id).firstOrNull?.body;
+    if (body == null && noteGoneForGood != null) {
+      try {
+        body = (await get(id))?.body;
+      } catch (_) {
+        // A note that will not be read leaves its files: the delete still happens.
+      }
+    }
     await _invoke('delete_note', {'id': id});
+    // The files it linked, where no other note does: the core has just done the same for its pictures.
+    tellNoteGone(id, body);
     _touch();
     _made.remove(id);
     _taken.remove(id);

@@ -179,6 +179,14 @@ dependencies {
     // Whether the app is in front when a write-up ends (recordings/WriteUp.kt, ProcessLifecycleOwner): the Tauri
     // app's own line and version.
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    // Documents in notes (Documents.kt): Google's document scanner, its screen delivered by Play services (the app
+    // holds no camera), and the words read in pictures and PDFs on the phone by ML Kit's Latin text recognition,
+    // its model delivered by Play services too and kept on the phone, so it reads with no connection once it is
+    // there and nothing leaves the phone. Not `com.google.mlkit:text-recognition`, which carries the model inside
+    // the app: measured on this app's arm64 build that is 12.4 MB more (an 11.1 MB native library and 1.3 MB of
+    // models, and 18.4 MB more again for the two ABIs the core does not run on), where this is a few hundred KB.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+    implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
     // The ported classes' own tests (app/src/test): SoundMix, WavSpool, the notification's counter and line.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

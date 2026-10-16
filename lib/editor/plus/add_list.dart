@@ -105,6 +105,8 @@ class AddConfig {
     this.onPicture,
     this.onPlace,
     this.onVideo,
+    this.onFile,
+    this.onScan,
     this.titles,
     this.canvases,
     this.own = '',
@@ -124,6 +126,10 @@ class AddConfig {
 
   /// A video, where this build adds films.
   final VoidCallback? onVideo;
+
+  /// A file: the screen opens the device's file picker. A scan: the screen opens the document scanner.
+  final VoidCallback? onFile;
+  final VoidCallback? onScan;
 
   /// Every note's title, for A note; absent where notes cannot be opened.
   final List<String> Function()? titles;
@@ -253,6 +259,8 @@ enum _Turn { forward, back }
 const Map<String, LucideIcon> _icons = <String, LucideIcon>{
   'picture': Lucide.imagePlus,
   'video': Lucide.film,
+  'file': Lucide.filePlus,
+  'scan': Lucide.scanText,
   'time': Lucide.clock,
   'table': Lucide.table,
   'note': Lucide.fileText,
@@ -403,6 +411,8 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
     _gates = readGates(
       picture: config.onPicture != null,
       video: config.onVideo != null,
+      file: config.onFile != null,
+      scan: config.onScan != null,
       place: config.onPlace != null,
       note: config.titles != null,
       canvas: config.canvases != null,
@@ -586,6 +596,10 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       config.onPicture?.call();
     } else if (row.id == 'video') {
       config.onVideo?.call();
+    } else if (row.id == 'file') {
+      config.onFile?.call();
+    } else if (row.id == 'scan') {
+      config.onScan?.call();
     } else if (row.id == 'place') {
       config.onPlace?.call();
     } else if (writeRow(view, row.id, now, effects: config.effects) && !view.hasFocus) {

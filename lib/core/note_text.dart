@@ -152,20 +152,39 @@ String _priorityWords(String body) {
   return fieldsIn(body).where((span) => span.kind == FieldKind.priority).map((span) => '${span.value} priority').join(' ');
 }
 
-/// What a search looks through for each note, by the note's id, for the body it was read from: its words as a
-/// search reads them, and which pairs of letters stand side by side anywhere in them ([_pairsOf]).
-final Map<String, ({String body, String text, List<int> pairs})> _searched = <String, ({String body, String text, List<int> pairs})>{};
+/// What a note is found by beyond its own words: the words read in the pictures and files it shows, kept by
+/// lib/files/read_text.dart, which sets [searchExtra] once it has them. [mark] moves whenever they may have
+/// changed; [of] is what a note's reading takes on for its body; [snippet] is the line a row shows for a word found
+/// only there, and where it was found ("in Lease.pdf, page 2").
+abstract interface class SearchExtra {
+  int get mark;
+  String of(String body);
+  ({String text, String where})? snippet(String body, List<String> needles);
+}
 
-({String body, String text, List<int> pairs}) _searchedOf(Note note) {
+/// The words beyond a note's own that a search reads ([SearchExtra]); none until something sets it.
+SearchExtra? searchExtra;
+
+/// What a search looks through for each note, by the note's id, for the body it was read from: its words as a
+/// search reads them, and which pairs of letters stand side by side anywhere in them ([_pairsOf]), with the
+/// [SearchExtra]'s mark and words it was read with.
+final Map<String, ({String body, String text, List<int> pairs, int mark, String extra})> _searched = <String, ({String body, String text, List<int> pairs, int mark, String extra})>{};
+
+({String body, String text, List<int> pairs, int mark, String extra}) _searchedOf(Note note) {
   final body = note.body;
+  final more = searchExtra;
+  final mark = more?.mark ?? 0;
   final had = _searched[note.id];
-  if (had != null) {
+  if (had != null && had.mark == mark) {
     if (identical(had.body, body)) return had;
-    if (had.body == body) return _searched[note.id] = (body: body, text: had.text, pairs: had.pairs);
+    if (had.body == body) return _searched[note.id] = (body: body, text: had.text, pairs: had.pairs, mark: mark, extra: had.extra);
   }
+  // The words read in its pictures and files, asked only when they may have moved: the same words keep the reading.
+  final extra = more == null ? '' : more.of(body);
+  if (had != null && had.body == body && had.extra == extra) return _searched[note.id] = (body: body, text: had.text, pairs: had.pairs, mark: mark, extra: had.extra);
   if (_searched.length >= 32768) _searched.clear();
-  final text = '${plainFills(body)} ${_priorityWords(body)}'.toLowerCase();
-  return _searched[note.id] = (body: body, text: text, pairs: _pairsOf(text));
+  final text = '${plainFills(body)} ${_priorityWords(body)}$extra'.toLowerCase();
+  return _searched[note.id] = (body: body, text: text, pairs: _pairsOf(text), mark: mark, extra: extra);
 }
 
 /// What a search reads of [note]: its words with a filled blank's hidden bracket taken out (blanks_syntax.dart:

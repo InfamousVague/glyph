@@ -44,7 +44,7 @@ Future<OpenedMail> openSealedMail(AccountCrypto crypto, EncryptionKey pair, {req
 
 /// What the mail step works with.
 class MailPassContext {
-  const MailPassContext({required this.token, required this.api, required this.crypto, required this.pair, required this.notes, required this.files, required this.now, this.keepOther = notKeptLine});
+  const MailPassContext({required this.token, required this.api, required this.crypto, required this.pair, required this.notes, required this.files, required this.now, this.keepOther = keepMailFile});
   final String token;
   final Api api;
   final AccountCrypto crypto;

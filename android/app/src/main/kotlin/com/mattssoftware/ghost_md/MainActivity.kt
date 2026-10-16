@@ -79,6 +79,9 @@ class MainActivity : FlutterActivity() {
     /** The phone's video picker, answered when its activity result arrives (Films.kt). */
     private val films = Films(this)
 
+    /** Any file chosen for a note, a document scanned, the words read in them, a PDF drawn (Documents.kt). */
+    private val documents = Documents(this)
+
     /** The players of a note's films, let go with the activity (FilmPlayer.kt). */
     private var film: FilmPlayer? = null
 
@@ -159,6 +162,8 @@ class MainActivity : FlutterActivity() {
         // lib/core/phone_films.dart), and played into a texture (FilmPlayer.kt).
         films.register(messenger)
         film = FilmPlayer(applicationContext, flutterEngine.renderer).also { it.register(messenger) }
+        // Files in notes, scans, the words read in them and a PDF's pages (Documents.kt; lib/files/phone_documents.dart).
+        documents.register(messenger)
         // Told when the activity leaves the front and comes back (lib/app/front_frames.dart).
         front = MethodChannel(messenger, "ghost_md/front")
         // A date's words in the phone's language, from its own ICU (Dates.kt; lib/core/phone_dates.dart).
@@ -224,6 +229,7 @@ class MainActivity : FlutterActivity() {
         tape?.release()
         clips?.release()
         film?.release()
+        documents.release()
         diagrams?.destroy()
         connection.release()
         battery.release()
@@ -246,6 +252,7 @@ class MainActivity : FlutterActivity() {
         if (files.onActivityResult(requestCode, resultCode, data)) return
         if (pictures.onActivityResult(requestCode, resultCode, data)) return
         if (films.onActivityResult(requestCode, resultCode, data)) return
+        if (documents.onActivityResult(requestCode, resultCode, data)) return
         meeting?.onActivityResult(requestCode, resultCode, data)
     }
 }

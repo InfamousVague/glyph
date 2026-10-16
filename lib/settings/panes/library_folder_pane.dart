@@ -6,6 +6,7 @@ import '../../art/art.dart';
 import '../../core/library_folder.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
+import 'files_pane.dart';
 import 'settings_host.dart';
 
 /// What Settings' search finds on Library folder (`findable`, src/app/settings/LibraryFolderPane.findable.ts), by its
@@ -13,6 +14,8 @@ import 'settings_host.dart';
 const List<SettingsFindable> libraryFolderFindable = [
   SettingsFindable('Where your notes are', 'library folder choose move obsidian vault icloud dropbox syncthing backup drive'),
   SettingsFindable('Good to know', 'sync google drive index pictures recordings'),
+  // Files and scans, a group of its own on this page (files_pane.dart).
+  ...filesFindable,
 ];
 
 /// Why the page cannot choose a folder here, when it cannot (`UNAVAILABLE`).
@@ -156,6 +159,7 @@ class _LibraryFolderPaneState extends State<LibraryFolderPane> {
         children: [
           _hero,
           SettingsEmpty(icon: const AppIcon(Lucide.folder, size: 22), title: why.$1, body: Text(why.$2)),
+          const FilesAndScans(),
         ],
       );
     }
@@ -238,6 +242,8 @@ class _LibraryFolderPaneState extends State<LibraryFolderPane> {
             ],
           ),
         if (moving) const SettingsCallout(icon: AppIcon(Lucide.folder, size: 18), child: Text('Moving your notes. Keep Ghost.md open.')),
+        // Files in notes, scans and the words read in them (files_pane.dart).
+        const FilesAndScans(),
         PaneSection(
           title: 'Good to know',
           children: [
