@@ -6,6 +6,7 @@ import android.appwidget.AppWidgetProvider
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -28,9 +29,12 @@ private const val MORE_DP = 20
  * How many of [count] rows of [rowDp] a widget of these options shows under its heading: all where they fit, else as
  * many as fit with the line under them that says how many more there are.
  */
-private fun rowsFor(options: Bundle?, rowDp: Int, count: Int, fallbackDp: Int = 160): Int {
-  // Upright, a widget is its minimum width by its maximum height; that is the height it has on a phone held as one.
-  val tall = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)?.takeIf { it > 0 } ?: fallbackDp
+private fun rowsFor(context: Context, options: Bundle?, rowDp: Int, count: Int, fallbackDp: Int = 160): Int {
+  // Upright, a widget is its minimum width by its maximum height; on its side, its maximum width by its minimum height
+  // (the Fold opened and turned).
+  val sideways = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+  val key = if (sideways) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT
+  val tall = options?.getInt(key)?.takeIf { it > 0 } ?: fallbackDp
   val room = tall - HEAD_DP
   if (count * rowDp <= room) return count
   return ((room - MORE_DP) / rowDp).coerceAtLeast(1)
@@ -110,7 +114,7 @@ class TodayWidget : AppWidgetProvider() {
       views.setTextViewText(R.id.ghost_list_count, if (todos.isEmpty()) "" else "${todos.size} to do")
       home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_list_head, it) }
       views.removeAllViews(R.id.ghost_list_rows)
-      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, todos.size)
+      val room = rowsFor(context, manager.getAppWidgetOptions(id), ROW_DP, todos.size)
       val shown = todos.take(room)
       for (todo in shown) views.addView(R.id.ghost_list_rows, row(context, todo, day))
       val left = todos.size - shown.size
@@ -179,7 +183,7 @@ class PinnedWidget : AppWidgetProvider() {
       views.setTextViewText(R.id.ghost_list_count, if (pinned.isEmpty()) "" else "${pinned.size}")
       home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_list_head, it) }
       views.removeAllViews(R.id.ghost_list_rows)
-      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, pinned.size)
+      val room = rowsFor(context, manager.getAppWidgetOptions(id), ROW_DP, pinned.size)
       val shown = pinned.take(room)
       for (note in shown) {
         val row = RemoteViews(context.packageName, R.layout.ghost_widget_pinned_row)

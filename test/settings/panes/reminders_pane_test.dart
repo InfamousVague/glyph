@@ -98,4 +98,9 @@ void main() {
     await open(tester, prefs: const Preferences(theme: 'dark'), size: const Size(430, 932));
     await shot(tester, '../../../../build/feature-shots/reminders/settings-reminders-dark');
   }, skip: !autoUpdateGoldenFiles);
+
+  testWidgets('a picture of it, dark, at the Fold’s inner size', (tester) async {
+    await open(tester, prefs: const Preferences(theme: 'dark'), size: const Size(900, 1000));
+    await shot(tester, '../../../../build/feature-shots/reminders/settings-reminders-fold-dark');
+  }, skip: !autoUpdateGoldenFiles);
 }
