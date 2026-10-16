@@ -6,10 +6,10 @@ import { imageNames } from '../tauri/src/app/core/imageRefs.ts';
 import type { Details, DetailsOf, SelfKind } from '../tauri/src/app/core/notifications/kinds.ts';
 import { noteTitle } from '../tauri/src/app/core/noteTitle.ts';
 import type { Note } from '../tauri/src/app/core/store.ts';
-import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
+import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, sealBytes, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
 import type { Bytes } from '../tauri/src/app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../tauri/src/app/core/sync/notes.ts';
-import { TeamNotes, type OrgName } from './team.ts';
+import { pictureId, TeamNotes, type OrgName } from './team.ts';
 
 /**
  * A Glyph account from outside the app: the sync service (docs/SYNC.md) as a client that signs in, reads the
@@ -401,6 +401,23 @@ export class GlyphAccount {
     const note: Note = { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
     const images = imageNames(body);
     return this.write({ rev: 0, note, ...(images.length ? { images } : {}) }, 0);
+  }
+
+  /**
+   * A picture's bytes kept where `record`'s readers fetch it from, sealed as a device seals one: the account's files
+   * for one of its own notes, the organization's for a team's. Done before the note names it, so no device reads a
+   * name with nothing behind it. One there already is left, as a name is never reused.
+   */
+  async putPicture(record: NoteRecord, name: string, plain: Bytes): Promise<void> {
+    if (record.org) return this.teams.putPicture(record.org.id, name, plain);
+    const id = pictureId(name);
+    if (!id) throw new GlyphApiError(400, `${name} is not a picture’s name.`);
+    try {
+      await this.bytes('PUT', `recordings/${id}?base=0`, await sealBytes(await this.accountKey(), plain, `file:${id}`));
+    } catch (failure) {
+      if (failure instanceof GlyphApiError && failure.status === 409) return;
+      throw failure;
+    }
   }
 
   /**

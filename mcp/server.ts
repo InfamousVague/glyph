@@ -14,7 +14,9 @@ import { noteTitle, withoutFrontMatter } from '../tauri/src/app/core/noteTitle.t
 import { isOrgWorkspace, orgIdOf, orgWorkspaceId } from '../tauri/src/app/core/orgs/types.ts';
 import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../tauri/src/app/core/properties.ts';
 import { titleKey } from '../tauri/src/app/core/titleKey.ts';
+import { imageMarkdown } from '../tauri/src/app/core/imageRefs.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
+import { downloadPicture, pictureName, placePicture, type PictureDownloader } from './pictures.ts';
 
 /**
  * The MCP server: Glyph's notes as tools for Claude (docs/MCP.md). Matt: "make an MCP plugin for Claude so I can use
@@ -494,7 +496,8 @@ export interface HostedHooks {
   client?: () => { name?: string; title?: string } | undefined;
 }
 
-export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options?: { instructions?: string }): McpServer {
+export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options?: { instructions?: string; download?: PictureDownloader }): McpServer {
+  const download = options?.download ?? downloadPicture;
   const server = new McpServer({ name: 'glyph', version: VERSION }, options?.instructions ? { instructions: options.instructions } : undefined);
   /**
    * This AI's name (core/authors.ts): the name it gave, else what its app called itself when it connected (Claude's
@@ -700,6 +703,41 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         });
         await account.postNotification('note-appended', { noteId: written.note.id, title: titled(written), by: by(author), lines: added.length, first: firstLine(added[0] ?? '') });
         return text({ added, note: summary(written, spaceOf(account, written, await settingsOf(account))) });
+      }),
+  );
+
+  server.registerTool(
+    'add_picture',
+    {
+      title: 'Add a picture to a note',
+      description:
+        'A picture from the web put into a note, as one added on the phone is: the JPEG, PNG or WebP at `url` (https, at most 15 MB) is fetched, kept with the note’s other pictures (an organization’s note: the team’s), and drawn on a line of its own under the line that reads `after`, or at the end. A picture’s address written into the words is never drawn; this is how a note gets one. Use a picture you may share, and say whose it is in the caption.',
+      inputSchema: {
+        id: z.string().optional().describe('The note’s id.'),
+        title: z.string().optional().describe('Or its title.'),
+        url: z.string().url().describe('The picture’s https address: the image file itself, not a page it is on.'),
+        caption: z.string().max(300).optional().describe('What the picture shows, and whose it is: its words for a screen reader and under it.'),
+        after: z.string().optional().describe('The exact words of the line to put it under, a heading such as `## The baby this month`. Left out, it goes at the end.'),
+        author: authorField,
+      },
+    },
+    async ({ id, title, url, caption, after, author }) =>
+      guarded(async () => {
+        await fresh();
+        const target = await find(account, id, title);
+        if (after !== undefined && after.trim() && placePicture(target.note.body, '', after) === null) return failed(`No line of “${titled(target)}” reads “${after.trim()}”.`);
+        const picture = await download(url);
+        const name = pictureName(picture.kind);
+        // The file first: a note naming a picture its readers cannot fetch draws a broken one on every device.
+        await account.putPicture(target, name, picture.bytes);
+        const line = imageMarkdown(name, (caption ?? '').replace(/[[\]\s]+/g, ' ').trim());
+        let before = '';
+        const written = await account.edit(target.note.id, (note) => {
+          before = note.body;
+          return { ...note, body: authored(placePicture(note.body, line, after) ?? placePicture(note.body, line)!, author) };
+        });
+        await account.postNotification('note-edited', { noteId: written.note.id, title: titled(written), by: by(author), ...lineDiff(before, written.note.body) });
+        return text({ picture: name, line, note: summary(written, spaceOf(account, written, await settingsOf(account))) });
       }),
   );
 

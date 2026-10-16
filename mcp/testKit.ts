@@ -13,6 +13,7 @@ import { fakeService, FAST, type FakeService } from '../tauri/src/test/fakeServi
 import { makeNote } from '../tauri/src/test/notes.ts';
 import { GlyphAccount, type Hooks } from './glyph.ts';
 import { buildServer, type HostedHooks } from './server.ts';
+import type { PictureDownloader } from './pictures.ts';
 
 /**
  * What the MCP server's tests share (glyph.test.ts, server.test.ts, hosted.test.ts, cli.test.ts and
@@ -51,16 +52,17 @@ export async function told(service: FakeService): Promise<{ id: string; kind: st
 /**
  * Matt's account on a fresh service in memory, signed in as the MCP client signs in, and Claude connected to the
  * server's tools. `hooks` reach the account (a fetcher that steps in, say); `hosted` makes it the hosted server;
- * `clientName` is what Claude's app calls itself when it connects (an empty one connects with no name to go on).
+ * `clientName` is what Claude's app calls itself when it connects (an empty one connects with no name to go on);
+ * `download` stands in for fetching a picture from the web (mcp/pictures.ts).
  */
-export async function connected({ hooks = {}, hosted, clientName = 'claude-ai' }: { hooks?: Omit<Hooks, 'fetcher'> & { fetcher?: (service: FakeService) => typeof fetch }; hosted?: HostedHooks; clientName?: string } = {}) {
+export async function connected({ hooks = {}, hosted, clientName = 'claude-ai', download }: { hooks?: Omit<Hooks, 'fetcher'> & { fetcher?: (service: FakeService) => typeof fetch }; hosted?: HostedHooks; clientName?: string; download?: PictureDownloader } = {}) {
   const service = await fakeService({ handle: 'matt', password: 'correct horse' });
   const session = await GlyphAccount.signIn(API, 'matt', 'correct horse', { rounds: FAST, fetcher: service.fetcher });
   const { fetcher, ...rest } = hooks;
   const account = new GlyphAccount(session, { ...rest, fetcher: fetcher ? fetcher(service) : service.fetcher });
   const client = new Client({ name: clientName, version: '0' });
   const [ours, theirs] = InMemoryTransport.createLinkedPair();
-  await Promise.all([buildServer(account, hosted).connect(theirs), client.connect(ours)]);
+  await Promise.all([buildServer(account, hosted, { download }).connect(theirs), client.connect(ours)]);
   /** A tool called, and what it said: its words, and whether it said them as a refusal. */
   const call = async (name: string, args: Record<string, unknown> = {}) => {
     const result = await client.callTool({ name, arguments: args });

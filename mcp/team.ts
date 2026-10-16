@@ -131,7 +131,7 @@ function particulars(note: Note): string {
 }
 
 /** A picture's id among the service's files (core/sync/notes.ts `fileId`). */
-function pictureId(name: string): string | null {
+export function pictureId(name: string): string | null {
   const match = /^([A-Za-z0-9_-]+)\.([A-Za-z]+)$/.exec(name);
   if (!match) return null;
   const id = `i-${match[2]!.toLowerCase()}-${match[1]!}`;
@@ -628,7 +628,10 @@ export class TeamNotes {
         entry.note = note;
         entry.state = doc.snapshot();
         entry.seq = seq;
-        if (cut || particulars(note) !== particulars(before)) entry.owed = true;
+        // A member's device fetches a note's pictures from its row (core/team/sync.ts), never from the log: a body
+        // that names a picture the row does not list is put again, or the picture is a name with nothing behind it.
+        const pictured = imageNames(words).join('\n') !== imageNames(before.body).join('\n');
+        if (cut || pictured || particulars(note) !== particulars(before)) entry.owed = true;
       } finally {
         await release(doc);
       }
@@ -686,6 +689,25 @@ export class TeamNotes {
       }
     }
     return { record: await this.place(held, note), left };
+  }
+
+  /**
+   * A picture's bytes kept for organization `orgId`, sealed under its key as a member's device seals one, before the
+   * note that names it is written: a member who reads the note fetches it then (core/team/sync.ts), and the team has
+   * no settling pass that would fetch it later. One there already is left, as a name is never reused.
+   */
+  async putPicture(orgId: string, name: string, plain: Bytes): Promise<void> {
+    const held = this.org(orgId);
+    const id = pictureId(name);
+    if (!id) throw new Error(`${name} is not a picture’s name.`);
+    await this.underKey(held, async () => {
+      try {
+        await this.service.bytes('PUT', this.route(held, `files/${id}?base=0&generation=${held.generation}`), await sealBytes(this.keyOf(held), plain, `file:${id}`));
+      } catch (failure) {
+        if (statusOf(failure) === 409 && !turned(failure)) return;
+        throw failure;
+      }
+    });
   }
 
   /** A note taken out of an organization: its row deleted, from the revision last read or the one that won. */
