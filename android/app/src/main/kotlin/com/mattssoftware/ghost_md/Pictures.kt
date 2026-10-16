@@ -127,8 +127,11 @@ class Pictures(private val activity: Activity) {
     return true
   }
 
-  /** Decodes `uri` at a sample size that keeps memory sane, rotates it per EXIF, caps the long side, writes a JPEG. */
-  private fun shrink(uri: Uri): File {
+  /**
+   * Decodes `uri` at a sample size that keeps memory sane, rotates it per EXIF, caps the long side, writes a JPEG.
+   * Also a picture shared into the app (ShareIn.kt), off the main thread.
+   */
+  internal fun shrink(uri: Uri): File {
     val resolver = activity.contentResolver
     val flat = flatten(MAX_PX) { resolver.openInputStream(uri) }
     val dir = File(activity.cacheDir, "picked").apply { mkdirs() }

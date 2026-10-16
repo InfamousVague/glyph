@@ -18,6 +18,7 @@ import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
 import 'panes/examples_pane.dart';
 import 'panes/export_pane.dart';
+import 'panes/import_pane.dart';
 import 'panes/notifications_pane.dart';
 import 'panes/organizations_pane.dart';
 import 'panes/plugins_pane.dart';
@@ -301,6 +302,22 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => _static(facts.ios ? 'Not on iPhone yet' : 'Everything as one zip', facts),
     settings: (facts) => exportFindable,
     pane: ExportPane.hosted,
+  ),
+  // Notes from another app, into a workspace of their own: a page behind Export's Import row, on Android and the Mac,
+  // which have a picker for a folder. The app's own: the web app has no such page, so its file is Export's.
+  SettingsSectionSpec(
+    id: 'import',
+    label: 'Import',
+    words: 'import obsidian vault evernote enex move from another app bring in',
+    glyph: SettingsGlyph.folderInput,
+    group: 1,
+    webFile: 'settings/ExportCard.tsx',
+    where: (facts) => !facts.ios,
+    summary: (facts) => _static('From Obsidian or Evernote', facts),
+    settings: (facts) => importFindable,
+    pane: ImportPane.hosted,
+    listed: false,
+    parent: 'export',
   ),
   SettingsSectionSpec(
     id: 'theme',

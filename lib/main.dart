@@ -50,6 +50,7 @@ import 'root/opening.dart';
 import 'root/iphone_wiring.dart';
 import 'root/plugin_ground.dart';
 import 'root/voice_wiring.dart';
+import 'share/share_in.dart' show PhoneShares;
 import 'shell/desktop/desktop_commands.dart';
 import 'shell/desktop/mac_tour.dart';
 import 'shell/desktop/mac_window.dart';
@@ -110,6 +111,8 @@ Future<void> main() async {
   if (updates != null) debugPrint('[ghost] this build looks for updates at ${updates.config.source}');
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
   final links = PhoneLinks();
+  // And one for what other apps share in, on the phone that has a share sheet (lib/share/share_in.dart).
+  final shares = defaultTargetPlatform == TargetPlatform.android ? PhoneShares() : null;
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
   // And one more for the voice memos left in a note, so a memo never takes the tape's playhead.
@@ -130,6 +133,7 @@ Future<void> main() async {
         voiceMaking: opened.voice,
         voiceLater: opened.voiceLater,
         links: links,
+        shares: shares,
         openLink: openLink,
         previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null,
         restart: restart,

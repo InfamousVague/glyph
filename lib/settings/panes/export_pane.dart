@@ -59,11 +59,19 @@ class _Failed extends _State {
 /// - **The seam.** The root hands Settings
 ///   `SettingsFeatures(export: ExportAll.overCore(invoke: core.invoke, startJob: core.startJob, events: core.events))`.
 class ExportPane extends StatefulWidget {
-  const ExportPane({super.key, this.export});
+  const ExportPane({super.key, this.export, this.onImport});
 
   final ExportAll? export;
 
-  static Widget hosted(BuildContext context) => ExportPane(export: SettingsHost.maybeOf(context)?.features.export);
+  /// Opens Settings › Import, the other way: notes brought in from Obsidian or Evernote. Null, no row.
+  final VoidCallback? onImport;
+
+  static Widget hosted(BuildContext context) {
+    final host = SettingsHost.maybeOf(context);
+    // Import is a page behind this one (lib/settings/panes/import_pane.dart), where a device can choose a folder.
+    final import = host == null || defaultTargetPlatform == TargetPlatform.iOS ? null : () => host.go('import');
+    return ExportPane(export: host?.features.export, onImport: import);
+  }
 
   /// What the row says under its name on a device, before the page knows more (`HINT`).
   static String hint(TargetPlatform platform) => switch (platform) {
@@ -157,6 +165,17 @@ class _ExportPaneState extends State<ExportPane> {
             ),
           ],
         ),
+        if (widget.onImport case final import?)
+          PaneSection(
+            children: [
+              SettingRow(
+                icon: const AppIcon(Lucide.folderInput, size: 20),
+                label: 'Import',
+                hint: const Text('Notes from an Obsidian vault or Evernote exports.'),
+                onPress: import,
+              ),
+            ],
+          ),
       ],
     );
   }
