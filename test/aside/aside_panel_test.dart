@@ -32,7 +32,7 @@ void main() {
 
   final card = find.byKey(const ValueKey('floating-card'));
 
-  Future<List<String>> show(WidgetTester tester, AsideContent? content, {bool popup = true, AsideHistoryBuilder? history, Stored? stored, String theme = 'dark', Size size = const Size(704, 933)}) async {
+  Future<List<String>> show(WidgetTester tester, AsideContent? content, {bool popup = true, AsideHistoryBuilder? history, AsideHistoryBuilder? links, AsideHistoryBuilder? outline, Stored? stored, String theme = 'dark', Size size = const Size(704, 933)}) async {
     final said = <String>[];
     final local = stored ?? MemoryStored();
     await pumpApp(
@@ -50,14 +50,14 @@ void main() {
               child: popup
                   ? Stack(
                       children: [
-                        AsideCard(content: content, history: history, stored: local, onOpen: (id) => said.add('open:$id'), onOpenTitle: (title) => said.add('title:$title'), onClose: () => said.add('close')),
+                        AsideCard(content: content, history: history, links: links, outline: outline, stored: local, onOpen: (id) => said.add('open:$id'), onOpenTitle: (title) => said.add('title:$title'), onClose: () => said.add('close')),
                       ],
                     )
                   : Align(
                       alignment: Alignment.centerRight,
                       child: SizedBox(
                         width: 240,
-                        child: AsidePanel(content: content, history: history, stored: local, onOpen: (id) => said.add('open:$id'), onOpenTitle: (title) => said.add('title:$title')),
+                        child: AsidePanel(content: content, history: history, links: links, outline: outline, stored: local, onOpen: (id) => said.add('open:$id'), onOpenTitle: (title) => said.add('title:$title')),
                       ),
                     ),
             );
@@ -216,6 +216,29 @@ void main() {
     expect(tester.getTopLeft(find.text('First')).dy, lessThan(tester.getTopLeft(find.text('Second')).dy));
     await tester.tap(find.text('First'));
     expect(said, ['close', 'open:c1']);
+    await away(tester);
+  });
+
+  testWidgets('a note\'s links and its outline are tabs of their own beside the index, the one chosen kept', (tester) async {
+    final local = MemoryStored();
+    Widget links(BuildContext context) => const Text('the links');
+    Widget outline(BuildContext context) => const Text('the headings');
+    await show(tester, asideContent(notes, notes[1]), links: links, outline: outline, stored: local, popup: false);
+    expect(find.text('Index'), findsOneWidget);
+    expect(find.text('Links'), findsOneWidget);
+    expect(find.text('Outline'), findsOneWidget);
+    await tester.tap(find.text('Outline'));
+    await tester.pump();
+    expect(find.text('the headings'), findsOneWidget);
+    expect(readAsideTab(local), AsideTab.outline);
+    showAsideTab(AsideTab.links, local);
+    await tester.pump();
+    expect(find.text('the links'), findsOneWidget);
+    await away(tester);
+    // A note in no book: the two alone, the one kept still chosen.
+    await show(tester, null, links: links, outline: outline, stored: local, popup: false);
+    expect(find.text('Index'), findsNothing);
+    expect(find.text('the links'), findsOneWidget);
     await away(tester);
   });
 }

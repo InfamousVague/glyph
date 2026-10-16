@@ -18,6 +18,7 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/gestures.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -489,8 +490,16 @@ class _GraphScreenState extends State<GraphScreen> {
     super.dispose();
   }
 
+  /// The index moved: drawn again, after the frame where it was told while the tree was being built.
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   LinkGraph get _now {

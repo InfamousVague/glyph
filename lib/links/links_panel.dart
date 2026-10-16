@@ -9,6 +9,7 @@
 /// it is drawn in the sheet's own rows; in the side panel ([LinksPanel.compact]), smaller.
 library;
 
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -74,8 +75,16 @@ class _LinksPanelState extends State<LinksPanel> {
     super.dispose();
   }
 
+  /// The index moved: drawn again, after the frame where it was told while the tree was being built.
   void _changed() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.persistentCallbacks) {
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+      return;
+    }
+    setState(() {});
   }
 
   NoteLinksRead get _now {
