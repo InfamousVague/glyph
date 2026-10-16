@@ -25,13 +25,14 @@ import '../share_in_keep.dart';
 typedef ShareTarget = ({String id, String title, String folded});
 
 /// The notes a share can go onto, as the sheet looks through them: every note but a canvas (whose words are its
-/// JSON) and those in the trash, by its title, the newest edit first.
+/// JSON), a journal (whose words are its index of entries) and those in the trash, by its title, the newest edit
+/// first.
 List<ShareTarget> shareTargets(Iterable<Note> notes, {bool Function(String id)? trashed}) {
   final out = <ShareTarget>[];
   for (final note in notes) {
     if (trashed?.call(note.id) ?? false) continue;
     final facts = NoteFacts.of(note);
-    if (facts.isCanvas) continue;
+    if (facts.isCanvas || facts.isJournal) continue;
     final title = facts.title.isEmpty ? 'Untitled' : facts.title;
     out.add((id: note.id, title: title, folded: title.toLowerCase()));
   }
@@ -57,7 +58,7 @@ String shareSaid(SharedIn share) {
 }
 
 class ShareInSheet extends StatefulWidget {
-  const ShareInSheet({super.key, required this.share, required this.keeper, required this.notes, required this.onDone, this.most = 8});
+  const ShareInSheet({super.key, required this.share, required this.keeper, required this.notes, required this.onDone, this.most = 5});
 
   final SharedIn share;
   final ShareKeeper keeper;

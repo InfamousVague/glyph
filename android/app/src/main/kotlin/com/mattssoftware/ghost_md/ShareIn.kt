@@ -100,7 +100,7 @@ class ShareIn(private val activity: Activity, private val pictures: Pictures) {
     }.start()
   }
 
-  /** The addresses a share carries: EXTRA_STREAM, one or a list, and its clip's, each once. */
+  /** The addresses a share carries: EXTRA_STREAM, one or a list, its clip's, and its data's, each once. */
   private fun streams(intent: Intent): List<Uri> {
     val found = LinkedHashSet<Uri>()
     if (intent.action == Intent.ACTION_SEND_MULTIPLE) {
@@ -112,6 +112,8 @@ class ShareIn(private val activity: Activity, private val pictures: Pictures) {
     }
     val clip = intent.clipData
     if (clip != null) for (i in 0 until clip.itemCount) clip.getItemAt(i).uri?.let { found.add(it) }
+    // A few apps put what they share in the intent's data instead, with its grant.
+    intent.data?.takeIf { it.scheme == "content" }?.let { found.add(it) }
     return found.take(MOST_ITEMS)
   }
 

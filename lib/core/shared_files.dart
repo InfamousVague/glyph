@@ -7,8 +7,9 @@
 /// says what it is anywhere Markdown is read.
 ///
 /// **One door, [storeSharedFile].** The app has no attachments of its own yet (they are being built on another
-/// branch); until they arrive this keeps the file under `<data>/files/<a fresh UUID>.<its extension>` and answers
-/// `file/<that name>`. Whoever brings attachments in points this one function at their store, and the share sheet
+/// branch); until they arrive this keeps the file under `<data>/attachments/<a fresh UUID>.<its extension>` and
+/// answers `file/<that name>`. Not `<data>/files/`: on Android that is the app's own `filesDir`, which Android's
+/// libraries write into. Whoever brings attachments in points this one function at their store, and the share sheet
 /// and both importers follow.
 ///
 /// What it does not do yet: sync does not carry these files (only pictures, recordings and versions files), and
@@ -21,7 +22,7 @@ import 'dart:typed_data';
 import 'ids.dart';
 
 /// The folder under the app's data folder that holds them, beside `images/` and `video/`.
-const String sharedFilesFolder = 'files';
+const String sharedFilesFolder = 'attachments';
 
 /// What a note's link to one starts with: `file/`.
 const String sharedFileRef = 'file/';
