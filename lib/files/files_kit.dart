@@ -83,6 +83,19 @@ class FilesKit implements sync_local.MediaFiles {
     attachmentKept = (kept) => pass.readSoon(ReadThing.file(kept.name));
   }
 
+  /// Takes the app's kit away again, and everything that found it: for a test.
+  @visibleForTesting
+  static void uninstall() {
+    current = null;
+    keptAttachments = null;
+    readTexts = null;
+    sync_local.mediaFiles = null;
+    note_text.searchExtra = null;
+    noteGoneForGood = null;
+    pictureAdopted = null;
+    attachmentKept = null;
+  }
+
   final String dataDir;
 
   /// Whether the document scanner opens here, once the device has said (Google Play services): false until then.
