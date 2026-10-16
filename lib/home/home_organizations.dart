@@ -16,6 +16,7 @@ import '../core/note.dart';
 import '../core/workspaces.dart';
 import 'home_icons.dart';
 import 'home_text.dart';
+import 'marks.dart' show OrgMark;
 
 /// Someone in an organization's notes now (`Presence`, the part the home page says).
 @immutable
@@ -107,8 +108,11 @@ class HomeHeading extends StatelessWidget {
   }
 }
 
-/// The organizations' cards (`src/app/home/HomeOrganizations.tsx`), for the [HomeOrg]s it is handed: the web reads
-/// them from the account and the live service, which are not ported.
+/// The organizations, under one heading, as a grid of small tiles two across: each its mark, its name, and how many
+/// notes and members it has; a tap opens it. The port's own since 2026-10-16 (Matt: "the organization cards at the top
+/// of the notes are a bit confusing and large, change it to just say organizations with the header and then simple
+/// 2x2 grids of a smaller version of the card"): the web's cards (`src/app/home/HomeOrganizations.tsx`) were as wide
+/// as the page and said who was in the app now, which the organization's own page still says.
 class HomeOrganizations extends StatelessWidget {
   const HomeOrganizations({super.key, required this.orgs, required this.notes, required this.filed, required this.onOpen});
 
@@ -119,11 +123,14 @@ class HomeOrganizations extends StatelessWidget {
   final Map<String, String> filed;
   final ValueChanged<String> onOpen;
 
+  /// Tiles in a row.
+  static const int columns = 2;
+
   @override
   Widget build(BuildContext context) {
     if (orgs.isEmpty) return const SizedBox.shrink();
     final t = context.tokens;
-    final gap = t.space(3);
+    final gap = t.space(2);
     return Padding(
       // `.section { margin-block-start: var(--glacier-space-3) }`.
       padding: EdgeInsets.only(top: t.space(3)),
@@ -131,143 +138,90 @@ class HomeOrganizations extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         mainAxisSize: MainAxisSize.min,
         children: [
-          HomeHeading(mark: HomeIcon(HomeGlyph.people, size: 15, color: t.color('app-ink-2')), words: 'Organizations', count: orgs.length),
+          HomeHeading(mark: HomeIcon(HomeGlyph.people, size: 15, color: t.color('app-ink-2')), words: 'Organizations'),
           SizedBox(height: t.space(2)),
-          LayoutBuilder(
-            builder: (context, box) {
-              // `grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr))`.
-              final track = box.maxWidth < t.lenOf('16rem') ? box.maxWidth : t.lenOf('16rem');
-              final columns = track <= 0 ? 1 : (((box.maxWidth + gap) / (track + gap)).floor()).clamp(1, 99);
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  for (var row = 0; row * columns < orgs.length; row += 1) ...[
-                    if (row > 0) SizedBox(height: gap),
-                    // A card fills its cell, so two in a row are one height even where a long name wraps in one.
-                    IntrinsicHeight(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          for (var column = 0; column < columns; column += 1) ...[
-                            if (column > 0) SizedBox(width: gap),
-                            Expanded(child: row * columns + column < orgs.length ? _OrgCard(org: orgs[row * columns + column], notes: notes, filed: filed, onOpen: onOpen) : const SizedBox.shrink()),
-                          ],
-                        ],
-                      ),
-                    ),
-                  ],
+          for (var row = 0; row * columns < orgs.length; row += 1) ...[
+            if (row > 0) SizedBox(height: gap),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (var column = 0; column < columns; column += 1) ...[
+                  if (column > 0) SizedBox(width: gap),
+                  Expanded(
+                    child: row * columns + column < orgs.length
+                        ? OrgTile(org: orgs[row * columns + column], notes: notes, filed: filed, onOpen: onOpen)
+                        : const SizedBox.shrink(),
+                  ),
                 ],
-              );
-            },
-          ),
+              ],
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _OrgCard extends StatelessWidget {
-  const _OrgCard({required this.org, required this.notes, required this.filed, required this.onOpen});
+/// One organization's tile: its mark on a wash of its hue, its name on one line, and "12 notes · 3 members" under it.
+class OrgTile extends StatelessWidget {
+  const OrgTile({super.key, required this.org, required this.notes, required this.filed, required this.onOpen});
 
   final HomeOrg org;
   final List<Note> notes;
   final Map<String, String> filed;
   final ValueChanged<String> onOpen;
 
-  /// One line for who is here: someone editing, by name, before a plain count.
-  String? get _here {
-    final handles = {for (final each in org.here) each.handle}.toList();
-    OrgPresence? editing;
-    for (final each in org.here) {
-      if (each.editingNote != null) {
-        editing = each;
-        break;
-      }
-    }
-    if (editing != null) {
-      final title = editing.editingTitle == null || editing.editingTitle!.isEmpty ? 'a note' : editing.editingTitle!;
-      return '${editing.handle} is editing $title${handles.length > 1 ? ', ${handles.length - 1} more here' : ''}';
-    }
-    if (handles.length == 1) return '${handles[0]} is here now';
-    if (handles.length > 1) return '${handles.length} here now';
-    return null;
-  }
-
   @override
   Widget build(BuildContext context) {
     final workspace = orgWorkspaceId(org.id);
     final count = notes.where((note) => filed[note.id] == workspace && note.archivedAt == null).length;
-    final here = _here;
-    final meta = '${org.members == 1 ? '1 member' : '${org.members} members'} · ${count == 1 ? '1 note' : '$count notes'}';
+    final meta = '${count == 1 ? '1 note' : '$count notes'} · ${org.members == 1 ? '1 member' : '${org.members} members'}';
     return GlacierScope(
       attrs: {'hue': org.hue ?? 'ink'},
       child: Builder(
         builder: (context) {
           final t = context.tokens;
-          final md = t.fontSize('md'), sm = t.fontSize('sm');
+          final md = t.fontSize('md'), sm = t.fontSize('sm'), xs = t.fontSize('xs');
           final space = t.color('app-space');
-          final rem = t.lenOf('1rem');
+          final markBox = 2 * sm;
           return GlacierPressable(
             onPressed: () => onOpen(org.id),
-            semanticLabel: '${org.name}, $meta, ${here ?? 'Nobody here now'}',
+            semanticLabel: '${org.name}, $meta',
             builder: (context, state) => GlacierFocusRing(
               visible: state.focused,
               offset: 3,
-              radius: t.radius('lg'),
+              radius: t.radius('md'),
               color: t.color('app-ink'),
               child: Container(
-                padding: EdgeInsets.all(t.space(4)),
+                padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2) + 2),
                 decoration: BoxDecoration(
                   // Mixed with nothing, not with the rule's grey: green mixed toward a grey came out brown.
-                  color: t.colorOf('color-mix(in oklch, var(--app-space) ${state.hovered ? 10 : 6}%, transparent)'),
-                  border: Border.all(color: t.colorOf('color-mix(in oklch, var(--app-space) 45%, transparent)'), width: t.len('glacier-hairline')),
-                  borderRadius: BorderRadius.circular(t.radius('lg')),
+                  color: t.colorOf('color-mix(in oklch, var(--app-space) ${state.hovered || state.pressed ? 10 : 5}%, transparent)'),
+                  border: Border.all(color: t.colorOf('color-mix(in oklch, var(--app-space) 35%, transparent)'), width: t.len('glacier-hairline')),
+                  borderRadius: BorderRadius.circular(t.radius('md')),
                 ),
                 child: ExcludeSemantics(
                   child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
-                        padding: EdgeInsets.only(top: 0.3 * 16),
-                        child: Container(width: 0.8 * rem, height: 0.8 * rem, decoration: BoxDecoration(color: space, shape: BoxShape.circle)),
+                      Container(
+                        width: markBox,
+                        height: markBox,
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: t.colorOf('color-mix(in oklch, var(--app-space) 16%, transparent)'),
+                          borderRadius: BorderRadius.circular(t.radius('sm')),
+                        ),
+                        child: OrgMark(em: sm, color: space),
                       ),
-                      SizedBox(width: t.space(3)),
+                      SizedBox(width: t.space(2) + 2),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            // `.name`, `.meta` and `.here` are lines of `line-height: normal`, rounded in the phone's
-                            // own pixels on the page: 51, 43 and 43 device pixels at 2.625, where the engine's whole
-                            // logical pixels (19, 16, 16) made the card 3 device pixels short and set each line of it
-                            // tighter (seen on the owner's phone beside Ghost.md, 2026-10-11).
-                            ExactLines.of(Text(org.name, style: pageText(t, md, weight: 'semibold', color: t.color('app-ink'))), normal: true, dpr: t.css.lineDpr),
-                            SizedBox(height: 0.2 * 16),
-                            ExactLines.of(Text(meta, style: pageText(t, sm, color: t.color('app-ink-3'))), normal: true, dpr: t.css.lineDpr),
-                            SizedBox(height: 0.2 * 16),
-                            // Always a line, said quietly when nobody is in.
-                            Row(
-                              children: [
-                                Container(
-                                  width: 0.5 * rem,
-                                  height: 0.5 * rem,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: here == null ? null : space,
-                                    border: here == null ? Border.all(color: t.color('app-ink-4'), width: 1.5) : null,
-                                  ),
-                                ),
-                                SizedBox(width: 0.45 * sm),
-                                Expanded(
-                                  child: ExactLines.of(
-                                    Text(here ?? 'Nobody here now', style: pageText(t, sm, weight: here == null ? 'regular' : 'medium', color: here == null ? t.color('app-ink-4') : space)),
-                                    normal: true,
-                                    dpr: t.css.lineDpr,
-                                  ),
-                                ),
-                              ],
-                            ),
+                            Text(org.name, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, md, weight: 'semibold', color: t.color('app-ink'))),
+                            const SizedBox(height: 1),
+                            Text(meta, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: tabular(pageText(t, xs, color: t.color('app-ink-3')))),
                           ],
                         ),
                       ),

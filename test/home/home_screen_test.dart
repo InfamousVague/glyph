@@ -892,17 +892,17 @@ void main() {
       HomeOrg(id: 'cabin', name: 'Cabin club', hue: 'moss', members: 1),
     ];
 
-    testWidgets('are a card each, saying who is in and what is filed, and open on a tap', (tester) async {
+    testWidgets('are a small tile each, saying how many notes and members, and open on a tap', (tester) async {
       final it = seeded();
       it.workspaces.ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
       it.workspaces.fileNote('weekend', 'org-acme');
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: orgs));
       await settle(tester);
-      expect(headings(tester).first, 'Organizations 2');
-      expect(find.text('3 members · 1 note'), findsOneWidget);
-      expect(find.text('ana is editing Weekend trip, 1 more here'), findsOneWidget);
-      expect(find.text('1 member · 0 notes'), findsOneWidget);
-      expect(find.text('Nobody here now'), findsOneWidget);
+      expect(headings(tester).first, 'Organizations');
+      expect(find.text('1 note · 3 members'), findsOneWidget);
+      expect(find.text('0 notes · 1 member'), findsOneWidget);
+      // Who is in now is the organization's own page's to say, not the home page's.
+      expect(find.textContaining('is editing'), findsNothing);
       await tester.tap(find.text('Cabin club'));
       expect(it.asked.said, ['organization cabin']);
       // Signed in, the filters' panel makes an organization beside a workspace.

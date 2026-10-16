@@ -326,37 +326,39 @@ void main() {
       await away(tester);
     });
 
-    // An organization's card, to the page's rectangles: Ghost.md's own stylesheet laid over this card's markup in
-    // its page on a phone at 2.625 (HomeOrganizations.module.css; measured 2026-10-11, device pixels from the
-    // card's top): the card 253.13 tall, its name a line of 51 from 49.67, "3 members · 60 notes" 43 from 109.06,
-    // "Nobody here now" 43 from 160.45. The port's lines were the engine's whole logical pixels (19, 16, 16): the
-    // card 3 short, and each line set tighter, which the owner's phone showed beside the page.
-    testWidgets('of an organization keeps the page’s three lines on a phone: 51, 43 and 43 device pixels in a card of 253', (tester) async {
+    // The organizations, two small tiles across (Matt, 2026-10-16): each its mark, its name on one line and its
+    // counts under it, the tiles one height and side by side, a third on the next row.
+    testWidgets('of organizations are small tiles two across, each a name and its notes and members', (tester) async {
       await pumpApp(
         tester,
         home: Align(
           alignment: Alignment.topLeft,
           child: SizedBox(
-            width: 1130.81 / 2.625,
-            child: HomeOrganizations(orgs: const [HomeOrg(id: 'hello', name: 'HelloTeam', members: 3)], notes: const [], filed: const {}, onOpen: (_) {}),
+            width: 400,
+            child: HomeOrganizations(
+              orgs: const [HomeOrg(id: 'hello', name: 'HelloTeam', members: 3), HomeOrg(id: 'ghost', name: 'Ghost.md', hue: 'moss', members: 5), HomeOrg(id: 'a-third', name: 'A third organization with a long name', members: 1)],
+              notes: const [],
+              filed: const {},
+              onOpen: (_) {},
+            ),
           ),
         ),
-        size: const Size(476, 752),
-        prefs: const AppPreferences(theme: 'dark', textSize: 'large'),
-        ratio: 2.625,
-        measuredAt: 2.625,
+        size: const Size(430, 932),
+        prefs: const AppPreferences(theme: 'dark'),
+        ratio: 3,
       );
       await settle(tester);
-      const ratio = 2.625;
-      final card = tester.getRect(find.ancestor(of: find.text('HelloTeam'), matching: find.byType(GlacierPressable)).first);
-      expect(card.height * ratio, closeTo(253.13, 0.1));
-      Rect line(String words) => tester.getRect(find.ancestor(of: find.text(words), matching: find.byType(ExactLines)).first);
-      expect((line('HelloTeam').top - card.top) * ratio, closeTo(49.67, 0.1));
-      expect(line('HelloTeam').height * ratio, closeTo(51, 0.01));
-      expect((line('3 members · 0 notes').top - card.top) * ratio, closeTo(109.06, 0.1));
-      expect(line('3 members · 0 notes').height * ratio, closeTo(43, 0.01));
-      expect((line('Nobody here now').top - card.top) * ratio, closeTo(160.45, 0.1));
-      expect(line('Nobody here now').height * ratio, closeTo(43, 0.01));
+      expect(tester.takeException(), isNull);
+      Rect tile(String name) => tester.getRect(find.ancestor(of: find.text(name), matching: find.byType(OrgTile)).first);
+      expect(tile('HelloTeam').top, tile('Ghost.md').top);
+      expect(tile('HelloTeam').height, tile('Ghost.md').height);
+      expect(tile('Ghost.md').left, greaterThan(tile('HelloTeam').right));
+      expect(tile('A third organization with a long name').top, greaterThan(tile('HelloTeam').bottom));
+      expect(tile('A third organization with a long name').width, closeTo(tile('HelloTeam').width, 0.01));
+      expect(tile('HelloTeam').height, lessThan(64));
+      expect(find.text('0 notes · 3 members'), findsOneWidget);
+      expect(find.text('0 notes · 1 member'), findsOneWidget);
+      expect(find.textContaining('here now'), findsNothing);
       await away(tester);
     });
 
