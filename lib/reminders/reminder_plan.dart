@@ -76,14 +76,15 @@ class Reminder {
 }
 
 /// FNV-1a over the text's UTF-16 units, 64 bits as 16 hex digits: the same in every run, as `hashCode` is not
-/// promised to be.
+/// promised to be. The two halves are written apart, since a 64-bit int with its top bit set is negative here.
 String stableId(String text) {
   var hash = 0xcbf29ce484222325;
   for (final unit in text.codeUnits) {
     hash ^= unit;
-    hash = (hash * 0x100000001b3) & 0xFFFFFFFFFFFFFFFF;
+    hash *= 0x100000001b3;
   }
-  return hash.toUnsigned(64).toRadixString(16).padLeft(16, '0');
+  String half(int bits) => (bits & 0xFFFFFFFF).toRadixString(16).padLeft(8, '0');
+  return '${half(hash >> 32)}${half(hash)}';
 }
 
 /// The reminders one note asks for, at any time, in the order its items are written.

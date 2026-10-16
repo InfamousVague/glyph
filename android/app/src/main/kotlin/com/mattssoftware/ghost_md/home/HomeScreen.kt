@@ -29,14 +29,15 @@ import java.util.Locale
  *   The app hands one over only when it is another than the last (lib/home_screen/home_screen_data.dart).
  *
  * The Today widget is handed the open to-dos due up to a week ahead and draws those due today and before, so its
- * day turns at midnight with nothing asked of the app: an alarm at the next midnight draws it again (inexact, and not
- * waking the phone: a widget nobody is looking at can wait for the screen to come on).
+ * day turns at midnight with nothing asked of the app: an alarm at the next midnight draws it again (within ten minutes
+ * of it, and not waking the phone: a widget nobody is looking at can wait for the screen to come on).
  */
 object HomeScreen {
   const val CHANNEL = "ghost_md/home_screen"
   private const val TAG = "GhostHomeScreen"
   private const val PREFS = "ghost_home_screen"
   const val ACTION_MIDNIGHT = "com.mattssoftware.ghost_md.home.MIDNIGHT"
+  private const val MIDNIGHT_WINDOW_MS = 10L * 60 * 1000
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
@@ -149,7 +150,8 @@ object HomeScreen {
       set(Calendar.SECOND, 30)
       set(Calendar.MILLISECOND, 0)
     }
-    manager.set(AlarmManager.RTC, next.timeInMillis, midnight(context))
+    // Within ten minutes of midnight, never waking the phone for it: `set` alone may be an hour late.
+    manager.setWindow(AlarmManager.RTC, next.timeInMillis, MIDNIGHT_WINDOW_MS, midnight(context))
   }
 
   fun disarmMidnight(context: Context) {

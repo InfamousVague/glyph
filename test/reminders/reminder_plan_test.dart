@@ -111,6 +111,14 @@ void main() {
     });
   });
 
+  test('an id is sixteen hex digits, the same for the same words', () {
+    for (final words in ['', 'a', 'Call the plumber', 'n_12\u00002026-10-03 09:00\u0000due']) {
+      expect(stableId(words), matches(RegExp(r'^[0-9a-f]{16}$')));
+      expect(stableId(words), stableId(words));
+    }
+    expect(stableId('a'), isNot(stableId('b')));
+  });
+
   test('a note’s dated items are read once for the note object', () {
     final a = note('a', '- [ ] Call 📅 2026-10-03');
     expect(identical(DatedItems.of(a), DatedItems.of(a)), isTrue);
