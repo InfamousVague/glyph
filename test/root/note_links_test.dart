@@ -191,6 +191,20 @@ void main() {
     await close(tester);
   });
 
+  testWidgets('the sidebar has the graph at its foot, beside Settings', (tester) async {
+    await open(tester);
+    await tester.tap(find.bySemanticsLabel('All your notes'));
+    await settle(tester, 6);
+    expect(find.bySemanticsLabel('Graph of your notes'), findsOneWidget);
+    await picture(tester, 'sidebar-graph-phone');
+    await tester.tap(find.bySemanticsLabel('Graph of your notes'));
+    await settle(tester, 6);
+    expect(find.byType(GraphScreen), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Close the graph'));
+    await settle(tester, 4);
+    await close(tester);
+  });
+
   for (final (name, size) in const [('phone', Size(430, 932)), ('fold', Size(900, 1000))]) {
     testWidgets('the graph of the notes from the palette, and a note\'s local graph, $name', (tester) async {
       await open(tester, size: size);

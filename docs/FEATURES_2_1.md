@@ -30,7 +30,7 @@ Branch `feat/links`. Everything is in the Flutter app; the Tauri app and its gui
   the book's Index and the desktop's History (`lib/aside/aside_panel.dart`, `AsideTab.links`, `AsideTab.outline`),
   so the side panel's toggle is now in the bar on every note of words there.
 - **The graph** (`lib/links/graph_layout.dart`, `lib/links/graph_view.dart`): "Graph of your notes" in the command
-  palette and as a ring in the sidebar's tools (Lucide `network`); a note's local graph from the More sheet's Local
+  palette and in the sidebar's foot beside Settings (Lucide `network`); a note's local graph from the More sheet's Local
   graph and the palette's "Local graph of this note", one or two links out. A page of its own over the app (pushed
   on the root navigator, as Developer's benches are). Force-directed (Barnes and Hut), laid out in a worker isolate
   past 160 notes (a thousand notes and 3,271 links in about 300 ms on the Mac), the same layout each time; then the

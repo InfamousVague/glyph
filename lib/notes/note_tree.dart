@@ -597,7 +597,6 @@ class _NoteTreeState extends State<NoteTree> {
                     if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
                     _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
                     if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
-                    if (widget.onGraph != null) _Tool(label: 'Graph of your notes', icon: Lucide.network, onPressed: widget.onGraph!),
                     if (every.isNotEmpty)
                       _Tool(
                         label: allShut ? 'Open every folder' : 'Fold every folder',
@@ -619,7 +618,7 @@ class _NoteTreeState extends State<NoteTree> {
                 padding: EdgeInsets.all(t.space(3)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, spacing: t.space(2), children: widget.notices),
               ),
-            if (widget.onSpeak != null || widget.onSettings != null)
+            if (widget.onSpeak != null || widget.onSettings != null || widget.onGraph != null)
               DecoratedBox(
                 key: const ValueKey('tree-foot'),
                 // `.foot { border-block-start: var(--glacier-hairline) solid var(--app-rule) }`
@@ -631,7 +630,10 @@ class _NoteTreeState extends State<NoteTree> {
                     spacing: t.space(2),
                     children: [
                       if (widget.onSpeak != null) _Speak(onPressed: widget.onSpeak!),
-                      if (widget.onSettings != null) ...[const Spacer(), _Tool(label: 'Settings', icon: Lucide.settings, onPressed: widget.onSettings!)],
+                      // The graph of the notes, beside Settings at the foot: the tools over the notes are full on a phone.
+                      if (widget.onGraph != null || widget.onSettings != null) const Spacer(),
+                      if (widget.onGraph != null) _Tool(label: 'Graph of your notes', icon: Lucide.network, onPressed: widget.onGraph!),
+                      if (widget.onSettings != null) _Tool(label: 'Settings', icon: Lucide.settings, onPressed: widget.onSettings!),
                     ],
                   ),
                 ),
