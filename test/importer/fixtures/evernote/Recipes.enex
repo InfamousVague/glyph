@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE en-export SYSTEM "http://xml.evernote.com/pub/evernote-export4.dtd">
+<en-export export-date="20261015T090000Z" application="Evernote" version="10.105.4">
+<note><title>Pancakes &amp; more</title><created>20240102T030405Z</created><updated>20250607T080910Z</updated><tag>Breakfast</tag><tag>Quick meals</tag><tag>2024</tag><note-attributes><author>Matt</author><source-url>https://example.com/clip</source-url></note-attributes><content><![CDATA[<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd">
+<en-note><h1>Pancakes</h1><div>Makes <b>eight</b>, <i>thin</i> and <span style="font-weight: bold;">golden</span>, <s>never</s> <u>burnt</u>.</div><div><br/></div><div>Weigh &amp; mix: 2 * 100&nbsp;g flour</div><div>Line one<br/>Line two</div>
+<h2>Shopping</h2>
+<div><en-todo checked="true"/>Eggs</div><div><en-todo checked="false"/>Milk</div>
+<ul style="--en-todo:true;"><li style="--en-checked:true;"><div>Butter</div></li><li><div>Lemons</div></li></ul>
+<ol><li>Mix</li><li>Rest<ul><li>ten minutes</li><li>covered</li></ul></li><li>Fry</li></ol>
+<table><tr><th>Item</th><th>Grams</th></tr><tr><td>Flour</td><td>200</td></tr><tr><td>Sugar | fine</td><td>20</td></tr></table>
+<blockquote><div>Rest the batter.</div></blockquote><hr/>
+<div style="-en-codeblock:true;"><div>let x = 1;</div><div>  if (x &lt; 2) x++;</div></div>
+<div>Run <code>make pancakes</code> then see <a href="https://example.com/pancakes">the recipe</a> and <a href="evernote:///view/123/s1/abc/abc/">Waffles</a>.</div>
+<div><en-media hash="ade5fa03012510609ea98dacee25f088" type="image/png"/></div>
+<div>The menu: <en-media hash="8bac999301416b28816eee0f1d90b0f5" type="application/pdf"/></div>
+<div><en-media hash="00000000000000000000000000000000" type="image/png"/></div>
+<en-crypt hint="pin">c2VjcmV0</en-crypt>
+<div>Ünïcödé — 日本語 🥞 مرحبا</div>
+<div># not a heading and 1. not a list</div>
+</en-note>]]></content><resource><data encoding="base64">
+iVBORw0KGgoAAAANSUhEUgAAAAMAAAADCAIAAADZSiLoAAAAEElEQVR4nGPgEjkBQQxYWAByuggX
+x+PLBAAAAABJRU5ErkJggg==
+</data><mime>image/png</mime><width>3</width><height>3</height><resource-attributes><file-name>pan.png</file-name></resource-attributes></resource><resource><data encoding="base64">
+JVBERi0xLjQKJSBldmVybm90ZSBhdHRhY2htZW50CiUlRU9GCg==
+</data><mime>application/pdf</mime><width>3</width><height>3</height><resource-attributes><file-name>Menu.pdf</file-name></resource-attributes></resource><resource><data encoding="base64">
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGPg5OQEAAA6ABztCJuO
+AAAAAElFTkSuQmCC
+</data><mime>image/png</mime><width>3</width><height>3</height></resource></note>
+<note><title></title><created>20240101T000000Z</created><content><![CDATA[<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE en-note SYSTEM "http://xml.evernote.com/pub/enml2.dtd"><en-note><div>A note with no title.</div></en-note>]]></content></note>
+<note><title>Pancakes &amp; more</title><created>20240103T000000Z</created><content><![CDATA[<en-note><div>Same title, a second note.</div></en-note>]]></content></note>
+</en-export>

@@ -380,6 +380,29 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     onFiled?.call([noteId], to);
   }
 
+  /// Files several notes in one workspace, or in none with null, as one change: an import's notes, filed as they
+  /// are made, a batch at a time ([fileNote] once per note writes the whole sheet each time).
+  void fileNotes(List<String> noteIds, String? id) {
+    final sheet = _current;
+    if (id != null && !sheet.list.any((w) => w.id == id)) return;
+    final moved = [for (final noteId in noteIds) if (sheet.notes[noteId] != id) noteId];
+    if (moved.isEmpty) return;
+    final next = {...sheet.notes};
+    for (final noteId in moved) {
+      if (id == null) {
+        next.remove(noteId);
+      } else {
+        next[noteId] = id;
+      }
+    }
+    _write(WorkspaceSheet(list: sheet.list, notes: next, current: sheet.current));
+    Workspace? to;
+    for (final w in sheet.list) {
+      if (w.id == id) to = w;
+    }
+    onFiled?.call(moved, to);
+  }
+
   /// A note just made: filed in the chosen workspace, if there is one and the note is not filed yet.
   void fileNewNote(String noteId) {
     final sheet = _current;

@@ -1,0 +1,50 @@
+{
+	"nodes": [
+		{
+			"id": "t1",
+			"type": "text",
+			"text": "# Board\nThe plan",
+			"x": 0,
+			"y": 0,
+			"width": 250,
+			"height": 120
+		},
+		{
+			"id": "f1",
+			"type": "file",
+			"file": "Projects/Alpha.md",
+			"x": 300,
+			"y": 0,
+			"width": 250,
+			"height": 120
+		},
+		{
+			"id": "p1",
+			"type": "file",
+			"file": "attachments/photo.png",
+			"x": 0,
+			"y": 200,
+			"width": 250,
+			"height": 200
+		},
+		{
+			"id": "g1",
+			"type": "group",
+			"label": "Ideas",
+			"x": -20,
+			"y": -20,
+			"width": 600,
+			"height": 460,
+			"color": "4"
+		}
+	],
+	"edges": [
+		{
+			"id": "e1",
+			"fromNode": "t1",
+			"fromSide": "right",
+			"toNode": "f1",
+			"toSide": "left"
+		}
+	]
+}

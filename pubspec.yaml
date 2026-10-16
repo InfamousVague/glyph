@@ -17,6 +17,11 @@ dependencies:
   glacier:
     path: packages/glacier
   shared_preferences: ^2.5.6
+  # Settings › Import (lib/importer): an Evernote export read as it streams, and each note's ENML as a document
+  # (xml, already here under flutter_svg); a resource matched to its <en-media> by its MD5, as ENML names it
+  # (crypto). Both pure Dart, from the Dart team and the xml package's author.
+  xml: ^7.0.1
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:

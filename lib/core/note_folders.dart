@@ -82,6 +82,9 @@ class NoteFolders {
       final note = await library.get(noteId);
       final from = note?.path;
       if (note == null || from == null || from.isEmpty) return;
+      // Already under that folder, at any depth, stays where it is: an import keeps a vault's own folders inside
+      // its workspace's (lib/importer/import_paths.dart), and filing its notes must not flatten them.
+      if (from.startsWith('$folder/')) return;
       final path = '$folder/${_fileName(from)}';
       if (path == from) return;
       await library.apply(note.copyWith(path: () => path));
