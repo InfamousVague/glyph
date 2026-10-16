@@ -271,7 +271,9 @@ Map<String, String> _readAll(String images) {
       end += 1;
     }
     final runs = end < words.length && words[end] != '\n' && words[end] != pageBreak;
-    final cut = words.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim();
+    var cut = words.substring(start, end).replaceAll(RegExp(r'\s+'), ' ').trim();
+    // A line's own full stop before "in Lease.pdf" reads as two sentences: it goes.
+    if (!runs) cut = cut.replaceFirst(_closingStop, '');
     if (cut.isEmpty) continue;
     final label = _labelOf(body, thing);
     final paged = !thing.picture && attachmentKindOf(thing.name) == AttachmentKind.pdf && pageBreak.allMatches(words).isNotEmpty;
@@ -279,6 +281,8 @@ Map<String, String> _readAll(String images) {
   }
   return null;
 }
+
+final RegExp _closingStop = RegExp(r'[.,;:]+$');
 
 /// What a person calls the thing: a file's own name, a picture's caption, or "a picture".
 String _labelOf(String body, ReadThing thing) {

@@ -72,6 +72,8 @@ void main() {
     expect(snippet.text, 'Rent is due monthly on the first in Lease 2026.pdf, page 2');
     expect(snippet.marks.map((m) => snippet.text.substring(m.$1, m.$2)), ['Rent', 'monthly']);
     expect(findNotes([dinner], 'total').single.snippet!.text, 'TOTAL 42.10 in a picture');
+    await texts.keep(const ReadThing.file(lease), textOfPages(['Lease', 'The deposit is returned within thirty days.']));
+    expect(findNotes([flat], 'thirty').single.snippet!.text, 'The deposit is returned within thirty days in Lease 2026.pdf, page 2');
 
     // Its words gone with the file: the note is not found by them any more.
     await texts.forget(const ReadThing.file(lease));
