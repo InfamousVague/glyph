@@ -26,6 +26,7 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import '../core/attachment_refs.dart' show noteGoneForGood, tellNoteGone;
 import '../core/native/core.dart';
 import '../core/note.dart';
 import '../core/note_json.dart';
@@ -52,10 +53,13 @@ class LibraryNotes implements LocalNotes {
     return stored;
   }
 
-  /// `deleteNote`: for good. One already gone is not an error.
+  /// `deleteNote`: for good. One already gone is not an error. The files it linked go where no other note links
+  /// them, as the core takes its pictures.
   @override
   Future<void> remove(String id) async {
+    final body = noteGoneForGood == null ? null : (await get(id))?.body;
     await _invoke('delete_note', {'id': id});
+    tellNoteGone(id, body);
   }
 }
 
@@ -128,6 +132,9 @@ class KeptFiles implements LocalFiles {
     if (_media(kind)) return _files?.lengthOf(kind, name);
     return (await read(kind, name))?.length;
   }
+
+  @override
+  bool get keepsMedia => _files != null;
 
   @override
   List<String> owed() {

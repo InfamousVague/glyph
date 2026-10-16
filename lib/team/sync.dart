@@ -534,6 +534,8 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     await sendAttachment(files, name);
   }
   final texts = await sendTextsOf(files, note.body);
+  // Owed for its words read since it last went (KeptFiles.owed): going now.
+  ctx.files.settled(note.id);
   final covered = (await doc.pending()).length;
   // The note whole, as its file has it: the list's has no phrases and no formatted version.
   final whole = await ctx.notes.get(note.id) ?? note;

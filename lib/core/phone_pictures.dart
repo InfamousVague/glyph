@@ -38,11 +38,16 @@ Future<Uint8List?> phoneJpegShrink(Uint8List bytes, {required int longSide, requ
   }
 }
 
+/// Told the name of each picture put into a note from the device (picked or pasted), once it is kept: the words in
+/// it are read soon after (lib/files/files_kit.dart sets it). None where nothing reads them.
+void Function(String name)? pictureAdopted;
+
 /// Moves a picture the phone put in its cache among the library's pictures, and answers its name
 /// (`adoptImagePath`).
 PictureAdopter corePictureAdopter(CoreFiles files, {String Function()? name}) => (path) async {
       final named = '${name?.call() ?? randomId('img')}.jpg';
       await files.adopt(CoreFileKind.image, named, path);
+      pictureAdopted?.call(named);
       return named;
     };
 

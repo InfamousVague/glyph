@@ -97,6 +97,10 @@ class DeviceFiles implements LocalFiles {
   /// How many times a file a note links was read whole.
   int attachmentReads = 0;
 
+  /// Whether this device keeps notes' files: a test of a device that does not turns it off.
+  @override
+  bool keepsMedia = true;
+
   @override
   Future<int?> lengthOf(FileKind kind, String name) async {
     if (kind == FileKind.versions) return versions[name]?.length;

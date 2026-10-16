@@ -173,6 +173,11 @@ dependencies {
     // Whether the app is in front when a write-up ends (recordings/WriteUp.kt, ProcessLifecycleOwner): the Tauri
     // app's own line and version.
     implementation("androidx.lifecycle:lifecycle-process:2.10.0")
+    // Documents in notes (Documents.kt): Google's document scanner, its screen delivered by Play services (the app
+    // holds no camera), and the words read in pictures and PDFs on the phone, the Latin model inside the app so it
+    // reads with no connection and nothing leaves the phone.
+    implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
+    implementation("com.google.mlkit:text-recognition:16.0.1")
     // The ported classes' own tests (app/src/test): SoundMix, WavSpool, the notification's counter and line.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

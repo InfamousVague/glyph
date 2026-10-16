@@ -40,6 +40,7 @@ import 'core/stored.dart';
 import 'core/stored_device.dart';
 import 'core/updates.dart';
 import 'diag/error_log.dart';
+import 'files/files_kit.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
 import 'perf/frame_log.dart';
@@ -230,6 +231,8 @@ Future<_Opened> _opened() async {
     await native.init(dataDir: dirs.dataDir, cacheDir: dirs.cacheDir);
     core = native.invoke;
     whole = native;
+    // Files in notes, scans and the words read in them (lib/files/files_kit.dart): not on an iPhone yet.
+    if (defaultTargetPlatform != TargetPlatform.iOS) FilesKit.start(dataDir: dirs.dataDir, invoke: native.invoke);
     PerfLaunch.step('core');
     // A measured build's library is brought up to a real one's size before the app reads it (lib/perf/perf_seed.dart).
     if (ghostPerf && ghostPerfSeed > 0) {

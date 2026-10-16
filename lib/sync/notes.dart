@@ -100,6 +100,10 @@ abstract interface class LocalFiles {
   /// note links is read, so one past [attachmentSyncLimit] is never read into the app to be refused.
   Future<int?> lengthOf(FileKind kind, String name);
 
+  /// Whether this device keeps the files notes link and the words read in them at all: where it does not (an
+  /// iPhone, for now), they are neither fetched nor sent.
+  bool get keepsMedia;
+
   /// The notes whose versions file changed here since it was last sent (core/versions/store.ts `unsentVersions`).
   List<String> owed();
 
@@ -755,6 +759,7 @@ Future<void> _fetchFilesOf(SyncContext ctx, NotePayload payload) async {
 /// payload names beside its pictures. A file still on its way, or one that stays on the device it was added on,
 /// is not in the account yet (a 404), and is asked for again by the settling.
 Future<void> fetchFilesNamed(SyncContext ctx, List<String> files, List<String> texts) async {
+  if (!ctx.files.keepsMedia) return;
   for (final name in files) {
     final id = fileId(FileKind.attachment, name);
     if (id == null || ctx.state.files.containsKey(id)) continue;
@@ -825,6 +830,7 @@ Future<void> settlePictures(SyncContext ctx) async {
 /// device lacks is fetched, and one its line says is larger is not asked for. Then the words read in its things
 /// that this device holds and the account lacks are sent; the others fetch them by the note that names them.
 Future<void> _settleAttachmentsOf(SyncContext ctx, String body, Set<String> seen, int Function() now) async {
+  if (!ctx.files.keepsMedia) return;
   if (body.contains('](file/')) {
     for (final match in attachmentRef.allMatches(body)) {
       final name = match.group(2)!;

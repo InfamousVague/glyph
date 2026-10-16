@@ -19,6 +19,8 @@
 ///   at all ([attachmentSyncLimit]). A link without one is read the same, its size unknown.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 
 import 'backup.dart' show sizeSaid;
@@ -189,4 +191,16 @@ String attachmentMimeOf(String name) {
     'mov' => 'video/quicktime',
     _ => 'application/octet-stream',
   };
+}
+
+/// Told of a note deleted for good, with its words as they were, so the files it linked go where no other note
+/// links them (lib/files/files_kit.dart sets it): the core does this itself for a note's pictures and films. None
+/// until the app keeps files.
+Future<void> Function(String id, String body)? noteGoneForGood;
+
+/// Tells [noteGoneForGood], where it is set and the words linked a file; never throws.
+void tellNoteGone(String id, String? body) {
+  final told = noteGoneForGood;
+  if (told == null || body == null || !body.contains('](file/')) return;
+  unawaited(told(id, body).catchError((Object _) {}));
 }

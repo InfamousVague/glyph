@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  What the attachments' FileProvider may hand out (Documents.kt `openWith`, `share`): the copies made under their
+  real names in <cacheDir>/open for another app to open or share, and nothing else of the app's.
+-->
+<paths>
+    <cache-path name="open" path="open/" />
+</paths>

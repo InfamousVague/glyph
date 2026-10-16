@@ -38,6 +38,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
 import '../perf/frame_log.dart';
+import 'attachment_refs.dart' show tellNoteGone;
 import 'command_mutations.dart';
 import 'library.dart';
 import 'native/core.dart';
@@ -426,7 +427,10 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
 
   @override
   Future<void> destroy(String id) async {
+    final body = _listed.where((note) => note.id == id).firstOrNull?.body;
     await _invoke('delete_note', {'id': id});
+    // The files it linked, where no other note does: the core has just done the same for its pictures.
+    tellNoteGone(id, body);
     _touch();
     _made.remove(id);
     _taken.remove(id);
