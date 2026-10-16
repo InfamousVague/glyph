@@ -144,11 +144,11 @@ final RegExp _pictureName = RegExp(r'^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$');
 /// share's words as JSON (with each picture's name and size where the pictures were), and then the pictures' bytes
 /// one after another. Pictures sealed as base64 inside the JSON would be encoded twice over, since the sealed share
 /// goes to the server as base64 again, and the server's limit is on that text. A share with no pictures is its JSON
-/// alone, as it always was.
-Future<String> sealShare(AccountCrypto crypto, Shared shared, String key) async {
+/// alone, as it always was. A published site is sealed the same way in its own [context] (lib/share/sites.dart).
+Future<String> sealShare(AccountCrypto crypto, Shared shared, String key, {String context = shareContext}) async {
   final pictures = shared.pictures ?? const <String, Uint8List>{};
   final sealKey = await _keyOf(crypto, key);
-  if (pictures.isEmpty) return toBase64Url(await crypto.sealBytes(sealKey, utf8.encode(jsonEncode(shared.toJson())), shareContext));
+  if (pictures.isEmpty) return toBase64Url(await crypto.sealBytes(sealKey, utf8.encode(jsonEncode(shared.toJson())), context));
   final head = utf8.encode(jsonEncode({
     ...shared.toJson(),
     'pictures': [
@@ -162,13 +162,13 @@ Future<String> sealShare(AccountCrypto crypto, Shared shared, String key) async 
   for (final bytes in pictures.values) {
     out.add(bytes);
   }
-  return toBase64Url(await crypto.sealBytes(sealKey, out.takeBytes(), shareContext));
+  return toBase64Url(await crypto.sealBytes(sealKey, out.takeBytes(), context));
 }
 
 /// A share opened with its key (`openShare`). Throws for another key, a blob that was tampered with, or a share
-/// from a newer build.
-Future<Shared> openShare(AccountCrypto crypto, String blob, String key) async {
-  final bytes = await crypto.openBytes(await _keyOf(crypto, key), fromBase64Url(blob), shareContext);
+/// from a newer build. A published site opens the same way in its own [context].
+Future<Shared> openShare(AccountCrypto crypto, String blob, String key, {String context = shareContext}) async {
+  final bytes = await crypto.openBytes(await _keyOf(crypto, key), fromBase64Url(blob), context);
   Object? words;
   Map<String, Uint8List>? pictures;
   var gsp = bytes.length >= 8;

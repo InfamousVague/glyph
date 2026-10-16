@@ -123,6 +123,19 @@ An organization is a team: a name, a colour, and people by handle. Make one from
 
 **What you are told.** Everyone in an organization hears when someone joins, leaves or is removed, when it is renamed and when it is deleted; the person who did it is not told their own news. The organization can be muted under Settings › Notifications, or from its own Notifications section.
 
+## Email to a note
+
+Settings › Account › **Email to a note** gives the account a private address: sixteen random letters and digits at `in.ghostmarkdown.com`. Mail sent to it becomes a note in your Inbox: its subject the title, who sent it in the front matter as `from:`, its words as Markdown, and the pictures it carries as pictures. A file that is not a picture is named in the note, and not kept yet.
+
+| Row | What it does |
+|---|---|
+| **Turn on an address** | Makes the address. |
+| The address, with **Copy** | Copies it. |
+| **Make a new address** | Puts a new one in its place. The old one stops taking mail at once. |
+| **Turn off** | Mail to the address is turned away. Mail already sent is still filed. |
+
+This is the one place the server reads your words, and the setting says so. A mail arrives in the clear, as it does at any mail server. The server turns it into a note's words in the same moment, seals it to your account's encryption key, and keeps only the sealed copy. It cannot open that copy: only your devices hold the key. The next sync on any of your devices opens it, files the note, and the sealed copy is deleted. Anyone who has the address can send to it, so give it only where you mean to. An address takes thirty mails an hour, a mail is at most 10 MB, and up to two hundred wait for a device to sync. Email to a note is not on the iPhone yet.
+
 ## Deleting the account
 
 Settings › Account › **Delete account**. The page says what goes, then asks for your password; tap **Delete my account**. At once and for good, the service deletes the account and its handle, your synced notes with their recordings and pictures, your settings, every link you have shared (which stops opening), your devices' keys and your recovery codes, your notifications and your place in every organization, whose other members are told you left. While you own an organization that anyone else is in, it is refused with "Hand over or delete your organizations first."; an organization with nobody else in it goes with the account. Your other devices sign out the next time they start. The notes on this device stay, and the page says so: "Your account is deleted. The notes on this device are still here."

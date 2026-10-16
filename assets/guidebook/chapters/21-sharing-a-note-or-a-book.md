@@ -67,6 +67,23 @@ A banner across the top offers **Get the app** and two buttons.
 
 In the app, tap **+**, choose **From a shared link**, paste the link (any text with the link inside will do), and tap **Save a copy**. The copy opens. It is yours to change, and it does not follow the original. A title you already have is saved as "Title (shared)", then "Title (shared 2)". A copied notebook's index points at its copied pages. The pictures come with it, and sync with your notes like any others.
 
+## Publishing as a site
+
+A shared link reads as a page from Ghost.md. A site reads as a small website: the notebook's title across the top, its pages down the side in the notebook's order, each page at an address of its own, and Previous and Next at a page's foot. It is published from the same More sheet, under **Site**, below the link's rows, for a note or a notebook.
+
+| Row | What it does |
+|---|---|
+| **Publish as a site** | Publishes it, and copies the site's link. |
+| **Copy the site's link** | Copies it again. Its hint says when it was last published. |
+| **Publish again** | Puts your changes since on the site, at the same address. A site changes only when you publish it again; a shared link follows every save. |
+| **Unpublish** | Takes the site down. Its link reads nothing from then on. |
+
+A site's link looks like `https://ghostmarkdown.com/s/<id>#<key>`, and its pages like `https://ghostmarkdown.com/s/<id>/the-coast#<key>`. The key sits after the `#`, as a shared link's does, so anyone with the link can read the site, and nobody else, the server included. The page names in the addresses are the pages' titles, and they are the one part of a site the web server receives as written, when someone opens a page's own address. `[[Links]]` between pages of the site go to those pages; a link to a page that is not in it is drawn as not written. Pictures travel inside the site, as they do in a share. A site never carries where a page was written, nor the places written in it.
+
+No search engine can list a site. The page asks not to be indexed, and an indexer could not read it if it tried: the key is in the part of the address it never sees. So there is no setting for it.
+
+Every site the account has published is listed under Settings › Account › **Published sites**, from whichever device published it, each with when it was last published, **Copy** and **Unpublish**. An account keeps up to 100 sites. A journal is shared an entry at a time and has no site. Sites are not on the iPhone yet.
+
 ## Every link in one place
 
 Settings › Account › **Shared links** lists every note and notebook you have shared, from whichever device shared it, each with **Copy** and **Stop**. The section appears once you have shared something.

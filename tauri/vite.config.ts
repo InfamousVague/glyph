@@ -81,6 +81,23 @@ function otaManifest(): Plugin {
   };
 }
 
+/**
+ * A published site's addresses (`/s/<id>/<page>`, src/read/site.ts) are the reader page, as the web server serves them
+ * (scripts/deploy-landing.mjs): the same rewrite here, so `vite preview` and the dev server open a site as the
+ * live page does.
+ */
+function siteAddresses(): Plugin {
+  const rewrite = (req: { url?: string }, _res: unknown, next: () => void) => {
+    if (req.url && /^\/s\/[A-Za-z0-9_-]{22,64}(\/[^/?#]*)?\/?(\?.*)?$/.test(req.url)) req.url = '/read.html';
+    next();
+  };
+  return {
+    name: 'glyph-site-addresses',
+    configureServer: (server) => void server.middlewares.use(rewrite),
+    configurePreviewServer: (server) => void server.middlewares.use(rewrite),
+  };
+}
+
 // A relative base so the built app works when Tauri serves it from a custom
 // protocol rather than the server root - and, since OTA, so the same build runs
 // from `ota.localhost` and from attack.fm/glyph/ unchanged. @glacier/react
@@ -94,7 +111,7 @@ function portFromArgs(): number {
 
 export default defineConfig({
   base: './',
-  plugins: [react(), otaManifest()],
+  plugins: [react(), otaManifest(), siteAddresses()],
   define: {
     __GLYPH_BUILD__: JSON.stringify(build),
     __GLYPH_VERSION__: JSON.stringify(version),

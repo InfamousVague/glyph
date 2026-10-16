@@ -3,6 +3,8 @@
 //!
 //!   /api/v1/*          accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
 //!   /api/v1/shares/*   notes and books shared by their links, see `shares.rs`
+//!   /api/v1/sites/*    a note or a notebook published as a site, see `sites.rs`
+//!   /api/v1/mail/*     email to a note: an account's private address and the mail sent to it, sealed, see `mail.rs`
 //!   /api/v1/orgs/*     organizations: teams invited by handle, see `orgs.rs`
 //!   /api/v1/notifications/*  what an account is told, as a feed, see `notifications.rs`
 //!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
@@ -19,7 +21,8 @@
 //! THE ENVIRONMENT, every variable the binary reads: GLYPH_API_BIND (where to listen, loopback); GLYPH_API_DATA (where
 //! accounts are kept - unset, the service runs without accounts, sync, shares or the relay); GLYPH_API_TOKEN,
 //! GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
-//! (`mcp_proxy.rs`); and NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`). On the box,
+//! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); and
+//! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail). On the box,
 //! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's client
 //! id and secret; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM and NOTION_REDIRECT_URI are left at their defaults.
 //!
@@ -33,11 +36,13 @@ mod identity;
 mod notion;
 mod store;
 mod live;
+mod mail;
 mod mcp_proxy;
 mod notifications;
 mod org_notes;
 mod orgs;
 mod shares;
+mod sites;
 mod sync;
 mod wire;
 #[cfg(test)]
@@ -54,6 +59,10 @@ mod orgs_tests;
 mod org_notes_tests;
 #[cfg(test)]
 mod notifications_tests;
+#[cfg(test)]
+mod sites_tests;
+#[cfg(test)]
+mod mail_tests;
 
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
@@ -165,6 +174,9 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             .merge(sync::router(accounts.clone()))
             // Notes and books shared by their links (docs/SHARING.md): the same accounts own them.
             .merge(shares::router(accounts.clone()))
+            // A note or a notebook published as a site (docs/SITES.md), and email to a note (docs/MAIL.md).
+            .merge(sites::router(accounts.clone()))
+            .merge(mail::router(accounts.clone()))
             // Organizations and the notifications feed (docs/TEAMS.md): the same accounts, invited by handle.
             .merge(orgs::router(accounts.clone()))
             .merge(org_notes::router(accounts.clone()))
