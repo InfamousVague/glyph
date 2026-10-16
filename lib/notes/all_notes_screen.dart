@@ -337,7 +337,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     if (ghostPerf) Perf.count('allnotes.read');
     final inSpace = widget.workspaces.inWorkspace(notes, spaces.current?.id, (note) => note.id);
     final began = ghostPerf ? Perf.now() : 0;
-    var shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
+    var shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes), scope: SearchScope(notes: notes, workspaces: spaces));
     if (ghostPerf) Perf.add('allnotes.browse', began);
     // The same notes in the same order as were shown (a letter typed that every note shown still has): the list
     // there was, so the cards made for it are the cards.

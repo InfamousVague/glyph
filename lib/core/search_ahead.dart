@@ -10,6 +10,7 @@ library;
 import 'package:flutter/scheduler.dart';
 
 import 'note.dart';
+import 'note_marks.dart';
 import 'note_text.dart';
 
 class SearchAhead {
@@ -30,6 +31,9 @@ class SearchAhead {
       final clock = Stopwatch()..start();
       while (at < all.length && clock.elapsedMicroseconds < 1500) {
         searchText(all[at]);
+        // And what an operator asks of it (lib/core/note_marks.dart: its tags, its to-dos), so the first `tag:`
+        // typed reads no note either.
+        NoteMarks.of(all[at]);
         at += 1;
       }
       if (at >= all.length) {

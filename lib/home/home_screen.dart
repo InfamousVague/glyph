@@ -468,7 +468,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final began = ghostPerf ? Perf.now() : 0;
     // Under a search the page is what was found, the nearest first, whatever its layout.
     final searching = _query.trim().isNotEmpty;
-    final found = searching ? homeFound(inSpace, _query, _filter) : const <Found>[];
+    final found = searching ? homeFound(inSpace, _query, _filter, scope: SearchScope(notes: notes, workspaces: spaces)) : const <Found>[];
     final lists = searching
         ? HomeLists(books: [for (final one in found) if (NoteFacts.of(one.note).isBook) one.note], notes: [for (final one in found) if (!NoteFacts.of(one.note).isBook) one.note])
         : homeLists(inSpace, _query, _filter);
