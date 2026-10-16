@@ -42,6 +42,15 @@ void main() {
       expect(facts.words, isNot(contains('gho')));
     });
 
+    test('a place on a long line: cut round it, and still marked where it is', () {
+      final body = '# A\n\n- ${'words ' * 40}then Lisbon at last${' and more' * 30}';
+      final place = placeIn(body, body.indexOf('Lisbon'), body.indexOf('Lisbon') + 6);
+      expect(place.text.length, lessThan(150));
+      expect(place.text, startsWith('…'));
+      expect(place.text.substring(place.mark!.$1, place.mark!.$2), 'Lisbon');
+      expect(place.line, 2);
+    });
+
     test('the plain text keeps every place where it was', () {
       const body = '---\ntitle: x\n---\nSay [[Lisbon]] at https://a.b/c ^name';
       final plain = plainText(body);
@@ -83,6 +92,7 @@ void main() {
       final back = index.backlinksOf('lisbon', bodies(notes));
       expect([for (final link in back) link.id], ['packing', 'coast']);
       expect(back.first.links.single.text, 'The charger for [[Lisbon]]');
+      expect(back.first.links.single.mark, ('The charger for '.length, 'The charger for [[Lisbon]]'.length));
       expect(back.first.links.single.line, 2);
       expect([for (final place in back.last.links) place.embed], [false, true]);
       expect(index.backlinkCount('lisbon'), 2);
@@ -94,6 +104,7 @@ void main() {
       final mentions = index.mentionsOf('lisbon', bodies(notes));
       expect([for (final mention in mentions) mention.id], ['diary', 'trams']);
       expect(mentions.first.places.first.text, 'Lisbon was hot. The capital at night was better.');
+      expect(mentions.first.places.first.mark, (0, 6));
       // The words inside another note's link are that link's, not a mention.
       expect(mentions.last.places, hasLength(1));
       // A note of the same name is not a mention of itself, nor are the notes that link it.

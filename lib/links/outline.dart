@@ -57,9 +57,12 @@ List<OutlineHeading> outlineOf(Doc doc) {
   return out;
 }
 
-/// How far under the page's top a heading lands once scrolled to, and where the page counts as being: the header
-/// floats over the page.
+/// How far under the page's top the page counts as being read, at least: the header floats over the page, and is
+/// taller on a wide screen, so it is a fifth of the page's height where that is more.
 const double outlineRoom = 96;
+
+/// Where on the page it is being read, from the page's top.
+double readingLine(ScrollPosition page) => math.max(outlineRoom, 0.2 * page.viewportDimension);
 
 /// Which of [headings] the page is at: the last one whose line is above the top of what can be read. -1 above the
 /// first.
@@ -67,7 +70,7 @@ int currentHeading(EditorView view, ScrollPosition page, List<OutlineHeading> he
   if (headings.isEmpty) return -1;
   final start = documentOffset(view);
   if (start == null || !page.hasPixels) return -1;
-  final y = page.pixels - start + outlineRoom + 8;
+  final y = page.pixels - start + readingLine(page) + 8;
   final lines = view.state.doc.lines;
   final line = math.min(math.max(1, view.heights.lineAt(y)), lines);
   final at = view.state.doc.line(line).from;
@@ -83,7 +86,7 @@ void scrollToHeading(EditorView view, ScrollPosition page, int from, {bool anima
   final start = documentOffset(view);
   if (start == null || !page.hasPixels) return;
   final entry = view.blocks.entryOf(view.state.doc.lineAt(math.min(math.max(0, from), view.state.doc.length)).number);
-  final to = (start + view.heights.offsetOf(entry) - outlineRoom).clamp(page.minScrollExtent, math.max(page.minScrollExtent, page.maxScrollExtent)).toDouble();
+  final to = (start + view.heights.offsetOf(entry) - (readingLine(page) - 24)).clamp(page.minScrollExtent, math.max(page.minScrollExtent, page.maxScrollExtent)).toDouble();
   if (animate) {
     unawaitedScroll(page.animateTo(to, duration: const Duration(milliseconds: 320), curve: const Cubic(0.2, 0.8, 0.2, 1)));
   } else {

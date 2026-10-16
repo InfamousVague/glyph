@@ -366,9 +366,12 @@ class Backlink {
 /// A place in a note: the line it is on (from 0), and the line's words.
 @immutable
 class LinkPlace {
-  const LinkPlace({required this.line, required this.text, required this.from, required this.to, this.embed = false});
+  const LinkPlace({required this.line, required this.text, required this.from, required this.to, this.embed = false, this.mark});
   final int line;
   final String text;
+
+  /// Where in [text] the link or the mention is, to be drawn so; null where it was cut off.
+  final (int, int)? mark;
 
   /// The link, or the mention, in the note's body.
   final int from;
@@ -756,13 +759,22 @@ LinkPlace placeIn(String body, int from, int to, {bool embed = false, int most =
   var cut = lead?.end ?? 0;
   if (cut > from - start) cut = 0;
   text = text.substring(cut).trimRight();
-  final at = from - start - cut;
+  // Where the link or the mention is in the words shown, as it is cut down.
+  var at = from - start - cut;
+  final long = (to < end ? to : end) - from;
   if (text.length > most) {
     final begin = (at - most ~/ 3).clamp(0, text.length);
     final stop = (begin + most).clamp(0, text.length);
-    text = '${begin > 0 ? '…' : ''}${text.substring(begin, stop).trim()}${stop < text.length ? '…' : ''}';
+    final kept = text.substring(begin, stop);
+    final lost = kept.length - kept.trimLeft().length;
+    text = '${begin > 0 ? '…' : ''}${kept.trim()}${stop < text.length ? '…' : ''}';
+    at = at - begin - lost + (begin > 0 ? 1 : 0);
   }
-  return LinkPlace(line: line, text: text.trim(), from: from, to: to, embed: embed);
+  final shown = text.trim();
+  final lostStart = text.length - text.trimLeft().length;
+  at -= lostStart;
+  final mark = at >= 0 && at + long <= shown.length && long > 0 ? (at, at + long) : null;
+  return LinkPlace(line: line, text: shown, from: from, to: to, embed: embed, mark: mark);
 }
 
 String _joined(String folder, String path) {

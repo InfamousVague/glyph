@@ -12,8 +12,13 @@ import 'dart:isolate';
 import 'dart:math' as math;
 import 'dart:typed_data';
 
-/// The length a link settles at, in the graph's own units (a node is drawn about 6 of them across).
+/// The length a link settles at, in the graph's own units (a note with no links is drawn 16 of them across).
 const double linkLength = 46;
+
+/// How hard each note pushes the others, against [linkLength]'s k²/d, and the pull to the middle: chosen so a
+/// library's notes stand about two links apart and the whole graph is a disc, not a scatter.
+const double push = 0.6;
+const double gravity = 0.3;
 
 /// A graph to lay out: [count] notes, links between `from[i]` and `to[i]`, and each note's id for where it starts.
 typedef GraphInput = ({List<String> ids, List<int> from, List<int> to});
@@ -24,7 +29,7 @@ Float64List layOutGraph(GraphInput graph, {int? steps}) {
   final at = Float64List(n * 2);
   if (n == 0) return at;
   // Where each starts: by its id, in a disc that grows with the graph.
-  final spread = linkLength * math.sqrt(n) * 0.9;
+  final spread = linkLength * math.sqrt(n) * 0.6;
   for (var i = 0; i < n; i += 1) {
     final h = _hash(graph.ids[i]);
     final angle = (h & 0xffff) / 0xffff * math.pi * 2;
@@ -46,17 +51,18 @@ Float64List layOutGraph(GraphInput graph, {int? steps}) {
   final cool = math.pow((linkLength * 0.05) / heat, 1 / total).toDouble();
   for (var step = 0; step < total; step += 1) {
     force.fillRange(0, force.length, 0);
-    // Every note pushes every other: k² / d, summed by the quadtree.
+    // Every note pushes every other: k² / d (softened, so the whole sits close), summed by the quadtree.
     final tree = _Quad.of(at, n);
     for (var i = 0; i < n; i += 1) {
-      tree.push(at, i, force, k * k);
+      tree.push(at, i, force, push * k * k);
     }
-    // Each link pulls: d² / k.
+    // Each link pulls: d² / k, shared out by the busier of its two notes, so a note with many links is not
+    // crushed into its neighbours (as d3's link force shares it).
     for (var e = 0; e < graph.from.length; e += 1) {
       final a = graph.from[e], b = graph.to[e];
       final dx = at[2 * b] - at[2 * a], dy = at[2 * b + 1] - at[2 * a + 1];
       final d = math.sqrt(dx * dx + dy * dy) + 0.01;
-      final pull = d / k;
+      final pull = d / k / math.min(degree[a], degree[b]);
       force[2 * a] += dx * pull;
       force[2 * a + 1] += dy * pull;
       force[2 * b] -= dx * pull;
@@ -64,7 +70,7 @@ Float64List layOutGraph(GraphInput graph, {int? steps}) {
     }
     // A pull to the middle, stronger on a note with nothing to hold it.
     for (var i = 0; i < n; i += 1) {
-      final g = degree[i] == 0 ? 0.06 : 0.02;
+      final g = degree[i] == 0 ? gravity * 1.6 : gravity;
       force[2 * i] -= at[2 * i] * g;
       force[2 * i + 1] -= at[2 * i + 1] * g;
     }

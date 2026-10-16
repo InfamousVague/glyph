@@ -350,7 +350,7 @@ class _DrawnNoteEmbedState extends State<DrawnNoteEmbed> {
                         decoration: ShapeDecoration(shape: StadiumBorder(side: BorderSide(color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 40%, transparent)') : edge))),
                         child: Padding(
                           padding: EdgeInsets.symmetric(vertical: 0.15 * small + 1, horizontal: 0.75 * small + 1),
-                          child: Text('Open', style: state.hovered ? words.copyWith(color: t.color('app-ink')) : words),
+                          child: ExcludeSemantics(child: Text('Open', style: state.hovered ? words.copyWith(color: t.color('app-ink')) : words)),
                         ),
                       ),
                     ),

@@ -203,7 +203,7 @@ class _PlaceRow extends StatelessWidget implements SheetRuled {
                             Padding(padding: EdgeInsets.only(top: 0.15 * small), child: AppIcon(Lucide.squareDashed, size: small, color: t.color('glacier-text-subtle'))),
                             SizedBox(width: 0.4 * small),
                           ],
-                          Expanded(child: Text(line, maxLines: 2, overflow: TextOverflow.ellipsis, style: pageText(t, small, color: t.color('glacier-text-subtle')))),
+                          Expanded(child: _marked(t, line, place.text.isEmpty ? null : place.mark, pageText(t, small, color: t.color('glacier-text-subtle')))),
                         ],
                       ),
                     ],
@@ -224,7 +224,7 @@ class _PlaceRow extends StatelessWidget implements SheetRuled {
                   ),
                   child: Padding(
                     padding: EdgeInsets.symmetric(vertical: 0.25 * small + 1, horizontal: 0.8 * small + 1),
-                    child: Text(linking ? 'Linking' : 'Link', style: pageText(t, small, weight: 'medium', color: t.color(linking ? 'glacier-text-muted' : 'glacier-text'))),
+                    child: ExcludeSemantics(child: Text(linking ? 'Linking' : 'Link', style: pageText(t, small, weight: 'medium', color: t.color(linking ? 'glacier-text-muted' : 'glacier-text')))),
                   ),
                 ),
               ),
@@ -233,6 +233,22 @@ class _PlaceRow extends StatelessWidget implements SheetRuled {
       ),
     );
   }
+}
+
+/// The line round a place, the place itself in the full ink: which of two mentions on one line a Link makes.
+Widget _marked(Tokens t, String line, (int, int)? mark, TextStyle style) {
+  if (mark == null) return Text(line, maxLines: 2, overflow: TextOverflow.ellipsis, style: style);
+  final (from, to) = mark;
+  return Text.rich(
+    TextSpan(children: [
+      TextSpan(text: line.substring(0, from)),
+      TextSpan(text: line.substring(from, to), style: style.copyWith(color: t.color('glacier-text'))),
+      TextSpan(text: line.substring(to)),
+    ]),
+    maxLines: 2,
+    overflow: TextOverflow.ellipsis,
+    style: style,
+  );
 }
 
 /// The side panel's heading: small spaced capitals, as a journal's month is.

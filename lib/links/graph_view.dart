@@ -32,8 +32,11 @@ typedef GraphHue = String? Function(String id);
 /// How many notes are laid out where they are drawn: past this, a worker isolate lays them out.
 const int layOutHereUpTo = 160;
 
-/// The zoom past which names are drawn: a dot is then some 8 pixels across.
-const double namesFrom = 1.15;
+/// The zoom past which names are drawn: a dot is then some 12 pixels across.
+const double namesFrom = 0.75;
+
+/// A note's dot, in the graph's units: bigger the more links it has.
+double nodeRadius(int degree) => 6 + math.sqrt(degree.toDouble()) * 2.4;
 
 /// The graph, drawn and moved about.
 class GraphView extends StatefulWidget {
@@ -121,14 +124,23 @@ class GraphViewState extends State<GraphView> {
   void _fit(Size size) {
     final at = _at;
     if (at == null || size.isEmpty) return;
-    var minX = double.infinity, minY = double.infinity, maxX = -double.infinity, maxY = -double.infinity;
-    for (var i = 0; i < at.length; i += 2) {
-      minX = math.min(minX, at[i]);
-      maxX = math.max(maxX, at[i]);
-      minY = math.min(minY, at[i + 1]);
-      maxY = math.max(maxY, at[i + 1]);
+    // The box the notes are in; where a few strays far out would shrink the rest to dust, the box most are in.
+    final n = at.length ~/ 2;
+    final xs = [for (var i = 0; i < n; i += 1) at[2 * i]]..sort();
+    final ys = [for (var i = 0; i < n; i += 1) at[2 * i + 1]]..sort();
+    var minX = xs.first, maxX = xs.last, minY = ys.first, maxY = ys.last;
+    if (n >= 60) {
+      final cut = (n * 0.01).floor();
+      final most = math.max(xs[n - 1 - cut] - xs[cut], ys[n - 1 - cut] - ys[cut]);
+      if (most < 0.6 * math.max(maxX - minX, maxY - minY)) {
+        final grow = most * 0.08;
+        minX = xs[cut] - grow;
+        maxX = xs[n - 1 - cut] + grow;
+        minY = ys[cut] - grow;
+        maxY = ys[n - 1 - cut] + grow;
+      }
     }
-    if (!minX.isFinite) return;
+    if (!minX.isFinite || !maxX.isFinite) return;
     final wide = math.max(maxX - minX, 1.0) + linkLength, tall = math.max(maxY - minY, 1.0) + linkLength;
     final scale = math.min(size.width / wide, size.height / tall).clamp(0.05, 3.0);
     final middle = Offset((minX + maxX) / 2, (minY + maxY) / 2);
@@ -161,7 +173,7 @@ class GraphViewState extends State<GraphView> {
     return best;
   }
 
-  double _radius(int i) => 3 + math.sqrt(_degrees.isEmpty ? 0 : _degrees[i].toDouble()) * 1.6;
+  double _radius(int i) => nodeRadius(_degrees.isEmpty ? 0 : _degrees[i]);
 
   // ---- moving about --------------------------------------------------------------------------------------------
 
@@ -309,7 +321,7 @@ class GraphPainter extends CustomPainter {
   /// How many times a picture was recorded: for a test that holds a pinch to drawing alone.
   static int debugRecorded = 0;
 
-  double radiusOf(int i) => 3 + math.sqrt(degrees[i].toDouble()) * 1.6;
+  double radiusOf(int i) => nodeRadius(degrees[i]);
 
   bool _near(int i) => lit < 0 || i == lit || next[lit].contains(i);
 
@@ -332,14 +344,15 @@ class GraphPainter extends CustomPainter {
         ..moveTo(at[2 * a], at[2 * a + 1])
         ..lineTo(at[2 * b], at[2 * b + 1]);
     }
+    // Hairlines: a device pixel wide at any zoom.
     canvas.drawPath(faint, Paint()
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 0.9
-      ..color = ink.withValues(alpha: lit >= 0 ? 0.07 : 0.2));
+      ..strokeWidth = 0
+      ..color = ink.withValues(alpha: lit >= 0 ? 0.1 : 0.32));
     if (lit >= 0) {
       canvas.drawPath(bright, Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
+        ..strokeWidth = 2
         ..color = ink.withValues(alpha: 0.75));
     }
     final dot = Paint();
@@ -353,9 +366,9 @@ class GraphPainter extends CustomPainter {
     // The note a local graph is round, and the one held: a ring.
     for (final ringed in {focus, lit}) {
       if (ringed < 0) continue;
-      canvas.drawCircle(Offset(at[2 * ringed], at[2 * ringed + 1]), radiusOf(ringed) + 3.5, Paint()
+      canvas.drawCircle(Offset(at[2 * ringed], at[2 * ringed + 1]), radiusOf(ringed) + 5, Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.4
+        ..strokeWidth = 2.5
         ..color = ink.withValues(alpha: 0.9));
     }
     final picture = recorder.endRecording();
@@ -389,11 +402,16 @@ class GraphPainter extends CustomPainter {
       ..scale(now.scale)
       ..drawPicture(_picture())
       ..restore();
-    // The names, close enough to read, of the notes on screen: a few hundred at most.
-    final n = at.length ~/ 2;
+    // The names, close enough to read, of the notes on screen: the busiest notes' first, none over another, a
+    // hundred and fifty at most.
     final names = now.scale >= namesFrom;
-    var drawn = 0;
-    for (var i = 0; i < n && drawn < 260; i += 1) {
+    if (!names && lit < 0 && focus < 0) return;
+    canvas
+      ..save()
+      ..clipRect(Offset.zero & size);
+    final taken = <Rect>[];
+    for (final i in _byDegree()) {
+      if (taken.length >= 150) break;
       final bright = lit >= 0 && _near(i);
       if (!names && !bright && i != focus) continue;
       if (lit >= 0 && !bright) continue;
@@ -402,15 +420,20 @@ class GraphPainter extends CustomPainter {
       final painter = _name(i, bright || i == focus);
       final r = radiusOf(i) * now.scale;
       final where = Offset(x - painter.width / 2, y + r + 3);
+      final box = Rect.fromLTWH(where.dx - 3, where.dy - 1, painter.width + 6, painter.height + 2);
+      if (i != focus && i != lit && taken.any((other) => other.overlaps(box))) continue;
+      taken.add(box);
       // A halo of paper behind a name, so it reads over the lines.
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(where.dx - 3, where.dy - 1, painter.width + 6, painter.height + 2), const Radius.circular(4)),
-        Paint()..color = paper.withValues(alpha: 0.72),
-      );
+      canvas.drawRRect(RRect.fromRectAndRadius(box, const Radius.circular(4)), Paint()..color = paper.withValues(alpha: 0.72));
       painter.paint(canvas, where);
-      drawn += 1;
     }
+    canvas.restore();
   }
+
+  /// The notes by how many links each has, the most first, then the note held and the focus: whose names go first.
+  List<int> _byDegree() => _order[at] ??= ([for (var i = 0; i < at.length ~/ 2; i += 1) i]..sort((a, b) => degrees[b] - degrees[a]));
+
+  static final Expando<List<int>> _order = Expando<List<int>>('the graph names order');
 
   @override
   bool shouldRepaint(GraphPainter old) =>
@@ -542,7 +565,7 @@ class _GraphScreenState extends State<GraphScreen> {
           ),
           Padding(
             padding: EdgeInsets.fromLTRB(t.space(4), t.space(1), t.space(4), padding.bottom + t.space(3)),
-            child: Text('Pinch to zoom in, tap a note to open it, hold one to light the notes it links with.', textAlign: TextAlign.center, style: t.textAt(t.fontSize('xs'), color: muted)),
+            child: Text('Pinch to zoom. Tap a note to open it, hold one to light its links.', textAlign: TextAlign.center, style: t.textAt(t.fontSize('xs'), color: muted)),
           ),
         ],
       ),
