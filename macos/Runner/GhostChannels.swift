@@ -155,6 +155,68 @@ final class GhostChannels: NSObject {
       default: result(FlutterMethodNotImplemented)
       }
     }
+
+    // A file for a note, and a file handed to the Mac's own app for it (lib/files/phone_documents.dart). The rest of
+    // that channel (the scanner, reading words, drawing a PDF) is the phone's: unanswered here, so the app does not
+    // offer them on a Mac.
+    listen("ghost_md/documents", messenger) { [weak self] call, result in
+      switch call.method {
+      case "pick": self?.pickFile(result)
+      case "openWith":
+        let args = call.arguments as? [String: Any]
+        result(GhostChannels.openWith(path: args?["path"] as? String, name: args?["name"] as? String))
+      default: result(FlutterMethodNotImplemented)
+      }
+    }
+  }
+
+  // MARK: files
+
+  /// The Mac's open panel for any one file, answered as the phone's picker answers: `{path, name, bytes}` of a copy
+  /// in the app's cache (`picked/`), `{cancelled: true}`, or an error with a sentence. Read only through the panel's
+  /// own grant (`files.user-selected` in the store's sandbox).
+  private func pickFile(_ result: @escaping FlutterResult) {
+    let panel = NSOpenPanel()
+    panel.title = "Add a file"
+    panel.prompt = "Add"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = false
+    Panels.show(panel, on: window) { url in
+      guard let url = url else { return result(["cancelled": true]) }
+      guard let dirs = GhostChannels.dirs() else { return result(FlutterError(code: "documents", message: "The file could not be read.", details: nil)) }
+      let picked = dirs.cache.appendingPathComponent("picked", isDirectory: true)
+      let copy = picked.appendingPathComponent("\(UUID().uuidString).part")
+      do {
+        try FileManager.default.createDirectory(at: picked, withIntermediateDirectories: true)
+        let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        if size > 512 * 1024 * 1024 { return result(FlutterError(code: "documents", message: "That file is too large to add.", details: nil)) }
+        try FileManager.default.copyItem(at: url, to: copy)
+        let bytes = (try? copy.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? size
+        result(["path": copy.path, "name": url.lastPathComponent, "bytes": bytes])
+      } catch {
+        try? FileManager.default.removeItem(at: copy)
+        result(FlutterError(code: "documents", message: "The file could not be read.", details: nil))
+      }
+    }
+  }
+
+  /// A file of the app's handed to the Mac's own app for its kind, under its own name: a copy in the cache's
+  /// `open/`, opened by the workspace. Nil, or an error with a sentence.
+  private static func openWith(path: String?, name: String?) -> Any? {
+    guard let path = path, FileManager.default.fileExists(atPath: path), let dirs = dirs() else {
+      return FlutterError(code: "documents", message: "That file is not on this Mac.", details: nil)
+    }
+    let safe = (name ?? "File").replacingOccurrences(of: "/", with: " ").replacingOccurrences(of: ":", with: " ")
+    let folder = dirs.cache.appendingPathComponent("open", isDirectory: true).appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let copy = folder.appendingPathComponent(safe.isEmpty ? "File" : safe)
+    do {
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      try FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: copy)
+    } catch {
+      return FlutterError(code: "documents", message: "That file could not be handed over.", details: nil)
+    }
+    return NSWorkspace.shared.open(copy) ? nil : FlutterError(code: "documents", message: "No app on this Mac opens that file.", details: nil)
   }
 
   private func listen(_ name: String, _ messenger: FlutterBinaryMessenger, _ handler: @escaping FlutterMethodCallHandler) {

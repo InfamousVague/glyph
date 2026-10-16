@@ -331,7 +331,8 @@ class PdfViewState extends State<PdfView> {
         if (hit.box != null) (boxes[hit.page] ??= <ui.Rect>[]).add(hit.box!);
       }
     }
-    final top = t.lenOf('var(--app-inset-top, 0px)') + MediaQuery.paddingOf(context).top;
+    // `--app-inset-top` is the phone's own inset (env(safe-area-inset-top)), as the film's full screen layer takes it.
+    final top = t.lenOf('var(--app-inset-top, 0px)');
     return Semantics(
       scopesRoute: true,
       namesRoute: true,
