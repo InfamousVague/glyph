@@ -357,7 +357,7 @@ export interface Preferences {
    *
    * Written structurally rather than as core/workspaces.ts's own types, so the preferences do not depend on it.
    */
-  workspaces: { list: { id: string; name: string; hue?: string }[]; notes: Record<string, string> };
+  workspaces: { list: { id: string; name: string; hue?: string; parent?: string }[]; notes: Record<string, string> };
   /**
    * The notes in the trash, by id, and when each went in (core/trash.ts). Here for the reason the workspaces are: it
    * travels with the person, so a note thrown away on the phone is in the trash on the Mac, and it ships over the air

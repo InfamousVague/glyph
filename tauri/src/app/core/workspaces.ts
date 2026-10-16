@@ -56,6 +56,12 @@ export interface Workspace {
   hue?: WorkspaceHue;
   /** The organization it stands for, by id (`isOrgWorkspace`); absent for a personal one. Read from the id, never kept. */
   org?: string;
+  /**
+   * The workspace it is inside, by id, where the Flutter app nested it (its folder on disk inside its parent's,
+   * 2026-10-16). This page lists workspaces flat and does not nest them, but keeps the parent as it was read, so a
+   * save here does not flatten what another device nested.
+   */
+  parent?: string;
 }
 
 export interface Workspaces {
@@ -100,10 +106,11 @@ function wornHue(hue: unknown): WorkspaceHue | undefined {
  * organization is read from the id alone: a build before organizations rewrites a workspace as `{ id, name, hue }`
  * and would strip any field, but it keeps the id.
  */
-function asWorkspace(w: { id: string; name: string; hue?: unknown }): Workspace {
+function asWorkspace(w: { id: string; name: string; hue?: unknown; parent?: unknown }): Workspace {
   const hue = wornHue(w.hue);
   const org = orgIdOf(w.id);
-  return { id: w.id, name: w.name, ...(hue ? { hue } : {}), ...(org ? { org } : {}) };
+  const parent = typeof w.parent === 'string' && w.parent && !org ? w.parent : undefined;
+  return { id: w.id, name: w.name, ...(hue ? { hue } : {}), ...(org ? { org } : {}), ...(parent ? { parent } : {}) };
 }
 
 /** The filings in `notes` that point at one of `list`'s workspaces. */
@@ -241,7 +248,7 @@ export function setWorkspaceHue(id: string, hue: WorkspaceHue): void {
   const { list, notes, current: chosen } = current();
   if (!isHue(hue) || !list.some((w) => w.id === id) || isOrgWorkspace({ id })) return;
   write({
-    list: list.map((w) => (w.id === id ? (hue === 'ink' ? { id: w.id, name: w.name } : { ...w, hue }) : w)),
+    list: list.map((w) => (w.id === id ? (hue === 'ink' ? { id: w.id, name: w.name, ...(w.parent ? { parent: w.parent } : {}) } : { ...w, hue }) : w)),
     notes,
     current: chosen,
   });
