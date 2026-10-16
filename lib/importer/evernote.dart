@@ -165,7 +165,7 @@ Future<ImportReport> importEvernote(List<ImportFile> files, ImportTarget target,
               if (!converted.used.contains(key)) value,
           ];
           final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
-          final path = run.paths.place([notebook], title, original: '$notebook/$title');
+          final path = run.paths.place([notebook], title, original: '${cleanStem(title)}.md');
           await run.note(body: evernoteBody(note, converted.markdown, loose), path: path, createdAt: note.created, updatedAt: note.updated ?? note.created);
           final link = _linkTitle(title);
           if (link.isNotEmpty && seen.add(titleKey(link))) pages.add(link);

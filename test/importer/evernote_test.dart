@@ -31,7 +31,7 @@ void main() {
       expect(report.files, 1, reason: 'the menu');
       expect(report.missing, 1, reason: 'an en-media whose hash no resource has');
       expect(report.skipped, ['one encrypted passage, which Evernote keeps locked']);
-      expect(report.renamed, [(from: 'Recipes/Pancakes & more', to: 'Pancakes & more 2.md')]);
+      expect(report.renamed, [(from: 'Pancakes & more.md', to: 'Pancakes & more 2.md')]);
       expect(importDoneSaid(report), 'Imported 3 notes, 1 notebook, 2 pictures and 1 file, in the workspace Imported from Evernote 2026-10-16.');
     });
 
