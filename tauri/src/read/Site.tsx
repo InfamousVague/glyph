@@ -98,7 +98,9 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
   const [listOpen, setListOpen] = useState(false);
   const { noteView } = usePreferences();
   const id = readSiteAddress(location.pathname, location.hash)!.id;
-  const isBook = shared.kind === 'book' && shared.pages.length > 1;
+  // A notebook opens on its index, drawn as the app draws one; its pages are listed when it has any written.
+  const book = shared.kind === 'book';
+  const isBook = book && shared.pages.length > 1;
 
   // The browser's Back and Forward go between the pages read, as between the pages of any site.
   useEffect(() => {
@@ -134,7 +136,7 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
   const titles = () => shared.pages.map((p) => p.title);
 
   const list = isBook ? (
-    <ol className={styles.list} aria-label="Pages">
+    <ol className={styles.list}>
       {shared.pages.map((p, at) => (
         <li key={`${at}:${p.title}`}>
           <a className={styles.item} href={href(at)} aria-current={at === page ? 'page' : undefined} onClick={follow(at)}>
@@ -181,7 +183,7 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
                 .
               </p>
             </article>
-          ) : isBook && page === 0 ? (
+          ) : book && page === 0 ? (
             <article className={styles.note}>
               <h1 className={styles.title}>{shared.title}</h1>
               <BookView body={current.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} videos="shared" />

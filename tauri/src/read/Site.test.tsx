@@ -40,7 +40,7 @@ describe('a published notebook', () => {
   it('lists its pages in order, opens each at its own address with the key kept, and says what it was made with', async () => {
     history.replaceState(null, '', `/s/${ID}#${KEY}`);
     show(<Site />);
-    await waitUntil(() => expect(document.querySelector('nav[aria-label="This site’s pages"] ol[aria-label="Pages"]')).not.toBeNull());
+    await waitUntil(() => expect(document.querySelector('nav[aria-label="This site’s pages"] ol')).not.toBeNull());
     expect(readSite).toHaveBeenCalledWith(ID, KEY);
     const side = document.querySelector('nav[aria-label="This site’s pages"]')!;
     expect([...side.querySelectorAll('a')].map((a) => [a.textContent, a.getAttribute('href')])).toEqual([
@@ -103,13 +103,24 @@ describe('a published notebook', () => {
   });
 });
 
+describe('a published notebook with no page written yet', () => {
+  it('opens on its index as the app draws one, with no list of pages', async () => {
+    vi.mocked(readSite).mockResolvedValueOnce({ v: 1, kind: 'book', title: 'Field guide', at: 1, pages: [{ title: 'Field guide', body: index }] });
+    history.replaceState(null, '', `/s/${ID}#${KEY}`);
+    show(<Site />);
+    await waitUntil(() => expect(document.querySelector('article h1')?.textContent).toBe('Field guide'));
+    expect(document.querySelector('nav[aria-label="This site’s pages"]')).toBeNull();
+    expect(document.body.textContent).not.toContain('book: true');
+  });
+});
+
 describe('a published note', () => {
   it('is its one page under its title, with no list of pages and no Previous or Next', async () => {
     vi.mocked(readSite).mockResolvedValueOnce({ v: 1, kind: 'note', title: 'Walk', at: 1, pages: [{ title: 'Walk', body: '# Walk\n\nBy the river.' }] });
     history.replaceState(null, '', `/s/${ID}#${KEY}`);
     show(<Site />);
     await waitUntil(() => expect(document.querySelector('.cm-content')?.textContent).toContain('By the river.'));
-    expect(document.querySelector('ol[aria-label="Pages"]')).toBeNull();
+    expect(document.querySelector('nav[aria-label="This site’s pages"]')).toBeNull();
     expect(document.querySelector('nav[aria-label="Next and previous pages"]')).toBeNull();
     expect(document.querySelector('header')?.textContent).toBe('Walk');
   });
