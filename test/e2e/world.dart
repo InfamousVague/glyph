@@ -31,6 +31,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/live/live.dart';
 import 'package:ghost_md/live/nudge.dart';
+import 'package:ghost_md/mail/mail_in.dart' show MailPass;
 import 'package:ghost_md/orgs/org_keys.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/share/share.dart';
@@ -157,7 +158,8 @@ class Disk {
 class Device {
   /// [live]: with live sync too (lib/live/live.dart), over a real socket to the relay beside the service; only in
   /// a [LocalWorld], which has one.
-  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false})
+  /// [mailIn]: with email to a note's step in the pass (lib/mail/mail_in.dart `syncMail`).
+  Device(this.world, this.core, {String label = 'a device', Disk? disk, bool live = false, MailPass? mailIn})
       : disk = disk ?? Disk(),
         api = world.api() {
     crypto = CoreCrypto(core.invoke);
@@ -191,6 +193,7 @@ class Device {
       forgetTeams: docs.forget,
       sharedLive: this.live?.shared.isShared,
       tellChanged: this.live?.nudges.tellChanged,
+      mailIn: mailIn,
     );
     this.live?.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
   }
