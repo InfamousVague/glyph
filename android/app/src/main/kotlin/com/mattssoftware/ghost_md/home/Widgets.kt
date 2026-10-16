@@ -20,15 +20,24 @@ import com.mattssoftware.ghost_md.reminders.GhostBackground
  * opens the app by a `ghostmd://` link (Doors.kt). A list's rows are as many as its height holds: on the Fold's cover
  * screen and its inner one a widget made taller shows more, and one made smaller says how many did not fit.
  */
-private const val HEAD_DP = 40
-private const val FOOT_DP = 22
+/** The frame's padding and heading (layout/ghost_widget_list.xml), and the line that says how many did not fit. */
+private const val HEAD_DP = 48
+private const val MORE_DP = 20
 
-/** How many rows of [rowDp] a widget of these options holds under its heading. */
-private fun rowsFor(options: Bundle?, rowDp: Int, fallbackDp: Int): Int {
+/**
+ * How many of [count] rows of [rowDp] a widget of these options shows under its heading: all where they fit, else as
+ * many as fit with the line under them that says how many more there are.
+ */
+private fun rowsFor(options: Bundle?, rowDp: Int, count: Int, fallbackDp: Int = 160): Int {
   // Upright, a widget is its minimum width by its maximum height; that is the height it has on a phone held as one.
   val tall = options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)?.takeIf { it > 0 } ?: fallbackDp
-  return ((tall - HEAD_DP - FOOT_DP) / rowDp).coerceAtLeast(1)
+  val room = tall - HEAD_DP
+  if (count * rowDp <= room) return count
+  return ((room - MORE_DP) / rowDp).coerceAtLeast(1)
 }
+
+/** How wide a widget must be for Quick note's words beside its pen: below it, the pen alone. */
+private const val WORDS_DP = 200
 
 /** The app's home page: its own launch, no link. */
 private fun home(context: Context): PendingIntent? {
@@ -51,8 +60,8 @@ class QuickNoteWidget : AppWidgetProvider() {
       val views = RemoteViews(context.packageName, R.layout.ghost_widget_quick_note)
       views.setOnClickPendingIntent(R.id.ghost_quick_new, Doors.press(context, Doors.NEW))
       views.setOnClickPendingIntent(R.id.ghost_quick_voice, Doors.press(context, Doors.VOICE))
-      // Too narrow for the words beside the pen: the pen alone.
-      val wide = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0).let { it == 0 || it >= 150 }
+      // Too narrow for the words beside the pen: the pen alone, as the picker's preview shows it.
+      val wide = (options?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH) ?: 0) >= WORDS_DP
       views.setViewVisibility(R.id.ghost_quick_new_words, if (wide) View.VISIBLE else View.GONE)
       return views
     }
@@ -101,7 +110,7 @@ class TodayWidget : AppWidgetProvider() {
       views.setTextViewText(R.id.ghost_list_count, if (todos.isEmpty()) "" else "${todos.size} to do")
       home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_list_head, it) }
       views.removeAllViews(R.id.ghost_list_rows)
-      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, 160)
+      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, todos.size)
       val shown = todos.take(room)
       for (todo in shown) views.addView(R.id.ghost_list_rows, row(context, todo, day))
       val left = todos.size - shown.size
@@ -118,7 +127,9 @@ class TodayWidget : AppWidgetProvider() {
       val code = "${todo.note}:${todo.line}".hashCode()
       row.setTextViewText(R.id.ghost_row_words, todo.words)
       val overdue = todo.due < day
-      row.setTextViewText(R.id.ghost_row_note, if (overdue) "${todo.title} · Overdue" else todo.title)
+      // A ticket is its whole note, whose title is its words already.
+      val where = if (todo.line == 0) "Ticket" else todo.title
+      row.setTextViewText(R.id.ghost_row_note, if (overdue) "$where · Overdue" else where)
       row.setTextColor(R.id.ghost_row_note, context.getColor(if (overdue) R.color.ghost_widget_overdue else R.color.ghost_widget_ink_3))
       row.setOnClickPendingIntent(R.id.ghost_row_text, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.words), code))
       if (!todo.tick) {
@@ -168,7 +179,7 @@ class PinnedWidget : AppWidgetProvider() {
       views.setTextViewText(R.id.ghost_list_count, if (pinned.isEmpty()) "" else "${pinned.size}")
       home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_list_head, it) }
       views.removeAllViews(R.id.ghost_list_rows)
-      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, 160)
+      val room = rowsFor(manager.getAppWidgetOptions(id), ROW_DP, pinned.size)
       val shown = pinned.take(room)
       for (note in shown) {
         val row = RemoteViews(context.packageName, R.layout.ghost_widget_pinned_row)

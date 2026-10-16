@@ -79,5 +79,9 @@ void main() {
       ],
     });
     expect(HomeScreenData(host: home, kept: kept).recent, ['a', 'b'], reason: 'kept on the device');
+    // A new note with no words yet is not offered.
+    notes.add(note('c', ''));
+    await data.opened('c', noteOf);
+    expect(HomeScreenData(host: home, kept: kept).recent, ['a', 'b']);
   });
 }

@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   Quick note (home/QuickNoteWidget.kt): a new note with the keyboard up, or a voice note, which opens the microphone on
-  that tap and never before. Two cells wide and one high by default, and as wide as it is made: the words beside the
-  pen go before the pen does.
+  that tap and never before. Two cells wide and one high by default, the pen alone; made wider, the words beside it
+  (home/Widgets.kt says how wide).
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/ghost_quick"
@@ -42,7 +42,8 @@
             android:maxLines="1"
             android:text="@string/ghost_shortcut_new_short"
             android:textColor="@color/ghost_widget_ink"
-            android:textSize="15sp" />
+            android:textSize="15sp"
+            android:visibility="gone" />
     </LinearLayout>
 
     <FrameLayout

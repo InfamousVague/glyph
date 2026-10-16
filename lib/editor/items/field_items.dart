@@ -133,7 +133,7 @@ List<FieldItem>? fieldItems(EditorViewLike view, int line, FieldPage page, {Void
     case RemindPage():
       // Remind me: the times on offer, the one the line has lit, then the phone's own calendar and clock.
       final current = reminderOn(view.state.doc.line(line).text);
-      for (final choice in remindChoices(DateTime.now(), reminderSettings.value)) {
+      for (final choice in remindChoices(view.state.facet(fieldsNow)?.call() ?? DateTime.now(), reminderSettings.value)) {
         items.add(FieldItem(icon: _remindIcon[choice.id]!, label: choice.label, name: choice.name, lit: current == choice.at, onPress: write(() => setLineReminder(view, line, choice.at))));
       }
       final pick = view.state.facet(reminderPicker);

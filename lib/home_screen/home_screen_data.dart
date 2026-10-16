@@ -42,6 +42,9 @@ class HomeScreenData {
 
   /// A note opened: first among the recent ones, and the icon's shortcuts told.
   Future<void> opened(String id, Note? Function(String id) noteOf, {bool Function(Note note)? skip}) async {
+    // A new note not written in yet is not offered: it is the next pass's to name, once it has words.
+    final note = noteOf(id);
+    if (note == null || blankNote(note)) return;
     final before = recent;
     final now = openedLast(before, id);
     if (now.length == before.length && now.indexed.every((each) => before[each.$1] == each.$2)) return;

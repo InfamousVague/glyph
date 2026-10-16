@@ -92,10 +92,13 @@ String _titled(Note note) {
   return title.isEmpty ? 'Untitled' : title;
 }
 
-/// The notes [ids] name, as the library has them now, in that order; those gone or in the Trash left out.
+/// Whether [note] has no words yet: a new note opened and not written in, which the icon does not offer.
+bool blankNote(Note note) => note.body.trim().isEmpty;
+
+/// The notes [ids] name, as the library has them now, in that order; those gone, blank or in the Trash left out.
 List<NamedNote> namedNotes(List<String> ids, Note? Function(String id) noteOf, {bool Function(Note note)? skip}) => [
       for (final id in ids)
-        if (noteOf(id) case final Note note when (note.archivedAt ?? 0) == 0 && !(skip?.call(note) ?? false)) (id: id, title: _titled(note)),
+        if (noteOf(id) case final Note note when (note.archivedAt ?? 0) == 0 && !blankNote(note) && !(skip?.call(note) ?? false)) (id: id, title: _titled(note)),
     ];
 
 String todayJson(List<TodayItem> items) => jsonEncode({'items': [for (final item in items) item.toJson()]});

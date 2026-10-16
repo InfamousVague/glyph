@@ -136,6 +136,7 @@ import '../settings/tapes_here.dart';
 import '../share/app_links.dart';
 import '../home_screen/home_host.dart' show PhoneHomeScreenHost;
 import '../home_screen/phone_entries.dart';
+import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
 import '../reminders/reminder_host.dart' show PhoneReminderHost;
 import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
@@ -1470,19 +1471,40 @@ class _PhoneDoor implements PhoneEntryDoor {
   const _PhoneDoor(this.root);
   final _GhostRootState root;
 
-  /// Once the shell is there to be asked: a link that started the app may be followed under the launch screen.
+  /// Once the shell is there to be asked (a link that started the app may be followed under the launch screen), and
+  /// with what covered it put away: Settings, a sheet, an organization's settings, the notes' card and the
+  /// notifications. The person asked for a note from outside the app, and is to see it.
   void _withShell(void Function(AppShellState shell) then) {
+    void go(AppShellState shell) {
+      if (root._settings || root._newSheet || root._bookSheet != null || root._organization != null || root._newOrganization) {
+        root._told(() {
+          root._settings = false;
+          root._newSheet = false;
+          root._bookSheet = null;
+          root._organization = null;
+          root._newOrganization = false;
+        });
+      }
+      shell
+        ..closeSidebar()
+        ..closeNotifications();
+      then(shell);
+    }
+
     final shell = root._shell.currentState;
-    if (shell != null) return then(shell);
+    if (shell != null) return go(shell);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final later = root._shell.currentState;
-      if (root.mounted && later != null) then(later);
+      if (root.mounted && later != null) go(later);
     });
   }
 
-  /// A new note, ready to type in: the caret in line 1 and the keyboard up.
+  /// A new note, ready to type in: the caret in line 1 and the keyboard up, asked for again once the app is in front.
   @override
-  void newNote() => _withShell((_) => root._new());
+  void newNote() => _withShell((_) {
+        root._new();
+        raiseKeyboardSoon();
+      });
 
   /// A new note being recorded into, as the dock's microphone does: the microphone opens on this tap and not before.
   /// Voice is made a moment after the notes are read, so a tap that started the app waits for it, three seconds at
@@ -1500,6 +1522,7 @@ class _PhoneDoor implements PhoneEntryDoor {
   @override
   void today() => _withShell((_) {
         final journals = root._reads.journals;
+        raiseKeyboardSoon();
         if (journals.isEmpty) return root._new();
         unawaited(root._newEntry(journals.first.id));
       });

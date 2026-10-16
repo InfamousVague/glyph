@@ -229,6 +229,9 @@ typedef ReminderPicker = Future<ReminderTime?> Function(Offset at, ReminderTime?
 /// Remind me and a reminder's chip opens nothing.
 final Facet<ReminderPicker, ReminderPicker?> reminderPicker = Facet.define<ReminderPicker, ReminderPicker?>(combine: (values) => values.isEmpty ? null : values.first);
 
+/// The moment Remind me counts its times from; the device's own where none is given (a test gives its own).
+final Facet<DateTime Function(), DateTime Function()?> fieldsNow = Facet.define<DateTime Function(), DateTime Function()?>(combine: (values) => values.isEmpty ? null : values.first);
+
 /// Sets line `number`'s reminder, or (with null) takes it off: `⏰ 2026-10-03 09:00` before Tasks' fields.
 bool setLineReminder(EditorViewLike view, int number, ReminderTime? at) => _rewrite(view, number, (text) => withReminder(text, at));
 
