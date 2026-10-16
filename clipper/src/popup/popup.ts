@@ -7,8 +7,8 @@ import { canSave, draftOf, initial, MODE_NAMES, reduce, type Event, type State }
  * The popup: draws the state (state.ts) and does what each event asks of the world, by asking the background
  * (core/messages.ts). It holds no keys and no session, only what the person is typing and what the page answered.
  *
- * The tab it clips is the one the person opened it on. A `?tab=<id>` in its address names another, which only the
- * end-to-end proof uses: it opens the popup as a page of its own beside the page it clips (e2e/clip.e2e.test.ts).
+ * The tab it clips is the one the person opened it on: the active tab of its window, which the toolbar button's
+ * `activeTab` grant is for.
  */
 
 function ask<K extends Ask['type']>(question: Extract<Ask, { type: K }>): Promise<Answers[K]> {
@@ -97,7 +97,7 @@ function clipView(): HTMLElement[] {
       h('label', { className: 'field' }, 'Workspace', h('select', { id: 'workspace', onchange: edit('workspace') })),
       h('label', { className: 'field' }, 'Notebook', h('select', { id: 'notebook', onchange: edit('notebook') })),
     ),
-    h('label', { className: 'field' }, 'Comment', h('textarea', { id: 'comment', rows: 2, placeholder: 'Why you kept it (optional)', oninput: edit('comment') })),
+    h('label', { className: 'field' }, 'Comment', h('textarea', { id: 'comment', rows: 1, placeholder: 'Why you kept it (optional)', oninput: edit('comment') })),
     h('div', { className: 'error', id: 'error', role: 'alert' }),
     h('button', { className: 'solid', type: 'button', id: 'save', onclick: () => void save() }, 'Save to Ghost.md'),
   ];
@@ -154,7 +154,7 @@ function previewText(markdown: string): string {
   return markdown
     .replace(new RegExp(`!\\[([^\\]]*)\\]\\(${PICTURE_SCHEME.replace(/\//g, '\\/')}\\d+\\)`, 'g'), (_m, alt: string) => `[picture${alt ? `: ${alt}` : ''}]`)
     .split('\n')
-    .slice(0, 14)
+    .slice(0, 10)
     .join('\n');
 }
 
@@ -354,9 +354,7 @@ async function save(): Promise<void> {
 
 async function start(): Promise<void> {
   draw(state);
-  const named = Number(new URLSearchParams(location.search).get('tab'));
-  if (Number.isInteger(named) && named > 0) tabId = named;
-  else tabId = (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null;
+  tabId = (await chrome.tabs.query({ active: true, currentWindow: true }))[0]?.id ?? null;
   const who = await ask({ type: 'who' });
   if (who.ok && who.handle) await signedIn(who.handle);
   else dispatch({ type: 'signedOut' });

@@ -72,11 +72,12 @@ body {
   min-height: 200px;
 }
 
+/* A popup is at most 600 px tall in Chrome: the clip view is laid out to fit it, Save always in sight. */
 main {
   padding: var(--space-4);
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: 0.625rem;
 }
 
 .top {
@@ -133,7 +134,7 @@ textarea {
   background: var(--app-paper-2);
   border: 1px solid var(--app-rule);
   border-radius: var(--radius-sm);
-  padding: 0.5rem 0.625rem;
+  padding: 0.45rem 0.625rem;
   width: 100%;
   outline: none;
 }
@@ -153,7 +154,7 @@ textarea::placeholder {
 
 textarea {
   resize: vertical;
-  min-height: 3.2rem;
+  min-height: 2.35rem;
   line-height: 1.4;
 }
 
@@ -262,7 +263,7 @@ button.quiet:hover {
   border: 1px solid var(--app-rule);
   border-radius: var(--radius-md);
   padding: var(--space-3);
-  max-height: 168px;
+  max-height: 124px;
   overflow: hidden;
   position: relative;
   font-size: var(--text-xs);
@@ -302,7 +303,7 @@ button.quiet:hover {
 .preview.picture img {
   display: block;
   width: 100%;
-  max-height: 200px;
+  max-height: 140px;
   object-fit: cover;
   object-position: top;
   border-radius: calc(var(--radius-md) - 1px);
@@ -337,6 +338,10 @@ button.quiet:hover {
   font-size: var(--text-xs);
   color: var(--app-ink-3);
   min-height: 1.2rem;
+}
+
+.facts:empty {
+  display: none;
 }
 
 .note {
