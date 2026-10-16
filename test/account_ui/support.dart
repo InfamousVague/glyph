@@ -11,10 +11,12 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/mail/mail_in.dart';
 import 'package:ghost_md/orgs/org_keys.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/share/share.dart';
+import 'package:ghost_md/share/sites.dart';
 import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/feed.dart';
 import 'package:glacier/glacier.dart';
@@ -48,7 +50,7 @@ class NoPictures implements SharePictures {
 /// The preferences are the app's own store, which `pumpApp` resets: make the device first, and pump with [pump],
 /// which hands the test's page the preferences as they stand.
 class Device {
-  Device._(this.service, {Fetcher? fetcher, bool engine = true, bool shares = true, int Function()? now}) {
+  Device._(this.service, {Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, int Function()? now}) {
     preferences.startWithoutStorage();
     preferences.value = const Preferences(theme: 'light');
     api = Api(base: 'http://service.test/api', fetcher: fetcher ?? service.fetcher);
@@ -58,8 +60,11 @@ class Device {
     orgs = Orgs(account: account, api: api, workspaces: workspaces, kept: kept);
     orgKeys = OrgKeys(crypto: service.crypto, api: api);
     this.engine = engine
-        ? SyncEngine(account: AccountDoor(account), api: api, crypto: service.crypto, keys: keys, prefs: preferences, notes: notes, files: files, feed: feed, orgs: orgs, orgKeys: orgKeys, kept: kept)
+        ? SyncEngine(account: AccountDoor(account), api: api, crypto: service.crypto, keys: keys, prefs: preferences, notes: notes, files: files, feed: feed, orgs: orgs, orgKeys: orgKeys, kept: kept, mailIn: publishing ? syncMail : null)
         : null;
+    // A published site and email to a note (docs/SITES.md, docs/MAIL.md), for the tests of those.
+    sites = publishing ? Sites(account: account, api: api, crypto: service.crypto, pictures: NoPictures(), listNotes: () async => notes.held.values.toList()) : null;
+    mailIn = publishing ? MailIn(account: account, keys: keys, api: api, crypto: service.crypto) : null;
     this.shares = shares ? Shares(account: account, api: api, crypto: service.crypto, prefs: preferences, pictures: NoPictures(), listNotes: () async => notes.held.values.toList()) : null;
     services = AccountServices(
       account: account,
@@ -68,6 +73,8 @@ class Device {
       orgKeys: orgKeys,
       feed: feed,
       shares: this.shares,
+      sites: sites,
+      mailIn: mailIn,
       listNotes: () async => notes.held.values.toList(),
       prefs: preferences,
       workspaces: workspaces,
@@ -78,8 +85,8 @@ class Device {
 
   /// A device of [service], or of a new one seeded with [seeded]. [signedIn] signs it in with the password, as a
   /// person would. [fetcher] stands between the device and the service.
-  static Future<Device> make({FakeService? service, bool signedIn = true, Fetcher? fetcher, bool engine = true, bool shares = true, List<String> peers = const ['sam'], int Function()? now}) async {
-    final device = Device._(service ?? await FakeService.start(seed: seeded, peers: peers), fetcher: fetcher, engine: engine, shares: shares, now: now);
+  static Future<Device> make({FakeService? service, bool signedIn = true, Fetcher? fetcher, bool engine = true, bool shares = true, bool publishing = false, List<String> peers = const ['sam'], int Function()? now}) async {
+    final device = Device._(service ?? await FakeService.start(seed: seeded, peers: peers), fetcher: fetcher, engine: engine, shares: shares, publishing: publishing, now: now);
     if (signedIn) await device.account.signIn(seeded.handle, seeded.password);
     return device;
   }
@@ -97,6 +104,8 @@ class Device {
   late final OrgKeys orgKeys;
   late final SyncEngine? engine;
   late final Shares? shares;
+  late final Sites? sites;
+  late final MailIn? mailIn;
   late final AccountServices services;
 
   /// A note on this device.

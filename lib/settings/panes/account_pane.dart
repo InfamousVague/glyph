@@ -9,6 +9,7 @@ import '../../art/art.dart';
 import '../../core/location.dart' show LocateFailure, whyLocateFailed;
 import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
+import '../../mail/ui/mail_card.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
 import '../../sync/notes.dart' show stayedHere;
 import '../account_forms.dart';
@@ -16,6 +17,7 @@ import '../colour_card.dart';
 import '../kit/settings_kit.dart';
 import '../kit/settings_type.dart';
 import '../privacy_card.dart';
+import '../published_sites.dart';
 import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
@@ -391,6 +393,10 @@ class _AccountPaneState extends State<AccountPane> {
     final form = _editing || _deleting;
     final shared = _shared;
     final stayed = _stayed;
+    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md).
+    services.sites?.readSoon();
+    services.mailIn?.readSoon();
+    final sites = services.sites, mail = services.mailIn;
     return PaneBody(
       children: [
         PaneSection(
@@ -452,6 +458,8 @@ class _AccountPaneState extends State<AccountPane> {
         if (!form) ...[
           ColourCard(services: services),
           if (shared != null && shared.any) SharedLinks(services: services, model: shared),
+          if (sites != null && publishedSitesShown(sites)) PublishedSites(services: services),
+          if (mail != null && mailCardShown(mail)) MailCard(services: services),
           privacy,
           ...location.parts(prefs),
           PaneSection(

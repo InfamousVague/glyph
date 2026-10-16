@@ -45,9 +45,11 @@ import '../core/workspaces.dart';
 import '../live/live.dart';
 import '../live/nudge.dart';
 import '../live/open.dart';
+import '../mail/mail_in.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
+import '../share/sites.dart';
 import '../sync/device.dart';
 import '../sync/engine.dart';
 import '../sync/feed.dart';
@@ -184,6 +186,10 @@ class WiredAccount {
     final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
     // A share's reading copies are JPEGs written by the phone (lib/core/phone_pictures.dart): nothing on a device with no half for it.
     final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list);
+    // A note or a notebook published as a site, and email to a note (docs/SITES.md, docs/MAIL.md): not on the iPhone.
+    final offered = publishingOffered();
+    final sites = offered ? Sites(account: account, api: api, crypto: crypto, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list) : null;
+    final mailIn = offered ? MailIn(account: account, keys: keys, api: api, crypto: crypto) : null;
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,
@@ -203,6 +209,7 @@ class WiredAccount {
       forgetTeams: docs.forget,
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
+      mailIn: offered ? syncMail : null,
     );
     final noteLive = NoteLive(
       live: live,
@@ -230,6 +237,8 @@ class WiredAccount {
       orgKeys: orgKeys,
       feed: feed,
       shares: shares,
+      sites: sites,
+      mailIn: mailIn,
       phoneNotices: phone,
       listNotes: () async => shownNotes(),
       prefs: settings,
@@ -289,6 +298,8 @@ class WiredAccount {
   void dispose() {
     // The shares stop following, and their wait is let go.
     services.shares?.dispose();
+    services.sites?.dispose();
+    services.mailIn?.dispose();
     live.dispose();
     phone.dispose();
     engine.dispose();

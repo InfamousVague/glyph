@@ -1,0 +1,18 @@
+{
+  "about": "A mail sealed by server/src/mail/seal.rs for a made-up account (mail_tests.rs). The private key is that account's and nobody's else.",
+  "blob": "AXgXl683mWHGyiWt5XkO_2cGttr_P1K83DrR4E6JhywEo9OB-tYsCkYRpTOeC6dqeCAXx_CvSMLA99PwmhW_hYChdIvGjk4HXUk2Njxet01RsHjH9rKMHe8Tj1Mqfi7F9HIl0kGIV64dsbdKAlPUMzwgolpYtv8mc06tuScgB8-7vTzL_4Xbu5v1Lw5B8haM0XVZsmxQwV2Jv65HGEiQyaVcKG02xLMhf-Ii97Xgs8XO8zIoqOdyFOkc8pVW39l1OrbQ-jev97uBF1eTJ1gJlCIfsMQ1nWGGzuDiETvTUtp5YJZ2nr-yOrpbuFfnQOpyzyQ8l7XY8X3FrFI7vCTrpgX9R5KZc1UYrt30czLpiYB2REEh1Cs4IHOayJxVdRui84naX8G1_qVVfhfg_CIS85YrdzoszVWauU-f6gFDna9BLYVbXF2BU4A1_gNcnbyEwJYxuh3SE9xBpPqCgRxRyrKh620WCwSpyajyjQtgp815R3khD_oWo9doVsjBAhKtNjW5kEflY-ANOMByv8oUByzH1aOFNgtwSau6l0sZD3tQtYYiD0ip3_4dSnEkfEz2g3iATc16WHEdzWk9AV9ErxZXMrD95u35A1zep7EdHA",
+  "id": "0XKhTFi9VXT4fr8SewJCxw",
+  "jwk": {
+    "crv": "P-256",
+    "d": "16r8IdFPEtY0aoUURcGrrAfMzf0xmKE0jBj6HnU2liQ",
+    "ext": true,
+    "key_ops": [
+      "deriveBits"
+    ],
+    "kty": "EC",
+    "x": "7_2gKuPdF1tXCPUNf7G60x2XYugEFDvKhly7HwN96C8",
+    "y": "vgM424zJVgl2KGBEfMrdmdgs0mioC8fer3cPLCrb4z4"
+  },
+  "pub": "BO_9oCrj3RdbVwj1DX-xutMdl2LoBBQ7yoZcux8DfegvvgM424zJVgl2KGBEfMrdmdgs0mioC8fer3cPLCrb4z4",
+  "wrapped": "BC8SwpLtoQUFj_vlNR2qw1PJ0sP4AWcwuomYgi2qzmssT4HNJfgznSMEXW6vVL-abAw8xFhH7MeqttuezPm5SWfDmzB22_CO7kqhDZasCPNRUFb-S81A01J_fLnCkEK8WtX7R0RoMEVp3juvEk8KJ3_GMHuio-xj67cOasA"
+}

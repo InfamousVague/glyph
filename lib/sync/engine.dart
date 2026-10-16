@@ -51,6 +51,7 @@ import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
+import '../mail/mail_in.dart' show MailPass, MailPassContext;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import 'arrived.dart';
@@ -281,6 +282,7 @@ class SyncEngine {
     this.teamNotes,
     this.forgetTeams,
     this.tellChanged,
+    this.mailIn,
     NotesPass? notesPass,
     PrefsPass? prefsPass,
     FeedPass? feedPass,
@@ -313,6 +315,10 @@ class SyncEngine {
   final TeamNotesPass? teamNotes;
   final void Function()? forgetTeams;
   final void Function(String orgId)? tellChanged;
+
+  /// Email to a note (lib/mail/mail_in.dart `syncMail`): what was mailed to the account's address, filed as notes
+  /// just before the notes step, which then sends them on. Null where the feature is not offered.
+  final MailPass? mailIn;
 
   final Stored? _kept;
   final int Function() _now;
@@ -637,6 +643,24 @@ class SyncEngine {
       // The list before the notes: an organization made on another device shows here even while a note will not
       // sync.
       final list = await step('Organizations', listed);
+
+      // Mail sent to the account's address, filed as notes before the notes step sends them on (docs/MAIL.md).
+      final mail = mailIn;
+      if (mail != null) {
+        final filed = await step(
+          'Mail',
+          () => mail(MailPassContext(
+            token: token,
+            api: api,
+            crypto: crypto,
+            pair: () async => (await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto))).pair,
+            notes: notes,
+            files: files,
+            now: _now,
+          )),
+        );
+        if ((filed ?? 0) > 0) await _changed();
+      }
 
       final notesKey = _stateKey(accountId, 'notes');
       final synced = await step(
