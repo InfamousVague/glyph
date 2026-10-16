@@ -48,9 +48,15 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('anchors and their pointers, drawn', () {
-    test('draws the anchor naming a list item quiet, and none on a line that is not one', () {
-      final view = open('- [ ] Ship the page ^ship-page\n1. Book the cabin ^cabin\nJust words ^loose\n- No anchor here');
-      expect(marked(view), <(String, String)>[('^ship-page', 'cm-itemAnchor'), ('^cabin', 'cm-itemAnchor')]);
+    test('draws the anchor naming a list item quiet, and the name at the end of any other line the same', () {
+      // A paragraph is named as Obsidian names a block (lib/core/block_ids.dart), since 2026-10-16.
+      final view = open('- [ ] Ship the page ^ship-page\n1. Book the cabin ^cabin\nJust words ^loose\n- No anchor here\nE = mc^2');
+      expect(marked(view), <(String, String)>[('^ship-page', 'cm-itemAnchor'), ('^cabin', 'cm-itemAnchor'), ('^loose', 'cm-itemAnchor')]);
+    });
+
+    test('draws a pointer at a named paragraph as a link', () {
+      final view = open('The ferry leaves at nine. ^ferry\n\nSee [[#^ferry]].');
+      expect(marked(view), <(String, String)>[('^ferry', 'cm-itemAnchor'), ('[[#^ferry]]', 'cm-itemRef')]);
     });
 
     test('finds the anchor with an item’s mark or counter after it, and leaves a caret in the words alone', () {
@@ -86,6 +92,13 @@ void main() {
       expect(press(view, doc.indexOf('[[#^ask-sam]]') + 4), isTrue);
       expect(view.state.selection.main.head, view.state.doc.line(3).from + '- [ ] Ask Sam'.length);
       expect(view.state.selection.main.empty, isTrue);
+    });
+
+    test('puts the caret before a named paragraph’s name', () {
+      const words = 'See [[#^ferry]].\n\nThe ferry leaves at nine. ^ferry';
+      final view = open(words);
+      expect(press(view, words.indexOf('[[#^ferry]]') + 4), isTrue);
+      expect(view.state.selection.main.head, view.state.doc.line(3).from + 'The ferry leaves at nine.'.length);
     });
 
     test('is the editor’s on a pointer at nothing, and beside one', () {

@@ -30,7 +30,7 @@ export '../../core/title_key.dart' show sameTitle;
 final RegExp _wiki = RegExp(r'\[\[([^\]\n]{1,120})\]\]');
 
 class WikiLink {
-  const WikiLink({required this.from, required this.to, required this.title, required this.anchor});
+  const WikiLink({required this.from, required this.to, required this.title, required this.anchor, this.label});
 
   /// The whole thing, brackets included.
   final int from;
@@ -42,11 +42,15 @@ class WikiLink {
   /// What followed the first `#`, `^` and all, for a link that points at a place inside the note.
   final String? anchor;
 
-  @override
-  bool operator ==(Object other) => other is WikiLink && other.from == from && other.to == to && other.title == title && other.anchor == anchor;
+  /// What followed a `|`, `[[Lisbon|the capital]]`: the words the link is read as, as Obsidian writes them
+  /// (lib/links). The title is what comes before it.
+  final String? label;
 
   @override
-  int get hashCode => Object.hash(from, to, title, anchor);
+  bool operator ==(Object other) => other is WikiLink && other.from == from && other.to == to && other.title == title && other.anchor == anchor && other.label == label;
+
+  @override
+  int get hashCode => Object.hash(from, to, title, anchor, label);
 
   @override
   String toString() => 'WikiLink($from, $to, "$title", $anchor)';
@@ -56,13 +60,17 @@ class WikiLink {
 List<WikiLink> wikiLinksIn(String text, [int offset = 0]) {
   final found = <WikiLink>[];
   for (final match in _wiki.allMatches(text)) {
-    final inside = (match.group(1) ?? '').trim();
+    final whole = (match.group(1) ?? '').trim();
+    // `[[Title|words]]`: the title is before the bar.
+    final bar = whole.indexOf('|');
+    final inside = bar >= 0 ? whole.substring(0, bar) : whole;
+    final label = bar >= 0 ? whole.substring(bar + 1).trim() : '';
     final hash = inside.indexOf('#');
     final title = (hash >= 0 ? inside.substring(0, hash) : inside).trim();
     // `[[#^anchor]]` is a place in this note, not a note: another hand draws it.
     if (title.isEmpty) continue;
     final anchor = hash >= 0 ? inside.substring(hash + 1).trim() : '';
-    found.add(WikiLink(from: offset + match.start, to: offset + match.end, title: title, anchor: anchor.isEmpty ? null : anchor));
+    found.add(WikiLink(from: offset + match.start, to: offset + match.end, title: title, anchor: anchor.isEmpty ? null : anchor, label: label.isEmpty ? null : label));
   }
   return found;
 }
