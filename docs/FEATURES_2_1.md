@@ -72,6 +72,9 @@ Append-only: one section per piece of work, headed with who did it.
   native library and 1.3 MB of models on arm64 alone (and 18.4 MB more for armeabi-v7a and x86_64, which ship unless
   the ABIs are filtered). The model is fetched once by Play services (asked for with ModuleInstallClient the first
   time, and with the manifest's `com.google.mlkit.vision.DEPENDENCIES = ocr` on a Play install), then reads offline.
+- **What it adds to the APK**: about 0.9 MB for the Android pieces, measured on two arm64 debug builds of this branch
+  with and without them (dex +0.78 MB in the APK, 2.3 MB unpacked; resources +0.13 MB; no native library), plus this
+  branch's Dart. The PDF renderer is Android's own and adds nothing.
 - No new permission. The scanner and the reader need Google Play services.
 - The Mac (macos/Runner/GhostChannels.swift): `pick` (open panel) and `openWith` (the workspace). It reads no words
   and draws no PDF in the app: a PDF opens in the Mac's own app.
