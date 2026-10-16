@@ -20,6 +20,8 @@
 /// menu, hung from the chip, lit said with the kit's own selected row and a priority's mark in its chip's colour.
 library;
 
+import 'dart:async' show unawaited;
+
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
@@ -27,12 +29,18 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../core/task_fields.dart';
 import '../../core/text.dart' show capitalise;
+import '../../reminders/remind_choices.dart' show remindChoices;
+import '../../reminders/reminder_settings.dart' show reminderSettings;
+import '../../reminders/reminder_syntax.dart' show reminderOn;
 import '../editor.dart';
 import 'field_chips.dart';
 import 'field_menu.dart';
 import 'task_fields.dart' show fieldsToday;
 
 const Map<String, LucideIcon> _dayIcon = <String, LucideIcon>{'today': Lucide.sun, 'tomorrow': Lucide.sunrise, 'next-week': Lucide.calendarDays};
+
+/// Each of Remind me's times (lib/reminders/remind_choices.dart).
+const Map<String, LucideIcon> _remindIcon = <String, LucideIcon>{'hour': Lucide.hourglass, 'evening': Lucide.clock, 'tomorrow': Lucide.sunrise};
 
 /// How many of the note's people Assign offers before Someone new: a band's width on a phone, about.
 const int _mostPeople = 6;
@@ -122,6 +130,32 @@ List<FieldItem>? fieldItems(EditorViewLike view, int line, FieldPage page, {Void
     case PersonPage(:final name):
       final shown = personShown(name);
       items.add(FieldItem(icon: Lucide.userMinus, label: 'Remove', name: 'Take $shown off', onPress: write(() => setLinePerson(view, line, name, false))));
+    case RemindPage():
+      // Remind me: the times on offer, the one the line has lit, then the phone's own calendar and clock.
+      final current = reminderOn(view.state.doc.line(line).text);
+      for (final choice in remindChoices(DateTime.now(), reminderSettings.value)) {
+        items.add(FieldItem(icon: _remindIcon[choice.id]!, label: choice.label, name: choice.name, lit: current == choice.at, onPress: write(() => setLineReminder(view, line, choice.at))));
+      }
+      final pick = view.state.facet(reminderPicker);
+      if (pick != null) {
+        items.add(
+          FieldItem(
+            icon: Lucide.calendarSearch,
+            label: 'Pick a time',
+            onPress: (box) {
+              // Opened from the press itself, before the menu goes.
+              unawaited(pick(box.topLeft, current).then((picked) {
+                if (picked == null) return;
+                setLineReminder(view, line, picked);
+                if (refocus) view.focus();
+              }));
+              haptic(HapticKind.selection);
+              onClose();
+            },
+          ),
+        );
+      }
+      if (current != null) items.add(FieldItem(icon: Lucide.calendarX, label: 'Remove', name: 'Remove the reminder', onPress: write(() => setLineReminder(view, line, null))));
     case AssignPage():
       // Assign: who the note names, then someone new.
       for (final person in peopleIn(view.state.doc.toString()).take(_mostPeople)) {

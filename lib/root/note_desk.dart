@@ -138,6 +138,8 @@ import '../editor/editor_widget.dart';
 import '../editor/find_bar/find_bar.dart';
 import '../editor/find_bar/find_marks.dart';
 import '../editor/items/items.dart';
+import '../reminders/remind_choices.dart' show phoneReminderPicker;
+import '../reminders/reminder_host.dart' show phoneReminders;
 import '../editor/marks/marks.dart';
 import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
@@ -201,12 +203,15 @@ List<PlusEffect> plusEffects() => <PlusEffect>[
 
 /// A list item's fields as the band's pages: lib/editor/items' rows (`fieldItems`), drawn as the band's own.
 final band.BandFields bandFields = band.BandFields(
+  // Remind me, where the phone reminds: the editor was given its calendar and clock.
+  reminds: (view) => view.state.facet(reminderPicker) != null,
   items: (context, request) {
     final page = switch (request.page) {
       band.FieldDatePage(:final key) => DatePage(key),
       band.FieldPriorityPage() => const PriorityPage(),
       band.FieldPersonPage(:final name) => PersonPage(name),
       band.FieldAssignPage() => const AssignPage(),
+      band.FieldRemindPage() => const RemindPage(),
     };
     final items = fieldItems(request.view, request.line, page, onBack: request.onBack, onClose: request.onClose, refocus: request.refocus, redraw: request.redraw, today: request.view.state.facet(fieldsToday)?.call());
     return <Widget>[
@@ -701,6 +706,8 @@ class NoteDeskState extends State<NoteDesk> {
     drawnTables(),
     // Pick a date, on a list item's date page, in a ticket's panel and in a query: the phone's calendar.
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
+    // A reminder's day and time, where the phone reminds (lib/reminders): its calendar, then its clock.
+    if (phoneReminders.value case final reminders?) reminderPicker.of(phoneReminderPicker(reminders, _world.dayPicker)),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
     drawnBoards(),
     // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
@@ -1348,6 +1355,7 @@ class NoteDeskState extends State<NoteDesk> {
         PriorityPage() => const band.FieldPriorityPage(),
         PersonPage(:final name) => band.FieldPersonPage(name),
         AssignPage() => const band.FieldAssignPage(),
+        RemindPage() => const band.FieldRemindPage(),
       },
       line: tap.line,
       at: Offset(tap.x, tap.y),

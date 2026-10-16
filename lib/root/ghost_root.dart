@@ -134,6 +134,10 @@ import '../settings/settings_sheet.dart';
 import '../settings/tapes.dart' show oldTapes, tapeBytes;
 import '../settings/tapes_here.dart';
 import '../share/app_links.dart';
+import '../home_screen/home_host.dart' show PhoneHomeScreenHost;
+import '../home_screen/phone_entries.dart';
+import '../reminders/reminder_host.dart' show PhoneReminderHost;
+import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
@@ -147,6 +151,7 @@ import 'library_reads.dart';
 import 'note_desk.dart';
 import 'note_keeping.dart';
 import 'opening.dart';
+import 'phone_extras.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'selected.dart';
@@ -686,6 +691,15 @@ class _GhostRootState extends State<GhostRoot> {
 
   late final AppLinkDoor _door = _RootDoor(this);
 
+  /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
+  /// real library, and nowhere else. Begun once the notes are read.
+  late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
+      : null;
+
+  /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
+  late final PhoneEntryDoor _phoneDoor = _PhoneDoor(this);
+
   /// The + sheet, the workspace it makes into where it was an organization's +, and the New notebook sheet with its
   /// own.
   bool _newSheet = false;
@@ -1134,6 +1148,7 @@ class _GhostRootState extends State<GhostRoot> {
     widget.updates?.removeListener(_updatesChanged);
     if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
+    _extras?.dispose();
     _previews.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
@@ -1295,11 +1310,15 @@ class _GhostRootState extends State<GhostRoot> {
     final links = widget.links;
     if (mounted && links != null) {
       _stopLinks = followAppLinks((link) {
+        // A new note, a voice note, today's, the palette, or a note at a line: the phone's own ways in.
+        if (followPhoneEntry(link, _phoneDoor)) return;
         // The kind and never the link: a share's link carries its key.
         debugPrint('[glyph] a link opened the app: ${readAppLink(link)?.runtimeType ?? 'none of the app\'s'}');
         openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure'));
       }, links);
     }
+    // Reminders and the home screen, kept in step with the notes from here on.
+    if (mounted) _extras?.start();
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     if (seeded.isMarked) return;
@@ -1443,4 +1462,60 @@ class _RootDoor implements AppLinkDoor {
 
   @override
   void join(String code) => root._joinFromLink(code);
+}
+
+/// What the app does with the phone's own ways in (lib/home_screen/phone_entries.dart): each once the notes are read,
+/// which is when a link is followed at all.
+class _PhoneDoor implements PhoneEntryDoor {
+  const _PhoneDoor(this.root);
+  final _GhostRootState root;
+
+  /// Once the shell is there to be asked: a link that started the app may be followed under the launch screen.
+  void _withShell(void Function(AppShellState shell) then) {
+    final shell = root._shell.currentState;
+    if (shell != null) return then(shell);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final later = root._shell.currentState;
+      if (root.mounted && later != null) then(later);
+    });
+  }
+
+  /// A new note, ready to type in: the caret in line 1 and the keyboard up.
+  @override
+  void newNote() => _withShell((_) => root._new());
+
+  /// A new note being recorded into, as the dock's microphone does: the microphone opens on this tap and not before.
+  /// Voice is made a moment after the notes are read, so a tap that started the app waits for it, three seconds at
+  /// most; a build or a phone with none opens a new note to type in instead.
+  @override
+  void voiceNote() => unawaited(() async {
+        await root._voiceKnown.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+        if (!root.mounted) return;
+        if (root._capture == null) return newNote();
+        _withShell((_) => root._speak());
+      }());
+
+  /// Today's note. Until a daily note of its own is in the app, the journal written in last gets a new entry, as its
+  /// + row makes one; with no journal, a new note.
+  @override
+  void today() => _withShell((_) {
+        final journals = root._reads.journals;
+        if (journals.isEmpty) return root._new();
+        unawaited(root._newEntry(journals.first.id));
+      });
+
+  /// The palette, to type a note's name or a command in.
+  @override
+  void search() => _withShell((_) => WidgetsBinding.instance.addPostFrameCallback((_) => root._search()));
+
+  /// A note at a line (a reminder, a Today or Pinned row, a recent note): the line where the item now is, by its
+  /// words where lines were written above it since; a note gone or in the Trash opens nothing.
+  @override
+  void openNoteAt(String noteId, int line, String find) => _withShell((shell) {
+        final note = root._library.noteOf(noteId);
+        if (note == null || root._trash.isTrashed(noteId)) return;
+        final at = line > 0 ? (find.isEmpty ? line : findItemNear(note.body, line, find)) : null;
+        if (at == null || at <= 0) return root._openWhereLeft(shell, noteId);
+        shell.openNote(noteId, at: 'line:$at');
+      });
 }
