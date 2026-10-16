@@ -1,7 +1,9 @@
 /// An Obsidian vault brought into the library (Settings › Import › Obsidian vault).
 ///
 /// - **Every `.md`** becomes a note, word for word: its front matter, its `[[wiki links]]` and its `![[embeds]]` of
-///   notes are kept as written. Its file keeps its name and its folder: `Projects/Alpha.md` in the vault is
+///   notes are kept as written. Two things are added where Ghost.md would read the note otherwise than Obsidian
+///   does (lib/importer/obsidian_names.dart): a `title:` of its file's name where its first line is not that name,
+///   so a `[[link]]` to it finds it, and a front matter list written across where it was written down the page. Its file keeps its name and its folder: `Projects/Alpha.md` in the vault is
 ///   `workspaces/Imported from Obsidian 2026-10-16/Projects/Alpha.md` in the library (lib/importer/import_paths.dart),
 ///   and its dates are the file's.
 /// - **Every `.canvas`** becomes a canvas note: its JSON Canvas 1.0 as it is, under a `title:` of its file's name
@@ -29,6 +31,7 @@ import 'import_report.dart';
 import 'import_sources.dart';
 import 'import_target.dart';
 import 'obsidian_links.dart';
+import 'obsidian_names.dart';
 
 /// The largest file an import brings in: anything larger is left out and said.
 const int largestImport = 512 * 1024 * 1024;
@@ -149,7 +152,7 @@ Future<ImportReport> importObsidianVault(ImportFolder folder, ImportTarget targe
           : rewrite();
       report.missing += missing;
       final path = run.paths.place(entry.folders, _stem(entry.name), original: entry.path);
-      await run.note(body: body, path: path, createdAt: entry.modified > 0 ? entry.modified : null, updatedAt: entry.modified > 0 ? entry.modified : null);
+      await run.note(body: obsidianNoteBody(body, _stem(entry.name)), path: path, createdAt: entry.modified > 0 ? entry.modified : null, updatedAt: entry.modified > 0 ? entry.modified : null);
       step(entry.path);
     }
 

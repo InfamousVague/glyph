@@ -3,11 +3,13 @@ import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/canvas/json_canvas.dart' show canvasOf;
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/importer/import_report.dart';
 import 'package:ghost_md/importer/import_sources.dart';
 import 'package:ghost_md/importer/import_target.dart';
 import 'package:ghost_md/importer/obsidian.dart';
 import 'package:ghost_md/importer/obsidian_links.dart';
+import 'package:ghost_md/importer/obsidian_names.dart';
 
 import 'support.dart';
 
@@ -84,7 +86,8 @@ void main() {
 
     test('keeps front matter and note links as written, and points attachments at their copies', () {
       final welcome = it.at('$root/Welcome 2.md')!.body;
-      expect(welcome, startsWith('---\ntags:\n  - start\n  - garden\naliases: [Home]\n---\n# Welcome\n'));
+      // The list written across, so the app reads the block; nothing else in it moved. Named by its heading already.
+      expect(welcome, startsWith('---\ntags: [start, garden]\naliases: [Home]\n---\n# Welcome\n'));
       expect(welcome, contains('[[Projects/Alpha]] and [[Alpha|the alpha plan]], and embeds a note: ![[Alpha#Plan]].'));
       expect(welcome, contains('A picture by its name alone:\n\n![](image/p2.png)\n'));
       expect(welcome, contains('And one with a size: ![](image/p2.png)'));
@@ -101,7 +104,7 @@ void main() {
       // report.pdf was kept once, for both notes that name it.
       expect(alpha, contains('See [report.pdf]($report) and <https://example.com>.'));
       expect(it.pictures.keys.toSet(), {'p1.png', 'p2.png'});
-      expect(it.at('$root/Missing.md')!.body, 'This one names a picture that is not there: ![[nothere.png]]\n');
+      expect(it.at('$root/Missing.md')!.body, '---\ntitle: "Missing"\n---\nThis one names a picture that is not there: ![[nothere.png]]\n');
       expect(it.at('$root/Ünïcödé 日本.md')!.body, 'Ünïcödé — 日本語のノート 🌱\n');
     });
 
@@ -126,7 +129,8 @@ void main() {
       final daily = it.at('$root/Daily/2026-10-15.md')!;
       expect(daily.updatedAt, greaterThan(0));
       expect(daily.createdAt, daily.updatedAt);
-      expect(daily.body, '- [ ] Water the plants\n- [x] Call Sam #home\n');
+      expect(daily.body, '---\ntitle: "2026-10-15"\n---\n- [ ] Water the plants\n- [x] Call Sam #home\n', reason: 'named for its file, as Obsidian names it');
+      expect(noteTitle(daily.body), '2026-10-15');
     });
   });
 
@@ -158,6 +162,24 @@ void main() {
     expect(report.groupId, isNull);
     expect(it.workspaces.value.list, isEmpty);
     expect(importDoneSaid(report), 'Nothing was imported.');
+  });
+
+  group('names and front matter', () {
+    test('a note is named for its file where its first line is not that name, never over a title of its own', () {
+      expect(obsidianNoteBody('Some words first.\n', 'Plan'), '---\ntitle: "Plan"\n---\nSome words first.\n');
+      expect(obsidianNoteBody('# Plan\n\nWords.\n', 'Plan'), '# Plan\n\nWords.\n');
+      expect(obsidianNoteBody('---\ntitle: Mine\n---\nWords.\n', 'Plan'), '---\ntitle: Mine\n---\nWords.\n');
+      expect(obsidianNoteBody('---\ncreated: 2024-01-01\n---\nWords.\n', 'Plan'), '---\ntitle: "Plan"\ncreated: 2024-01-01\n---\nWords.\n');
+      expect(obsidianNoteBody('日本語\n', '日本語'), '日本語\n');
+      expect(obsidianNoteBody('Words\n', 'Say "hi"'), "---\ntitle: \"Say 'hi'\"\n---\nWords\n");
+    });
+
+    test('lists written down the page are written across; a block it cannot read is left as it was', () {
+      expect(readableFrontMatter('---\ntags:\n  - a\n  - b, c\n  - "d"\ncssclasses:\n  - wide\nup: [[x]]\n---\nBody'), '---\ntags: [a, "b, c", "d"]\ncssclasses: [wide]\nup: [[x]]\n---\nBody');
+      expect(readableFrontMatter('---\n# a comment\ntags:\n  - a\n---\nBody'), '---\n# a comment\ntags:\n  - a\n---\nBody');
+      expect(readableFrontMatter('---\ntags: [a]\n---\nBody'), '---\ntags: [a]\n---\nBody');
+      expect(readableFrontMatter('No front matter'), 'No front matter');
+    });
   });
 
   group('references', () {
