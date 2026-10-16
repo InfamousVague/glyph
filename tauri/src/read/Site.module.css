@@ -1,0 +1,250 @@
+/* A note or a notebook published as a site (Site.tsx): the reader page's look, laid out as a small website. */
+
+.site {
+  min-block-size: 100dvh;
+  color: var(--glacier-text);
+  background: var(--glacier-bg);
+}
+
+/* The bar across the top: the site's title, which is its first page, and on a phone the way to its pages. */
+.bar {
+  position: sticky;
+  inset-block-start: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-3);
+  padding: var(--glacier-space-2) var(--app-gutter);
+  background: var(--app-paper-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.siteTitle {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: var(--app-tracking-title);
+  text-decoration: none;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pagesButton {
+  appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 0.35em;
+  min-block-size: 2rem;
+  margin: 0;
+  padding: 0 0.75em;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text);
+  font: inherit;
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+  cursor: pointer;
+}
+
+/* The pages, dropped under the bar on a phone. */
+.dropped {
+  padding: var(--glacier-space-2) var(--app-gutter) var(--glacier-space-3);
+  background: var(--app-paper-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.body {
+  display: block;
+}
+
+.side {
+  display: none;
+}
+
+.main {
+  max-inline-size: 48rem;
+  min-inline-size: 0;
+  margin: 0 auto;
+  padding: var(--glacier-space-5) var(--app-gutter) 0;
+}
+
+.list {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.item {
+  display: block;
+  padding: 0.45em 0.75em;
+  border-radius: var(--glacier-radius-md);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.35;
+  text-decoration: none;
+}
+
+.item:hover {
+  background: color-mix(in srgb, var(--glacier-text) 6%, transparent);
+  color: var(--glacier-text);
+}
+
+.item[aria-current='page'] {
+  background: color-mix(in srgb, var(--glacier-text) 9%, transparent);
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+/* From the width of a Fold's inner screen up, a notebook's pages go down the side, and the bar's Pages goes. */
+@media (min-width: 56rem) {
+  .site[data-book] .pagesButton,
+  .site[data-book] .dropped {
+    display: none;
+  }
+
+  .site[data-book] .body {
+    display: grid;
+    grid-template-columns: 15rem minmax(0, 48rem);
+    justify-content: center;
+    gap: var(--glacier-space-6);
+    padding-inline: var(--app-gutter);
+  }
+
+  .site[data-book] .side {
+    display: block;
+    position: sticky;
+    inset-block-start: 3.25rem;
+    align-self: start;
+    max-block-size: calc(100dvh - 4rem);
+    overflow-y: auto;
+    padding-block: var(--glacier-space-5);
+  }
+
+  .site[data-book] .main {
+    margin: 0;
+    padding-inline: 0;
+  }
+}
+
+.title {
+  margin: 0 0 var(--glacier-space-4);
+  font-size: var(--glacier-font-size-3xl);
+  letter-spacing: var(--app-tracking-title);
+}
+
+.note {
+  /* The editor pads by the page's gutter; here the page is the column. */
+  --app-gutter: 0px;
+}
+
+.note > [data-chapters] {
+  padding-inline: 0;
+}
+
+.note :global(.cm-editor) :global(.cm-content) {
+  padding-block-end: var(--glacier-space-6);
+}
+
+.note[data-look='reading'] {
+  --app-h1: calc(var(--glacier-font-size-5xl) * var(--app-text-scale));
+}
+
+.canvas {
+  block-size: min(75dvh, 48rem);
+  border-radius: var(--glacier-radius-lg);
+  overflow: hidden;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+/* Previous and Next under a page: the neighbours as two wide links, Previous on the left and Next on the right. */
+.turn {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--glacier-space-3);
+  padding-block: var(--glacier-space-4);
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+}
+
+.turnEnd {
+  display: flex;
+  align-items: center;
+  gap: var(--glacier-space-2);
+  min-inline-size: 0;
+  padding: var(--glacier-space-3);
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-lg);
+  color: var(--glacier-text);
+  text-decoration: none;
+}
+
+.turnEnd:hover {
+  background: color-mix(in srgb, var(--glacier-text) 5%, transparent);
+}
+
+.turnEnd[data-next] {
+  justify-content: end;
+  text-align: end;
+}
+
+.turnWords {
+  display: grid;
+  min-inline-size: 0;
+}
+
+.turnSide {
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+}
+
+.turnTitle {
+  overflow: hidden;
+  font-weight: var(--glacier-font-weight-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.foot {
+  margin-block-start: var(--glacier-space-6);
+  padding-block: var(--glacier-space-5) calc(var(--app-safe-bottom, 0px) + var(--glacier-space-6));
+  border-block-start: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  text-align: center;
+}
+
+.made {
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-medium);
+  text-decoration: underline;
+  text-underline-offset: 0.2em;
+}
+
+/* Opening, and a site that is not there: one column, as the reader page's. */
+.alone {
+  max-inline-size: 48rem;
+  min-block-size: 100dvh;
+  margin: 0 auto;
+  padding: var(--glacier-space-6) var(--app-gutter) 0;
+  color: var(--glacier-text);
+  background: var(--glacier-bg);
+}
+
+.aloneTitle {
+  margin: 0 0 var(--glacier-space-3);
+  font-size: var(--glacier-font-size-2xl);
+  letter-spacing: var(--app-tracking-title);
+}
+
+.missing {
+  padding-block-end: var(--glacier-space-5);
+}
+
+.quiet {
+  color: var(--glacier-text-muted);
+}

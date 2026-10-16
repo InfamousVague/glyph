@@ -50,24 +50,29 @@ import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
 import '../comments/ask.dart';
+import '../core/aliases.dart' show aliasesOfNote;
 import '../core/backup.dart' show Backups;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
+import '../importer/importer.dart' show Importer;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/ids.dart' show randomId;
 import '../core/images.dart';
 import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
 import '../core/library_files.dart' show LibraryFiles;
+import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
 import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/native/ghost_core.dart' show GhostCore;
+import '../core/native/device_paths.dart' show DevicePaths;
+import '../core/shared_files.dart' show storeSharedFile;
 import '../core/note.dart';
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
@@ -100,10 +105,14 @@ import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../home/note_peek.dart' show PeekPictures;
 import '../launch/launch_screen.dart';
+import '../links/graph_view.dart' show showGraph;
+import '../links/links_panel.dart' show linkMention, unlinkMention;
+import '../links/note_links.dart';
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
 import '../notes/all_notes_screen.dart';
+import '../notes/collection_screen.dart';
 import '../notes/new_sheet.dart';
 import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';
@@ -134,6 +143,14 @@ import '../settings/settings_sheet.dart';
 import '../settings/tapes.dart' show oldTapes, tapeBytes;
 import '../settings/tapes_here.dart';
 import '../share/app_links.dart';
+import '../share/share_in.dart';
+import '../share/share_in_keep.dart';
+import '../share/ui/share_in_sheet.dart';
+import '../home_screen/home_host.dart' show PhoneHomeScreenHost;
+import '../home_screen/phone_entries.dart';
+import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
+import '../reminders/reminder_host.dart' show PhoneReminderHost;
+import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
@@ -147,6 +164,8 @@ import 'library_reads.dart';
 import 'note_desk.dart';
 import 'note_keeping.dart';
 import 'opening.dart';
+import 'organize.dart';
+import 'phone_extras.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'selected.dart';
@@ -192,7 +211,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -232,6 +251,9 @@ class GhostRoot extends StatefulWidget {
   /// Hands an address to the phone (lib/core/open_link.dart): a link's tap in a note, Settings' pages. Absent, a tap
   /// opens nothing.
   final LinkOpener? openLink;
+
+  /// What other apps share into this one (lib/share/share_in.dart): the phone's on Android. Absent, nothing is.
+  final ShareSource? shares;
 
   /// The whole core, for what is a job there and says the rest as events: Settings' Library folder, Backup and
   /// Export (lib/core/library_folder.dart, backup.dart, export_all.dart). Absent, as in a test, those pages say
@@ -342,7 +364,7 @@ class _GhostRootState extends State<GhostRoot> {
   late final KeptWorkspaceStorage? _keptSpaces = widget.workspaces == null && _real ? KeptWorkspaceStorage() : null;
   late final WorkspaceStore _workspaces = widget.workspaces ??
       (_keptSpaces != null
-          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
+          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library, workspaces: () => _workspaces.value.list).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
   // Who keeps a version here: the account's handle, read as each is kept (core/versions/record.ts `keeper`).
@@ -629,6 +651,9 @@ class _GhostRootState extends State<GhostRoot> {
   late final Backups? _backups = _native == null ? null : Backups.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
   late final ExportAll? _export = _native == null ? null : ExportAll.overCore(invoke: _native.invoke, startJob: _native.startJob, events: _native.events);
 
+  /// Settings › Import: an Obsidian vault or Evernote's exports, into a workspace of their own (lib/importer/).
+  late final Importer? _importer = _native == null ? null : Importer.overLibrary(library: _library, workspaces: _workspaces, invoke: _native.invoke);
+
   /// The notes' folder in the phone's Files app, for the sidebar's Browse files (lib/core/library_files.dart): the
   /// phone is asked the first time a sidebar is built, and the tool is there once it has said it can.
   late final LibraryFiles _files = LibraryFiles();
@@ -678,6 +703,21 @@ class _GhostRootState extends State<GhostRoot> {
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
 
+  /// The same for what other apps share in: each share waits here for its sheet (lib/share/ui/share_in_sheet.dart),
+  /// one at a time, the oldest first.
+  void Function()? _stopShares;
+  final List<SharedIn> _sharing = [];
+
+  /// Writes a share into the library: a picture as the editor's own Add a picture keeps one, any other file beside
+  /// the pictures (lib/share/share_in_keep.dart).
+  late final ShareKeeper _shareKeeper = ShareKeeper(
+    library: _library,
+    workspaces: _workspaces,
+    adoptPicture: widget.core == null ? null : corePictureAdopter(CoreFiles(widget.core!)),
+    keepFile: (source, name) async => storeSharedFile(source, name: name, dataDir: (await DevicePaths.find()).dataDir),
+    kept: _stored,
+  );
+
   /// An invite link that arrived, each arrival asked about again (`joinRequest`).
   JoinRequest? _joinRequest;
   void _joinFromLink(String code) {
@@ -685,6 +725,15 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   late final AppLinkDoor _door = _RootDoor(this);
+
+  /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
+  /// real library, and nowhere else. Begun once the notes are read.
+  late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
+      : null;
+
+  /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
+  late final PhoneEntryDoor _phoneDoor = _PhoneDoor(this);
 
   /// The + sheet, the workspace it makes into where it was an organization's +, and the New notebook sheet with its
   /// own.
@@ -750,10 +799,26 @@ class _GhostRootState extends State<GhostRoot> {
   /// Whether your templates are being made now (`_openTemplates`): a second press meanwhile is the same press.
   bool _seeding = false;
 
+  /// Smart notebooks, the Tags page, a tag renamed and today's note (lib/root/organize.dart).
+  late final Organize _organize = Organize(
+    library: _library,
+    workspaces: _workspaces,
+    shell: () => _shell.currentState,
+    notes: () => _shown,
+    make: (body, {caret, into}) => _showMade(body, caret: caret, into: into),
+    screenOf: (id) => _shell.currentState?.shown == id ? openNoteScreen(_shell.currentContext, id) : null,
+    templates: () => _reads.ownTemplates,
+    say: (message) {
+      if (mounted) _say(context, message);
+    },
+  );
+
   late final NoteDeskWorld _desk = NoteDeskWorld(
     titles: () => [
       for (final note in _shown)
         if (noteTitle(note.body).isNotEmpty) noteTitle(note.body),
+      // The names a note answers to besides its title (lib/core/aliases.dart): a link to one opens the note.
+      for (final note in _shown) ...aliasesOfNote(note),
     ],
     known: (title) => _reads.titled(title) != null,
     open: _openTitle,
@@ -796,6 +861,7 @@ class _GhostRootState extends State<GhostRoot> {
     dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
     tags: _places,
+    openTag: (tag) => _organize.showTag(tag),
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
@@ -813,7 +879,92 @@ class _GhostRootState extends State<GhostRoot> {
     syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
     // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
     shareVersionsFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
+    // A note's links, its outline and its graph (lib/links/note_links.dart).
+    links: (noteId) => NoteLinksHere(app: _linksApp, noteId: noteId),
   );
+
+  /// Which notes link to which, kept with the library (lib/core/link_index.dart): read whole off the UI isolate
+  /// once, then a note at a time as each changes. Made as the root starts; what it reads is what every screen shows.
+  late final LinkIndexer _linkIndex;
+
+  /// What every open note's links are given (lib/links/note_links.dart).
+  late final NoteLinksApp _linksApp = NoteLinksApp(
+    indexer: _linkIndex,
+    openAt: (id, line) => _shell.currentState?.openNote(id, at: 'line:${line + 1}'),
+    link: _linkMention,
+    localGraph: (id, title) => _showGraph(focus: id, title: title),
+    say: (message) => _say(context, message),
+  );
+
+  /// The graph of the notes over the app (lib/links/graph_view.dart): the whole library's, or the notes round
+  /// [focus]. A note opened from it opens where it was left. Archived notes are put away, and left out.
+  void _showGraph({String? focus, String? title}) {
+    final shell = _shell.currentState;
+    if (shell == null) return;
+    unawaited(showGraph(
+      context,
+      indexer: _linkIndex,
+      focus: focus,
+      focusTitle: title,
+      hueOf: (id) => _workspaces.workspaceOf(id)?.hue,
+      keep: (id) => id == focus || (_library.noteOf(id)?.archivedAt ?? 0) == 0,
+      onOpen: (id) => _openWhereLeft(shell, id),
+    ));
+  }
+
+  /// "Mentioned in"'s Link: the words in the other note made a `[[link]]`, through the library as a query's tick
+  /// is, and said with an Undo that takes the brackets off again while they are still there.
+  Future<bool> _linkMention(Mention mention, LinkPlace place) async {
+    String? made;
+    await _writeNote(mention.id, (body) => made = linkMention(body, place.from, place.to, mention.name));
+    final linked = made;
+    if (!mounted) return linked != null;
+    if (linked == null) {
+      _say(context, 'That mention has changed. Open ${mention.title.isEmpty ? 'the note' : mention.title} to link it.');
+      return false;
+    }
+    final words = linked.substring(place.from + 2, linked.indexOf(']]', place.from));
+    GlacierToast.of(context).toast(
+      message: Text('Linked in ${mention.title.isEmpty ? 'Untitled' : mention.title}.'),
+      action: GlacierToastAction(label: 'Undo', onPress: () => unawaited(_writeNote(mention.id, (body) => unlinkMention(body, place.from, words)))),
+    );
+    return true;
+  }
+
+  /// The palette's Links to this note: the side panel at its Links tab where there is room for it, else the note's
+  /// More sheet at its Links page.
+  void _openNoteLinks(String id) {
+    final shell = _shell.currentState;
+    if (shell == null) return;
+    if (splitFits(MediaQuery.sizeOf(context), mouse: mousePointer)) {
+      showAsideTab(AsideTab.links, _stored);
+      shell.showAside();
+      return;
+    }
+    NoteLinksHere.of(id)?.openLinks();
+  }
+
+  /// The open note's links and outline, in the side panel where the window has room for two panes (a Fold
+  /// opened, a Mac): a note of words, not a canvas or a notebook's index.
+  ({String noteId, String title})? _asideLinksOf(BuildContext context, AppShellState shell) {
+    final screen = shell.screen;
+    if (screen is! ScreenNote || !splitFits(MediaQuery.sizeOf(context), mouse: mousePointer)) return null;
+    final note = _library.noteOf(screen.note.id) ?? screen.note;
+    if (isCanvasBody(note.body) || isBookBody(note.body)) return null;
+    return (noteId: note.id, title: noteTitle(note.body));
+  }
+
+  AsideHistoryBuilder? _asideLinks(BuildContext context, AppShellState shell) {
+    final of = _asideLinksOf(context, shell);
+    if (of == null) return null;
+    return (context) => asideLinks(context, app: _linksApp, noteId: of.noteId, title: of.title);
+  }
+
+  AsideHistoryBuilder? _asideOutline(BuildContext context, AppShellState shell) {
+    final of = _asideLinksOf(context, shell);
+    if (of == null) return null;
+    return (context) => AsideOutline(noteId: of.noteId, body: () => _library.noteOf(of.noteId)?.body ?? '');
+  }
 
   /// Who hears that the phone's write-up changed a note (ai/summaries.dart `onRecordingChanged`): the open notes'
   /// screens, told through here so that a note opened before voice was made hears too.
@@ -1126,6 +1277,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _organize.dispose();
     _wispEdge.removeListener(_smoke);
     _localOnly.removeListener(plugins.preferencesChanged);
     _localOnly.removeListener(_localOnlyMoved);
@@ -1134,6 +1286,8 @@ class _GhostRootState extends State<GhostRoot> {
     widget.updates?.removeListener(_updatesChanged);
     if (widget.guide == null) _guide?.dispose();
     _stopLinks?.call();
+    _stopShares?.call();
+    _extras?.dispose();
     _previews.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
@@ -1156,6 +1310,7 @@ class _GhostRootState extends State<GhostRoot> {
     // A voice a test brought is the test's to let go.
     if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
+    _linkIndex.dispose();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
     _trash.removeListener(_tick.tell);
@@ -1206,6 +1361,7 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);
@@ -1248,6 +1404,7 @@ class _GhostRootState extends State<GhostRoot> {
         if (mounted) _say(context, message);
       },
       palette: () => _commands.currentState?.show(),
+      today: () => _organize.today(),
       settings: () {
         if (mounted) setState(() => _settings = true);
       },
@@ -1295,11 +1452,18 @@ class _GhostRootState extends State<GhostRoot> {
     final links = widget.links;
     if (mounted && links != null) {
       _stopLinks = followAppLinks((link) {
+        // A new note, a voice note, today's, the palette, or a note at a line: the phone's own ways in.
+        if (followPhoneEntry(link, _phoneDoor)) return;
         // The kind and never the link: a share's link carries its key.
         debugPrint('[glyph] a link opened the app: ${readAppLink(link)?.runtimeType ?? 'none of the app\'s'}');
         openAppLink(link, _door, onError: (failure) => debugPrint('[glyph] could not follow the link that opened the app: $failure'));
       }, links);
     }
+    // And what another app shared, which waits for the notes for the same reasons: its sheet offers them to add to.
+    final shares = widget.shares;
+    if (mounted && shares != null) _stopShares = followShares((share) => setState(() => _sharing.add(share)), shares);
+    // Reminders and the home screen, kept in step with the notes from here on.
+    if (mounted) _extras?.start();
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
     if (seeded.isMarked) return;
@@ -1443,4 +1607,76 @@ class _RootDoor implements AppLinkDoor {
 
   @override
   void join(String code) => root._joinFromLink(code);
+}
+
+/// What the app does with the phone's own ways in (lib/home_screen/phone_entries.dart): each once the notes are read,
+/// which is when a link is followed at all.
+class _PhoneDoor implements PhoneEntryDoor {
+  const _PhoneDoor(this.root);
+  final _GhostRootState root;
+
+  /// Once the shell is there to be asked (a link that started the app may be followed under the launch screen), and
+  /// with what covered it put away: Settings, a sheet, an organization's settings, the notes' card and the
+  /// notifications. The person asked for a note from outside the app, and is to see it.
+  void _withShell(void Function(AppShellState shell) then) {
+    void go(AppShellState shell) {
+      if (root._settings || root._newSheet || root._bookSheet != null || root._organization != null || root._newOrganization) {
+        root._told(() {
+          root._settings = false;
+          root._newSheet = false;
+          root._bookSheet = null;
+          root._organization = null;
+          root._newOrganization = false;
+        });
+      }
+      shell
+        ..closeSidebar()
+        ..closeNotifications();
+      then(shell);
+    }
+
+    final shell = root._shell.currentState;
+    if (shell != null) return go(shell);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final later = root._shell.currentState;
+      if (root.mounted && later != null) go(later);
+    });
+  }
+
+  /// A new note, ready to type in: the caret in line 1 and the keyboard up, asked for again once the app is in front.
+  @override
+  void newNote() => _withShell((_) {
+        root._new();
+        raiseKeyboardSoon();
+      });
+
+  /// A new note being recorded into, as the dock's microphone does: the microphone opens on this tap and not before.
+  /// Voice is made a moment after the notes are read, so a tap that started the app waits for it, three seconds at
+  /// most; a build or a phone with none opens a new note to type in instead.
+  @override
+  void voiceNote() => unawaited(() async {
+        await root._voiceKnown.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+        if (!root.mounted) return;
+        if (root._capture == null) return newNote();
+        _withShell((_) => root._speak());
+      }());
+
+  /// Today's note: the daily note the + sheet's Today row and the palette open (lib/root/organize.dart).
+  @override
+  void today() => _withShell((_) => root._organize.today());
+
+  /// The palette, to type a note's name or a command in.
+  @override
+  void search() => _withShell((_) => WidgetsBinding.instance.addPostFrameCallback((_) => root._search()));
+
+  /// A note at a line (a reminder, a Today or Pinned row, a recent note): the line where the item now is, by its
+  /// words where lines were written above it since; a note gone or in the Trash opens nothing.
+  @override
+  void openNoteAt(String noteId, int line, String find) => _withShell((shell) {
+        final note = root._library.noteOf(noteId);
+        if (note == null || root._trash.isTrashed(noteId)) return;
+        final at = line > 0 ? (find.isEmpty ? line : findItemNear(note.body, line, find)) : null;
+        if (at == null || at <= 0) return root._openWhereLeft(shell, noteId);
+        shell.openNote(noteId, at: 'line:$at');
+      });
 }

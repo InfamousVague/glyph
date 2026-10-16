@@ -17,6 +17,7 @@
 ///   [ShareRows.onSend] is given, as the page draws it only where `navigator.share` exists.
 /// - The note's settings sheet is the editor's to port; until it holds these rows, [ShareSheet] is a sheet of them
 ///   alone.
+/// - Under them, the note's site ([SiteRows], docs/SITES.md), which the web's sheet does not have.
 library;
 
 import 'dart:async';
@@ -33,6 +34,7 @@ import '../../sheet/flow.dart';
 import '../../sheet/kit.dart';
 import '../../sheet/sheet.dart';
 import '../share.dart';
+import 'site_rows.dart';
 
 /// What the link carries of where its pages were written and of the places in their words, in one sentence for
 /// what the pages hold: nothing where they hold neither (`linkCarries`).
@@ -247,6 +249,8 @@ class _ShareRowsState extends State<ShareRows> {
               ),
           ],
         ),
+        // Publishing it as a site (site_rows.dart): a journal has none, and neither does a build that offers none.
+        if (widget.kind != ShareKind.journal) SiteRows(services: widget.services, noteId: id, notebook: widget.kind == ShareKind.notebook),
       ],
     );
   }

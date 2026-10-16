@@ -113,6 +113,22 @@ import 'page_head.dart';
 import 'pinch_zoom.dart';
 import 'version_keeping.dart';
 
+/// The links between notes, for this note (lib/links/note_links.dart): how many notes link here, worn on the
+/// Links tool's ring; the More sheet's rows for them (Links, Outline, Local graph, Copy link to this line) with
+/// their pages, given the editor, the page and the sheet's close; and the editor and the page handed over once both
+/// are here, for the side panel's outline, answering the way to say they have gone.
+@immutable
+class NoteLinksSeam {
+  const NoteLinksSeam({required this.count, required this.section, this.opened, this.asked});
+
+  final ValueListenable<int> count;
+  final NoteSheetSection Function(BuildContext context, EditorView? view, ScrollPosition? page) section;
+  final VoidCallback Function(EditorView view, ScrollPosition page)? opened;
+
+  /// Told when the Links page is asked for from outside the screen (the palette's Links to this note).
+  final Listenable? asked;
+}
+
 /// What the screen is given by pieces and stages that are not its own. Every one is optional: left out, its row,
 /// its tool or its drawing is simply not there, or is a card that says which stage draws it.
 @immutable
@@ -151,6 +167,7 @@ class NoteSeams {
     this.around,
     this.headRoom,
     this.problem,
+    this.links,
   });
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
@@ -267,6 +284,9 @@ class NoteSeams {
   /// same place in its tree either way, since a page that moves house takes a new scroll position, and the place
   /// keeper and a landing hold the one they were made with.
   final Widget Function(BuildContext context, EditorView? view, Widget page)? around;
+
+  /// The links between notes: the Links tool and its count, and the More sheet's rows for them.
+  final NoteLinksSeam? links;
 }
 
 class NoteScreen extends StatefulWidget {
@@ -436,6 +456,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   late String _typedBody = widget.note.body;
   bool _settingsOpen = false;
   NoteSettingsPage? _settingsAt;
+
+  /// One of the links' pages to open the sheet at ([NoteLinksSeam]): Links, from its tool.
+  String? _settingsItem;
+
+  /// Says the editor and the page have gone, to the links' side panel.
+  VoidCallback? _linksGone;
   bool _caretPlaced = false;
   bool _stopped = false;
   ({double distance, double zoom, int? pos, double y})? _pinching;
@@ -554,6 +580,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     if (versions != null && !widget.readOnly) _liveGone = liveNoteOpened(_id, LiveNote(current: () => _view?.state.doc.toString() ?? _saving.body, restore: restoreVersion));
     _prefs.addListener(_redraw);
     widget.seams.headRoom?.addListener(_redraw);
+    widget.seams.links?.count.addListener(_redraw);
+    widget.seams.links?.asked?.addListener(_linksAsked);
     widget.workspaces.addListener(_redraw);
     _zoom.addListener(_redraw);
     _caretPlaced = widget.caret == null;
@@ -625,6 +653,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _liveGone?.call();
     _prefs.removeListener(_redraw);
     widget.seams.headRoom?.removeListener(_redraw);
+    widget.seams.links?.count.removeListener(_redraw);
+    widget.seams.links?.asked?.removeListener(_linksAsked);
+    _linksGone?.call();
     widget.workspaces.removeListener(_redraw);
     _zoom
       ..removeListener(_redraw)
@@ -1051,6 +1082,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     }
     if (!_scroll.hasClients) return;
     final page = _scroll.position;
+    final opened = widget.seams.links?.opened;
+    if (opened != null) {
+      _linksGone?.call();
+      _linksGone = opened(view, page);
+    }
     _keeper?.dispose();
     _keeper = null;
     _landing?.dispose();
@@ -1238,8 +1274,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   void _openMore() => _openSettings();
 
-  void _openSettings([NoteSettingsPage? at]) => setState(() {
+  /// The More sheet at its Links page, asked for from outside the screen.
+  void _linksAsked() {
+    if (mounted && !_typed) _openSettings(null, 'links');
+  }
+
+  void _openSettings([NoteSettingsPage? at, String? item]) => setState(() {
         _settingsAt = at;
+        _settingsItem = item;
         _settingsOpen = true;
       });
 
@@ -1315,6 +1357,15 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     return [
       if (seams.onShare != null) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
       if (history && _raw) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
+      // The notes that link here, their count on the ring (lib/links/note_links.dart).
+      if (seams.links case final links? when !_typed && _raw)
+        ToolAction(
+          id: 'links',
+          label: switch (links.count.value) { 0 => 'Links', 1 => 'Linked from 1 note', final n => 'Linked from $n notes' },
+          icon: Lucide.link2,
+          count: links.count.value,
+          onPress: () => _openSettings(null, 'links'),
+        ),
       if (seams.onComment != null && !_typed && view != null && _raw) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
       if (mark != null && _raw) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
       if (!widget.readOnly) ...[
@@ -1752,6 +1803,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       startAt: _settingsAt,
       cheatSheet: seams.cheatSheet,
       say: widget.say,
+      around: _typed ? null : seams.links?.section(context, view, _scroll.hasClients ? _scroll.position : null),
+      startAtItem: _settingsItem,
     );
   }
 }

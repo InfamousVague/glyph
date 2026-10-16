@@ -52,6 +52,8 @@ extension _RootParts on _GhostRootState {
         ),
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
+        // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
+        OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
           _part('organization', () => (_organization, _accountAt, _syncAt), (context) => _organizationSheetPart(services)),
           _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
@@ -83,6 +85,8 @@ extension _RootParts on _GhostRootState {
           if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
           return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
         }, _guidePart),
+        // Something another app shared: its sheet, over the app, one share at a time (lib/share/ui/share_in_sheet.dart).
+        _part('shareIn', () => _sharing.isEmpty || _launching ? null : _sharing.first, _shareInPart),
         _part('launch', () => _launching ? (_launchLoading, _launchNotes, _updatesAt, _launchSync, _voice) : null, _launchPart),
       ],
     ),
@@ -151,8 +155,9 @@ extension _RootParts on _GhostRootState {
         _left();
       },
       // And the walkthrough steps aside for a recorder, so the parts that read the screen are told.
-      onScreenChanged: (_) {
+      onScreenChanged: (screen) {
         _left();
+        _extras?.screen(screen);
         _tick.tell();
       },
       untouchedEntryOf: (id) => _untouched.recordOf(id)?.journalId,
@@ -231,6 +236,27 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : shell.openOrganization,
           onOrganizationSettings: _services == null ? null : _openOrganizationSettings,
           wisp: preferences.value.wispEdge,
+          onSaveSearch: _organize.saveSearch,
+        ),
+      ),
+      // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
+      collectionBuilder: (context, shell, screen) => _part(
+        'collection',
+        () => (screen, shell.notes, _workspaces.value),
+        (context) => CollectionScreen(
+          kind: screen.kind,
+          name: screen.key,
+          notes: shell.notes,
+          workspaces: _workspaces.value,
+          smart: _organize.smart,
+          onOpen: (id) => _openWhereLeft(shell, id),
+          onBack: screen.kind == CollectionKind.tag && screen.fromTags ? _organize.showTags : shell.backToList,
+          onTag: (tag) => _organize.showTag(tag, fromTags: screen.kind == CollectionKind.tags),
+          onRenameTag: _organize.renameTag,
+          onEditSmart: _organize.editSmart,
+          onNoteMenu: _menu.open,
+          stored: _stored,
+          clock: widget.clock,
         ),
       ),
       sidebarBuilder: (context, shell, close) => _part(
@@ -253,6 +279,10 @@ extension _RootParts on _GhostRootState {
           onClose: close,
           onCommands: _search,
           onBrowseFiles: _browseFiles,
+          onGraph: () {
+            close();
+            _showGraph();
+          },
           // `notices={split ? notices : undefined}`: a phone has its home page for them.
           notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
           onSpeak: _capture == null
@@ -274,6 +304,16 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : _openOrganizationSettings,
           onNoteMenu: _menu.open,
           emptyArt: const Ghost(scene: GhostScene.noNotes),
+          smart: _organize.smart,
+          onSmart: (id) {
+            close();
+            _organize.showSmart(id);
+          },
+          onManageSmart: _organize.editSmart,
+          onTags: () {
+            close();
+            _organize.showTags();
+          },
         ),
       ),
       dockedSidebarBuilder: (context, shell) => _part('tree', () => _sidebarReads(shell), (context) => _tree(shell)),
@@ -290,10 +330,22 @@ extension _RootParts on _GhostRootState {
       asideBuilder: (context, shell) {
         final content = _asideOf(shell);
         final history = _asideHistory(context, shell);
-        return content == null && history == null ? null : AsidePanel(content: content, history: history, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
+        // And, with room for two panes, the open note's links and outline (lib/links/note_links.dart).
+        final links = _asideLinks(context, shell), outline = _asideOutline(context, shell);
+        return content == null && history == null && links == null
+            ? null
+            : AsidePanel(content: content, history: history, links: links, outline: outline, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
       },
-      asideCardBuilder: (context, shell, close) =>
-          AsideCard(content: _asideOf(shell), history: _asideHistory(context, shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
+      asideCardBuilder: (context, shell, close) => AsideCard(
+        content: _asideOf(shell),
+        history: _asideHistory(context, shell),
+        links: _asideLinks(context, shell),
+        outline: _asideOutline(context, shell),
+        stored: _stored,
+        onOpen: shell.openNoteWithin,
+        onOpenTitle: _openTitleWithin,
+        onClose: close,
+      ),
       notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
         void openNote(String id, String? at) {
           close();
@@ -397,6 +449,7 @@ extension _RootParts on _GhostRootState {
       headerEdge: _headerEdge,
       dockHalo: _dockHalo,
       ghost: _homeGhost,
+      onSaveSearch: _organize.saveSearch,
     );
   }
 
@@ -482,6 +535,7 @@ extension _RootParts on _GhostRootState {
           final counted? when counted.noteId == _shell.currentState!.shown => counted.count,
           _ => 0,
         },
+        smartNotebooks: [for (final each in _organize.smart.value) (id: each.id, name: each.name)],
       ),
       doing: () => paletteDoingFor(
         shell: _shell.currentState!,
@@ -521,6 +575,13 @@ extension _RootParts on _GhostRootState {
         },
         settings: _openSettings,
         settingsPage: _openSettingsAt,
+        // The links between notes (lib/links): the whole graph, the open note's own, and its links.
+        graph: _showGraph,
+        localGraph: (id) => _showGraph(focus: id, title: noteTitle(_library.noteOf(id)?.body ?? '')),
+        noteLinks: _openNoteLinks,
+        today: _organize.today,
+        tags: _organize.showTags,
+        openSmart: _organize.showSmart,
       ),
     );
   }
@@ -543,6 +604,23 @@ extension _RootParts on _GhostRootState {
         onDelete: (note) => _delete(note.id),
       );
 
+  /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the
+  /// next share, if one came meanwhile, has its sheet.
+  Widget _shareInPart(BuildContext context) {
+    if (_sharing.isEmpty) return _nothing;
+    final share = _sharing.first;
+    return ShareInSheet(
+      key: ValueKey('share-in:${share.id}'),
+      share: share,
+      keeper: _shareKeeper,
+      notes: shareTargets(_library.value, trashed: _trash.isTrashed),
+      onDone: (kept) {
+        _told(() => _sharing.remove(share));
+        unawaited(widget.shares?.done());
+      },
+    );
+  }
+
   Widget _newSheetPart(BuildContext context) {
     final services = _services;
     final voice = _voice;
@@ -557,6 +635,8 @@ extension _RootParts on _GhostRootState {
       onNote: () => _new(into),
       onCanvas: () => _newCanvas(into),
       onBook: () => _newBook(NewBookKind.notebook, into),
+      // Today's note (lib/notes/daily_notes.dart): the account's own, not offered from an organization's +.
+      onToday: into != null ? null : () => _organize.today(),
       // A journal's entry is the account's own, and is not offered from an organization's +.
       entry: into != null || !_newSheet ? null : _entryRow(),
       // A shared link's copy is read from the account's service: not offered in a build with none.
@@ -684,6 +764,10 @@ extension _RootParts on _GhostRootState {
       onClose: onClose,
       onCommands: _search,
       onBrowseFiles: _browseFiles,
+      onGraph: () {
+        onClose?.call();
+        _showGraph();
+      },
       notices: _sidebarNotices(),
       onSpeak: _capture == null
           ? null
@@ -706,6 +790,16 @@ extension _RootParts on _GhostRootState {
       // A mouse's right-click on a row: the note's menu, where the pointer is.
       onNoteMenu: _menu.open,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
+      smart: _organize.smart,
+      onSmart: (id) {
+        onClose?.call();
+        _organize.showSmart(id);
+      },
+      onManageSmart: _organize.editSmart,
+      onTags: () {
+        onClose?.call();
+        _organize.showTags();
+      },
     );
   }
 

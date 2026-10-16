@@ -21,6 +21,7 @@ import '../../core/day_words.dart';
 import '../../core/days.dart';
 import '../../core/item_syntax.dart';
 import '../../core/task_fields.dart';
+import '../../reminders/reminder_syntax.dart' show ReminderTime, withReminder;
 import '../editor.dart';
 
 /// Which page of fields the band shows.
@@ -72,6 +73,18 @@ class AssignPage extends FieldPage {
 
   @override
   int get hashCode => 2;
+}
+
+/// A reminder: In an hour, This evening, Tomorrow, Pick a time, and Remove when it has one (lib/reminders). Offered
+/// only where the phone reminds ([reminderPicker] is given).
+class RemindPage extends FieldPage {
+  const RemindPage();
+
+  @override
+  bool operator ==(Object other) => other is RemindPage;
+
+  @override
+  int get hashCode => 3;
 }
 
 /// A chip tapped: which page, for which line (counting from 1), and where the chip is on the screen.
@@ -207,6 +220,20 @@ typedef DayPicker = Future<String?> Function(Offset at, String? current);
 
 /// The app's date picker. None, and Pick a date is not offered.
 final Facet<DayPicker, DayPicker?> dayPicker = Facet.define<DayPicker, DayPicker?>(combine: (values) => values.isEmpty ? null : values.first);
+
+/// Picks a reminder's day and time, from where the press was, with the one the line has shown; null for none
+/// (lib/reminders/remind_choices.dart `phoneReminderPicker`).
+typedef ReminderPicker = Future<ReminderTime?> Function(Offset at, ReminderTime? current);
+
+/// The phone's calendar and clock for a reminder. Given only where the phone reminds: absent, a line's menu offers no
+/// Remind me and a reminder's chip opens nothing.
+final Facet<ReminderPicker, ReminderPicker?> reminderPicker = Facet.define<ReminderPicker, ReminderPicker?>(combine: (values) => values.isEmpty ? null : values.first);
+
+/// The moment Remind me counts its times from; the device's own where none is given (a test gives its own).
+final Facet<DateTime Function(), DateTime Function()?> fieldsNow = Facet.define<DateTime Function(), DateTime Function()?>(combine: (values) => values.isEmpty ? null : values.first);
+
+/// Sets line `number`'s reminder, or (with null) takes it off: `⏰ 2026-10-03 09:00` before Tasks' fields.
+bool setLineReminder(EditorViewLike view, int number, ReminderTime? at) => _rewrite(view, number, (text) => withReminder(text, at));
 
 /// A day picked from the calendar [dayPicker] opens, handed to `onPick` when it is one.
 Future<void> pickDay(EditorViewLike view, Offset at, String? current, void Function(String day) onPick) async {

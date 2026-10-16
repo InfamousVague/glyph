@@ -5,6 +5,9 @@
   (tauri/src-tauri/gen/android/app/src/channel/production/res/xml/glyph_shortcuts.xml), so one a person pinned
   to a home screen goes on working. The class is the alias the manifest keeps under the Tauri activity's name. A
   shortcut's package has to be written out, which is why this is a file of its own beside ghost_shortcuts.xml.
+
+  After it, the icon's own (ghost_app_shortcuts.xml says what each is), but Voice note, which Record note already is
+  with the assistant on.
 -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
@@ -15,6 +18,42 @@
         android:shortcutLongLabel="@string/ghost_capture_long">
         <intent
             android:action="com.mattssoftware.glyph.CAPTURE"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new-note"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_new"
+        android:shortcutShortLabel="@string/ghost_shortcut_new_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_new_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://new"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="today"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_today"
+        android:shortcutShortLabel="@string/ghost_shortcut_today_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_today_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://today"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_search"
+        android:shortcutShortLabel="@string/ghost_shortcut_search_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_search_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://search"
             android:targetPackage="com.mattssoftware.glyph"
             android:targetClass="com.mattssoftware.glyph.MainActivity" />
     </shortcut>

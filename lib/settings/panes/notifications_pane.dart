@@ -12,10 +12,14 @@ import '../settings_search.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
+import '../../reminders/reminder_host.dart' show ReminderHost, phoneReminders;
+import 'reminders_section.dart';
 
 /// What Settings' search finds on Notifications (`findable`, src/app/settings/NotificationsPane.findable.ts): the four
 /// switches, and the card of organizations to mute once there is one to draw it for.
 List<SettingsFindable> notificationsFindable({required bool orgs}) => [
+      // Reminders, where the phone reminds (reminders_section.dart).
+      if (phoneReminders.value != null) ...remindersFindable,
       const SettingsFindable('Team', 'organization members joined left removed renamed invitation accepted declined'),
       const SettingsFindable('Claude', 'mcp ai note created edited appended journal rule'),
       const SettingsFindable('Summaries', 'meeting written up summary recording'),
@@ -52,7 +56,7 @@ const Map<String, (String, String)> _switches = {
 ///   meeting service. What Android answered is read again every second while it is keeping them from showing, as
 ///   the page does.
 class NotificationsPane extends StatelessWidget {
-  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount, this.phone});
+  const NotificationsPane({super.key, this.store, this.signedIn = false, this.orgs = const [], this.services, this.onOpenAccount, this.phone, this.reminders});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -70,6 +74,10 @@ class NotificationsPane extends StatelessWidget {
   /// The phone's own notifications for the bell's rows; the account's ([AccountServices.phoneNotices]) unless given.
   /// With none, or on a device whose binary has none, "On this phone" is not drawn.
   final PhoneNotices? phone;
+
+  /// The phone's reminders, which draw their own group first; the app's own where it has them
+  /// ([phoneReminders], Android over the real library) unless given. With none, no group.
+  final ReminderHost? reminders;
 
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
@@ -114,8 +122,11 @@ class NotificationsPane extends StatelessWidget {
           write(notifications.copyWith(mutedOrgs: muted ? [...others, id] : others));
         }
 
+        final reminders = this.reminders ?? phoneReminders.value;
         return PaneBody(
           children: [
+            // This phone's own, signed in or not: nothing of it needs an account.
+            if (reminders != null) RemindersSection(host: reminders),
             if (!signedIn)
               SettingsCallout(
                 child: Text.rich(

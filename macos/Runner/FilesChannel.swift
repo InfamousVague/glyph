@@ -89,6 +89,8 @@ final class FilesChannel: NSObject {
     let args = call.arguments as? [String: Any]
     switch call.method {
     case "chooseLibraryFolder": chooseLibraryFolder(result)
+    case "chooseImportFolder": chooseImportFolder(result)
+    case "chooseImportFiles": chooseImportFiles(result)
     case "chooseExport": chooseExport(args?["name"] as? String ?? "", result)
     case "exportDone":
       exporting = nil
@@ -123,6 +125,47 @@ final class FilesChannel: NSObject {
         return result(FilesChannel.json(["error": "Ghost.md could not keep its way into that folder, so it would lose it the next time it opened. Choose another folder."]))
       }
       result(FilesChannel.json(["path": url.path, "name": FileManager.default.displayName(atPath: url.path)]))
+    }
+  }
+
+  // MARK: import
+
+  /// Settings › Import › Obsidian vault (lib/importer/import_sources.dart): a folder, read by its plain path with
+  /// `dart:io`. In the sandboxed build the panel's choice is what lets the app read it, for this run, which is all
+  /// an import needs: nothing is kept.
+  private func chooseImportFolder(_ result: @escaping FlutterResult) {
+    let panel = NSOpenPanel()
+    panel.title = "Choose an Obsidian vault"
+    panel.message = "Choose the folder of an Obsidian vault to import"
+    panel.prompt = "Import"
+    panel.canChooseFiles = false
+    panel.canChooseDirectories = true
+    panel.canCreateDirectories = false
+    panel.allowsMultipleSelection = false
+    Panels.show(panel, on: window) { url in
+      guard let url = url else { return result(FilesChannel.json(["cancelled": true])) }
+      result(FilesChannel.json(["path": url.path, "name": FileManager.default.displayName(atPath: url.path)]))
+    }
+  }
+
+  /// Settings › Import › Evernote export: one or more `.enex` files, by their paths.
+  private func chooseImportFiles(_ result: @escaping FlutterResult) {
+    let panel = NSOpenPanel()
+    panel.title = "Choose Evernote exports"
+    panel.message = "Choose one or more .enex files to import"
+    panel.prompt = "Import"
+    panel.canChooseFiles = true
+    panel.canChooseDirectories = false
+    panel.allowsMultipleSelection = true
+    if let enex = UTType(filenameExtension: "enex") { panel.allowedContentTypes = [enex] }
+    panel.beginSheetOrRun(on: window) { urls in
+      guard let urls = urls, !urls.isEmpty else { return result(FilesChannel.json(["cancelled": true])) }
+      let files: [[String: Any]] = urls.map { url in
+        let attributes = try? FileManager.default.attributesOfItem(atPath: url.path)
+        let size = (attributes?[.size] as? NSNumber)?.intValue ?? 0
+        return ["path": url.path, "name": url.lastPathComponent, "size": size]
+      }
+      result(FilesChannel.json(["files": files]))
     }
   }
 
@@ -201,6 +244,26 @@ enum Panels {
       panel.beginSheetModal(for: window) { done($0 == .OK ? panel.url : nil) }
     } else {
       done(panel.runModal() == .OK ? panel.url : nil)
+    }
+  }
+}
+
+extension NSOpenPanel {
+  /// A panel that may choose several, shown as a sheet on the app's window (or on its own with none), answered with
+  /// every URL chosen, or nil when it was closed. [Panels.show] answers one.
+  func beginSheetOrRun(on window: NSWindow?, _ done: @escaping ([URL]?) -> Void) {
+    #if DEBUG
+    if let answer = Panels.answer, let file = answer.file, let window = window {
+      Panels.answer = nil
+      beginSheetModal(for: window) { _ in done(answer.cancel ? nil : [URL(fileURLWithPath: file)]) }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) { window.endSheet(self, returnCode: answer.cancel ? .cancel : .OK) }
+      return
+    }
+    #endif
+    if let window = window {
+      beginSheetModal(for: window) { done($0 == .OK ? self.urls : nil) }
+    } else {
+      done(runModal() == .OK ? urls : nil)
     }
   }
 }

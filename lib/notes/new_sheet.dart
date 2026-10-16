@@ -39,6 +39,7 @@ import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
+import 'daily_notes.dart' show dailyTitle;
 
 export '../book/entry_starts.dart' show EntryStart, entryStarts, startLine;
 export '../book/journal.dart' show EntryPreset, entryPresets, entryTitle;
@@ -91,7 +92,7 @@ class NewSheetSound {
 /// What the + makes (`src/app/notes/NewSheet.tsx`). The rows whose features are not ported take their callbacks and
 /// are left out without them; the library doc says which, and what else differs.
 class NewSheet extends StatefulWidget {
-  const NewSheet({super.key, required this.open, required this.onClose, required this.onNote, this.onCanvas, this.onBook, this.entry, this.onMeeting, this.sound, this.onFromLink, this.clock});
+  const NewSheet({super.key, required this.open, required this.onClose, required this.onNote, this.onCanvas, this.onBook, this.entry, this.onMeeting, this.sound, this.onFromLink, this.clock, this.onToday});
 
   final bool open;
   final VoidCallback onClose;
@@ -115,6 +116,9 @@ class NewSheet extends StatefulWidget {
 
   /// The minute a template's line is told for; this one where it is left out.
   final DateTime Function()? clock;
+
+  /// Today's note, opened or made (lib/notes/daily_notes.dart): the port's own, after Note; left out, no row.
+  final VoidCallback? onToday;
 
   @override
   State<NewSheet> createState() => _NewSheetState();
@@ -231,6 +235,14 @@ class _NewSheetState extends State<NewSheet> {
         SheetGroup(
           children: [
             SheetRow(key: const ValueKey('new-note'), icon: const AppIcon(Lucide.squarePen, size: 18), label: 'Note', hint: 'A page of markdown, typed or said.', onPress: _pick(widget.onNote)),
+            if (widget.onToday != null)
+              SheetRow(
+                key: const ValueKey('new-today'),
+                icon: const AppIcon(Lucide.calendarDays, size: 18),
+                label: 'Today',
+                hint: 'The note for ${dailyTitle(widget.clock?.call() ?? DateTime.now())}, opened, or made the first time.',
+                onPress: _pick(widget.onToday!),
+              ),
             if (entry != null) SheetRow(key: const ValueKey('new-entry'), icon: const AppIcon(Lucide.feather, size: 18), label: 'Entry in ${entry.journal}', hint: entry.hint, onPress: () => setState(() => _starting = true)),
             if (canvas != null) SheetRow(key: const ValueKey('new-canvas'), icon: const AppIcon(Lucide.workflow, size: 18), label: 'Canvas', hint: 'Cards on a page with lines between them.', onPress: _pick(canvas)),
             if (book != null) SheetRow(key: const ValueKey('new-book'), icon: const AppIcon(Lucide.book, size: 18), label: 'Notebook', hint: 'Notes in an order with an index, or a journal of dated entries.', onPress: _pick(book)),

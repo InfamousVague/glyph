@@ -32,6 +32,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
@@ -153,22 +154,91 @@ class _KeptPictureState extends State<KeptPicture> {
   Widget build(BuildContext context) {
     final image = _image;
     if (image == null) return widget.waiting ?? const SizedBox.shrink();
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final size = fitPicture(Size(image.width.toDouble(), image.height.toDouble()), maxWidth: constraints.maxWidth, maxHeight: widget.maxHeight, minWidth: widget.minWidth, minHeight: widget.minHeight);
-        return Semantics(
-          image: true,
-          label: widget.label,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(widget.radius),
-            child: ColoredBox(
-              color: widget.background ?? const Color(0x00000000),
-              child: RawImage(image: image, width: size.width, height: size.height, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
-            ),
+    // Sized by a box of its own rather than a LayoutBuilder, so a row that asks its cards their heights before laying
+    // them out (lib/home/note_card.dart `CardRow`, two cards across on an opened Fold) is told the picture's height:
+    // a LayoutBuilder cannot answer that, and a card with a picture threw, or in a release build came out cut short.
+    return Semantics(
+      image: true,
+      label: widget.label,
+      child: FitPictureBox(
+        natural: Size(image.width.toDouble(), image.height.toDouble()),
+        maxHeight: widget.maxHeight,
+        minWidth: widget.minWidth,
+        minHeight: widget.minHeight,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(widget.radius),
+          child: ColoredBox(
+            color: widget.background ?? const Color(0x00000000),
+            child: RawImage(image: image, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
           ),
-        );
-      },
+        ),
+      ),
     );
+  }
+}
+
+/// A picture's box: [fitPicture]'s size in whatever width it is given, and that same size when it is only asked
+/// (its intrinsic heights and its dry layout), which a LayoutBuilder cannot say. Its child fills it.
+class FitPictureBox extends SingleChildRenderObjectWidget {
+  const FitPictureBox({super.key, required this.natural, this.maxHeight = double.infinity, this.minWidth = 0, this.minHeight = 0, super.child});
+
+  final Size natural;
+  final double maxHeight;
+  final double minWidth;
+  final double minHeight;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderFitPicture(natural, maxHeight, minWidth, minHeight);
+
+  @override
+  void updateRenderObject(BuildContext context, covariant RenderObject renderObject) {
+    (renderObject as _RenderFitPicture).set(natural, maxHeight, minWidth, minHeight);
+  }
+}
+
+class _RenderFitPicture extends RenderProxyBox {
+  _RenderFitPicture(this._natural, this._maxHeight, this._minWidth, this._minHeight);
+
+  Size _natural;
+  double _maxHeight, _minWidth, _minHeight;
+
+  void set(Size natural, double maxHeight, double minWidth, double minHeight) {
+    if (natural == _natural && maxHeight == _maxHeight && minWidth == _minWidth && minHeight == _minHeight) return;
+    _natural = natural;
+    _maxHeight = maxHeight;
+    _minWidth = minWidth;
+    _minHeight = minHeight;
+    markNeedsLayout();
+  }
+
+  Size _fit(double maxWidth) => fitPicture(_natural, maxWidth: maxWidth, maxHeight: _maxHeight, minWidth: _minWidth, minHeight: _minHeight);
+
+  @override
+  double computeMinIntrinsicHeight(double width) => _fit(width).height;
+
+  @override
+  double computeMaxIntrinsicHeight(double width) => _fit(width).height;
+
+  @override
+  double computeMinIntrinsicWidth(double height) => _minWidth;
+
+  @override
+  double computeMaxIntrinsicWidth(double height) => _fit(double.infinity).width;
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(_fit(constraints.maxWidth));
+
+  @override
+  void performLayout() {
+    final fitted = _fit(constraints.maxWidth);
+    final inner = constraints.tighten(width: fitted.width, height: fitted.height);
+    final child = this.child;
+    if (child != null) {
+      child.layout(inner, parentUsesSize: true);
+      size = child.size;
+    } else {
+      size = inner.constrain(fitted);
+    }
   }
 }
 

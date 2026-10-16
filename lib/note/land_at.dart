@@ -16,6 +16,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 
+import '../core/block_ids.dart' show blockIdOf, blockLine, headingNamed;
 import '../core/boards/items.dart' show itemAt;
 import '../core/item_syntax.dart' show wordsEnd;
 import '../editor/editor.dart';
@@ -34,7 +35,8 @@ const int landings = 4;
 final RegExp _numbered = RegExp(r'^line:(\d+)$');
 
 /// The line [at] names in [view]'s note, counting from 1, or null while it is not there: an item by its anchor
-/// (`^anchor` or `anchor`), or a line by its number, `line:12`.
+/// (`^anchor` or `anchor`), or a line by its number, `line:12`; and, as `[[Note#^name]]` and `[[Note#Heading]]`
+/// point (lib/core/block_ids.dart), any line by the name at its end, or a heading by its words.
 int? landingLine(EditorView view, String at) {
   final anchor = at.replaceFirst(RegExp(r'^\^'), '');
   if (anchor.isEmpty) return null;
@@ -45,7 +47,8 @@ int? landingLine(EditorView view, String at) {
     // A line by its number is there once the note has that many lines: its words may still be arriving.
     return n >= 1 && n <= doc.lines && doc.length > 0 ? n : null;
   }
-  return itemAt(doc.toString(), anchor)?.line;
+  final body = doc.toString();
+  return itemAt(body, anchor)?.line ?? blockLine(body, anchor) ?? (at.startsWith('^') ? null : headingNamed(body, at)?.line);
 }
 
 class LandAt {
@@ -72,7 +75,10 @@ class LandAt {
     if (found != null && page.hasPixels) {
       final doc = view.state.doc;
       final line = doc.line(found < doc.lines ? found : doc.lines);
-      if (_landed == 0) view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + wordsEnd(line.text))));
+      // Before a named line's name, as before an item's: typed there, a letter would go into the name.
+      final named = blockIdOf(line.text);
+      final caret = named != null && named.from > 0 && wordsEnd(line.text) > named.from ? named.from - 1 : wordsEnd(line.text);
+      if (_landed == 0) view.dispatch(TransactionSpec(selection: EditorSelection.single(line.from + caret)));
       final seen = view.coordsAtPos(line.from);
       final room = headerBottom() + landRoom;
       if (seen != null) {

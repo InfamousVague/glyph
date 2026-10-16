@@ -75,7 +75,7 @@ List<PaletteNote> paletteJournals(List<Note> notes) {
 /// The app as it stands, for the palette (`paletteWorld`, App.tsx): the shell's notes, tabs, screen and trail, the
 /// workspaces, and the two preferences a command's words turn on. [blanks] is how many blanks the open note's
 /// editor counted, once there is one to count them.
-PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0}) {
+PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces workspaces, required Preferences prefs, int blanks = 0, List<PaletteNamed> smartNotebooks = const []}) {
   final screen = shell.screen;
   Note? open;
   if (screen is ScreenNote) {
@@ -90,7 +90,8 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     notes: paletteNotes(shell.notes),
     journals: paletteJournals(shell.notes),
     tabs: [for (final note in shell.tabs.tabs) PaletteNote(id: note.id, title: NoteFacts.of(note).title)],
-    workspaces: [for (final space in workspaces.list) (id: space.id, name: space.name)],
+    // A folder inside another is named with its parents: "Work › Clients".
+    workspaces: [for (final space in workspaces.list) (id: space.id, name: space.parent == null ? space.name : workspacePathName(workspaces.list, space.id))],
     workspace: workspaces.current?.id,
     note: open == null ? null : PaletteNote(id: open.id, title: NoteFacts.of(open).title, journal: NoteFacts.of(open).isJournal, blanks: blanks),
     filedIn: open == null ? null : workspaces.of[open.id],
@@ -101,6 +102,7 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     theme: prefs.theme,
     tabGroups: [for (final group in groups.list) (id: group.id, name: group.name)],
     tabGroup: open == null ? null : groups.of[open.id],
+    smartNotebooks: smartNotebooks,
   );
 }
 
@@ -136,6 +138,12 @@ PaletteDoing paletteDoingFor({
   VoidCallback? guide,
   VoidCallback? academy,
   void Function(String id, String kind)? noteAi,
+  VoidCallback? graph,
+  void Function(String id)? localGraph,
+  void Function(String id)? noteLinks,
+  VoidCallback? today,
+  VoidCallback? tags,
+  void Function(String id)? openSmart,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -169,6 +177,12 @@ PaletteDoing paletteDoingFor({
     groupTab: (id) => shell.tabs.setGroups(newGroup(shell.tabs.groups, id).groups),
     joinTabGroup: (id, group) => shell.tabs.setGroups(joinGroup(shell.tabs.groups, id, group)),
     leaveTabGroup: (id) => shell.tabs.setGroups(leaveGroup(shell.tabs.groups, id)),
+    graph: graph,
+    localGraph: localGraph,
+    noteLinks: noteLinks,
+    today: today,
+    tags: tags,
+    openSmart: openSmart,
   );
 }
 

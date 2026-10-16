@@ -267,6 +267,16 @@ class FakeService {
   /// seconds. Not in the web's fake, whose share tests stand in for the call itself; here they go through the fetcher.
   final Map<String, ({String blob, int updated})> shares = {};
 
+  /// The account's published sites (server/src/sites.rs): each one's sealed blob, what the account's devices sealed
+  /// about it, and when it was first and last published, in ms.
+  final Map<String, ({String blob, String meta, int created, int updated})> sites = {};
+
+  /// Email to a note (server/src/mail.rs): the account's address, whether this service takes mail at all, and the
+  /// mail waiting, sealed, by id. A test puts a mail here as the service would have sealed it.
+  String? mailAddress;
+  bool takesMail = true;
+  final Map<String, ({String wrapped, String blob, int at})> mail = {};
+
   /// The organizations as stored, by id, with their rows by handle.
   final Map<String, StoredOrg> orgs = {};
 
@@ -307,6 +317,9 @@ class FakeService {
     files.clear();
     _prefs = null;
     shares.clear();
+    sites.clear();
+    mailAddress = null;
+    mail.clear();
     orgs.clear();
     links.clear();
     feed.clear();
@@ -510,6 +523,13 @@ class FakeService {
       return kept != null ? _json(200, {'blob': kept.blob}) : _refuse(404, 'No share by that link.');
     }
 
+    // --- a site read by its link, which needs no session (server/src/sites.rs) ---
+    final site = RegExp(r'^sites/([^/]+)$').firstMatch(path);
+    if (site != null && method == 'GET') {
+      final kept = sites[Uri.decodeComponent(site[1]!)];
+      return kept != null ? _json(200, {'blob': kept.blob, 'updated': kept.updated}) : _refuse(404, 'Nothing is published at that link. It may have been unpublished.');
+    }
+
     // --- everything else is for a signed-in device ---
     if (bearer == null || bearer.isEmpty) return _refuse(401, 'Sign in first.');
     if (!_tokens.contains(bearer) || account == null) return _refuse(401, 'Your session has ended. Sign in again.');
@@ -592,6 +612,61 @@ class FakeService {
     if (share != null && method == 'DELETE') {
       shares.remove(Uri.decodeComponent(share[1]!));
       return _json(200, {'deleted': true});
+    }
+
+    // --- published sites (server/src/sites.rs) ---
+    if (path == 'sites' && method == 'GET') {
+      return _json(200, {
+        'sites': [
+          for (final MapEntry(:key, :value) in sites.entries) {'id': key, 'meta': value.meta, 'created': value.created, 'updated': value.updated},
+        ],
+      });
+    }
+    if (site != null && method == 'PUT') {
+      final blob = body['blob'], meta = body['meta'];
+      if (blob is! String || blob.isEmpty) return _refuse(400, 'That site is empty or too large.');
+      if (meta is! String || meta.isEmpty) return _refuse(400, 'What that site says about itself could not be read.');
+      final id = Uri.decodeComponent(site[1]!);
+      final now = clock();
+      sites[id] = (blob: blob, meta: meta, created: sites[id]?.created ?? now, updated: now);
+      return _json(200, {'id': id, 'updated': now});
+    }
+    if (site != null && method == 'DELETE') {
+      sites.remove(Uri.decodeComponent(site[1]!));
+      return _json(204, null);
+    }
+
+    // --- email to a note (server/src/mail.rs) ---
+    if (path == 'mail/address') {
+      if (method == 'GET') return _json(200, {'address': mailAddress, 'available': takesMail});
+      if (method == 'POST') {
+        if (!takesMail) return _refuse(503, 'Email to a note is not set up on this service yet.');
+        if (mine.encryption == null) return _refuse(409, 'Your account needs its encryption key first. Sync once, then try again.');
+        mailAddress = 'k7m2q9xh4t3v${(++_issued).toString().padLeft(4, '0')}@in.ghostmarkdown.com';
+        return _json(200, {'address': mailAddress});
+      }
+      if (method == 'DELETE') {
+        mailAddress = null;
+        return _json(204, null);
+      }
+    }
+    if (path == 'mail' && method == 'GET') {
+      final waiting = mail.entries.toList()..sort((a, b) => a.value.at.compareTo(b.value.at));
+      return _json(200, {
+        'mail': [
+          for (final MapEntry(:key, :value) in waiting) {'id': key, 'size': value.wrapped.length + value.blob.length, 'at': value.at},
+        ],
+      });
+    }
+    final mailed = RegExp(r'^mail/([^/]+)$').firstMatch(path);
+    if (mailed != null && method == 'GET') {
+      final id = Uri.decodeComponent(mailed[1]!);
+      final kept = mail[id];
+      return kept != null ? _json(200, {'id': id, 'wrapped': kept.wrapped, 'blob': kept.blob, 'at': kept.at}) : _refuse(404, 'That mail is not waiting. Another of your devices may have filed it.');
+    }
+    if (mailed != null && method == 'DELETE') {
+      mail.remove(Uri.decodeComponent(mailed[1]!));
+      return _json(204, null);
     }
 
     if (path == 'prefs' && method == 'GET') return _json(200, {'rev': _prefs?.rev ?? 0, 'blob': _prefs?.blob});

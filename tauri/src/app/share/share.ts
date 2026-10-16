@@ -101,10 +101,11 @@ export const SHARE_BYTES = 4_400_000;
 /** A picture's name as a note writes it: nothing a share could use to reach outside the picture store. */
 const PICTURE_NAME = /^[A-Za-z0-9_-][A-Za-z0-9_.-]{0,127}$/;
 
-export async function sealShare(shared: Shared, key: string): Promise<string> {
+/** Sealed in `context`: a share's own, or a published site's (src/read/site.ts `SITE_CONTEXT`). */
+export async function sealShare(shared: Shared, key: string, context: string = CONTEXT): Promise<string> {
   const { pictures = {}, ...words } = shared;
   const names = Object.keys(pictures);
-  if (!names.length) return toBase64Url(await sealBytes(await keyOf(key), new TextEncoder().encode(JSON.stringify(words)), CONTEXT));
+  if (!names.length) return toBase64Url(await sealBytes(await keyOf(key), new TextEncoder().encode(JSON.stringify(words)), context));
   const head = new TextEncoder().encode(JSON.stringify({ ...words, pictures: names.map((name) => [name, pictures[name]!.length]) }));
   const out = new Uint8Array(8 + head.length + names.reduce((sum, name) => sum + pictures[name]!.length, 0));
   out.set(PICTURED, 0);
@@ -115,11 +116,12 @@ export async function sealShare(shared: Shared, key: string): Promise<string> {
     out.set(pictures[name]!, at);
     at += pictures[name]!.length;
   }
-  return toBase64Url(await sealBytes(await keyOf(key), out, CONTEXT));
+  return toBase64Url(await sealBytes(await keyOf(key), out, context));
 }
 
-export async function openShare(blob: string, key: string): Promise<Shared> {
-  const bytes = await openBytes(await keyOf(key), fromBase64Url(blob), CONTEXT);
+/** Opened in `context`: a share's own, or a published site's. */
+export async function openShare(blob: string, key: string, context: string = CONTEXT): Promise<Shared> {
+  const bytes = await openBytes(await keyOf(key), fromBase64Url(blob), context);
   let shared: Shared;
   if (PICTURED.every((byte, i) => bytes[i] === byte)) {
     const length = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getUint32(4);

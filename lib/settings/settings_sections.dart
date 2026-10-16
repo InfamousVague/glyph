@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../account/ui_state.dart';
 import '../core/mac_app.dart' show macAppStore;
 import '../core/preferences.dart';
+import '../core/workspaces.dart' show Workspace;
 import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
@@ -13,9 +14,11 @@ import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
 import 'panes/cheat_sheet.dart';
+import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
 import 'panes/examples_pane.dart';
 import 'panes/export_pane.dart';
+import 'panes/import_pane.dart';
 import 'panes/notifications_pane.dart';
 import 'panes/organizations_pane.dart';
 import 'panes/plugins_pane.dart';
@@ -229,6 +232,22 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => workspacesFindable,
     pane: WorkspacesPane.hosted,
   ),
+  // Where today's note goes and what it starts from (lib/notes/daily_notes.dart): a page behind Workspaces, the
+  // folders it is filed in, off the list so the list stays the web's, and found by the search. The port's own,
+  // 2026-10-16; it has no page in tauri/.
+  SettingsSectionSpec(
+    id: 'daily',
+    label: 'Daily notes',
+    words: 'daily note today journal date template folder',
+    glyph: SettingsGlyph.calendarDays,
+    group: 0,
+    webFile: 'settings/WorkspacesPane.tsx',
+    summary: (facts) => dailyNotesSummary(facts.prefs, [for (final w in facts.prefs.workspaces.list) Workspace(id: w.id, name: w.name)]),
+    settings: (facts) => dailyNotesFindable,
+    pane: DailyNotesPane.hosted,
+    listed: false,
+    parent: 'workspaces',
+  ),
   // What reaches you: beside Account on the first card, in the coral the shell kept free.
   SettingsSectionSpec(
     id: 'notifications',
@@ -283,6 +302,22 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => _static(facts.ios ? 'Not on iPhone yet' : 'Everything as one zip', facts),
     settings: (facts) => exportFindable,
     pane: ExportPane.hosted,
+  ),
+  // Notes from another app, into a workspace of their own: a page behind Export's Import row, on Android and the Mac,
+  // which have a picker for a folder. The app's own: the web app has no such page, so its file is Export's.
+  SettingsSectionSpec(
+    id: 'import',
+    label: 'Import',
+    words: 'import obsidian vault evernote enex move from another app bring in',
+    glyph: SettingsGlyph.folderInput,
+    group: 1,
+    webFile: 'settings/ExportCard.tsx',
+    where: (facts) => !facts.ios,
+    summary: (facts) => _static('From Obsidian or Evernote', facts),
+    settings: (facts) => importFindable,
+    pane: ImportPane.hosted,
+    listed: false,
+    parent: 'export',
   ),
   SettingsSectionSpec(
     id: 'theme',

@@ -11,8 +11,8 @@
 //! This file owns the schema, the one connection, and what every query goes through. Each table's queries are in the
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
 //! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
-//! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md) and `store/notifications.rs`
-//! (what each account is told) - each an `impl Store` of its own, so a caller still holds one `Store`.
+//! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
+//! (what each account is told), `store/sites.rs` (published sites) and `store/mail.rs` (email to a note) - each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
 //! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
 //! the next start (shares did), and a new column on a table that is already there does not. The first column added
@@ -21,6 +21,7 @@
 
 mod accounts;
 mod keys;
+mod mail;
 mod notes;
 mod org_notes;
 mod notifications;
@@ -30,6 +31,7 @@ mod orgs;
 mod prefs;
 mod recordings;
 mod shares;
+mod sites;
 
 pub use accounts::DeleteAccount;
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
@@ -41,7 +43,9 @@ pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
 pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
+pub use mail::{MailWrite, SealedMail};
 pub use shares::ShareWrite;
+pub use sites::SiteWrite;
 
 use rusqlite::{params, Connection, OptionalExtension, Params, Row};
 use std::path::{Path, PathBuf};
@@ -271,6 +275,35 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 CREATE INDEX IF NOT EXISTS notifications_by_rev ON notifications(account_id, rev);
 CREATE INDEX IF NOT EXISTS notifications_by_org ON notifications(org_id, kind);
+-- A note or a notebook published as a site (server/src/sites.rs, docs/SITES.md): ciphertext under a key only the site's
+-- link carries, as a share's is, and `meta`, what the site is of and its link's key, sealed under the account key so
+-- every device of the account can list its sites. Taken down with its owner's account.
+CREATE TABLE IF NOT EXISTS sites (
+    id         TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    blob       TEXT NOT NULL,
+    meta       TEXT NOT NULL,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS sites_by_owner ON sites(account_id);
+-- Email to a note (server/src/mail.rs, docs/MAIL.md): an account's private address, its local part lower-cased, one an
+-- account; and the mail sent to it, ONLY sealed - a key wrapped to the account's encryption public key, and the mail
+-- as a note sealed under that key - waiting until a device of the account files it. Both go with the account.
+CREATE TABLE IF NOT EXISTS mail_addresses (
+    address    TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL
+);
+CREATE TABLE IF NOT EXISTS mail_in (
+    id          TEXT PRIMARY KEY,
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    wrapped     TEXT NOT NULL,
+    blob        TEXT NOT NULL,
+    size        INTEGER NOT NULL,
+    received_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS mail_in_by_account ON mail_in(account_id, received_at);
 "#;
 
 /// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the

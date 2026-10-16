@@ -93,10 +93,14 @@ void main() {
     expect(find.byType(AsideCard), findsNothing);
     expect(shellOf(tester).shown, titled(library, 'The coast').id);
     expect(shellOf(tester).tabs.tabs.length, 1);
-    // A note in no book has no aside, and no icon for one.
+    // A note in no book has an aside since 2.1 all the same: its links and its outline (lib/links/note_links.dart),
+    // and no index.
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);
-    expect(find.bySemanticsLabel('Side panel'), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Side panel'));
+    await settle(tester);
+    expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Links')), findsWidgets);
+    expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Index')), findsNothing);
     await close(tester);
   });
 
@@ -146,12 +150,18 @@ void main() {
     }
   });
 
-  testWidgets('a phone opened out keeps a note\'s history in its More sheet: no side panel for a note in no notebook', (tester) async {
+  testWidgets('a phone opened out keeps a note\'s history in its More sheet: its side panel has the note\'s links and outline, not its history', (tester) async {
     final library = await open(tester);
     shellOf(tester).openNote(titled(library, 'Groceries').id);
     await settle(tester);
-    expect(find.bySemanticsLabel('Side panel'), findsNothing);
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).onHistory, isNull);
+    await tester.tap(find.bySemanticsLabel('Side panel'));
+    await settle(tester);
+    expect(find.descendant(of: find.byType(AsidePanel), matching: find.text('Outline')), findsWidgets);
+    expect(find.byType(AsideHistory), findsNothing);
+    // Folded shut, the cover screen has no room for one: no side panel, and no icon for it.
+    await resize(tester, cover);
+    expect(find.bySemanticsLabel('Side panel'), findsNothing);
     await close(tester);
   });
 

@@ -11,11 +11,22 @@
 /// A note found by its name stands over one found by its words, and among equals the newest first. Each found note
 /// says what it matched as [Found.needles], the letters as the note has them, from which a row inks them in the
 /// name ([marksIn]) and cuts the line of the note they stand in ([snippetOf]).
+///
+/// **Operators** (2026-10-16, lib/core/search_query.dart): `tag:work`, `in:Work`, `is:pinned`, `has:image`,
+/// `before:2026-10-01`, `updated:<7d`, `"an exact phrase"`, `-word` and the rest are read out of the query first,
+/// and only the notes that hold to every one of them go on to be ranked by the words left over, as above. An
+/// exact phrase is marked as a word is. A query of operators alone lists every note they let through, the newest
+/// first. A query with none is read exactly as it always was.
 library;
 
+import 'aliases.dart';
 import 'note.dart';
 import 'note_facts.dart';
 import 'note_text.dart';
+import 'search_match.dart';
+import 'search_query.dart';
+
+export 'search_match.dart' show SearchScope;
 
 /// A note a search found: how near ([score], more is nearer), and what it matched, a needle for each word typed, in
 /// lower case as the note has it (the word itself where it is written, the note's own word where it is nearly).
@@ -45,9 +56,12 @@ final RegExp _letters = RegExp(r'[\p{L}\p{N}]+', unicode: true);
 /// case, the name's different words, and the note's, which are only read for a note that does not hold a word as
 /// typed.
 class _Kept {
-  _Kept(this.text, this.name);
+  _Kept(this.text, this.name, this.aliases);
   final String text;
   final String name;
+
+  /// The other names it answers to (lib/core/aliases.dart), in lower case, one to a line.
+  final String aliases;
   late final Map<int, List<String>> nameWords = _wordsIn(name);
   late final Map<int, List<String>> textWords = _wordsIn(text);
 }
@@ -59,7 +73,7 @@ _Kept _keptOf(Note note) {
   final had = _kept[note.id];
   if (had != null && identical(had.text, text)) return had;
   if (_kept.length >= 32768) _kept.clear();
-  return _kept[note.id] = _Kept(text, NoteFacts.of(note).shownTitle.toLowerCase());
+  return _kept[note.id] = _Kept(text, NoteFacts.of(note).shownTitle.toLowerCase(), aliasesOfNote(note).join('\n').toLowerCase());
 }
 
 /// The different words of [text], three letters or more, under the letter each begins with.
@@ -171,12 +185,22 @@ int _place(String text, String word) {
   return 1;
 }
 
-/// Of [notes], those the query finds, the nearest first; none for a blank query.
-List<Found> findNotes(Iterable<Note> notes, String query) {
-  final words = queryWords(query);
-  if (words.isEmpty) return const <Found>[];
+/// Of [notes], those the query finds, the nearest first; none for a blank query. [scope] is what an operator reads
+/// beyond the note (every note, for `in:` a notebook; the workspaces, for `in:` a folder).
+List<Found> findNotes(Iterable<Note> notes, String query, {SearchScope scope = const SearchScope()}) {
+  final parsed = parseSearch(query, now: scope.now);
+  if (parsed.blank) return const <Found>[];
+  final words = parsed.words;
+  final filter = parsed.filters ? SearchFilter.of(parsed, scope) : null;
   final found = <Found>[];
   for (final note in notes) {
+    if (filter != null && !filter.admits(note)) continue;
+    if (words.isEmpty) {
+      // Operators alone: every note they let through, an exact phrase's line under it.
+      final phrases = parsed.phrases;
+      found.add(Found(note, note.starred ? 3 : 0, phrases, byName: phrases.isEmpty));
+      continue;
+    }
     final kept = _keptOf(note);
     final name = kept.name, text = kept.text;
     var score = 0, byName = true;
@@ -196,6 +220,13 @@ List<Found> findNotes(Iterable<Note> notes, String query) {
         continue;
       }
       byName = false;
+      // One of its other names, as near as its name: the row shows the line that says it.
+      final inAlias = kept.aliases.isEmpty ? 0 : _place(kept.aliases, word);
+      if (inAlias > 0) {
+        score += 55 + inAlias * 15;
+        needles.add(word);
+        continue;
+      }
       // Asked of the note's pairs of letters first (note_text.dart): most notes without the word are not read.
       final inText = hasWords(note, [word]) ? _place(text, word) : 0;
       if (inText > 0) {
@@ -211,7 +242,7 @@ List<Found> findNotes(Iterable<Note> notes, String query) {
       score += 10;
       needles.add(nearText);
     }
-    if (held) found.add(Found(note, score + (note.starred ? 3 : 0), needles, byName: byName));
+    if (held) found.add(Found(note, score + (note.starred ? 3 : 0), parsed.phrases.isEmpty ? needles : [...needles, ...parsed.phrases], byName: byName));
   }
   final indexed = found.indexed.toList();
   indexed.sort((a, b) {

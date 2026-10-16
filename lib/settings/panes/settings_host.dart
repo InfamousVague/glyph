@@ -8,6 +8,7 @@ import '../../core/library_folder.dart' show LibraryFolder;
 import '../../core/place_tags.dart' show PlaceTags;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
+import '../../importer/importer.dart' show Importer;
 import '../settings_screen.dart' show SettingsTarget;
 
 /// A release as What's new lists it (core/changelog.ts `Release`, already put in words).
@@ -147,6 +148,7 @@ class SettingsFeatures {
     this.libraryFolder,
     this.backup,
     this.export,
+    this.importer,
     this.models,
     this.onGetModel,
     this.onRemoveModel,
@@ -192,6 +194,10 @@ class SettingsFeatures {
   /// Everything as one zip, wherever the device's own save asks (core/exportAll.ts): Settings › Export. Null is a
   /// build that does not know how an export leaves: the row is drawn and cannot be pressed.
   final ExportAll? export;
+
+  /// Notes from Obsidian and Evernote, chosen with the device's own picker (lib/importer/importer.dart): Settings ›
+  /// Import. Null is a build with no library to import into: the rows are drawn and cannot be pressed.
+  final Importer? importer;
 
   /// What models are on this device; null until the model store is here, which reads as none.
   final SettingsModelsState? models;
@@ -331,7 +337,7 @@ class PreferencesWorkspaceStorage implements WorkspaceStorage {
   WorkspaceSheet read() {
     final kept = store.value.workspaces;
     return WorkspaceSheet(
-      list: [for (final w in kept.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue)],
+      list: [for (final w in kept.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue, parent: w.parent)],
       notes: kept.notes,
       current: _current,
     );
@@ -341,7 +347,7 @@ class PreferencesWorkspaceStorage implements WorkspaceStorage {
   void write(WorkspaceSheet sheet) {
     _current = sheet.current;
     final next = KeptWorkspaces(
-      list: [for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue)],
+      list: [for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue, parent: w.parent)],
       notes: Map.unmodifiable(sheet.notes),
     );
     if (next != store.value.workspaces) store.update((now) => now.copyWith(workspaces: next));

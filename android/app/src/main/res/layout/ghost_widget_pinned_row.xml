@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- One pinned note on the Pinned widget: its pin and its title; a tap opens it where it was left. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_pin_row"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:background="@drawable/ghost_widget_press"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="4dp">
+
+    <ImageView
+        android:layout_width="14dp"
+        android:layout_height="14dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ghost_ic_pin" />
+
+    <TextView
+        android:id="@+id/ghost_pin_title"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:ellipsize="end"
+        android:maxLines="1"
+        android:textColor="@color/ghost_widget_ink"
+        android:textSize="14sp" />
+</LinearLayout>

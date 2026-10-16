@@ -2,7 +2,8 @@ import 'package:flutter/services.dart' show TextCapitalization, TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../core/workspaces.dart' show Workspace, WorkspaceStore;
+import '../art/icons.dart';
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, workspacePathName;
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
 import 'org_mark.dart';
@@ -29,12 +30,19 @@ import 'workspace_swatch.dart';
 ///   goes (the web's `deleteWorkspace(id, { trashNotes: true })`). Without [onTrashNotes] the row that would use it
 ///   is there and cannot be pressed.
 class WorkspaceManageSheet extends StatefulWidget {
-  const WorkspaceManageSheet({super.key, required this.store, this.editing, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes});
+  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes});
 
   final WorkspaceStore store;
 
   /// The workspace to rename, recolour or delete; null makes a new one.
   final Workspace? editing;
+
+  /// For a new one: the workspace it is a folder inside, by id; null at the top (the port's own, 2026-10-16).
+  final String? parent;
+
+  /// Whether a workspace's sheet offers New folder inside and Move: the sidebar's and Settings' do; left out, the
+  /// sheet is the web page's, row for row, as the tests that hold it to the page draw it.
+  final bool folders;
   final VoidCallback onClose;
 
   /// An organization's own screen, for its workspace's one row.
@@ -57,6 +65,12 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
   /// Delete pressed: the sheet asks what becomes of the notes before anything goes.
   bool _deleting = false;
 
+  /// New folder inside pressed: the sheet makes a folder inside the one it is up for.
+  bool _making = false;
+
+  /// Move pressed: the sheet lists where the folder can go.
+  bool _moving = false;
+
   @override
   void didUpdateWidget(WorkspaceManageSheet old) {
     super.didUpdateWidget(old);
@@ -65,6 +79,8 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
       _name = widget.editing?.name ?? '';
       _hue = widget.editing?.hue ?? 'ink';
       _deleting = false;
+      _making = false;
+      _moving = false;
     }
   }
 
@@ -88,13 +104,53 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
     final editing = widget.editing;
     final clean = _name.trim();
     if (clean.isEmpty) return;
-    if (editing != null) {
+    if (editing != null && !_making) {
       widget.store.renameWorkspace(editing.id, _name);
     } else {
-      final made = widget.store.addWorkspace(_name, _hue);
+      final made = widget.store.addWorkspace(_name, _hue, _making ? editing?.id : widget.parent);
       if (made != null) widget.store.chooseWorkspace(made.id);
     }
     widget.onClose();
+  }
+
+  /// Where a folder can go: the top, and every personal workspace that is not it nor inside it.
+  Widget _moveSheet(Workspace editing) {
+    final list = widget.store.value.list;
+    final places = [for (final w in list) if (w.org == null && w.id != editing.id && widget.store.canMove(editing.id, w.id)) w];
+    return Sheet(
+      label: 'Move ${editing.name}',
+      onBack: () => setState(() => _moving = false),
+      onClose: widget.onClose,
+      children: [
+        SheetTitle.text('Move ${editing.name}'),
+        const SheetNote('Its notes and the folders inside it go with it, on disk too.'),
+        SheetGroup(
+          children: [
+            SheetRow(
+              key: const ValueKey('move-top'),
+              icon: const DrawnIconView(AppIcons.workspace, size: 18),
+              label: 'At the top',
+              chosen: editing.parent == null,
+              onPress: () {
+                widget.store.moveWorkspace(editing.id, null);
+                widget.onClose();
+              },
+            ),
+            for (final w in places)
+              SheetRow(
+                key: ValueKey('move-${w.id}'),
+                icon: const DrawnIconView(AppIcons.workspace, size: 18),
+                label: workspacePathName(list, w.id),
+                chosen: editing.parent == w.id,
+                onPress: () {
+                  widget.store.moveWorkspace(editing.id, w.id);
+                  widget.onClose();
+                },
+              ),
+          ],
+        ),
+      ],
+    );
   }
 
   @override
@@ -164,13 +220,23 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
       );
     }
 
+    if (editing != null && _moving) return _moveSheet(editing);
+
     final clean = _name.trim();
+    // A new folder, at the top or inside another: the one the sheet is up for, or the parent it was given.
+    final inside = _making ? editing : widget.store.value.list.where((w) => w.id == widget.parent).firstOrNull;
+    final making = editing == null || _making;
+    final title = !making ? editing.name : (inside != null ? 'New folder in ${inside.name}' : 'New workspace');
     return Sheet(
-      label: editing != null ? editing.name : 'New workspace',
+      label: title,
+      onBack: _making ? () => setState(() => _making = false) : null,
       onClose: widget.onClose,
       children: [
-        SheetTitle.text(editing != null ? editing.name : 'New workspace'),
-        if (editing == null) const SheetNote('Notes filed in a workspace show together. A note made while one is chosen goes there.'),
+        SheetTitle.text(title),
+        if (making)
+          SheetNote(inside != null
+              ? 'A workspace inside ${inside.name}: its folder on disk is inside ${inside.name}’s, and its notes show with ${inside.name}’s too.'
+              : 'Notes filed in a workspace show together. A note made while one is chosen goes there.'),
         SheetGroup(
           children: [
             SheetField(
@@ -183,7 +249,7 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
               // `onKeyDown`: Enter adds or renames.
               onSubmitted: (_) => _submit(),
             ),
-            SheetRow(label: editing != null ? 'Rename' : 'Add', onPress: _submit, disabled: clean.isEmpty || clean == editing?.name),
+            SheetRow(label: !making ? 'Rename' : 'Add', onPress: _submit, disabled: clean.isEmpty || (!making && clean == editing.name)),
           ],
         ),
         const SheetHeading('Colour'),
@@ -194,15 +260,42 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
               onHue: (picked) {
                 setState(() => _hue = picked);
                 // One that exists changes as it is tapped; a new one wears it when it is made.
-                if (editing != null) widget.store.setWorkspaceHue(editing.id, picked);
+                if (!making) widget.store.setWorkspaceHue(editing.id, picked);
               },
             ),
           ],
         ),
-        if (editing != null)
+        // Folders inside folders: a new one inside this, or this moved into another.
+        if (!making && widget.folders)
           SheetGroup(
             children: [
-              SheetRow(label: 'Delete workspace', hint: 'Asks what happens to its notes first.', danger: true, onPress: () => setState(() => _deleting = true)),
+              SheetRow(
+                key: const ValueKey('workspace-new-inside'),
+                label: 'New folder inside',
+                hint: 'A workspace in ${editing.name}.',
+                onPress: () => setState(() {
+                  _making = true;
+                  _name = '';
+                  _hue = 'ink';
+                }),
+              ),
+              SheetRow(
+                key: const ValueKey('workspace-move'),
+                label: 'Move',
+                hint: editing.parent == null ? 'At the top now.' : 'In ${workspacePathName(widget.store.value.list, editing.parent!)} now.',
+                onPress: () => setState(() => _moving = true),
+              ),
+            ],
+          ),
+        if (!making)
+          SheetGroup(
+            children: [
+              SheetRow(
+                label: 'Delete workspace',
+                hint: widget.store.childrenOf(editing.id).isEmpty ? 'Asks what happens to its notes first.' : 'Asks what happens to its notes first. The folders inside it stay, a level up.',
+                danger: true,
+                onPress: () => setState(() => _deleting = true),
+              ),
             ],
           ),
       ],

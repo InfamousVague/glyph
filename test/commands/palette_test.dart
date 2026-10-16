@@ -15,6 +15,7 @@ PaletteDoing doing(
   bool newEntry = false,
   bool noteAi = false,
   bool tabGroups = false,
+  bool links = false,
 }) =>
     PaletteDoing(
       openNote: (id) => calls('openNote $id'),
@@ -46,6 +47,9 @@ PaletteDoing doing(
       groupTab: tabGroups ? (id) => calls('groupTab $id') : null,
       joinTabGroup: tabGroups ? (id, group) => calls('joinTabGroup $id $group') : null,
       leaveTabGroup: tabGroups ? (id) => calls('leaveTabGroup $id') : null,
+      graph: links ? () => calls('graph') : null,
+      localGraph: links ? (id) => calls('localGraph $id') : null,
+      noteLinks: links ? (id) => calls('noteLinks $id') : null,
     );
 
 PaletteNote n(String id, String title, {bool journal = false, bool entry = false, int blanks = 0}) => PaletteNote(id: id, title: title, journal: journal, entry: entry, blanks: blanks);
@@ -251,6 +255,24 @@ void main() {
   });
 
   // Not in palette.test.ts: the doings the web requires and this port lets be absent, each leaving its command out.
+  group('the links between notes (lib/links)', () {
+    test('the graph of every note among the notes, and a note\'s links and its local graph over it', () {
+      final calls = Calls();
+      final world = PaletteWorld(notes: [n('a', 'Lisbon')], note: n('a', 'Lisbon'));
+      final commands = paletteCommands(world, doing(calls, links: true));
+      expect(ids(commands), containsAll(['graph', 'note:links', 'note:graph']));
+      expect(of(commands, 'graph')!.descriptor.label, 'Graph of your notes');
+      expect(of(commands, 'note:links')!.descriptor.label, 'Links to this note');
+      of(commands, 'graph')!.run();
+      of(commands, 'note:graph')!.run();
+      of(commands, 'note:links')!.run();
+      expect(calls.said, ['graph', 'localGraph a', 'noteLinks a']);
+      // Without them, no rows: and none of a note's with no note on screen.
+      expect(ids(paletteCommands(world, doing(Calls()))), isNot(contains('graph')));
+      expect(ids(paletteCommands(const PaletteWorld(), doing(Calls(), links: true))), isNot(contains('note:graph')));
+    });
+  });
+
   group('what is not ported yet', () {
     test('has no command, and everything else is as it was', () {
       final calls = Calls();

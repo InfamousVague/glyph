@@ -46,10 +46,19 @@ String folderName(String name) {
 /// The folder a note belongs in: its workspace's, or the inbox with no workspace. Null when the name is unusable
 /// (`folderFor`). The folder is decided from the workspace, not from a name, so no caller can file an
 /// organization's note under `workspaces/`.
-String? folderFor(Workspace? workspace) {
+///
+/// A workspace inside another ([Workspace.parent]) is a folder inside its parent's, as deep as they go:
+/// `workspaces/Work/Clients/`. [all] is every workspace, for the parents' names; without it, or where a parent's
+/// name cleans away to nothing, the workspace's folder is at the top, as before folders were nested.
+String? folderFor(Workspace? workspace, [List<Workspace> all = const []]) {
   if (workspace == null) return inboxFolder;
   final folder = folderName(workspace.name);
-  return folder.isEmpty ? null : '${isOrgWorkspace(workspace.id) ? orgsFolder : workspacesFolder}/$folder';
+  if (folder.isEmpty) return null;
+  if (isOrgWorkspace(workspace.id)) return '$orgsFolder/$folder';
+  final path = all.isEmpty || workspace.parent == null ? [workspace] : workspacePath(all, workspace.id);
+  final names = [for (final each in path.isEmpty ? [workspace] : path) folderName(each.name)];
+  if (names.any((name) => name.isEmpty)) return '$workspacesFolder/$folder';
+  return '$workspacesFolder/${names.join('/')}';
 }
 
 /// The file's own name, without the folders: `workspaces/Home/Weekend trip.md` is `Weekend trip.md`.
@@ -60,10 +69,14 @@ String _fileName(String path) {
 
 /// Moves notes' files to where their workspaces say (`fileNoteInFolder`, `fileNotesInFolder`).
 class NoteFolders {
-  NoteFolders(this.library, {void Function(String message)? log}) : _log = log ?? debugPrint;
+  NoteFolders(this.library, {void Function(String message)? log, this.workspaces}) : _log = log ?? debugPrint;
 
   final NoteLibrary library;
   final void Function(String message) _log;
+
+  /// Every workspace as it is now, for the folders a nested one sits inside ([folderFor]); left out, each folder is
+  /// at the top.
+  final List<Workspace> Function()? workspaces;
 
   /// The moves asked for, one after another, so two filings of the same note land in the order they were made.
   Future<void> _moves = Future<void>.value();
@@ -73,7 +86,7 @@ class NoteFolders {
   /// Quiet about everything it cannot do: a note with no file yet (a draft), a name that cleans away to nothing, or
   /// a library that refuses the move. The note's words are never touched, only where the file sits.
   Future<void> fileNoteInFolder(String noteId, Workspace? workspace) async {
-    final folder = folderFor(workspace);
+    final folder = folderFor(workspace, workspaces?.call() ?? const []);
     if (folder != null) await _fileNoteAt(noteId, folder);
   }
 
@@ -82,6 +95,9 @@ class NoteFolders {
       final note = await library.get(noteId);
       final from = note?.path;
       if (note == null || from == null || from.isEmpty) return;
+      // Already under that folder, at any depth, stays where it is: an import keeps a vault's own folders inside
+      // its workspace's (lib/importer/import_paths.dart), and filing its notes must not flatten them.
+      if (from.startsWith('$folder/')) return;
       final path = '$folder/${_fileName(from)}';
       if (path == from) return;
       await library.apply(note.copyWith(path: () => path));

@@ -103,6 +103,15 @@ void main() {
       expect(wikiLinksIn('[[Note#^a#b]]')[0].anchor, '^a#b');
     });
 
+    test('reads the words after a bar as what the link says, as Obsidian writes it, and the title before it', () {
+      final link = wikiLinksIn('in [[The cabin trip#Friday|the cabin]] there').first;
+      expect(link.title, 'The cabin trip');
+      expect(link.anchor, 'Friday');
+      expect(link.label, 'the cabin');
+      expect(wikiLinksIn('[[Lisbon|]]').single.label, isNull);
+      expect(wikiLinksIn('[[|Lisbon]]'), isEmpty);
+    });
+
     test('hands the anchor to whoever opens the note', () {
       final open = Opened();
       // Nothing is laid out, so where the press lands is said: inside the link's brackets.

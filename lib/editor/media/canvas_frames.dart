@@ -50,7 +50,10 @@ typedef Frame = ({int line, String title});
 String? _titleOf(String text) {
   final match = _frame.firstMatch(text);
   if (match == null) return null;
-  final inside = (match.group(1) ?? '').trim();
+  final whole = (match.group(1) ?? '').trim();
+  // `![[A canvas|its words]]`: the title is before the bar.
+  final bar = whole.indexOf('|');
+  final inside = bar >= 0 ? whole.substring(0, bar) : whole;
   final hash = inside.indexOf('#');
   final title = (hash >= 0 ? inside.substring(0, hash) : inside).trim();
   return title.isEmpty ? null : title;

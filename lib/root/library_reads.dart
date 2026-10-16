@@ -14,6 +14,7 @@ library;
 
 import '../book/journal_months.dart' show inTimeOrder;
 import '../book/tickets.dart';
+import '../core/aliases.dart';
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
@@ -105,6 +106,13 @@ class LibraryReads {
       final id = entry.ticket.id;
       final key = id == null ? '' : titleKey(id);
       if (key.isNotEmpty) map.putIfAbsent(key, () => entry.note);
+    }
+    // A note's `aliases:` last (lib/core/aliases.dart): a title or a ticket's key in the same words is what a link
+    // means first. Read once for each note's body and kept.
+    for (final note in notes) {
+      for (final alias in aliasesOfNote(note)) {
+        map.putIfAbsent(titleKey(alias), () => note);
+      }
     }
     return _byTitle = map;
   }

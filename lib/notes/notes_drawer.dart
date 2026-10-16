@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../core/note.dart';
+import '../core/smart_notebooks.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart' show WorkspaceStore;
 import 'floating_card.dart';
@@ -39,12 +40,17 @@ class NotesDrawer extends StatelessWidget {
     this.onEmptyTrash,
     this.onOrganization,
     this.onBrowseFiles,
+    this.onGraph,
     this.onNoteMenu,
     this.notesInWorkspace,
     this.onTrashNotes,
     this.stored,
     this.peek = NotePeek.plain,
     this.emptyArt,
+    this.smart,
+    this.onSmart,
+    this.onManageSmart,
+    this.onTags,
   });
 
   final bool open;
@@ -73,12 +79,21 @@ class NotesDrawer extends StatelessWidget {
   /// An organization's own screen, from its folder's menu.
   final void Function(String orgId)? onOrganization;
   final VoidCallback? onBrowseFiles;
+
+  /// The graph of the notes and their links (lib/links/graph_view.dart).
+  final VoidCallback? onGraph;
   final void Function(String id, Offset at)? onNoteMenu;
   final List<String> Function(String workspaceId)? notesInWorkspace;
   final void Function(List<String> noteIds)? onTrashNotes;
   final Stored? stored;
   final NotePeekBuilder peek;
   final Widget? emptyArt;
+
+  /// The smart notebooks and the Tags page, passed through to the tree.
+  final SmartNotebookStore? smart;
+  final void Function(String id)? onSmart;
+  final void Function(SmartNotebook notebook)? onManageSmart;
+  final VoidCallback? onTags;
 
   @override
   Widget build(BuildContext context) {
@@ -111,12 +126,17 @@ class NotesDrawer extends StatelessWidget {
         onEmptyTrash: onEmptyTrash,
         onOrganization: onOrganization,
         onBrowseFiles: onBrowseFiles,
+        onGraph: onGraph,
         onNoteMenu: onNoteMenu,
         notesInWorkspace: notesInWorkspace,
         onTrashNotes: onTrashNotes,
         stored: stored,
         peek: peek,
         emptyArt: emptyArt,
+        smart: smart,
+        onSmart: onSmart,
+        onManageSmart: onManageSmart,
+        onTags: onTags,
       ),
     );
   }

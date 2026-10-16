@@ -114,9 +114,15 @@ android {
         // Never a build made to be measured: an app that fills its library and walks itself is not one to offer as
         // the phone's assistant, and the launcher's shortcut names the real app's id.
         resValue("bool", "ghost_assistant", (ghostAssistant && !ghostPerfId).toString())
-        // The icon's "Record note" goes with it, by which file the manifest names: a shortcut's `enabled` has to be
-        // the word itself (res/xml/ghost_shortcuts.xml says why).
-        manifestPlaceholders["ghostShortcuts"] = if (!ghostAssistant || ghostPerfId) "@xml/ghost_no_shortcuts" else if (ghostCutover) "@xml/ghost_cutover_shortcuts" else "@xml/ghost_shortcuts"
+        // The icon's shortcuts, by which file the manifest names: its own four (New note, Voice note, Today, Search;
+        // res/xml/ghost_app_shortcuts.xml), and "Record note" in Voice note's place with the assistant on, since a
+        // shortcut's `enabled` has to be the word itself (res/xml/ghost_shortcuts.xml says why); each file names this
+        // build's id, as a shortcut must. None in a build made to be measured, whose id is another.
+        manifestPlaceholders["ghostShortcuts"] = when {
+            ghostPerfId -> "@xml/ghost_no_shortcuts"
+            ghostCutover -> if (ghostAssistant) "@xml/ghost_cutover_shortcuts" else "@xml/ghost_cutover_app_shortcuts"
+            else -> if (ghostAssistant) "@xml/ghost_shortcuts" else "@xml/ghost_app_shortcuts"
+        }
         if (ghostPerfId) applicationIdSuffix = ".perf"
         manifestPlaceholders["ghostLabel"] = if (ghostPerfId) "Ghost Perf" else if (ghostCutover) "Ghost.md" else "Ghost Flutter"
         // Which of the two is the launcher's: this app's own activity, or (replacing the Tauri app) the alias that

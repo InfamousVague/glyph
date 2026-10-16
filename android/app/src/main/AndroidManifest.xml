@@ -57,6 +57,16 @@
     -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
+    <!--
+      Reminders for to-dos and tickets (ghost_md/reminders/Reminders.kt; docs/FEATURES_2_1.md). SCHEDULE_EXACT_ALARM
+      lets an alarm ring on its minute once the person allows Alarms and reminders for the app (Android 12+; from 14
+      a new install starts without it, and the alarm is then inexact, a few minutes late at most). Not
+      USE_EXACT_ALARM, which Google Play keeps for alarm clocks and calendars. RECEIVE_BOOT_COMPLETED arms them again
+      after a restart, which takes every alarm away (ReminderRestart): alarms only, no service is started.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <!-- A phone with no microphone still lists the app: notes can be typed. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Nor does a note need a position to be written: a phone with no location hardware still lists the app. -->
@@ -115,14 +125,33 @@
                 <data android:scheme="ghostmd" />
             </intent-filter>
             <!--
+              Something shared from another app's share sheet (ShareIn.kt; lib/share/share_in.dart): text, a link, a
+              picture or any file, one or several. The app's sheet asks whether it is a new note or goes onto one, and
+              the person is back in the app they shared from when it is done.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="*/*" />
+            </intent-filter>
+            <!--
               A link that opens the app is the app's own to follow (AppLinks.kt), never a route for Flutter to push:
               left on, the embedding hands each address to the framework, which put a second copy of the app over
               the first (lib/app/ghost_app.dart drops them too, for an entry point that forgets this).
             -->
             <meta-data android:name="flutter_deeplinking_enabled" android:value="false" />
-            <!-- "Record note" on a long press of the icon (ghost_shortcuts.xml), or nothing in a build made without
-                 the assistant (ghost_no_shortcuts.xml): the build says which, since a shortcut's own `enabled` cannot
-                 be asked of a resource. -->
+            <!-- A long press of the icon: New note, Voice note, Today and Search (ghost_app_shortcuts.xml), with
+                 "Record note" in Voice note's place in a build with the assistant (ghost_shortcuts.xml), and nothing
+                 in a build made to be measured: the build says which, since a shortcut's own `enabled` cannot be
+                 asked of a resource. The notes opened last follow, set while the app runs (home/HomeScreen.kt). -->
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="${ghostShortcuts}" />
@@ -285,6 +314,84 @@
                 <action android:name="android.content.action.DOCUMENTS_PROVIDER" />
             </intent-filter>
         </provider>
+        <!--
+          REMINDERS (ghost_md/reminders; docs/FEATURES_2_1.md). An alarm's moment and a notification's Done and
+          Snooze 1 hour: not exported, reached only by this app's own PendingIntents. Then what takes the alarms
+          away or moves the clock under them: a restart, this app updated, the time or the zone changed, Alarms and
+          reminders allowed or taken back. Not exported either: the system's broadcasts still reach it, and nothing
+          else can make it arm. Each arms the reminders again from what was kept; none starts a service.
+        -->
+        <receiver
+            android:name=".reminders.ReminderAlarms"
+            android:exported="false" />
+        <receiver
+            android:name=".reminders.ReminderRestart"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.TIME_SET" />
+                <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
+            </intent-filter>
+        </receiver>
+
+        <!--
+          THE HOME SCREEN (ghost_md/home; docs/FEATURES_2_1.md): Quick note, Today and Pinned notes, RemoteViews that
+          draw what the app last handed over. Exported, as a widget's provider must be for the launcher to find it;
+          only the system sends APPWIDGET_UPDATE. Today's own midnight comes to it as an alarm of this app's.
+        -->
+        <receiver
+            android:name=".home.QuickNoteWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_quick_note">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_quick_note" />
+        </receiver>
+        <receiver
+            android:name=".home.TodayWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_today" />
+        </receiver>
+        <receiver
+            android:name=".home.PinnedWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_pinned">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_pinned" />
+        </receiver>
+        <!-- A to-do ticked on the Today widget: reached only by the widget's own PendingIntent. -->
+        <receiver
+            android:name=".home.WidgetTicks"
+            android:exported="false" />
+        <!-- New note, a tile in the notification shade's quick settings: bound only by the system. -->
+        <service
+            android:name=".home.NewNoteTile"
+            android:exported="true"
+            android:icon="@drawable/ghost_ic_tile"
+            android:label="@string/ghost_tile_new_note"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.quicksettings.TOGGLEABLE_TILE"
+                android:value="false" />
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

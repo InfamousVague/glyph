@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The icon's voice shortcut on Android 8 and later: the app's ink on its near-black paper, in the launcher's shape. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ghost_shortcut_back" />
+    <foreground android:drawable="@drawable/ghost_shortcut_voice_glyph" />
+</adaptive-icon>

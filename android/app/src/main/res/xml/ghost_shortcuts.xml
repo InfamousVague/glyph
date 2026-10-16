@@ -9,6 +9,9 @@
   `@bool/ghost_assistant` here, and so the shortcut was never on a phone, in any build. A build made without the
   assistant is given the other file instead (res/xml/ghost_no_shortcuts.xml), by the manifest's `${ghostShortcuts}`
   (android/app/build.gradle.kts).
+
+  After it, the icon's own (ghost_app_shortcuts.xml says what each is), but Voice note, which Record note already is
+  with the assistant on.
 -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
@@ -19,6 +22,42 @@
         android:shortcutLongLabel="@string/ghost_capture_long">
         <intent
             android:action="com.mattssoftware.glyph.CAPTURE"
+            android:targetPackage="com.mattssoftware.glyph.flutter"
+            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="new-note"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_new"
+        android:shortcutShortLabel="@string/ghost_shortcut_new_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_new_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://new"
+            android:targetPackage="com.mattssoftware.glyph.flutter"
+            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="today"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_today"
+        android:shortcutShortLabel="@string/ghost_shortcut_today_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_today_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://today"
+            android:targetPackage="com.mattssoftware.glyph.flutter"
+            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_search"
+        android:shortcutShortLabel="@string/ghost_shortcut_search_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_search_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://search"
             android:targetPackage="com.mattssoftware.glyph.flutter"
             android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
     </shortcut>

@@ -134,13 +134,19 @@ bool readAsideShown([Stored? on]) => (on ?? stored).readText(_shownKey) == '1';
 /// Not kept, it opens hidden next time (`writeAsideShown`).
 void writeAsideShown(bool shown, [Stored? on]) => (on ?? stored).writeText(_shownKey, shown ? '1' : '0');
 
-/// Which of the aside's two the person last looked at, kept to this device: the index, or the version history.
-/// (`'index' | 'history'`; an enum cannot name a value `index` here.)
-enum AsideTab { contents, history }
+/// Which of the aside's tabs the person last looked at, kept to this device: the index, the version history, and
+/// since 2.1 the note's links and its outline (lib/links/note_links.dart). (`'index' | 'history' | 'links' |
+/// 'outline'`; an enum cannot name a value `index` here.)
+enum AsideTab { contents, history, links, outline }
 
-AsideTab readAsideTab([Stored? on]) => (on ?? stored).readText(_tabKey) == 'history' ? AsideTab.history : AsideTab.contents;
+AsideTab readAsideTab([Stored? on]) => switch ((on ?? stored).readText(_tabKey)) {
+      'history' => AsideTab.history,
+      'links' => AsideTab.links,
+      'outline' => AsideTab.outline,
+      _ => AsideTab.contents,
+    };
 
-void writeAsideTab(AsideTab tab, [Stored? on]) => (on ?? stored).writeText(_tabKey, tab == AsideTab.history ? 'history' : 'index');
+void writeAsideTab(AsideTab tab, [Stored? on]) => (on ?? stored).writeText(_tabKey, tab == AsideTab.contents ? 'index' : tab.name);
 
 /// Heard by an open aside when something asks for a tab (`ASIDE_TAB_CHOSEN`): the bar's History button.
 final ValueNotifier<AsideTab?> asideTabChosen = ValueNotifier<AsideTab?>(null);

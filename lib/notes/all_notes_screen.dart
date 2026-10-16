@@ -43,6 +43,7 @@ import '../core/book.dart';
 import '../core/glide_to_top.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
+import '../core/search_query.dart' show parseSearch;
 import '../core/stored.dart';
 import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
@@ -50,6 +51,7 @@ import '../home/home_parts.dart';
 import '../home/home_text.dart';
 import '../home/lazy_page.dart';
 import '../home/note_card.dart';
+import '../home/search_hints.dart';
 import '../perf/frame_log.dart';
 import '../shell/desktop/desktop_scrollbar.dart' show desktopScrollbarWidth;
 import '../shell/header_pane.dart';
@@ -89,6 +91,7 @@ class AllNotesScreen extends StatefulWidget {
     this.sideKey = false,
     this.speaks = false,
     this.wisp = true,
+    this.onSaveSearch,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -139,6 +142,9 @@ class AllNotesScreen extends StatefulWidget {
 
   /// Whether the cards go to smoke under the bar (the `wispEdge` preference).
   final bool wisp;
+
+  /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
+  final ValueChanged<String>? onSaveSearch;
 
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
@@ -337,7 +343,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     if (ghostPerf) Perf.count('allnotes.read');
     final inSpace = widget.workspaces.inWorkspace(notes, spaces.current?.id, (note) => note.id);
     final began = ghostPerf ? Perf.now() : 0;
-    var shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes));
+    var shown = browseNotes(inSpace, Browse(query: _query, sort: _sort, archived: _archived, tapes: _tapes), scope: SearchScope(notes: notes, workspaces: spaces));
     if (ghostPerf) Perf.add('allnotes.browse', began);
     // The same notes in the same order as were shown (a letter typed that every note shown still has): the list
     // there was, so the cards made for it are the cards.
@@ -509,11 +515,28 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             final inner = math.max(0.0, box.maxWidth - ahead - gutterStart - gutterEnd);
             // `@container all-notes (min-width: 44rem)`.
             final wide = inner >= t.lenOf('44rem');
+            // The operators a search reads while the field is empty and has the keyboard, and what it understood of
+            // what is typed (lib/home/search_hints.dart): the port's own, over the rest.
+            final typed = _query.trim().isNotEmpty;
+            final hinted = typed ? (parseSearch(_query).parts.isNotEmpty || widget.onSaveSearch != null) : _focus.hasFocus;
             // What stands over the cards: the workspaces, the order words, and the empty page's ghost.
             final head = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (hinted) ...[
+                  SearchHints(
+                    query: _query,
+                    focused: _focus.hasFocus,
+                    onQuery: (next) {
+                      _field.value = TextEditingValue(text: next, selection: TextSelection.collapsed(offset: next.length));
+                      setState(() => _query = next);
+                      _focus.requestFocus();
+                    },
+                    onSave: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
+                  ),
+                  SizedBox(height: t.space(3)),
+                ],
                 if (hasSpaces) ...[
                   WorkspaceBar(
                     store: widget.workspaces,

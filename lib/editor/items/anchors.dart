@@ -10,6 +10,7 @@
 /// on. `goToLine` is `boards/navigate.ts`'s, kept here until the boards are ported.
 library;
 
+import '../../core/block_ids.dart' show blockIdOf, blockLine;
 import '../../core/boards.dart';
 import '../../core/item_syntax.dart';
 import '../editor.dart';
@@ -31,9 +32,13 @@ DecorationSet _anchors(EditorState state) {
   for (final line in itemAnchorFacts.of(doc)) {
     found.add(_anchorMark.range(line.from + line.fact.from, line.from + line.fact.to));
   }
+  // And the name at the end of any other line (lib/core/block_ids.dart), drawn the same.
+  for (final line in blockAnchorFacts.of(doc)) {
+    found.add(_anchorMark.range(line.from + line.fact.from, line.from + line.fact.to));
+  }
   final refs = itemRefFacts.of(doc);
   if (refs.isNotEmpty) {
-    final named = <String>{for (final item in itemsOf(doc)) item.id};
+    final named = <String>{for (final item in itemsOf(doc)) item.id, for (final line in blockAnchorFacts.of(doc)) line.fact.id};
     for (final line in refs) {
       for (final ref in line.fact) {
         found.add((named.contains(ref.id) ? _refMark : _goneMark).range(line.from + ref.from, line.from + ref.to));
@@ -59,6 +64,23 @@ void goToLine(EditorViewLike view, int line) {
   view.focus();
 }
 
+/// The name at the end of a line that is no list item, `The ferry leaves at nine. ^ferry`, where it stands in the
+/// line (lib/core/block_ids.dart): an item's own is [itemAnchorFacts].
+final LineFact<({String id, int from, int to})> blockAnchorFacts = LineFact<({String id, int from, int to})>((text) {
+  if (!text.contains('^') || itemOnLine(text) != null) return null;
+  return blockIdOf(text);
+});
+
+/// The caret put on a named line, before its name, and the note scrolled to it.
+void goToNamedLine(EditorViewLike view, int line) {
+  if (line < 1 || line > view.state.doc.lines) return;
+  final at = view.state.doc.line(line);
+  final named = blockIdOf(at.text);
+  final caret = at.from + (named != null && named.from > 0 ? named.from - 1 : at.text.length);
+  view.dispatch(TransactionSpec(selection: EditorSelection.single(caret), effects: EditorViewLike.scrollIntoView(at.from, y: ScrollStrategy.center), scrollIntoView: true));
+  view.focus();
+}
+
 /// A tap on `[[#^anchor]]`: the caret goes to the item it names.
 final Extension _refTaps = EditorViewLike.eventHandlers(
   EditorEventHandlers(
@@ -68,8 +90,14 @@ final Extension _refTaps = EditorViewLike.eventHandlers(
       final line = view.state.doc.lineAt(at);
       final ref = refsIn(line.text, line.from).where((found) => found.from <= at && found.to >= at).firstOrNull;
       final item = ref == null ? null : itemOf(view.state.doc, ref.id);
-      if (item == null) return false;
-      goToLine(view, item.line);
+      if (item != null) {
+        goToLine(view, item.line);
+        return true;
+      }
+      // A line that is no item, named at its end: the caret before its name.
+      final named = ref == null ? null : blockLine(view.state.doc.toString(), ref.id);
+      if (named == null) return false;
+      goToNamedLine(view, named);
       return true;
     },
   ),

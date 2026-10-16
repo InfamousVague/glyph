@@ -280,3 +280,21 @@ describe('an organization’s workspace', () => {
     expect(workspaces().list[0]).toEqual({ id: 'w-2', name: 'Fake' });
   });
 });
+
+describe('a workspace nested by the Flutter app', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    reloadPreferences();
+    reloadWorkspaces();
+  });
+
+  it('keeps its parent through a read, a rename and a hue reset, though this page lists it flat', () => {
+    setPreferences({ workspaces: { list: [{ id: 'w-aaaaaa', name: 'Work' }, { id: 'w-bbbbbb', name: 'Clients', hue: 'moss', parent: 'w-aaaaaa' }], notes: {} } });
+    reloadWorkspaces();
+    expect(workspaces().list.find((w) => w.id === 'w-bbbbbb')?.parent).toBe('w-aaaaaa');
+    renameWorkspace('w-bbbbbb', 'Customers');
+    setWorkspaceHue('w-bbbbbb', 'ink');
+    const kept = (preferences().workspaces as { list: { id: string; parent?: string; name: string }[] }).list.find((w) => w.id === 'w-bbbbbb');
+    expect(kept).toMatchObject({ name: 'Customers', parent: 'w-aaaaaa' });
+  });
+});

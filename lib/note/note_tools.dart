@@ -26,7 +26,7 @@ import '../art/lucide.g.dart';
 /// History, Comment, Bookmark, Pin/Unpin, Archive, Speak (`ToolAction`). Each stays in More as well.
 @immutable
 class ToolAction {
-  const ToolAction({required this.id, required this.label, required this.icon, required this.onPress, this.on});
+  const ToolAction({required this.id, required this.label, required this.icon, required this.onPress, this.on, this.count});
 
   final String id;
   final String label;
@@ -35,6 +35,9 @@ class ToolAction {
 
   /// A toggle that is on now: the bookmark set, the note pinned. Null for an action that is not a toggle.
   final bool? on;
+
+  /// A number worn on the ring, small at its corner: how many notes link here (lib/links). Null or 0 for none.
+  final int? count;
 }
 
 /// What the note is drawn as when it is not its source (`NoteKind`).
@@ -81,7 +84,7 @@ int toolsThatFit({required double room, required int always, required int spare,
 
 /// `.cog`: one round control of the note's, the size of the bar's own rings and with no ring drawn.
 class NoteToolButton extends StatelessWidget {
-  const NoteToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.strokeWidth = 2.1, this.on, this.turns = true, this.tool});
+  const NoteToolButton({super.key, required this.icon, required this.label, required this.onPressed, this.strokeWidth = 2.1, this.on, this.turns = true, this.tool, this.count});
 
   final LucideIcon icon;
   final String label;
@@ -98,11 +101,15 @@ class NoteToolButton extends StatelessWidget {
   /// `data-tool`: the id of a spare action.
   final String? tool;
 
+  /// [ToolAction.count], at the ring's corner.
+  final int? count;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final ring = t.len('app-bar-ring');
     final ink = t.color('glacier-text');
+    final counted = count ?? 0;
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,
@@ -112,21 +119,58 @@ class NoteToolButton extends StatelessWidget {
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         radius: t.radius('md'),
-        child: SizedBox(
-          width: ring,
-          height: ring,
-          child: Center(
-            // `.cog svg { transition: transform var(--app-turn) }`: 420ms cubic-bezier(0.3, 1.4, 0.5, 1).
-            child: AnimatedContainer(
-              duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 420),
-              curve: const Cubic(0.3, 1.4, 0.5, 1),
-              transformAlignment: Alignment.center,
-              transform: !state.pressed ? Matrix4.identity() : (turns ? Matrix4.rotationZ(0.7853981633974483) : Matrix4.diagonal3Values(0.9, 0.9, 1)),
-              child: AppIcon(icon, size: 20, strokeWidth: strokeWidth, color: ink),
+        child: _countedIf(
+          counted,
+          SizedBox(
+            width: ring,
+            height: ring,
+            child: Center(
+              // `.cog svg { transition: transform var(--app-turn) }`: 420ms cubic-bezier(0.3, 1.4, 0.5, 1).
+              child: AnimatedContainer(
+                duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 420),
+                curve: const Cubic(0.3, 1.4, 0.5, 1),
+                transformAlignment: Alignment.center,
+                transform: !state.pressed ? Matrix4.identity() : (turns ? Matrix4.rotationZ(0.7853981633974483) : Matrix4.diagonal3Values(0.9, 0.9, 1)),
+                child: AppIcon(icon, size: 20, strokeWidth: strokeWidth, color: ink),
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+
+  static Widget _countedIf(int count, Widget ring) => count > 0 ? _Counted(count: count, child: ring) : ring;
+}
+
+/// A ring with its number at the corner: the number in the bar's ink on the paper, so it reads over the glyph.
+class _Counted extends StatelessWidget {
+  const _Counted({required this.count, required this.child});
+  final int count;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final words = count > 99 ? '99+' : '$count';
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        child,
+        PositionedDirectional(
+          top: 3,
+          end: 1,
+          child: ExcludeSemantics(
+            child: Container(
+              constraints: const BoxConstraints(minWidth: 15, minHeight: 15),
+              padding: const EdgeInsets.symmetric(horizontal: 3),
+              alignment: Alignment.center,
+              decoration: BoxDecoration(color: t.color('app-paper'), borderRadius: BorderRadius.circular(8), border: Border.all(color: t.color('glacier-text'), width: 1)),
+              child: Text(words, style: t.textAt(9.5, weight: 'bold', color: t.color('glacier-text'), height: 1.15)),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -212,7 +256,7 @@ class _NoteToolsState extends State<NoteTools> {
       mainAxisSize: MainAxisSize.min,
       spacing: gap,
       children: [
-        for (final action in out) NoteToolButton(key: ValueKey('tool:${action.id}'), icon: action.icon, label: action.label, onPressed: action.onPress, on: action.on, tool: action.id),
+        for (final action in out) NoteToolButton(key: ValueKey('tool:${action.id}'), icon: action.icon, label: action.label, onPressed: action.onPress, on: action.on, tool: action.id, count: action.count),
         // One ring like the others: the glyph is the view you are in, and the label says what a press does.
         NoteToolButton(key: const ValueKey('tool-switch'), icon: model.page ? Lucide.bookOpen : Lucide.code, label: words.label, onPressed: model.switchable ? model.onSwitch : null),
         if (model.more) NoteMore(onMore: model.onMore),

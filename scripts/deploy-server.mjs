@@ -99,6 +99,11 @@ function loadServerEnv() {
   if (Boolean(env.NOTION_CLIENT_ID) !== Boolean(env.NOTION_CLIENT_SECRET)) {
     fail('.env has one of NOTION_CLIENT_ID and NOTION_CLIENT_SECRET but not the other.');
   }
+  // Email to a note (server/src/mail.rs, tauri/docs/MAIL.md): Mailgun's HTTP webhook signing key. Optional: without it
+  // the service takes no mail and the app does not offer an address. Its shape is checked for the same reason.
+  if (env.GLYPH_MAILGUN_SIGNING_KEY && !/^[A-Za-z0-9_-]{16,200}$/.test(env.GLYPH_MAILGUN_SIGNING_KEY)) {
+    fail("GLYPH_MAILGUN_SIGNING_KEY in .env has characters a Mailgun signing key doesn't.");
+  }
   return env;
 }
 
@@ -166,7 +171,8 @@ $SUDO install -d -o root -g root -m 755 ${REMOTE} ${REMOTE}/bin
 # written beside the live file and moved over it, so the service never reads
 # half of one. Unset straight after, so nothing started below inherits it.
 # The Notion client ID and secret travel the same way, and are written only
-# when both came (an empty line each when they did not).
+# when both came (an empty line each when they did not); so does Mailgun's
+# signing key for email to a note, written only when it came.
 backup=
 if [ "$MCP_ONLY" != 1 ]; then
 {
@@ -174,6 +180,9 @@ if [ "$MCP_ONLY" != 1 ]; then
   if [ -n "$NOTION_CLIENT_ID_NEW" ] && [ -n "$NOTION_CLIENT_SECRET_NEW" ]; then
     printf 'NOTION_CLIENT_ID=%s\\n' "$NOTION_CLIENT_ID_NEW"
     printf 'NOTION_CLIENT_SECRET=%s\\n' "$NOTION_CLIENT_SECRET_NEW"
+  fi
+  if [ -n "$MAILGUN_SIGNING_KEY_NEW" ]; then
+    printf 'GLYPH_MAILGUN_SIGNING_KEY=%s\\n' "$MAILGUN_SIGNING_KEY_NEW"
   fi
 } | $SUDO tee ${REMOTE}/glyph-api.env.new >/dev/null
 $SUDO chown root:root ${REMOTE}/glyph-api.env.new
@@ -194,7 +203,7 @@ $SUDO install -o root -g root -m 755 "$STAGE/glyph-api" ${REMOTE}/bin/glyph-api.
 $SUDO mv -f ${REMOTE}/bin/glyph-api.new ${REMOTE}/bin/glyph-api
 $SUDO install -o root -g root -m 644 "$STAGE/glyph-api.service" /etc/systemd/system/${SERVICE}.service
 fi
-unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW
+unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW
 
 # Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
 # when either changed: a restart signs nobody out (its sessions are kept, sealed), but an unchanged server is left running all the same. The previous file is
@@ -280,12 +289,12 @@ function ship(env) {
     writeFileSync(join(local, 'install.sh'), INSTALL);
     const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
-      `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW; ` +
+      `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
-        Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n`),
+        Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n`),
         bundle,
       ]),
       stdio: ['pipe', 'pipe', 'inherit'],

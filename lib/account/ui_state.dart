@@ -27,9 +27,11 @@ import '../core/notifications.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
+import '../mail/mail_in.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
+import '../share/sites.dart';
 import '../sync/engine.dart';
 import '../sync/feed.dart';
 import '../sync/phone.dart';
@@ -70,6 +72,8 @@ class AccountServices {
     this.orgKeys,
     this.feed,
     this.shares,
+    this.sites,
+    this.mailIn,
     this.listNotes,
     this.phoneNotices,
     PreferencesStore? prefs,
@@ -89,6 +93,12 @@ class AccountServices {
   final OrgKeys? orgKeys;
   final NotificationFeed? feed;
   final Shares? shares;
+
+  /// The account's published sites (lib/share/sites.dart); null where they are not offered.
+  final Sites? sites;
+
+  /// Email to a note's setting (lib/mail/mail_in.dart); null where it is not offered.
+  final MailIn? mailIn;
   final Future<List<Note>> Function()? listNotes;
 
   /// The bell's rows as the phone's own notifications (lib/sync/phone.dart): Settings › Notifications › On this
@@ -136,7 +146,7 @@ class AccountServices {
   List<FeedNotification> newsOf(String orgId) => [for (final n in notifications) if (n.org?.id == orgId && orgKinds.contains(n.kind)) n];
 
   /// Tells a screen whenever anything it reads here changes.
-  late final Listenable changes = Listenable.merge([account, engine?.status, orgs, orgKeys, feed, shares, liveTyping]);
+  late final Listenable changes = Listenable.merge([account, engine?.status, orgs, orgKeys, feed, shares, sites, mailIn, liveTyping]);
 
   // --- what the screens do ------------------------------------------------------------------------------------------
 
