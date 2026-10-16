@@ -1,5 +1,6 @@
 import { fromBase64Url, type Bytes } from '../../../tauri/src/app/core/sync/crypto.ts';
 import { randomId } from '../../../tauri/src/app/core/ids.ts';
+import { destination } from './escape.ts';
 import { MOST_PICTURES, PICTURE_SCHEME } from './kinds.ts';
 import type { PictureRef } from './markdown.ts';
 
@@ -107,12 +108,12 @@ export async function resolvePictures(pictures: readonly PictureRef[], { fetcher
 export function placePictures(markdown: string, pictures: readonly PictureRef[], placed: Placed): string {
   const where = new Map<number, string | null>();
   for (const s of placed.stored) where.set(s.index, `image/${s.name}`);
-  for (const l of placed.linked) where.set(l.index, l.url.startsWith('data:') ? null : l.url.replace(/[ ()<>]/g, encodeURIComponent));
+  for (const l of placed.linked) where.set(l.index, l.url.startsWith('data:') ? null : destination(l.url));
   const pattern = new RegExp(`!\\[([^\\]]*)\\]\\(${PICTURE_SCHEME.replace(/[/]/g, '\\/')}(\\d+)\\)`, 'g');
   return markdown
     .replace(pattern, (_m, alt: string, n: string) => {
       const index = Number(n);
-      const to = where.has(index) ? where.get(index)! : (pictures[index]?.url.startsWith('data:') ? null : (pictures[index]?.url ?? null));
+      const to = where.has(index) ? where.get(index)! : (pictures[index]?.url.startsWith('data:') || !pictures[index] ? null : destination(pictures[index]!.url));
       return to ? `![${alt}](${to})` : '';
     })
     .replace(/\n{3,}/g, '\n\n');

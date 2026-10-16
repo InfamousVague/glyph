@@ -1,4 +1,4 @@
-import { escapeText } from './escape.ts';
+import { destination, escapeText } from './escape.ts';
 import { PICTURE_SCHEME, type ClipMode } from './kinds.ts';
 import type { PictureRef } from './markdown.ts';
 
@@ -103,7 +103,7 @@ export function linkLine(url: string): string {
   } catch {
     shown = url;
   }
-  return `[${escapeText(shown)}](${url.replace(/[ ()<>]/g, encodeURIComponent)})`;
+  return `[${escapeText(shown)}](${destination(url)})`;
 }
 
 /** The words a mode clips, before its pictures are placed: a bookmark and a screenshot are made here, the rest came from the page. */

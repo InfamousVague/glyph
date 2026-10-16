@@ -1,6 +1,6 @@
 import TurndownService from 'turndown';
 import { strikethrough } from '@joplin/turndown-plugin-gfm';
-import { escapeText } from './escape.ts';
+import { destination, escapeText } from './escape.ts';
 import { MOST_PICTURES, PICTURE_SCHEME } from './kinds.ts';
 
 export { escapeText, MOST_PICTURES, PICTURE_SCHEME };
@@ -108,11 +108,6 @@ function isSpeck(img: Element): boolean {
   const w = Number(img.getAttribute('width'));
   const h = Number(img.getAttribute('height'));
   return (w > 0 && w <= 3) || (h > 0 && h <= 3);
-}
-
-/** An address as a Markdown destination: spaces, brackets and angle brackets escaped by their percent codes. */
-function destination(href: string): string {
-  return href.replace(/[ ()<>]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
 }
 
 /** A cell's words on one line, with its own bars escaped. */

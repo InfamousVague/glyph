@@ -77,13 +77,18 @@ export function peek(win: Window): Peek {
   const doc = win.document;
   const selection = win.getSelection();
   const selected = Boolean(selection && !selection.isCollapsed && selection.toString().trim());
-  let readable = false;
+  return { url: win.location.href, title: pageTitle(doc, win.location.href), selected, readable: readerable(doc) };
+}
+
+/** Characters of text past which Readability's find is an article even where its quick test said no. */
+const LONG_READ = 1500;
+
+function readerable(doc: Document): boolean {
   try {
-    readable = isProbablyReaderable(doc);
+    return isProbablyReaderable(doc);
   } catch {
-    readable = false;
+    return false;
   }
-  return { url: win.location.href, title: pageTitle(doc, win.location.href), selected, readable };
 }
 
 /** The article in the page by Readability, or null where it finds none. */
@@ -92,7 +97,8 @@ function article(doc: Document, url: string): Extract | null {
   // Readability takes every input out of an article: a task list's boxes are said in words first.
   markTasks(copy);
   const parsed = new Readability<Element>(copy, { keepClasses: true, serializer: (el) => el as Element }).parse();
-  if (!parsed?.content || (parsed.length ?? 0) < 140) return null;
+  // Readability finds something in nearly any page: an article is what Firefox's reader would offer, or a long read.
+  if (!parsed?.content || (!readerable(doc) && (parsed.length ?? 0) < LONG_READ)) return null;
   const title = parsed.title?.trim() || pageTitle(doc, url);
   const { markdown, pictures } = toMarkdown(parsed.content, { base: doc.baseURI || url, title, doc });
   if (!markdown.trim()) return null;
@@ -123,8 +129,14 @@ function selection(win: Window): DocumentFragment | null {
     const pre = element?.closest('pre');
     const parts = range.cloneContents();
     if (pre) {
+      // The block and its code element, where the language is said, round the words chosen.
       const wrap = pre.cloneNode(false) as Element;
-      wrap.appendChild(parts);
+      const code = element?.closest('code');
+      if (code && pre.contains(code)) {
+        const inner = code.cloneNode(false) as Element;
+        inner.appendChild(parts);
+        wrap.appendChild(inner);
+      } else wrap.appendChild(parts);
       out.appendChild(wrap);
       continue;
     }

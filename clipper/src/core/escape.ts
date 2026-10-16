@@ -41,3 +41,8 @@ export function escapeText(text: string): string {
     .replace(/^\[( |x|X)\]/, '\\[$1]');
 }
 
+
+/** An address as a Markdown destination: spaces, brackets and angle brackets written as their percent codes. */
+export function destination(href: string): string {
+  return href.replace(/[ ()<>]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}`);
+}
