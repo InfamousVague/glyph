@@ -39,6 +39,7 @@ class NotesDrawer extends StatelessWidget {
     this.onEmptyTrash,
     this.onOrganization,
     this.onBrowseFiles,
+    this.onGraph,
     this.onNoteMenu,
     this.notesInWorkspace,
     this.onTrashNotes,
@@ -73,6 +74,9 @@ class NotesDrawer extends StatelessWidget {
   /// An organization's own screen, from its folder's menu.
   final void Function(String orgId)? onOrganization;
   final VoidCallback? onBrowseFiles;
+
+  /// The graph of the notes and their links (lib/links/graph_view.dart).
+  final VoidCallback? onGraph;
   final void Function(String id, Offset at)? onNoteMenu;
   final List<String> Function(String workspaceId)? notesInWorkspace;
   final void Function(List<String> noteIds)? onTrashNotes;
@@ -111,6 +115,7 @@ class NotesDrawer extends StatelessWidget {
         onEmptyTrash: onEmptyTrash,
         onOrganization: onOrganization,
         onBrowseFiles: onBrowseFiles,
+        onGraph: onGraph,
         onNoteMenu: onNoteMenu,
         notesInWorkspace: notesInWorkspace,
         onTrashNotes: onTrashNotes,

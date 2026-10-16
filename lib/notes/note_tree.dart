@@ -69,6 +69,7 @@ class NoteTree extends StatefulWidget {
     this.onEmptyTrash,
     this.onOrganization,
     this.onBrowseFiles,
+    this.onGraph,
     this.onNoteMenu,
     this.notesInWorkspace,
     this.onTrashNotes,
@@ -99,6 +100,9 @@ class NoteTree extends StatefulWidget {
 
   /// Shows the notes' folder in the Files app or Finder; the tool is there only when this is.
   final VoidCallback? onBrowseFiles;
+
+  /// The graph of the notes and their links (lib/links/graph_view.dart); the tool is there only when this is.
+  final VoidCallback? onGraph;
 
   /// A mouse's right-click on a note's row: the note, and where the pointer was.
   final void Function(String id, Offset at)? onNoteMenu;
@@ -593,6 +597,7 @@ class _NoteTreeState extends State<NoteTree> {
                     if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
                     _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
                     if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
+                    if (widget.onGraph != null) _Tool(label: 'Graph of your notes', icon: Lucide.network, onPressed: widget.onGraph!),
                     if (every.isNotEmpty)
                       _Tool(
                         label: allShut ? 'Open every folder' : 'Fold every folder',

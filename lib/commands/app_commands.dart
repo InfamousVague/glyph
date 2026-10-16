@@ -136,6 +136,9 @@ PaletteDoing paletteDoingFor({
   VoidCallback? guide,
   VoidCallback? academy,
   void Function(String id, String kind)? noteAi,
+  VoidCallback? graph,
+  void Function(String id)? localGraph,
+  void Function(String id)? noteLinks,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -169,6 +172,9 @@ PaletteDoing paletteDoingFor({
     groupTab: (id) => shell.tabs.setGroups(newGroup(shell.tabs.groups, id).groups),
     joinTabGroup: (id, group) => shell.tabs.setGroups(joinGroup(shell.tabs.groups, id, group)),
     leaveTabGroup: (id) => shell.tabs.setGroups(leaveGroup(shell.tabs.groups, id)),
+    graph: graph,
+    localGraph: localGraph,
+    noteLinks: noteLinks,
   );
 }
 
