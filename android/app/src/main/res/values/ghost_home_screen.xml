@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The words of the home screen's widgets, the icon's shortcuts, the tile and a reminder (docs/FEATURES_2_1.md): the
+  app's own plain voice. The shortcuts' short labels are what a launcher shows under its icon; the long ones where
+  there is room.
+-->
+<resources>
+    <string name="ghost_shortcut_new_short">New note</string>
+    <string name="ghost_shortcut_new_long">Write a new note</string>
+    <string name="ghost_shortcut_voice_short">Voice note</string>
+    <string name="ghost_shortcut_voice_long">Record a voice note</string>
+    <string name="ghost_shortcut_today_short">Today</string>
+    <string name="ghost_shortcut_today_long">Today\'s note</string>
+    <string name="ghost_shortcut_search_short">Search</string>
+    <string name="ghost_shortcut_search_long">Search your notes</string>
+    <string name="ghost_tile_new_note">New note</string>
+    <string name="ghost_widget_quick_note">Quick note</string>
+    <string name="ghost_widget_quick_note_about">A new note, or a voice note, in one tap.</string>
+    <string name="ghost_widget_today">Today</string>
+    <string name="ghost_widget_today_about">The to-dos due today and those overdue, from every note. Tick them here.</string>
+    <string name="ghost_widget_pinned">Pinned notes</string>
+    <string name="ghost_widget_pinned_about">The notes you pinned, a tap away.</string>
+    <string name="ghost_widget_tick">Done</string>
+</resources>

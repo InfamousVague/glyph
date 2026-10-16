@@ -7,21 +7,13 @@ import 'package:ghost_md/home_screen/home_data.dart';
 import 'package:ghost_md/home_screen/home_host.dart';
 import 'package:ghost_md/home_screen/home_screen_data.dart';
 
+import '../support/fake_reminders.dart';
+
 /// What the home screen's widgets and the icon's shortcuts are handed (lib/home_screen/home_data.dart,
 /// home_screen_data.dart): the Today widget's to-dos, the pinned notes and the notes opened last, each handed over
 /// only when it is another than the last.
 
 Note note(String id, String body, {int updatedAt = 1, bool starred = false, int? archivedAt}) => Note(id: id, body: body, createdAt: 1, updatedAt: updatedAt, starred: starred, archivedAt: archivedAt);
-
-class FakeHome implements HomeScreenHost {
-  final Map<HomeKind, List<String>> puts = {};
-
-  @override
-  Future<bool> put(HomeKind kind, String json) async {
-    puts.putIfAbsent(kind, () => []).add(json);
-    return true;
-  }
-}
 
 void main() {
   final now = DateTime(2026, 10, 2, 8);

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:convert';
 
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -13,48 +11,10 @@ import 'package:ghost_md/reminders/reminder_scheduler.dart';
 import 'package:ghost_md/reminders/reminder_settings.dart';
 import 'package:ghost_md/root/phone_extras.dart';
 
+import '../support/fake_reminders.dart';
+
 /// Reminders kept in step with the notes (lib/reminders/reminder_scheduler.dart, lib/root/phone_extras.dart), against
 /// a phone of the test's own that keeps what it is handed, a clock of its own, and a timer that waits for nothing.
-
-/// The phone, as reminders ask it.
-class FakeReminders implements ReminderHost {
-  final List<String> sets = [];
-  bool takes = true;
-  ReminderAbility ability = (notify: true, exact: true);
-  ({int hour, int minute})? picks;
-  OutsideTick? tick;
-
-  /// What the last plan handed over says, as `at words`.
-  List<String> get last => [for (final item in ((jsonDecode(sets.last) as Map)['items'] as List).cast<Map>()) '${item['at']} ${item['words']}'];
-
-  @override
-  Future<bool> set(String json) async {
-    sets.add(json);
-    return takes;
-  }
-
-  @override
-  Future<ReminderAbility?> state() async => ability;
-
-  @override
-  Future<bool> allowExact() async => true;
-
-  @override
-  Future<({int hour, int minute})?> pickTime(int hour, int minute) async => picks;
-
-  @override
-  set onTick(OutsideTick? tick) => this.tick = tick;
-}
-
-class FakeHome implements HomeScreenHost {
-  final Map<HomeKind, List<String>> puts = {};
-
-  @override
-  Future<bool> put(HomeKind kind, String json) async {
-    puts.putIfAbsent(kind, () => []).add(json);
-    return true;
-  }
-}
 
 /// A timer whose wait is the test's to end.
 class HeldTimer implements Timer {

@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The icon's shortcuts in the build that replaces the Tauri app (`ghostCutover`) without the phone assistant: that
+  app's id, and the alias that carries its activity's name (the manifest says why).
+
+  The icon's own four (docs/FEATURES_2_1.md; android/…/ghost_md/home/Doors.kt says what each link does): New note, Voice
+  note (the microphone opens on that tap and not before), Today and Search. The notes opened last follow them, set
+  while the app runs (HomeScreen.kt). A shortcut's package and class have to be written out, which is why each build
+  has a file of its own (android/app/build.gradle.kts `ghostShortcuts`).
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:shortcutId="new-note"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_new"
+        android:shortcutShortLabel="@string/ghost_shortcut_new_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_new_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://new"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="voice-note"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_voice"
+        android:shortcutShortLabel="@string/ghost_shortcut_voice_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://voice"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="today"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_today"
+        android:shortcutShortLabel="@string/ghost_shortcut_today_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_today_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://today"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+    <shortcut
+        android:shortcutId="search"
+        android:enabled="true"
+        android:icon="@drawable/ghost_shortcut_search"
+        android:shortcutShortLabel="@string/ghost_shortcut_search_short"
+        android:shortcutLongLabel="@string/ghost_shortcut_search_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:data="ghostmd://search"
+            android:targetPackage="com.mattssoftware.glyph"
+            android:targetClass="com.mattssoftware.glyph.MainActivity" />
+    </shortcut>
+</shortcuts>
