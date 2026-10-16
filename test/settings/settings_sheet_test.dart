@@ -81,6 +81,8 @@ void main() {
         ('account', 0, SettingsGlyph.circleUser),
         ('organizations', 0, SettingsGlyph.userGroup),
         ('workspaces', 0, SettingsGlyph.folder),
+        // The port's own (2026-10-16): today's note's choices, a page behind Workspaces.
+        ('daily', 0, SettingsGlyph.calendarDays),
         ('notifications', 0, SettingsGlyph.bell),
         ('library', 1, SettingsGlyph.folderOpen),
         ('backup', 1, SettingsGlyph.hardDriveUpload),
@@ -96,8 +98,8 @@ void main() {
         ('developer', 4, SettingsGlyph.terminal),
         ('test-results', 4, SettingsGlyph.flaskConical),
       ]);
-      // The sub-pages are off the list, each behind About.
-      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
+      // The sub-pages are off the list, each behind About; and Daily notes, the port's own, behind Workspaces.
+      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
       // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
       expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
       final web = Directory('tauri/src/app');

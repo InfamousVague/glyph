@@ -178,6 +178,7 @@ class HomeScreen extends StatefulWidget {
     this.headerEdge,
     this.dockHalo,
     this.ghost,
+    this.onSaveSearch,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -260,6 +261,9 @@ class HomeScreen extends StatefulWidget {
 
   /// The empty pages' ghosts, to be dropped in (see [HomeGhostBuilder]).
   final HomeGhostBuilder? ghost;
+
+  /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
+  final ValueChanged<String>? onSaveSearch;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -468,7 +472,7 @@ class _HomeScreenState extends State<HomeScreen> {
     final began = ghostPerf ? Perf.now() : 0;
     // Under a search the page is what was found, the nearest first, whatever its layout.
     final searching = _query.trim().isNotEmpty;
-    final found = searching ? homeFound(inSpace, _query, _filter) : const <Found>[];
+    final found = searching ? homeFound(inSpace, _query, _filter, scope: SearchScope(notes: notes, workspaces: spaces)) : const <Found>[];
     final lists = searching
         ? HomeLists(books: [for (final one in found) if (NoteFacts.of(one.note).isBook) one.note], notes: [for (final one in found) if (!NoteFacts.of(one.note).isBook) one.note])
         : homeLists(inSpace, _query, _filter);
@@ -811,6 +815,7 @@ class _HomeScreenState extends State<HomeScreen> {
           onManage: _manage,
           onNewOrganization: widget.onNewOrganization == null ? null : _newOrganization,
           onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
+          onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
         ),
       ValueListenableBuilder<List<Widget>>(
         valueListenable: _notices,

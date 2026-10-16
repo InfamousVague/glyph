@@ -9,8 +9,12 @@ import 'package:glacier/glacier.dart';
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
+import '../core/search_hits.dart' show SearchScope, findNotes;
+import '../core/search_query.dart' show parseSearch;
+import '../core/smart_notebooks.dart';
 import '../core/stored.dart';
-import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces;
+import '../core/tag_index.dart' show tagIndex;
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces, isOrgWorkspace;
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
@@ -19,7 +23,7 @@ import 'note_peek.dart';
 import 'org_mark.dart';
 import 'tree.dart';
 import 'workspace_sheet.dart';
-import '../shell/wide_screen.dart' show hoverPointer;
+import '../shell/wide_screen.dart' show hoverPointer, mousePointer, wideScreen;
 
 /// The sidebar: one tree of notes, the same whether it sits beside the note on a desktop or opens over it on a phone
 /// (Matt: "Make the sidebar on desktop the same sidebar that shows up in the pop-up sidebar. Make it more similar to
@@ -50,6 +54,12 @@ import '../shell/wide_screen.dart' show hoverPointer;
 /// - A folder's More and a note in the trash's two buttons are hidden until pointed at on a desktop, and always
 ///   shown on a phone, which is how `@media (hover: hover)` is answered on each (`hoverPointer`).
 /// - [notices] is a list, spaced as the page's wrapper spaces its children; an empty one takes no room.
+/// - **The port's own, 2026-10-16** (docs/FEATURES_2_1.md, organize): a Tags row over the folders, opening the Tags
+///   page ([onTags]); the smart notebooks under a heading of their own, each with how many notes its search finds
+///   now ([smart]); folders inside folders, each folding on its own, its count its notes and those of the folders
+///   in it; and on a wide window a note or a folder dragged onto a folder is filed or moved there (a finger holds
+///   first, a mouse just drags). An organization's folder takes no drop and gives none: a note moved into or out
+///   of a team is asked about twice, in the note's own Workspace picker.
 class NoteTree extends StatefulWidget {
   const NoteTree({
     super.key,
@@ -76,6 +86,10 @@ class NoteTree extends StatefulWidget {
     this.stored,
     this.peek = NotePeek.plain,
     this.emptyArt,
+    this.smart,
+    this.onSmart,
+    this.onManageSmart,
+    this.onTags,
   });
 
   final List<Note> notes;
@@ -117,6 +131,16 @@ class NoteTree extends StatefulWidget {
 
   /// What is drawn over "No notes yet.".
   final Widget? emptyArt;
+
+  /// The smart notebooks, under a heading of their own; none drawn without.
+  final SmartNotebookStore? smart;
+
+  /// A smart notebook's page, and its sheet, from its row and its More.
+  final void Function(String id)? onSmart;
+  final void Function(SmartNotebook notebook)? onManageSmart;
+
+  /// The Tags page; the row is there only with this.
+  final VoidCallback? onTags;
 
   @override
   State<NoteTree> createState() => _NoteTreeState();
@@ -172,10 +196,66 @@ class _NoteTreeState extends State<NoteTree> {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<Workspaces>(
-      valueListenable: widget.workspaces,
-      builder: (context, spaces, _) => _build(context, spaces),
+    final smart = widget.smart;
+    return ListenableBuilder(
+      listenable: smart == null ? widget.workspaces : Listenable.merge([widget.workspaces, smart]),
+      builder: (context, _) => _build(context, widget.workspaces.value),
     );
+  }
+
+  /// How many notes each smart notebook's search finds, kept for the notes and the searches they were counted
+  /// for: counted again when a note changes, never as the sidebar is only drawn again.
+  final NotesMemo<Map<String, int>> _smartCounts = NotesMemo<Map<String, int>>(2);
+
+  Map<String, int> _countsOf(List<SmartNotebook> list, Workspaces spaces) => _smartCounts.of(
+        widget.notes,
+        () {
+          final scope = SearchScope(notes: widget.notes, workspaces: spaces);
+          return {
+            for (final each in list)
+              each.id: () {
+                final archive = parseSearch(each.query).archived;
+                return findNotes([for (final note in widget.notes) if (archive || note.archivedAt == null) note], each.query, scope: scope).length;
+              }(),
+          };
+        },
+        also: (list, spaces),
+      );
+
+  /// [child] dragged as [data] where [enabled]: a mouse drags it at once, a finger holds it first, so a finger's
+  /// scroll through the sidebar stays a scroll.
+  Widget _draggable(BuildContext context, bool enabled, _Dragged data, _Look look, Widget child) {
+    if (!enabled) return child;
+    final t = look.t;
+    final feedback = _DragFeedback(label: data.label, folder: data.folder != null, tokens: t);
+    final dimmed = Opacity(opacity: 0.4, child: child);
+    return mousePointer
+        ? Draggable<_Dragged>(data: data, feedback: feedback, childWhenDragging: dimmed, child: child)
+        : LongPressDraggable<_Dragged>(data: data, feedback: feedback, childWhenDragging: dimmed, hapticFeedbackOnStart: true, child: child);
+  }
+
+  /// What a drop on a folder would do: file a note there, or move a folder inside it. Null where it cannot.
+  bool _takes(_Dragged dragged, String folder) {
+    if (isOrgWorkspace(folder)) return false;
+    final note = dragged.note;
+    if (note != null) {
+      final filed = widget.workspaces.value.of[note];
+      return filed != folder && (filed == null || !isOrgWorkspace(filed));
+    }
+    final moving = dragged.folder;
+    return moving != null && widget.workspaces.canMove(moving, folder) && widget.workspaces.value.list.where((w) => w.id == moving).firstOrNull?.parent != folder;
+  }
+
+  void _drop(_Dragged dragged, String folder) {
+    if (!_takes(dragged, folder)) return;
+    final note = dragged.note, moving = dragged.folder;
+    if (note != null) {
+      widget.workspaces.fileNote(note, folder);
+    } else if (moving != null) {
+      widget.workspaces.moveWorkspace(moving, folder);
+    }
+    // A folder dropped into is opened, so what landed in it is seen.
+    if (_closed.contains(folder)) _toggle(folder);
   }
 
   Widget _build(BuildContext context, Workspaces spaces) {
@@ -206,6 +286,10 @@ class _NoteTreeState extends State<NoteTree> {
       seams: (widget.onNoteMenu != null ? 1 : 0) | (widget.onOrganization != null ? 2 : 0) | (widget.onEmptyTrash != null ? 4 : 0) | (widget.onRestore != null ? 8 : 0) | (widget.onDestroy != null ? 16 : 0),
       // The ghost over an empty list is made anew by whoever hands it over: asked about only while it is drawn.
       art: nothing ? widget.emptyArt : null,
+      // The smart notebooks, the Tags row, and whether rows can be dragged onto folders (a wide window).
+      smart: widget.smart?.value,
+      organize: (widget.onTags != null ? 1 : 0) | (widget.onSmart != null ? 2 : 0) | (widget.onManageSmart != null ? 4 : 0),
+      drags: wideScreen(MediaQuery.sizeOf(context)),
     );
     if (had != null && had.drawn == drawn && sameNotes(had.notes, widget.notes) && sameNotes(had.trashed, trashed)) {
       return _framed(context, t, look, had.tree, had.list, popup: popup, compact: compact);
@@ -233,7 +317,12 @@ class _NoteTreeState extends State<NoteTree> {
         softWrap: !compact,
         overflow: TextOverflow.ellipsis,
       );
-      return CssFlow.block(
+      return _draggable(
+        context,
+        drawn.drags && !isOrgWorkspace(spaces.of[note.id] ?? ''),
+        _Dragged(note: note.id, label: title.isEmpty ? 'Untitled' : title),
+        look,
+        CssFlow.block(
         key: ValueKey('note-row-${note.id}'),
         // `.row { margin-block: 1px }`; `.tree[data-compact] .row { margin-block: 0 }`: kept by the list the row is
         // in ([rowsOf]), which lays out only the rows near the screen and so cannot leave the margins to a flow.
@@ -295,6 +384,7 @@ class _NoteTreeState extends State<NoteTree> {
             ),
           ),
         ),
+      ),
       );
     }
 
@@ -343,81 +433,122 @@ class _NoteTreeState extends State<NoteTree> {
           ),
         );
 
-    void folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon}) {
+    Workspace? spaceOf(String id) {
+      for (final space in spaces.list) {
+        if (space.id == id) return space;
+      }
+      return null;
+    }
+
+    /// A folder's row and, open, what is in it: the folders inside it first, each a folder of its own, then its
+    /// notes, on the guide down its side. [inner] is a folder inside another, whose margins are its own 1px and do
+    /// not collapse with its neighbours'; a top folder's are worked out as the page collapses them ([over]).
+    Widget folderOf(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon, List<TreeFolder> inside = const [], bool inner = false}) {
       final open = !_closed.contains(id);
       final org = space?.org;
       // `.folder { margin-block: 1px }`
-      final gap = over(1);
+      final gap = inner ? 1.0 : over(1);
+      final folderRow = _FolderRow(
+        look: look,
+        open: open,
+        onToggle: () => _toggle(id),
+        lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
+        org: org != null,
+        name: name,
+        count: count,
+        // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
+        end: space == null
+            ? null
+            : (hovered) => _Small(
+                  look: look,
+                  hides: true,
+                  rowHovered: hovered,
+                  label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
+                  icon: Lucide.ellipsis,
+                  iconSize: 16,
+                  stroke: 2.2,
+                  onPressed: () {
+                    if (org != null && widget.onOrganization != null) {
+                      widget.onOrganization!(org);
+                    } else {
+                      setState(() => _manage = _Manage(space));
+                    }
+                  },
+                ),
+      );
+      // A workspace's folder takes a note or another folder dropped on it, and is itself dragged, on a wide window.
+      final Widget head = space == null || !drawn.drags || org != null
+          ? folderRow
+          : _draggable(
+              context,
+              true,
+              _Dragged(folder: id, label: name),
+              look,
+              DragTarget<_Dragged>(
+                onWillAcceptWithDetails: (details) => _takes(details.data, id),
+                onAcceptWithDetails: (details) => _drop(details.data, id),
+                builder: (context, candidates, _) => DecoratedBox(
+                  key: ValueKey('drop-$id'),
+                  // Something held over it that it takes: a ring of the ink, as the open note's row wears.
+                  decoration: BoxDecoration(
+                    border: candidates.isEmpty ? null : Border.all(color: t.colorOf('color-mix(in oklch, var(--app-ink) 55%, transparent)'), width: snapBorder(context, t.len('app-line'))),
+                    borderRadius: BorderRadius.circular(t.radius('sm')),
+                    color: candidates.isEmpty ? null : t.color('app-paper-2'),
+                  ),
+                  child: folderRow,
+                ),
+              ),
+            );
       final parts = <Widget>[
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.only(top: gap),
-            child: KeyedSubtree(
-              key: ValueKey('folder-row-$id'),
-              child: _FolderRow(
-                look: look,
-                open: open,
-                onToggle: () => _toggle(id),
-                lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
-                org: org != null,
-                name: name,
-                count: count,
-                // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
-                end: space == null
-                    ? null
-                    : (hovered) => _Small(
-                          look: look,
-                          hides: true,
-                          rowHovered: hovered,
-                          label: org != null ? '${space.name}, organization settings' : 'Rename, recolour or delete ${space.name}',
-                          icon: Lucide.ellipsis,
-                          iconSize: 16,
-                          stroke: 2.2,
-                          onPressed: () {
-                            if (org != null && widget.onOrganization != null) {
-                              widget.onOrganization!(org);
-                            } else {
-                              setState(() => _manage = _Manage(space));
-                            }
-                          },
-                        ),
-              ),
-            ),
+            child: KeyedSubtree(key: ValueKey('folder-row-$id'), child: head),
           ),
         ),
       ];
       // The folder's own bottom margin, or the larger of it and its last child's, which collapses through it.
-      pending = 1;
+      if (!inner) pending = 1;
       if (open) {
-        if (children.isNotEmpty) {
+        if (children.isNotEmpty || inside.isNotEmpty) {
           // `.inside`: a folder's notes sit in from its name, on a faint guide down the side - Obsidian's indent
           // line. Its first row's margin collapses through its top, so the guide begins a row's margin under the
-          // folder's name, and runs to the last row's foot.
+          // folder's name, and runs to the last row's foot. The folders inside it stand first on the same guide.
           // `margin-inline-start: 0.95em; padding-inline-start: 0.35em; border-inline-start: 1px solid var(--app-rule)`
+          final within = <Widget>[
+            for (final f in inside) folderOf(f.id, f.name, f.count, f.notes, hue: f.hue, space: spaceOf(f.id), inside: f.folders, inner: true),
+            if (children.isNotEmpty) rowsOf(children, first: inside.isEmpty ? 0 : rowGap),
+          ];
           parts.add(
             SliverPadding(
               padding: EdgeInsets.only(left: 0.95 * look.em, top: rowGap),
               sliver: _SliverGuide(
                 side: BorderSide(color: t.color('app-rule'), width: look.rule),
-                sliver: SliverPadding(padding: EdgeInsets.only(left: look.rule + 0.35 * look.em), sliver: rowsOf(children, first: 0)),
+                sliver: SliverPadding(padding: EdgeInsets.only(left: look.rule + 0.35 * look.em), sliver: within.length == 1 ? within.single : SliverMainAxisGroup(slivers: within)),
               ),
             ),
           );
+          if (inner) parts.add(const SliverToBoxAdapter(child: SizedBox(height: 1)));
         } else {
           // `.emptyFolder { margin: 0.2em 0 0.4em 1.3em; font-size: calc(var(--glacier-font-size-xs) * var(--app-text-scale)); color: var(--app-ink-4) }`
           parts.add(
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(1.3 * look.smallSize, 0.2 * look.smallSize, 0, 0),
+                padding: EdgeInsets.fromLTRB(1.3 * look.smallSize, 0.2 * look.smallSize, 0, inner ? 0.4 * look.smallSize : 0),
                 child: Text('Nothing here yet.', style: pageText(t, look.smallSize, color: t.color('app-ink-4'))),
               ),
             ),
           );
-          pending = math.max(1, 0.4 * look.smallSize);
+          if (!inner) pending = math.max(1, 0.4 * look.smallSize);
         }
+      } else if (inner) {
+        parts.add(const SliverToBoxAdapter(child: SizedBox(height: 1)));
       }
-      slivers.add(SliverMainAxisGroup(key: ValueKey('folder-$id'), slivers: parts));
+      return SliverMainAxisGroup(key: ValueKey('folder-$id'), slivers: parts);
     }
+
+    void folder(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon, List<TreeFolder> inside = const []}) =>
+        slivers.add(folderOf(id, name, count, children, hue: hue, space: space, icon: icon, inside: inside));
 
     /*
      * The trash (Matt: "Send deleted notes to a trash folder where we can empty it to perma delete notes or restore
@@ -494,11 +625,70 @@ class _NoteTreeState extends State<NoteTree> {
           ],
         );
 
-    Workspace? spaceOf(String id) {
-      for (final space in spaces.list) {
-        if (space.id == id) return space;
+    /// Over the folders: the Tags page's row, and the smart notebooks under a heading of their own, each with how
+    /// many notes its search finds now.
+    void shelf() {
+      final onTags = widget.onTags;
+      if (onTags != null) {
+        final gap = over(1);
+        slivers.add(
+          SliverToBoxAdapter(
+            key: const ValueKey('tree-tags'),
+            child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: Lucide.hash, name: 'Tags', count: tagIndex(widget.notes).length, onPressed: onTags)),
+          ),
+        );
+        pending = 1;
       }
-      return null;
+      final list = widget.smart?.value ?? const <SmartNotebook>[];
+      if (list.isEmpty) return;
+      final counts = _countsOf(list, spaces);
+      final open = !_closed.contains(smartFolder);
+      final gap = over(1);
+      final parts = <Widget>[
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: EdgeInsets.only(top: gap),
+            child: KeyedSubtree(
+              key: const ValueKey('folder-row-$smartFolder'),
+              child: _FolderRow(
+                look: look,
+                open: open,
+                onToggle: () => _toggle(smartFolder),
+                lead: lucide(Lucide.bookmark, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')),
+                org: false,
+                name: 'Smart notebooks',
+                count: list.length,
+                end: null,
+              ),
+            ),
+          ),
+        ),
+        if (open)
+          SliverPadding(
+            padding: EdgeInsets.only(left: 0.95 * look.em, top: rowGap),
+            sliver: _SliverGuide(
+              side: BorderSide(color: t.color('app-rule'), width: look.rule),
+              sliver: SliverPadding(
+                padding: EdgeInsets.only(left: look.rule + 0.35 * look.em),
+                sliver: SliverList.list(
+                  children: [
+                    for (final each in list)
+                      _SmartRow(
+                        key: ValueKey('smart-row-${each.id}'),
+                        look: look,
+                        name: each.name,
+                        count: counts[each.id] ?? 0,
+                        onOpen: () => widget.onSmart?.call(each.id),
+                        onMore: widget.onManageSmart == null ? null : () => widget.onManageSmart!(each),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ];
+      slivers.add(SliverMainAxisGroup(key: const ValueKey('folder-$smartFolder'), slivers: parts));
+      pending = 1;
     }
 
     // The list as a sliver of the sidebar's scroller.
@@ -519,8 +709,9 @@ class _NoteTreeState extends State<NoteTree> {
             ),
           )
         : () {
+            shelf();
             for (final f in tree.folders) {
-              folder(f.id, f.name, f.notes.length, f.notes, hue: f.hue, space: spaceOf(f.id));
+              folder(f.id, f.name, f.count, f.notes, hue: f.hue, space: spaceOf(f.id), inside: f.folders);
             }
             if (tree.loose.isNotEmpty) {
               slivers.add(rowsOf(tree.loose, first: over(rowGap)));
@@ -557,7 +748,11 @@ class _NoteTreeState extends State<NoteTree> {
 
   /// The sidebar round its [list]: the tools over it, the notices and the foot under it, and the workspace's sheet.
   Widget _framed(BuildContext context, Tokens t, _Look look, Tree tree, Widget list, {required bool popup, required bool compact}) {
-    final every = [for (final folder in tree.folders) folder.id, if (tree.archived.isNotEmpty) archiveFolder];
+    final every = [
+      for (final folder in tree.folders) ...folder.all.map((each) => each.id),
+      if (tree.archived.isNotEmpty) archiveFolder,
+      if ((widget.smart?.value ?? const []).isNotEmpty) smartFolder,
+    ];
     final allShut = every.isNotEmpty && every.every(_closed.contains);
 
     // Only the rows near the screen are built. In the card the scroller is as tall as its list, up to the room
@@ -642,6 +837,7 @@ class _NoteTreeState extends State<NoteTree> {
               WorkspaceManageSheet(
                 store: widget.workspaces,
                 editing: manage.space,
+                folders: true,
                 onClose: () => setState(() => _manage = null),
                 onOrganization: widget.onOrganization,
                 notesIn: widget.notesInWorkspace,
@@ -1070,6 +1266,154 @@ class _Speak extends StatelessWidget {
               Text('Speak', style: pageText(t, size, weight: 'semibold', color: paper)),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The smart notebooks' place among the folders, for remembering whether it is open.
+const String smartFolder = 'smart';
+
+/// What is being dragged in the sidebar: a note, or a workspace's folder, by id, and its name for the drag's label.
+@immutable
+class _Dragged {
+  const _Dragged({this.note, this.folder, required this.label});
+  final String? note;
+  final String? folder;
+  final String label;
+}
+
+/// What follows the pointer while a row is dragged: its name in a small pill of the paper.
+class _DragFeedback extends StatelessWidget {
+  const _DragFeedback({required this.label, required this.folder, required this.tokens});
+  final String label;
+  final bool folder;
+  final Tokens tokens;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tokens;
+    final size = t.fontSize('sm');
+    return IgnorePointer(
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 240),
+        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
+        decoration: BoxDecoration(
+          color: t.color('app-paper-2'),
+          border: Border.all(color: t.color('glacier-border-strong'), width: t.len('glacier-hairline')),
+          borderRadius: BorderRadius.circular(t.radius('md')),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          spacing: 0.45 * size,
+          children: [
+            lucide(folder ? Lucide.folder : Lucide.fileText, size: 14, color: t.color('app-ink-3')),
+            Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, weight: 'semibold', color: t.color('app-ink')))),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A row over the folders that opens a page rather than folding: the Tags page.
+class _ShelfRow extends StatelessWidget {
+  const _ShelfRow({required this.look, required this.icon, required this.name, required this.count, required this.onPressed});
+
+  final _Look look;
+  final LucideIcon icon;
+  final String name;
+  final int count;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = look.t;
+    final size = look.folderSize;
+    final ink = t.color('app-ink');
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: '$name, $count',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        offset: -2,
+        radius: t.radius('sm'),
+        child: DecoratedBox(
+          decoration: BoxDecoration(color: state.hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('sm'))),
+          child: Padding(
+            // As a folder's row, with the chevron's room kept so its mark stands where a folder's dot does.
+            padding: EdgeInsets.symmetric(vertical: 0.4 * size, horizontal: 0.35 * size),
+            child: ExcludeSemantics(
+              child: Row(
+                spacing: 0.45 * size,
+                children: [
+                  const SizedBox(width: 15),
+                  lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')),
+                  Expanded(child: Text(name, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, weight: 'semibold', color: ink))),
+                  Padding(
+                    padding: EdgeInsets.only(left: 0.5 * size),
+                    child: Text('$count', style: pageText(t, size, weight: 'medium', color: t.color('app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A smart notebook in the sidebar: its name, how many notes its search finds now, and its More.
+class _SmartRow extends StatelessWidget {
+  const _SmartRow({super.key, required this.look, required this.name, required this.count, required this.onOpen, this.onMore});
+
+  final _Look look;
+  final String name;
+  final int count;
+  final VoidCallback onOpen;
+  final VoidCallback? onMore;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = look.t;
+    final size = look.folderSize;
+    return _Hover(
+      builder: (context, hovered) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 1),
+        child: Row(
+          children: [
+            Expanded(
+              child: GlacierPressable(
+                onPressed: onOpen,
+                semanticLabel: '$name, ${count == 1 ? '1 note' : '$count notes'}',
+                builder: (context, state) => GlacierFocusRing(
+                  visible: state.focused,
+                  offset: -2,
+                  radius: t.radius('md'),
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(color: state.hovered ? t.color('app-paper-2') : null, borderRadius: BorderRadius.circular(t.radius('md'))),
+                    child: Padding(
+                      // The count's end where a folder's count ends, beside the More.
+                      padding: EdgeInsetsDirectional.fromSTEB(0.6 * look.em, 0.32 * look.em, 0.35 * size, 0.32 * look.em),
+                      child: ExcludeSemantics(
+                        child: Row(
+                          spacing: 0.5 * look.em,
+                          children: [
+                            Expanded(child: cssLines(name, look.rowTitle(untitled: false, weight: 'medium'), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+                            Text('$count', style: pageText(t, size, weight: 'medium', color: t.color('app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            if (onMore != null)
+              _Small(look: look, hides: true, rowHovered: hovered, label: 'Rename, change, move or delete $name', icon: Lucide.ellipsis, iconSize: 16, stroke: 2.2, onPressed: onMore!),
+          ],
         ),
       ),
     );

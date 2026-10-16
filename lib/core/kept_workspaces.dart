@@ -63,7 +63,7 @@ class KeptWorkspaceStorage extends ChangeNotifier implements WorkspaceStorage {
     final held = _prefs.value.workspaces;
     _seen = held;
     return WorkspaceSheet(
-      list: [for (final w in held.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue)],
+      list: [for (final w in held.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue, parent: w.parent)],
       notes: held.notes,
       // The store drops a filter that names no workspace.
       current: _device.readText(currentWorkspaceKey),
@@ -77,7 +77,7 @@ class KeptWorkspaceStorage extends ChangeNotifier implements WorkspaceStorage {
     try {
       _prefs.update((now) => now.copyWith(
             workspaces: KeptWorkspaces(
-              list: List.unmodifiable([for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue)]),
+              list: List.unmodifiable([for (final w in sheet.list) KeptWorkspace(id: w.id, name: w.name, hue: w.hue, parent: w.parent)]),
               notes: Map.unmodifiable(sheet.notes),
             ),
           ));

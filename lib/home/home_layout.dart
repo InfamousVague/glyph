@@ -16,6 +16,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../core/search_hits.dart';
+import '../core/search_query.dart' show parseSearch;
 
 // How a note starts, on one line (`firstLine`): lib/core/note_text.dart's, where a note's facts read it.
 export '../core/note_text.dart' show firstLine;
@@ -248,16 +249,21 @@ List<Note> cardsIn(HomePlan plan) => [
         if (section.draw == SectionDraw.cards) ...section.notes,
     ];
 
-/// What a search found on the page, the nearest first (lib/core/search_hits.dart): never the archive, and only what
-/// the filter shows. The port's own: the page lists what it found in its layout, in no order of nearness.
-List<Found> homeFound(Iterable<Note> all, String query, HomeFilter filter) => findNotes(
-      all.where((n) =>
-          n.archivedAt == null &&
-          (filter != HomeFilter.pinned || n.starred) &&
-          (filter != HomeFilter.books || NoteFacts.of(n).isBook) &&
-          (filter != HomeFilter.notes || !NoteFacts.of(n).isBook)),
-      query,
-    );
+/// What a search found on the page, the nearest first (lib/core/search_hits.dart): never the archive unless the
+/// query says `is:archived`, and only what the filter shows. The port's own: the page lists what it found in its
+/// layout, in no order of nearness. [scope] is what the query's operators read beyond each note.
+List<Found> homeFound(Iterable<Note> all, String query, HomeFilter filter, {SearchScope scope = const SearchScope()}) {
+  final archive = parseSearch(query).archived;
+  return findNotes(
+    all.where((n) =>
+        (archive || n.archivedAt == null) &&
+        (filter != HomeFilter.pinned || n.starred) &&
+        (filter != HomeFilter.books || NoteFacts.of(n).isBook) &&
+        (filter != HomeFilter.notes || !NoteFacts.of(n).isBook)),
+    query,
+    scope: scope,
+  );
+}
 
 /// The page under a search: one section, what was found, in whichever layout the page is in.
 HomePlan foundPlan(List<Found> found) => HomePlan(

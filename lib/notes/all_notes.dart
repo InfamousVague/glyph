@@ -25,9 +25,12 @@ import 'package:flutter/foundation.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
+import '../core/search_match.dart';
+import '../core/search_query.dart';
 import '../core/stored.dart';
 
 export '../core/note_text.dart' show hasTape, matches, searchText;
+export '../core/search_match.dart' show SearchScope;
 
 /// How the page orders its cards: the last touched first, or by name (`AllNotesSort`).
 enum AllNotesSort {
@@ -70,12 +73,19 @@ bool _untitled(Note note) => NoteFacts.of(note).title.trim().isEmpty;
 String _sortKey(Note note) => NoteFacts.of(note).title.trim().toLowerCase();
 
 /// The notes the page shows, in the order it shows them (`browseNotes`). The list given is not reordered.
-List<Note> browseNotes(Iterable<Note> notes, Browse browse) {
+///
+/// The query's operators (lib/core/search_query.dart: `tag:`, `in:`, `is:`, `has:`, dates, an exact phrase, a word
+/// left out) are the port's own, as on the home page: each must hold, and `is:archived` looks in the archive
+/// whether or not it is shown. [scope] is what they read beyond the note.
+List<Note> browseNotes(Iterable<Note> notes, Browse browse, {SearchScope scope = const SearchScope()}) {
   // The query's words once, not once a note; none asked for is every note, with nothing of any read.
-  final words = queryWords(browse.query);
+  final parsed = parseSearch(browse.query, now: scope.now);
+  final words = parsed.words;
+  final filter = parsed.filters ? SearchFilter.of(parsed, scope) : null;
+  final archived = browse.archived || parsed.archived;
   final shown = [
     for (final n in notes)
-      if ((browse.archived || n.archivedAt == null) && (!browse.tapes || hasTape(n)) && hasWords(n, words)) n,
+      if ((archived || n.archivedAt == null) && (!browse.tapes || hasTape(n)) && hasWords(n, words) && (filter == null || filter.admits(n))) n,
   ];
   // A merge sort, which is stable as the page's `Array.sort` is: two notes touched in the same moment keep the order
   // they were given in.

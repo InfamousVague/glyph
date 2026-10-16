@@ -284,7 +284,12 @@ class NoteDeskWorld {
     this.shareVersionsFile,
     this.syncWithin,
     this.links,
+    this.openTag,
   });
+
+  /// A tag's page, from a tap on its chip in a note (lib/editor/items/tags.dart `tagOpener`); absent, a tap on a tag
+  /// is the editor's.
+  final void Function(String tag)? openTag;
 
   /// Every note's title, for the +'s A note.
   final List<String> Function() titles;
@@ -712,6 +717,8 @@ class NoteDeskState extends State<NoteDesk> {
     drawnTables(),
     // A clip's `source:` as a line under its title (lib/editor/media/source_line.dart).
     sourceLine(open: _world.openLink),
+    // A tap on a tag's chip opens the tag's page (lib/notes/collection_screen.dart).
+    if (_world.openTag != null) tagOpener.of(_world.openTag!),
     // Pick a date, on a list item's date page, in a ticket's panel and in a query: the phone's calendar.
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).

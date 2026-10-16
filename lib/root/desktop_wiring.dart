@@ -9,6 +9,7 @@
 ///   "Synced", "Still syncing" past five seconds, or why not.
 /// - **The palette** and **Settings**, from the menu: the kit's own key opens the first, and the header's cog the
 ///   second.
+/// - **Today's note** (Command-Shift-D, and File › Today's Note on a Mac): the port's own, on a place as New note is.
 library;
 
 import 'dart:async';
@@ -43,6 +44,7 @@ VoidCallback wireDesktopCommands({
   required void Function(String message) say,
   required VoidCallback palette,
   required VoidCallback settings,
+  VoidCallback? today,
   DesktopCommands? commands,
   Duration patience = stillSyncingAfter,
 }) {
@@ -80,6 +82,12 @@ VoidCallback wireDesktopCommands({
       settings();
       return true;
     }),
+    if (today != null)
+      set.on(DesktopCommand.today, () {
+        if (!onPlace() || covered()) return false;
+        today();
+        return true;
+      }),
   ];
   return () {
     if (identical(set.covered, covered)) set.covered = null;

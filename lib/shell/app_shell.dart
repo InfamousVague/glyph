@@ -108,6 +108,7 @@ class AppShell extends StatefulWidget {
     this.noteBuilder,
     this.allNotesBuilder,
     this.organizationBuilder,
+    this.collectionBuilder,
     this.captureBuilder,
     this.meetingBuilder,
     this.academyBuilder,
@@ -183,6 +184,9 @@ class AppShell extends StatefulWidget {
   final ShellBuilder? homeBuilder;
   final ShellNoteBuilder? noteBuilder;
   final ShellScreenBuilder<ScreenNotes>? allNotesBuilder;
+
+  /// The Tags page, a tag's notes and a smart notebook's (shell/screen.dart [ScreenCollection]).
+  final ShellScreenBuilder<ScreenCollection>? collectionBuilder;
   final ShellOrganizationBuilder? organizationBuilder;
   final ShellScreenBuilder<ScreenCapture>? captureBuilder;
   final ShellScreenBuilder<ScreenMeeting>? meetingBuilder;
@@ -404,6 +408,13 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenNotes(tapes: tapes);
       });
 
+  /// The Tags page, a tag's notes or a smart notebook's, from the sidebar, the palette or a tag in a note: the notes'
+  /// card closes first.
+  void showCollection(CollectionKind kind, {String key = '', bool fromTags = false}) => _change(() {
+        _drawer = false;
+        _screen = ScreenCollection(kind, key: key, fromTags: fromTags);
+      });
+
   /// An organization's dashboard, over nothing: Settings and the notes' card close first.
   void openOrganization(String orgId) => _change(() {
         _settings = null;
@@ -554,6 +565,16 @@ class AppShellState extends State<AppShell> {
           key: const ValueKey('back:notes'),
           onBack: backToList,
           child: widget.allNotesBuilder?.call(context, this, screen) ?? AllNotesPlaceholder(notes: notes, tapes: screen.tapes, onOpen: openNote),
+        );
+      case ScreenCollection():
+        return OnBack(
+          key: const ValueKey('back:collection'),
+          // A tag's notes opened from the Tags page go back there; anything else goes home.
+          onBack: screen.kind == CollectionKind.tag && screen.fromTags ? () => showCollection(CollectionKind.tags) : backToList,
+          child: KeyedSubtree(
+            key: ValueKey('collection:${screen.kind.name}/${screen.key}'),
+            child: widget.collectionBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'a page of notes', onDone: backToList),
+          ),
         );
       case ScreenOrganization():
         final log = screen.page == OrganizationPage.log;

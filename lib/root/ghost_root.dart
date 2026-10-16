@@ -109,6 +109,7 @@ import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
 import '../notes/all_notes_screen.dart';
+import '../notes/collection_screen.dart';
 import '../notes/new_sheet.dart';
 import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';
@@ -152,6 +153,7 @@ import 'library_reads.dart';
 import 'note_desk.dart';
 import 'note_keeping.dart';
 import 'opening.dart';
+import 'organize.dart';
 import 'reset_wiring.dart';
 import 'scene_play.dart';
 import 'selected.dart';
@@ -347,7 +349,7 @@ class _GhostRootState extends State<GhostRoot> {
   late final KeptWorkspaceStorage? _keptSpaces = widget.workspaces == null && _real ? KeptWorkspaceStorage() : null;
   late final WorkspaceStore _workspaces = widget.workspaces ??
       (_keptSpaces != null
-          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library).fileNotesInFolder)
+          ? WorkspaceStore(storage: _keptSpaces, trash: _trash, onFiled: NoteFolders(_library, workspaces: () => _workspaces.value.list).fileNotesInFolder)
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
   // Who keeps a version here: the account's handle, read as each is kept (core/versions/record.ts `keeper`).
@@ -755,6 +757,20 @@ class _GhostRootState extends State<GhostRoot> {
   /// Whether your templates are being made now (`_openTemplates`): a second press meanwhile is the same press.
   bool _seeding = false;
 
+  /// Smart notebooks, the Tags page, a tag renamed and today's note (lib/root/organize.dart).
+  late final Organize _organize = Organize(
+    library: _library,
+    workspaces: _workspaces,
+    shell: () => _shell.currentState,
+    notes: () => _shown,
+    make: (body, {caret, into}) => _showMade(body, caret: caret, into: into),
+    screenOf: (id) => _shell.currentState?.shown == id ? openNoteScreen(_shell.currentContext, id) : null,
+    templates: () => _reads.ownTemplates,
+    say: (message) {
+      if (mounted) _say(context, message);
+    },
+  );
+
   late final NoteDeskWorld _desk = NoteDeskWorld(
     titles: () => [
       for (final note in _shown)
@@ -803,6 +819,7 @@ class _GhostRootState extends State<GhostRoot> {
     dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
     tags: _places,
+    openTag: (tag) => _organize.showTag(tag),
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
     dropRefine: (id, fromMs) => _voice?.recorder.refining?.dropRefine(id, fromMs),
@@ -1218,6 +1235,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _organize.dispose();
     _wispEdge.removeListener(_smoke);
     _localOnly.removeListener(plugins.preferencesChanged);
     _localOnly.removeListener(_localOnlyMoved);
@@ -1342,6 +1360,7 @@ class _GhostRootState extends State<GhostRoot> {
         if (mounted) _say(context, message);
       },
       palette: () => _commands.currentState?.show(),
+      today: () => _organize.today(),
       settings: () {
         if (mounted) setState(() => _settings = true);
       },

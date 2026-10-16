@@ -69,6 +69,7 @@ class PaletteWorld {
     this.theme = 'dark',
     this.tabGroups = const [],
     this.tabGroup,
+    this.smartNotebooks = const [],
   });
 
   /// Every note, newest first: each is an "Open …".
@@ -102,6 +103,9 @@ class PaletteWorld {
   /// The tab groups, and which one the open note's tab is in.
   final List<PaletteNamed> tabGroups;
   final String? tabGroup;
+
+  /// The smart notebooks, in the sidebar's order: each is a "Show …" (lib/core/smart_notebooks.dart).
+  final List<PaletteNamed> smartNotebooks;
 }
 
 /// What the palette can set off (`PaletteDoing`). Every one of these is something the app already does by hand. A
@@ -142,6 +146,9 @@ class PaletteDoing {
     this.graph,
     this.localGraph,
     this.noteLinks,
+    this.today,
+    this.tags,
+    this.openSmart,
   });
 
   final void Function(String id) openNote;
@@ -203,6 +210,10 @@ class PaletteDoing {
   final VoidCallback? graph;
   final void Function(String noteId)? localGraph;
   final void Function(String noteId)? noteLinks;
+  /// Today's note, the Tags page, and a smart notebook's page (the port's own, 2026-10-16).
+  final VoidCallback? today;
+  final VoidCallback? tags;
+  final void Function(String id)? openSmart;
 }
 
 /// A row of the palette and what choosing it does (`PaletteCommand`).
@@ -339,6 +350,16 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   add('notes', 'All notes', 'Notes', 'browse every grid cards library search archive', doing.browseNotes);
   final graph = doing.graph;
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
+  final today = doing.today;
+  if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
+  final tags = doing.tags;
+  if (tags != null) add('tags', 'Tags', 'Notes', 'tag hashtag labels rename', tags);
+  final openSmart = doing.openSmart;
+  if (openSmart != null) {
+    for (final smart in world.smartNotebooks) {
+      add('smart:${smart.id}', 'Show ${smart.name}', 'Smart notebooks', 'smart notebook saved search ${smart.name}', () => openSmart(smart.id));
+    }
+  }
 
   // ---- the tabs ---------------------------------------------------------------------------------------------------
   for (final tab in world.tabs) {

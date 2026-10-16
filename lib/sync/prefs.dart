@@ -79,6 +79,10 @@ const List<String> syncedPrefs = [
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
   'notifications',
+  // Searches kept by name (lib/core/smart_notebooks.dart), and where today's note goes and what it starts from
+  // (lib/notes/daily_notes.dart): the person's, on every device.
+  'smartNotebooks',
+  'dailyNotes',
 ];
 
 typedef _Entries = Map<String, Object?>;

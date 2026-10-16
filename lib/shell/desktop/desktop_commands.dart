@@ -12,6 +12,7 @@
 /// | Command-K | [DesktopCommand.palette] | the root: the command palette (the kit binds the key itself) |
 /// | Command-F | [DesktopCommand.find] | the open note: its find bar (Settings takes the key itself while it is open) |
 /// | Command-, | [DesktopCommand.settings] | the root: Settings |
+/// | Command-Shift-D | [DesktopCommand.today] | the root: today's note (lib/notes/daily_notes.dart), the one chord with Shift |
 ///
 /// A handler answers whether it did anything; the newest handler is asked first, so a note opened over another
 /// finds in itself. A key nobody answers is left for whatever else wants it.
@@ -24,7 +25,7 @@ library;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
-enum DesktopCommand { newNote, sync, palette, find, settings }
+enum DesktopCommand { newNote, sync, palette, find, settings, today }
 
 /// The command a menu's choice names (`ghost_md/window` `menu`), or null.
 DesktopCommand? desktopCommandNamed(String name) => switch (name) {
@@ -33,6 +34,7 @@ DesktopCommand? desktopCommandNamed(String name) => switch (name) {
       'palette' => DesktopCommand.palette,
       'find' => DesktopCommand.find,
       'settings' => DesktopCommand.settings,
+      'today' => DesktopCommand.today,
       _ => null,
     };
 
@@ -106,7 +108,10 @@ class DesktopKeys {
     if (event is! KeyDownEvent) return false;
     final keyboard = HardwareKeyboard.instance;
     final chord = mac ? keyboard.isMetaPressed && !keyboard.isControlPressed : keyboard.isControlPressed && !keyboard.isMetaPressed;
-    if (!chord || keyboard.isAltPressed || keyboard.isShiftPressed) return false;
+    if (!chord || keyboard.isAltPressed) return false;
+    // Command-Shift-D, today's note: the one chord with Shift. Nothing else in the app has it, and the editor's
+    // keys with Shift (Command-Shift-Z) are left alone.
+    if (keyboard.isShiftPressed) return event.logicalKey == LogicalKeyboardKey.keyD && commands.run(DesktopCommand.today);
     final command = desktopCommandFor(event.logicalKey);
     return command != null && commands.run(command);
   }

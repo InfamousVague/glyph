@@ -226,12 +226,15 @@ class NotificationPrefs {
 /// web's is, rather than as lib/core/workspaces.dart's own type, so the preferences do not depend on it.
 @immutable
 class KeptWorkspace {
-  const KeptWorkspace({required this.id, required this.name, this.hue});
+  const KeptWorkspace({required this.id, required this.name, this.hue, this.parent});
   final String id;
   final String name;
   final String? hue;
 
-  Map<String, Object?> toJson() => {'id': id, 'name': name, if (hue != null) 'hue': hue};
+  /// The workspace it is a folder inside, by id (lib/core/workspaces.dart `Workspace.parent`); null at the top.
+  final String? parent;
+
+  Map<String, Object?> toJson() => {'id': id, 'name': name, if (hue != null) 'hue': hue, if (parent != null) 'parent': parent};
 }
 
 /// The workspaces and which note is filed in each (`Preferences['workspaces']`).
@@ -246,7 +249,8 @@ class KeptWorkspaces {
     final list = <KeptWorkspace>[
       if (rawList is List)
         for (final w in rawList)
-          if (w is Map && w['id'] is String && w['name'] is String) KeptWorkspace(id: w['id'] as String, name: w['name'] as String, hue: w['hue'] is String ? w['hue'] as String : null),
+          if (w is Map && w['id'] is String && w['name'] is String)
+            KeptWorkspace(id: w['id'] as String, name: w['name'] as String, hue: w['hue'] is String ? w['hue'] as String : null, parent: w['parent'] is String ? w['parent'] as String : null),
     ];
     final ids = {for (final w in list) w.id};
     return KeptWorkspaces(
