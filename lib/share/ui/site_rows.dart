@@ -142,7 +142,7 @@ class _SiteRowsState extends State<SiteRows> {
           key: const ValueKey('site-publish'),
           icon: mark,
           label: _busy ? 'Publishing…' : 'Publish as a site',
-          hint: 'A small website of $what${widget.notebook ? ', its pages in order' : ''}. Anyone with the link can read it, and nobody else, the server included. Search engines can’t list it.',
+          hint: 'A small website of $what${widget.notebook ? ', its pages in order' : ''}. Anyone with the link can read it. The server can’t read your words, though a page’s name is in its address. Search engines can’t list it.',
           disabled: _busy,
           onPress: () => unawaited(_publish()),
         ),

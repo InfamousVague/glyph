@@ -40,7 +40,7 @@ void main() {
     device.keep('t', '# Trees\n\nOaks.');
     await rows(tester, device, 'book', kind: ShareKind.notebook);
     expect(find.text('SITE'), findsOneWidget);
-    expect(hintOf(tester, 'Publish as a site'), 'A small website of this notebook, its pages in order. Anyone with the link can read it, and nobody else, the server included. Search engines can’t list it.');
+    expect(hintOf(tester, 'Publish as a site'), 'A small website of this notebook, its pages in order. Anyone with the link can read it. The server can’t read your words, though a page’s name is in its address. Search engines can’t list it.');
     await pressRow(tester, 'Publish as a site');
     final site = device.sites!.siteFor('book')!;
     expect(copied.text, site.link);

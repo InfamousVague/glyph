@@ -68,7 +68,7 @@ class _PublishedSitesState extends State<PublishedSites> {
         final unread = sites.unread;
         return PaneSection(
           title: 'Published sites',
-          footer: Text(_said ?? 'Anyone with a site’s link can read it, and nobody else, the server included. No search engine can list a site. Unpublishing takes it down at once.'),
+          footer: Text(_said ?? 'Anyone with a site’s link can read it. The server can’t read the words, though a page’s name is in its address. No search engine can list a site. Unpublishing takes it down at once.'),
           children: [
             for (final site in sites.list)
               SettingRow(
