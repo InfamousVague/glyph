@@ -40,13 +40,30 @@ List<Note> archiveOrder(Iterable<Note> notes) => _stably(
       (a, b) => (b.archivedAt ?? 0).compareTo(a.archivedAt ?? 0),
     );
 
-/// A workspace as a folder of the tree (`TreeFolder`).
+/// A workspace as a folder of the tree (`TreeFolder`), with the folders inside it (lib/core/workspaces.dart
+/// `Workspace.parent`; the port's own since 2026-10-16).
 class TreeFolder {
-  const TreeFolder({required this.id, required this.name, this.hue, required this.notes});
+  const TreeFolder({required this.id, required this.name, this.hue, required this.notes, this.folders = const []});
   final String id;
   final String name;
   final String? hue;
+
+  /// The notes filed in this folder itself.
   final List<Note> notes;
+
+  /// The folders inside it, in the order they were made.
+  final List<TreeFolder> folders;
+
+  /// Its notes and those of every folder inside it, as its count says.
+  int get count => notes.length + folders.fold(0, (sum, folder) => sum + folder.count);
+
+  /// This folder and every folder inside it, top down.
+  Iterable<TreeFolder> get all sync* {
+    yield this;
+    for (final folder in folders) {
+      yield* folder.all;
+    }
+  }
 }
 
 /// The whole tree (`Tree`).
@@ -61,14 +78,31 @@ class Tree {
 
 /// The notes sorted into the tree (`noteTree`). [list] is every workspace, in the order they were made, and [of]
 /// which workspace each filed note is in, by note id: a [Workspaces]' two halves.
+///
+/// A workspace inside another is a folder inside its parent's ([TreeFolder.folders]); one whose parent is not in
+/// [list] is at the top.
 Tree noteTree(Iterable<Note> notes, {required List<Workspace> list, required Map<String, String> of}) {
   final live = listOrder(notes);
   final known = {for (final space in list) space.id};
+  final byFolder = <String, List<Note>>{};
+  for (final note in live) {
+    final filed = of[note.id];
+    if (filed != null && known.contains(filed)) (byFolder[filed] ??= <Note>[]).add(note);
+  }
+  final seen = <String>{};
+  TreeFolder folderOf(Workspace space) {
+    seen.add(space.id);
+    return TreeFolder(
+      id: space.id,
+      name: space.name,
+      hue: space.hue,
+      notes: byFolder[space.id] ?? const <Note>[],
+      folders: [for (final inside in list) if (inside.parent == space.id && !seen.contains(inside.id)) folderOf(inside)],
+    );
+  }
+
   return Tree(
-    folders: [
-      for (final space in list)
-        TreeFolder(id: space.id, name: space.name, hue: space.hue, notes: [for (final note in live) if (of[note.id] == space.id) note]),
-    ],
+    folders: [for (final space in list) if (space.parent == null || !known.contains(space.parent)) folderOf(space)],
     loose: [for (final note in live) if (!known.contains(of[note.id] ?? '')) note],
     archived: archiveOrder(notes),
   );
