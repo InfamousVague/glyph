@@ -2,7 +2,9 @@ import Cocoa
 import FlutterMacOS
 import ImageIO
 import LocalAuthentication
+import PDFKit
 import Security
+import Vision
 import UniformTypeIdentifiers
 
 /// The Mac's half of the app's method channels (lib/**: every `MethodChannel(`), each named as the Android half
@@ -156,16 +158,19 @@ final class GhostChannels: NSObject {
       }
     }
 
-    // A file for a note, and a file handed to the Mac's own app for it (lib/files/phone_documents.dart). The rest of
-    // that channel (the scanner, reading words, drawing a PDF) is the phone's: unanswered here, so the app does not
-    // offer them on a Mac.
+    // Documents in notes (lib/files/phone_documents.dart): a file from the open panel, a file handed to the Mac's
+    // own app or shared, a PDF drawn, read and searched by PDFKit, and the words in a picture or a PDF read by
+    // Vision, on the Mac. The scanner is the phone's: unanswered here, so the app does not offer it on a Mac.
     listen("ghost_md/documents", messenger) { [weak self] call, result in
+      let args = call.arguments as? [String: Any]
       switch call.method {
       case "pick": self?.pickFile(result)
-      case "openWith":
-        let args = call.arguments as? [String: Any]
-        result(GhostChannels.openWith(path: args?["path"] as? String, name: args?["name"] as? String))
-      default: result(FlutterMethodNotImplemented)
+      case "openWith": result(GhostChannels.openWith(path: args?["path"] as? String, name: args?["name"] as? String))
+      case "share": result(self?.share(path: args?["path"] as? String, name: args?["name"] as? String))
+      case "saving": result(ProcessInfo.processInfo.isLowPowerModeEnabled)
+      case "readerReady": result(true)
+      default:
+        if !MacDocuments.shared.answer(call.method, args, result) { result(FlutterMethodNotImplemented) }
       }
     }
   }
@@ -217,6 +222,23 @@ final class GhostChannels: NSObject {
       return FlutterError(code: "documents", message: "That file could not be handed over.", details: nil)
     }
     return NSWorkspace.shared.open(copy) ? nil : FlutterError(code: "documents", message: "No app on this Mac opens that file.", details: nil)
+  }
+
+  /// The Mac's share menu for a file of the app's, under its own name, from the window's top.
+  private func share(path: String?, name: String?) -> Any? {
+    guard let path = path, FileManager.default.fileExists(atPath: path), let dirs = GhostChannels.dirs(), let view = window?.contentView else {
+      return FlutterError(code: "documents", message: "That file is not on this Mac.", details: nil)
+    }
+    let folder = dirs.cache.appendingPathComponent("open", isDirectory: true).appendingPathComponent(UUID().uuidString, isDirectory: true)
+    let copy = folder.appendingPathComponent((name ?? "File").replacingOccurrences(of: "/", with: " ").replacingOccurrences(of: ":", with: " "))
+    do {
+      try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+      try FileManager.default.copyItem(at: URL(fileURLWithPath: path), to: copy)
+    } catch {
+      return FlutterError(code: "documents", message: "That file could not be handed over.", details: nil)
+    }
+    NSSharingServicePicker(items: [copy]).show(relativeTo: NSRect(x: view.bounds.midX, y: view.bounds.maxY - 40, width: 1, height: 1), of: view, preferredEdge: .minY)
+    return nil
   }
 
   private func listen(_ name: String, _ messenger: FlutterBinaryMessenger, _ handler: @escaping FlutterMethodCallHandler) {
@@ -341,5 +363,133 @@ final class GhostChannels: NSObject {
     }
     if let text = board.string(forType: .string), !text.isEmpty { return ["text": text] }
     return [:]
+  }
+}
+
+/// The Mac's half of a PDF drawn in the app and of the words read in pictures and PDFs (lib/files/phone_documents.dart):
+/// PDFKit draws a page into RGBA pixels and finds words on it; Vision reads the words in a picture, or in a page
+/// with none of its own. Each on a queue of its own, off the main thread; nothing leaves the Mac.
+final class MacDocuments {
+  static let shared = MacDocuments()
+
+  private var open: [Int: PDFDocument] = [:]
+  private var next = 1
+  private let drawing = DispatchQueue(label: "ghost.documents.draw", qos: .userInitiated)
+  private let reading = DispatchQueue(label: "ghost.documents.read", qos: .background)
+
+  /// Answers one of the PDF or reading calls; false for any other.
+  func answer(_ method: String, _ args: [String: Any]?, _ result: @escaping FlutterResult) -> Bool {
+    let queue: DispatchQueue
+    let work: () -> Any?
+    switch method {
+    case "pdfOpen": queue = drawing; work = { self.pdfOpen(args?["path"] as? String) }
+    case "pdfPage": queue = drawing; work = { self.pdfPage(args) }
+    case "pdfText": queue = drawing; work = { self.page(args).flatMap { $0.string } ?? "" }
+    case "pdfFind": queue = drawing; work = { self.pdfFind(args) }
+    case "pdfClose": queue = drawing; work = { self.open.removeValue(forKey: args?["id"] as? Int ?? 0); return nil }
+    case "read": queue = reading; work = { self.read(args) }
+    default: return false
+    }
+    queue.async {
+      let said = work()
+      DispatchQueue.main.async { result(said) }
+    }
+    return true
+  }
+
+  private func failed(_ sentence: String) -> FlutterError { FlutterError(code: "documents", message: sentence, details: nil) }
+
+  private func pdfOpen(_ path: String?) -> Any? {
+    guard let path = path, let document = PDFDocument(url: URL(fileURLWithPath: path)) else { return failed("This PDF can’t be opened.") }
+    if document.isLocked { return failed("This PDF has a password, and can’t be opened here.") }
+    var sizes: [[Double]] = []
+    for index in 0..<document.pageCount {
+      let box = document.page(at: index)?.bounds(for: .mediaBox) ?? CGRect(x: 0, y: 0, width: 612, height: 792)
+      sizes.append([Double(box.width), Double(box.height)])
+    }
+    let id = next
+    next += 1
+    open[id] = document
+    return ["id": id, "pages": sizes]
+  }
+
+  private func page(_ args: [String: Any]?) -> PDFPage? {
+    guard let document = open[args?["id"] as? Int ?? 0] else { return nil }
+    return document.page(at: args?["page"] as? Int ?? 0)
+  }
+
+  /// A page drawn `width` pixels across on white, as RGBA, its long side at most 4096 px.
+  private func drawn(_ page: PDFPage, width: Int) -> (pixels: Data, width: Int, height: Int)? {
+    let box = page.bounds(for: .mediaBox)
+    guard box.width > 0, box.height > 0 else { return nil }
+    var w = max(1, min(width, 4096))
+    var h = max(1, Int((Double(w) * Double(box.height) / Double(box.width)).rounded()))
+    if h > 4096 {
+      w = max(1, Int(Double(w) * 4096 / Double(h)))
+      h = 4096
+    }
+    var data = Data(count: w * h * 4)
+    let made = data.withUnsafeMutableBytes { raw -> Bool in
+      guard let context = CGContext(data: raw.baseAddress, width: w, height: h, bitsPerComponent: 8, bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return false }
+      context.setFillColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+      context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+      context.scaleBy(x: CGFloat(w) / box.width, y: CGFloat(h) / box.height)
+      context.translateBy(x: -box.minX, y: -box.minY)
+      page.draw(with: .mediaBox, to: context)
+      return true
+    }
+    return made ? (data, w, h) : nil
+  }
+
+  private func pdfPage(_ args: [String: Any]?) -> Any? {
+    guard let page = page(args), let drawn = drawn(page, width: args?["width"] as? Int ?? 1080) else { return failed("There is no such page.") }
+    return ["width": drawn.width, "height": drawn.height, "pixels": FlutterStandardTypedData(bytes: drawn.pixels)]
+  }
+
+  private func pdfFind(_ args: [String: Any]?) -> Any? {
+    guard let document = open[args?["id"] as? Int ?? 0], let index = args?["page"] as? Int, let page = document.page(at: index), let query = args?["query"] as? String, !query.isEmpty else { return [] }
+    let box = page.bounds(for: .mediaBox)
+    var found: [[Double]] = []
+    for selection in document.findString(query, withOptions: [.caseInsensitive]) where selection.pages.contains(page) {
+      let at = selection.bounds(for: page)
+      // PDF space is from the page's foot; the app's is from its top.
+      found.append([Double(at.minX - box.minX), Double(box.maxY - at.maxY), Double(at.maxX - box.minX), Double(box.maxY - at.minY)])
+    }
+    return found
+  }
+
+  /// The words Vision reads in a picture.
+  private func recognised(_ image: CGImage) -> String {
+    let request = VNRecognizeTextRequest()
+    request.recognitionLevel = .accurate
+    request.usesLanguageCorrection = true
+    try? VNImageRequestHandler(cgImage: image, options: [:]).perform([request])
+    return (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }.joined(separator: "\n")
+  }
+
+  private func read(_ args: [String: Any]?) -> Any? {
+    guard let path = args?["path"] as? String, FileManager.default.fileExists(atPath: path) else { return failed("That file is not here.") }
+    let url = URL(fileURLWithPath: path)
+    if args?["pdf"] as? Bool != true {
+      guard let source = CGImageSourceCreateWithURL(url as CFURL, nil), let image = CGImageSourceCreateImageAtIndex(source, 0, nil) else { return failed("That picture could not be read.") }
+      return ["pages": [recognised(image)]]
+    }
+    guard let document = PDFDocument(url: url), !document.isLocked else { return failed("This PDF can’t be read.") }
+    var pages: [String] = []
+    for index in 0..<min(document.pageCount, args?["most"] as? Int ?? 60) {
+      guard let page = document.page(at: index) else { pages.append(""); continue }
+      let own = page.string ?? ""
+      if !own.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        pages.append(own)
+        continue
+      }
+      let box = page.bounds(for: .mediaBox)
+      let width = Int(2000 * box.width / max(box.width, box.height, 1))
+      guard let drawn = drawn(page, width: width), let provider = CGDataProvider(data: drawn.pixels as CFData),
+        let image = CGImage(width: drawn.width, height: drawn.height, bitsPerComponent: 8, bitsPerPixel: 32, bytesPerRow: drawn.width * 4, space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue), provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+      else { pages.append(""); continue }
+      pages.append(recognised(image))
+    }
+    return ["pages": pages]
   }
 }

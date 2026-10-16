@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -87,7 +88,10 @@ class _FilesAndScansState extends State<FilesAndScans> {
         SettingRow(
           key: const ValueKey<String>('files-read'),
           label: 'Read words in pictures',
-          hint: Text(why ?? 'Each one is read as you add it. The reader comes from Google Play services the first time, and works with no connection after.'),
+          hint: Text(why ??
+              (defaultTargetPlatform == TargetPlatform.android
+                  ? 'Each one is read as you add it. The reader comes from Google Play services the first time, and works with no connection after.'
+                  : 'Each one is read as you add it, by the Mac’s own text recognition.')),
           control: can ? GlacierSwitch(ariaLabel: 'Read words in pictures', checked: pass!.on, onCheckedChange: (on) => pass.on = on) : null,
           disabledReason: why,
         ),

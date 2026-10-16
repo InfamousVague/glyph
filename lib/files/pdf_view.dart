@@ -333,6 +333,19 @@ class PdfViewState extends State<PdfView> {
     }
     // `--app-inset-top` is the phone's own inset (env(safe-area-inset-top)), as the film's full screen layer takes it.
     final top = t.lenOf('var(--app-inset-top, 0px)');
+    // A keyboard's arrows and page keys turn the pages too: a Mac's mouse drags none.
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.arrowRight): () => goTo(_page + 1),
+        const SingleActivator(LogicalKeyboardKey.pageDown): () => goTo(_page + 1),
+        const SingleActivator(LogicalKeyboardKey.arrowLeft): () => goTo(_page - 1),
+        const SingleActivator(LogicalKeyboardKey.pageUp): () => goTo(_page - 1),
+      },
+      child: Focus(autofocus: true, child: _layer(context, t, top, boxes, hits)),
+    );
+  }
+
+  Widget _layer(BuildContext context, Tokens t, double top, Map<int, List<ui.Rect>> boxes, List<PdfHit>? hits) {
     return Semantics(
       scopesRoute: true,
       namesRoute: true,

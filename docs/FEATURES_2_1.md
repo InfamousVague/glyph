@@ -76,8 +76,9 @@ Append-only: one section per piece of work, headed with who did it.
   with and without them (dex +0.78 MB in the APK, 2.3 MB unpacked; resources +0.13 MB; no native library), plus this
   branch's Dart. The PDF renderer is Android's own and adds nothing.
 - No new permission. The scanner and the reader need Google Play services.
-- The Mac (macos/Runner/GhostChannels.swift): `pick` (open panel) and `openWith` (the workspace). It reads no words
-  and draws no PDF in the app: a PDF opens in the Mac's own app.
+- The Mac (macos/Runner/GhostChannels.swift, `MacDocuments`): `pick` (open panel), `openWith` (the workspace),
+  `share` (the share menu), the PDF calls over PDFKit (the same viewer), `read` over Vision's text recognition (a
+  page with no words of its own drawn and read), and `saving` as Low Power Mode. No scanner on a Mac.
 
 ### Not done
 
@@ -86,7 +87,7 @@ Append-only: one section per piece of work, headed with who did it.
   already has (`NSCameraUsageDescription`, "…when you take a photo to add to a note"), but the iPhone keeps no files
   yet: it needs `FilesKit.start` on iOS, a Swift half of `ghost_md/documents` (the scanner, `openWith` through
   UIDocumentInteractionController, PDFKit for the viewer, Vision for the words), and a store review.
-- Words are not read on the Mac or an iPhone (Apple's Vision would do it; not built). They do arrive there by sync.
+- Words are not read on an iPhone (no files there yet).
 - A home-screen quick action for scanning is not wired here (the launcher's shortcuts are `feat/reminders`'). Its entry
   point is `scanToNewNote()` in lib/files/plus_files.dart: it opens the scanner and answers the words of a new note
   (`# Scan 2026-10-16 14.05` and the PDF's line), or null; the caller makes the note and opens it.

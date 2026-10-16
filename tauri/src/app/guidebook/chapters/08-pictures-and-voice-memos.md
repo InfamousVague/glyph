@@ -78,7 +78,7 @@ Taking the line out of a note does not delete the file, so Undo and an older ver
 
 The words in pictures, scans and PDFs are read on the phone, and a search then finds the note they are in. A row found that way says where: "Rent is due monthly in Lease 2026.pdf, page 2". Put the caret on a picture's line and Copy the words in it is under the picture. Each one is read soon after you add it, and what your notes already show is read slowly while you are not using the app, never with Battery saver on.
 
-Nothing is sent anywhere to be read. The reader comes from Google Play services the first time it is needed, and then works with no connection. The words are kept in a plain text file beside each picture or file, and go to your other devices with it, sealed. Settings › Library folder › Files and scans turns the reading off, reads what is already in your notes now, and says how much the files take. The iPhone app has no files or scans yet, and the Mac app adds files but reads no words.
+Nothing is sent anywhere to be read. On Android the reader comes from Google Play services the first time it is needed, and then works with no connection; the Mac reads with its own text recognition. The words are kept in a plain text file beside each picture or file, and go to your other devices with it, sealed. Settings › Library folder › Files and scans turns the reading off, reads what is already in your notes now, and says how much the files take. The iPhone app has no files or scans yet.
 
 ## What it is written as
 

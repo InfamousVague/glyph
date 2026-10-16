@@ -1,5 +1,5 @@
 /// What the device does with documents, over the channel `ghost_md/documents` (Android's
-/// android/…/ghost_md/Documents.kt; the Mac's macos/Runner/GhostChannels.swift answers `pick` and `openWith`):
+/// android/…/ghost_md/Documents.kt; the Mac's macos/Runner/GhostChannels.swift, all but the scanner):
 /// choose any file, scan one with Google's document scanner, read the words in a picture or a PDF, draw a PDF's
 /// pages, and hand a file to another app.
 ///
@@ -124,11 +124,15 @@ class PhoneDocuments implements DocumentDevice {
   @override
   bool get picks => _android || _platform == TargetPlatform.macOS;
 
-  @override
-  bool get reads => _android;
+  bool get _mac => _platform == TargetPlatform.macOS;
 
+  /// Android's ML Kit, and the Mac's Vision (macos/Runner/GhostChannels.swift `MacDocuments`).
   @override
-  bool get drawsPdf => _android;
+  bool get reads => _android || _mac;
+
+  /// Android's PdfRenderer, and the Mac's PDFKit.
+  @override
+  bool get drawsPdf => _android || _mac;
 
   Future<bool>? _canScan;
 
@@ -218,7 +222,7 @@ class PhoneDocuments implements DocumentDevice {
 
   @override
   Future<bool> saving() async {
-    if (!_android) return false;
+    if (!_android && !_mac) return false;
     try {
       return await _channel.invokeMethod<bool>('saving') ?? false;
     } catch (_) {
