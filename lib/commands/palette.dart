@@ -139,6 +139,9 @@ class PaletteDoing {
     this.groupTab,
     this.joinTabGroup,
     this.leaveTabGroup,
+    this.graph,
+    this.localGraph,
+    this.noteLinks,
   });
 
   final void Function(String id) openNote;
@@ -195,6 +198,11 @@ class PaletteDoing {
   final void Function(String noteId)? groupTab;
   final void Function(String noteId, String group)? joinTabGroup;
   final void Function(String noteId)? leaveTabGroup;
+
+  /// The graph of every note and its links, a note's own local graph, and the notes that link to it (lib/links).
+  final VoidCallback? graph;
+  final void Function(String noteId)? localGraph;
+  final void Function(String noteId)? noteLinks;
 }
 
 /// A row of the palette and what choosing it does (`PaletteCommand`).
@@ -278,6 +286,10 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
       add('note:continue', 'Continue', here, 'ai carry on write more next', () => run(note.id, 'continue'));
       if (note.blanks > 0) add('note:fill', 'Fill the blanks', here, 'fill blank question answer ask ai square', () => run(note.id, 'fill'));
     }
+    final noteLinks = doing.noteLinks;
+    if (noteLinks != null) add('note:links', 'Links to this note', here, 'backlinks linked from mentions references', () => noteLinks(note.id));
+    final localGraph = doing.localGraph;
+    if (localGraph != null) add('note:graph', 'Local graph of this note', here, 'graph links network neighbours map', () => localGraph(note.id));
     add('note:pin', world.pinned ? 'Unpin it from the top' : 'Pin it to the top', here, 'star favourite', () => doing.pin(note.id, !world.pinned));
     add('note:archive', 'Archive this note', here, 'hide file away', () => doing.archive(note.id));
     add('note:delete', 'Delete this note', here, 'remove bin trash', () => doing.remove(note.id));
@@ -325,6 +337,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (speak != null) add('speak', 'Speak a new note', 'Notes', 'record voice dictate mic talk', speak);
   add('list', 'Home', 'Notes', 'home list back dashboard start', doing.showList);
   add('notes', 'All notes', 'Notes', 'browse every grid cards library search archive', doing.browseNotes);
+  final graph = doing.graph;
+  if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
 
   // ---- the tabs ---------------------------------------------------------------------------------------------------
   for (final tab in world.tabs) {

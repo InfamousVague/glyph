@@ -226,6 +226,25 @@ class NoteHistory {
 /// A page of the sheet, opened from a row.
 enum NoteSettingsPage { workspace, cheatsheet, history, journal }
 
+/// A row another piece puts on the sheet (the links between notes, lib/links/note_links.dart): a press opens its
+/// [page] inside the sheet, under the way back, or, with no page, closes the sheet and does [onPress].
+@immutable
+class NoteSheetItem {
+  const NoteSheetItem({required this.id, required this.icon, required this.label, this.hint, this.page, this.onPress});
+
+  final String id;
+  final LucideIcon icon;
+  final String label;
+  final String? hint;
+
+  /// What the page holds, given the way to close the sheet.
+  final List<Widget> Function(BuildContext context, VoidCallback close)? page;
+  final VoidCallback? onPress;
+}
+
+/// Another piece's rows, under their own heading.
+typedef NoteSheetSection = ({String heading, List<NoteSheetItem> items});
+
 class NoteSettings extends StatefulWidget {
   const NoteSettings({
     super.key,
@@ -262,6 +281,8 @@ class NoteSettings extends StatefulWidget {
     this.startAt,
     this.cheatSheet,
     this.say,
+    this.around,
+    this.startAtItem,
   });
 
   final String noteId;
@@ -331,12 +352,21 @@ class NoteSettings extends StatefulWidget {
   final WidgetBuilder? cheatSheet;
   final void Function(String message)? say;
 
+  /// Another piece's rows and their pages: the links between notes (lib/links/note_links.dart).
+  final NoteSheetSection? around;
+
+  /// One of [around]'s pages to open at, by its id, from a button in the bar: Links.
+  final String? startAtItem;
+
   @override
   State<NoteSettings> createState() => _NoteSettingsState();
 }
 
 class _NoteSettingsState extends State<NoteSettings> {
   NoteSettingsPage? _page;
+
+  /// One of another piece's pages, while it is up.
+  NoteSheetItem? _item;
 
   /// A plugin's link whose page is up, and an action whose places are being chosen from (`page`, `choosing`).
   NoteLink? _link;
@@ -370,6 +400,8 @@ class _NoteSettingsState extends State<NoteSettings> {
     super.initState();
     widget.workspaces.addListener(_changed);
     if (widget.startAt == NoteSettingsPage.history && widget.history != null) _page = NoteSettingsPage.history;
+    final item = widget.startAtItem;
+    if (item != null) _item = widget.around?.items.where((each) => each.id == item && each.page != null).firstOrNull;
     for (final link in widget.plugins?.links ?? const <NoteLink>[]) {
       final asked = link.unavailable?.call();
       if (asked == null) continue;
@@ -400,6 +432,7 @@ class _NoteSettingsState extends State<NoteSettings> {
   }
 
   void _back() {
+    if (_item != null) return setState(() => _item = null);
     if (_choosing != null) return setState(() => _choosing = null);
     if (_link != null) return setState(() => _link = null);
     _page != null ? setState(() => _page = null) : widget.onClose();
@@ -415,6 +448,21 @@ class _NoteSettingsState extends State<NoteSettings> {
     final history = widget.history;
     final page = _page;
     final choosing = _choosing, link = _link, plugins = widget.plugins;
+    // Another piece's page: the row it was opened from, read again, so its words follow the note.
+    final item = _item == null ? null : widget.around?.items.where((each) => each.id == _item!.id).firstOrNull ?? _item;
+    final itemPage = item?.page;
+    if (item != null && itemPage != null) {
+      return Sheet(
+        label: item.label,
+        onClose: widget.onClose,
+        onBack: _back,
+        children: [
+          SheetBack(label: _here, onPressed: () => setState(() => _item = null)),
+          SheetTitle.text(item.label),
+          ...itemPage(context, widget.onClose),
+        ],
+      );
+    }
     if (choosing != null && plugins != null) {
       return Sheet(
         label: choosing.label,
@@ -617,6 +665,29 @@ class _NoteSettingsState extends State<NoteSettings> {
               if (widget.onFind != null) SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind),
               // A list laid out as columns, in the note's own words (docs/BOARDS.md).
               if (widget.onMakeBoard != null) SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard),
+            ],
+          ),
+        ],
+        // Another piece's rows: the links between notes, the outline, the line's link.
+        if (widget.around case final around? when around.items.isNotEmpty) ...[
+          SheetHeading(around.heading),
+          SheetGroup(
+            children: [
+              for (final each in around.items)
+                SheetRow(
+                  key: ValueKey('around:${each.id}'),
+                  icon: _lucide(each.icon, 2.1),
+                  label: each.label,
+                  hint: each.hint,
+                  onPress: each.page != null
+                      ? () => setState(() => _item = each)
+                      : each.onPress == null
+                          ? null
+                          : () {
+                              widget.onClose();
+                              each.onPress!();
+                            },
+                ),
             ],
           ),
         ],

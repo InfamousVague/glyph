@@ -54,4 +54,13 @@ void main() {
     expect(snippet.text.length, lessThan(150));
     expect(snippet.text, contains('needle'));
   });
+
+  test('finds a note by one of its aliases as near as by its name, above one that only says the word', () {
+    final trip = makeNote('trip', body: '---\naliases: [Lisbon]\n---\n# Portugal\n\nTen days.', updatedAt: 1);
+    final diary = makeNote('diary', body: '# Diary\n\nLisbon was hot.', updatedAt: 9);
+    final found = findNotes([diary, trip], 'lisbon');
+    expect([for (final one in found) one.note.id], ['trip', 'diary']);
+    // Not by its name: the row shows the line that says the alias.
+    expect(found.first.byName, isFalse);
+  });
 }

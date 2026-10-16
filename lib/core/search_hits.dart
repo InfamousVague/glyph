@@ -13,6 +13,7 @@
 /// name ([marksIn]) and cuts the line of the note they stand in ([snippetOf]).
 library;
 
+import 'aliases.dart';
 import 'note.dart';
 import 'note_facts.dart';
 import 'note_text.dart';
@@ -45,9 +46,12 @@ final RegExp _letters = RegExp(r'[\p{L}\p{N}]+', unicode: true);
 /// case, the name's different words, and the note's, which are only read for a note that does not hold a word as
 /// typed.
 class _Kept {
-  _Kept(this.text, this.name);
+  _Kept(this.text, this.name, this.aliases);
   final String text;
   final String name;
+
+  /// The other names it answers to (lib/core/aliases.dart), in lower case, one to a line.
+  final String aliases;
   late final Map<int, List<String>> nameWords = _wordsIn(name);
   late final Map<int, List<String>> textWords = _wordsIn(text);
 }
@@ -59,7 +63,7 @@ _Kept _keptOf(Note note) {
   final had = _kept[note.id];
   if (had != null && identical(had.text, text)) return had;
   if (_kept.length >= 32768) _kept.clear();
-  return _kept[note.id] = _Kept(text, NoteFacts.of(note).shownTitle.toLowerCase());
+  return _kept[note.id] = _Kept(text, NoteFacts.of(note).shownTitle.toLowerCase(), aliasesOfNote(note).join('\n').toLowerCase());
 }
 
 /// The different words of [text], three letters or more, under the letter each begins with.
@@ -196,6 +200,13 @@ List<Found> findNotes(Iterable<Note> notes, String query) {
         continue;
       }
       byName = false;
+      // One of its other names, as near as its name: the row shows the line that says it.
+      final inAlias = kept.aliases.isEmpty ? 0 : _place(kept.aliases, word);
+      if (inAlias > 0) {
+        score += 55 + inAlias * 15;
+        needles.add(word);
+        continue;
+      }
       // Asked of the note's pairs of letters first (note_text.dart): most notes without the word are not read.
       final inText = hasWords(note, [word]) ? _place(text, word) : 0;
       if (inText > 0) {

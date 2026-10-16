@@ -50,6 +50,7 @@ import '../capture/voice_model.dart';
 import '../commands/app_commands.dart';
 import '../commands/command_bar.dart';
 import '../comments/ask.dart';
+import '../core/aliases.dart' show aliasesOfNote;
 import '../core/backup.dart' show Backups;
 import '../core/book.dart';
 import '../core/canvas_body.dart';
@@ -62,6 +63,7 @@ import '../core/images.dart';
 import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
 import '../core/library_files.dart' show LibraryFiles;
+import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
 import '../core/library_folder.dart' show LibraryFolder;
 import '../core/link_preview.dart' show KeptLinkPreviews, LinkOpener, LinkPreviewFetch;
 import '../core/kept_workspaces.dart';
@@ -100,6 +102,9 @@ import '../home/home_layout.dart';
 import '../home/home_screen.dart';
 import '../home/note_peek.dart' show PeekPictures;
 import '../launch/launch_screen.dart';
+import '../links/graph_view.dart' show showGraph;
+import '../links/links_panel.dart' show linkMention, unlinkMention;
+import '../links/note_links.dart';
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
@@ -754,6 +759,8 @@ class _GhostRootState extends State<GhostRoot> {
     titles: () => [
       for (final note in _shown)
         if (noteTitle(note.body).isNotEmpty) noteTitle(note.body),
+      // The names a note answers to besides its title (lib/core/aliases.dart): a link to one opens the note.
+      for (final note in _shown) ...aliasesOfNote(note),
     ],
     known: (title) => _reads.titled(title) != null,
     open: _openTitle,
@@ -813,7 +820,92 @@ class _GhostRootState extends State<GhostRoot> {
     syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
     // Version history's Share the versions file: copied as text on the phone, which is what its page does there.
     shareVersionsFile: (id, title) => shareVersionsFile(_versionsStore, id, title, files: _files),
+    // A note's links, its outline and its graph (lib/links/note_links.dart).
+    links: (noteId) => NoteLinksHere(app: _linksApp, noteId: noteId),
   );
+
+  /// Which notes link to which, kept with the library (lib/core/link_index.dart): read whole off the UI isolate
+  /// once, then a note at a time as each changes. Made as the root starts; what it reads is what every screen shows.
+  late final LinkIndexer _linkIndex;
+
+  /// What every open note's links are given (lib/links/note_links.dart).
+  late final NoteLinksApp _linksApp = NoteLinksApp(
+    indexer: _linkIndex,
+    openAt: (id, line) => _shell.currentState?.openNote(id, at: 'line:${line + 1}'),
+    link: _linkMention,
+    localGraph: (id, title) => _showGraph(focus: id, title: title),
+    say: (message) => _say(context, message),
+  );
+
+  /// The graph of the notes over the app (lib/links/graph_view.dart): the whole library's, or the notes round
+  /// [focus]. A note opened from it opens where it was left. Archived notes are put away, and left out.
+  void _showGraph({String? focus, String? title}) {
+    final shell = _shell.currentState;
+    if (shell == null) return;
+    unawaited(showGraph(
+      context,
+      indexer: _linkIndex,
+      focus: focus,
+      focusTitle: title,
+      hueOf: (id) => _workspaces.workspaceOf(id)?.hue,
+      keep: (id) => id == focus || (_library.noteOf(id)?.archivedAt ?? 0) == 0,
+      onOpen: (id) => _openWhereLeft(shell, id),
+    ));
+  }
+
+  /// "Mentioned in"'s Link: the words in the other note made a `[[link]]`, through the library as a query's tick
+  /// is, and said with an Undo that takes the brackets off again while they are still there.
+  Future<bool> _linkMention(Mention mention, LinkPlace place) async {
+    String? made;
+    await _writeNote(mention.id, (body) => made = linkMention(body, place.from, place.to, mention.name));
+    final linked = made;
+    if (!mounted) return linked != null;
+    if (linked == null) {
+      _say(context, 'That mention has changed. Open ${mention.title.isEmpty ? 'the note' : mention.title} to link it.');
+      return false;
+    }
+    final words = linked.substring(place.from + 2, linked.indexOf(']]', place.from));
+    GlacierToast.of(context).toast(
+      message: Text('Linked in ${mention.title.isEmpty ? 'Untitled' : mention.title}.'),
+      action: GlacierToastAction(label: 'Undo', onPress: () => unawaited(_writeNote(mention.id, (body) => unlinkMention(body, place.from, words)))),
+    );
+    return true;
+  }
+
+  /// The palette's Links to this note: the side panel at its Links tab where there is room for it, else the note's
+  /// More sheet at its Links page.
+  void _openNoteLinks(String id) {
+    final shell = _shell.currentState;
+    if (shell == null) return;
+    if (splitFits(MediaQuery.sizeOf(context), mouse: mousePointer)) {
+      showAsideTab(AsideTab.links, _stored);
+      shell.showAside();
+      return;
+    }
+    NoteLinksHere.of(id)?.openLinks();
+  }
+
+  /// The open note's links and outline, in the side panel where the window has room for two panes (a Fold
+  /// opened, a Mac): a note of words, not a canvas or a notebook's index.
+  ({String noteId, String title})? _asideLinksOf(BuildContext context, AppShellState shell) {
+    final screen = shell.screen;
+    if (screen is! ScreenNote || !splitFits(MediaQuery.sizeOf(context), mouse: mousePointer)) return null;
+    final note = _library.noteOf(screen.note.id) ?? screen.note;
+    if (isCanvasBody(note.body) || isBookBody(note.body)) return null;
+    return (noteId: note.id, title: noteTitle(note.body));
+  }
+
+  AsideHistoryBuilder? _asideLinks(BuildContext context, AppShellState shell) {
+    final of = _asideLinksOf(context, shell);
+    if (of == null) return null;
+    return (context) => asideLinks(context, app: _linksApp, noteId: of.noteId, title: of.title);
+  }
+
+  AsideHistoryBuilder? _asideOutline(BuildContext context, AppShellState shell) {
+    final of = _asideLinksOf(context, shell);
+    if (of == null) return null;
+    return (context) => AsideOutline(noteId: of.noteId, body: () => _library.noteOf(of.noteId)?.body ?? '');
+  }
 
   /// Who hears that the phone's write-up changed a note (ai/summaries.dart `onRecordingChanged`): the open notes'
   /// screens, told through here so that a note opened before voice was made hears too.
@@ -1156,6 +1248,7 @@ class _GhostRootState extends State<GhostRoot> {
     // A voice a test brought is the test's to let go.
     if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
+    _linkIndex.dispose();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
     _trash.removeListener(_tick.tell);
@@ -1206,6 +1299,7 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

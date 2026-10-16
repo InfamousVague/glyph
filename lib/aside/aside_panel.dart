@@ -25,11 +25,16 @@ typedef AsideHistoryBuilder = Widget Function(BuildContext context);
 /// - A tab asked for from elsewhere ([showAsideTab]) is heard through a notifier, not a window event.
 /// - A row's `:hover` is a mouse over it.
 class AsidePanel extends StatefulWidget {
-  const AsidePanel({super.key, required this.content, this.history, required this.onOpen, required this.onOpenTitle, this.onClose, this.popup = false, this.stored});
+  const AsidePanel({super.key, required this.content, this.history, this.links, this.outline, required this.onOpen, required this.onOpenTitle, this.onClose, this.popup = false, this.stored});
 
   /// The open note's book or run of chapters, or null where it has neither.
   final AsideContent? content;
   final AsideHistoryBuilder? history;
+
+  /// The open note's links and its outline (lib/links/note_links.dart), in tabs of their own; left out where the
+  /// note has none to show (a canvas, a notebook's index) or the window no room for them.
+  final AsideHistoryBuilder? links;
+  final AsideHistoryBuilder? outline;
   final void Function(String id) onOpen;
   final void Function(String title) onOpenTitle;
 
@@ -74,8 +79,10 @@ class _AsidePanelState extends State<AsidePanel> {
     final t = context.tokens;
     final content = widget.content;
     final history = widget.history;
-    final both = content != null && history != null;
-    final showing = both ? _tab : (content != null ? AsideTab.contents : AsideTab.history);
+    final links = widget.links, outline = widget.outline;
+    final tabs = [if (content != null) AsideTab.contents, if (history != null) AsideTab.history, if (links != null) AsideTab.links, if (outline != null) AsideTab.outline];
+    final both = tabs.length > 1;
+    final showing = tabs.contains(_tab) ? _tab : (tabs.isEmpty ? AsideTab.contents : tabs.first);
     // `font-size: var(--glacier-font-size-sm)`, on the page's own line.
     final size = t.fontSize('sm');
     final words = t.textAt(size, color: t.color('glacier-text'));
@@ -92,15 +99,23 @@ class _AsidePanelState extends State<AsidePanel> {
             if (both)
               _Tabs(
                 labels: [
-                  (AsideTab.contents, switch (content) { AsideChapters() => 'Chapters', AsideBook(journal: true) => 'Entries', _ => 'Index' }),
-                  (AsideTab.history, 'History'),
+                  if (content != null) (AsideTab.contents, switch (content) { AsideChapters() => 'Chapters', AsideBook(journal: true) => 'Entries', _ => 'Index' }),
+                  if (history != null) (AsideTab.history, 'History'),
+                  if (links != null) (AsideTab.links, 'Links'),
+                  if (outline != null) (AsideTab.outline, 'Outline'),
                 ],
                 on: showing,
                 onChoose: _choose,
               ),
             if (showing == AsideTab.contents && content != null)
               ..._index(context, content, size)
-            else if (history != null) ...[
+            else if (showing == AsideTab.links && links != null) ...[
+              _Head(icon: Lucide.link2, title: 'Links', onClose: widget.onClose, em: size),
+              links(context),
+            ] else if (showing == AsideTab.outline && outline != null) ...[
+              _Head(icon: Lucide.listTree, title: 'Outline', onClose: widget.onClose, em: size),
+              outline(context),
+            ] else if (history != null) ...[
               _Head(icon: Lucide.history, title: 'Version history', onClose: widget.onClose, em: size),
               history(context),
             ],
@@ -463,10 +478,12 @@ class _Tabs extends StatelessWidget {
 /// from the icon that opened it, the page live beside it, closed by a tap outside, Escape, the phone's back gesture,
 /// the X, or opening a page. The icon itself is left to close it, as the drawer leaves its own (`AsideCard`).
 class AsideCard extends StatelessWidget {
-  const AsideCard({super.key, required this.content, this.history, required this.onOpen, required this.onOpenTitle, required this.onClose, this.stored});
+  const AsideCard({super.key, required this.content, this.history, this.links, this.outline, required this.onOpen, required this.onOpenTitle, required this.onClose, this.stored});
 
   final AsideContent? content;
   final AsideHistoryBuilder? history;
+  final AsideHistoryBuilder? links;
+  final AsideHistoryBuilder? outline;
   final void Function(String id) onOpen;
   final void Function(String title) onOpenTitle;
   final VoidCallback onClose;
@@ -481,6 +498,8 @@ class AsideCard extends StatelessWidget {
         child: AsidePanel(
           content: content,
           history: history,
+          links: links,
+          outline: outline,
           popup: true,
           stored: stored,
           onClose: onClose,

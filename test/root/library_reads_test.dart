@@ -88,4 +88,16 @@ void main() {
     reads.changed();
     expect(reads.placeInBook(packing), isNull);
   });
+
+  test('a link finds a note by its aliases, after every title', () {
+    final notes = [
+      makeNote('trip', body: '---\naliases: [Lisbon, "The coast"]\n---\n# Portugal', updatedAt: 3),
+      makeNote('coast', body: '# The coast', updatedAt: 2),
+    ];
+    final reads = LibraryReads(shown: () => notes, all: () => notes);
+    expect(reads.titled('lisbon')?.id, 'trip');
+    expect(reads.titled('Portugal')?.id, 'trip');
+    // A note's own title wins over another's alias in the same words.
+    expect(reads.titled('the coast')?.id, 'coast');
+  });
 }

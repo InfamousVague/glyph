@@ -69,6 +69,7 @@ class NoteTree extends StatefulWidget {
     this.onEmptyTrash,
     this.onOrganization,
     this.onBrowseFiles,
+    this.onGraph,
     this.onNoteMenu,
     this.notesInWorkspace,
     this.onTrashNotes,
@@ -99,6 +100,9 @@ class NoteTree extends StatefulWidget {
 
   /// Shows the notes' folder in the Files app or Finder; the tool is there only when this is.
   final VoidCallback? onBrowseFiles;
+
+  /// The graph of the notes and their links (lib/links/graph_view.dart); the tool is there only when this is.
+  final VoidCallback? onGraph;
 
   /// A mouse's right-click on a note's row: the note, and where the pointer was.
   final void Function(String id, Offset at)? onNoteMenu;
@@ -614,7 +618,7 @@ class _NoteTreeState extends State<NoteTree> {
                 padding: EdgeInsets.all(t.space(3)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, mainAxisSize: MainAxisSize.min, spacing: t.space(2), children: widget.notices),
               ),
-            if (widget.onSpeak != null || widget.onSettings != null)
+            if (widget.onSpeak != null || widget.onSettings != null || widget.onGraph != null)
               DecoratedBox(
                 key: const ValueKey('tree-foot'),
                 // `.foot { border-block-start: var(--glacier-hairline) solid var(--app-rule) }`
@@ -626,7 +630,10 @@ class _NoteTreeState extends State<NoteTree> {
                     spacing: t.space(2),
                     children: [
                       if (widget.onSpeak != null) _Speak(onPressed: widget.onSpeak!),
-                      if (widget.onSettings != null) ...[const Spacer(), _Tool(label: 'Settings', icon: Lucide.settings, onPressed: widget.onSettings!)],
+                      // The graph of the notes, beside Settings at the foot: the tools over the notes are full on a phone.
+                      if (widget.onGraph != null || widget.onSettings != null) const Spacer(),
+                      if (widget.onGraph != null) _Tool(label: 'Graph of your notes', icon: Lucide.network, onPressed: widget.onGraph!),
+                      if (widget.onSettings != null) _Tool(label: 'Settings', icon: Lucide.settings, onPressed: widget.onSettings!),
                     ],
                   ),
                 ),

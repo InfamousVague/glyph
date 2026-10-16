@@ -253,6 +253,10 @@ extension _RootParts on _GhostRootState {
           onClose: close,
           onCommands: _search,
           onBrowseFiles: _browseFiles,
+          onGraph: () {
+            close();
+            _showGraph();
+          },
           // `notices={split ? notices : undefined}`: a phone has its home page for them.
           notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
           onSpeak: _capture == null
@@ -290,10 +294,22 @@ extension _RootParts on _GhostRootState {
       asideBuilder: (context, shell) {
         final content = _asideOf(shell);
         final history = _asideHistory(context, shell);
-        return content == null && history == null ? null : AsidePanel(content: content, history: history, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
+        // And, with room for two panes, the open note's links and outline (lib/links/note_links.dart).
+        final links = _asideLinks(context, shell), outline = _asideOutline(context, shell);
+        return content == null && history == null && links == null
+            ? null
+            : AsidePanel(content: content, history: history, links: links, outline: outline, stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin);
       },
-      asideCardBuilder: (context, shell, close) =>
-          AsideCard(content: _asideOf(shell), history: _asideHistory(context, shell), stored: _stored, onOpen: shell.openNoteWithin, onOpenTitle: _openTitleWithin, onClose: close),
+      asideCardBuilder: (context, shell, close) => AsideCard(
+        content: _asideOf(shell),
+        history: _asideHistory(context, shell),
+        links: _asideLinks(context, shell),
+        outline: _asideOutline(context, shell),
+        stored: _stored,
+        onOpen: shell.openNoteWithin,
+        onOpenTitle: _openTitleWithin,
+        onClose: close,
+      ),
       notificationsBuilder: (context, shell, close) => _part('notifications', () => (preferences.value.notifications, _accountAt, _syncAt), (context) {
         void openNote(String id, String? at) {
           close();
@@ -521,6 +537,10 @@ extension _RootParts on _GhostRootState {
         },
         settings: _openSettings,
         settingsPage: _openSettingsAt,
+        // The links between notes (lib/links): the whole graph, the open note's own, and its links.
+        graph: _showGraph,
+        localGraph: (id) => _showGraph(focus: id, title: noteTitle(_library.noteOf(id)?.body ?? '')),
+        noteLinks: _openNoteLinks,
       ),
     );
   }
@@ -684,6 +704,10 @@ extension _RootParts on _GhostRootState {
       onClose: onClose,
       onCommands: _search,
       onBrowseFiles: _browseFiles,
+      onGraph: () {
+        onClose?.call();
+        _showGraph();
+      },
       notices: _sidebarNotices(),
       onSpeak: _capture == null
           ? null

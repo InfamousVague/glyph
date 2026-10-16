@@ -141,7 +141,9 @@ import '../editor/items/items.dart';
 import '../editor/marks/marks.dart';
 import '../editor/media/canvas_frames.dart';
 import '../editor/media/media.dart';
+import '../editor/media/note_embeds.dart';
 import '../editor/media/source_line.dart';
+import '../links/note_links.dart' show NoteLinksHere;
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
@@ -281,6 +283,7 @@ class NoteDeskWorld {
     this.onRecordingChanged,
     this.shareVersionsFile,
     this.syncWithin,
+    this.links,
   });
 
   /// Every note's title, for the +'s A note.
@@ -420,6 +423,10 @@ class NoteDeskWorld {
   /// absent in a build with no account.
   final Future<void> Function()? syncWithin;
 
+  /// The links between notes for the note by that id (lib/links/note_links.dart): its Links tool and the More
+  /// sheet's Links, Outline, Local graph and Copy link to this line. Made once for a desk and let go with it.
+  final NoteLinksHere Function(String noteId)? links;
+
   /// What the AI in a note stands on, asked as a desk is made: null where the build has no engine (a test, a
   /// picture) and the desk then has no AI at all, and null before the engine is up, when the desk waits for
   /// [aiReady] and takes its AI as it comes.
@@ -519,6 +526,9 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The editor's controller, for a test or a diagnostic.
   EditorController get editor => _editor;
+
+  /// The links between notes for this note, made once.
+  late final NoteLinksHere? _links = _world.links?.call(widget.noteId);
 
   /// The band's controller.
   band.ContextBandController get bandController => _band;
@@ -715,6 +725,9 @@ class NoteDeskState extends State<NoteDesk> {
     // ![[A canvas]] on a line of its own draws that canvas in a frame (Editor.tsx `canvasFrames`).
     if (_world.bodyOf != null)
       canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _world.open(title, anchor))),
+    // Any other note, a section of one, a named line or a picture, embedded the same way and drawn in place
+    // (lib/editor/media/note_embeds.dart).
+    if (_world.bodyOf != null) noteEmbeds(EmbedOptions(body: (title) => _world.bodyOf?.call(title), open: (title, [anchor]) => _world.open(title, anchor), formats: _formats)),
     // Each `[^c1]` a round in its author's colour, and the ```comments fence drawn as its threads (Editor.tsx
     // `noteComments`).
     noteComments(() => _comments.hooks),
@@ -1199,6 +1212,7 @@ class NoteDeskState extends State<NoteDesk> {
     _leaving = true;
     _removed = null;
     _stopFind?.call();
+    _links?.dispose();
     _world.holdNote?.call(widget.noteId, false);
     _world.aiReady?.removeListener(_aiArrived);
     _live?.close();
@@ -1688,6 +1702,7 @@ class NoteDeskState extends State<NoteDesk> {
     final ai = _ai;
     _aiDrawn = (ai?.runningKind, ai?.canSummarize ?? false);
     final seams = NoteSeams(
+      links: _links?.seam,
       saving: (flush) => _flush = flush,
       // A note that wears its tape is talked into from the tape's Add: its own mic steps out.
       hasTape: () => (_tapeNow()?.length ?? 0) > 0 && _world.onSpeak != null,
