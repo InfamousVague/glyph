@@ -2,6 +2,11 @@
 <html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
+    <!-- A published site is this page at /s/<id>/<page> (src/read/site.ts): its scripts and styles are named from the
+         root, as they are at /read.html, and not from that page's own folder. -->
+    <script>
+      if (/^\/s\//.test(location.pathname)) document.write('<base href="/" />');
+    </script>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <!-- A shared note or book is read here, and nobody else can: the key is after the # and never leaves the browser. -->
     <meta name="referrer" content="no-referrer" />

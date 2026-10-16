@@ -10,7 +10,8 @@
  *
  * The reader page for shared notes is the release's too (/read.html, /assets/*, /favicon.svg): share links are
  * `https://ghostmarkdown.com/read.html#…` (share/share.ts READER_URL), and the page they open is whatever the last
- * release published, beside the app on attack.fm.
+ * release published, beside the app on attack.fm. A published site's addresses, /s/<id>/<page>, are the same page
+ * (docs/SITES.md), so a block that predates them needs --caddy once.
  *
  * THE CADDYFILE IS SHARED: attack.fm, the registry, prettycardboard.com and more are on it. So --caddy touches only
  * ghostmarkdown.com's own block (from its first line to the closing brace at the start of a line), and only this way:
@@ -67,6 +68,16 @@ ${DOMAIN} {
 	handle /glyph/mcp/* {
 		root * ${dirname(RELEASE)}
 		header Cache-Control "no-cache"
+		file_server
+	}
+	# A published site (docs/SITES.md): every /s/<id>/<page> is the reader page, which reads the id from the path and
+	# the key from the part after the #, which never reaches here. Never indexed, never kept, no referrer sent on.
+	handle /s/* {
+		root * ${RELEASE}
+		rewrite * /read.html
+		header Cache-Control "no-cache"
+		header X-Robots-Tag "noindex, nofollow"
+		header Referrer-Policy "no-referrer"
 		file_server
 	}
 	# The release's own files, so a release updates this page's downloads and versions (scripts/deploy-landing.mjs).

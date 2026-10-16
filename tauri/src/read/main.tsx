@@ -16,8 +16,12 @@ import '../app/editor/codeThemes.css';
 import { readJoinLink } from '../app/core/orgs/joinLinks.ts';
 import { JoinPage } from './JoinPage.tsx';
 import { Reader } from './Reader.tsx';
+import { Site } from './Site.tsx';
+import { isSitePath } from './site.ts';
 
 // An invite link is the reader page with `#join=<code>` (core/orgs/joinLinks.ts): the invitation, not a shared note.
 const join = location.hash.startsWith('#join=') ? readJoinLink(location.hash) : null;
+// A published site is the reader page at `/s/<id>/…` (site.ts, docs/SITES.md).
+const site = !join && isSitePath(location.pathname);
 
-createRoot(document.getElementById('root')!).render(<StrictMode>{join ? <JoinPage code={join} /> : <Reader />}</StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode>{join ? <JoinPage code={join} /> : site ? <Site /> : <Reader />}</StrictMode>);
