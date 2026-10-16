@@ -1,7 +1,6 @@
 // A to-do's Remind me (lib/editor/items/field_items.dart, lib/reminders/remind_choices.dart): the times on offer
 // counted from a clock of the test's own, the one the line has lit, the phone's calendar and clock for Pick a time,
 // Remove, and the reminder's chip on the line. Offered only where the phone reminds: the editor is given its picker.
-import 'dart:async';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
