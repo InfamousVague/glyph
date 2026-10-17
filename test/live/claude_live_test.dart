@@ -162,7 +162,7 @@ void main() {
               liveBindingSlot(),
               EditorViewLike.updateListener.of((update) {
                 for (final tr in update.transactions) {
-                  if (tr.annotation(wisp) == WispKind.heard) smoky.add(tr.changes.toString());
+                  if (tr.annotation(wisp) == WispKind.typed) smoky.add(tr.changes.toString());
                   for (final effect in tr.effects) {
                     final target = EditorViewLike.scrollIntoViewEffect.cast(effect);
                     if (target != null) scrolled.add(target.value.range.head);

@@ -78,11 +78,19 @@ while one works waits for it. The chat's conversation is kept until New chat or 
 
 When a writing tool's words start, the note is made or found, opened (lib/root/root_claude.dart `_RootClaudeDesk`),
 and its editor handed to a typer (lib/claude/live_typing.dart). The old passage is taken out (replace, rewrite) and
-the words go in at Claude's caret a few letters a frame, faster the further behind they are, never half a letter. The
-editor stays the note's one writer: what is typed is the editor's own change (`userEvent: 'claude.type'`), saved by
-the note's saving, carried to its live document where it is bound, undone by the person's undo, and risen out of smoke
-where Ghostly typing is on and the note draws arrivals. Where the note cannot be shown, or is closed under Claude, the
-rest is written behind it through the screen or the library (`ClaudeDesk.change`).
+the words go in at Claude's caret at a reading pace (lib/claude/typing_pacer.dart): a word and the spaces after it at
+a time, 60 letters a second while the stream keeps up, the rate rising smoothly when the stream runs ahead so the words
+are never more than about two seconds behind it, never half a word where it can be helped (a word longer than 24
+letters goes in pieces), and everything at once on Stop, when the stream breaks, or when the note is closed under
+Claude. The caret and the following scroll go with the words let in. The editor stays the note's one writer: what is
+typed is the editor's own change (`userEvent: 'claude.type'`), saved by the note's saving, carried to its live document
+where it is bound, undone by the person's undo, and cleared out of a brief, light smoke (`WispKind.typed`,
+lib/editor/marks/wisp_motion.dart: each word legible within 120 ms, at once with no turn to wait, only a change's last
+eight words smoking, none ever waiting unseen on the pool of filters, and none with reduced motion) where Ghostly
+typing is on and the note draws arrivals. Words the connector types arrive live in the same light smoke; they are paced
+by the connector (docs/CLAUDE_LIVE.md, "Streaming"), not here, since the editor must hold the live document's words.
+Where the note cannot be shown, or is closed under Claude, the rest is written behind it through the screen or the
+library (`ClaudeDesk.change`).
 
 Every note's editor has `claudeTyping` (lib/root/note_desk.dart): the caret's field, which rides every change, and an
 observer of the person's presses and keys.
@@ -110,4 +118,4 @@ observer of the person's presses and keys.
 | Chat on an AI's row | lib/orgs/ui/organization_screen.dart (`onChat`) |
 | Where a connector AI last typed, for Follow | lib/live/follow.dart |
 | Ask Claude in the command bar | lib/commands/palette.dart, app_commands.dart |
-| Tests | test/claude/, test/root/wiring_test.dart, test/settings/settings_sheet_test.dart |
+| Tests | test/claude/, test/editor_ai/wisp_typed_test.dart, test/root/wiring_test.dart, test/settings/settings_sheet_test.dart |

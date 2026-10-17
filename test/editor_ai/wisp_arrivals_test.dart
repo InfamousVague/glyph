@@ -80,6 +80,11 @@ void main() {
       expect(shapeAt(0.9), (scale: 0.0, stdDeviation: 0.0, dy: 0.0, slope: 1.0));
       // A tapped box's letter: a gentle throw, and no lift at all.
       expect(shapeAt(0, box: true), (scale: 8.0, stdDeviation: 5.0, dy: 0.0, slope: 0.0));
+      // An AI's typed word: the same curves, a lighter throw, blur and lift, so it reads at once.
+      expect(shapeAt(0, light: true), (scale: 12.0, stdDeviation: 2.0, dy: 2.0, slope: 0.0));
+      expect(shapeAt(0.3, light: true).slope, 1);
+      expect(shapeAt(0.5, light: true).scale, lessThan(1.5));
+      expect(shapeAt(0.9, light: true), (scale: 0.0, stdDeviation: 0.0, dy: 0.0, slope: 1.0));
       // Leaving: the same curves backwards, thinning as it goes, and rising.
       expect(shapeAt(0, leaving: true), (scale: 0.0, stdDeviation: 0.0, dy: 0.0, slope: 1.0));
       expect(shapeAt(1, leaving: true), (scale: 34.0, stdDeviation: 5.0, dy: -4.8, slope: 0.0));

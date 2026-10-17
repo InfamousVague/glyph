@@ -35,9 +35,20 @@ import '../editor.dart';
 import '../view/line.dart' show EditorRunScope;
 import 'run_paint.dart';
 
-enum WispKind { heard, rewrite }
+/// What a transaction carrying [wisp] is: the recorder's words, heard; a pending phrase rewritten; or an AI's words
+/// as it types them ([typed]).
+enum WispKind {
+  heard,
+  rewrite,
 
-/// Put on a transaction that writes what was heard, or rewrites a pending phrase.
+  /// Claude typing (lib/claude/live_typing.dart, and a connector's words arriving live, lib/live/editor_binding.dart):
+  /// a brief, light smoke that clears within [typedArrivalMs], every word at once with no turn to wait for, since
+  /// the words are already let out at a reading pace (lib/claude/typing_pacer.dart). Matt (2026-10-17): "when claude
+  /// enters text we need the wisp on entry to be near instant".
+  typed,
+}
+
+/// Put on a transaction that writes what was heard, or rewrites a pending phrase, or is an AI typing.
 final AnnotationType<WispKind> wisp = Annotation.define<WispKind>();
 
 /// Whether text deleted by hand smokes away (typed text never arrives through smoke: it appears as it is typed).
@@ -71,7 +82,7 @@ double _deleteDuration(double now) {
 
 /// A letter that arrived, or the text that left, still in motion.
 class Moving {
-  const Moving({required this.id, required this.from, required this.to, required this.gone, required this.at, required this.dur, this.box = false});
+  const Moving({required this.id, required this.from, required this.to, required this.gone, required this.at, required this.dur, this.box = false, this.light = false});
 
   final int id;
 
@@ -87,10 +98,18 @@ class Moving {
 
   /// A tapped box's letter (`- [x]`, `- ( )`): it dissolves where it stands, without the throw or the lift.
   final bool box;
+
+  /// An AI's word, typed ([WispKind.typed]): the brief, light smoke, drawn so (`wisp_arrivals.dart` `shapeAt`), and
+  /// never drawn slower than [typedArrivalMs] whatever the pace.
+  final bool light;
   final double dur;
 
-  Moving _moved(int from, int to) => Moving(id: id, from: from, to: to, gone: gone, at: at, dur: dur, box: box);
-  Moving _paced(double now, double scale) => Moving(id: id, from: from, to: to, gone: gone, at: now + (at - now) * scale, dur: dur * scale, box: box);
+  Moving _moved(int from, int to) => Moving(id: id, from: from, to: to, gone: gone, at: at, dur: dur, box: box, light: light);
+  Moving _paced(double now, double scale) {
+    // A relaxed pace stretches the person's own smoke; Claude's words stay quick to read.
+    final by = light ? math.min(scale, 1.0) : scale;
+    return Moving(id: id, from: from, to: to, gone: gone, at: now + (at - now) * by, dur: dur * by, box: box, light: light);
+  }
 }
 
 /// Letters a phrase types in at, ms; the whole phrase never waits longer than the cap.
@@ -102,6 +121,19 @@ const double _staggerCapMs = 1350;
 const double _inMs = 350;
 const double _inJitterMs = 100;
 const double _outMs = 380;
+
+/// The arc of a word an AI types ([WispKind.typed]), ms, and its jitter: the whole word is legible by the end of it,
+/// [typedArrivalMs] at most. The recorder's words take [_inMs] and wait their turn one after another; an AI's words
+/// are already let out a word at a time at a reading pace, so each just clears out of a little smoke.
+const double typedArrivalMs = 120;
+const double _typedInMs = 96;
+const double _typedJitterMs = typedArrivalMs - _typedInMs;
+
+/// Of one change an AI types, only this many of its last words come out of smoke; the ones before are there at
+/// once. A change of an AI's is a word or two at its pace, but a flush (Stop, the note closing, the connector's
+/// words landing together) can be a page, and a page of smoke waits on the pool of filters (`wisp_arrivals.dart`
+/// `poolMax`), unseen until its turn: the text that "comes in invisible".
+const int typedSmokyWords = 8;
 
 /// Letters done moving, by id: the drawing says so, and this lets them go.
 final StateEffectType<List<int>> settle = StateEffect.define<List<int>>();
@@ -166,9 +198,10 @@ List<Moving> _revealing(EditorState state, int from, int to, double now) {
 
 /// What a transaction sets in motion: the text it really took away, and, where `arrive`, the letters it really
 /// added. The person's own typing sets no arrivals.
-List<Moving> _movingIn(Transaction tr, double now, {double outMs = _outMs, bool singleLetters = true, bool box = false, bool arrive = true}) {
+List<Moving> _movingIn(Transaction tr, double now, {double outMs = _outMs, bool singleLetters = true, bool box = false, bool arrive = true, bool light = false}) {
   final moving = <Moving>[];
   var wait = 0.0;
+  final arriving = <Moving>[];
   tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
     final removed = tr.startState.doc.sliceString(fromA, toA);
     final added = inserted.toString();
@@ -193,12 +226,19 @@ List<Moving> _movingIn(Transaction tr, double now, {double outMs = _outMs, bool 
       while (j < end && added[j].trim().isNotEmpty) {
         j += 1;
       }
-      moving.add(Moving(id: _nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + math.min(wait, _staggerCapMs), dur: _inMs + _random.nextDouble() * _inJitterMs, box: box));
+      if (light) {
+        // An AI's word: no turn to wait, and a short arc.
+        arriving.add(Moving(id: _nextId++, from: fromB + i, to: fromB + j, gone: '', at: now, dur: _typedInMs + _random.nextDouble() * _typedJitterMs, box: box, light: true));
+      } else {
+        moving.add(Moving(id: _nextId++, from: fromB + i, to: fromB + j, gone: '', at: now + math.min(wait, _staggerCapMs), dur: _inMs + _random.nextDouble() * _inJitterMs, box: box));
+      }
       wait += math.min(_wordMaxMs, (j - i + 1) * _staggerMs);
       i = j;
     }
   });
-  return moving;
+  // The last few words an AI typed come out of smoke, the rest are simply there ([typedSmokyWords]).
+  if (arriving.length > typedSmokyWords) arriving.removeRange(0, arriving.length - typedSmokyWords);
+  return <Moving>[...moving, ...arriving];
 }
 
 List<Moving> _paced(List<Moving> list, double now, double scale) => scale == 1 ? list : <Moving>[for (final m in list) m._paced(now, scale)];
@@ -232,9 +272,10 @@ final StateField<List<Moving>> wispState = StateField.define<List<Moving>>(
       }
     }
     if (!tr.docChanged || still) return next;
-    if (tr.annotation(wisp) != null) {
+    final kind = tr.annotation(wisp);
+    if (kind != null) {
       final now = wispNow();
-      return <Moving>[...next, ..._paced(_movingIn(tr, now), now, scale)];
+      return <Moving>[...next, ..._paced(_movingIn(tr, now, light: kind == WispKind.typed), now, scale)];
     }
     // A board's own edits are not typing: a card ticked, moved or added rewrites the item's box and the fence under
     // the drawing, and none of that is a letter someone wrote.

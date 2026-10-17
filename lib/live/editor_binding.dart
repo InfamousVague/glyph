@@ -341,8 +341,11 @@ class LiveBinding implements NoteUndo {
 
   static final List<Annotation<Object?>> _fromElsewhere = <Annotation<Object?>>[Transaction.remote.of(true), Transaction.addToHistory.of(false)];
 
-  /// The same, for words an AI typed: out of smoke, as the recorder's are heard.
-  static final List<Annotation<Object?>> _fromAi = <Annotation<Object?>>[..._fromElsewhere, wisp.of(WispKind.heard)];
+  /// The same, for words an AI typed: out of a brief, light smoke that clears at once ([WispKind.typed]), as the
+  /// app's own Claude's do. The connector already sends them a few words at a time at its pace
+  /// (docs/CLAUDE_LIVE.md, "Streaming"); they are not held back here, since the editor must hold the document's
+  /// words for the next change from the room to fit.
+  static final List<Annotation<Object?>> _fromAi = <Annotation<Object?>>[..._fromElsewhere, wisp.of(WispKind.typed)];
 
   /// Whether a change that arrived is an AI's to draw out of smoke: Ghostly typing on, words put in, and an AI's
   /// caret in the room (the connector says it before each run of words it types).
