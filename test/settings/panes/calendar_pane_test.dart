@@ -1,4 +1,4 @@
-// Settings › Calendar (lib/settings/panes/calendar_pane.dart, docs/CALENDAR.md): an iCal address added, checked,
+// Settings › Calendar (lib/plugins/calendar/calendar_pane.dart, docs/CALENDAR.md): an iCal address added, checked,
 // listed by its calendar's name with how its read went, and removed; Google offered only where its sign-in is set
 // up, connected, its calendars ticked, and the to-dos' switch and calendar; Local only said; and the row's reading.
 // Against calendars in memory (test/calendar/fake_google.dart).
@@ -12,7 +12,7 @@ import 'package:ghost_md/calendar/setup.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
-import 'package:ghost_md/settings/panes/calendar_pane.dart';
+import 'package:ghost_md/plugins/calendar/calendar_pane.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../calendar/fake_google.dart';

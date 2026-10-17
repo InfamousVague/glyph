@@ -29,6 +29,8 @@ import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost, bookmarkLi
 import 'package:ghost_md/editor/marks/marks.dart' show typing;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/home/home_screen.dart';
+import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry, plugins, usePlugins;
 import 'package:ghost_md/live/editor_binding.dart' show BoundEditors;
 import 'package:ghost_md/live/follow.dart';
 import 'package:ghost_md/live/presence.dart';
@@ -789,6 +791,39 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(dockOrder(tester, within: find.byType(AllNotesScreen)), home);
+      await close(tester);
+    });
+
+    // The app's own Claude is the Claude plugin's (lib/plugins/claude): switched off, no dock has Claude, the chat
+    // does not open, and the command bar has no Ask Claude; switched on again, it is back on every dock at once.
+    testWidgets('takes Claude off every dock while the Claude plugin is off, and puts it back when it is on', (tester) async {
+      final before = plugins;
+      addTearDown(() => usePlugins(before));
+      final registry = createRegistry(builtIn, store: MemorySwitches({'claude': false}));
+      usePlugins(registry);
+      final library = await open(tester);
+      final groceries = library.create('# Groceries\n\n- milk');
+      await tester.pump(const Duration(milliseconds: 200));
+      final home = dockOrder(tester, within: find.byType(HomeScreen));
+      expect(home, isNot(contains('claude')));
+      expect(home, containsAllInOrder(['search', 'add', 'settings']));
+      await openNote(tester, groceries.id);
+      expect(dockOrder(tester, within: find.byType(NoteScreen)), isNot(contains('claude')));
+      expect(find.byKey(const ValueKey('dock-claude')), findsNothing);
+
+      // Switched on, from Settings › Plugins: Claude at the head of the note's dock, and the chat opens from it.
+      registry.setEnabled('claude', true);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(dockOrder(tester, within: find.byType(NoteScreen)).first, 'claude');
+      await tester.tap(find.descendant(of: find.byType(NoteScreen), matching: find.byKey(const ValueKey('dock-claude'))));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ClaudeChat), findsOneWidget);
+
+      // Off again with the chat up: the chat goes with it.
+      registry.setEnabled('claude', false);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byType(ClaudeChat), findsNothing);
+      expect(find.byKey(const ValueKey('dock-claude')), findsNothing);
       await close(tester);
     });
 

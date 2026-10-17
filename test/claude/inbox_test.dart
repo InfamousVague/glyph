@@ -1,5 +1,13 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:fake_async/fake_async.dart';
+import 'package:flutter/foundation.dart' show ValueNotifier;
+import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_inbox.dart';
+import 'package:ghost_md/claude/claude_run.dart' show ClaudeDesk;
+import 'package:ghost_md/claude/claude_runner.dart';
+import 'package:ghost_md/claude/claude_settings.dart';
+import 'package:ghost_md/claude/claude_tools.dart' show ClaudeNotes;
+import 'package:ghost_md/claude/messages_api.dart' show ClaudeError;
 
 void main() {
   group('the Ask Claude inbox', () {
@@ -34,4 +42,73 @@ void main() {
       expect(openRequests(newInboxBody('- [ ] First')).single.text, 'First');
     });
   });
+
+  // The app's own Claude is the Claude plugin's (lib/plugins/claude): off, nothing is asked, from the chat or the
+  // inbox.
+  group('under the Claude plugin', () {
+    late ClaudeSettings settings;
+    late List<String> keys;
+    late bool on;
+    late ClaudeRunner runner;
+
+    setUp(() async {
+      settings = ClaudeSettings(MemorySecureStore());
+      await settings.setKey('sk-ant-test-0000000000');
+      keys = [];
+      on = false;
+      runner = ClaudeRunner(
+        settings: settings,
+        notes: _NoNotes(),
+        desk: _NoDesk(),
+        api: (key) {
+          keys.add(key);
+          throw const ClaudeError('asked');
+        },
+        allowed: () => on,
+      );
+    });
+    tearDown(() => runner.dispose());
+
+    test('refuses an ask while it is off, and says where it is switched on', () async {
+      await expectLater(runner.ask('Hello'), throwsA(isA<ClaudeError>().having((e) => e.message, 'message', contains('Settings › Plugins'))));
+      expect(keys, isEmpty);
+      expect(runner.conversation, isEmpty);
+    });
+
+    test('asks nothing of the inbox while it is off, and looks again when it is switched on', () {
+      fakeAsync((async) {
+        final changes = ValueNotifier<int>(0);
+        var looked = 0;
+        final inbox = ClaudeInbox(
+          runner: runner,
+          body: () {
+            looked += 1;
+            return (id: 'inbox', body: '# Ask Claude\n\n- [ ] Write the plan');
+          },
+          changes: changes,
+          write: (id, change) async {},
+          on: () => on,
+        )..start();
+        async.elapse(inboxSettle + const Duration(seconds: 1));
+        expect(looked, 0);
+        expect(keys, isEmpty);
+        on = true;
+        changes.value += 1;
+        async.elapse(inboxSettle + const Duration(seconds: 1));
+        expect(looked, 1);
+        expect(keys, ['sk-ant-test-0000000000']);
+        inbox.dispose();
+      });
+    });
+  });
+}
+
+class _NoNotes implements ClaudeNotes {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => Future<Object?>.value(null);
+}
+
+class _NoDesk implements ClaudeDesk {
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
 }

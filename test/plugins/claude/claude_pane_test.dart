@@ -171,14 +171,37 @@ void main() {
 
     // Settings' contract (docs/DESIGN.md §138): each name the search lists for the page is a card on it.
     testWidgets('draws every card the search lists for the page, and a row for each thing Claude can do', (tester) async {
-      await pane(tester);
+      await pumpSettings(tester, SettingsPaneScope(finder: finder, child: SingleChildScrollView(child: Builder(builder: claudePlugin.settings!.pane))), size: const Size(390, 4000));
       final names = [for (final setting in claudePlugin.settings!.settings) setting.name];
-      expect(names, ['Connect', 'What Claude can do', 'Your key']);
+      expect(names, ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Connect', 'What Claude can do', 'Your key']);
       expect(names.where((name) => finder.find(name) == null), isEmpty);
       for (final tool in canDo) {
         expect(find.text(tool.name, skipOffstage: false), findsOneWidget);
         expect(find.text(tool.words, skipOffstage: false), findsOneWidget);
       }
+      await away(tester);
+    });
+    // The plugin is the app's own Claude too (docs/CLAUDE_APP.md): its page is in two parts, the app's first.
+    testWidgets('is in two parts on the plugin’s page: In the app (the key, the model, the note), then From Claude’s own app', (tester) async {
+      await pumpSettings(tester, SingleChildScrollView(child: Builder(builder: claudePlugin.settings!.pane)), size: const Size(390, 4000));
+      double top(Finder finder) => tester.getRect(finder).top;
+      final parts = [for (final heading in tester.widgetList<ClaudePartHeading>(find.byType(ClaudePartHeading, skipOffstage: false))) heading.title];
+      expect(parts, ['In the app', 'From Claude’s own app']);
+      final inApp = top(find.byWidgetPredicate((w) => w is ClaudePartHeading && w.title == 'In the app', skipOffstage: false));
+      final fromClaude = top(find.byWidgetPredicate((w) => w is ClaudePartHeading && w.title == 'From Claude’s own app', skipOffstage: false));
+      final key = top(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Ask Claude', skipOffstage: false));
+      final connect = top(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Connect', skipOffstage: false));
+      expect(inApp < key && key < fromClaude && fromClaude < connect, isTrue);
+      expect(find.text('API key', skipOffstage: false), findsOneWidget);
+      expect(find.text('Do requests as they are written', skipOffstage: false), findsOneWidget);
+      // Its footnote says what the switch does now.
+      expect(find.textContaining('takes Claude off every dock', skipOffstage: false), findsOneWidget);
+      await away(tester);
+
+      // The connector's page alone, as the web has it: no parts.
+      await pane(tester);
+      expect(find.byType(ClaudePartHeading), findsNothing);
+      expect(find.textContaining('This plugin’s switch shows or hides this page'), findsOneWidget);
       await away(tester);
     });
   });

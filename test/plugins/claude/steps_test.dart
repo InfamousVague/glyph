@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry, plugins, usePlugins;
 import 'package:ghost_md/plugins/claude/claude.dart';
 import 'package:ghost_md/plugins/types.dart';
 
@@ -45,25 +46,37 @@ void main() {
 
   // Not in the web's file: index.tsx, which the page's tests reach only through Settings.
   group('the plugin', () {
-    test('is its page and nothing else: the web’s manifest word for word, no storage, no secrets, no way into a note', () {
+    test('is its page and the app’s own Claude: both halves on its card, no storage, no secrets, no way into a note', () {
       final m = claudePlugin.manifest;
-      expect((m.id, m.name, m.version, m.author, m.standard), ('claude', 'Claude', '1.0.0', 'Ghost.md', true));
-      expect(m.description, 'Read, add to and change your notes from Claude, through Ghost.md’s MCP server.');
-      expect([for (final p in m.permissions) (p.kind, p.why)], [
-        (Permission.notes, 'Claude reads and writes the notes of your account once you sign it in: from outside the phone, through the sync service, never through this app.'),
-        (Permission.network, 'Claude talks to Ghost.md’s sync service and nothing else. This page only carries the instructions.'),
-      ]);
-      expect(m.hosts, ['ghostmarkdown.com']);
+      expect((m.id, m.name, m.version, m.author, m.standard), ('claude', 'Claude', '1.1.0', 'Ghost.md', true));
+      expect(m.description, 'Ask Claude in the app with your own API key, and read, add to and change your notes from Claude, through Ghost.md’s MCP server.');
+      expect([for (final p in m.permissions) p.kind], [Permission.notes, Permission.network]);
+      expect(m.permissions[1].why, contains('Anthropic'));
+      expect(m.hosts, ['api.anthropic.com', 'ghostmarkdown.com']);
       expect(m.storage, isEmpty);
       expect(m.secrets, isEmpty);
       expect(m.native, isNull);
       expect(claudePlugin.icon, 'bot');
-      expect(claudePlugin.settings!.summary(), 'Read and write your notes from Claude');
+      // Its row says what the app's Claude answers with, or that it wants a key.
+      expect(claudePlugin.settings!.summary(), anyOf('Add your API key', 'Sonnet 5.5', 'Opus 5.5', 'Haiku 5.5'));
       expect(claudePlugin.settings!.hue, 'coral');
-      expect([for (final s in claudePlugin.settings!.settings) '${s.name}: ${s.words}'], ['Connect: mcp server address hosted computer', 'What Claude can do: tools', 'Your key: secret connections']);
+      expect([for (final s in claudePlugin.settings!.settings) s.name], ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Connect', 'What Claude can do', 'Your key']);
+      expect([for (final s in claudePlugin.settings!.settings.skip(4)) '${s.name}: ${s.words}'], ['Connect: mcp server address hosted computer', 'What Claude can do: tools', 'Your key: secret connections']);
       expect(claudePlugin.noteLinks, isEmpty);
       expect(claudePlugin.noteActions, isEmpty);
       expect([claudePlugin.itemAction, claudePlugin.suggest, claudePlugin.marks, claudePlugin.tips, claudePlugin.formatContext, claudePlugin.newRows], everyElement(isNull));
+    });
+
+    test('says whether the app’s Claude is on by its switch: on until switched off, and on before any plugin is in place', () {
+      final before = plugins;
+      addTearDown(() => usePlugins(before));
+      usePlugins(createRegistry(const [], store: MemorySwitches()));
+      expect(claudeInApp(), isTrue);
+      final registry = createRegistry([claudePlugin], store: MemorySwitches());
+      usePlugins(registry);
+      expect(claudeInApp(), isTrue);
+      registry.setEnabled('claude', false);
+      expect(claudeInApp(), isFalse);
     });
   });
 }

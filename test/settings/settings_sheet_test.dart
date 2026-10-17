@@ -68,12 +68,11 @@ void main() {
         'Appearance': 'Light · Maple Mono',
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
-        'Ask Claude': 'Add your API key',
         // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
         'Plugins': '0 of 0 on',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Ask Claude', 'Plugins', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
       await endSettings(tester);
     });
 
@@ -92,13 +91,9 @@ void main() {
         ('theme', 2, SettingsGlyph.sunMoon),
         ('recording', 2, SettingsGlyph.mic),
         ('ai', 2, SettingsGlyph.sparkles),
-        // The port's own (2026-10-17): Claude with the person's own API key (docs/CLAUDE_APP.md).
-        ('ask-claude', 2, SettingsGlyph.sparkles),
+        // Ask Claude, Calendar and Contacts were the port's own sections until they were plugins (2026-10-17): their
+        // pages are the Claude, Calendar and Contacts plugins' now, behind Plugins.
         ('plugins', 2, SettingsGlyph.puzzle),
-        // The port's own (2026-10-17): the calendars, a page behind Plugins.
-        ('calendar', 2, SettingsGlyph.calendarDays),
-        // The port's own (2026-10-17): the phone's contacts for the people on to-dos, a page behind Plugins.
-        ('contacts', 2, SettingsGlyph.contact),
         ('about', 3, SettingsGlyph.info),
         ('cheatsheet', 3, SettingsGlyph.bookOpen),
         ('spec', 3, SettingsGlyph.fileCode),
@@ -106,9 +101,9 @@ void main() {
         ('developer', 4, SettingsGlyph.terminal),
         ('test-results', 4, SettingsGlyph.flaskConical),
       ]);
-      // The sub-pages are off the list: Daily notes, the port's own, behind Workspaces; Import behind Export; Calendar
-      // and Contacts, the port's own, behind Plugins; the rest behind About.
-      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('calendar', 'plugins'), ('contacts', 'plugins'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
+      // The sub-pages are off the list: Daily notes, the port's own, behind Workspaces; Import behind Export; the rest
+      // behind About.
+      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
       // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
       expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
       final web = Directory('tauri/src/app');
@@ -122,7 +117,7 @@ void main() {
     testWidgets('wear the web’s colours: Account and Organizations blue, Notifications coral, Appearance purple, Recording red, Plugins green, the rest grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
-      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#7c7c82', '#2a9d4b', '#7c7c82'];
+      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#2a9d4b', '#7c7c82'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');

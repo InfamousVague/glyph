@@ -7,7 +7,6 @@ import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/reach.dart';
 import 'package:ghost_md/plugins/built_in.dart';
-import 'package:ghost_md/plugins/places/places.dart' show placeRemindersId;
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -39,8 +38,17 @@ import 'support.dart';
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
 
 /// The five that ship, with nothing switched by hand: what the web page was measured over. This app's own (Place
-/// reminders, which the page never had) is left out of them; test/plugins/places_test.dart has its card.
-Registry shippedRegistry() => createRegistry([for (final p in builtIn) if (p.manifest.id != placeRemindersId) p], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
+/// reminders, Calendar, Contacts, Rich embeds, Todoist and Things, which the page never had) are left out of them;
+/// test/plugins/places_test.dart and built_in_plugins_test.dart have their cards. Claude's card is the web's
+/// (support.dart `webClaude`): the plugin here is the app's own Claude too, which its card says, and the page
+/// measured had only the connector.
+Registry shippedRegistry() {
+  final web = {for (final p in webBuiltIn()) p.manifest.id: p};
+  return createRegistry([
+    for (final p in builtIn)
+      if (web.containsKey(p.manifest.id)) p.manifest.id == 'claude' ? web['claude']! : p,
+  ], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
+}
 
 /// Makes [registry] the app's for this test.
 Registry install(WidgetTester tester, Registry registry) {
@@ -202,8 +210,7 @@ void main() {
       final own = sections.firstWhere((s) => s.id == 'plugins');
       expect([for (final setting in own.settings) (setting.name, setting.words)], [for (final plugin in webBuiltIn()) (plugin.manifest.name, plugin.manifest.description)]);
       // Each switched-on plugin's own page follows, off the list, behind Plugins, in its own colour, with its own words.
-      // (Calendar and Contacts, the port's own, are behind Plugins too, and are no plugin's.)
-      expect([for (final s in sections) if (s.parent == 'plugins' && s.id != 'calendar' && s.id != 'contacts') (s.id, s.label, s.listed, s.hue, s.summary)], [
+      expect([for (final s in sections) if (s.parent == 'plugins') (s.id, s.label, s.listed, s.hue, s.summary)], [
         ('plugin:notion', 'Notion', false, 'graphite', 'Boards for your lists'),
         ('plugin:github', 'GitHub', false, 'graphite', 'Repos, issues and context'),
         ('plugin:claude', 'Claude', false, 'coral', 'Read and write your notes from Claude'),
@@ -254,8 +261,8 @@ void main() {
       expect(heroTitles(tester), ['Plugins']);
       expect(find.textContaining('0 of 0 on.'), findsOneWidget);
       expect(pluginPageSections(), isEmpty);
-      // Only Calendar and Contacts, which are the app's own and no plugin's.
-      expect([for (final spec in settingsSections) if (spec.parent == 'plugins') spec.id], ['calendar', 'contacts']);
+      // Calendar and Contacts were pages behind Plugins of their own until they were plugins: there are none now.
+      expect([for (final spec in settingsSections) if (spec.parent == 'plugins') spec.id], isEmpty);
       await endSettings(tester);
     });
 
@@ -266,7 +273,7 @@ void main() {
       usePlugins(registry);
       expect([for (final spec in pluginPageSections()) spec.id], ['plugin:notion', 'plugin:github', 'plugin:claude']);
       final ids = [for (final spec in settingsSections) spec.id];
-      expect(ids.sublist(ids.indexOf('plugins'), ids.indexOf('about') + 1), ['plugins', 'plugin:notion', 'plugin:github', 'plugin:claude', 'calendar', 'contacts', 'about']);
+      expect(ids.sublist(ids.indexOf('plugins'), ids.indexOf('about') + 1), ['plugins', 'plugin:notion', 'plugin:github', 'plugin:claude', 'about']);
       registry.setEnabled('slack', true);
       registry.setEnabled('notion', false);
       expect([for (final spec in pluginPageSections()) (spec.id, spec.parent, spec.listed, spec.group)], [('plugin:github', 'plugins', false, 2), ('plugin:claude', 'plugins', false, 2), ('plugin:slack', 'plugins', false, 2)]);

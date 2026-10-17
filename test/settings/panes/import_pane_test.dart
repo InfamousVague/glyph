@@ -11,7 +11,10 @@ import 'package:ghost_md/importer/import_sources.dart';
 import 'package:ghost_md/importer/importer.dart';
 import 'package:ghost_md/settings/kit/settings_icons.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
+import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry, plugins, usePlugins;
 import 'package:ghost_md/settings/panes/import_pane.dart';
+import 'package:ghost_md/settings/settings_sections.dart' show importKinds, importSummary;
 import 'package:glacier/glacier.dart';
 
 import 'stage9_support.dart';
@@ -111,6 +114,46 @@ void main() {
     expect(off(tester, 'Todoist CSV export (.csv)'), isTrue);
     expect(off(tester, 'Paste from Things'), isTrue);
     expect(find.textContaining('a workspace of their own, named for the day'), findsOneWidget);
+    await endSettings(tester);
+  });
+
+  testWidgets('offers only the imports it is handed: a plugin’s page has its own card alone, with where an import goes under it', (tester) async {
+    await showPane(tester, 'Todoist', (context) => ImportPane(importer: FakeImporter(), kinds: const [ImportKind.todoist]), glyph: SettingsGlyph.folderInput);
+    await letRun(tester);
+    expect(rowLabels(tester), ['Completed tasks too', 'Todoist CSV export (.csv)']);
+    expect(find.text('A .ghostex file'), findsNothing);
+    expect(find.textContaining('a workspace of their own, named for the day'), findsOneWidget);
+    await endSettings(tester);
+    await showPane(tester, 'Things', (context) => ImportPane(importer: FakeImporter(), kinds: const [ImportKind.things]), glyph: SettingsGlyph.folderInput);
+    await letRun(tester);
+    expect(rowLabels(tester), ['Paste from Things']);
+    await endSettings(tester);
+  });
+
+  // Todoist and Things are each a plugin's (lib/plugins/todoist, things), off until switched on: Settings › Import
+  // offers them only while they are.
+  testWidgets('Settings › Import offers Todoist and Things only while their plugins are on', (tester) async {
+    final before = plugins;
+    addTearDown(() => usePlugins(before));
+    final registry = createRegistry(builtIn, store: MemorySwitches());
+    usePlugins(registry);
+    expect(importKinds(), [ImportKind.obsidian, ImportKind.evernote]);
+    expect(importSummary(importKinds()), 'From Obsidian or Evernote');
+    expect([for (final f in importFindableOf(importKinds())) f.name], ['Obsidian vault', 'Evernote export (.enex)', 'A .ghostex file']);
+    await openPane(tester, 'import');
+    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'A .ghostex file']);
+    await endSettings(tester);
+
+    registry.setEnabled('todoist', true);
+    registry.setEnabled('things', true);
+    expect(importSummary(importKinds()), 'From Obsidian, Evernote, Todoist or Things');
+    await openPane(tester, 'import');
+    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'Completed tasks too', 'Todoist CSV export (.csv)', 'Paste from Things', 'A .ghostex file']);
+    await endSettings(tester);
+
+    // Each one's own page holds its import.
+    await openPane(tester, 'plugin:todoist');
+    expect(rowLabels(tester), ['Completed tasks too', 'Todoist CSV export (.csv)']);
     await endSettings(tester);
   });
 

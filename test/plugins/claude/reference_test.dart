@@ -24,7 +24,9 @@ void main() {
   });
   tearDown(() => TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger.setMockMethodCallHandler(SystemChannels.platform, null));
 
-  /// Settings open on Claude's page, as the app's sheet lists a plugin's: a sub-page of Plugins in its own colour.
+  /// Settings open on Claude's page, as the app's sheet lists a plugin's: a sub-page of Plugins in its own colour. The
+  /// page as the web has it, the connector's alone: the plugin's own page puts the app's Claude above it
+  /// (claude_pane_test.dart).
   Future<void> pane(WidgetTester tester, {String theme = 'light'}) async {
     final settings = claudePlugin.settings!;
     await pumpSettings(
@@ -35,7 +37,7 @@ void main() {
         goTo: const SettingsTarget('plugin:claude', nonce: 1),
         sections: [
           SettingsSection(id: 'plugins', label: 'Plugins', icon: const AppIcon(Lucide.puzzle, size: 16), group: 2, content: (context) => const SizedBox.shrink()),
-          SettingsSection(id: 'plugin:claude', label: claudePlugin.manifest.name, icon: const AppIcon(Lucide.bot, size: 16), group: 2, hue: settings.hue, listed: false, parent: 'plugins', content: settings.pane),
+          SettingsSection(id: 'plugin:claude', label: claudePlugin.manifest.name, icon: const AppIcon(Lucide.bot, size: 16), group: 2, hue: settings.hue, listed: false, parent: 'plugins', content: (context) => const ClaudePane()),
         ],
       ),
       prefs: Preferences(theme: theme),
@@ -220,8 +222,7 @@ void main() {
     }
 
     testWidgets('the drawer on a wide window', (tester) async {
-      final settings = claudePlugin.settings!;
-      await pumpSettings(tester, SingleChildScrollView(child: Builder(builder: settings.pane)), size: wideWindow);
+      await pumpSettings(tester, const SingleChildScrollView(child: ClaudePane()), size: wideWindow);
       await open(tester, 'How to connect');
       await shot(tester, 'claude-guide-wide-light');
     });

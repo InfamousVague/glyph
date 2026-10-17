@@ -21,6 +21,8 @@ import 'package:ghost_md/editor/media/rich_embeds/cards.dart';
 import 'package:ghost_md/editor/media/rich_embeds/oembed.dart';
 import 'package:ghost_md/editor/media/rich_embeds/players.dart';
 import 'package:ghost_md/editor/media/rich_embeds/providers.dart';
+import 'package:ghost_md/plugins/registry.dart';
+import 'package:ghost_md/plugins/rich_embeds/rich_embeds.dart';
 
 import '../../support/render.dart';
 import 'support.dart';
@@ -121,6 +123,41 @@ void main() {
   );
 
   RichEmbedCardState cardState(WidgetTester tester) => tester.state<RichEmbedCardState>(find.byType(RichEmbedCard));
+
+  // The cards are the Rich embeds plugin's (lib/plugins/rich_embeds): on by default, and off a plain link card.
+  group('the Rich embeds plugin', () {
+    late Registry before;
+    late Registry registry;
+    setUp(() {
+      before = plugins;
+      registry = createRegistry([richEmbedsPlugin], store: MemorySwitches());
+      usePlugins(registry);
+    });
+    tearDown(() => usePlugins(before));
+
+    testWidgets('ships on: a YouTube link is its rich card', (tester) async {
+      expect(richEmbedsManifest.standard, isTrue);
+      expect(richEmbedsOn(), isTrue);
+      await pump(tester, youtube);
+      expect(find.byKey(card), findsOneWidget);
+      expect(find.byKey(plain), findsNothing);
+    });
+
+    testWidgets('switched off, every such link is a plain link card and nothing is asked of its service; on again, rich', (tester) async {
+      registry.setEnabled(richEmbedsManifest.id, false);
+      await pump(tester, 'Watch\n$youtube\n$album');
+      expect(find.byKey(card), findsNothing);
+      expect(find.byType(RichEmbedCard), findsNothing);
+      // The video's line has the plain card any link has; a spotify: address, with no page, has none.
+      expect(find.byKey(plain), findsOneWidget);
+      expect(service.asked, isEmpty);
+      registry.setEnabled(richEmbedsManifest.id, true);
+      await tester.pump();
+      await tester.pump();
+      expect(find.byKey(card), findsOneWidget);
+      expect(find.byType(RichEmbedCard), findsNWidgets(2));
+    });
+  });
 
   group('a YouTube video', () {
     testWidgets('waits for YouTube with the video’s own still and the link’s words, and plays nothing', (tester) async {

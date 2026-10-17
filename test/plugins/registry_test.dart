@@ -85,24 +85,47 @@ void main() {
       expect(createRegistry([linked, optional], store: MemorySwitches()).storageKeys(), ['glyph-plugins', 'glyph-optional']);
     });
 
-    test('ships Notion, GitHub, Marks and Claude as standard, and Slack and Place reminders off until switched on, each within its manifest', () {
-      expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [('notion', true), ('github', true), ('marks', true), ('claude', true), ('slack', false), ('place-reminders', false)]);
+    test('ships Notion, GitHub, Marks, Claude and Rich embeds as standard, and Slack, Place reminders, Calendar, Contacts, Todoist and Things off until switched on, each within its manifest', () {
+      expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [
+        ('notion', true),
+        ('github', true),
+        ('marks', true),
+        ('claude', true),
+        ('slack', false),
+        ('place-reminders', false),
+        ('calendar', false),
+        ('contacts', false),
+        ('rich-embeds', true),
+        ('todoist', false),
+        ('things', false),
+      ]);
       for (final plugin in builtIn) {
         if (plugin.manifest.native != null) expect(plugin.manifest.declares(Permission.native), isTrue, reason: plugin.manifest.id);
         if (plugin.manifest.hosts.isNotEmpty) expect(plugin.manifest.declares(Permission.network), isTrue, reason: plugin.manifest.id);
       }
       // And they load: nothing among them reaches past its manifest.
-      expect(ids(createRegistry(builtIn, store: MemorySwitches()).enabled()), ['notion', 'github', 'marks', 'claude']);
+      expect(ids(createRegistry(builtIn, store: MemorySwitches()).enabled()), ['notion', 'github', 'marks', 'claude', 'rich-embeds']);
     });
 
     test('ships each with the manifest, the icon and the findable words the page gives it', () {
       final web = webBuiltIn();
-      // The page's five, then this app's own, which the page never had (Place reminders).
+      // The page's five, then this app's own, which the page never had.
       expect(ids(builtIn.take(web.length)), ids(web));
-      expect(ids(builtIn.skip(web.length)), ['place-reminders']);
+      expect(ids(builtIn.skip(web.length)), ['place-reminders', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things']);
       for (final (index, plugin) in builtIn.take(web.length).indexed) {
         final (ours, theirs) = (plugin.manifest, web[index].manifest);
         final id = ours.id;
+        // Claude here is the app's own Claude too (docs/CLAUDE_APP.md): its card says both halves, and its page
+        // finds the app's cards before the connector's, which are the web's.
+        if (id == 'claude') {
+          expect((ours.name, ours.author, ours.standard), (theirs.name, theirs.author, theirs.standard));
+          expect([for (final p in ours.permissions) p.kind], [for (final p in theirs.permissions) p.kind]);
+          expect(ours.hosts, ['api.anthropic.com', ...theirs.hosts]);
+          expect((plugin.icon, plugin.settings?.hue), (web[index].icon, web[index].settings?.hue));
+          final names = [for (final s in plugin.settings!.settings) s.name];
+          expect(names, ['Ask Claude', 'API key', 'Model', 'Ask Claude note', for (final s in web[index].settings!.settings) s.name]);
+          continue;
+        }
         expect((ours.name, ours.description, ours.version, ours.author, ours.standard), (theirs.name, theirs.description, theirs.version, theirs.author, theirs.standard), reason: id);
         expect([for (final p in ours.permissions) (p.kind, p.why)], [for (final p in theirs.permissions) (p.kind, p.why)], reason: id);
         expect(ours.hosts, theirs.hosts, reason: id);
@@ -119,9 +142,9 @@ void main() {
       addTearDown(() => usePlugins(before));
       final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
       expect(identical(plugins, registry), isTrue);
-      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders']);
-      // Local only holds off every one that uses the internet; Place reminders, which never leaves the phone, is
-      // only off until switched on.
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'place-reminders', 'calendar', 'contacts', 'rich-embeds', 'todoist', 'things']);
+      // Local only holds off every one that uses the internet; Place reminders, Contacts and Things, which never
+      // leave the phone, are only off until switched on.
       expect(ids(registry.enabled()), ['marks']);
       registry.setEnabled('place-reminders', true);
       expect(ids(registry.enabled()), ['marks', 'place-reminders']);

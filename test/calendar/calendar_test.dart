@@ -4,6 +4,7 @@
 // switched on, and Google forgotten. Against calendars in memory, on a clock of the test's own.
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/calendar/calendar.dart';
@@ -11,6 +12,8 @@ import 'package:ghost_md/calendar/setup.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarPlugin;
+import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry;
 
 import 'fake_google.dart';
 
@@ -206,6 +209,58 @@ void main() {
       expect(calendar.connecting, isFalse);
       expect(calendar.problem, contains('ran out of time'));
       calendar.dispose();
+    });
+  });
+
+  // The Calendar plugin's switch (lib/plugins/calendar), handed to start by the app's root.
+  group('under the Calendar plugin', () {
+    test('switched off reads nothing and shows no event, keeping what it read; switched on shows it at once and reads soon', () async {
+      final first = service();
+      await first.addAddress(work);
+      first.dispose();
+      fetched.clear();
+
+      final on = ValueNotifier<bool>(false);
+      final calendar = service()..start(on: () => on.value, switched: on);
+      expect(calendar.active, isFalse);
+      expect(calendar.events.value, isEmpty);
+      expect(calendar.queryEvents(), isEmpty);
+      await calendar.syncNow();
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+      expect(fetched, isEmpty);
+
+      on.value = true;
+      expect([for (final e in calendar.events.value) e.title], ['Standup', 'Standup']);
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      expect(fetched, [work]);
+
+      on.value = false;
+      expect(calendar.events.value, isEmpty);
+      calendar.dispose();
+      on.dispose();
+    });
+
+    test('a service started with no switch is always on', () {
+      final calendar = service()..start();
+      expect(calendar.active, isTrue);
+      calendar.dispose();
+    });
+
+    test('ships off, and finds a device that already had a calendar in use', () async {
+      expect(calendarManifest.standard, isFalse);
+      final unused = service();
+      expect(calendarInUse(unused), isFalse);
+      await unused.addAddress(work);
+      expect(calendarInUse(unused), isTrue);
+      unused.dispose();
+      final registry = createRegistry([calendarPlugin], store: MemorySwitches());
+      expect(registry.isEnabled('calendar'), isFalse);
+      registry.adopt('calendar', inUse: true);
+      expect(registry.isEnabled('calendar'), isTrue);
+      // Once: switched off after, it stays off.
+      registry.setEnabled('calendar', false);
+      registry.adopt('calendar', inUse: true);
+      expect(registry.isEnabled('calendar'), isFalse);
     });
   });
 }
