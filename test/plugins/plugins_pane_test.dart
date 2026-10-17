@@ -37,8 +37,9 @@ import 'support.dart';
 
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
 
-/// The five that ship, with nothing switched by hand: what the web page was measured over.
-Registry shippedRegistry() => createRegistry(builtIn, store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
+/// The five that ship, with nothing switched by hand: what the web page was measured over. Webhooks, the port's own
+/// sixth (lib/integrations/webhooks/plugin.dart), is not on the page, so not among them: its card is held below.
+Registry shippedRegistry() => createRegistry([for (final plugin in builtIn) if (plugin.manifest.id != 'webhooks') plugin], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
 
 /// Makes [registry] the app's for this test.
 Registry install(WidgetTester tester, Registry registry) {

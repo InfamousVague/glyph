@@ -85,8 +85,8 @@ void main() {
       expect(createRegistry([linked, optional], store: MemorySwitches()).storageKeys(), ['glyph-plugins', 'glyph-optional']);
     });
 
-    test('ships Notion, GitHub, Marks and Claude as standard, and Slack off until switched on, each within its manifest', () {
-      expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [('notion', true), ('github', true), ('marks', true), ('claude', true), ('slack', false)]);
+    test('ships Notion, GitHub, Marks and Claude as standard, and Slack and Webhooks off until switched on, each within its manifest', () {
+      expect([for (final p in builtIn) (p.manifest.id, p.manifest.standard)], [('notion', true), ('github', true), ('marks', true), ('claude', true), ('slack', false), ('webhooks', false)]);
       for (final plugin in builtIn) {
         if (plugin.manifest.native != null) expect(plugin.manifest.declares(Permission.native), isTrue, reason: plugin.manifest.id);
         if (plugin.manifest.hosts.isNotEmpty) expect(plugin.manifest.declares(Permission.network), isTrue, reason: plugin.manifest.id);
@@ -97,8 +97,10 @@ void main() {
 
     test('ships each with the manifest, the icon and the findable words the page gives it', () {
       final web = webBuiltIn();
-      expect(ids(builtIn), ids(web));
-      for (final (index, plugin) in builtIn.indexed) {
+      // Webhooks is the port's own (lib/integrations/webhooks/plugin.dart): the page has no such plugin.
+      final shared = [for (final plugin in builtIn) if (plugin.manifest.id != 'webhooks') plugin];
+      expect(ids(shared), ids(web));
+      for (final (index, plugin) in shared.indexed) {
         final (ours, theirs) = (plugin.manifest, web[index].manifest);
         final id = ours.id;
         expect((ours.name, ours.description, ours.version, ours.author, ours.standard), (theirs.name, theirs.description, theirs.version, theirs.author, theirs.standard), reason: id);
@@ -117,7 +119,7 @@ void main() {
       addTearDown(() => usePlugins(before));
       final registry = installBuiltInPlugins(store: MemorySwitches(), localOnly: () => true);
       expect(identical(plugins, registry), isTrue);
-      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack']);
+      expect(ids(registry.all()), ['notion', 'github', 'marks', 'claude', 'slack', 'webhooks']);
       // Local only holds off every one that uses the internet.
       expect(ids(registry.enabled()), ['marks']);
     });
