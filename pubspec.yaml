@@ -29,6 +29,7 @@ dependencies:
   # Each platform's own settings: a player started by the tap that made it, and played in its card.
   webview_flutter_android: ^4.14.1
   webview_flutter_wkwebview: ^3.27.0
+  archive: ^4.5.2
 
 dev_dependencies:
   flutter_test:
