@@ -1,12 +1,13 @@
 /// Claude typing into an open note (docs/CLAUDE_APP.md, "Typing as Claude writes"): the words a tool's input
-/// carries put into the note's editor as they stream, a few letters a frame, at Claude's caret, with the note kept
-/// scrolled to it while it is followed.
+/// carries put into the note's editor as they stream, a word at a time at a reading pace ([TypingPacer]), at
+/// Claude's caret, with the note kept scrolled to it while it is followed. The caret and the scrolling go with the
+/// words let in, not the words the stream has handed over.
 ///
 /// The note's editor stays its one writer (lib/root/note_desk.dart): what is typed here is an ordinary change of the
 /// editor's, saved by the note's own saving, carried to the note's live document where it is bound (so another
 /// device with the note open sees it arrive too), and undone by the person's undo like their own. It is said as
-/// Claude's (`userEvent: 'claude.type'`), and rises out of smoke where Ghostly typing is on and the note draws
-/// arrivals.
+/// Claude's (`userEvent: 'claude.type'`), and clears out of a brief, light smoke ([WispKind.typed]) where Ghostly
+/// typing is on and the note draws arrivals.
 ///
 /// Claude's caret is drawn as a member's is (lib/live/editor_binding.dart [RemoteCaretWidget]), in Claude's colour
 /// with its name on it, from a field of its own ([claudeTyping]) that rides every change, the person's included: what
@@ -17,11 +18,11 @@ library;
 import 'dart:async';
 
 import 'package:flutter/scheduler.dart';
-import 'package:flutter/widgets.dart' hide Decoration;
 
 import '../editor/editor.dart';
 import '../editor/marks/wisp_motion.dart' show WispKind, wisp;
 import '../live/editor_binding.dart' show RemoteCaretWidget;
+import 'typing_pacer.dart';
 
 /// The hue Claude's caret is drawn in, the presence's own for an AI (docs/CLAUDE_LIVE.md, "Who Claude is").
 const String claudeHue = 'violet';
@@ -124,7 +125,8 @@ void clearClaudeCaret(EditorViewLike view) {
 /// Claude typing into one editor, for one tool call.
 class NoteTyper {
   /// [follow] says whether the note is followed (kept scrolled to the caret); [smoke] whether words rise out of
-  /// smoke. [frame] is how often letters are put in; a test's clock may make it anything.
+  /// smoke. [frame] is how often the pace is asked for words; a test's clock may make it anything. The pace's
+  /// clock is the frames counted, so a test's fake time is the typer's time too.
   /// [open] says whether the editor is still the note's on screen; once it is not, what is left is kept for the
   /// tool to write behind it ([left], at [lastAt]).
   /// [onTouched] is told once when the person first presses or types in the note while it is followed.
@@ -156,7 +158,15 @@ class NoteTyper {
   bool get whole => _left.isEmpty && _broken == false;
   bool _broken = false;
 
-  final StringBuffer _waiting = StringBuffer();
+  /// What the stream has handed over and the pace has not let in yet.
+  final TypingPacer _pacer = TypingPacer();
+
+  /// The pace's clock: the frames counted while the ticker runs ([_ticked], from its own count, so a frame the
+  /// event loop was too busy for is still counted), standing still while there is nothing to type.
+  Duration _clock = Duration.zero;
+  Duration _ticked = Duration.zero;
+  Duration get _now => _clock + _ticked;
+
   Timer? _ticker;
   Completer<void>? _drained;
   bool _done = false;
@@ -166,14 +176,15 @@ class NoteTyper {
   bool get touched => claudeTouchesOf(view.state) > _touchesAtStart;
 
   /// Whether the editor can still be typed into.
-  /// [open] asked at most every quarter second: on screen it is a look through the whole tree.
+  /// [open] asked at most every quarter second of the typer's frames while it types: on screen it is a look through
+  /// the whole tree. Between runs of words, where the frames stand still, it is asked each time.
   bool _openNow = true;
-  DateTime? _openAsked;
+  Duration? _openAsked;
 
   bool _stillOpen() {
-    final now = DateTime.now();
+    final now = _now;
     final asked = _openAsked;
-    if (asked == null || now.difference(asked) >= const Duration(milliseconds: 250)) {
+    if (_ticker == null || asked == null || now - asked >= const Duration(milliseconds: 250)) {
       _openAsked = now;
       _openNow = open();
     }
@@ -216,56 +227,59 @@ class NoteTyper {
       _left.write(text);
       return;
     }
-    _waiting.write(text);
-    _ticker ??= Timer.periodic(frame, (_) => _tick());
+    _pacer.add(text, _now);
+    _ticker ??= Timer.periodic(frame, _tick);
   }
 
   /// Settles once everything given to [type] is in.
   Future<void> drained() {
-    if (_waiting.isEmpty) return Future<void>.value();
+    if (_pacer.isEmpty) return Future<void>.value();
     return (_drained ??= Completer<void>()).future;
   }
 
-  /// Puts everything waiting in at once (Stop, or a test).
+  /// Puts everything waiting in at once (Stop, a stream that broke, or a test).
   void flush() {
-    if (_waiting.isEmpty) return;
-    final text = _waiting.toString();
-    _waiting.clear();
-    _put(text);
+    if (_pacer.isEmpty) return;
+    _put(_pacer.flush());
+    _stopTicking();
     _settled();
   }
 
-  /// Ends the call: what waits is put in. The caret stays where Claude last typed (Matt: "If we follow Claude I
-  /// also want to see a cursor where Claude last typed"), until the run ends ([clearClaudeCaret]) or Claude types
-  /// somewhere else in this note.
+  /// Ends the call: what waits is put in, at its pace, a word left waiting for its end at once. The caret stays
+  /// where Claude last typed (Matt: "If we follow Claude I also want to see a cursor where Claude last typed"),
+  /// until the run ends ([clearClaudeCaret]) or Claude types somewhere else in this note.
   Future<void> end() async {
+    _pacer.finish();
     await drained();
     _done = true;
-    _ticker?.cancel();
+    _stopTicking();
+  }
+
+  void _stopTicking() {
+    if (_ticker == null) return;
+    _clock = _now;
+    _ticked = Duration.zero;
+    _ticker!.cancel();
     _ticker = null;
   }
 
-  void _tick() {
-    if (_waiting.isEmpty) {
-      _ticker?.cancel();
-      _ticker = null;
+  void _tick(Timer timer) {
+    _ticked = frame * timer.tick;
+    if (_pacer.isEmpty) {
+      _stopTicking();
       _settled();
       return;
     }
-    final text = _waiting.toString();
-    // A hand's pace for a short wait; for a long one, enough a frame that the words never fall more than about
-    // half a second behind Claude.
-    var take = text.length <= 24 ? 2 : (text.length / 30).ceil();
-    if (take > text.length) take = text.length;
-    // Never half of a letter.
-    if (take < text.length) {
-      final unit = text.codeUnitAt(take - 1);
-      if (unit >= 0xD800 && unit <= 0xDBFF) take += 1;
+    if (!alive) {
+      // The note went under Claude: what waits is kept for the tool to write behind it, at once.
+      _put(_pacer.flush());
+      _stopTicking();
+      _settled();
+      return;
     }
-    _waiting.clear();
-    _waiting.write(text.substring(take));
-    _put(text.substring(0, take));
-    if (_waiting.isEmpty) _settled();
+    final text = _pacer.release(_now);
+    if (text.isNotEmpty) _put(text);
+    if (_pacer.isEmpty) _settled();
   }
 
   void _settled() {
@@ -279,8 +293,7 @@ class NoteTyper {
     if (at == null) {
       _broken = true;
       _left.write(text);
-      _left.write(_waiting.toString());
-      _waiting.clear();
+      _left.write(_pacer.flush());
       return;
     }
     final place = at.clamp(0, view.state.doc.length);
@@ -303,7 +316,7 @@ class NoteTyper {
       view.dispatch(TransactionSpec(
         changes: changes,
         effects: effects,
-        annotations: <Annotation<Object?>>[if (smoky && changes != null && smoke()) wisp.of(WispKind.heard)],
+        annotations: <Annotation<Object?>>[if (smoky && changes != null && smoke()) wisp.of(WispKind.typed)],
         userEvent: 'claude.type',
       ));
       SchedulerBinding.instance.ensureVisualUpdate();
