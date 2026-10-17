@@ -38,6 +38,9 @@ async function bundle(entry, name, target) {
     banner: { js: "#!/usr/bin/env node\nimport { createRequire as __createRequire } from 'node:module'; const require = __createRequire(import.meta.url);" },
     // The sign-in page's typeface rides inside the hosted bundle as a data URL (mcp/loginPage.ts).
     loader: { '.woff2': 'dataurl' },
+    // `ws` (the relay's socket, mcp/live.ts) asks for these native speed-ups inside a try and does without them:
+    // left out of the bundle, the ask fails at run time and is caught, as on a machine that never installed them.
+    external: ['bufferutil', 'utf-8-validate'],
     legalComments: 'none',
     logLevel: 'warning',
   });
