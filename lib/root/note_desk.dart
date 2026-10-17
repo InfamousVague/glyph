@@ -157,6 +157,7 @@ import '../integrations/contacts/contact_picker.dart' show pickContact;
 import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
+import '../editor/ai/wisp_arrivals.dart' show wispArrivals;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/suggestions/suggestions.dart' show suggestions;
@@ -630,10 +631,11 @@ class NoteDeskState extends State<NoteDesk> {
     final ai = _ai;
     if (ai != null) return Extension.list(noteAiExtensions(ai, still: _still, wispTyping: _ghostly));
     return Extension.list(<Extension>[
-      // What the person takes out leaves as smoke only with Ghostly typing on, read as the editor is made
-      // (`wispTyping={prefs.wisp}`). The AI's arrivals bring the departures themselves: given twice, every ghost is
-      // drawn twice.
-      if (_ghostly) wispDepartures(),
+      // Claude's words arrive out of smoke, settled by the arrivals' own plugin: departures alone kept every arrival
+      // in the field unsettled. What the person takes out leaves as smoke only with Ghostly typing on, read as the
+      // editor is made (`wispTyping={prefs.wisp}`). The arrivals bring the departures themselves: given twice, every
+      // ghost is drawn twice.
+      wispArrivals(typing: _ghostly),
       // With no AI a note's blanks are still drawn, as squares with no Fill: the page's `blankSquares(null)`
       // (Editor.tsx), which every note has. An iPhone's say why there is no Fill when one is pressed
       // (iphone_wiring.dart).
