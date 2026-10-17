@@ -21,8 +21,8 @@
 ///   where it came from, the pictures and files it names, and its recording's length and phrases. The workspaces are
 ///   listed with their names, hues and parents, an organization's with the organization's id; the notebooks with
 ///   their pages.
-/// - **A recording** is the core's own (a RIFF WAV, `CoreFiles` `recording`), so it is `recordings/<id>.wav`; the
-///   contract's `.m4a` is the extension a compressed one would have, and none is kept as one.
+/// - **A recording** is the core's own (a RIFF WAV, `CoreFiles` `recording`), so it is `recordings/<id>.wav`, where
+///   the contract first said `.m4a`: no recording is kept compressed.
 /// - **Options** ([GhostexOptions]): archived notes, organizations' notes and recordings are each left out unless
 ///   ticked; notes in the trash are never in it. "Protect with a password" seals the whole ZIP afterwards
 ///   (lib/export/ghostex_seal.dart).

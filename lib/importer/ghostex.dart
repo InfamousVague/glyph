@@ -22,6 +22,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:archive/archive_io.dart';
 
@@ -33,6 +34,23 @@ import '../core/note.dart';
 import '../core/workspaces.dart';
 import '../export/ghostex.dart' show ghostexFormat, ghostexVersion;
 import 'import_report.dart';
+
+/// The size past which an entry is copied out of the ZIP on an isolate of its own.
+const int _apart = 8 * 1024 * 1024;
+
+/// The entry [name] of the ZIP at [zip] copied out to the file at [to], a megabyte at a time, on an isolate.
+Future<void> _copyOutApart(String zip, String name, String to) => Isolate.run(() async {
+      final input = InputFileStream(zip);
+      final output = OutputFileStream(to);
+      try {
+        final entry = ZipDecoder().decodeStream(input).findFile(name);
+        if (entry == null) throw StateError('$name is not in the file.');
+        entry.writeContent(output);
+      } finally {
+        await output.close();
+        await input.close();
+      }
+    });
 
 /// What a note whose id is already here becomes.
 enum GhostexCollision {
@@ -192,6 +210,12 @@ Future<GhostexReport> importGhostex(String zip, GhostexTarget target, {GhostexCo
       final dir = Directory(target.temp);
       await dir.create(recursive: true);
       final to = '${dir.path}/.${DateTime.now().microsecondsSinceEpoch}-$step.ghostex-part';
+      // A long recording is copied out on an isolate of its own, so the screen keeps its frames; a picture is
+      // quicker here than the ZIP's directory read again there.
+      if (file.size > _apart) {
+        await _copyOutApart(zip, file.name, to);
+        return to;
+      }
       final stream = OutputFileStream(to);
       try {
         file.writeContent(stream);

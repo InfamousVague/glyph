@@ -288,6 +288,19 @@ void main() {
     }, skip: skip);
   });
 
+  test('a long recording is streamed in and out whole, on an isolate of its own', () async {
+    final from = everything();
+    addTearDown(from.dispose);
+    final long = [...wav, ...List<int>.generate(9 * 1024 * 1024, (i) => i * 31 & 0xff)];
+    from.putRecording('spoken', long);
+    final into = GhostexDevice();
+    addTearDown(into.dispose);
+    final report = await importGhostex(await exported(from), into.target());
+    expect(report.recordings, 1);
+    expect(into.recording('spoken'), long);
+    expect(Directory('${into.root.path}/temp').listSync(), isEmpty, reason: 'nothing left on its way out');
+  });
+
   test('Settings’ calls write the file under its name, the last one cleared away', () async {
     final from = everything();
     addTearDown(from.dispose);

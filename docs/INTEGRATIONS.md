@@ -93,7 +93,7 @@ manifest.json                  { format: "ghostex", version: 1, exportedAt, app,
 notes/<workspace>/<title>.md   each note's markdown, as kept, front matter included
 pictures/<name>                the pictures the notes name
 files/<name>                   attachments
-recordings/<note id>.m4a       only when "Include recordings" is ticked
+recordings/<note id>.wav       only when "Include recordings" is ticked (the core keeps a recording as WAV)
 ```
 
 `manifest.json` lists every note with its id, path in the ZIP, title, created, updated, pinned, archived, workspace,
@@ -101,6 +101,14 @@ organization and tags. Options: include archived notes, include organizations' n
 "Protect with a password" (the ZIP sealed whole with AES-256-GCM under a key derived from the password, as the
 account's own key is). Settings › Import › A .ghostex file reads one back: every note made again (a note whose id is
 already here is skipped, or kept as a copy, as chosen), with its pictures and files.
+
+As built (lib/export/ghostex.dart, ghostex_seal.dart, ghostex_calls.dart; lib/importer/ghostex.dart): a protected file
+is `GHOSTEX1` ‖ version (1 byte) ‖ PBKDF2 rounds (4 bytes, big-endian) ‖ salt (16 random bytes) ‖ the ZIP's own
+random key wrapped under the password's (iv ‖ key ‖ tag, 60 bytes) ‖ the whole ZIP sealed under it (1 ‖ iv ‖
+AES-256-GCM ‖ tag, context `ghostex`). The core lets a derived password key wrap and never seal, as with the account
+key, so the ZIP has a key of its own. An organization's notes come back as the person's own, in a workspace of the
+organization's name: an import never shares. Opened from Android's Files (a VIEW filter on the `.ghostex` ending) or
+the Mac's Finder (`com.mattssoftware.ghostex`), the file lands in Settings › Import.
 
 ## Ownership
 

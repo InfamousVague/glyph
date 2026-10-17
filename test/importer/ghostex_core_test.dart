@@ -8,7 +8,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show TargetPlatform;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/core_library.dart';
 import 'package:ghost_md/core/native/files.dart';
