@@ -19,8 +19,10 @@
   files.bookmarks.app-scope: the chosen library folder kept past a launch, as a security-scoped bookmark in the
     app's own defaults (macos/Runner/FilesChannel.swift `restoreGrants`). Without it the folder would be lost at
     every quit.
+  personal-information.addressbook: the Mac's contacts, read once the person turns Settings › Contacts on
+    (lib/integrations/contacts), for a person named on a to-do. Read only, and nothing of them leaves the Mac.
 
-  Not here, on purpose: no camera, no location, no contacts or calendars, no Apple Events, no home-relative or
+  Not here, on purpose: no camera, no location, no calendars, no Apple Events, no home-relative or
   absolute-path exceptions, no Downloads/Pictures/Music folders, no JIT, no unsigned memory, no disabled library
   validation (every library in the bundle is signed by the same team), no app groups.
 -->
@@ -35,6 +37,8 @@
 	<key>com.apple.security.files.user-selected.read-write</key>
 	<true/>
 	<key>com.apple.security.files.bookmarks.app-scope</key>
+	<true/>
+	<key>com.apple.security.personal-information.addressbook</key>
 	<true/>
 </dict>
 </plist>

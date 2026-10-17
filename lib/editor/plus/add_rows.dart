@@ -23,6 +23,9 @@
 ///   fence, stage 5), [AddGates.database] (a query's fence, stage 5) and [AddGates.blank] (a blank for the AI,
 ///   stage 8). Each is on unless said, so the rows and their order are the web's; the screen turns them off until
 ///   the editor draws them. With the database off a board is one write, not a page of two.
+/// - **A person**, the port's own (lib/integrations/contacts, docs/INTEGRATIONS.md §2): a contact picked from the
+///   phone's address book, written as `@Sam-Ortiz` at the caret ([writePerson]). There only where Settings ›
+///   Contacts is on ([AddGates.person]).
 /// - **The effects are handed in** ([PlusEffect]), where the web asked its plugin registry
 ///   (`plugins.formats()`): the marks are another piece's (lib/editor/marks).
 /// - **A row's id is a string** (`'picture'`, `'query:week'`, `'effect:Heat'`), as it is on the page.
@@ -62,7 +65,7 @@ import 'query_templates.dart';
 /// choosing a note or a canvas.
 enum AddStep { more, board, database, note, canvas }
 
-/// A row as the list draws it. [id] is one of `picture`, `video`, `file`, `scan`, `place`, `time`, `table`, `note`, `todo`, `more`,
+/// A row as the list draws it. [id] is one of `picture`, `video`, `file`, `scan`, `place`, `time`, `table`, `note`, `person`, `todo`, `more`,
 /// `heading`, `bullets`, `numbers`, `quote`, `callout`, `choice`, `code`, `divider`, `board`, `query`,
 /// `query:<template>`, `dated`, `ticket`, `chart`, `formula`, `canvas`, `footnote`, `tag`, `counter`, `sum`,
 /// `blank`, `blankCells`, `effect:<name>`.
@@ -115,6 +118,7 @@ class AddGates {
     this.board = true,
     this.database = true,
     this.blank = true,
+    this.person = false,
   });
 
   final bool picture;
@@ -143,6 +147,9 @@ class AddGates {
 
   /// The app fills a blank.
   final bool blank;
+
+  /// A contact can be picked from the phone's address book: Settings › Contacts is on.
+  final bool person;
 }
 
 /// The gates, for a screen that can do these (a picture picker, a video, a place, a note to link, a canvas to
@@ -161,6 +168,7 @@ AddGates readGates({
   bool board = true,
   bool database = true,
   bool blank = true,
+  bool person = false,
   List<PlusEffect> effects = const <PlusEffect>[],
 }) => AddGates(
   picture: picture,
@@ -176,6 +184,7 @@ AddGates readGates({
   board: board,
   database: database,
   blank: blank,
+  person: person,
 );
 
 // ---- the moment, in words (core/stamp.ts, core/noteNames.ts) -----------------------------------------------------------
@@ -254,6 +263,8 @@ List<AddRow> topRows(AddGates gates, DateTime now, [bool naming = false]) {
     if (gates.board) AddRow(id: 'board', words: 'A board', step: gates.database ? AddStep.board : null),
     if (gates.database) const AddRow(id: 'query', words: 'A database', step: AddStep.database),
     if (gates.note) const AddRow(id: 'note', words: 'A note', step: AddStep.note),
+    // Someone from the phone's contacts, by name, where Settings › Contacts is on.
+    if (gates.person) const AddRow(id: 'person', words: 'A person'),
     const AddRow(id: 'todo', words: 'A to-do'),
     const AddRow(id: 'more', words: 'More', step: AddStep.more),
   ];
@@ -569,6 +580,15 @@ bool writeRow(StateCommandTarget view, String id, DateTime now, {List<PlusEffect
 /// A link to another note at the caret: `[[Title]]`, spaced from the words around it.
 void writeNoteLink(StateCommandTarget view, String title) {
   view.dispatch(applyPlan(view.state, wordsPlan(view.state, view.state.selection.main.head, '[[$title]]'), userEvent: 'input.plus', hasFocus: _focused(view)));
+}
+
+/// A person at the caret: `@Sam-Ortiz`, spaced from the words around it, as a contact picked writes them. A name
+/// with nothing a handle can be made of writes nothing.
+bool writePerson(StateCommandTarget view, String name) {
+  final handle = personHandle(name);
+  if (handle == null) return false;
+  view.dispatch(applyPlan(view.state, wordsPlan(view.state, view.state.selection.main.head, '@$handle'), userEvent: 'input.plus', hasFocus: _focused(view)));
+  return true;
 }
 
 /// A canvas drawn in a frame, on a line of its own: `![[Title]]`.

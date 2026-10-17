@@ -11,6 +11,9 @@
 ///   [FieldMenuHost], and the band when it is ported), and to the [fieldTaps] facet's listeners.
 /// - `pickDay` opens the phone's own date picker from a hidden `<input type="date">`. A Flutter app has no such
 ///   input: the picker is whatever [dayPicker] says, which the app fills with its own calendar.
+/// - The port's own, with Settings › Contacts (lib/integrations/contacts, docs/INTEGRATIONS.md §2): a person who is
+///   a contact opens their card on a tap ([personCard]) in place of their page, and Assign offers A person, a
+///   contact picked from the phone's ([personPicker]). Neither is there where the app gives neither.
 library;
 
 import 'dart:ui' show Offset;
@@ -105,13 +108,36 @@ final Expando<ValueNotifier<FieldTap?>> _tapped = Expando<ValueNotifier<FieldTap
 /// The chip last tapped in `view`, for the menu to open at; set back to null when the menu closes.
 ValueNotifier<FieldTap?> fieldTapOf(EditorViewLike view) => _tapped[view] ??= ValueNotifier<FieldTap?>(null);
 
-/// Tells the menu a chip was tapped.
+/// Tells the menu a chip was tapped: a person who is a contact opens their card instead, where the app has one.
 void tapField(EditorViewLike view, FieldTap tap) {
   for (final heard in view.state.facet(fieldTaps)) {
     heard(tap);
   }
+  if (tap.page case PersonPage(:final name)) {
+    final card = view.state.facet(personCard);
+    if (card != null && card(view, tap, name)) return;
+  }
   fieldTapOf(view).value = tap;
 }
+
+/// Opens the card of the person a tapped chip names, where they are a contact (lib/integrations/contacts); answers
+/// whether it did, and false leaves the tap to the menu, which opens the person's page as before.
+typedef PersonCardOpener = bool Function(EditorViewLike view, FieldTap tap, String name);
+
+/// The app's person cards. None, and a person's chip opens their page.
+final Facet<PersonCardOpener, PersonCardOpener?> personCard = Facet.define<PersonCardOpener, PersonCardOpener?>(combine: (values) => values.isEmpty ? null : values.first);
+
+/// A contact picked from the phone's address book, for A person: whether it is offered now (Settings › Contacts on
+/// and allowed), and the picking, from where the press was, which answers the name to write or null for none.
+class PersonPicking {
+  const PersonPicking({required this.offered, required this.pick});
+
+  final bool Function() offered;
+  final Future<String?> Function(Offset at) pick;
+}
+
+/// The app's contact picker. None, or not offered now, and Assign has no A person.
+final Facet<PersonPicking, PersonPicking?> personPicker = Facet.define<PersonPicking, PersonPicking?>(combine: (values) => values.isEmpty ? null : values.first);
 
 // ---- the days on offer -------------------------------------------------------------------------------------------
 

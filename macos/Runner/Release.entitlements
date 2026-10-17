@@ -8,10 +8,15 @@
   device.audio-input: the microphone, only while a take or a meeting is recorded (macos/Runner/MicChannel.swift).
     A signed release runs under the hardened runtime, where the microphone is closed until this says otherwise:
     without it there is no prompt, and a recording of silence with no error to say why.
+  personal-information.addressbook: the Mac's contacts, read once the person turns Settings › Contacts on
+    (lib/integrations/contacts). The hardened runtime closes them as it closes the microphone: without it the Mac
+    never asks, and the switch is refused.
 -->
 <plist version="1.0">
 <dict>
 	<key>com.apple.security.device.audio-input</key>
+	<true/>
+	<key>com.apple.security.personal-information.addressbook</key>
 	<true/>
 </dict>
 </plist>

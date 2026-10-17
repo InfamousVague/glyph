@@ -7,7 +7,9 @@
 ///                     once it has passed and the box is not ticked, amber on the day, quiet once it is ticked
 ///     🛫 ⏳ ✅ ➕ ❌     the other days, quieter, each with its word: "Starts", "Scheduled", "Done", "Added"…
 ///     ⏫               a compact mark, the chevrons Jira draws, with the priority's name for a screen reader
-///     @sam             a person: their initial in a ring, and the name as written
+///     @sam             a person: their initial in a ring, and the name as written; once Settings › Contacts
+///                     matches them to a contact (lib/integrations/contacts), the contact's picture in the ring,
+///                     or their initials where they have none
 ///     🔁 every week    a small repeat mark and its words
 ///     [effort:: 3]     the key quiet, the value as written
 ///
@@ -23,6 +25,7 @@
 ///   newer CLDR, which dropped that comma) elsewhere. Other languages wait for the app's own.
 library;
 
+import 'dart:typed_data' show Uint8List;
 import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart' hide Decoration;
@@ -33,6 +36,8 @@ import '../../art/lucide.g.dart';
 import '../../core/days.dart';
 import '../../core/locale_dates.dart';
 import '../../core/task_fields.dart';
+import '../../integrations/contacts/contact_book.dart' show PhoneContact;
+import '../../integrations/contacts/contacts.dart';
 import '../../reminders/remind_choices.dart' show clockWords;
 import '../../reminders/reminder_syntax.dart' show readReminderTime;
 import '../looks/look.dart' show FaceMetrics, lineBoxHeight;
@@ -211,8 +216,21 @@ class FieldChip extends StatelessWidget {
   /// A tap on a chip that has a menu, with the chip's box on the screen.
   final void Function(Rect box)? onTap;
 
+  /// A person's chip follows Settings › Contacts: matched, it wears the contact's face.
   @override
   Widget build(BuildContext context) {
+    if (look.menu != FieldMenu.person || look.initial == null) return _chip(context, null, null);
+    final contacts = phoneContacts;
+    return ListenableBuilder(
+      listenable: contacts,
+      builder: (context, _) {
+        final contact = contacts.contactOf(look.key);
+        return _chip(context, contact, contact == null ? null : contacts.photoOf(contact));
+      },
+    );
+  }
+
+  Widget _chip(BuildContext context, PhoneContact? contact, Uint8List? photo) {
     final t = context.tokens;
     final run = EditorRunScope.maybeOf(context)?.look;
     final parent = run?.fontSize ?? t.len('app-body');
@@ -308,22 +326,33 @@ class FieldChip extends StatelessWidget {
       //   transparent)', color: 'inherit' }
       final size = 0.78 * em, ring = 1.25 * size;
       final done = tone == 'done';
-      final ringStyle = style.copyWith(
-        fontSize: size,
+      TextStyle ringStyleAt(double at) => style.copyWith(
+        fontSize: at,
         fontWeight: FontWeight.w700,
-        fontVariations: <FontVariation>[const FontVariation('wght', 700), if (run?.props.optical ?? false) FontVariation('opsz', size)],
+        fontVariations: <FontVariation>[const FontVariation('wght', 700), if (run?.props.optical ?? false) FontVariation('opsz', at)],
         color: done ? color : t.color('glacier-purple-11'),
       );
-      final ringFace = FaceMetrics.of(ringStyle);
-      final ringAscent = (ringFace.ascent * size).roundToDouble(), ringDescent = (ringFace.descent * size).roundToDouble();
-      // The ring's own baseline, in its one line of 1.25em.
-      final ringBaseline = ringAscent + ((ring - ringAscent - ringDescent) / 2).floorToDouble();
-      children.add(
-        Padding(
-          padding: EdgeInsetsDirectional.only(end: 0.28 * size),
-          child: Dropped(
-            top: baseline - 0.08 * size - ringBaseline,
-            child: Container(
+      // A line of one size in the ring: its baseline there, the ascent and descent to whole pixels.
+      double ringBaselineAt(double at) {
+        final face = FaceMetrics.of(ringStyleAt(at));
+        final ascent = (face.ascent * at).roundToDouble(), descent = (face.descent * at).roundToDouble();
+        return ascent + ((ring - ascent - descent) / 2).floorToDouble();
+      }
+
+      // The ring's place on the line is the initial's, whatever is drawn in it.
+      final ringBaseline = ringBaselineAt(size);
+      // A contact's two initials in the round of one are smaller, so they keep inside it.
+      final letters = contact?.initials ?? look.initial!;
+      final letterSize = letters.length > 1 ? 0.6 * em : size;
+      final letterStyle = ringStyleAt(letterSize);
+      final letterFace = FaceMetrics.of(letterStyle);
+      final Widget inRing = photo != null
+          // The contact's picture fills the ring; on a finished item it is quieted with the rest.
+          ? Opacity(
+              opacity: done ? 0.55 : 1,
+              child: ClipOval(child: SizedBox.square(dimension: ring, child: Image.memory(photo, fit: BoxFit.cover, gaplessPlayback: true))),
+            )
+          : Container(
               width: ring,
               height: ring,
               decoration: BoxDecoration(
@@ -335,17 +364,20 @@ class FieldChip extends StatelessWidget {
                 maxHeight: double.infinity,
                 alignment: Alignment.topCenter,
                 child: Dropped(
-                  top: ringBaseline - ringFace.ascent * size,
+                  top: ringBaselineAt(letterSize) - letterFace.ascent * letterSize,
                   child: Text(
-                    look.initial!,
+                    letters,
                     softWrap: false,
                     textScaler: TextScaler.noScaling,
-                    style: ringStyle.copyWith(height: ringFace.ascent + ringFace.descent),
+                    style: letterStyle.copyWith(height: letterFace.ascent + letterFace.descent),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+      children.add(
+        Padding(
+          padding: EdgeInsetsDirectional.only(end: 0.28 * size),
+          child: Dropped(top: baseline - 0.08 * size - ringBaseline, child: inRing),
         ),
       );
     }

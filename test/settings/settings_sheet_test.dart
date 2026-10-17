@@ -97,6 +97,8 @@ void main() {
         ('plugins', 2, SettingsGlyph.puzzle),
         // The port's own (2026-10-17): the calendars, a page behind Plugins.
         ('calendar', 2, SettingsGlyph.calendarDays),
+        // The port's own (2026-10-17): the phone's contacts for the people on to-dos, a page behind Plugins.
+        ('contacts', 2, SettingsGlyph.contact),
         ('about', 3, SettingsGlyph.info),
         ('cheatsheet', 3, SettingsGlyph.bookOpen),
         ('spec', 3, SettingsGlyph.fileCode),
@@ -104,9 +106,9 @@ void main() {
         ('developer', 4, SettingsGlyph.terminal),
         ('test-results', 4, SettingsGlyph.flaskConical),
       ]);
-      // The sub-pages are off the list: Daily notes, the port's own, behind Workspaces; Import behind Export; Calendar,
-      // the port's own, behind Plugins; the rest behind About.
-      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('calendar', 'plugins'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
+      // The sub-pages are off the list: Daily notes, the port's own, behind Workspaces; Import behind Export; Calendar
+      // and Contacts, the port's own, behind Plugins; the rest behind About.
+      expect([for (final spec in settingsSections) if (!spec.listed) (spec.id, spec.parent)], [('daily', 'workspaces'), ('import', 'export'), ('calendar', 'plugins'), ('contacts', 'plugins'), ('cheatsheet', 'about'), ('spec', 'about'), ('examples', 'about')]);
       // Every one is a page (lib/settings/panes/, and Appearance): none waits on a feature that is not ported.
       expect([for (final spec in settingsSections) if (spec.pane == null) spec.id], isEmpty);
       final web = Directory('tauri/src/app');

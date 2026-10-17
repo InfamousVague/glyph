@@ -17,6 +17,9 @@ import 'package:ghost_md/art/icon_wash.dart';
 const also = <String>[
   // lib/gallery/kit_gallery.dart: the menu's "Move to".
   'folder-input',
+  // lib/integrations/contacts: a contact's card (Call) and Settings › Contacts.
+  'phone',
+  'contact-round',
 ];
 
 const glyph = 'tauri';

@@ -16,6 +16,8 @@ import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
 import 'panes/claude_key_pane.dart';
+import 'panes/contacts_pane.dart';
+import '../integrations/contacts/contacts.dart' show phoneContacts;
 import 'panes/cheat_sheet.dart';
 import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
@@ -399,6 +401,21 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => calendarSummary(facts.prefs),
     settings: (facts) => calendarFindable(facts.prefs, offered: calendar.offered == true),
     pane: CalendarPane.hosted,
+    listed: false,
+    parent: 'plugins',
+  ),
+  // The phone's contacts for the people named on to-dos (docs/INTEGRATIONS.md §2): a page behind Plugins, as Calendar
+  // is, off the list and found by the search. The port's own, 2026-10-17; its file is Plugins'.
+  SettingsSectionSpec(
+    id: 'contacts',
+    label: 'Contacts',
+    words: 'contacts address book people person phone call text sms email picture assignee',
+    glyph: SettingsGlyph.contact,
+    group: 2,
+    webFile: 'plugins/PluginsPane.tsx',
+    summary: (facts) => contactsSummary(phoneContacts),
+    settings: (facts) => contactsFindable(phoneContacts),
+    pane: ContactsPane.hosted,
     listed: false,
     parent: 'plugins',
   ),

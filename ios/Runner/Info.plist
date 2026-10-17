@@ -68,6 +68,10 @@
 	     iPhone. -->
 	<key>NSCameraUsageDescription</key>
 	<string>Ghost.md uses the camera when you take a photo to add to a note.</string>
+	<!-- Settings › Contacts (lib/integrations/contacts): asked when the person turns the switch on there, never
+	     before. Read on the phone only. -->
+	<key>NSContactsUsageDescription</key>
+	<string>Ghost.md shows the picture of a person named on a to-do and lets you call, text or email them. Your contacts stay on this iPhone.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
