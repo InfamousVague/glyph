@@ -1,0 +1,7 @@
+{
+  "results": [
+    {"id": "s-later", "project_id": "6Jf8VQXxpwv56VQ8", "name": "Later", "section_order": 2, "is_archived": false},
+    {"id": "s-week", "project_id": "6Jf8VQXxpwv56VQ8", "name": "This week", "section_order": 1, "is_archived": false}
+  ],
+  "next_cursor": null
+}

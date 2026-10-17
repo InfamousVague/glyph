@@ -1,0 +1,7 @@
+{
+  "results": [
+    {"id": "6Jf8VQXxpwv56VQ7", "name": "Inbox", "description": "", "parent_id": null, "child_order": 0, "inbox_project": true, "is_archived": false, "view_style": "list"},
+    {"id": "6Jf8VQXxpwv56VQ8", "name": "Work", "description": "Everything for the office.", "parent_id": null, "child_order": 2, "is_archived": false, "view_style": "list"}
+  ],
+  "next_cursor": "page-2"
+}

@@ -90,7 +90,7 @@ final class FilesChannel: NSObject {
     switch call.method {
     case "chooseLibraryFolder": chooseLibraryFolder(result)
     case "chooseImportFolder": chooseImportFolder(result)
-    case "chooseImportFiles": chooseImportFiles(result)
+    case "chooseImportFiles": chooseImportFiles(args?["kind"] as? String ?? "enex", result)
     case "chooseExport": chooseExport(args?["name"] as? String ?? "", result)
     case "exportDone":
       exporting = nil
@@ -148,16 +148,22 @@ final class FilesChannel: NSObject {
     }
   }
 
-  /// Settings › Import › Evernote export: one or more `.enex` files, by their paths.
-  private func chooseImportFiles(_ result: @escaping FlutterResult) {
+  /// Settings › Import › Evernote export: one or more `.enex` files, by their paths; with `kind: "csv"`, Settings ›
+  /// Import › Todoist CSV export, one or more of a project's `.csv` exports.
+  private func chooseImportFiles(_ kind: String, _ result: @escaping FlutterResult) {
     let panel = NSOpenPanel()
-    panel.title = "Choose Evernote exports"
-    panel.message = "Choose one or more .enex files to import"
+    let csv = kind == "csv"
+    panel.title = csv ? "Choose Todoist exports" : "Choose Evernote exports"
+    panel.message = csv ? "Choose one or more of a Todoist project's .csv exports to import" : "Choose one or more .enex files to import"
     panel.prompt = "Import"
     panel.canChooseFiles = true
     panel.canChooseDirectories = false
     panel.allowsMultipleSelection = true
-    if let enex = UTType(filenameExtension: "enex") { panel.allowedContentTypes = [enex] }
+    if csv {
+      panel.allowedContentTypes = [UTType.commaSeparatedText]
+    } else if let enex = UTType(filenameExtension: "enex") {
+      panel.allowedContentTypes = [enex]
+    }
     panel.beginSheetOrRun(on: window) { urls in
       guard let urls = urls, !urls.isEmpty else { return result(FilesChannel.json(["cancelled": true])) }
       let files: [[String: Any]] = urls.map { url in

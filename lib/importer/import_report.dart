@@ -10,7 +10,7 @@ typedef ImportProgress = ({int done, int total, String? on});
 class ImportReport {
   ImportReport({required this.from});
 
-  /// `Obsidian` or `Evernote`.
+  /// `Obsidian`, `Evernote`, `Todoist` or `Things`.
   final String from;
 
   /// The workspace the import made, which holds everything it brought in; null where it brought in nothing.
@@ -25,6 +25,9 @@ class ImportReport {
   int notebooks = 0;
   int pictures = 0;
   int files = 0;
+
+  /// The to-dos written into those notes (Todoist's tasks, Things' to-dos), sub-tasks and checklist items among them.
+  int tasks = 0;
 
   /// What was left out, each a short line in the app's words: `.obsidian/, Obsidian's settings`.
   final List<String> skipped = [];
@@ -41,11 +44,12 @@ class ImportReport {
 String _count(int n, String one, [String? many]) => '$n ${n == 1 ? one : (many ?? '${one}s')}';
 
 /// What the import made, in one sentence: "42 notes, 2 canvases, 10 pictures and 3 files, in Imported from Obsidian
-/// 2026-10-16."
+/// 2026-10-16." A list's import counts its to-dos beside its notes: "4 notes, 37 to-dos and 1 notebook, …".
 String importDoneSaid(ImportReport report) {
   if (report.empty) return 'Nothing was imported.';
   final parts = [
     if (report.notes > 0) _count(report.notes, 'note'),
+    if (report.tasks > 0) _count(report.tasks, 'to-do'),
     if (report.notebooks > 0) _count(report.notebooks, 'notebook'),
     if (report.canvases > 0) _count(report.canvases, 'canvas', 'canvases'),
     if (report.pictures > 0) _count(report.pictures, 'picture'),

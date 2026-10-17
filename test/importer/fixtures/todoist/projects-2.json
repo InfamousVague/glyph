@@ -1,0 +1,7 @@
+{
+  "results": [
+    {"id": "6Jf8VQXxpwv56VQ9", "name": "Client: Acme [2026]", "description": "", "parent_id": "6Jf8VQXxpwv56VQ8", "child_order": 0, "is_archived": false, "view_style": "board"},
+    {"id": "6Jf8VQXxpwv56VR1", "name": "Home", "description": "", "parent_id": null, "child_order": 1, "is_archived": false, "view_style": "list"}
+  ],
+  "next_cursor": null
+}
