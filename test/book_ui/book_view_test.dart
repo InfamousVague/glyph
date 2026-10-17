@@ -1,6 +1,11 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
+import 'package:ghost_md/core/query/records.dart' show QueryNote;
+import 'package:ghost_md/editor/queries/queries.dart' show queries, QueryOptions;
+import 'package:ghost_md/editor/diagrams/diagrams.dart';
+import 'package:flutter/foundation.dart' show debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -32,6 +37,7 @@ import 'package:glacier/glacier.dart';
 import '../core/make_note.dart';
 import '../support/editor_text.dart';
 import 'support.dart';
+import '../editor/diagrams/support.dart' show HeldBridge, smallPicture;
 
 /// The index view: the chapters as rows that open their notes, a chapter not written yet said so, the three edits
 /// written back to the body, and the two ways to add one. And the bar and the foot a chapter wears. The web's
@@ -197,6 +203,126 @@ void main() {
       await tester.pump();
       expect(opened, ['Trees'], reason: 'the links of the drawing open, once');
       await away(tester);
+    });
+
+    // Matt, 2026-10-16, on the Mac: "on desktop I cant scroll down on the notebook page". The words drawn as a
+    // note's take a note's taps, and a wheel over them must still scroll the page they are on.
+    testWidgets('scrolls the page under a wheel over the notebook\'s own words drawn as a note\'s', (tester) async {
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      final long = [for (var i = 0; i < 60; i++) 'Line $i of the preface, with [[Trees]] in it.'].join('\n\n');
+      await show(
+        tester,
+        body: '---\ntitle: "Field guide"\nbook: true\n---\n$long\n\n| Month | Size |\n| --- | --- |\n| 2 | raspberry |\n\n1. [[Introduction]]\n',
+        scroll: scroll,
+        drawing: BookDrawing(
+          extensions: <Extension>[
+            drawnTables(),
+            itemExtensions(wiki: WikiOptions(known: (_) => true, open: (title, [anchor]) {})),
+          ],
+        ),
+      );
+      expect(scroll.offset, 0);
+      final over = editorTextRect(tester, 'Line 3 of').center;
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      await tester.sendEventToBinding(mouse.hover(over));
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
+      await tester.pump();
+      expect(scroll.offset, greaterThan(0), reason: 'the wheel over the words scrolls the page');
+      await away(tester);
+    });
+
+    testWidgets('on a Mac, a notebook page like Baby on the way takes the mouse, a click and the wheel', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      final bridge = HeldBridge();
+      diagramStore = DiagramStore(bridge: bridge, decode: smallPicture);
+      rememberDiagramHeights = false;
+      final scroll = ScrollController();
+      addTearDown(scroll.dispose);
+      const book = '---\ntitle: "Field guide"\nbook: true\n---\n# Field guide\n\nA preface with [[Trees]].\n\n'
+          '```mermaid\ngantt\n  dateFormat YYYY-MM-DD\n  section A\n  Scan :2026-12-14, 2027-01-18\n```\n\n'
+          '| Month | Size |\n| --- | --- |\n| 2 | raspberry |\n\n'
+          '```query\nfrom: tasks [[Field guide]]\nshow: count\n```\n\n'
+          '```query\nfrom: tasks [[Field guide]]\nshow: list\n```\n\n'
+          '```query\nfrom: tasks [[Field guide]]\nshow: calendar\n```\n\n'
+          '1. [[Introduction]]\n2. [[Trees]]\n';
+      final notes = <QueryNote>[
+        const QueryNote(id: 'b', body: book, createdAt: 1, updatedAt: 1),
+        const QueryNote(id: 'i', body: '# Introduction\n\n- [ ] Read it 📅 2026-10-20\n- [ ] And this', createdAt: 1, updatedAt: 1),
+      ];
+      await show(
+        tester,
+        body: book,
+        scroll: scroll,
+        drawing: BookDrawing(
+          extensions: <Extension>[
+            drawnTables(),
+            drawnMermaid(),
+            queries(() => QueryOptions(notes: () => notes, noteId: null, open: (id, line) {}, write: (id, change) {})),
+            itemExtensions(wiki: WikiOptions(known: (_) => true, open: (title, [anchor]) {})),
+          ],
+        ),
+      );
+      await tester.pump();
+      bridge.finish(0, block: const Size(390, 120), at: const Rect.fromLTWH(10, 10, 370, 100));
+      await tester.pump();
+      await tester.pump();
+      final mouse = TestPointer(1, PointerDeviceKind.mouse);
+      final preface = tester.getRect(find.byKey(const ValueKey('book-words-before')));
+      for (final y in <double>[preface.top + 20, preface.center.dy, preface.bottom - 20]) {
+        await tester.sendEventToBinding(mouse.hover(Offset(preface.center.dx, y)));
+        await tester.pump();
+      }
+      expect(tester.takeException(), isNull);
+      final at = Offset(preface.center.dx, preface.top + 40);
+      await tester.sendEventToBinding(mouse.hover(at));
+      await tester.sendEventToBinding(mouse.down(at));
+      await tester.sendEventToBinding(mouse.up());
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(tester.takeException(), isNull);
+      await tester.sendEventToBinding(mouse.scroll(const Offset(0, 300)));
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(scroll.offset, greaterThan(0), reason: 'the wheel over the words scrolls the page');
+      // A Mac's trackpad sends no wheel: two fingers are a pan, which the page's scroll and anything in the words
+      // that drags both hear.
+      scroll.jumpTo(0);
+      await tester.pump();
+      final pad = await tester.startGesture(at, kind: PointerDeviceKind.trackpad);
+      for (var i = 0; i < 10; i++) {
+        await pad.panZoomUpdate(at, pan: Offset(0, -30.0 * (i + 1)));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await pad.panZoomEnd();
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      expect(scroll.offset, greaterThan(0), reason: 'two fingers on a trackpad over the words scroll the page');
+      // And over each block the words draw: two fingers anywhere on the page move it.
+      for (final block in <Finder>[
+        find.byType(DrawnDiagram),
+        find.byType(DrawnTable),
+        find.text('to-dos').first,
+        find.text('Read it').first,
+        find.textContaining('October').first,
+      ]) {
+        scroll.jumpTo(0);
+        await tester.pump();
+        await tester.ensureVisible(block);
+        await tester.pump();
+        final before = scroll.offset;
+        final over = tester.getCenter(block);
+        final fingers = await tester.startGesture(over, kind: PointerDeviceKind.trackpad);
+        for (var i = 0; i < 10; i++) {
+          await fingers.panZoomUpdate(over, pan: Offset(0, -20.0 * (i + 1)));
+          await tester.pump(const Duration(milliseconds: 16));
+        }
+        await fingers.panZoomEnd();
+        await tester.pump();
+        expect(tester.takeException(), isNull);
+        expect(scroll.offset, greaterThan(before), reason: 'two fingers over $block scroll the page');
+      }
+      await away(tester);
+      debugDefaultTargetPlatformOverride = null;
     });
 
     testWidgets('moves a chapter, takes one out, and writes each change into the body', (tester) async {
