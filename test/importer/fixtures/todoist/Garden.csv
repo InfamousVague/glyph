@@ -1,0 +1,12 @@
+﻿TYPE,CONTENT,DESCRIPTION,PRIORITY,INDENT,AUTHOR,RESPONSIBLE,DATE,DATE_LANG,TIMEZONE,DURATION,DURATION_UNIT,DEADLINE,DEADLINE_LANG
+meta,view_style=list,,,,,,,,,,,,
+,,,,,,,,,,,,,
+task,Order seeds @shopping @spring,,1,1,Matt (14781400),,2026-10-20,en,,30,minute,,
+note,The heirloom ones,,,,,,,,,,,,
+task,"Fix the fence, again",,4,1,,,every Saturday,en,,,None,,
+section,Beds,Raised ones first.,,,,,,,,,,,
+task,Dig the bed,"Two spades deep.
+Then compost.",2,1,,,today at 11:00,en,,120,minute,2026-10-31,en
+task,"Find the ""good"" spade",,3,2,,,next monday,en,,,,,
+task,Oil it,,,3,,,Oct 25,en,,,,,
+task,Water,,4,1,,,,,,,,,

@@ -1,5 +1,5 @@
 /// What an import reads from: a folder the person chose (an Obsidian vault) or files they chose (Evernote's
-/// `.enex` exports), on this device, through the device's own picker.
+/// `.enex` exports, Todoist's `.csv` ones), on this device, through the device's own picker.
 ///
 /// - **On Android** the picker is the storage access framework's, over `ghost_md/files` (FilesBridge.kt, whose
 ///   import half is files/ImportTree.kt): `chooseImportFolder` grants a folder for this run, `importList` walks it,
@@ -237,9 +237,11 @@ class ImportPicker {
     return null;
   }
 
-  /// One or more files, or null when the picker was closed.
-  Future<List<ImportFile>?> chooseFiles() async {
-    final json = await _ask('chooseImportFiles', const {});
+  /// One or more files, or null when the picker was closed. [kind] is what the Mac's panel lets be chosen: `enex`,
+  /// Evernote's exports, or `csv`, Todoist's (Android's picker takes any file, and the import says what it could
+  /// not read).
+  Future<List<ImportFile>?> chooseFiles({String kind = 'enex'}) async {
+    final json = await _ask('chooseImportFiles', {'kind': kind});
     if (json == null) return null;
     final files = (json['files'] as List? ?? const []).cast<Map<String, Object?>>();
     return [

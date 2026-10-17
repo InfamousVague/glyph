@@ -1,0 +1,16 @@
+Launch
+Everything for Friday.
+
+- Write the post
+  Two paragraphs.
+  - [ ] Draft
+  - [x] Outline
+- [x] Pick a date
+☐ Book the room
+
+Press:
+- Call the paper
+- [~] Fax them
+
+Social
+- Tweet it #social

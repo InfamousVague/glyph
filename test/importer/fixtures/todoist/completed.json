@@ -1,0 +1,7 @@
+{
+  "items": [
+    {"id": "c1", "project_id": "6Jf8VQXxpwv56VQ8", "section_id": "s-week", "parent_id": null, "content": "Send the agenda", "description": "", "priority": 1, "child_order": 0, "labels": ["email"], "due": null, "completed_at": "2026-10-14T12:00:00.000000Z"},
+    {"id": "c2", "project_id": "6Jf8VQXxpwv56VQ8", "section_id": "s-week", "parent_id": "t2", "content": "Find the number", "description": "", "priority": 1, "child_order": 0, "labels": [], "due": null, "completed_at": "2026-10-15T12:00:00.000000Z"}
+  ],
+  "next_cursor": null
+}
