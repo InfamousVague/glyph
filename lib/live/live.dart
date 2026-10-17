@@ -1,7 +1,7 @@
 /// Live sync for this device, made once with the account: the one connection (hub.dart), the notes live with
 /// another device (shared.dart), the switch for the account's own notes (enabled.dart), the organizations' rooms
-/// (team.dart), who is in each and where (presence.dart), and the word that there is something to fetch
-/// (nudge.dart). What `App.tsx` gets by importing `core/live` and calling `watchPresence()` and `watchNudges()`.
+/// (team.dart), who is in each and where (presence.dart, the account's own room too), the editors bound now and
+/// Follow (editor_binding.dart, follow.dart), and the word that there is something to fetch (nudge.dart). What `App.tsx` gets by importing `core/live` and calling `watchPresence()` and `watchNudges()`.
 ///
 /// Nothing is connected by making it: the hub opens its socket with the first room held, which is an
 /// organization's own once [LiveServices.start] is watching and the account is in one, or a note's when it is
@@ -18,7 +18,9 @@ import '../core/stored.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../team/crdt.dart';
+import 'editor_binding.dart';
 import 'enabled.dart';
+import 'follow.dart';
 import 'hub.dart';
 import 'nudge.dart';
 import 'presence.dart';
@@ -54,8 +56,19 @@ class LiveServices {
       shared: shared,
       connect: socket == null ? null : (events) => WebSocketTransport(url: url, token: token, events: events, socket: socket),
     ));
-    rooms = TeamRooms(hub: hub, crypto: crypto, crdt: crdt, orgKeyOf: orgKeys.orgKeyOf, handle: () => account.session?.handle, colourIn: (orgId) => orgs.orgRow(orgId)?.colour, tick: tick);
+    rooms = TeamRooms(
+      hub: hub,
+      crypto: crypto,
+      crdt: crdt,
+      orgKeyOf: orgKeys.orgKeyOf,
+      handle: () => account.session?.handle,
+      colourIn: (orgId) => orgs.orgRow(orgId)?.colour,
+      accountKey: account.accountKey,
+      accountColour: () => orgs.orgsState().colour,
+      tick: tick,
+    );
     presence = Presence(rooms);
+    follow = FollowAi(online: presence.aisOnline, changes: presence, bound: bound);
     nudges = Nudges(hub: hub, hasKey: (orgId) => orgKeys.orgKeyOf(orgId) != null);
   }
 
@@ -70,6 +83,12 @@ class LiveServices {
   late final Presence presence;
   late final Nudges nudges;
 
+  /// The notes whose editors are bound on this device now (open.dart puts each).
+  final BoundEditors bound = BoundEditors();
+
+  /// The AIs online on the account, and Follow; the root says how a note is opened for it.
+  late final FollowAi follow;
+
   final List<void Function()> _stops = [];
 
   List<String> _joined() => [
@@ -83,10 +102,12 @@ class LiveServices {
     if (_stops.isNotEmpty) return;
     bool signedIn() => account.session != null;
     bool localOnly() => prefs.value.localOnly;
-    final changes = <Listenable>[orgs, orgKeys, prefs];
+    // The account too: its key is read for the account's own room, which comes once it is unlocked.
+    final changes = <Listenable>[orgs, orgKeys, prefs, account];
     _stops
       ..add(presence.watch(PresenceWatch(signedIn: signedIn, localOnly: localOnly, joined: _joined, hasKey: (orgId) => orgKeys.orgKeyOf(orgId) != null, changes: changes)))
       ..add(nudges.watch(hooks, NudgeWatch(signedIn: signedIn, localOnly: localOnly, joined: _joined, changes: changes)));
+    follow.start();
   }
 
   /// The app came back to the front: the connection is tried now.
@@ -100,6 +121,7 @@ class LiveServices {
       stop();
     }
     _stops.clear();
+    follow.dispose();
     hub.dispose();
   }
 }

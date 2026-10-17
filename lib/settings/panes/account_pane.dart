@@ -54,7 +54,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
             const SettingsFindable('Sync now', 'devices'),
             // An iPhone records nothing, so it has no such switch (the row below).
             if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
-            const SettingsFindable('Live typing (trial)', 'realtime collaborate'),
+            const SettingsFindable('Live typing', 'realtime collaborate claude'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
@@ -445,10 +445,10 @@ class _AccountPaneState extends State<AccountPane> {
                 hint: const Text("A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."),
                 control: GlacierSwitch(ariaLabel: 'Sync meeting recordings', checked: prefs.syncMeetingRecordings, onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on))),
               ),
-              // Live sync (docs/LIVE.md), on by hand while it is being tried.
+              // Live sync (docs/LIVE.md), on unless turned off here (docs/CLAUDE_LIVE.md).
               SettingRow(
-                label: 'Live typing (trial)',
-                hint: const Text('A note open on two of your devices shows what is typed on either as it is typed, end to end encrypted like everything else. Starts with the next note you open.'),
+                label: 'Live typing',
+                hint: const Text('A note open on two of your devices, or one Claude is writing in, shows the words as they are typed, end to end encrypted like everything else. Starts with the next note you open.'),
                 control: GlacierSwitch(ariaLabel: 'Live typing', checked: services.liveTyping.value, onCheckedChange: (on) => services.liveTyping.value = on),
               ),
               SettingRow(icon: const AppIcon(Lucide.keyRound, size: 20), label: 'Password and recovery codes', onPress: () => setState(() => _editing = true)),

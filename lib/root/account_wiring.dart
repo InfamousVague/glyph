@@ -222,8 +222,8 @@ class WiredAccount {
       },
       keepCopy: keepCopy ?? (_) async {},
     );
-    // Settings › Account's "Live typing (trial)": the switch is this device's own flag (`glyph-live`), so a note of
-    // the account's own opened after it is turned on is live, and one turned off elsewhere (a reset) is shown off.
+    // Settings › Account's "Live typing": the switch is this device's own flag (`glyph-live`, on unless turned off),
+    // so a note of the account's own opened while it is on is live, and one turned off elsewhere is shown off.
     final typing = ValueNotifier<bool>(live.enabled.value);
     typing.addListener(() => live.enabled.set(typing.value));
     live.enabled.addListener(() => typing.value = live.enabled.value);

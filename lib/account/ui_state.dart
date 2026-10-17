@@ -62,8 +62,8 @@ class SaidFailure implements Exception {
 class AccountServices {
   /// [account] is this device's; the rest are what was made for it, and any may be left out. [prefs] and
   /// [workspaces] are the app's own unless given (a test's). [listNotes] reads this device's notes, not the trash
-  /// (`listNotes`), for the count of recordings that stayed and a shared link's title. [liveTyping] is the trial
-  /// switch on Account (`core/live/enabled.ts`): the app's is this device's own flag (lib/root/account_wiring.dart
+  /// (`listNotes`), for the count of recordings that stayed and a shared link's title. [liveTyping] is the Live
+  /// typing switch on Account (`core/live/enabled.ts`, on unless turned off): the app's is this device's own flag (lib/root/account_wiring.dart
   /// over lib/live/enabled.dart); one that nothing reads is made here when none is given. [kept] is this device's memory, for the gate's "seen".
   AccountServices({
     required this.account,
@@ -83,7 +83,7 @@ class AccountServices {
     int Function()? now,
   })  : _prefs = prefs,
         _workspaces = workspaces,
-        liveTyping = liveTyping ?? ValueNotifier<bool>(false),
+        liveTyping = liveTyping ?? ValueNotifier<bool>(true),
         _kept = kept,
         _now = now;
 

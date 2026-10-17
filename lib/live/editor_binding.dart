@@ -30,6 +30,14 @@
 ///   the editor's own changes meanwhile.
 /// - The caret's colour is the member's hue at the lightness this paper needs (the kit's `[data-hue]`), read from
 ///   the `hue` their presence carries; the CSS strings beside it (`color`, `colorLight`) are the page's to read.
+/// - **A personal note's carets are the AIs' alone** (docs/CLAUDE_LIVE.md): its room is the session's [CaretRoom]
+///   (lib/live/session.dart `AiCarets`), which holds only the entries that say `ai: true` and says nothing of this
+///   editor's own caret. Follow (lib/live/follow.dart) reads the carets as they are placed ([LiveBinding.carets])
+///   and hears this person's own scrolls, taps and keys ([LiveBinding.touched]) to stop.
+/// - **Claude's words rise out of smoke** with Ghostly typing on ([LiveBinding.smoke]; docs/CLAUDE_LIVE.md): a
+///   change that arrives while an AI's caret is in the room wears the recorder's `heard` (lib/editor/marks/
+///   wisp_motion.dart), which the note's arrivals (lib/editor/ai/wisp_arrivals.dart) draw out of smoke letter by
+///   letter. An update does not say whose it is; with an AI typing in the room, it is the AI's.
 library;
 
 import 'dart:async';
@@ -42,6 +50,7 @@ import '../editor/input/input.dart' show liveUndoWithKeys, localUndoWithKeys;
 import '../editor/items/inline_box.dart';
 import '../editor/looks/look.dart';
 import '../editor/looks/sheets.dart';
+import '../editor/marks/wisp_motion.dart' show WispKind, wisp;
 import '../editor/view/line.dart' show EditorRunScope;
 import '../team/crdt.dart';
 import '../team/doc.dart';
@@ -59,10 +68,13 @@ Extension liveBindingSlot() => liveSlot.of(const Extension.list(<Extension>[]));
 /// Another member's caret in this editor's words.
 @immutable
 class RemoteCaret {
-  const RemoteCaret({required this.client, required this.name, required this.hue, required this.anchor, required this.head});
+  const RemoteCaret({required this.client, required this.name, required this.hue, required this.anchor, required this.head, this.ai = false});
 
   final int client;
   final String name;
+
+  /// Whether it is an AI's (`user.ai`): what Follow looks for.
+  final bool ai;
 
   /// One of the app's hues, or null for ink.
   final String? hue;
@@ -70,10 +82,10 @@ class RemoteCaret {
   final int head;
 
   @override
-  bool operator ==(Object other) => other is RemoteCaret && other.client == client && other.name == name && other.hue == hue && other.anchor == anchor && other.head == head;
+  bool operator ==(Object other) => other is RemoteCaret && other.client == client && other.name == name && other.hue == hue && other.anchor == anchor && other.head == head && other.ai == ai;
 
   @override
-  int get hashCode => Object.hash(client, name, hue, anchor, head);
+  int get hashCode => Object.hash(client, name, hue, anchor, head, ai);
 
   @override
   String toString() => 'RemoteCaret($name${hue == null ? '' : ' in $hue'}: $anchor to $head)';
@@ -128,7 +140,7 @@ final StateField<_Carets> _carets = StateField.define<_Carets>(
     if (!tr.docChanged || value.carets.isEmpty) return value;
     // Until they are placed again, each rides the change: words typed before it move it along.
     return _Carets(<RemoteCaret>[
-      for (final caret in value.carets) RemoteCaret(client: caret.client, name: caret.name, hue: caret.hue, anchor: tr.changes.mapPos(caret.anchor, 1), head: tr.changes.mapPos(caret.head, 1)),
+      for (final caret in value.carets) RemoteCaret(client: caret.client, name: caret.name, hue: caret.hue, ai: caret.ai, anchor: tr.changes.mapPos(caret.anchor, 1), head: tr.changes.mapPos(caret.head, 1)),
     ]);
   },
   provide: (field) => EditorViewLike.decorations.compute(<Object>[field], (state) => _Carets._decorate(state, state.field(field).carets)),
@@ -230,6 +242,27 @@ final Extension _themed = baseTheme(_theme);
 /// bound team note's editor is given; here for a picture of them too.
 final Extension remoteCarets = Extension.list(<Extension>[_carets, _themed]);
 
+/// The notes whose editors are bound on this device now, by note id: where Follow (lib/live/follow.dart) finds the
+/// editor of the note an AI is in, to keep its caret in view. Told as each comes and goes.
+class BoundEditors extends ChangeNotifier {
+  final Map<String, LiveBinding> _bound = {};
+
+  /// The binding of [noteId]'s editor, or null while it is not open and bound here.
+  LiveBinding? of(String noteId) => _bound[noteId];
+
+  void put(String noteId, LiveBinding binding) {
+    if (identical(_bound[noteId], binding)) return;
+    _bound[noteId] = binding;
+    notifyListeners();
+  }
+
+  void take(String noteId, LiveBinding binding) {
+    if (!identical(_bound[noteId], binding)) return;
+    _bound.remove(noteId);
+    notifyListeners();
+  }
+}
+
 /// How long a caret rests before it is said to the room, and before the others' are placed again.
 const Duration _caretRest = Duration(milliseconds: 40);
 
@@ -242,14 +275,25 @@ class _Flight {
 
 /// One editor bound to one live document.
 class LiveBinding implements NoteUndo {
-  /// [text] is the document; [room] and [positions], a team note's room and its document in the core, bring the
-  /// carets. Nothing is bound until [bind]. [now] is a test's clock, in milliseconds.
-  LiveBinding(this.view, this.text, {this.room, this.positions, int Function()? now}) : _now = now ?? _wallClock;
+  /// [text] is the document; [room] and [positions], a team note's room (or a personal note's AIs) and its
+  /// document in the core, bring the carets. Nothing is bound until [bind]. [now] is a test's clock, in
+  /// milliseconds.
+  LiveBinding(this.view, this.text, {this.room, this.positions, this.smoke, int Function()? now}) : _now = now ?? _wallClock;
 
   final EditorViewLike view;
   final LiveText text;
-  final TeamRoom? room;
+  final CaretRoom? room;
   final CrdtDoc? positions;
+
+  /// Whether words an AI types arrive out of smoke: Ghostly typing (`preferences.wisp`), read as each arrives.
+  final bool Function()? smoke;
+
+  /// The others' carets as last placed in the editor: what Follow keeps in view.
+  final ValueNotifier<List<RemoteCaret>> carets = ValueNotifier<List<RemoteCaret>>(const <RemoteCaret>[]);
+
+  /// Counts this person's own doings in the editor (a press, which a scroll by a finger begins with, a key, and
+  /// what they type): what stops Follow.
+  final ValueNotifier<int> touched = ValueNotifier<int>(0);
 
   /// The time a key is pressed or an undo asked for, which the document's undo groups typing by (Yjs reads the
   /// clock as each change is made; here the document is reached a moment later, so the time goes with the change).
@@ -294,6 +338,24 @@ class LiveBinding implements NoteUndo {
 
   static final List<Annotation<Object?>> _fromElsewhere = <Annotation<Object?>>[Transaction.remote.of(true), Transaction.addToHistory.of(false)];
 
+  /// The same, for words an AI typed: out of smoke, as the recorder's are heard.
+  static final List<Annotation<Object?>> _fromAi = <Annotation<Object?>>[..._fromElsewhere, wisp.of(WispKind.heard)];
+
+  /// Whether a change that arrived is an AI's to draw out of smoke: Ghostly typing on, words put in, and an AI's
+  /// caret in the room (the connector says it before each run of words it types).
+  bool _smoky(ChangeSet change) {
+    if (!(smoke?.call() ?? false) || change.empty) return false;
+    var inserts = false;
+    change.iterChanges((fromA, toA, fromB, toB, inserted) => inserts = inserts || inserted.length > 0);
+    if (!inserts) return false;
+    final room = this.room;
+    if (room == null) return false;
+    for (final MapEntry(key: client, value: said) in room.states.entries) {
+      if (client != room.clientId && said['cursor'] is Map && Me.of(said['user'])?.ai == true) return true;
+    }
+    return false;
+  }
+
   /// Binds: the editor brought to the document's words, then each following the other (`bindLive`).
   void bind() {
     if (_bound) return;
@@ -305,7 +367,7 @@ class LiveBinding implements NoteUndo {
     view.dispatch(TransactionSpec(
       changes: found == null ? null : Change(from: found.at, to: found.at + found.removed, insert: found.inserted),
       effects: <StateEffect<Object?>>[
-        liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), if (room != null) remoteCarets])),
+        liveSlot.reconfigure(Extension.list(<Extension>[EditorViewLike.updateListener.of(_heard), _observers, if (room != null) remoteCarets])),
         // liveBinding.ts: CodeMirror's undo swapped for the document's, with its keys.
         undoSlot.reconfigure(liveUndoWithKeys(this)),
       ],
@@ -319,6 +381,22 @@ class LiveBinding implements NoteUndo {
     _stopRoom = room?.onChange(_placeSoon);
     _saySoon();
     _placeSoon();
+  }
+
+  /// A press or a key of this person's in the editor, heard and passed on: whatever it does, it is theirs.
+  late final Extension _observers = EditorViewLike.eventObservers(EditorEventHandlers(
+    pointerDown: (_, _) {
+      _touch();
+      return false;
+    },
+    keyDown: (_, _) {
+      _touch();
+      return false;
+    },
+  ));
+
+  void _touch() {
+    if (_bound) touched.value += 1;
   }
 
   /// Unbinds: the editor is the note's own again (`unbindLive`). Its words stay as they are.
@@ -383,6 +461,9 @@ class LiveBinding implements NoteUndo {
     for (final tr in update.transactions) {
       final mine = tr.annotation(Transaction.remote) != true;
       if (mine && (tr.docChanged || tr.selection != null)) _moves += 1;
+      // A selection the app set (a note opened at a place) is not this person's doing; a press or a key is heard
+      // as it lands ([_observers]), and typing is.
+      if (mine && tr.docChanged) _touch();
       if (tr.docChanged && mine) _typed(tr);
     }
     // y-undomanager.js `update`: the selection is stored, as positions in the document, whenever an update sets one
@@ -451,7 +532,7 @@ class LiveBinding implements NoteUndo {
         return;
       }
       _gathered = null;
-      view.dispatch(TransactionSpec(changes: whole, annotations: _fromElsewhere));
+      view.dispatch(TransactionSpec(changes: whole, annotations: _smoky(whole) ? _fromAi : _fromElsewhere));
     } catch (_) {
       // Not the words it was made in after all: the document's stand.
       _lost = true;
@@ -484,7 +565,7 @@ class LiveBinding implements NoteUndo {
   }
 
   void _saySoon() {
-    if (room == null || positions == null) return;
+    if (room == null || positions == null || !room!.saysCaret) return;
     _sayCaret?.cancel();
     _sayCaret = Timer(_caretRest, () => unawaited(_say()));
   }
@@ -533,7 +614,7 @@ class LiveBinding implements NoteUndo {
         final at = await positions.caretIndexes(cursor);
         if (at == null) continue;
         final who = Me.of(said['user']);
-        placed.add(RemoteCaret(client: client, name: who?.name ?? 'Anonymous', hue: who?.hue, anchor: at.anchor, head: at.head));
+        placed.add(RemoteCaret(client: client, name: who?.name ?? 'Anonymous', hue: who?.hue, ai: who?.ai ?? false, anchor: at.anchor, head: at.head));
       }
       if (!_bound) return;
       // Placed in the document's words; while keys are on their way the editor is a little ahead, and they are
@@ -544,6 +625,7 @@ class LiveBinding implements NoteUndo {
       if (now.length != placed.length || !List.generate(now.length, (i) => now[i] == placed[i]).every((same) => same)) {
         view.dispatch(TransactionSpec(effects: setRemoteCarets.of(placed), annotations: _fromElsewhere));
       }
+      carets.value = List.unmodifiable(placed);
     } catch (_) {
       // The document or the editor went first.
     } finally {

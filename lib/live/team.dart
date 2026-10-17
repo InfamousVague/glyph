@@ -50,15 +50,19 @@ const Map<String, int> hueAngles = {'ember': 32, 'amber': 75, 'moss': 150, 'sea'
 
 /// What a device says of itself in a room's awareness (`Me`); y-codemirror's carets read `name`, `color` and
 /// `colorLight`, and this app's read `name` and `hue`.
+///
+/// An AI says `ai: true` and `via`, the member whose connector it is (docs/CLAUDE_LIVE.md, "Who Claude is in
+/// awareness"): it is never counted as a member being present, and is shown as the AI it is. A device of a
+/// person's never says either.
 class Me {
-  const Me({required this.name, this.hue});
+  const Me({required this.name, this.hue, this.ai = false, this.via});
 
   /// What a state's `user` holds, or null for one that names nobody.
   static Me? of(Object? user) {
     if (user is! Map) return null;
-    final name = user['name'], hue = user['hue'];
+    final name = user['name'], hue = user['hue'], via = user['via'];
     if (name is! String || name.isEmpty) return null;
-    return Me(name: name, hue: hue is String ? hue : null);
+    return Me(name: name, hue: hue is String ? hue : null, ai: user['ai'] == true, via: via is String && via.isNotEmpty ? via : null);
   }
 
   final String name;
@@ -66,16 +70,43 @@ class Me {
   /// One of the app's hues, or null for ink: what the member rows and the profile card read.
   final String? hue;
 
+  /// Whether this is an AI reaching the account through a connector, not a person's device.
+  final bool ai;
+
+  /// For an AI, the handle of the member whose connector it is.
+  final String? via;
+
   Map<String, Object?> toJson() {
     final css = caretColours(hue);
-    return {'name': name, 'hue': hue, 'color': css.color, 'colorLight': css.colorLight};
+    return {'name': name, 'hue': hue, 'color': css.color, 'colorLight': css.colorLight, if (ai) 'ai': true, 'via': ?via};
   }
 
   @override
-  bool operator ==(Object other) => other is Me && other.name == name && other.hue == hue;
+  bool operator ==(Object other) => other is Me && other.name == name && other.hue == hue && other.ai == ai && other.via == via;
 
   @override
-  int get hashCode => Object.hash(name, hue);
+  int get hashCode => Object.hash(name, hue, ai, via);
+}
+
+/// What a bound editor needs of a room to draw the others' carets and say its own (lib/live/editor_binding.dart):
+/// a team note's [TeamRoom], or a personal note's AI carets ([LiveSession.carets], lib/live/session.dart), which
+/// says nothing of this device's own.
+abstract interface class CaretRoom {
+  /// This device in the room's awareness.
+  int get clientId;
+
+  /// Everyone in the room as last heard, by awareness client.
+  Map<int, Map<String, Object?>> get states;
+
+  /// Told when who is here, or what any of them says, is different. Answers the way to stop hearing.
+  void Function() onChange(void Function() listener);
+
+  /// Whether this device's caret is said in the room: a team's note, yes; a personal note, never, since the
+  /// account's own devices do not show each other theirs (tauri/docs/LIVE.md).
+  bool get saysCaret;
+
+  /// One field of what this device says of itself.
+  void setField(String field, Object? value);
 }
 
 /// What a room stands on (`RoomDeps`).
@@ -90,8 +121,8 @@ class RoomDeps {
   final TeamDoc? doc;
 
   /// The rooms: the hub's two ([LiveHub.holdRoom], [LiveHub.releaseRoom]).
-  final LiveTransport Function(String room, RoomListener listener, String org) hold;
-  final void Function(String room, String org) release;
+  final LiveTransport Function(String room, RoomListener listener, String? org) hold;
+  final void Function(String room, String? org) release;
 
   /// How often the awareness is looked over; null for never (a test's).
   final Duration? tick;
@@ -103,8 +134,10 @@ const int catchUpMs = 2500;
 
 final Random _random = Random.secure();
 
-/// One room of an organization's (`TeamRoom`).
-class TeamRoom implements RoomListener {
+/// One room of an organization's (`TeamRoom`); or, with no organization, the account's own presence room
+/// (docs/CLAUDE_LIVE.md, "Presence rooms"), held the same way and sealed under the account key, bound to the room
+/// (`seal(key, envelope, 'presence')`, context `live:presence`).
+class TeamRoom implements RoomListener, CaretRoom {
   TeamRoom(this.orgId, this.room, Me me, this._deps) : clientId = _deps.doc?.crdt.clientId ?? _random.nextInt(1 << 32) {
     _me = me;
     _states[clientId] = {'user': me.toJson()};
@@ -120,11 +153,13 @@ class TeamRoom implements RoomListener {
     if (every != null) _timer = Timer.periodic(every, (_) => _tick());
   }
 
-  final String orgId;
+  /// The organization, or null for the account's own presence room.
+  final String? orgId;
   final String room;
   final RoomDeps _deps;
 
   /// This device in the room's awareness: its document's own client in a note's room.
+  @override
   final int clientId;
 
   /// How many other devices are in the room.
@@ -163,7 +198,11 @@ class TeamRoom implements RoomListener {
 
   /// Everyone in the room as last heard, this device included, by awareness client: `user` ([Me]), `cursor`
   /// (`{anchor, head}`), `at` (presence.dart), `pointer` and `card` on a canvas.
+  @override
   Map<int, Map<String, Object?>> get states => Map.unmodifiable(_states);
+
+  @override
+  bool get saysCaret => true;
 
   /// What this device says of itself now.
   Map<String, Object?> get local => _states[clientId] ?? const {};
@@ -172,6 +211,7 @@ class TeamRoom implements RoomListener {
 
   /// Told when who is here, or what any of them says, is different (y-protocols `change`). Answers the way to stop
   /// hearing.
+  @override
   void Function() onChange(void Function() listener) {
     _listeners.add(listener);
     return () => _listeners.remove(listener);
@@ -191,6 +231,7 @@ class TeamRoom implements RoomListener {
 
   /// One field of what this device says of itself (`setLocalStateField`): `cursor`, `at`, `pointer`, `card`. Said to the
   /// room as it is set.
+  @override
   void setField(String field, Object? value) {
     if (_closed) return;
     _states[clientId] = {...local, field: value};
@@ -265,7 +306,8 @@ class TeamRoom implements RoomListener {
     if (_closed) return;
     final Envelope envelope;
     try {
-      envelope = await openTeamEnvelope(_deps.crypto, _deps.key, orgId, room, data);
+      final org = orgId;
+      envelope = org == null ? await openEnvelope(_deps.crypto, _deps.key, room, data) : await openTeamEnvelope(_deps.crypto, _deps.key, org, room, data);
     } catch (_) {
       // A message this device cannot read is one it should not act on: the wrong key, or sealed for another room.
       return;
@@ -368,15 +410,17 @@ class TeamRoom implements RoomListener {
   void _post(Future<Envelope> Function() make, [int? to]) {
     if (_closed) return;
     _sending = _sending.then((_) async {
-      final data = await sealTeamEnvelope(_deps.crypto, _deps.key, orgId, room, await make());
+      final org = orgId, envelope = await make();
+      final data = org == null ? await sealEnvelope(_deps.crypto, _deps.key, room, envelope) : await sealTeamEnvelope(_deps.crypto, _deps.key, org, room, envelope);
       if (!_closed) _transport.send(room, data, to: to, org: orgId);
     }).catchError((Object _) {});
   }
 }
 
-/// The rooms of the organizations this account is in (`openTeamRoom`, `openPresenceRoom`, `meIn`).
+/// The rooms of the organizations this account is in (`openTeamRoom`, `openPresenceRoom`, `meIn`), and the
+/// account's own presence room (docs/CLAUDE_LIVE.md).
 class TeamRooms {
-  TeamRooms({required this.hub, required this.crypto, required this.crdt, required this.orgKeyOf, required this.handle, required this.colourIn, this.tick = const Duration(seconds: 3)});
+  TeamRooms({required this.hub, required this.crypto, required this.crdt, required this.orgKeyOf, required this.handle, required this.colourIn, this.accountKey, this.accountColour, this.tick = const Duration(seconds: 3)});
 
   final LiveHub hub;
   final AccountCrypto crypto;
@@ -390,6 +434,12 @@ class TeamRooms {
 
   /// The colour this account wears in an organization (the override, else the account's), or null for ink.
   final String? Function(String orgId) colourIn;
+
+  /// The account key, for the account's own presence room; null where this device cannot seal a word.
+  final Future<SealKey?> Function()? accountKey;
+
+  /// The colour the account wears, or null for ink: what its own presence room says of this device.
+  final String? Function()? accountColour;
   final Duration? tick;
 
   /// This account in an organization: its handle, and the colour it wears there (`meIn`).
@@ -407,4 +457,17 @@ class TeamRooms {
 
   /// The organization's own room: who is in the app and where (presence.dart holds one per organization).
   TeamRoom? openPresenceRoom(String orgId) => _open(orgId, presenceRoom, null);
+
+  /// This account in its own presence room: its handle and the account's colour, no `ai`.
+  Me meInAccount() => Me(name: handle() ?? '', hue: accountColour?.call());
+
+  /// The account's own presence room, sealed under the account key (`seal(key, envelope, 'presence')`): every device
+  /// of the account and the account's connector say there who they are and which personal note they are on. Null
+  /// when this device cannot seal a word in it: signed out, or without the account key.
+  Future<TeamRoom?> openAccountPresenceRoom() async {
+    if (handle() == null) return null;
+    final key = await accountKey?.call();
+    if (key == null || handle() == null) return null;
+    return TeamRoom(null, presenceRoom, meInAccount(), RoomDeps(key: key, crypto: crypto, crdt: crdt, hold: hub.holdRoom, release: hub.releaseRoom, tick: tick));
+  }
 }

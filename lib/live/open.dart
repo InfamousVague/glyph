@@ -11,9 +11,14 @@
 /// Roadmap" and its Jump to cursor. Opened at a `jump`, a member's caret, the selection is put there once the
 /// document is bound. Nothing of this needs the live-typing switch: a team's notes are live by being the team's.
 ///
-/// **A note of the account's own** is live only with the switch on (lib/live/enabled.dart): the note open on
-/// another device too, typed into on either and arriving a character at a time. It says nothing on screen: the
-/// typing arriving is the sign.
+/// **A note of the account's own** is live only with the switch on (lib/live/enabled.dart, on unless turned off):
+/// the note open on another device too, typed into on either and arriving a character at a time. It says nothing
+/// on screen of the account's own devices: the typing arriving is the sign. Claude, typing into it through the
+/// account's connector, has its caret drawn with its name (docs/CLAUDE_LIVE.md; lib/live/session.dart `AiCarets`).
+/// Open, live or not, the note is said in the account's own presence room (lib/live/presence.dart), as a team's is
+/// in its organization's.
+///
+/// Every bound editor is put in [LiveServices.bound] while it is, for Follow (lib/live/follow.dart).
 ///
 /// What differs:
 /// - The page's two hooks are one [NoteLive] made with the account, and [NoteLive.open] answers an [OpenLive] to
@@ -121,13 +126,19 @@ class OpenLive {
   void _restart() {
     _stop?.call();
     _stop = null;
+    _leaveAccount?.call();
+    _leaveAccount = null;
     _start();
   }
+
+  /// What says nowhere in the account's own room again, for a personal note.
+  void Function()? _leaveAccount;
 
   void _start() {
     final run = _starts += 1;
     bool gone() => _closed || run != _starts;
     final org = _org;
+    if (org == null) _leaveAccount = _tellAccount();
     // Without a document the note is still itself, synced by the pass from its words; and a note that could not go
     // live (no network, no account key) works as it always has.
     unawaited((org != null ? _team(org, gone) : _own(gone)).catchError((Object failure) {
@@ -146,14 +157,16 @@ class OpenLive {
     final room = _of.live.rooms.openTeamRoom(orgId, noteId, held);
     // A canvas is its structure, edited through the view: its editor, which shows its JSON behind the view switch,
     // stays the note's own and reaches the team by the pass, not by the binding.
-    final binding = isCanvasBody(_words) ? null : (LiveBinding(_view, held, room: room, positions: held.crdt)..bind());
+    final binding = isCanvasBody(_words) ? null : (LiveBinding(_view, held, room: room, positions: held.crdt, smoke: () => _of.live.prefs.value.wisp)..bind());
     final made = team = TeamBinding(doc: held, room: room, orgId: orgId);
     _onTeam?.call(made);
     final leave = _tellWhere(orgId, room);
+    if (binding != null) _of.live.bound.put(noteId, binding);
     _stop = () {
       leave();
       team = null;
       _onTeam?.call(null);
+      if (binding != null) _of.live.bound.take(noteId, binding);
       binding?.unbind();
     };
     final jump = _jump;
@@ -212,15 +225,41 @@ class OpenLive {
     };
   }
 
-  /// `useLiveNote` and `goLive`.
+  /// This personal note, said in the account's own room (docs/CLAUDE_LIVE.md, "Presence rooms"): by its title as
+  /// it is when opened. Answers the way to stop, which says nowhere.
+  void Function() _tellAccount() {
+    final words = _words;
+    _of.live.presence.announceAccount(Whereabouts(note: noteId, title: noteTitle(words), kind: isCanvasBody(words) ? 'canvas' : 'note'));
+    return () => _of.live.presence.announceAccount(null);
+  }
+
+  /// `useLiveNote` and `goLive`. Bound with the AIs' carets ([LiveSession.carets]) placed in the session's
+  /// document, once it is made.
   Future<void> _own(bool Function() gone) async {
     if (!_of.live.enabled.value) return;
     LiveSession? session;
     LiveBinding? binding;
+    var asked = false;
     void bind() {
       final ready = session;
-      if (ready == null || binding != null || ready.state != SessionState.ready || gone()) return;
-      binding = LiveBinding(_view, ready)..bind();
+      if (ready == null || binding != null || asked || ready.state != SessionState.ready || gone()) return;
+      asked = true;
+      unawaited(ready.document.then((doc) {
+        if (binding != null || ready.state != SessionState.ready || gone()) return;
+        final made = binding = LiveBinding(_view, ready, room: ready.carets, positions: doc, smoke: () => _of.live.prefs.value.wisp)..bind();
+        _of.live.bound.put(noteId, made);
+        // Opened at Claude's caret (the chip's Open): put there as a team note's jump is.
+        final jump = _jump;
+        if (jump == null) return;
+        _jump = null;
+        unawaited(doc.caretIndexes(jump).then((place) {
+          if (gone() || place == null || !made.bound) return;
+          final limit = _view.state.doc.length;
+          final anchor = place.anchor.clamp(0, limit), head = place.head.clamp(0, limit);
+          _view.dispatch(TransactionSpec(selection: EditorSelection.single(anchor, head), effects: EditorViewLike.scrollIntoView(anchor, y: ScrollStrategy.center)));
+          _view.focus();
+        }, onError: (Object _) {}));
+      }, onError: (Object _) {}));
     }
 
     final opened = await _of.live.hub.openLive(
@@ -238,7 +277,9 @@ class OpenLive {
     // Ready before the session was in hand: bound now.
     bind();
     _stop = () {
-      binding?.unbind();
+      final made = binding;
+      if (made != null) _of.live.bound.take(noteId, made);
+      made?.unbind();
       _of.live.hub.closeLive(noteId);
       peers.value = 0;
     };
@@ -252,5 +293,7 @@ class OpenLive {
     _of.live.enabled.removeListener(_switched);
     _stop?.call();
     _stop = null;
+    _leaveAccount?.call();
+    _leaveAccount = null;
   }
 }
