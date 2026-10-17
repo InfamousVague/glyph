@@ -16,7 +16,12 @@ import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/book.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/fields/field_picker.dart';
+import 'package:ghost_md/editor/items/items.dart' show itemExtensions;
+import 'package:ghost_md/editor/items/wiki_links.dart' show WikiOptions;
 import 'package:ghost_md/editor/markdown_view.dart';
+import 'package:ghost_md/editor/state/state.dart' show Extension;
+import 'package:ghost_md/editor/tables/table_box.dart' show DrawnTable;
+import 'package:ghost_md/editor/tables/tables.dart' show drawnTables;
 import 'package:ghost_md/editor/view/line.dart' show EditorLine;
 import 'package:ghost_md/note/page_head.dart';
 import 'package:ghost_md/notes/note_templates.dart';
@@ -101,10 +106,12 @@ void main() {
     List<NoteTemplate> ticketTemplates = const [],
     String? spot,
     ScrollController? scroll,
+    BookDrawing? drawing,
   }) =>
       pumpView(
         tester,
         BookView(
+          drawing: drawing,
           body: body ?? book,
           title: title,
           known: known ?? (_) => true,
@@ -161,6 +168,34 @@ void main() {
       await tester.tapAt(editorTextRect(tester, 'Sightings').center);
       await tester.pump();
       expect(opened, ['Trees', 'Sightings']);
+      await away(tester);
+    });
+
+    // Matt, 2026-10-16: "mermaid charts and the query boards are not working". A notebook's own words had the
+    // editor's base alone, so a fence in them stayed its lines; given the note screen's drawing they draw what a
+    // note draws, and still take a link's tap.
+    testWidgets('draws the notebook\'s own words with what the note screen gives it, and only then', (tester) async {
+      const body = '---\ntitle: "Field guide"\nbook: true\n---\nSizes, and [[Trees]]:\n\n| Month | Size |\n| --- | --- |\n| 2 | raspberry |\n\n1. [[Introduction]]\n';
+      await show(tester, body: body);
+      expect(find.byType(DrawnTable), findsNothing, reason: 'with no drawing the words are the base alone');
+      await away(tester);
+
+      final opened = <String>[];
+      await show(
+        tester,
+        body: body,
+        open: opened.add,
+        drawing: BookDrawing(
+          extensions: <Extension>[
+            drawnTables(),
+            itemExtensions(wiki: WikiOptions(known: (_) => true, open: (title, [anchor]) => opened.add(title))),
+          ],
+        ),
+      );
+      expect(find.descendant(of: find.byKey(const ValueKey('book-words-before')), matching: find.byType(DrawnTable)), findsOneWidget);
+      await tester.tapAt(editorTextRect(tester, 'Trees').center);
+      await tester.pump();
+      expect(opened, ['Trees'], reason: 'the links of the drawing open, once');
       await away(tester);
     });
 

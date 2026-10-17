@@ -57,9 +57,12 @@ Color _ink(Tokens t, double part) {
 
 /// A journal's page (`JournalView`).
 class JournalView extends StatefulWidget {
-  const JournalView({super.key, required this.body, required this.noteOf, required this.known, required this.open, required this.onChange, this.onNewEntry, this.clock});
+  const JournalView({super.key, required this.body, required this.noteOf, required this.known, required this.open, required this.onChange, this.onNewEntry, this.clock, this.drawing});
 
   final String body;
+
+  /// What the journal's own words draw ([BookDrawing]); absent, the base alone.
+  final BookDrawing? drawing;
 
   /// The note by that title, for an entry's date, place and words: null where there is none.
   final Note? Function(String title) noteOf;
@@ -133,7 +136,7 @@ class _JournalViewState extends State<JournalView> {
                     },
                     onCancel: () => setState(() => _choosing = false),
                   ),
-                if (words.before.isNotEmpty) BookWords(words: words.before, known: widget.known, open: widget.open),
+                if (words.before.isNotEmpty) BookWords(words: words.before, known: widget.known, open: widget.open, drawing: widget.drawing),
                 if (months.isEmpty && unwritten.isEmpty)
                   CssFlow.block(
                     // `.empty { margin-block: var(--glacier-space-3); color: var(--glacier-text-muted) }`
@@ -221,7 +224,7 @@ class _JournalViewState extends State<JournalView> {
                         ),
                     ],
                   ),
-                if (words.after.isNotEmpty) BookWords(words: words.after, known: widget.known, open: widget.open),
+                if (words.after.isNotEmpty) BookWords(words: words.after, known: widget.known, open: widget.open, drawing: widget.drawing),
               ],
             );
           },

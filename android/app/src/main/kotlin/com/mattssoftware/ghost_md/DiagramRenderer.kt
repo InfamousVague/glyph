@@ -75,7 +75,17 @@ class DiagramRenderer(private val activity: Activity) {
   private val line = ArrayDeque<Ask>()
 
   /** Patience ran out. A page that never loaded is let go with it, so the next diagram asks a new one. */
-  private val giveUp = Runnable { if (ready) asking?.let { finish(it, failed("")) } else lost() }
+  private val giveUp = Runnable {
+    if (ready) {
+      // Said, as every other way a diagram goes undrawn is: quiet, this was the one a phone could not be asked about.
+      asking?.let {
+        Log.w(TAG, "a diagram was given up on: the page took too long")
+        finish(it, failed(""))
+      }
+    } else {
+      lost()
+    }
+  }
   private val rest = Runnable { if (asking == null && line.isEmpty()) close() }
 
   fun register(messenger: BinaryMessenger) {
@@ -297,7 +307,14 @@ class DiagramRenderer(private val activity: Activity) {
       corner.recycle()
       if (!marked(seen, ask.n)) {
         // Not painted yet: the frame before. Looked at again in a moment, for as long as patience lasts.
-        if (tries < LOOKS) main.postDelayed({ photograph(view, ask, said, tries + 1) }, LOOK_MS) else finish(ask, failed(""))
+        if (tries < LOOKS) {
+          main.postDelayed({ photograph(view, ask, said, tries + 1) }, LOOK_MS)
+        } else {
+          // The page drew it, but no frame of the web view showed it: what a web view off any window may do on a
+          // phone, where the emulator it was made on always painted. Said, so a phone that cannot is told apart.
+          Log.w(TAG, "a diagram was drawn but never painted: corner ${Integer.toHexString(seen)} after $LOOKS looks")
+          finish(ask, failed(""))
+        }
         return
       }
       val block = said.getJSONObject("block")

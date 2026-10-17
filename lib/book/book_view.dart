@@ -76,6 +76,7 @@ import '../editor/items/wiki_links.dart' show WikiOptions, wikiLinks, wikiLinksI
 import '../editor/looks/look.dart';
 import '../editor/markdown_view.dart';
 import '../editor/state/state.dart';
+import '../editor/syntax/language.dart' show InlineFormatSyntax;
 import '../editor/view/base.dart';
 import '../editor/view/column.dart';
 import '../editor/view/editor_view.dart';
@@ -704,11 +705,28 @@ class _RenderFlexWrap extends RenderBox with ContainerRenderObjectMixin<RenderBo
   void paint(PaintingContext context, Offset offset) => defaultPaint(context, offset);
 }
 
+/// What a notebook's own words and its pages read straight through draw, from the note screen that shows the
+/// notebook (lib/root/note_desk.dart): the inline marks its notes parse, and the blocks a note's editor draws - a
+/// diagram, a query, a table, a board, a link's card, an embed, a picture - read only. Matt, 2026-10-16: "mermaid
+/// charts and the query boards are not working": a notebook's preface drew a ```mermaid or ```query fence as its
+/// lines, since the words here had only the editor's base. The page does the same (BookView.tsx's `BookWords`
+/// passes no queries, and its read-through is a `peek`); here they are drawn as a note draws them.
+///
+/// Absent, the words have the base alone, as a test's notebook and a shared one draw them. [extensions] carry their
+/// own `[[link]]`s, so [BookWords] adds none of its own beside them.
+@immutable
+class BookDrawing {
+  const BookDrawing({this.formats = const <InlineFormatSyntax>[], this.extensions = const <Extension>[]});
+
+  final List<InlineFormatSyntax> formats;
+  final List<Extension> extensions;
+}
+
 /// The book's own words around its index, drawn as a note is - read-only, formatted - in the index's column
 /// (`BookWords`, `.preface`): none of the note's gutter, none of the room a note leaves over its first line and
 /// under its last, and in the muted ink.
 class BookWords extends StatefulWidget {
-  const BookWords({super.key, required this.words, this.known, this.open});
+  const BookWords({super.key, required this.words, this.known, this.open, this.drawing});
 
   final String words;
 
@@ -716,6 +734,10 @@ class BookWords extends StatefulWidget {
   /// words is drawn as one, dashed for a note still to be written, and a tap on it opens the note.
   final bool Function(String title)? known;
   final ValueChanged<String>? open;
+
+  /// The marks and blocks the words draw ([BookDrawing]). Given, the words take taps as a note's do - a query's
+  /// row, a link's card, a `[[link]]` - and are read only all the same.
+  final BookDrawing? drawing;
 
   @override
   State<BookWords> createState() => _BookWordsState();
@@ -726,18 +748,25 @@ class _BookWordsState extends State<BookWords> {
 
   bool get _links => widget.known != null && widget.open != null;
 
-  EditorView _make() => EditorView(
-        wholeDocument: true,
-        state: EditorState.create(
-          doc: widget.words,
-          extensions: noteExtensions(
-            display: NoteView.formatted,
-            readOnly: true,
+  EditorView _make() {
+    final drawing = widget.drawing;
+    return EditorView(
+      wholeDocument: true,
+      state: EditorState.create(
+        doc: widget.words,
+        extensions: noteExtensions(
+          display: NoteView.formatted,
+          readOnly: true,
+          formats: drawing?.formats ?? const <InlineFormatSyntax>[],
+          more: <Extension>[
+            ...?drawing?.extensions,
             // Asked as each is drawn and as one is tapped, so the page's own answers are the ones in force.
-            more: <Extension>[if (_links) wikiLinks(WikiOptions(known: (title) => widget.known?.call(title) ?? false, open: (title, [anchor]) => widget.open?.call(title)))],
-          ),
+            if (_links && drawing == null) wikiLinks(WikiOptions(known: (title) => widget.known?.call(title) ?? false, open: (title, [anchor]) => widget.open?.call(title))),
+          ],
         ),
-      );
+      ),
+    );
+  }
 
   /// A finished tap on the words: a link between notes under it opens (the editor's own `wikiLinks`, which hears the
   /// press in an editor that takes one).
@@ -753,7 +782,7 @@ class _BookWordsState extends State<BookWords> {
   @override
   void didUpdateWidget(BookWords oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.words != widget.words || (oldWidget.known != null && oldWidget.open != null) != _links) {
+    if (oldWidget.words != widget.words || (oldWidget.known != null && oldWidget.open != null) != _links || !identical(oldWidget.drawing, widget.drawing)) {
       _view.destroy();
       _view = _make();
     }
@@ -788,11 +817,16 @@ class _BookWordsState extends State<BookWords> {
     return CssFlow.block(
       // `margin-block: var(--glacier-space-2) var(--glacier-space-4)`
       margin: EdgeInsets.only(top: t.space(2), bottom: t.space(4)),
-      child: ExcludeSemantics(
-        child: _links
-            ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: IgnorePointer(child: EditorColumn(view: _view, env: env)))
-            : IgnorePointer(child: EditorColumn(view: _view, env: env)),
-      ),
+      child: widget.drawing != null
+          // Drawn as a note is, the words take a note's taps: a query's row or a link's card is its block's own,
+          // the innermost in the arena. A `[[link]]` is words, which hear nothing in a column with no input (the
+          // editor's `wikiLinks` hears a press only where there is a caret to keep), so it is this one's.
+          ? (_links ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: EditorColumn(view: _view, env: env)) : EditorColumn(view: _view, env: env))
+          : ExcludeSemantics(
+              child: _links
+                  ? GestureDetector(behavior: HitTestBehavior.translucent, onTapUp: _tapped, child: IgnorePointer(child: EditorColumn(view: _view, env: env)))
+                  : IgnorePointer(child: EditorColumn(view: _view, env: env)),
+            ),
     );
   }
 }
@@ -863,9 +897,13 @@ class BookView extends StatefulWidget {
     this.spot,
     this.kept,
     this.clock,
+    this.drawing,
   });
 
   final String body;
+
+  /// What the book's own words and its pages read straight through draw ([BookDrawing]); absent, the base alone.
+  final BookDrawing? drawing;
 
   /// Whether a note by that title exists: a chapter still to be written is drawn as waiting.
   final bool Function(String title) known;
@@ -1201,7 +1239,13 @@ class BookViewState extends State<BookView> {
     final had = _lazy[title];
     if (had != null && identical(had.words, words)) return had.view;
     if (had != null) _letGo([had.view]);
-    final view = EditorView(state: EditorState.create(doc: words, extensions: noteExtensions(display: NoteView.formatted, readOnly: true)));
+    final drawing = widget.drawing;
+    final view = EditorView(
+      state: EditorState.create(
+        doc: words,
+        extensions: noteExtensions(display: NoteView.formatted, readOnly: true, formats: drawing?.formats ?? const <InlineFormatSyntax>[], more: drawing?.extensions ?? const <Extension>[]),
+      ),
+    );
     _lazy[title] = (words: words, view: view);
     return view;
   }
@@ -1656,7 +1700,7 @@ class BookViewState extends State<BookView> {
                   else if (canvas)
                     cssLines('A canvas: open it to see the cards.', bookText(t, em, color: muted))
                   else if (words != null)
-                    MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false),
+                    MarkdownView(key: ValueKey('book-read-body-$i'), markdown: read.untitled(chapter.title), peek: false, formats: widget.drawing?.formats ?? const <InlineFormatSyntax>[], extensions: widget.drawing?.extensions ?? const <Extension>[]),
                 ],
               ),
             ),
@@ -1694,7 +1738,7 @@ class BookViewState extends State<BookView> {
 
     final blocks = <Widget>[
       if (authors.isNotEmpty) NoteByline(authors: authors),
-      if (words.before.isNotEmpty) BookWords(key: const ValueKey('book-words-before'), words: words.before, known: widget.known, open: widget.open),
+      if (words.before.isNotEmpty) BookWords(key: const ValueKey('book-words-before'), words: words.before, known: widget.known, open: widget.open, drawing: widget.drawing),
       if (chapters.isEmpty)
         CssFlow.block(
           // `.empty { margin: var(--glacier-space-3) 0; color: var(--glacier-text-muted) }`
@@ -1725,7 +1769,7 @@ class BookViewState extends State<BookView> {
             ),
           ),
         ),
-      if (words.after.isNotEmpty) BookWords(key: const ValueKey('book-words-after'), words: words.after, known: widget.known, open: widget.open),
+      if (words.after.isNotEmpty) BookWords(key: const ValueKey('book-words-after'), words: words.after, known: widget.known, open: widget.open, drawing: widget.drawing),
       CssFlow.block(
         key: const ValueKey('book-adds'),
         // `.adds, .add { margin-block-start: var(--glacier-space-4) }`

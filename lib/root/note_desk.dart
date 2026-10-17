@@ -148,6 +148,7 @@ import '../editor/media/source_line.dart';
 import '../links/note_links.dart' show NoteLinksHere;
 import '../editor/plus/plus.dart';
 import '../editor/queries/queries.dart';
+import '../editor/ai/blanks.dart' show blanks;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/tables/tables.dart';
@@ -612,8 +613,13 @@ class NoteDeskState extends State<NoteDesk> {
       // (`wispTyping={prefs.wisp}`). The AI's arrivals bring the departures themselves: given twice, every ghost is
       // drawn twice.
       if (_ghostly) wispDepartures(),
-      // With no AI a note has no blanks, but for an iPhone's, which are drawn with no Fill (iphone_wiring.dart).
-      ...iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still),
+      // With no AI a note's blanks are still drawn, as squares with no Fill: the page's `blankSquares(null)`
+      // (Editor.tsx), which every note has. An iPhone's say why there is no Fill when one is pressed
+      // (iphone_wiring.dart).
+      ...switch (iPhoneBlanks(noteId: () => widget.noteId, say: (message) => _toasts?.toast(message: Text(message)), still: _still)) {
+        final List<Extension> phone when phone.isNotEmpty => phone,
+        _ => <Extension>[blanks(null, still: _still)],
+      },
     ]);
   }
 
@@ -749,19 +755,7 @@ class NoteDeskState extends State<NoteDesk> {
     // `noteComments`).
     noteComments(() => _comments.hooks),
     mediaExtensions(
-      seams: MediaSeams(
-        pictures: _world.pictures,
-        openLink: _world.openLink,
-        linkMenus: LinkMenus(say: (message) => widget.say(message)),
-        previewer: _world.previewer ?? noLinkPreviews,
-        linkPreviews: () => _prefs.value.linkPreviews,
-        switches: _prefs,
-        placeSwitches: () => (localOnly: _prefs.value.localOnly, mapTiles: _prefs.value.mapTiles),
-        onOpenPlace: _openPlace,
-        mapTiles: _world.mapTiles,
-        clipPlayer: _clips,
-        films: FilmSeams(films: _world.films),
-      ),
+      seams: _mediaSeams,
       // A place in the words draws its map under its line, as the note's own tag does at its top.
       places: PlaceMode.live,
       // A film plays in its note's own screen, where it is on this phone.
@@ -789,6 +783,43 @@ class NoteDeskState extends State<NoteDesk> {
     }),
   ];
 
+  /// Where the words' pictures, places, films and links are drawn from and opened, for this note's editor and its
+  /// notebook's words alike.
+  late final MediaSeams _mediaSeams = MediaSeams(
+    pictures: _world.pictures,
+    openLink: _world.openLink,
+    linkMenus: LinkMenus(say: (message) => widget.say(message)),
+    previewer: _world.previewer ?? noLinkPreviews,
+    linkPreviews: () => _prefs.value.linkPreviews,
+    switches: _prefs,
+    placeSwitches: () => (localOnly: _prefs.value.localOnly, mapTiles: _prefs.value.mapTiles),
+    onOpenPlace: _openPlace,
+    mapTiles: _world.mapTiles,
+    clipPlayer: _clips,
+    films: FilmSeams(films: _world.films),
+  );
+
+  /// What a notebook's or a journal's own words, and its pages read straight through, draw (lib/book/book_view.dart
+  /// `BookDrawing`): what this note's editor draws, read only, and none of what edits, listens or follows a caret.
+  /// A `[[link]]` there opens in this tab, as the index's own rows do.
+  late final BookDrawing _bookDrawing = BookDrawing(
+    formats: _formats,
+    extensions: <Extension>[
+      markExtensions(_formats),
+      itemExtensions(wiki: WikiOptions(known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title), body: (title) => _world.bodyOf?.call(title))),
+      drawnTables(),
+      if (_world.openTag != null) tagOpener.of(_world.openTag!),
+      drawnBoards(),
+      drawnMermaid(),
+      if (_world.queryNotes != null) queries(() => _bookQueries),
+      if (_world.bodyOf != null)
+        canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title))),
+      if (_world.bodyOf != null) noteEmbeds(EmbedOptions(body: (title) => _world.bodyOf?.call(title), open: (title, [anchor]) => _openWithin(title), formats: _formats)),
+      mediaExtensions(seams: _mediaSeams, places: PlaceMode.live, videos: _world.films == null ? VideoMode.still : VideoMode.play),
+      if (_world.openLink != null) semanticsOpenLink.of((url) => unawaited(_world.openLink!(url))),
+    ],
+  );
+
   /// What plays a voice memo: the memos' own player of a recording, where there is one. Never the tape's: a memo
   /// played must leave the tape's playhead where it was (docs/PARITY.md, Differs 17).
   late final TapeClipPlayer? _clips = _world.clipPlayer == null ? null : TapeClipPlayer(_world.clipPlayer!);
@@ -813,6 +844,20 @@ class NoteDeskState extends State<NoteDesk> {
       : QueryOptions(
           notes: () => _world.queryNotes!(),
           noteId: widget.noteId,
+          open: (id, line) => _world.openAt?.call(id, line),
+          write: (id, change) => _world.write?.call(id, change),
+          add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
+        );
+
+  /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
+  /// the preface alone, without the front matter that makes the note a notebook and names it, and read as this
+  /// note's body they took the notebook out of the library: `from: tasks [[Baby on the way]]` in that notebook's
+  /// own words said "No note is called". The notebook as it was last saved is the one they read.
+  late final QueryOptions? _bookQueries = _world.queryNotes == null
+      ? null
+      : QueryOptions(
+          notes: () => _world.queryNotes!(),
+          noteId: null,
           open: (id, line) => _world.openAt?.call(id, line),
           write: (id, change) => _world.write?.call(id, change),
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
@@ -1714,6 +1759,7 @@ class NoteDeskState extends State<NoteDesk> {
         setStatus: widget.readOnly || _world.write == null ? null : _setStatus,
         readOnly: widget.readOnly,
         onChange: onChange,
+        drawing: _bookDrawing,
       );
 
   /// A journal's entries by month (book/JournalView.tsx).
@@ -1724,6 +1770,7 @@ class NoteDeskState extends State<NoteDesk> {
         open: _openWithin,
         onNewEntry: widget.readOnly || _world.newEntry == null ? null : (template) => _world.newEntry!(widget.noteId, template),
         onChange: onChange,
+        drawing: _bookDrawing,
       );
 
   @override
