@@ -38,6 +38,8 @@ p256 = { version = "0.13", default-features = false, features = ["arithmetic", "
 hkdf = "0.12"
 aes-gcm = "0.10"
 zeroize = "1"
+# Incoming hooks (src/hooks.rs, docs/INTEGRATIONS.md): a post may be a form, read as axum's own `Form` reads one.
+serde_urlencoded = "0.7"
 mail-parser = { version = "0.11", features = ["full_encoding"] }
 htmd = "0.5"
 

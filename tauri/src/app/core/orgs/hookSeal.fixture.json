@@ -1,0 +1,37 @@
+{
+  "about": "An incoming hook's seal across languages (server/src/hooks_tests.rs, hookSeal.test.ts): `rust` was sealed by glyph-api and opens with wrap.ts's unwrapWith; `typescript` was wrapped by wrapFor and opens in glyph-api. Both to `jwk`, in the context `hook:<hook>`.",
+  "jwk": {
+    "crv": "P-256",
+    "d": "BwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwcHBwc",
+    "ext": true,
+    "kty": "EC",
+    "x": "HhhTL9R1TALzBB2cdc6zO4P_2BrHzk_ogsyxyYvFiW4",
+    "y": "pGwxHE4v9A3ZajZT5uRURdMt_khuztdcepDGoYiBwKM"
+  },
+  "public": "BB4YUy_UdUwC8wQdnHXOszuD_9gax85P6ILMscmLxYlupGwxHE4v9A3ZajZT5uRURdMt_khuztdcepDGoYiBwKM",
+  "rust": {
+    "context": "hook:uhHYdvm8GQFoEw-6DrI-Og",
+    "hook": "uhHYdvm8GQFoEw-6DrI-Og",
+    "payload": {
+      "as": "item",
+      "at": 1792275541000,
+      "hook": "uhHYdvm8GQFoEw-6DrI-Og",
+      "note": "Groceries",
+      "text": "Pomegranate jam ✓, “quoted”, and a line\nbreak",
+      "title": "From Rust"
+    },
+    "sealed": "BOz_yFAG017C_AEvA_1ONuwqyFDQo09NVSfjPKuOxe8_fZhpUb3geL2npTf4uSHJPvJnCquKZXdbbiRmegWrx2mtH4HBwsDRHof2NyjgG4Dd-JJlSkiINMfz1VDmzgkkP-GLC1Qqgs_uC-ksEGh201syBr2ryjjxS1VGI3hzGHVWNvkZMD5tXkWoa5hEoHwaaeQk_9tFlBBU5PO-zy1bIYpNbySEgJty8JaRwYTE5s7XQmLMCa-CMYrvJ8Spp-S7RoaeybEseCe05BQRhSQHnSYLdaxcpGbdekDqPWI6xBj3kvyJ6WNZfPvuh7zoookkQKd-YIjBk215RsXQA_1cMFPv"
+  },
+  "typescript": {
+    "hook": "from-typescript",
+    "context": "hook:from-typescript",
+    "sealed": "BMcL0PJeNrYbuBx0cYgoNKPkHOfxVmSdMvOXo5xVMe8N9eF_fUhtRcFouq1gd9vcUBQEean0TbR9pQmvqHPrrvUbrHdtWUll9D01lLMwBuQMPgIjGQuZj1-8Grt8a_ydLZLmtX05IWP6ODnvOU7S8GAfiriR0REtURIgFKBsMxkfnRz9jbmjG7D92GQyhork3v4mHMl9j7Rz4aS6ioxnecZ1PVrnCnurBh1KkpfgLDecDWAjjW2MCJ_9FHB-nnAikMRYt4nllKU",
+    "payload": {
+      "hook": "from-typescript",
+      "note": "Trip",
+      "text": "Passports, “both”, ✓",
+      "as": "task",
+      "at": 1792275541000
+    }
+  }
+}

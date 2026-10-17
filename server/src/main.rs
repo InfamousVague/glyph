@@ -6,6 +6,7 @@
 //!   /api/v1/shares/*   notes and books shared by their links, see `shares.rs`
 //!   /api/v1/sites/*    a note or a notebook published as a site, see `sites.rs`
 //!   /api/v1/mail/*     email to a note: an account's private address and the mail sent to it, sealed, see `mail.rs`
+//!   /api/v1/hooks/*, /api/hooks/{token}  incoming hooks: a URL that adds to a note, what it takes sealed, see `hooks.rs`
 //!   /api/v1/orgs/*     organizations: teams invited by handle, see `orgs.rs`
 //!   /api/v1/notifications/*  what an account is told, as a feed, see `notifications.rs`
 //!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
@@ -25,7 +26,8 @@
 //! GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
 //! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); GOOGLE_CLIENT_ID,
 //! GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI (`google.rs`; unset, Google sign-in answers 503); and
-//! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail). On the box,
+//! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail); and GLYPH_PUBLIC_URL
+//! (`hooks.rs`, what a hook's URL starts with; default `https://ghostmarkdown.com`). On the box,
 //! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's and
 //! Google's client ids and secrets; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM, NOTION_REDIRECT_URI and GOOGLE_REDIRECT_URI are
 //! left at their defaults.
@@ -37,6 +39,7 @@ mod accounts;
 mod format;
 mod google;
 mod guard;
+mod hooks;
 mod identity;
 mod notion;
 mod store;
@@ -68,6 +71,8 @@ mod notifications_tests;
 mod sites_tests;
 #[cfg(test)]
 mod mail_tests;
+#[cfg(test)]
+mod hooks_tests;
 
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
@@ -184,6 +189,8 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             // A note or a notebook published as a site (docs/SITES.md), and email to a note (docs/MAIL.md).
             .merge(sites::router(accounts.clone()))
             .merge(mail::router(accounts.clone()))
+            // Incoming hooks (docs/INTEGRATIONS.md): a URL that adds to a note, what it is posted sealed on arrival.
+            .merge(hooks::router(accounts.clone()))
             // Organizations and the notifications feed (docs/TEAMS.md): the same accounts, invited by handle.
             .merge(orgs::router(accounts.clone()))
             .merge(org_notes::router(accounts.clone()))
@@ -252,6 +259,10 @@ async fn main() {
         },
         None => None,
     };
+    // Hook posts thirty days old go, whether or not a device ever took them (hooks.rs).
+    if let Some(accounts) = &accounts {
+        hooks::sweep_every_hour(accounts.clone());
+    }
     let listener = match tokio::net::TcpListener::bind(&bind).await {
         Ok(listener) => listener,
         Err(e) => {

@@ -12,7 +12,7 @@
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
 //! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
 //! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
-//! (what each account is told), `store/sites.rs` (published sites) and `store/mail.rs` (email to a note) - each an `impl Store` of its own, so a caller still holds one `Store`.
+//! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note) and `store/hooks.rs` (incoming hooks) - each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
 //! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
 //! the next start (shares did), and a new column on a table that is already there does not. The first column added
@@ -20,6 +20,7 @@
 //! safe only while the one `Mutex<Connection>` is the file's only writer.
 
 mod accounts;
+mod hooks;
 mod keys;
 mod mail;
 mod notes;
@@ -34,6 +35,7 @@ mod shares;
 mod sites;
 
 pub use accounts::DeleteAccount;
+pub use hooks::{HookItem, HookRow, HookWrite};
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
 pub use org_notes::{OrgNoteRow, OrgNoteWrite, UpdateRow, UPDATES_KEPT};
@@ -304,6 +306,30 @@ CREATE TABLE IF NOT EXISTS mail_in (
     received_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS mail_in_by_account ON mail_in(account_id, received_at);
+-- Incoming hooks (server/src/hooks.rs, docs/INTEGRATIONS.md): an account's hooks, each found by the SHA-256 of its
+-- token (the token itself is never kept), with its name and default note in the clear; and what was posted to them,
+-- ONLY sealed to the account's encryption public key, waiting until a device of the account adds it to its note, or
+-- for thirty days. `seq` orders the inbox and is its cursor. Both go with the account; a post outlives its hook.
+CREATE TABLE IF NOT EXISTS hooks (
+    id           TEXT PRIMARY KEY,
+    account_id   INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    token_hash   TEXT NOT NULL UNIQUE,
+    name         TEXT NOT NULL,
+    note         TEXT,
+    created_at   INTEGER NOT NULL,
+    last_used_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS hooks_by_account ON hooks(account_id);
+CREATE TABLE IF NOT EXISTS hook_inbox (
+    seq         INTEGER PRIMARY KEY AUTOINCREMENT,
+    id          TEXT NOT NULL UNIQUE,
+    account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    hook_id     TEXT NOT NULL,
+    sealed      TEXT NOT NULL,
+    received_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS hook_inbox_by_account ON hook_inbox(account_id, seq);
+CREATE INDEX IF NOT EXISTS hook_inbox_by_age ON hook_inbox(received_at);
 "#;
 
 /// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the

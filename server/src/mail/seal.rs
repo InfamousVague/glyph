@@ -58,8 +58,10 @@ fn agreed(secret: &p256::SecretKey, public: &p256::PublicKey, context: &str) -> 
     Ok(Aes256Gcm::new(key.as_slice().into()))
 }
 
-/// `key` wrapped to the account whose encryption public key is `public` (its raw point, base64url), bound to `context`.
-fn wrap_for(public: &str, key: &[u8; 32], context: &str) -> Result<String, String> {
+/// `bytes` wrapped to the account whose encryption public key is `public` (its raw point, base64url), bound to
+/// `context`. A mail's 32-byte key here; an incoming hook's whole payload in src/hooks.rs, which seals with this and
+/// nothing else, as `wrapFor` would seal any bytes it is handed.
+pub fn wrap_for(public: &str, bytes: &[u8], context: &str) -> Result<String, String> {
     let point = URL_SAFE_NO_PAD.decode(public).map_err(|_| "That account's key could not be read.".to_string())?;
     let theirs = p256::PublicKey::from_sec1_bytes(&point).map_err(|_| "That account's key could not be read.".to_string())?;
     let ephemeral = loop {
@@ -70,7 +72,7 @@ fn wrap_for(public: &str, key: &[u8; 32], context: &str) -> Result<String, Strin
     };
     let cipher = agreed(&ephemeral, &theirs, context)?;
     let iv: [u8; IV_BYTES] = random();
-    let sealed = cipher.encrypt(Nonce::from_slice(&iv), Payload { msg: key.as_slice(), aad: context.as_bytes() }).map_err(|_| "The mail's key could not be wrapped.".to_string())?;
+    let sealed = cipher.encrypt(Nonce::from_slice(&iv), Payload { msg: bytes, aad: context.as_bytes() }).map_err(|_| "The mail's key could not be wrapped.".to_string())?;
     let mut out = ephemeral.public_key().to_encoded_point(false).as_bytes().to_vec();
     out.extend_from_slice(&iv);
     out.extend_from_slice(&sealed);
@@ -92,22 +94,27 @@ fn seal_bytes(key: &[u8; 32], bytes: &[u8], context: &str) -> Result<Vec<u8>, St
 /// the wrapped key and the sealed blob, both base64url. The mail's key is made here and wiped before this returns.
 pub fn seal_for(public: &str, id: &str, payload: &[u8]) -> Result<(String, String), String> {
     let key = Zeroizing::new(random::<32>());
-    let wrapped = wrap_for(public, &key, &wrap_context(id))?;
+    let wrapped = wrap_for(public, key.as_slice(), &wrap_context(id))?;
     let blob = URL_SAFE_NO_PAD.encode(seal_bytes(&key, payload, &seal_context(id))?);
     Ok((wrapped, blob))
 }
 
-/// What a device does, for the tests: the mail's key out of its wrap with the account's private key, then the mail.
+/// What `unwrapWith` does, for the tests: the bytes out of a wrap, with the account's private key, in `context`.
 #[cfg(test)]
-pub fn open_with(secret: &p256::SecretKey, id: &str, wrapped: &str, blob: &str) -> Result<Vec<u8>, String> {
+pub fn unwrap_with(secret: &p256::SecretKey, wrapped: &str, context: &str) -> Result<Vec<u8>, String> {
     let bytes = URL_SAFE_NO_PAD.decode(wrapped).map_err(|e| e.to_string())?;
     if bytes.len() < 65 + IV_BYTES + 17 {
         return Err("too short".into());
     }
     let ephemeral = p256::PublicKey::from_sec1_bytes(&bytes[..65]).map_err(|e| e.to_string())?;
-    let context = wrap_context(id);
     let (iv, rest) = bytes[65..].split_at(IV_BYTES);
-    let key = agreed(secret, &ephemeral, &context)?.decrypt(Nonce::from_slice(iv), Payload { msg: rest, aad: context.as_bytes() }).map_err(|_| "not this account's".to_string())?;
+    agreed(secret, &ephemeral, context)?.decrypt(Nonce::from_slice(iv), Payload { msg: rest, aad: context.as_bytes() }).map_err(|_| "not this account's".to_string())
+}
+
+/// What a device does, for the tests: the mail's key out of its wrap with the account's private key, then the mail.
+#[cfg(test)]
+pub fn open_with(secret: &p256::SecretKey, id: &str, wrapped: &str, blob: &str) -> Result<Vec<u8>, String> {
+    let key = unwrap_with(secret, wrapped, &wrap_context(id))?;
     let key: [u8; 32] = key.try_into().map_err(|_| "not a key".to_string())?;
     let sealed = URL_SAFE_NO_PAD.decode(blob).map_err(|e| e.to_string())?;
     if sealed.first() != Some(&VERSION) || sealed.len() < 1 + IV_BYTES + 16 {
