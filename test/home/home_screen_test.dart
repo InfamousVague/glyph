@@ -328,6 +328,32 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('as the keyboard goes, the dock follows it down and stops on the home bar, never below it', (tester) async {
+      // Matt: "When hiding the search the dock animates down but jitters and glitches at the end". The dock rode the
+      // keyboard alone while any of it showed: its last frames, lower than the bar, dropped the dock below where it
+      // rests, and it leapt back up by the bar's height as the keyboard went.
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), insets: true);
+      await settle(tester);
+      final rest = tester.getRect(key('dock-add')).bottom;
+      final ratio = tester.view.devicePixelRatio;
+      addTearDown(tester.view.resetViewInsets);
+      final seen = <double>[];
+      for (var up = 300; up >= 0; up -= 5) {
+        tester.view.viewInsets = FakeViewPadding(bottom: up * ratio);
+        await tester.pump(const Duration(milliseconds: 16));
+        seen.add(tester.getRect(key('dock-add')).bottom);
+      }
+      // pumpApp's phone has 20 at the foot: with the keys 300 up, the dock is 280 above where it rests.
+      expect(rest - seen.first, closeTo(280, 0.75));
+      for (var i = 0; i < seen.length; i++) {
+        expect(seen[i], lessThanOrEqualTo(rest + 0.01), reason: 'frame $i, ${300 - 5 * i} of keyboard: below the bar');
+        if (i > 0) expect(seen[i], greaterThanOrEqualTo(seen[i - 1] - 0.01), reason: 'frame $i: the dock went back up');
+      }
+      expect(seen.last, closeTo(rest, 0.01));
+      await away(tester);
+    });
+
     // Differs 12 (docs/PARITY.md): `useGists(cardsIn(plan).slice(0, GISTED))` (home/HomeScreen.tsx). The page asks
     // the phone for a line under the first sixteen cards it lays out, so its search and its filter decide whose is
     // written; a card past the sixteenth has none, written before or not.

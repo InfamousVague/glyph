@@ -440,8 +440,11 @@ class _PageDockFrameState extends State<PageDockFrame> {
     // The chat panel over this page's end, past whatever stands between the page and the window's edge.
     final under = math.max(0.0, cover - _past);
     final end = t.len('app-safe-right') + t.space(4) + under;
-    // The phone's own bar is under the keyboard while it is up: the dock rides over the keys then.
-    final bottom = (keyboard > 0 ? keyboard : t.len('app-safe-bottom')) + t.space(4);
+    // The phone's own bar is under the keyboard while it is up: the dock rides over the keys then. Whichever is
+    // higher, so as the keys slide away the dock follows them down and stops on the bar: taken from the keyboard
+    // alone while any of it showed, the last frames dropped the dock below the bar and it leapt back up at the end.
+    final safe = t.len('app-safe-bottom');
+    final bottom = math.max(keyboard, safe) + t.space(4);
     final dock = PageDock(
       claude: seam.claude?.call(widget.subject),
       actions: widget.actions ?? seam.actions,
@@ -462,7 +465,8 @@ class _PageDockFrameState extends State<PageDockFrame> {
     final ring = t.len('app-ring');
     return PageDockRoom(
       end: end + ring + 2 * (t.space(2) + t.len('glacier-hairline')),
-      bottom: (keyboard > 0 ? 0 : t.len('app-safe-bottom')) + pageDockRoom(t, dock.count),
+      // The bar's part of the room shrinks as the keyboard covers it, rather than all at once.
+      bottom: math.max(0.0, safe - keyboard) + pageDockRoom(t, dock.count),
       child: halo != null
           ? halo(context, DockPlace(behind: widget.child, dock: shown, alignment: alignment, padding: padding, shown: !hidden))
           : Stack(fit: StackFit.expand, children: [widget.child, Padding(padding: padding, child: Align(alignment: alignment, child: shown))]),

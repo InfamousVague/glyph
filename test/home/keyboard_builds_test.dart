@@ -4,7 +4,8 @@
 // anew at each of those frames (lib/home/home_screen.dart `_KeyboardWatch`, `_AboveKeyboard`; lib/home/note_card.dart).
 //
 // Counted by the framework's own word for an element built again (`debugOnRebuildDirtyWidget`), over twelve frames
-// of a keyboard rising and twelve of it going. The page still ends where the keyboard begins at every frame.
+// of a keyboard rising and twelve of it going. The page still ends at the keyboard, less the phone's bar, at every
+// frame.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -44,8 +45,10 @@ void main() {
       tester.view.viewInsets = FakeViewPadding(bottom: i * 25 * ratio);
       await tester.pump(const Duration(milliseconds: 16));
     }
-    // With the keyboard 300 up, the page ends 300 above where it ended.
-    expect(foot(), closeTo(window - 300, 0.5), reason: 'the page ends where the keyboard begins');
+    // With the keyboard 300 up, the page ends 300 above where it ended, less the phone's bar it always stands clear
+    // of: what stood over the bar stands over the keys.
+    final bar = (tester.view.viewPadding.bottom / ratio).ceilToDouble();
+    expect(foot(), closeTo(window - (300 - bar), 0.5), reason: 'the page ends the bar\'s height into the keyboard');
     for (var i = 11; i >= 0; i--) {
       tester.view.viewInsets = FakeViewPadding(bottom: i * 25 * ratio);
       await tester.pump(const Duration(milliseconds: 16));
@@ -54,9 +57,9 @@ void main() {
     tester.view.resetViewInsets();
     // ignore: avoid_print
     print('home through a keyboard up and down, 24 frames, $cards cards on the page: $counted');
-    // Once as the keyboard comes up (the room kept for the phone's bar goes) and once as it is gone, each card on
-    // the page and the one the page keeps ready under it; and a card that comes near the window's foot as the
-    // keyboard leaves it. (Before: 84 for three cards, 24 for their list.)
+    // The page draws nothing by the keyboard now (the room for the phone's bar stays): at most a card that comes
+    // near the window's foot as the keyboard leaves it. (Before: 84 for three cards, 24 for their list; then each
+    // card twice, as the bar's room went and came back.)
     expect(counted[NoteCard], lessThan(cards * 4), reason: 'a card is built when the keyboard is up or gone, not at each frame between: $counted');
     expect(counted[SliverNoteCards], lessThanOrEqualTo(4), reason: 'the cards’ lists likewise: $counted');
     debugDisableShadows = true;
