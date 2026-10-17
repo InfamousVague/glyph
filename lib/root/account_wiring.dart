@@ -42,6 +42,7 @@ import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/versions_store.dart';
 import '../core/workspaces.dart';
+import '../integrations/webhooks/plugin.dart' show hooksWhileOn;
 import '../live/live.dart';
 import '../live/nudge.dart';
 import '../live/open.dart';
@@ -210,6 +211,9 @@ class WiredAccount {
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
       mailIn: offered ? syncMail : null,
+      // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
+      // Webhooks plugin is on.
+      hooksIn: hooksWhileOn,
     );
     final noteLive = NoteLive(
       live: live,

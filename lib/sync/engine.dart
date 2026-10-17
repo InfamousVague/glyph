@@ -51,6 +51,7 @@ import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
+import '../integrations/webhooks/incoming.dart' show HookPass, HookPassContext;
 import '../mail/mail_in.dart' show MailPass, MailPassContext;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
@@ -283,6 +284,7 @@ class SyncEngine {
     this.forgetTeams,
     this.tellChanged,
     this.mailIn,
+    this.hooksIn,
     NotesPass? notesPass,
     PrefsPass? prefsPass,
     FeedPass? feedPass,
@@ -319,6 +321,10 @@ class SyncEngine {
   /// Email to a note (lib/mail/mail_in.dart `syncMail`): what was mailed to the account's address, filed as notes
   /// just before the notes step, which then sends them on. Null where the feature is not offered.
   final MailPass? mailIn;
+
+  /// Incoming webhooks (lib/integrations/webhooks/incoming.dart `syncHooks`): what was posted to the account's hooks,
+  /// put into its notes just before the notes step, which then sends them on. Null where it is not offered.
+  final HookPass? hooksIn;
 
   final Stored? _kept;
   final int Function() _now;
@@ -660,6 +666,25 @@ class SyncEngine {
           )),
         );
         if ((filed ?? 0) > 0) await _changed();
+      }
+
+      // What was posted to the account's incoming webhooks, put into its notes (docs/INTEGRATIONS.md, §1).
+      final hooks = hooksIn;
+      if (hooks != null) {
+        final added = await step(
+          'Webhooks',
+          () => hooks(HookPassContext(
+            token: token,
+            api: api,
+            crypto: crypto,
+            pair: () async => (await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto))).pair,
+            notes: notes,
+            now: _now,
+            prefs: () => prefs.value,
+            kept: _device,
+          )),
+        );
+        if ((added ?? 0) > 0) await _changed();
       }
 
       final notesKey = _stateKey(accountId, 'notes');

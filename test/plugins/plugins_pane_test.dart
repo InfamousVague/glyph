@@ -39,8 +39,9 @@ import 'support.dart';
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
 
 /// The five that ship, with nothing switched by hand: what the web page was measured over. This app's own (Place
-/// reminders, which the page never had) is left out of them; test/plugins/places_test.dart has its card.
-Registry shippedRegistry() => createRegistry([for (final p in builtIn) if (p.manifest.id != placeRemindersId) p], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
+/// reminders and Webhooks, which the page never had) are left out of them; test/plugins/places_test.dart and
+/// Webhooks' plugin_test.dart have their cards.
+Registry shippedRegistry() => createRegistry([for (final p in builtIn) if (p.manifest.id != placeRemindersId && p.manifest.id != 'webhooks') p], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
 
 /// Makes [registry] the app's for this test.
 Registry install(WidgetTester tester, Registry registry) {

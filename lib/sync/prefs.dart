@@ -86,6 +86,10 @@ const List<String> syncedPrefs = [
   // The calendars read (lib/calendar/setup.dart, docs/CALENDAR.md): the iCal addresses and Google's sign-in, sealed
   // with the rest, so a calendar added on one device is on every one. What each device fetched stays with it.
   'calendars',
+  // The webhooks (lib/integrations/webhooks/setup.dart, docs/INTEGRATIONS.md): each outgoing hook's URL, events, scope
+  // and secret, and each incoming hook's default note, sealed with the rest. How each hook last went stays with the
+  // device that sent it.
+  'webhooks',
 ];
 
 typedef _Entries = Map<String, Object?>;

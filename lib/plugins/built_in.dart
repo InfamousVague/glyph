@@ -20,6 +20,7 @@
 /// reason the list is here.
 library;
 
+import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
 import '../sync/arrived.dart' show onArrived;
 import 'claude/claude.dart' show claudePlugin;
 import 'github/github.dart' show githubPlugin;
@@ -30,9 +31,9 @@ import 'registry.dart';
 import 'slack/slack.dart' show slackPlugin;
 import 'types.dart';
 
-/// The plugins that ship with Ghost.md (`BUILT_IN`), in the page's order, then this app's own: Place reminders
-/// (places/places.dart), which the page never had.
-final List<GlyphPlugin> builtIn = List.unmodifiable([notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin, placesPlugin]);
+/// The plugins that ship with Ghost.md (`BUILT_IN`), in the page's order, then this app's own, which the page never
+/// had, each off until switched on: Place reminders (places/places.dart) and Webhooks (docs/INTEGRATIONS.md, §1).
+final List<GlyphPlugin> builtIn = List.unmodifiable([notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin, placesPlugin, webhooksPlugin]);
 
 void Function()? _unhear;
 

@@ -96,7 +96,7 @@ class OpenedShare {
 }
 
 /// [AccountCrypto] by the Rust core. See the header.
-class CoreCrypto implements AccountCrypto {
+class CoreCrypto implements AccountCrypto, UnwrapsBytes {
   /// Over [quick], with the long calls sent down [slow] when there is one.
   CoreCrypto(CoreInvoke quick, {CoreInvoke? slow, Random? random})
     : _quick = quick,
@@ -272,6 +272,11 @@ class CoreCrypto implements AccountCrypto {
   @override
   Future<Uint8List> unwrapWith(EncryptionKey pair, String wrapped, String context) async {
     return fromBase64Url(await _quick('unwrap_with', {'pair': _own(pair, const ['pair']), 'wrapped': wrapped, 'context': context}) as String);
+  }
+
+  @override
+  Future<Uint8List> unwrapBytesWith(EncryptionKey pair, String wrapped, String context) async {
+    return fromBase64Url(await _quick('unwrap_bytes_with', {'pair': _own(pair, const ['pair']), 'wrapped': wrapped, 'context': context}) as String);
   }
 
   // --- randomness and digests -----------------------------------------------------------------------------------
