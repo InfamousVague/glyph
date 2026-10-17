@@ -409,7 +409,8 @@ class _GhostRootState extends State<GhostRoot> {
           core: widget.core!,
           workspaces: _workspaces,
           versions: _versionsStore,
-          touched: _library is CoreLibrary ? (_library).touched : null,
+          // Matched rather than promoted: a late field is not promoted by every Dart the app is built with (CI's).
+          touched: switch (_library) { final CoreLibrary core => core.touched, _ => null },
           refresh: _library.refresh,
           shownNotes: () => _shown,
           // A shared link follows the notes, by whichever hand they changed (lib/share/share.dart `follow`).

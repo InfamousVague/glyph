@@ -2,7 +2,6 @@
 // its writing played out in an editor as the tool's input streams.
 import 'dart:convert';
 
-import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/claude/claude_run.dart';
 import 'package:ghost_md/claude/claude_tools.dart';
