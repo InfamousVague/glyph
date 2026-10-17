@@ -103,9 +103,9 @@ void main() {
 
   bool off(WidgetTester tester, String row) => tester.widget<SettingRow>(rowCalled(row)).disabled;
 
-  testWidgets('its rows, which wait for an importer', (tester) async {
+  testWidgets('its rows, which wait for an importer, and A .ghostex file below them', (tester) async {
     await open(tester, null);
-    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'Completed tasks too', 'Todoist CSV export (.csv)', 'Paste from Things']);
+    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'Completed tasks too', 'Todoist CSV export (.csv)', 'Paste from Things', 'A .ghostex file']);
     expect(off(tester, 'Obsidian vault'), isTrue);
     expect(off(tester, 'Evernote export (.enex)'), isTrue);
     expect(off(tester, 'Todoist CSV export (.csv)'), isTrue);
@@ -211,7 +211,7 @@ void main() {
   testWidgets('Things: on a Mac from its own data, the Logbook if asked; anywhere pasted', (tester) async {
     final importer = FakeImporter(mac: true);
     await open(tester, importer);
-    expect(rowLabels(tester).sublist(4), ['From Things on this Mac', 'The Logbook too', 'Paste from Things']);
+    expect(rowLabels(tester).sublist(4, 7), ['From Things on this Mac', 'The Logbook too', 'Paste from Things']);
     await tapOn(tester, rowCalled('From Things on this Mac'));
     expect((importer.macs, importer.logbook), (1, false));
     expect(find.text('Reading Things…'), findsOneWidget);

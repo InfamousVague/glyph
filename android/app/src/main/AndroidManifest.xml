@@ -150,6 +150,26 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
             <!--
+              A .ghostex opened from Files or a mail (ShareIn.kt; lib/export/ghostex_calls.dart): Settings › Import reads
+              it back. Android has no type for one, so a file manager says application/octet-stream (or, for one
+              that is not protected, a zip's type), and the filter asks for the name's ending too, so Ghost.md is not
+              offered for every file of no known type. ShareIn.kt checks the name again before it keeps the file.
+              The patterns are Android's way of matching a name with dots before its ending.
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:mimeType="application/octet-stream" />
+                <data android:mimeType="application/zip" />
+                <data android:mimeType="application/x-zip-compressed" />
+                <data android:pathSuffix=".ghostex" />
+                <data android:pathPattern=".*\\.ghostex" />
+                <data android:pathPattern=".*\\..*\\.ghostex" />
+                <data android:pathPattern=".*\\..*\\..*\\.ghostex" />
+            </intent-filter>
+            <!--
               A link that opens the app is the app's own to follow (AppLinks.kt), never a route for Flutter to push:
               left on, the embedding hands each address to the framework, which put a second copy of the app over
               the first (lib/app/ghost_app.dart drops them too, for an entry point that forgets this).

@@ -561,8 +561,10 @@ void main() {
     testWidgets('is the ghost, the way in, what a lost password means, then Privacy and Location', (tester) async {
       await openPane(tester, 'account', size: const Size(390, 2400));
       expect(find.byType(Ghost), findsOneWidget);
-      expect(cardTitles(tester), ['Sign in', null, 'Privacy', 'Location']);
+      // The last card is Export everything (lib/settings/panes/ghostex_cards.dart).
+      expect(cardTitles(tester), ['Sign in', null, 'Privacy', 'Location', null]);
       expect(rowLabels(tester).take(2), ['Create an account', 'Lost the password']);
+      expect(rowLabels(tester).last, 'Export everything');
       expect(rowLabels(tester, 'Privacy'), ['Local only', 'Link previews', 'Look up blanks online', 'Privacy policy']);
       expect(rowLabels(tester, 'Location'), ['Map on a tagged note', 'Place names', 'Tag new notes with my location']);
       // With no account service the button cannot be pressed, whatever is typed.
@@ -681,7 +683,8 @@ void main() {
     testWidgets('signed in, says the account’s own page is not ported, and still has Privacy and Location', (tester) async {
       await openPane(tester, 'account', size: const Size(390, 2400), features: const SettingsFeatures(signedIn: true));
       expect(find.text('Not ported yet'), findsOneWidget);
-      expect(cardTitles(tester), ['Privacy', 'Location']);
+      expect(cardTitles(tester), ['Privacy', 'Location', null]);
+      expect(rowLabels(tester).last, 'Export everything');
       expect(accountFindable(signedIn: true), isEmpty);
       await endSettings(tester);
     });

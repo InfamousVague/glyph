@@ -8,6 +8,7 @@ import '../../core/library_folder.dart' show LibraryFolder;
 import '../../core/place_tags.dart' show PlaceTags;
 import '../../core/preferences.dart';
 import '../../core/workspaces.dart';
+import '../../export/ghostex_calls.dart' show Ghostex;
 import '../../importer/importer.dart' show Importer;
 import '../settings_screen.dart' show SettingsTarget;
 
@@ -149,6 +150,7 @@ class SettingsFeatures {
     this.backup,
     this.export,
     this.importer,
+    this.ghostex,
     this.models,
     this.onGetModel,
     this.onRemoveModel,
@@ -198,6 +200,10 @@ class SettingsFeatures {
   /// Notes from Obsidian and Evernote, chosen with the device's own picker (lib/importer/importer.dart): Settings ›
   /// Import. Null is a build with no library to import into: the rows are drawn and cannot be pressed.
   final Importer? importer;
+
+  /// Everything as one .ghostex file and one read back (lib/export/ghostex_calls.dart): Settings › Account › Export
+  /// everything and Settings › Import › A .ghostex file. Null is a build with no library: the rows cannot be pressed.
+  final Ghostex? ghostex;
 
   /// What models are on this device; null until the model store is here, which reads as none.
   final SettingsModelsState? models;
