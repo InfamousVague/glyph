@@ -7,7 +7,7 @@
 # rust-cache keeps native/target between runs, so only the first pays the quarter of an hour CMake takes.
 #
 # Before the APK: `flutter analyze` (errors fail the run; warnings and infos are said and do not) and the tests that
-# need no core (test/claude). After it, the APK as an artifact. It is the ordinary build, "Ghost Flutter"
+# need no core (test/claude). After it, the APK as an artifact. It is the ordinary build, "Ghost Markdown"
 # (com.mattssoftware.glyph.flutter), signed with the runner's debug key: it installs beside the real app, never over
 # it, and is not what scripts/deploy-flutter-apk.mjs publishes.
 name: Android build
@@ -122,12 +122,12 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp build/app/outputs/flutter-apk/app-release.apk ghost-flutter.apk
-          notes="Ghost Flutter (com.mattssoftware.glyph.flutter) from ${GITHUB_SHA::7}, build ${{ github.run_number }}. Installs beside Ghost.md, signed with CI's debug key."
+          notes="Ghost Markdown (com.mattssoftware.glyph.flutter) from ${GITHUB_SHA::7}, build ${{ github.run_number }}. Installs beside Ghost.md, signed with CI's debug key."
           if gh release view android-latest > /dev/null 2>&1; then
             gh release upload android-latest ghost-flutter.apk --clobber
             gh release edit android-latest --notes "$notes" --target "$GITHUB_SHA"
           else
-            gh release create android-latest ghost-flutter.apk --prerelease --title "Ghost Flutter, newest build" --notes "$notes" --target "$GITHUB_SHA"
+            gh release create android-latest ghost-flutter.apk --prerelease --title "Ghost Markdown, newest build" --notes "$notes" --target "$GITHUB_SHA"
           fi
 
       - name: Analyze and tests passed

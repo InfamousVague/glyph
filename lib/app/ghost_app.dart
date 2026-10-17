@@ -102,7 +102,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
       builder: (context, _) {
         final prefs = preferences.value;
         return WidgetsApp(
-          title: 'Ghost Flutter',
+          title: 'Ghost Markdown',
           color: const Color(0xFF0D0D0D),
           debugShowCheckedModeBanner: false,
           initialRoute: Navigator.defaultRouteName,

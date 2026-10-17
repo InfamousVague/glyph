@@ -124,7 +124,7 @@ android {
             else -> if (ghostAssistant) "@xml/ghost_shortcuts" else "@xml/ghost_app_shortcuts"
         }
         if (ghostPerfId) applicationIdSuffix = ".perf"
-        manifestPlaceholders["ghostLabel"] = if (ghostPerfId) "Ghost Perf" else if (ghostCutover) "Ghost.md" else "Ghost Flutter"
+        manifestPlaceholders["ghostLabel"] = if (ghostPerfId) "Ghost Perf" else if (ghostCutover) "Ghost.md" else "Ghost Markdown"
         // Which of the two is the launcher's: this app's own activity, or (replacing the Tauri app) the alias that
         // carries that app's activity's name. A category nothing asks for is how the other is not one.
         resValue("bool", "ghost_cutover", ghostCutover.toString())

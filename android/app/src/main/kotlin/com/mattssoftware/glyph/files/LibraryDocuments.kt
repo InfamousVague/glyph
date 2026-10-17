@@ -2,7 +2,7 @@ package com.mattssoftware.glyph.files
 
 // PORTED from tauri/src-tauri/gen/android/app/src/main/java/com/mattssoftware/glyph/files/LibraryDocuments.kt, line for line, for the
 // Flutter app (docs/STAGES_5_6_8_9.md, stage 9A). What differs: `R` is this app's (its namespace is com.mattssoftware.ghost_md); the
-// place is named as this app is named on the phone (its label: "Ghost Flutter" while it installs beside the real app), where the Tauri
+// place is named as this app is named on the phone (its label: "Ghost Markdown" while it installs beside the real app), where the Tauri
 // one wrote "Ghost.md", so a phone with both never lists two places of one name; and the button that opens it asks on `ghost_md/files`
 // (ghost_md/LibraryFiles.kt), where the Tauri activity had `GlyphHost.browseFiles`. The authority is `<this app's id>.library` as
 // there, and the manifest writes it from `${applicationId}`: never the real app's.
