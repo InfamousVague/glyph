@@ -78,7 +78,8 @@ void main() {
 
   test('a new entry is named for the minute, listed in its journal and made from the template chosen, once a press', () async {
     final journal = await NewBooks(library).createJournal('Diary', defaultTemplate, false);
-    final untouched = UntouchedNotes(kept: MemoryStored());
+    // The records' clock is the entry's: one read by the real one would be more than a week old from 2026-10-15.
+    final untouched = UntouchedNotes(kept: MemoryStored(), clock: () => at.millisecondsSinceEpoch);
     final entries = JournalPages(library, untouched: untouched, clock: () => at);
     final both = await Future.wait([entries.newEntry(journal.id), entries.newEntry(journal.id)]);
     // A second press before the first is open is the same press.
