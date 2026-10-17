@@ -132,6 +132,18 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     if (!_gone) _touched.value += 1;
   }
 
+  final StreamController<SavedHere> _savedHere = StreamController<SavedHere>.broadcast();
+
+  /// Each note whose words this device changed, made, saved or changed by a command, with its words before: what
+  /// an outgoing webhook hears (lib/integrations/webhooks). Never a note written as another device has it ([apply]),
+  /// nor a pin or an archive.
+  Stream<SavedHere> get savedHere => _savedHere.stream;
+
+  void _saved(Note? before, Note after) {
+    if (_gone || (before != null && before.body == after.body)) return;
+    _savedHere.add(SavedHere(before: before, after: after));
+  }
+
   /// The list put together again from what is held, and the listeners told: once, and only where a note in it is
   /// another object than it was, or [told] says something else they read (whether the first read is over, why it
   /// failed) is.
@@ -332,6 +344,7 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     final made = id ?? newNoteId(_random);
     final at = _clock();
     final fresh = !_made.containsKey(made) && noteOf(made) == null;
+    final before = fresh ? null : noteOf(made);
     if (fresh) {
       _made[made] = Note(id: made, body: body, createdAt: at, updatedAt: at, source: source);
       _publish();
@@ -350,15 +363,18 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     }
     _touch();
     _put(stored);
+    _saved(before, stored);
     return stored;
   }
 
   @override
   Future<Note> update(String id, String body, int expectedRevision) async {
+    final before = noteOf(id);
     final stored = noteFromJson(await _invoke('update_note', {'id': id, 'body': body, 'expectedRevision': expectedRevision}));
     if (stored == null) throw noteChangedError();
     _touch();
     _put(stored);
+    _saved(before, stored);
     return stored;
   }
 
@@ -367,10 +383,12 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
   /// as the page's is.
   @override
   Future<CommandMutationResult> applyCommandMutation(CommandMutationRequest request) async {
+    final before = noteOf(request.noteId);
     final result = commandMutationResultFromJson(await _invoke('apply_command_mutation', {'request': commandMutationRequestToJson(request)}));
     _touch();
     if (result is! CommandMutationResultApplied) return result;
     _put(result.note);
+    _saved(before, result.note);
     await _quietly();
     return result;
   }
@@ -479,6 +497,16 @@ class CoreLibrary extends ChangeNotifier implements NoteLibrary {
     _gone = true;
     _resumes?.dispose();
     _touched.dispose();
+    unawaited(_savedHere.close());
     super.dispose();
   }
+}
+
+/// A note's words changed on this device by this device's own hand ([CoreLibrary.savedHere]): the note as it was
+/// before, null for one made just now, and as it is after.
+@immutable
+class SavedHere {
+  const SavedHere({this.before, required this.after});
+  final Note? before;
+  final Note after;
 }
