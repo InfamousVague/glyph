@@ -13,7 +13,8 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are thirteen tools, and a fourteenth on the hosted server:
+Once it is connected, ask Claude in words. Behind them are twenty tools, and a twenty-first on the hosted server, with
+the notes as resources and four prompts beside them (below):
 
 | Tool | What it does |
 | --- | --- |
@@ -21,8 +22,8 @@ Once it is connected, ask Claude in words. Behind them are thirteen tools, and a
 | `read_note` | One note in full, by id or by title, or a ticket by its key, `GHO-12` (docs/TICKETS.md). |
 | `search_notes` | Notes whose words contain something, with a snippet around the match. |
 | `create_note` | A new note from markdown, with a title as its heading. Every mark the app draws works: headings, lists, `- [ ]` to-dos, tables, boards. |
-| `update_note` | A note's whole body replaced. |
-| `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. |
+| `update_note` | A note's whole body replaced. `suggest: true` writes the change as suggestions instead (below). |
+| `append_to_note` | Words added the way the app's own "add task" adds them: a task or an item joins the note's list, in the list's style; a paragraph goes on the end. Not a journal, whose words are the list of its entries: it says to use the next tool. `suggest: true` writes what is added as a suggestion. |
 | `add_picture` | A picture from the web put into a note (Matt, 2026-10-16: "Update the note with embedded links and pictures"). The editor draws only a picture the library keeps, never an address, so the connector does what a phone does: fetches the JPEG, PNG or WebP (https only, at most 15 MB, every address a name resolves to checked as public at the moment of connecting, each redirect checked again; `mcp/pictures.ts`), names it as a device names one, seals it into the account's files or, for a team's note, the organization's, and only then writes `![caption](image/<name>)` under the line asked for, or at the end. A team note whose pictures change has its row put again, since a member's device fetches pictures from the row and never from the log. |
 | `add_journal_entry` | An entry in a journal (a notebook kept as a journal, DESIGN §142), as the app writes one: a note named by the minute, "2026-09-28 14.05", started from the journal's template, with the words going on from its time line or into its to-do list, and its line added to the journal. `at` is the person's local time, `YYYY-MM-DDTHH:MM`; left out, the time where the local server runs, and the hosted one asks for it, since its clock is not yours. Never a place. |
 | `set_note_flags` | Pin or archive a note, or undo either. |
@@ -33,7 +34,49 @@ Once it is connected, ask Claude in words. Behind them are thirteen tools, and a
 | `get_rules` | The "Claude rules" note: your standing instructions for Claude on this account. Made, pinned, the first time it is wanted. |
 | `add_rule` | Records a standing or repeated request into the "Claude rules" note, so Claude keeps doing it: for when you say to always, from now on, or again do something. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
+| `list_comments` | A note's comment threads (by id or title): each thread's id, the words it is on (`on`, null for the note as a whole), its messages in order as `{ author, at, text }`, the first the comment and the rest replies, and `resolved` `{ by, at }` or null. |
+| `add_comment` | A new thread with the AI as its author: `on` the exact words of the note (the first place it has them on one line, outside front matter and fenced blocks), written `==the words==[^c…]`; `on` left out, on the note as a whole, anchored after its first line of words as the app's "Add a comment" does. `text` is the comment. |
+| `reply_to_comment` | A reply in thread `comment` (its id, from `list_comments`), under its last message and before its resolution. |
+| `resolve_comment` | Thread `comment` closed: `resolved <name> <time>` under it, its messages kept. One already resolved is said to be. |
 | `sign_out_everywhere` | Hosted only. Ends every Claude connection to the account - every Claude account and computer signed in to it, this one included; each signs in again on the page. |
+
+**Suggest mode** (docs/CLAUDE_LIVE.md; `mcp/suggest.ts`). With `suggest: true`, `update_note` and `append_to_note`
+work out the change as they always do (the authors, the place and the keys kept, the item placed in its list) and
+then write it as CriticMarkup instead of making it: `{++added++}`, `{--removed--}`, `{~~old~>new~~}`, each followed
+by `{>>Claude<<}` (the AI's name, as for authors). The lines both bodies share are matched first (Myers' diff); the
+changed lines are paired by the words they share and diffed word by word, an inline code span, a link and a `{?blank}`
+each one word, and changes with only spaces between them are one mark, so a reworded phrase is one replacement. A
+mark never crosses a line: a line added or taken out whole is marked after its bullet, task box, heading marks or
+quote, which stay outside it, and a changed bullet or box is written as the new one. What is not prose is written as
+the change itself, never marked: the front matter (the `authors:` line among it), fenced blocks with their fence lines
+(code, boards, the comments fence), a table's delimiter row, a table row whose pipes moved, and the note's title, its
+first heading, which links find it by; so are words that would close a mark early. The answer carries `suggestions`,
+how many marks were written. The app draws them with Keep and Revert (lib/editor/suggestions/); a Keep or a Revert
+that leaves a line with nothing but its bullet or box is best taken out with the line.
+
+**Comments** (docs/SHARED.md, S8; `mcp/comments.ts`). Read and written by the app's own module
+(`core/comments/format.ts`), so they are the threads the editor draws: `[^c…]` anchors and one ```comments fence at the
+end of the note. The author is the AI's name, a space in it written as a dash (`Claude-Code`), stamped in UTC to the
+second. A new thread's id is `c` and a random tail no thread, anchor or footnote of the note has used. Each write goes
+through the account as an edit does - into the team's document for a team's note - and posts `note-edited`.
+
+**Resources** (`mcp/resources.ts`). Every note is a resource, `ghost://note/{id}`, read as its markdown
+(`text/markdown`), so a person can attach notes in Claude's app. `resources/list` offers the newest 100 that are not in
+the Trash, each named by its title and described by when it changed, its folder and its workspace; a note's address
+reads it whatever its age, as `read_note` does by id. **Subscriptions** are the local server's only: over stdio it
+declares `resources.subscribe`, and while anything is subscribed it reads the account every 20 seconds and sends
+`notifications/resources/updated` for each subscribed note whose words, pin or archive changed, or that went; with
+nothing subscribed it reads nothing. The hosted server answers each request with one JSON response and cannot speak
+between them, so it does not offer them.
+
+**Prompts** (`mcp/prompts.ts`), each a user message telling Claude what to do with which tools:
+
+| Prompt | What it asks |
+| --- | --- |
+| `weekly-review` | The notes changed in the last seven days (`list_notes`) and the open to-dos (`search_notes` for `- [ ]`) made into a review, saved with `create_note` as "Weekly review <date>". |
+| `plan-my-day` | The to-dos due today or overdue (`📅` dates), the high-priority ones, and today's notes, made into a plan for the day, shown and saved only if asked. |
+| `tidy-note` | Argument `title`. The note read, restructured and cleaned up, keeping every fact, its front matter, fences and title, and written back with `update_note` and `suggest: true`. |
+| `ask-claude-inbox` | The personal note "Ask Claude" found, or made with a short explanation and an empty `- [ ]` (then nothing to do); each open request done with the tools, a one-line `  - ` answer written under it, and ticked. A scheduled routine runs the same prompt. |
 
 **Authors.** A note the AI creates, rewrites or adds to lists it among the note's authors, after the account's own
 handle: `authors: infamousvague, Claude` in the front matter (`src/app/core/authors.ts`). The name is the tool's
@@ -298,7 +341,11 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | --- | --- |
 | `mcp/glyph.ts` | the account as a client: sign-in, the session's renewal, the note feed opened into a cache, writes sealed as the app seals them, the conflict rule, and the self notification posted after a write (`postNotification`) |
 | `mcp/team.ts` | the account's organizations as a client: the member's key pair and wraps read, the team's rows and logs read by cursor, writes as updates to a note's document, filing into a team and out of it |
-| `mcp/server.ts` | the tools: thirteen everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
+| `mcp/server.ts` | the tools: twenty everywhere, and `sign_out_everywhere` on the hosted server; each writing tool tells the feed what it wrote |
+| `mcp/suggest.ts` | suggest mode: a change written as CriticMarkup, what is not prose written directly |
+| `mcp/comments.ts` | the comment tools' reading and writing, on the app's `core/comments/format.ts` |
+| `mcp/resources.ts` | the notes as `ghost://note/{id}` resources, and the local server's subscriptions |
+| `mcp/prompts.ts` | the four prompts |
 | `mcp/main.ts`, `mcp/cli.ts` | the command: its entry point, and login, status, logout and serve |
 | `mcp/webcrypto.ts` | WebCrypto on whatever Node runs it: the box's Node 18 has no global `crypto` until it is put there |
 | `mcp/hosted.ts`, `mcp/hosted-main.ts` | the hosted server: OAuth with the SDK's handlers, MCP over HTTP, and its start-up from the environment; run on the box as `glyph-mcp.service` (`server/glyph-mcp.service`) |
@@ -313,6 +360,7 @@ taken off stays so. A notebook keeps the `key:` its tickets are numbered by and 
 | `mcp/glyph.test.ts` | the client against a sync service stood in for in memory: sign-in, renewal, reading, writing, the conflict |
 | `mcp/team.test.ts` | an organization's notes through the tools, against the app's own organization channel as the member's device: read, written and merged, filed, and said to be unreadable with the reason |
 | `mcp/server.test.ts`, `mcp/cli.test.ts`, `mcp/loginPage.test.ts`, `mcp/webcrypto.test.ts` | the tools, the commands, the sign-in page's script, and WebCrypto on an old Node |
+| `mcp/tools2.test.ts`, `mcp/suggest.test.ts`, `mcp/comments.test.ts` | suggest mode, the comment tools, the resources and their subscriptions, and the prompts through the tools; the marks and the threads by themselves |
 | `mcp/hosted.test.ts` | the hosted server connected to as Claude connects: the client library's own OAuth flow, the page, tokens, refresh, the tools, a week's idleness ending the session, and the server restarted under Claude |
 | `mcp/hostedStore.test.ts` | the sealing and the file by themselves: what is written, what opens it, the lifetimes across a restart, a file that cannot be read |
 | `mcp/mcp.e2e.test.ts` | a phone (the app's own sync code), the built local server over stdio, and the built hosted server over HTTP with the full sign-in, all on one real glyph-api: `GLYPH_MCP_E2E=1 VITE_GLYPH_API=http://127.0.0.1:<port>/api npx vitest run mcp.e2e` |

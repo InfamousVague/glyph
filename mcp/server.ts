@@ -17,6 +17,10 @@ import { titleKey } from '../tauri/src/app/core/titleKey.ts';
 import { imageMarkdown } from '../tauri/src/app/core/imageRefs.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
 import { downloadPicture, pictureName, placePicture, type PictureDownloader } from './pictures.ts';
+import { suggestBody } from './suggest.ts';
+import { commentOn, replyTo, resolve, stampOf, threadsIn, type Written } from './comments.ts';
+import { enableSubscriptions, registerNoteResources } from './resources.ts';
+import { registerPrompts } from './prompts.ts';
 
 /**
  * The MCP server: Glyph's notes as tools for Claude (docs/MCP.md). Matt: "make an MCP plugin for Claude so I can use
@@ -496,7 +500,21 @@ export interface HostedHooks {
   client?: () => { name?: string; title?: string } | undefined;
 }
 
-export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options?: { instructions?: string; download?: PictureDownloader }): McpServer {
+/**
+ * Suggest mode (mcp/suggest.ts; docs/CLAUDE_LIVE.md): the field update_note and append_to_note take, and what it does,
+ * said in both.
+ */
+const SUGGEST = 'Write the change as suggestions instead of making it: the person sees each one in the app and keeps or reverts it. The words are marked in CriticMarkup - {++added++}, {--removed--}, {~~old~>new~~}, each followed by {>>your name<<} - which other markdown apps read too. Use it when the person asks you to suggest, or for a change they should look over first. Front matter, fenced blocks (code, boards, comments), a table row whose cells move and the note’s title are written directly, never marked.';
+
+/**
+ * `subscriptions` lets Claude subscribe to a note's resource and be told when it changes (mcp/resources.ts): only for
+ * the local server, which can speak between requests; the hosted one answers each with one JSON response.
+ */
+export function buildServer(
+  account: GlyphAccount,
+  hosted?: HostedHooks,
+  options?: { instructions?: string; download?: PictureDownloader; subscriptions?: boolean | { everyMs: number } },
+): McpServer {
   const download = options?.download ?? downloadPicture;
   const server = new McpServer({ name: 'glyph', version: VERSION }, options?.instructions ? { instructions: options.instructions } : undefined);
   /**
@@ -651,26 +669,32 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Replace a note’s body',
       description:
-        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. An organization’s note is not refused: the lines that differ are written into the team’s shared document as a change, which merges with what the other members are writing. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it.',
+        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. An organization’s note is not refused: the lines that differ are written into the team’s shared document as a change, which merges with what the other members are writing. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it. With `suggest`, the change is written as suggestions for the person to keep or revert, not made.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe(`The new markdown body, whole. ${BLANKS}`),
         author: authorField,
+        suggest: z.boolean().optional().describe(SUGGEST),
       },
     },
-    async ({ id, body, author }) =>
+    async ({ id, body, author, suggest }) =>
       guarded(async () => {
         await fresh();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
         // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
         // it was written, nor the keys that make it a notebook, a journal or an entry.
         let before = '';
+        let suggestions = 0;
         const written = await account.edit(id, (note) => {
           before = note.body;
-          return { ...note, body: authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author) };
+          const next = authored(keepPlace(note.body, keepAuthors(note.body, keepKeys(note.body, body))), author);
+          if (!suggest) return { ...note, body: next };
+          const marked = suggestBody(note.body, next, by(author));
+          suggestions = marked.count;
+          return { ...note, body: marked.body };
         });
         await account.postNotification('note-edited', { noteId: id, title: titled(written), by: by(author), ...lineDiff(before, written.note.body) });
-        return text({ updated: whole(written, spaceOf(account, written, await settingsOf(account))) });
+        return text({ updated: whole(written, spaceOf(account, written, await settingsOf(account))), ...(suggest ? { suggestions } : {}) });
       }),
   );
 
@@ -679,16 +703,17 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Add to a note',
       description:
-        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time. Not for a journal: write an entry in one with add_journal_entry.',
+        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time. Not for a journal: write an entry in one with add_journal_entry. With `suggest`, what is added is written as a suggestion for the person to keep or revert.',
       inputSchema: {
         id: z.string().optional().describe('The note’s id.'),
         title: z.string().optional().describe('Or its title.'),
         text: z.string().min(1).describe('What to add. Several items may be given with commas.'),
         as: z.enum(['task', 'item', 'paragraph', 'auto']).optional().describe('`task` for a `- [ ]` to-do, `item` for a bullet, `paragraph` for a line of its own, `auto` (default) to put it where it fits.'),
         author: authorField,
+        suggest: z.boolean().optional().describe(SUGGEST),
       },
     },
-    async ({ id, title, text: words, as, author }) =>
+    async ({ id, title, text: words, as, author, suggest }) =>
       guarded(async () => {
         await fresh();
         const target = await find(account, id, title);
@@ -696,13 +721,18 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         if (isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is a journal: its words are the list of its entries. Use add_journal_entry to write one.`);
         const how = as === 'task' || as === 'item' ? 'item' : as === 'paragraph' ? 'paragraph' : 'leave';
         let added: string[] = [];
+        let suggestions = 0;
         const written = await account.edit(target.note.id, (note) => {
           const placed = placeWords(note.body, words, { how, task: as === 'task', many: false });
           added = placed.added;
-          return { ...note, body: authored(placed.body, author) };
+          const next = authored(placed.body, author);
+          if (!suggest) return { ...note, body: next };
+          const marked = suggestBody(note.body, next, by(author));
+          suggestions = marked.count;
+          return { ...note, body: marked.body };
         });
         await account.postNotification('note-appended', { noteId: written.note.id, title: titled(written), by: by(author), lines: added.length, first: firstLine(added[0] ?? '') });
-        return text({ added, note: summary(written, spaceOf(account, written, await settingsOf(account))) });
+        return text({ added, note: summary(written, spaceOf(account, written, await settingsOf(account))), ...(suggest ? { suggestions } : {}) });
       }),
   );
 
@@ -1038,6 +1068,110 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         });
       }),
   );
+
+  /**
+   * Comments (mcp/comments.ts; docs/CLAUDE_LIVE.md, "Comments"): a note's threads read, and a comment, a reply or a
+   * resolution written by the AI as the app writes one, in the note's own ```comments fence. A write goes through the
+   * account as any edit does - into a team's document for a team's note - and is told to the account as an edit.
+   */
+  const commentNote = {
+    id: z.string().optional().describe('The note’s id.'),
+    title: z.string().optional().describe('Or its title.'),
+  };
+  const commentWrite = async (id: string | undefined, title: string | undefined, author: string | undefined, write: (body: string, name: string) => Written) => {
+    await fresh();
+    const target = await find(account, id, title);
+    const name = by(author);
+    // Tried on the words just read first, so a refusal is said rather than thrown from inside the write.
+    const tried = write(target.note.body, name);
+    if ('refused' in tried) return failed(tried.refused);
+    let before = '';
+    let made = tried.id;
+    const written = await account.edit(target.note.id, (note) => {
+      before = note.body;
+      const again = write(note.body, name);
+      if ('refused' in again) throw new Error(again.refused);
+      made = again.id;
+      return { ...note, body: again.body };
+    });
+    await account.postNotification('note-edited', { noteId: written.note.id, title: titled(written), by: name, ...lineDiff(before, written.note.body) });
+    return text({ comment: threadsIn(written.note.body).find((thread) => thread.id === made) ?? null, note: summary(written, spaceOf(account, written, await settingsOf(account))) });
+  };
+
+  server.registerTool(
+    'list_comments',
+    {
+      title: 'List a note’s comments',
+      description:
+        'The comment threads on a note, as the app shows them: each thread’s id, the words it is on (null for the note as a whole), its messages in order - author, time and text, the first the comment and the rest replies - and who resolved it and when, or null while it is open.',
+      inputSchema: commentNote,
+    },
+    async ({ id, title }) =>
+      guarded(async () => {
+        await fresh();
+        const record = await find(account, id, title);
+        const threads = threadsIn(record.note.body);
+        return text({ note: { id: record.note.id, title: titled(record) }, count: threads.length, open: threads.filter((thread) => !thread.resolved).length, threads });
+      }),
+  );
+
+  server.registerTool(
+    'add_comment',
+    {
+      title: 'Comment on a note',
+      description:
+        'A new comment thread on a note, with you as its author, as a person adds one in the app: on the exact words `on` (the first place the note has them, on one line, outside front matter and fenced blocks), which are highlighted, or with `on` left out on the note as a whole. For asking, pointing something out or suggesting without changing the words.',
+      inputSchema: {
+        ...commentNote,
+        on: z.string().optional().describe('The exact words of the note the comment is about, as the note has them, on one line. Left out, the comment is on the whole note.'),
+        text: z.string().min(1).describe('What the comment says.'),
+        author: authorField,
+      },
+    },
+    async ({ id, title, on, text: words, author }) => guarded(() => commentWrite(id, title, author, (body, name) => commentOn(body, on, stampOf(name), words))),
+  );
+
+  server.registerTool(
+    'reply_to_comment',
+    {
+      title: 'Reply to a comment',
+      description: 'A reply in a note’s comment thread, with you as its author, under the thread’s last message. The thread’s id comes from list_comments.',
+      inputSchema: {
+        ...commentNote,
+        comment: z.string().min(1).describe('The thread’s id, from list_comments: c and a few letters and digits.'),
+        text: z.string().min(1).describe('What the reply says.'),
+        author: authorField,
+      },
+    },
+    async ({ id, title, comment, text: words, author }) => guarded(() => commentWrite(id, title, author, (body, name) => replyTo(body, comment.trim(), stampOf(name), words))),
+  );
+
+  server.registerTool(
+    'resolve_comment',
+    {
+      title: 'Resolve a comment',
+      description: 'A note’s comment thread closed, as Resolve in the app closes one: its messages stay, its highlight goes. For a thread whose question is answered or whose point is dealt with.',
+      inputSchema: {
+        ...commentNote,
+        comment: z.string().min(1).describe('The thread’s id, from list_comments.'),
+        author: authorField,
+      },
+    },
+    async ({ id, title, comment, author }) => guarded(() => commentWrite(id, title, author, (body, name) => resolve(body, comment.trim(), stampOf(name)))),
+  );
+
+  // The notes as resources to attach (told when one changes, where the server can speak unasked), and the prompts.
+  registerNoteResources(server, {
+    account,
+    fresh,
+    trash: () => trashOf(account),
+    places: async () => {
+      const settings = await settingsOf(account);
+      return (record) => spaceOf(account, record, settings)?.name ?? null;
+    },
+  });
+  if (options?.subscriptions) enableSubscriptions(server, account, typeof options.subscriptions === 'object' ? options.subscriptions : {});
+  registerPrompts(server);
 
   if (hosted) {
     server.registerTool(
