@@ -90,6 +90,15 @@ class RecoverySheet {
   final List<SheetEntry> entries;
 }
 
+/// A crypto whose [AccountCrypto.unwrapWith] holds a wrap to the 32 bytes of an organization's key (the Rust core's),
+/// and that opens a wrap of any length here: what glyph-api seals an incoming hook's body to the account with
+/// (docs/INTEGRATIONS.md, §1), which the web's `unwrapWith` opens as it is. A crypto that is not one reads any length
+/// at [AccountCrypto.unwrapWith] already, as the web's does.
+abstract interface class UnwrapsBytes {
+  /// Whatever was wrapped to this account's [pair] with [context], of any length up to 64 KB.
+  Future<Uint8List> unwrapBytesWith(EncryptionKey pair, String wrapped, String context);
+}
+
 /// Every piece of cryptography the account's stage asks for. Each method names the web function it stands for; an
 /// implementation answers exactly what that function answers, on the same wire (docs/STAGE7.md has the bytes).
 ///

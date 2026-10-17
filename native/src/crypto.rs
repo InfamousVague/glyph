@@ -115,7 +115,7 @@ const BAD_WRAP: &str = "That wrap could not be read.";
 const NEWER_SHARE: &str = "This link was shared by a newer Ghost.md. Update the app to read it.";
 
 /// Every command this module answers. dispatch.rs asks before it looks for the library.
-const COMMANDS: [&str; 39] = [
+const COMMANDS: [&str; 40] = [
     "salt",
     "normalise_code",
     "derive",
@@ -144,6 +144,7 @@ const COMMANDS: [&str; 39] = [
     "org_key_unwrap",
     "wrap_for",
     "unwrap_with",
+    "unwrap_bytes_with",
     "share_key_new",
     "short_id",
     "share_seal",
@@ -611,11 +612,17 @@ fn agreed(secret: &p256::SecretKey, public: &p256::PublicKey, context: &str) -> 
 
 /// `org_key` wrapped for the member whose public key is `public`, bound to `context`: wrap.ts `wrapFor`.
 fn wrap_for(public: &str, org_key: &Secret, context: &str) -> Result<String, String> {
+    wrap_bytes_for(public, org_key.0.as_slice(), context)
+}
+
+/// Any bytes wrapped as wrap.ts `wrapFor` wraps them, which takes any length: [wrap_for]'s, and the tests' stand-in
+/// for glyph-api sealing an incoming hook's body to the account.
+fn wrap_bytes_for(public: &str, msg: &[u8], context: &str) -> Result<String, String> {
     let theirs = p256::PublicKey::from_sec1_bytes(&from_base64url(public)?).map_err(|_| "That is not a member's public key.".to_string())?;
     let ephemeral = new_pair()?;
     let cipher = agreed(&ephemeral, &theirs, context)?;
     let iv: [u8; IV_BYTES] = random()?;
-    let sealed = cipher.encrypt(Nonce::from_slice(&iv), Payload { msg: org_key.0.as_slice(), aad: context.as_bytes() }).map_err(|_| "The organization's key could not be wrapped.".to_string())?;
+    let sealed = cipher.encrypt(Nonce::from_slice(&iv), Payload { msg, aad: context.as_bytes() }).map_err(|_| "The organization's key could not be wrapped.".to_string())?;
     let mut out = point_of(&ephemeral);
     out.extend_from_slice(&iv);
     out.extend_from_slice(&sealed);
@@ -624,15 +631,25 @@ fn wrap_for(public: &str, org_key: &Secret, context: &str) -> Result<String, Str
 
 /// The organization key out of `wrapped`, with this account's private key: wrap.ts `unwrapWith`.
 fn unwrap_with(secret: &p256::SecretKey, wrapped: &str, context: &str) -> Result<Secret, String> {
+    let raw = unwrap_bytes_with(secret, wrapped, context)?;
+    Secret::from_slice(&raw).ok_or_else(|| BAD_WRAP.to_string())
+}
+
+/// The most a wrap opened as bytes may hold: an incoming hook's body is at most 32 KB (docs/INTEGRATIONS.md, §1).
+const WRAPPED_BYTES_MAX: usize = 64 * 1024;
+
+/// Whatever was wrapped to this account, of any length, as wrap.ts `unwrapWith` reads it: an organization's key is
+/// 32 bytes of it ([unwrap_with]); an incoming hook's body, sealed by glyph-api to the account's public key with
+/// `hook:<hook id>` (docs/INTEGRATIONS.md, §1), is the rest.
+fn unwrap_bytes_with(secret: &p256::SecretKey, wrapped: &str, context: &str) -> Result<Zeroizing<Vec<u8>>, String> {
     let bytes = from_base64url(wrapped).map_err(|_| BAD_WRAP.to_string())?;
-    if bytes.len() < POINT_BYTES + IV_BYTES + 17 {
+    if bytes.len() < POINT_BYTES + IV_BYTES + 17 || bytes.len() > POINT_BYTES + IV_BYTES + 16 + WRAPPED_BYTES_MAX {
         return Err(BAD_WRAP.to_string());
     }
     let ephemeral = p256::PublicKey::from_sec1_bytes(&bytes[..POINT_BYTES]).map_err(|_| BAD_WRAP.to_string())?;
     let cipher = agreed(secret, &ephemeral, context)?;
     let (iv, rest) = bytes[POINT_BYTES..].split_at(IV_BYTES);
-    let raw = Zeroizing::new(cipher.decrypt(Nonce::from_slice(iv), Payload { msg: rest, aad: context.as_bytes() }).map_err(|_| "That wrap is not for this account, or not for this organization.".to_string())?);
-    Secret::from_slice(&raw).ok_or_else(|| BAD_WRAP.to_string())
+    Ok(Zeroizing::new(cipher.decrypt(Nonce::from_slice(iv), Payload { msg: rest, aad: context.as_bytes() }).map_err(|_| "That wrap is not for this account, or not for this organization.".to_string())?))
 }
 
 // --- shares ------------------------------------------------------------------------
@@ -1077,6 +1094,10 @@ pub fn call(command: &str, args: Value) -> Result<Value, String> {
             let OrgUnwrap { pair: handle, wrapped, context } = read(command, args)?;
             Ok(json!(to_base64url(unwrap_with(&pair(handle)?, &wrapped, &context)?.0.as_slice())))
         }
+        "unwrap_bytes_with" => {
+            let OrgUnwrap { pair: handle, wrapped, context } = read(command, args)?;
+            Ok(json!(to_base64url(&unwrap_bytes_with(&pair(handle)?, &wrapped, &context)?)))
+        }
         "share_key_new" => Ok(json!(to_base64url(&*Zeroizing::new(random::<32>()?)))),
         "short_id" => Ok(json!(to_base64url(&random::<16>()?))),
         "share_seal" => {
@@ -1492,6 +1513,13 @@ mod tests {
         assert_eq!(refused("unwrap_with", json!({"pair": sam["key"], "wrapped": "AAAA", "context": "org-key:org-1:1"})), BAD_WRAP);
         assert_eq!(refused("seal_key_import", json!({"raw": "AAAA"})), "A key that seals is 32 bytes.");
         assert_eq!(refused("wrap_for", json!({"public": sam["public"], "raw": "AAAA", "context": "c"})), "An organization's key is 32 bytes.");
+        // Any length, as the web's `unwrapWith` reads it: an incoming hook's body, sealed to the account.
+        let body = br#"{"note":"Groceries","text":"Oat milk","as":"item"}"#;
+        let hook = wrap_bytes_for(sam["public"].as_str().unwrap(), body, "hook:h1").unwrap();
+        assert_eq!(ask("unwrap_bytes_with", json!({"pair": sam["key"], "wrapped": hook, "context": "hook:h1"})), to_base64url(body));
+        assert_eq!(ask("unwrap_bytes_with", json!({"pair": sam["key"], "wrapped": wrapped, "context": "org-key:org-1:1"})), raw);
+        assert_eq!(refused("unwrap_bytes_with", json!({"pair": sam["key"], "wrapped": hook, "context": "hook:h2"})), "That wrap is not for this account, or not for this organization.");
+        assert_eq!(refused("unwrap_with", json!({"pair": sam["key"], "wrapped": hook, "context": "hook:h1"})), BAD_WRAP);
         // The whole digest, for whoever wants all of it.
         assert_eq!(from_base64url(ask("sha256", json!({"data": to_base64url(b"abc")})).as_str().unwrap()).unwrap()[..4], [0xba, 0x78, 0x16, 0xbf]);
     }
