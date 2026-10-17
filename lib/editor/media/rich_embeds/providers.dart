@@ -56,6 +56,7 @@ class RichLink {
     'show' => 'Podcast',
     'proto' => 'Prototype',
     'board' => 'FigJam board',
+    'community' => 'Community file',
     _ => 'Design',
   };
 
@@ -141,6 +142,11 @@ RichLink? richLinkOf(String url) {
     return _spotify(parts[at], parts[at + 1], text);
   }
   if (host == 'figma.com' || host == 'www.figma.com') {
+    // A community file (`/community/file/<number>/<name>`): Figma's oEmbed refuses it ("Not a Figma URL"), but its
+    // embed opens it, so it is a Figma card all the same, its words the page's own (cards.dart).
+    if (parts.length >= 3 && parts[0] == 'community' && parts[1] == 'file' && _figmaKey.hasMatch(parts[2])) {
+      return RichLink(service: EmbedService.figma, id: parts[2], kind: 'community', source: uri.replace(scheme: 'https').toString());
+    }
     if (parts.length < 2 || !_figmaKinds.contains(parts.first) || !_figmaKey.hasMatch(parts[1])) return null;
     return RichLink(service: EmbedService.figma, id: parts[1], kind: parts.first, source: uri.replace(scheme: 'https').toString());
   }

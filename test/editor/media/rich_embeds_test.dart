@@ -144,6 +144,13 @@ void main() {
   });
 
   group('Figma links', () {
+    test('a community file is a Figma card, opened by Figma\'s embed though its oEmbed refuses it', () {
+      final link = richLinkOf('https://www.figma.com/community/file/1035203688168086460/material-3-design-kit')!;
+      expect((link.service, link.kind, link.id, link.kindName), (EmbedService.figma, 'community', '1035203688168086460', 'Community file'));
+      expect(link.player.queryParameters['url'], 'https://www.figma.com/community/file/1035203688168086460/material-3-design-kit');
+      expect(richLinkOf('https://www.figma.com/community/plugin/123456789012'), isNull, reason: 'a plugin has no file to show');
+    });
+
     test('a file, a design, a prototype and a board, with their pages and nodes', () {
       for (final kind in <String>['file', 'design', 'proto', 'board']) {
         final url = 'https://www.figma.com/$kind/$figmaKey/Home-screen?node-id=1-2&t=xyz';
@@ -158,10 +165,10 @@ void main() {
       expect(richLinkOf('https://www.figma.com/proto/$figmaKey/x')!.kindName, 'Prototype');
     });
 
-    test('is not a community page, a team, a short key or another site', () {
+    test('is not a community page other than a file, a team, a short key or another site', () {
       for (final url in <String>[
         'https://www.figma.com/',
-        'https://www.figma.com/community/file/1234567890',
+        'https://www.figma.com/community/plugin/1234567890',
         'https://www.figma.com/files/team/1234567890',
         'https://www.figma.com/design/short',
         'https://www.figma.com/design',

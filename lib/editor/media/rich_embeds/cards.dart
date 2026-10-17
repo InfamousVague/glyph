@@ -238,7 +238,41 @@ class RichEmbedCardState extends State<RichEmbedCard> {
       // The service's name and the link, and nothing asked of it.
       return widget.plain(link.openUrl, LinkPreview(url: link.openUrl, title: widget.words ?? '${link.serviceName} ${link.kindName.toLowerCase()}', site: link.serviceName));
     }
-    if (phase == EmbedCardPhase.failed) return widget.plain(link.openUrl, null);
+    if (phase == EmbedCardPhase.failed) {
+      // Figma would not say what the file is (a community file, whose oEmbed it refuses), but its embed will show
+      // it: the plain card, with the page's own title and summary, and a way to view the file here.
+      if (link.service != EmbedService.figma || !_mayAsk) return widget.plain(link.openUrl, null);
+      final t = context.tokens;
+      final em = t.len('app-body');
+      return Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          widget.plain(link.openUrl, null),
+          Semantics(
+            button: true,
+            label: 'View the Figma file here',
+            onTap: _play,
+            child: GestureDetector(
+              key: const ValueKey<String>('cm-embed-view'),
+              behavior: HitTestBehavior.opaque,
+              onTap: _play,
+              child: Padding(
+                padding: EdgeInsetsDirectional.only(start: t.lenOf('var(--app-gutter, 1rem)'), bottom: layoutUnit(em * 0.4)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    AppIcon(Lucide.maximize, size: em * 0.9, color: t.color('app-ink-2'), wash: false),
+                    SizedBox(width: layoutUnit(em * 0.4)),
+                    ExcludeSemantics(child: InlineWords('View it here', style: t.textAt(em * 0.86, color: t.color('app-ink-2')).copyWith(fontWeight: FontWeight.w600), lineHeight: em * 0.86 * 1.4)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
 
     final t = context.tokens;
     final view = EditorViewScope.maybeOf(context);
