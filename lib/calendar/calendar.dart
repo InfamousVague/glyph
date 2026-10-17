@@ -155,6 +155,9 @@ class CalendarService extends ChangeNotifier {
   bool _started = false;
   String _seen = '';
 
+  /// Whether [start] has been asked: the app reads calendars for its life.
+  bool get started => _started;
+
   /// Starts reading for the life of the app: a read now, then on the beats, and when the calendars change. [notes]
   /// is the library a pass of to-dos reads. Once.
   void start({List<QueryNote> Function()? notes}) {
@@ -184,7 +187,9 @@ class CalendarService extends ChangeNotifier {
     if (google == null || _clock() - google.at >= const Duration(minutes: 5).inMilliseconds) unawaited(syncGoogle());
   }
 
+  /// Stops what [start] started, and a sign-in being waited for.
   void stop() {
+    _stopClaim();
     if (!_started) return;
     _started = false;
     prefs.removeListener(_onPrefs);

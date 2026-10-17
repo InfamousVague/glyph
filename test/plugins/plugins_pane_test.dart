@@ -200,7 +200,8 @@ void main() {
       final own = sections.firstWhere((s) => s.id == 'plugins');
       expect([for (final setting in own.settings) (setting.name, setting.words)], [for (final plugin in webBuiltIn()) (plugin.manifest.name, plugin.manifest.description)]);
       // Each switched-on plugin's own page follows, off the list, behind Plugins, in its own colour, with its own words.
-      expect([for (final s in sections) if (s.parent == 'plugins') (s.id, s.label, s.listed, s.hue, s.summary)], [
+      // (Calendar, the port's own, is behind Plugins too, and is no plugin's.)
+      expect([for (final s in sections) if (s.parent == 'plugins' && s.id != 'calendar') (s.id, s.label, s.listed, s.hue, s.summary)], [
         ('plugin:notion', 'Notion', false, 'graphite', 'Boards for your lists'),
         ('plugin:github', 'GitHub', false, 'graphite', 'Repos, issues and context'),
         ('plugin:claude', 'Claude', false, 'coral', 'Read and write your notes from Claude'),
@@ -251,7 +252,8 @@ void main() {
       expect(heroTitles(tester), ['Plugins']);
       expect(find.textContaining('0 of 0 on.'), findsOneWidget);
       expect(pluginPageSections(), isEmpty);
-      expect([for (final spec in settingsSections) if (spec.parent == 'plugins') spec.id], isEmpty);
+      // Only Calendar, which is the app's own and no plugin's.
+      expect([for (final spec in settingsSections) if (spec.parent == 'plugins') spec.id], ['calendar']);
       await endSettings(tester);
     });
 
@@ -262,7 +264,7 @@ void main() {
       usePlugins(registry);
       expect([for (final spec in pluginPageSections()) spec.id], ['plugin:notion', 'plugin:github', 'plugin:claude']);
       final ids = [for (final spec in settingsSections) spec.id];
-      expect(ids.sublist(ids.indexOf('plugins'), ids.indexOf('about') + 1), ['plugins', 'plugin:notion', 'plugin:github', 'plugin:claude', 'about']);
+      expect(ids.sublist(ids.indexOf('plugins'), ids.indexOf('about') + 1), ['plugins', 'plugin:notion', 'plugin:github', 'plugin:claude', 'calendar', 'about']);
       registry.setEnabled('slack', true);
       registry.setEnabled('notion', false);
       expect([for (final spec in pluginPageSections()) (spec.id, spec.parent, spec.listed, spec.group)], [('plugin:github', 'plugins', false, 2), ('plugin:claude', 'plugins', false, 2), ('plugin:slack', 'plugins', false, 2)]);

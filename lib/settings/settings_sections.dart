@@ -9,6 +9,8 @@ import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
 import 'panes/backup_pane.dart';
+import '../calendar/calendar.dart' show calendar;
+import 'panes/calendar_pane.dart';
 import 'panes/library_folder_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
@@ -370,6 +372,22 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => pluginsFindable(plugins.all()),
     // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card.
     pane: PluginsPane.hosted,
+  ),
+  // The calendars whose events the app shows (docs/CALENDAR.md): an iCal address, or Google signed in. A page behind
+  // Plugins, what reaches beyond the phone, off the list so the list stays the web's, and found by the search. The
+  // port's own, 2026-10-17; it has no page in tauri/, so its file is Plugins'.
+  SettingsSectionSpec(
+    id: 'calendar',
+    label: 'Calendar',
+    words: 'calendar events google ical ics webcal outlook icloud schedule agenda',
+    glyph: SettingsGlyph.calendarDays,
+    group: 2,
+    webFile: 'plugins/PluginsPane.tsx',
+    summary: (facts) => calendarSummary(facts.prefs),
+    settings: (facts) => calendarFindable(facts.prefs, offered: calendar.offered == true),
+    pane: CalendarPane.hosted,
+    listed: false,
+    parent: 'plugins',
   ),
   SettingsSectionSpec(
     id: 'about',
