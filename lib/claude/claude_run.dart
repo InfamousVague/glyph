@@ -18,7 +18,6 @@ import 'claude_tools.dart';
 import 'live_typing.dart';
 import 'messages_api.dart';
 import 'partial_json.dart';
-import 'sse.dart';
 
 /// Where a run reaches the screen: lib/root's, over the shell and the open notes; a test's, over a view of its own.
 abstract interface class ClaudeDesk {

@@ -87,7 +87,8 @@ class _ClaudeChatState extends State<ClaudeChat> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _stopBack?.call();
+    // Once: built again for the keyboard or a turn, it would otherwise go back on top of what opened after it.
+    if (_stopBack != null) return;
     _stopBack = BackScope.of(context).onBack(() {
       widget.onClose();
       return true;

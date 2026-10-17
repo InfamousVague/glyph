@@ -39,7 +39,7 @@ void main() {
       for (final size in [1, 2, 3, 5, 7]) {
         final heard = _Heard();
         final reader = PartialFields(heard);
-        _read(r'{"text": "a\"b\\c é 😀 end"}', size, reader);
+        _read(r'{"text": "a\"b\\c \u00e9 \ud83d\ude00 end"}', size, reader);
         expect(reader.strings['text'], 'a"b\\c é 😀 end', reason: 'pieces of $size');
         final letters = heard.said.where((s) => s.startsWith('text+')).map((s) => s.substring(5)).join();
         expect(letters, 'a"b\\c é 😀 end', reason: 'pieces of $size');

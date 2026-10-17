@@ -169,13 +169,21 @@ class ClaudeInbox {
     if (inbox == null) return;
     final caret = caretLine?.call(inbox.id);
     InboxRequest? next;
+    var waiting = false;
     for (final request in openRequests(inbox.body)) {
       if (_asked.contains(request.text)) continue;
-      if (caret == request.line) continue;
+      if (caret == request.line) {
+        waiting = true;
+        continue;
+      }
       next = request;
       break;
     }
-    if (next == null) return;
+    if (next == null) {
+      // A request under the person's caret is looked at again a little later: moving the caret changes no note.
+      if (waiting) _heard();
+      return;
+    }
     _working = true;
     _asked.add(next.text);
     try {

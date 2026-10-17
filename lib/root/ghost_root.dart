@@ -1408,6 +1408,7 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _claude.stop();
     _claudeInbox.dispose();
     _claude.dispose();
     _organize.dispose();

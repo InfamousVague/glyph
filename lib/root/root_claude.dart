@@ -224,7 +224,14 @@ class _RootClaudeDesk implements ClaudeDesk {
     // Open without an editor (a notebook's own words drawn): the screen writes it, as it writes its index.
     final screen = openNoteScreen(_root._shell.currentContext, noteId);
     if (screen != null) return screen.writeNotebook(change);
-    await _root._writeNote(noteId, change);
+    // Written here rather than by `_writeNote`, which swallows what goes wrong: a passage not found, or a write
+    // refused, reaches the tool and Claude is told.
+    final note = await _root._library.get(noteId);
+    if (note == null) throw StateError('No such note.');
+    final next = change(note.body);
+    if (next == note.body) return;
+    await _root._library.update(noteId, next, note.revision);
+    await _root._library.refresh();
   }
 
   @override

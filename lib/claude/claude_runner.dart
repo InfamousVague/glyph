@@ -53,31 +53,36 @@ class ClaudeRunner extends ChangeNotifier {
   /// run once it has started, which is after any run before it has ended.
   Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem}) {
     final started = Completer<ClaudeRun>();
-    _queue = _queue.then((_) async {
-      await settings.load();
-      final key = settings.key;
-      if (key == null) {
-        started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Ask Claude.'));
-        return;
-      }
-      String? rules;
-      try {
-        rules = (await notes.read(title: claudeRulesTitle))?.body;
-      } catch (_) {
-        rules = null;
-      }
-      final system = [claudeSystem(now: _now(), rules: rules), if (extraSystem != null) extraSystem].join('\n\n');
-      final made = ClaudeRun(api: _api(key), model: settings.model, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
-      _run?.removeListener(notifyListeners);
-      _run = made..addListener(notifyListeners);
-      if (!alone) conversation.add(made);
-      notifyListeners();
-      started.complete(made);
-      await made.run();
-      if (!alone) _history = made.messages;
-      notifyListeners();
+    _queue = _queue.then((_) => _start(prompt, started, alone: alone, extraSystem: extraSystem)).catchError((Object error) {
+      // A failure here never stops the asks after it.
+      if (!started.isCompleted) started.completeError(error);
     });
     return started.future;
+  }
+
+  Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem}) async {
+    await settings.load();
+    final key = settings.key;
+    if (key == null) {
+      started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Ask Claude.'));
+      return;
+    }
+    String? rules;
+    try {
+      rules = (await notes.read(title: claudeRulesTitle))?.body;
+    } catch (_) {
+      rules = null;
+    }
+    final system = [claudeSystem(now: _now(), rules: rules), if (extraSystem != null) extraSystem].join('\n\n');
+    final made = ClaudeRun(api: _api(key), model: settings.model, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
+    _run?.removeListener(notifyListeners);
+    _run = made..addListener(notifyListeners);
+    if (!alone) conversation.add(made);
+    notifyListeners();
+    started.complete(made);
+    await made.run();
+    if (!alone) _history = made.messages;
+    notifyListeners();
   }
 
   /// Stops the run working now.

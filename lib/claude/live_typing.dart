@@ -166,9 +166,23 @@ class NoteTyper {
   bool get touched => claudeTouchesOf(view.state) > _touchesAtStart;
 
   /// Whether the editor can still be typed into.
+  /// [open] asked at most every quarter second: on screen it is a look through the whole tree.
+  bool _openNow = true;
+  DateTime? _openAsked;
+
+  bool _stillOpen() {
+    final now = DateTime.now();
+    final asked = _openAsked;
+    if (asked == null || now.difference(asked) >= const Duration(milliseconds: 250)) {
+      _openAsked = now;
+      _openNow = open();
+    }
+    return _openNow;
+  }
+
   bool get alive {
     try {
-      return !_broken && open() && view.state.fieldOrNull(_caret) != null;
+      return !_broken && _stillOpen() && view.state.fieldOrNull(_caret) != null;
     } catch (_) {
       return false;
     }

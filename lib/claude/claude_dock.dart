@@ -35,6 +35,12 @@ class _ClaudeDockButtonState extends State<ClaudeDockButton> with SingleTickerPr
     super.initState();
     widget.runner.addListener(_changed);
     widget.follow?.addListener(_changed);
+  }
+
+  /// The first look, once the inherited widgets (reduced motion) can be read.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
     _changed();
   }
 
