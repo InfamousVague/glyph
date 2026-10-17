@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/workspaces.dart';
+import 'package:ghost_md/home/home_organizations.dart' show OrgPresence;
 import 'package:ghost_md/notes/workspace_swatch.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/invite_links.dart';
@@ -216,6 +217,25 @@ void main() {
       expect(device.service.aisOf(id).map((ai) => ai['id']), [mine]);
       // sam is still a member: an AI's row going is no person going.
       expect(member(tester, 'sam')?.chip, 'Member');
+      await endSettings(tester);
+    });
+
+    // docs/CLAUDE_LIVE.md: an AI online says so on its row, in place of when it was last seen.
+    testWidgets('says an AI online is online, and what it is doing, in place of when it was last seen', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await sam(device, id, joined: true);
+      device.service.peerAi(id, 'Claude', via: 'matt');
+      device.service.peerAi(id, 'Cursor', via: 'sam');
+      await pumpSheet(tester, device, id, seen: const [
+        OrgPresence(client: '7', handle: 'Claude', ai: true, via: 'matt', editingNote: 'n-road', editingTitle: 'Roadmap', doing: 'editing'),
+        OrgPresence(client: '8', handle: 'Cursor', ai: true, via: 'sam'),
+        // An AI not listed yet has no row here: there is nothing to remove.
+        OrgPresence(client: '9', handle: 'Gemini', ai: true, via: 'matt'),
+      ]);
+      expect(ai(tester, 'Claude')?.hint, 'Online · editing Roadmap');
+      expect(ai(tester, 'Cursor')?.hint, 'Online');
+      expect(ai(tester, 'Gemini'), isNull);
       await endSettings(tester);
     });
 

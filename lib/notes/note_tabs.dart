@@ -102,6 +102,7 @@ class NoteTabs extends StatefulWidget {
     this.liveTitles,
     this.tools,
     this.tail,
+    this.presence,
     this.finePointer,
   });
 
@@ -185,6 +186,10 @@ class NoteTabs extends StatefulWidget {
 
   /// The screen's last control, its More, after the bell and the cog (`.tail`).
   final Widget? tail;
+
+  /// Who else is here before the people icon: the Claude chip while an AI is online (lib/shell/ai_chip.dart;
+  /// docs/CLAUDE_LIVE.md). The app's own; the web's bar has none yet.
+  final Widget? presence;
 
   /// Whether the pointer is a mouse (`(hover: hover) and (pointer: fine)`): a longer fade at the row's ends, flyouts
   /// in the menus where they fit. The device's answer unless a test says.
@@ -557,15 +562,15 @@ class _NoteTabsState extends State<NoteTabs> {
           color: t.color('glacier-bg'),
           border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: hairline)),
         ),
-        child: _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [_orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
+        child: _toolRow(gap, 0, [_sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]),
       );
     } else {
       // The Mac's three window buttons sit at this row's start: the first control begins after their room.
       final lights = trafficLightsRoom(t);
       topH = ring;
       final controls = style == TopBarStyle.masthead
-          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), ..._arrowWords()], [_orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
-          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), ..._arrows()], [_orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
+          ? _toolRow(gap, end, [_homeWord(), _sidebarWord(), ..._arrowWords()], [widget.presence, _orgs(asWord: true), _bell(), _cog(), widget.tail, _asideRing()])
+          : _toolRow(gap, end, [_homeRing(), _sidebarRing(), ..._arrows()], [widget.presence, _orgs(asWord: false), _bell(), _cog(), widget.tail, _asideRing()]);
       top = Padding(padding: EdgeInsets.only(left: start + lights), child: lights > 0 ? MacLightsRow(child: controls) : controls);
     }
 
@@ -621,7 +626,7 @@ class _NoteTabsState extends State<NoteTabs> {
 
     final Widget capsule = BarCapsule(children: [?_homeRing(), ?_sidebarRing(), ..._arrows()]);
     final way = titlebarOverlay(t) ? MacLightsRow(child: capsule) : capsule;
-    final own = <Widget>[?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
+    final own = <Widget>[?widget.presence, ?_orgs(asWord: false), ?_bell(), ?_cog(), ?widget.tail, ?_asideRing()];
     final tools = widget.tools;
     // The slot is a place in the capsule's row whether or not the screen has put anything in it.
     final ownCapsule = own.isEmpty && tools == null ? null : BarCapsule(children: [tools ?? const SizedBox.shrink(), ...own]);

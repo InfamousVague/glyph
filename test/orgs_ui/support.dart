@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/home/home_organizations.dart' show OrgPresence;
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -103,10 +104,11 @@ Future<void> pumpSheet(
   VoidCallback? onNotes,
   void Function(String url)? onOpenLink,
   Size size = phone,
+  List<OrgPresence> seen = const [],
 }) async {
   await device.pump(
     tester,
-    OrganizationSheet(services: device.services, orgId: orgId, from: from, landOnMembers: landOnMembers, onClose: onClose ?? () {}, onNotes: onNotes ?? () {}, onOpenLink: onOpenLink),
+    OrganizationSheet(services: device.services, orgId: orgId, from: from, landOnMembers: landOnMembers, onClose: onClose ?? () {}, onNotes: onNotes ?? () {}, onOpenLink: onOpenLink, seen: seen),
     size: size,
     scroll: false,
   );

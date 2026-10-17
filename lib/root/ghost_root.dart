@@ -130,7 +130,8 @@ import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
-import '../live/presence.dart' show Seen;
+import '../live/follow.dart';
+import '../live/presence.dart' show AiOnline, Seen, aiKey;
 import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
@@ -153,6 +154,7 @@ import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
 import '../reminders/reminder_host.dart' show PhoneReminderHost;
 import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
+import '../shell/ai_chip.dart';
 import '../shell/app_shell.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
@@ -212,7 +214,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -304,6 +306,10 @@ class GhostRoot extends StatefulWidget {
   /// Who is in an organization's notes now, where a test brings its own account ([services]) and so has no live
   /// rooms to read; the app reads its own (lib/live/presence.dart).
   final List<Seen> Function(String orgId)? presence;
+
+  /// The AIs online and Follow (lib/live/follow.dart), where a test brings its own account and so has no live rooms;
+  /// the app's are its own live service's.
+  final FollowAi? follow;
 
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
@@ -419,6 +425,9 @@ class _GhostRootState extends State<GhostRoot> {
             editingTitle: seen.at?.title,
             editingCanvas: seen.at?.kind == 'canvas',
             editingPlace: seen.at?.cursor != null || seen.at?.pointer != null,
+            ai: seen.ai,
+            via: seen.via,
+            doing: seen.at == null ? null : (seen.at!.doing ?? 'editing'),
           ),
       ];
 
@@ -442,6 +451,54 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Who is in an organization's notes now, as the live rooms have them; a test's own where it brings an account.
   List<Seen> _presenceIn(String orgId) => _wired?.live.presence.presenceIn(orgId) ?? widget.presence?.call(orgId) ?? const <Seen>[];
+
+  /// The AIs online and Follow (docs/CLAUDE_LIVE.md): the live service's, or a test's.
+  FollowAi? get _follow => _wired?.live.follow ?? widget.follow;
+
+  /// Follow's way into a note (lib/live/follow.dart `open`): opened as a member's Jump to cursor opens one, but at
+  /// no caret and without the keyboard, since Follow scrolls to the AI's caret itself. A note this device does not
+  /// hold yet is not opened; it is tried again when the AI is next heard.
+  bool _openForFollow(AiOnline ai, String noteId) {
+    final shell = _shell.currentState;
+    if (shell == null || _library.noteOf(noteId) == null) return false;
+    if (shell.shown != noteId) shell.openNote(noteId);
+    return true;
+  }
+
+  /// The chip's Open: the note an AI is on, at its caret, as Jump to cursor opens a member's.
+  void _openForAi(AiOnline ai) {
+    final shell = _shell.currentState, at = ai.at;
+    if (shell == null || at == null) return;
+    final place = at.cursor ?? at.pointer?.toJson();
+    if (place != null) _jumps[at.note] = place;
+    shell.openNote(at.note);
+  }
+
+  /// Follow, from an AI's row on an organization's page.
+  void _followFrom(OrgPresence here) {
+    final follow = _follow;
+    final ai = follow?.find(aiKey(here.handle, here.via));
+    if (follow != null && ai != null) follow.follow(ai);
+  }
+
+  /// "Claude is editing Roadmap", with Watch: an AI began on a note while nobody is followed.
+  void _aiEditing(AiOnline ai) {
+    if (!mounted) return;
+    final title = ai.at?.title;
+    GlacierToast.of(context).toast(
+      message: Text('${ai.name} is editing ${title == null || title.isEmpty ? 'a note' : title}'),
+      duration: const Duration(seconds: 8),
+      action: GlacierToastAction(label: 'Watch', onPress: () => _follow?.follow(ai)),
+    );
+  }
+
+  /// Follow told how the app opens a note and gives a notice; once, as the account starts.
+  void _wireFollow(FollowAi follow) {
+    follow
+      ..open = _openForFollow
+      ..onEditing = _aiEditing
+      ..shown = () => _shell.currentState?.shown;
+  }
 
   /// An organization's settings, and the sheet a new one is named in. Opened from Settings' own list or from the
   /// organization's dashboard, which the sheet's head says; from anywhere else (the home filters, a folder's "…",
@@ -1424,6 +1481,8 @@ class _GhostRootState extends State<GhostRoot> {
       _life = AppLifecycleListener(onResume: wired.resumed, onPause: wired.paused);
       wired.live.presence.addListener(_presenceChanged);
     }
+    final follow = _follow;
+    if (follow != null) _wireFollow(follow);
     if (!mounted) return;
     // Not on an open by the side key, whose person is already mid-sentence: the recording comes first, as it does
     // for the guide (shell/useAccountGate.ts).

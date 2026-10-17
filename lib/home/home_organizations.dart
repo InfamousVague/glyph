@@ -18,10 +18,11 @@ import 'home_icons.dart';
 import 'home_text.dart';
 import 'marks.dart' show OrgMark;
 
-/// Someone in an organization's notes now (`Presence`, the part the home page says).
+/// Someone in an organization's notes now (`Presence`, the part the home page says), or an AI there through a
+/// member's connector ([ai]; docs/CLAUDE_LIVE.md), which is never one of the members present.
 @immutable
 class OrgPresence {
-  const OrgPresence({required this.client, required this.handle, this.hue, this.editingNote, this.editingTitle, this.editingCanvas = false, this.editingPlace = false});
+  const OrgPresence({required this.client, required this.handle, this.hue, this.editingNote, this.editingTitle, this.editingCanvas = false, this.editingPlace = false, this.ai = false, this.via, this.doing});
 
   /// The device they are on: one person on two devices is here once.
   final String client;
@@ -37,6 +38,12 @@ class OrgPresence {
   final bool editingCanvas;
   final bool editingPlace;
 
+  /// An AI ([handle] is its name), whose connector is [via]'s; and what it is doing in [editingNote], `reading` or
+  /// `editing`.
+  final bool ai;
+  final String? via;
+  final String? doing;
+
   @override
   bool operator ==(Object other) =>
       other is OrgPresence &&
@@ -46,10 +53,13 @@ class OrgPresence {
       other.editingNote == editingNote &&
       other.editingTitle == editingTitle &&
       other.editingCanvas == editingCanvas &&
-      other.editingPlace == editingPlace;
+      other.editingPlace == editingPlace &&
+      other.ai == ai &&
+      other.via == via &&
+      other.doing == doing;
 
   @override
-  int get hashCode => Object.hash(client, handle, hue, editingNote, editingTitle, editingCanvas, editingPlace);
+  int get hashCode => Object.hash(client, handle, hue, editingNote, editingTitle, editingCanvas, editingPlace, ai, via, doing);
 }
 
 /// An organization this account has joined (`OrgRow` with `state: 'member'`), and who is in it now.

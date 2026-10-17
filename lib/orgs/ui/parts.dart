@@ -7,6 +7,7 @@ library;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../home/home_organizations.dart' show OrgPresence;
 import '../../notes/when.dart';
 import '../../sheet/css.dart';
 import '../types.dart';
@@ -168,4 +169,32 @@ class OrgAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// The AI rows: each of the organization's AIs with the entry online that is it (its name, and whose connector
+/// it came through where the entry says), and after them an entry online that is none of them, as a row made for it
+/// (`last seen` now): Claude's first visit is online before the service has listed it.
+List<(OrgAi, OrgPresence?)> aiLines(List<OrgAi> ais, List<OrgPresence> seen, {int? now}) {
+  final online = [for (final s in seen) if (s.ai) s];
+  bool same(OrgAi ai, OrgPresence s) => s.handle.toLowerCase() == ai.name.toLowerCase() && (s.via == null || s.via!.toLowerCase() == ai.via.toLowerCase());
+  // Of one AI's entries, the one on a note.
+  OrgPresence? best(Iterable<OrgPresence> of) {
+    OrgPresence? held;
+    for (final s in of) {
+      if (held == null || (held.editingNote == null && s.editingNote != null)) held = s;
+    }
+    return held;
+  }
+
+  final lines = <(OrgAi, OrgPresence?)>[for (final ai in ais) (ai, best(online.where((s) => same(ai, s))))];
+  final extra = <String, List<OrgPresence>>{};
+  for (final s in online) {
+    if (ais.any((ai) => same(ai, s))) continue;
+    extra.putIfAbsent('${s.handle.toLowerCase()}|${s.via?.toLowerCase() ?? ''}', () => []).add(s);
+  }
+  for (final MapEntry(key: key, value: entries) in extra.entries) {
+    final first = best(entries)!;
+    lines.add((OrgAi(id: 'live:$key', name: first.handle, via: first.via ?? '', firstSeen: now ?? 0, lastSeen: now ?? 0), first));
+  }
+  return lines;
 }

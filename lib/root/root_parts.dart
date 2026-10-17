@@ -55,7 +55,7 @@ extension _RootParts on _GhostRootState {
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
-          _part('organization', () => (_organization, _accountAt, _syncAt), (context) => _organizationSheetPart(services)),
+          _part('organization', () => (_organization, _accountAt, _syncAt, _organization == null ? 0 : _presenceAt), (context) => _organizationSheetPart(services)),
           _part('newOrganization', () => (_newOrganization, _accountAt, _syncAt), (context) => _newOrganizationPart(services)),
           // The way in, the first thing on screen once, on an open that is signed out. Never over a recorder
           // (App.tsx: `accountGate.open && !isRecording(screen)`): it waits under one.
@@ -170,6 +170,10 @@ extension _RootParts on _GhostRootState {
       unread: _unread,
       onDeleteNote: _delete,
       onRefresh: _library.refresh,
+      // Claude in the bar while an AI is online, and the bar that says it is followed (docs/CLAUDE_LIVE.md): each
+      // hears Follow for itself.
+      barChip: _follow == null ? null : (changes: _follow!, build: (context) => AiChip.shows(_follow!) ? AiChip(follow: _follow!, onOpen: _openForAi) : null),
+      banner: _follow == null ? null : FollowBar(follow: _follow!),
       noteBuilder: _note,
       // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
       captureBuilder: voice == null || capture == null
@@ -694,6 +698,7 @@ extension _RootParts on _GhostRootState {
       from: sheet.from,
       // `landOnMembers={orgSettings.from === 'settings'}`: from anywhere else, its list of sections.
       landOnMembers: sheet.from == OrganizationFrom.settings,
+      seen: _seenIn(sheet.id),
       onClose: _closeOrganizationSettings,
       // Report a member or a note: an email, handed to the phone.
       onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
@@ -881,6 +886,7 @@ extension _RootParts on _GhostRootState {
       onOpenOrganization: shell.openOrganization,
       seen: _seenIn(id),
       onJumpTo: (noteId) => _jumpTo(shell, id, noteId),
+      onFollow: _follow == null ? null : _followFrom,
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,

@@ -18,7 +18,7 @@ import 'support.dart';
 /// What the page was asked to do.
 class Asked {
   int back = 0, fresh = 0, allNotes = 0, settings = 0, log = 0, account = 0;
-  final List<String> opened = [], organizations = [], jumps = [];
+  final List<String> opened = [], organizations = [], jumps = [], followed = [];
 }
 
 Future<Asked> page(WidgetTester tester, Device device, String id, {List<Note> notes = const [], ValueNotifier<List<OrgPresence>>? seen, Size size = phone, bool services = true}) async {
@@ -43,6 +43,7 @@ Future<Asked> page(WidgetTester tester, Device device, String id, {List<Note> no
         onLog: () => asked.log += 1,
         onAccount: () => asked.account += 1,
         onJumpTo: asked.jumps.add,
+        onFollow: (here) => asked.followed.add(here.handle),
       ),
     ),
     size: size,
@@ -300,6 +301,49 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('member:matt')));
       await tester.pump();
       expect(find.text('In the app now, on this device'), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    // docs/CLAUDE_LIVE.md: "Claude online", on its AI row and never as a member.
+    testWidgets('shows an AI online on its own row, editing or reading, with Jump and Follow, and never as a member, even under a member’s handle', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      await sam(device, id, joined: true);
+      device.service.peerAi(id, 'Claude', via: 'matt');
+      final seen = ValueNotifier<List<OrgPresence>>(const []);
+      final asked = await page(tester, device, id, seen: seen);
+      expect(ais(tester), ['CClaudeAIThrough you · last seen just now']);
+      expect(find.byKey(const ValueKey('ai-here')), findsNothing);
+
+      // Claude editing Roadmap at its caret; and an AI that calls itself sam, online on no note.
+      seen.value = const [
+        OrgPresence(client: '7', handle: 'Claude', hue: 'violet', ai: true, via: 'matt', editingNote: 'n-road', editingTitle: 'Roadmap', editingPlace: true, doing: 'editing'),
+        OrgPresence(client: '8', handle: 'sam', ai: true, via: 'matt'),
+      ];
+      await tester.pump();
+      // sam the member is not here: the AI under that name is not them.
+      expect(members(tester)[1], contains('joined'));
+      expect(find.byKey(const ValueKey('member-here')), findsOneWidget);
+      // Each AI on its row, online: Claude's listed one, and a row made for the one not listed yet.
+      expect(ais(tester), ['CClaudeAIediting RoadmapJump to cursorFollow', 'SsamAIonlineFollow']);
+      expect(find.byKey(const ValueKey('ai-here')), findsNWidgets(2));
+      expect(find.byKey(const ValueKey('ai-jump')), findsOneWidget);
+      await tapKey(tester, 'ai-jump');
+      expect(asked.jumps, ['n-road']);
+      await bringIntoView(tester, find.byKey(const ValueKey('ai-follow')).first);
+      await tester.tap(find.byKey(const ValueKey('ai-follow')).first);
+      await tester.pump();
+      expect(asked.followed, ['Claude']);
+
+      // Reading, with no caret: the note opened, not jumped into.
+      seen.value = const [OrgPresence(client: '7', handle: 'Claude', ai: true, via: 'matt', editingNote: 'n-road', editingTitle: 'Roadmap', doing: 'reading')];
+      await tester.pump();
+      expect(ais(tester), ['CClaudeAIreading RoadmapOpen the noteFollow']);
+      // Gone: last seen again, and nothing to press.
+      seen.value = const [];
+      await tester.pump();
+      expect(ais(tester), ['CClaudeAIThrough you · last seen just now']);
+      expect(find.byKey(const ValueKey('ai-follow')), findsNothing);
       await endSettings(tester);
     });
 
