@@ -151,6 +151,7 @@ import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
+import '../editor/suggestions/suggestions.dart' show suggestions;
 import '../editor/tables/tables.dart';
 import '../editor/tickets/tickets.dart';
 import '../editor/view/editor_view.dart';
@@ -754,6 +755,8 @@ class NoteDeskState extends State<NoteDesk> {
     // Each `[^c1]` a round in its author's colour, and the ```comments fence drawn as its threads (Editor.tsx
     // `noteComments`).
     noteComments(() => _comments.hooks),
+    // Claude's suggested edits in CriticMarkup, with Keep and Revert (docs/CLAUDE_LIVE.md, "Suggest mode").
+    suggestions(),
     mediaExtensions(
       seams: _mediaSeams,
       // A place in the words draws its map under its line, as the note's own tag does at its top.
@@ -815,6 +818,7 @@ class NoteDeskState extends State<NoteDesk> {
       if (_world.bodyOf != null)
         canvasFrames(FrameOptions(body: (title) => _world.bodyOf?.call(title), known: (title) => _world.known(title), open: (title, [anchor]) => _openWithin(title))),
       if (_world.bodyOf != null) noteEmbeds(EmbedOptions(body: (title) => _world.bodyOf?.call(title), open: (title, [anchor]) => _openWithin(title), formats: _formats)),
+      suggestions(),
       mediaExtensions(seams: _mediaSeams, places: PlaceMode.live, videos: _world.films == null ? VideoMode.still : VideoMode.play),
       if (_world.openLink != null) semanticsOpenLink.of((url) => unawaited(_world.openLink!(url))),
     ],
