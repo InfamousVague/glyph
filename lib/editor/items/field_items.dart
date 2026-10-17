@@ -5,6 +5,7 @@
 ///   Remove when it has one. The day it has is lit.
 /// - **Priority**: the five, the most urgent first, in the marks the chips draw, and None. The one it has is lit.
 /// - **A person** tapped: Remove.
+/// - **A place** tapped: Change place (the sheet, where the phone watches places) and Remove.
 /// - **Assign**: the people the note already names, lit where they are on the line, each pressed on and off; A
 ///   person, a contact picked from the phone's where Settings › Contacts is on ([personPicker]), put on the line as
 ///   `@Sam-Ortiz`; and Someone new, which writes the at sign where a person goes and leaves the caret after it for
@@ -158,6 +159,24 @@ List<FieldItem>? fieldItems(EditorViewLike view, int line, FieldPage page, {Void
         );
       }
       if (current != null) items.add(FieldItem(icon: Lucide.calendarX, label: 'Remove', name: 'Remove the reminder', onPress: write(() => setLineReminder(view, line, null))));
+    case PlacePage():
+      // A place reminder's chip: another place from the sheet, where the phone watches places and the plugin is on,
+      // or none.
+      if (placesOffered(view)) {
+        items.add(
+          FieldItem(
+            icon: Lucide.mapPin,
+            label: 'Change place',
+            name: 'Remind me at another place',
+            onPress: (_) {
+              haptic(HapticKind.selection);
+              onClose();
+              unawaited(pickLinePlace(view, line, refocus: refocus));
+            },
+          ),
+        );
+      }
+      items.add(FieldItem(icon: Lucide.ban, label: 'Remove', name: 'Remove the place reminder', onPress: write(() => setLinePlace(view, line, null))));
     case AssignPage():
       // Assign: who the note names, then someone new.
       for (final person in peopleIn(view.state.doc.toString()).take(_mostPeople)) {

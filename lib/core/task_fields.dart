@@ -18,7 +18,10 @@
 /// Markdown, and an at sign before a name is what every chat and tracker already writes. So is `⏰ 2026-10-03 09:00`,
 /// a reminder (lib/reminders, docs/FEATURES_2_1.md), in the form the Obsidian Reminder plugin reads beside Tasks: read
 /// here as one of Tasks' others (key `reminder`), and written where a named field goes, before the run of Tasks'
-/// fields, so Tasks still reads the dates after it ([withWrittenField]).
+/// fields, so Tasks still reads the dates after it ([withWrittenField]). And so is `📍 [Target](geo:35.7002,-81.3084)`,
+/// a place to be reminded at (lib/reminders/place_syntax.dart, docs/INTEGRATIONS.md §3): a pin and the place's link,
+/// which another app shows as a pin and a link; read as one of Tasks' others (key `place`) and written where a
+/// reminder is.
 ///
 /// Where a field goes. Tasks reads its fields from the end of the line, a block link (`^login-loop`) aside and tags
 /// among them, and stops at the first thing that is not one. So the writer here keeps them in a run at the end of
@@ -289,6 +292,12 @@ final List<_Reader> _readers = [
   _Reader(
     RegExp('⏰$_vs?$_gap(\\d{4}-\\d{2}-\\d{2})[ \\t]+([01]?\\d|2[0-3]):([0-5]\\d)(?!\\d)', unicode: true),
     (found) => (kind: FieldKind.tasks, key: 'reminder', value: '${found.group(1)} ${found.group(2)!.padLeft(2, '0')}:${found.group(3)}', at: found.start, length: found.end - found.start),
+  ),
+  // A place to be reminded at: `📍 [Target](geo:35.7002,-81.3084)`, a pin and a place's link (lib/reminders/
+  // place_syntax.dart), its value kept as the link is written.
+  _Reader(
+    RegExp('📍$_vs?$_gap(\\[[^\\[\\]\\n]*\\]\\([Gg][Ee][Oo]:-?\\d{1,3}(?:\\.\\d+)?,-?\\d{1,3}(?:\\.\\d+)?\\))', unicode: true),
+    (found) => (kind: FieldKind.tasks, key: 'place', value: found.group(1) ?? '', at: found.start, length: found.end - found.start),
   ),
   _Reader(_person, (found) {
     final lead = (found.group(1) ?? '').length;

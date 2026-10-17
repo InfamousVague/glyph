@@ -51,6 +51,14 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
     <!--
+      Place reminders (ghost_md/reminders/Places.kt; docs/INTEGRATIONS.md §3): a to-do with a 📍 rings when the phone
+      arrives there, through Play services' geofences, which ring with the app closed and so need the location all the
+      time. Asked for only after the first place reminder is made, and only after the app has said why (its own sheet,
+      then Android's "Allow all the time"); refused, the reminder is kept and its chip says it will not ring.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!--
       A new version of the app, handed to Android's installer (UpdateInstaller.kt; lib/core/updates.dart). The
       person still allows it once, on Android's own page for this app, and confirms every install on its screen.
       Only a build told where its releases are ever asks (GHOST_UPDATES; tool/release.md).
@@ -350,6 +358,10 @@
         -->
         <receiver
             android:name=".reminders.ReminderAlarms"
+            android:exported="false" />
+        <!-- A place's geofence crossed: Play services' broadcast, through this app's own PendingIntent (Places.kt). -->
+        <receiver
+            android:name=".reminders.PlaceAlarms"
             android:exported="false" />
         <receiver
             android:name=".reminders.ReminderRestart"
