@@ -68,11 +68,12 @@ void main() {
         'Appearance': 'Light · Maple Mono',
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
+        'Ask Claude': 'Add your API key',
         // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
         'Plugins': '0 of 0 on',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Ask Claude', 'Plugins', 'About']);
       await endSettings(tester);
     });
 
@@ -91,6 +92,8 @@ void main() {
         ('theme', 2, SettingsGlyph.sunMoon),
         ('recording', 2, SettingsGlyph.mic),
         ('ai', 2, SettingsGlyph.sparkles),
+        // The port's own (2026-10-17): Claude with the person's own API key (docs/CLAUDE_APP.md).
+        ('ask-claude', 2, SettingsGlyph.sparkles),
         ('plugins', 2, SettingsGlyph.puzzle),
         // The port's own (2026-10-17): the calendars, a page behind Plugins.
         ('calendar', 2, SettingsGlyph.calendarDays),
@@ -117,7 +120,7 @@ void main() {
     testWidgets('wear the web’s colours: Account and Organizations blue, Notifications coral, Appearance purple, Recording red, Plugins green, the rest grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
-      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#2a9d4b', '#7c7c82'];
+      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#7c7c82', '#2a9d4b', '#7c7c82'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');

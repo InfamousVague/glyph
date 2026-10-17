@@ -15,6 +15,7 @@ import 'panes/library_folder_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
+import 'panes/claude_key_pane.dart';
 import 'panes/cheat_sheet.dart';
 import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
@@ -359,6 +360,18 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => aiSummary(facts.prefs, facts.features.models),
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
+  ),
+  // Claude with the person's own Anthropic API key (docs/CLAUDE_APP.md): the app's own section, on every device.
+  SettingsSectionSpec(
+    id: 'ask-claude',
+    label: 'Ask Claude',
+    words: 'anthropic api key claude ask sonnet opus haiku inbox',
+    glyph: SettingsGlyph.sparkles,
+    group: 2,
+    webFile: 'settings/AiPane.tsx',
+    summary: (facts) => claudeSummary(),
+    settings: (facts) => claudeFindable,
+    pane: ClaudeKeyPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'plugins',
