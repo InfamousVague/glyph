@@ -1,0 +1,259 @@
+// The app's own Claude (docs/CLAUDE_APP.md): a run against a scripted stream, its tools over a library of a map, and
+// its writing played out in an editor as the tool's input streams.
+import 'dart:convert';
+
+import 'package:flutter/widgets.dart' hide Decoration;
+import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/claude/claude_run.dart';
+import 'package:ghost_md/claude/claude_tools.dart';
+import 'package:ghost_md/claude/live_typing.dart';
+import 'package:ghost_md/claude/messages_api.dart';
+import 'package:ghost_md/claude/sse.dart';
+import 'package:ghost_md/core/note_text.dart' show noteTitle;
+import 'package:ghost_md/editor/editor.dart';
+import 'package:ghost_md/editor/view/editor_view.dart';
+
+SseEvent _e(String name, Map<String, Object?> data) => SseEvent(name, jsonEncode(data));
+
+/// One reply: [words] said, then a tool called with its input in [pieces], or no tool.
+List<SseEvent> _turn({String words = '', String? tool, String id = 'toolu_1', List<String> pieces = const []}) => [
+      _e('message_start', {'type': 'message_start'}),
+      if (words.isNotEmpty) ...[
+        _e('content_block_start', {
+          'index': 0,
+          'content_block': {'type': 'text', 'text': ''},
+        }),
+        for (final part in [words.substring(0, words.length ~/ 2), words.substring(words.length ~/ 2)])
+          _e('content_block_delta', {
+            'index': 0,
+            'delta': {'type': 'text_delta', 'text': part},
+          }),
+        _e('content_block_stop', {'index': 0}),
+      ],
+      if (tool != null) ...[
+        _e('content_block_start', {
+          'index': 1,
+          'content_block': {'type': 'tool_use', 'id': id, 'name': tool, 'input': <String, Object?>{}},
+        }),
+        for (final piece in pieces)
+          _e('content_block_delta', {
+            'index': 1,
+            'delta': {'type': 'input_json_delta', 'partial_json': piece},
+          }),
+        _e('content_block_stop', {'index': 1}),
+      ],
+      _e('message_delta', {
+        'delta': {'stop_reason': tool == null ? 'end_turn' : 'tool_use'},
+      }),
+      _e('message_stop', {'type': 'message_stop'}),
+    ];
+
+/// [json] in pieces of [size], as the API cuts a tool's input.
+List<String> _cut(String json, int size) => [for (var i = 0; i < json.length; i += size) json.substring(i, i + size > json.length ? json.length : i + size)];
+
+class _Api extends ClaudeApi {
+  _Api(this.turns) : super(key: 'sk-ant-test');
+
+  final List<List<SseEvent>> turns;
+  final List<Map<String, Object?>> asked = [];
+
+  @override
+  ClaudeCall stream(Map<String, Object?> body) {
+    asked.add(jsonDecode(jsonEncode(body)) as Map<String, Object?>);
+    final events = turns[asked.length - 1];
+    return ClaudeCall(Stream<SseEvent>.fromIterable(events), () {});
+  }
+}
+
+class _Notes implements ClaudeNotes {
+  final Map<String, String> bodies = {};
+  _Desk? desk;
+  int _made = 0;
+
+  String _now(String id) => desk?.views[id]?.state.doc.toString() ?? bodies[id]!;
+
+  @override
+  Future<List<NoteBrief>> list({String? query, int limit = 50}) async => [for (final id in bodies.keys) NoteBrief(id: id, title: noteTitle(_now(id)))];
+
+  @override
+  Future<List<NoteHit>> search(String query, {int limit = 20}) async => [
+        for (final id in bodies.keys)
+          if (_now(id).contains(query)) NoteHit(id: id, title: noteTitle(_now(id)), snippet: query),
+      ];
+
+  @override
+  Future<NoteRead?> read({String? id, String? title}) async {
+    final found = id ?? bodies.keys.where((key) => noteTitle(_now(key)) == title).firstOrNull;
+    if (found == null || !bodies.containsKey(found)) return null;
+    return NoteRead(id: found, title: noteTitle(_now(found)), body: _now(found));
+  }
+
+  @override
+  Future<String> create(String body) async {
+    final id = 'n${++_made}';
+    bodies[id] = body;
+    return id;
+  }
+
+  @override
+  Future<void> write(String id, String body) async => bodies[id] = body;
+}
+
+class _Desk implements ClaudeDesk {
+  _Desk(this.notes, {this.screen = true}) {
+    notes.desk = this;
+  }
+
+  final _Notes notes;
+
+  /// Whether notes can be shown at all.
+  final bool screen;
+  final Map<String, EditorView> views = {};
+  final List<String> opened = [];
+
+  @override
+  Future<EditorViewLike?> open(String noteId) async {
+    opened.add(noteId);
+    if (!screen) return null;
+    return views[noteId] ??= EditorView(wholeDocument: true, state: EditorState.create(doc: notes.bodies[noteId] ?? '', extensions: claudeTyping));
+  }
+
+  @override
+  bool showing(String noteId, EditorViewLike view) => identical(views[noteId], view);
+
+  @override
+  Future<void> change(String noteId, String Function(String body) change) async {
+    final view = views[noteId];
+    if (view != null) {
+      final now = view.state.doc.toString();
+      view.dispatch(TransactionSpec(changes: Change(from: 0, to: now.length, insert: change(now))));
+    } else {
+      notes.bodies[noteId] = change(notes.bodies[noteId] ?? '');
+    }
+  }
+
+  @override
+  bool get smoke => false;
+}
+
+void main() {
+  group('a run of the app\'s own Claude', () {
+    testWidgets('makes a note, opened and typed into as its body streams, answers the tool and ends on Claude\'s words', (tester) async {
+      final notes = _Notes();
+      final desk = _Desk(notes);
+      final body = '# Weekend plan\n\n- [ ] Pack\n- [ ] Book the train “early”\n';
+      final api = _Api([
+        _turn(words: 'Making it.', tool: ClaudeTool.create, pieces: _cut(jsonEncode({'body': body}), 5)),
+        _turn(words: 'Wrote [[Weekend plan]].'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'claude-sonnet-5-5', notes: notes, desk: desk, prompt: 'Plan my weekend');
+      final states = <ClaudeState>[];
+      run.addListener(() => states.add(run.state));
+      await tester.runAsync(run.run);
+
+      expect(run.state, ClaudeState.done);
+      expect(states, containsAllInOrder([ClaudeState.thinking, ClaudeState.writing, ClaudeState.done]));
+      expect(desk.opened, ['n1']);
+      expect(desk.views['n1']!.state.doc.toString(), body);
+      // The caret went with the run.
+      expect(claudeCaretOf(desk.views['n1']!.state), isNull);
+      expect(run.touched, {'n1': 'Weekend plan'});
+      expect(run.answer, 'Wrote [[Weekend plan]].');
+      expect([for (final step in run.steps) (step.kind, step.words)], [
+        ('asked', 'Plan my weekend'),
+        ('said', 'Making it.'),
+        ('tool', 'Wrote Weekend plan'),
+        ('said', 'Wrote [[Weekend plan]].'),
+      ]);
+      // The second request carries the tool's answer, and every tool is told to stream its input.
+      final second = api.asked[1]['messages']! as List;
+      final results = (second.last as Map)['content'] as List;
+      expect((results.single as Map)['tool_use_id'], 'toolu_1');
+      expect(jsonDecode((results.single as Map)['content'] as String), {'id': 'n1', 'title': 'Weekend plan', 'done': true});
+      final tools = api.asked.first['tools']! as List;
+      expect([for (final tool in tools) if ((tool as Map)['eager_input_streaming'] == true) tool['name']], [ClaudeTool.create, ClaudeTool.append, ClaudeTool.replace, ClaudeTool.rewrite]);
+    });
+
+    testWidgets('changes one passage of an open note in place, the old words taken out and the new typed in', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk\n- eggs\n\nThe end.';
+      final desk = _Desk(notes);
+      final api = _Api([
+        _turn(tool: ClaudeTool.replace, pieces: _cut(jsonEncode({'id': 'g', 'old_text': '- eggs', 'new_text': '- eggs\n- bread'}), 3)),
+        _turn(words: 'Added bread.'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'm', notes: notes, desk: desk, prompt: 'add bread');
+      await tester.runAsync(run.run);
+      expect(desk.views['g']!.state.doc.toString(), '# Groceries\n\n- milk\n- eggs\n- bread\n\nThe end.');
+      expect(run.steps.where((s) => s.kind == 'tool').single.words, 'Changed Groceries');
+    });
+
+    testWidgets('says so when the old words are not in the note, and changes nothing', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk';
+      final desk = _Desk(notes);
+      final api = _Api([
+        _turn(tool: ClaudeTool.replace, pieces: [jsonEncode({'id': 'g', 'old_text': '- eggs', 'new_text': '- bread'})]),
+        _turn(words: 'Sorry.'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'm', notes: notes, desk: desk, prompt: 'x');
+      await tester.runAsync(run.run);
+      expect(desk.views['g']!.state.doc.toString(), '# Groceries\n\n- milk');
+      final results = ((api.asked[1]['messages']! as List).last as Map)['content'] as List;
+      expect((results.single as Map)['is_error'], isTrue);
+    });
+
+    testWidgets('writes behind the screen where a note cannot be shown', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk';
+      final desk = _Desk(notes, screen: false);
+      final api = _Api([
+        _turn(tool: ClaudeTool.append, pieces: _cut(jsonEncode({'id': 'g', 'text': '- bread'}), 4)),
+        _turn(words: 'Done.'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'm', notes: notes, desk: desk, prompt: 'x');
+      await tester.runAsync(run.run);
+      expect(notes.bodies['g'], '# Groceries\n\n- milk\n- bread');
+    });
+
+    testWidgets('reads with its tools, and fails in words a person reads', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk';
+      final desk = _Desk(notes);
+      final api = _Api([
+        _turn(tool: ClaudeTool.read, pieces: [jsonEncode({'title': 'Groceries'})]),
+        [
+          _e('message_start', {'type': 'message_start'}),
+          _e('error', {
+            'type': 'error',
+            'error': {'type': 'overloaded_error', 'message': 'Overloaded'},
+          }),
+        ],
+      ]);
+      final run = ClaudeRun(api: api, model: 'm', notes: notes, desk: desk, prompt: 'x');
+      await tester.runAsync(run.run);
+      expect(run.steps.where((s) => s.kind == 'tool').single.words, 'Read Groceries');
+      final results = ((api.asked[1]['messages']! as List).last as Map)['content'] as List;
+      expect(jsonDecode((results.single as Map)['content'] as String)['body'], '# Groceries\n\n- milk');
+      expect(run.state, ClaudeState.failed);
+      expect(run.problem, 'Overloaded');
+    });
+
+    testWidgets('keeps Claude\'s caret where it last typed while the run goes on, and shows it there when followed again', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk';
+      final desk = _Desk(notes);
+      final view = (await desk.open('g'))!;
+      final typer = NoteTyper(view, follow: () => true, smoke: () => false, open: () => true, frame: const Duration(milliseconds: 1));
+      await tester.runAsync(() async {
+        typer.begin(view.state.doc.length);
+        typer.type('\n- bread');
+        await typer.end();
+      });
+      expect(view.state.doc.toString(), '# Groceries\n\n- milk\n- bread');
+      expect(claudeCaretOf(view.state), view.state.doc.length);
+      // The person types above it: Claude's caret rides along.
+      view.dispatch(TransactionSpec(changes: const Change(from: 0, insert: 'X'), userEvent: 'input.type'));
+      expect(claudeCaretOf(view.state), view.state.doc.length);
+      clearClaudeCaret(view);
+      expect(claudeCaretOf(view.state), isNull);
+      showClaudeCaret(view, 4);
+      expect(claudeCaretOf(view.state), 4);
+    });
+  });
+}
