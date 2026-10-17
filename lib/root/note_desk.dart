@@ -139,6 +139,12 @@ import '../editor/editor_widget.dart';
 import '../editor/find_bar/find_bar.dart';
 import '../editor/find_bar/find_marks.dart';
 import '../editor/items/items.dart';
+import '../core/geocode.dart' show PlaceSearch;
+import '../reminders/place_access.dart' show PlaceAccessFlow;
+import '../reminders/place_host.dart' show phonePlaces;
+import '../reminders/place_settings.dart' show placeSettings;
+import '../reminders/place_sheet.dart';
+import '../reminders/place_syntax.dart' show PlaceMark;
 import '../reminders/remind_choices.dart' show phoneReminderPicker;
 import '../reminders/reminder_host.dart' show phoneReminders;
 import '../editor/marks/marks.dart';
@@ -214,6 +220,9 @@ List<PlusEffect> plusEffects() => <PlusEffect>[
 final band.BandFields bandFields = band.BandFields(
   // Remind me, where the phone reminds: the editor was given its calendar and clock.
   reminds: (view) => view.state.facet(reminderPicker) != null,
+  // Remind me at a place, where the phone watches places and the Place reminders plugin is on.
+  places: placesOffered,
+  atPlace: (view, line, refocus) => unawaited(pickLinePlace(view, line, refocus: refocus)),
   items: (context, request) {
     final page = switch (request.page) {
       band.FieldDatePage(:final key) => DatePage(key),
@@ -221,6 +230,7 @@ final band.BandFields bandFields = band.BandFields(
       band.FieldPersonPage(:final name) => PersonPage(name),
       band.FieldAssignPage() => const AssignPage(),
       band.FieldRemindPage() => const RemindPage(),
+      band.FieldPlacePage() => const PlacePage(),
     };
     final items = fieldItems(request.view, request.line, page, onBack: request.onBack, onClose: request.onClose, refocus: request.refocus, redraw: request.redraw, today: request.view.state.facet(fieldsToday)?.call());
     return <Widget>[
@@ -290,6 +300,7 @@ class NoteDeskWorld {
     this.dayPicker,
     this.mapTiles,
     this.tags,
+    this.placeSearch,
     this.forgetTag,
     this.undoCommandMutation,
     this.summaries,
@@ -426,6 +437,10 @@ class NoteDeskWorld {
   /// The places notes keep (lib/core/place_tags.dart), where the app can say where the phone is: the map card is
   /// drawn only then, and the + offers A place.
   final PlaceTags? tags;
+
+  /// A place by its name, for Remind me at a place (lib/core/geocode.dart `geocodeSearch`); absent, the sheet has
+  /// no search.
+  final PlaceSearch? placeSearch;
 
   /// A place waiting for the note, let go: a landing's Undo took the words it waited for (`setPendingTag(id, null)`).
   final void Function(String noteId)? forgetTag;
@@ -751,6 +766,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // A reminder's day and time, where the phone reminds (lib/reminders): its calendar, then its clock.
     if (phoneReminders.value case final reminders?) reminderPicker.of(phoneReminderPicker(reminders, _world.dayPicker)),
+    // Remind me at a place, where the phone watches places (lib/reminders/place_sheet.dart).
+    if (phonePlaces.value != null) placePicker.of(_askPlace),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
     drawnBoards(),
     // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
@@ -1472,6 +1489,7 @@ class NoteDeskState extends State<NoteDesk> {
         PersonPage(:final name) => band.FieldPersonPage(name),
         AssignPage() => const band.FieldAssignPage(),
         RemindPage() => const band.FieldRemindPage(),
+        PlacePage() => const band.FieldPlacePage(),
       },
       line: tap.line,
       at: Offset(tap.x, tap.y),
@@ -1954,8 +1972,75 @@ class NoteDeskState extends State<NoteDesk> {
       children: [
         built,
         if (_sharing) ShareSheet(services: services, noteId: widget.noteId, title: widget.title, kind: _shareKind, onClose: () => setState(() => _sharing = false)),
+        if (_placeAsk case final ask?)
+          PlaceSheet(
+            key: ValueKey<Object>(ask),
+            body: _view?.state.doc.toString() ?? '',
+            current: ask.current,
+            localOnly: _prefs.value.localOnly,
+            search: _prefs.value.localOnly ? null : _world.placeSearch,
+            here: _here(),
+            hereWhy: _prefs.value.localOnly ? 'Off while Local only is on.' : null,
+            onDone: (mark) {
+              setState(() => _placeAsk = null);
+              if (!ask.done.isCompleted) ask.done.complete(mark);
+            },
+          ),
+        if (_allowAsk case final ask?)
+          PlaceAllowSheet(
+            key: ValueKey<Object>(ask),
+            place: ask.place,
+            onDone: (go) {
+              setState(() => _allowAsk = null);
+              if (!ask.done.isCompleted) ask.done.complete(go);
+            },
+          ),
       ],
     );
+  }
+
+  /// Remind me at a place's sheet, while it is up: the line's place, and who waits for the one picked.
+  ({PlaceMark? current, Completer<PlaceMark?> done})? _placeAsk;
+
+  /// The sheet before Android's "Allow all the time", while it is up.
+  ({String? place, Completer<bool> done})? _allowAsk;
+
+  /// The sheet for a line's place; the place picked, or null. The first place reminder made on this phone asks it
+  /// for the location it needs, saying why first (lib/reminders/place_access.dart); after that the plugin's page
+  /// offers the way (lib/plugins/places).
+  Future<PlaceMark?> _askPlace(int line, PlaceMark? current) async {
+    if (!mounted || _leaving) return null;
+    if (_placeAsk case final open? when !open.done.isCompleted) open.done.complete(null);
+    final done = Completer<PlaceMark?>();
+    setState(() => _placeAsk = (current: current, done: done));
+    final mark = await done.future;
+    if (mark != null && placeSettings.firstMade()) {
+      final host = phonePlaces.value;
+      if (host != null) unawaited(PlaceAccessFlow(host: host, explain: () => _explainAllow(mark.name)).run());
+    }
+    return mark;
+  }
+
+  /// The app's own words before Android's "Allow all the time": true for Continue.
+  Future<bool> _explainAllow(String? place) {
+    if (!mounted || _leaving) return Future<bool>.value(false);
+    if (_allowAsk case final open? when !open.done.isCompleted) open.done.complete(false);
+    final done = Completer<bool>();
+    setState(() => _allowAsk = (place: place, done: done));
+    return done.future;
+  }
+
+  /// Where the phone is now as a place, its name where one may be asked: null where this device cannot say or Local
+  /// only is on.
+  HerePlace? _here() {
+    final tags = _world.tags;
+    if (tags == null || tags.locations.cannotLocate != null) return null;
+    return () async {
+      final tag = tagOf(await tags.locations.locate());
+      String? name;
+      if (tags.locations.canAskPlace) name = await tags.locations.placeName(tag).timeout(placeNameWait, onTimeout: () => null);
+      return PlaceMark(tag.named(name));
+    };
   }
 
   /// The bar's Share was pressed, and its sheet is up.

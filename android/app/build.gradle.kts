@@ -187,6 +187,9 @@ dependencies {
     // models, and 18.4 MB more again for the two ABIs the core does not run on), where this is a few hundred KB.
     implementation("com.google.android.gms:play-services-mlkit-document-scanner:16.0.0")
     implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.1")
+    // Place reminders (reminders/Places.kt): Play services' geofences, which watch the places with the app closed and
+    // cost the phone almost nothing while it is nowhere near them, and its fused last position for the nearest hundred.
+    implementation("com.google.android.gms:play-services-location:21.3.0")
     // The ported classes' own tests (app/src/test): SoundMix, WavSpool, the notification's counter and line.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")

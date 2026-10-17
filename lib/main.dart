@@ -121,6 +121,8 @@ Future<void> main() async {
   final clips = PhoneTapePlayer.clips();
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
+  // A place by its name, for Remind me at a place: asked as the app, a second apart, never under Local only.
+  final placeSearch = geocodeSearch(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   final mapTiles = MapTiles().builder;
   runApp(GhostApp(
     sheet: sheet,
@@ -148,6 +150,7 @@ Future<void> main() async {
         updates: opened.core == null ? null : updates,
         locator: locator,
         placeLookup: placeLookup,
+        placeSearch: placeSearch,
         mapTiles: mapTiles,
         picturePicker: phonePicturePicker,
         films: opened.films,

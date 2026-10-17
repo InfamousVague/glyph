@@ -8,7 +8,7 @@
 /// `lib/core/task_fields.dart`'s; this only says where one is drawn. Nothing in code, an address, HTML, a comment
 /// or maths is a field, nor anything in a blank's question or in the note's front matter.
 ///
-/// A tap on a due, start or scheduled day, a priority or a person opens the press-and-hold menu on that field's
+/// A tap on a due, start or scheduled day, a priority, a person, a reminder or a place opens the press-and-hold menu on that field's
 /// page (`field_items.dart`): the chip is the field's handle. The press is kept from the editor, so the caret
 /// stays where it was and the keyboard does not rise. A tap on any other chip is the editor's, and puts the caret
 /// on its line, where it is the characters again. On a page that cannot be edited the chips are drawn and a tap
@@ -24,6 +24,7 @@ import '../../core/blanks_syntax.dart';
 import '../../core/days.dart';
 import '../../core/item_syntax.dart';
 import '../../core/task_fields.dart';
+import '../../reminders/place_host.dart' show placeWarning;
 import '../editor.dart';
 import '../syntax/syntax.dart';
 import '../view/extended.dart' show frontMatter;
@@ -34,7 +35,7 @@ import 'field_menu.dart';
 
 /// What a line with a drawn field has in it: an at sign, a named field's `::`, or one of the signs. A line with
 /// none has no chip, and is passed over without reading it.
-final RegExp _signs = RegExp('@|::|📅|📆|🗓|🛫|⏳|⌛|✅|➕|❌|🔁|🔺|⏫|🔼|🔽|⏬|⏰', unicode: true);
+final RegExp _signs = RegExp('@|::|📅|📆|🗓|🛫|⏳|⌛|✅|➕|❌|🔁|🔺|⏫|🔼|🔽|⏬|⏰|📍', unicode: true);
 
 /// The day the chips count from; the device's own where none is said.
 final Facet<String Function(), String Function()?> fieldsToday = Facet.define<String Function(), String Function()?>(combine: (values) => values.isEmpty ? null : values.first);
@@ -48,6 +49,7 @@ String _today(EditorState state) => state.facet(fieldsToday)?.call() ?? isoDay(D
 FieldPage? pageOf(ChipLook look) {
   if (look.menu == FieldMenu.priority) return const PriorityPage();
   if (look.menu == FieldMenu.remind) return const RemindPage();
+  if (look.menu == FieldMenu.place) return const PlacePage();
   if (look.menu == FieldMenu.person) return PersonPage(look.key);
   if (look.menu == FieldMenu.date && (look.key == 'due' || look.key == 'start' || look.key == 'scheduled')) return DatePage(look.key);
   return null;
@@ -73,6 +75,14 @@ class FieldWidget extends EditorWidget {
 
   @override
   Widget build(BuildContext context) {
+    // A place's chip warns, quietly, while the phone may not know when it is there (lib/reminders/place_host.dart).
+    if (look.menu == FieldMenu.place) {
+      return ValueListenableBuilder<bool>(valueListenable: placeWarning, builder: (context, warn, _) => _chip(context, warn ? warnedPlace(look) : look));
+    }
+    return _chip(context, look);
+  }
+
+  Widget _chip(BuildContext context, ChipLook look) {
     final page = tappable ? pageOf(look) : null;
     if (page == null) return FieldChip(look);
     final view = EditorViewScope.maybeOf(context);

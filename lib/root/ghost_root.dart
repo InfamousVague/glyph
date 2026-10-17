@@ -26,6 +26,7 @@ import '../book/chapter_number.dart' show chapterOf;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
+import '../core/geocode.dart' show PlaceSearch;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/films.dart' show Films;
 import '../core/phone_pictures.dart' show corePictureAdopter;
@@ -163,6 +164,8 @@ import '../share/ui/share_in_sheet.dart';
 import '../home_screen/home_host.dart' show PhoneHomeScreenHost;
 import '../home_screen/phone_entries.dart';
 import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
+import '../plugins/places/places.dart' show placeRemindersId;
+import '../reminders/place_host.dart' show PhonePlaceHost;
 import '../reminders/reminder_host.dart' show PhoneReminderHost;
 import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
@@ -227,7 +230,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -298,6 +301,10 @@ class GhostRoot extends StatefulWidget {
   final Locator? locator;
   final PlaceLookup? placeLookup;
   final MapTilesBuilder? mapTiles;
+
+  /// A place by its name, for Remind me at a place (lib/core/geocode.dart `geocodeSearch`); absent, as in a test,
+  /// the sheet has no search.
+  final PlaceSearch? placeSearch;
 
   /// The phone's picture chooser, given what keeps a chosen picture among the library's
   /// (lib/core/phone_pictures.dart `phonePicturePicker`). Absent, as in a test, no picture can be added.
@@ -821,7 +828,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
   late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
-      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
       : null;
 
   /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
@@ -993,6 +1000,7 @@ class _GhostRootState extends State<GhostRoot> {
     dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
     tags: _places,
+    placeSearch: widget.placeSearch,
     openTag: (tag) => _organize.showTag(tag),
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),

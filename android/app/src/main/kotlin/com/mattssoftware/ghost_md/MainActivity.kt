@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import com.mattssoftware.ghost_md.home.HomeScreen
+import com.mattssoftware.ghost_md.reminders.Places
 import com.mattssoftware.ghost_md.reminders.Reminders
 import com.mattssoftware.glyph.capture.DictationMic
 import com.mattssoftware.glyph.files.LibraryTree
@@ -187,6 +188,8 @@ class MainActivity : FlutterActivity() {
         // Reminders, and the home screen's widgets and shortcuts (reminders/Reminders.kt, home/HomeScreen.kt;
         // lib/reminders, lib/home_screen).
         Reminders.register(applicationContext, this, messenger)
+        // Place reminders: the geofences and the location they need (reminders/Places.kt; lib/reminders/place_host.dart).
+        Places.register(applicationContext, this, messenger)
         HomeScreen.register(applicationContext, messenger)
     }
 
@@ -235,6 +238,7 @@ class MainActivity : FlutterActivity() {
         battery.release()
         carry?.close()
         Reminders.released(this)
+        Places.released(this)
         meeting?.onDestroy()
         super.onDestroy()
     }
@@ -243,6 +247,7 @@ class MainActivity : FlutterActivity() {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults)
         if (DictationMic.answered(this, requestCode, grantResults)) return
         if (position.answered(requestCode, grantResults)) return
+        if (Places.answered(applicationContext, requestCode, grantResults)) return
         meeting?.onRequestPermissionsResult(requestCode, grantResults)
     }
 

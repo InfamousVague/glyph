@@ -58,6 +58,9 @@ import java.util.Locale
  * **What rings.** The notification ("Reminders" channel, high importance) says the item's words and its note; a tap
  * opens the note at that line; Done ticks it (GhostBackground.kt) and Snooze 1 hour rings it again in an hour. A
  * reminder missed while the phone was off is rung once when it starts again, if it was due in the last twelve hours.
+ *
+ * **A place's** (Places.kt) rings the same notification when the phone arrives there, with Done and no Snooze, and is
+ * found by the same Done under its own id (`place~…`: [find]).
  */
 object Reminders {
   const val CHANNEL = "ghost_md/reminders"
@@ -171,7 +174,7 @@ object Reminders {
   /** Every reminder held: the plan's and the snoozed ones. */
   fun held(context: Context): List<Item> = items(context, KEY_PLAN) + items(context, KEY_SNOOZED)
 
-  fun find(context: Context, id: String): Item? = held(context).firstOrNull { it.id == id }
+  fun find(context: Context, id: String): Item? = held(context).firstOrNull { it.id == id } ?: Places.reminderOf(context, id)
 
   // ---- arming ------------------------------------------------------------------------------------------------------
 
@@ -290,10 +293,14 @@ object Reminders {
     ring(context, item)
   }
 
+  /** A place arrived at (Places.kt): its to-do's notification, with Done and no Snooze. */
+  fun ringPlace(context: Context, item: Item) = ring(context, item, place = true)
+
   @Synchronized
-  private fun ring(context: Context, item: Item) {
+  private fun ring(context: Context, item: Item, place: Boolean = false) {
+    // A place rings each time the phone arrives: it is not one of the alarms a restart might ring again.
     val fired = ids(context, KEY_FIRED)
-    if (item.id !in fired) keepIds(context, KEY_FIRED, (fired + item.id).takeLast(FIRED_KEPT))
+    if (!place && item.id !in fired) keepIds(context, KEY_FIRED, (fired + item.id).takeLast(FIRED_KEPT))
     if (!canNotify(context)) return
     ensureChannel(context)
     val open = Doors.press(context, Doors.noteAt(item.note, item.line, item.words), code(item.id))
@@ -315,7 +322,7 @@ object Reminders {
       .setWhen(millisOf(item.at) ?: System.currentTimeMillis())
       .setShowWhen(true)
     if (item.tick) builder.addAction(R.drawable.ghost_ic_check, "Done", action(context, ACTION_DONE, item.id))
-    builder.addAction(R.drawable.ghost_ic_alarm, "Snooze 1 hour", action(context, ACTION_SNOOZE, item.id))
+    if (!place) builder.addAction(R.drawable.ghost_ic_alarm, "Snooze 1 hour", action(context, ACTION_SNOOZE, item.id))
     try {
       NotificationManagerCompat.from(context).notify(TAG, code(item.id), builder.build())
     } catch (error: SecurityException) {
@@ -329,6 +336,7 @@ object Reminders {
     val item = find(context, id) ?: return
     dropSnoozed(context, id)
     forget(context, item.note, item.words)
+    Places.forget(context, item.note, item.words)
     HomeScreen.ticked(context, item.note, item.line)
     GhostBackground.tick(context, item.note, item.line, item.words)
   }

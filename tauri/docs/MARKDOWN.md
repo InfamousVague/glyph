@@ -232,6 +232,18 @@ from a list of ideas.
   the priority and the people as chips of its own), the home page's To do, and progress under a heading, which counts
   no box that has only fields after it. Search finds a priority by its name, "high priority". Another app shows the
   signs as written, and Obsidian with the Tasks plugin reads the dates and priorities.
+- **A place to be reminded at — `- [ ] Buy diapers 📍 [Target](geo:35.7002,-81.3084)`.** Added 2026-10-17
+  (docs/INTEGRATIONS.md §3). A pin, then a place's link exactly as a place line writes one (below: the name as its
+  words, or the coordinates; four decimals, or two for a rough fix), read as a field like `⏰` and written where `⏰`
+  is: after a person and a named field, before the run of Tasks' signs, so Tasks still reads the dates after it, and
+  before the tail. One per item; a second is taken off when it is set. Left out of the item's words like any field.
+  Off the caret's line it is a chip with a pin and the place's name; a tap offers **Change place** and **Remove**;
+  press and hold on a list item offers **Remind me at a place** (a search of OpenStreetMap's places, sent, never as
+  it is typed, and never under Local only; the places the note already has; and Here), on a phone that watches places
+  and with the Place reminders plugin switched on (Settings › Plugins; `lib/plugins/places`).
+  There an open to-do with one is a geofence of 150 m (Android), and arriving says "Buy diapers — you're at Target"
+  with Done. Another app shows a pin and a link that opens its maps. (`lib/reminders/place_syntax.dart`,
+  `lib/editor/items/field_chips.dart`)
 - **Places — `[Cais do Sodré, Lisbon](geo:38.7057,-9.1446)`.** A plain link to a `geo:` address (RFC 5870), alone on
   its line, with or without a list's or a quote's lead: what the + beside the line writes for A place. The map card is
   drawn under it, live on the note screen (tiles only with the map switch on and Local only off), quiet until asked on
