@@ -52,6 +52,7 @@ import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/record.dart';
 
 import '../account_ui/support.dart' show Device;
+import '../shell/dock_support.dart' show dockOrder;
 import '../support/render.dart';
 import 'part_of.dart';
 
@@ -745,6 +746,49 @@ void main() {
       expect(find.byKey(const ValueKey('dock-claude-online')), findsNothing);
       expect(find.byKey(const ValueKey('follow-bar')), findsNothing);
       await tester.pump(const Duration(seconds: 9));
+      await close(tester);
+    });
+
+    // docs/DOCK.md: the dock on every page, Claude at its head and a settings-type ring at its foot, each ring the
+    // page's own action.
+    testWidgets('puts the dock on every page: home with Settings at its foot, Settings with Claude alone, a note with its own rings and Claude about it, All notes as home', (tester) async {
+      final library = await open(tester);
+      final groceries = library.create('# Groceries\n\n- milk');
+      await tester.pump(const Duration(milliseconds: 200));
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      final home = dockOrder(tester, within: find.byType(HomeScreen));
+      expect(home.first, 'claude');
+      expect(home.last, 'settings');
+      expect(home, containsAllInOrder(['claude', 'search', 'add', 'settings']));
+
+      // Settings, from home's foot: its own dock is Claude alone.
+      await tester.tap(find.byKey(const ValueKey('dock-settings')));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(tester.widget<SettingsSheet>(find.byType(SettingsSheet)).open, isTrue);
+      expect(dockOrder(tester, within: find.byType(SettingsSheet)), ['claude']);
+      tester.widget<SettingsSheet>(find.byType(SettingsSheet)).onClose();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // A note: Claude first, the note's ⋯ last; Claude opens the chat with the note's title in its field.
+      await openNote(tester, groceries.id);
+      final note = dockOrder(tester, within: find.byType(NoteScreen));
+      expect(note.first, 'claude');
+      expect(note.last, 'note-options');
+      expect(note, containsAllInOrder(['claude', 'note-find', 'note-add', 'note-options']));
+      await tester.tap(find.descendant(of: find.byType(NoteScreen), matching: find.byKey(const ValueKey('dock-claude'))));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tester.widget<EditableText>(find.descendant(of: find.byType(ClaudeChat), matching: find.byType(EditableText))).controller.text, '[[Groceries]] ');
+      tester.widget<ClaudeChat>(find.byType(ClaudeChat)).onClose();
+      await tester.pump(const Duration(milliseconds: 300));
+
+      // All notes: the home page's dock.
+      shell.showAllNotes();
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(dockOrder(tester, within: find.byType(AllNotesScreen)), home);
       await close(tester);
     });
 
