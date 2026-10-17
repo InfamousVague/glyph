@@ -83,6 +83,9 @@ const List<String> syncedPrefs = [
   // (lib/notes/daily_notes.dart): the person's, on every device.
   'smartNotebooks',
   'dailyNotes',
+  // The calendars read (lib/calendar/setup.dart, docs/CALENDAR.md): the iCal addresses and Google's sign-in, sealed
+  // with the rest, so a calendar added on one device is on every one. What each device fetched stays with it.
+  'calendars',
 ];
 
 typedef _Entries = Map<String, Object?>;
