@@ -17,6 +17,10 @@ on:
   push:
     branches: [main]
 
+# The release the APK is put on, so a phone downloads the .apk itself (an artifact always comes zipped).
+permissions:
+  contents: write
+
 concurrency:
   group: android-${{ github.ref }}
   cancel-in-progress: true
@@ -109,6 +113,22 @@ jobs:
           name: ghost-flutter-apk-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      # The newest APK as a file a phone installs: on the pre-release "android-latest", replaced on every run from main.
+      # https://github.com/InfamousVague/glyph/releases/download/android-latest/ghost-flutter.apk
+      - name: Put the APK on the android-latest release
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp build/app/outputs/flutter-apk/app-release.apk ghost-flutter.apk
+          notes="Ghost Flutter (com.mattssoftware.glyph.flutter) from ${GITHUB_SHA::7}, build ${{ github.run_number }}. Installs beside Ghost.md, signed with CI's debug key."
+          if gh release view android-latest > /dev/null 2>&1; then
+            gh release upload android-latest ghost-flutter.apk --clobber
+            gh release edit android-latest --notes "$notes" --target "$GITHUB_SHA"
+          else
+            gh release create android-latest ghost-flutter.apk --prerelease --title "Ghost Flutter, newest build" --notes "$notes" --target "$GITHUB_SHA"
+          fi
 
       - name: Analyze and tests passed
         if: steps.analyze.outcome == 'failure' || steps.tests.outcome == 'failure'
