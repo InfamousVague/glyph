@@ -29,7 +29,6 @@ import '../core/back.dart';
 import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline;
 import '../sheet/css.dart';
-import '../sheet/kit.dart' show SheetField;
 import 'claude_mark.dart';
 import 'claude_run.dart';
 import 'claude_runner.dart';
@@ -170,17 +169,20 @@ class _ClaudeChatState extends State<ClaudeChat> {
 
 /// A round button of the head and the composer.
 class _Round extends StatelessWidget {
-  const _Round({super.key, required this.label, required this.onPressed, required this.child, this.filled = false});
+  const _Round({super.key, required this.label, required this.onPressed, required this.child, this.filled = false, this.side});
 
   final String label;
   final VoidCallback? onPressed;
   final Widget child;
   final bool filled;
 
+  /// How wide it is: the top bar's ring unless told (the composer's Send, sized to sit inside the field).
+  final double? side;
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final side = t.len('app-bar-ring');
+    final side = this.side ?? t.len('app-bar-ring');
     return GlacierPressable(
       onPressed: onPressed,
       semanticLabel: label,
@@ -524,6 +526,8 @@ class _Composer extends StatelessWidget {
     final run = runner.run;
     final hasKey = runner.settings.hasKey;
     if (!hasKey && chat.onInbox == null) return const SizedBox.shrink();
+    // Send is round, as tall as the field less a little room above and below, inside its trailing end.
+    final send = t.len('glacier-control-height-lg') - 2 * t.space(1);
     return Container(
       padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(3)),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')))),
@@ -543,38 +547,27 @@ class _Composer extends StatelessWidget {
                 ),
               ]),
             ),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Expanded(
-                child: Container(
-                  padding: EdgeInsets.symmetric(horizontal: t.space(3)),
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(t.radius('lg')),
-                    border: Border.all(color: t.color('glacier-border-strong'), width: t.len('glacier-hairline')),
-                  ),
-                  child: SheetField(
-                    key: const ValueKey('claude-ask'),
-                    label: hasKey ? 'Message Claude' : 'A request for your Ask Claude note',
-                    controller: state._field,
-                    focusNode: state._focus,
-                    placeholder: !hasKey
-                        ? 'A request for the Ask Claude note…'
-                        : runner.conversation.isEmpty
-                            ? 'Message Claude'
-                            : 'Reply to Claude',
-                    autoFocus: runner.conversation.isEmpty,
-                    enterKeyHint: TextInputAction.send,
-                    onSubmitted: (_) => state._send(),
-                  ),
-                ),
-              ),
-              SizedBox(width: t.space(2)),
-              if (runner.working)
-                _Round(key: const ValueKey('claude-stop'), label: 'Stop Claude', onPressed: runner.stop, filled: true, child: const AppIcon(Lucide.square, size: 15, color: claudeIvory))
-              else
-                _Round(key: const ValueKey('claude-send'), label: 'Send', onPressed: state._send, filled: true, child: const AppIcon(Lucide.arrowUp, size: 18, color: claudeIvory)),
-            ],
+          // One field, Send inside its trailing end (Matt, 2026-10-17: "a more streamlined text input that's inline
+          // with the button, the send button should be nested inside the input as well to the right"): the kit's
+          // GlacierInput, at its large size, with Send (Stop while Claude works) as its trailing control.
+          GlacierInput(
+            key: const ValueKey('claude-ask'),
+            size: GlacierFieldSize.lg,
+            ariaLabel: hasKey ? 'Message Claude' : 'A request for your Ask Claude note',
+            controller: state._field,
+            focusNode: state._focus,
+            placeholder: !hasKey
+                ? 'A request for the Ask Claude note…'
+                : runner.conversation.isEmpty
+                    ? 'Message Claude'
+                    : 'Reply to Claude',
+            autoFocus: runner.conversation.isEmpty,
+            enterKeyHint: TextInputAction.send,
+            onSubmitted: (_) => state._send(),
+            trailingExtent: send,
+            trailing: runner.working
+                ? _Round(key: const ValueKey('claude-stop'), label: 'Stop Claude', onPressed: runner.stop, filled: true, side: send, child: const AppIcon(Lucide.square, size: 14, color: claudeIvory))
+                : _Round(key: const ValueKey('claude-send'), label: 'Send', onPressed: state._send, filled: true, side: send, child: const AppIcon(Lucide.arrowUp, size: 17, color: claudeIvory)),
           ),
         ],
       ),

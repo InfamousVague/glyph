@@ -42,6 +42,8 @@ class GlacierInput extends StatelessWidget {
     this.glass = false,
     this.leadingIcon,
     this.trailingIcon,
+    this.trailing,
+    this.trailingExtent = 0,
     this.id,
     this.type = GlacierInputType.text,
     this.value,
@@ -81,6 +83,15 @@ class GlacierInput extends StatelessWidget {
 
   /// Icon or adornment pinned to the trailing edge, such as a clear button.
   final Widget? trailingIcon;
+
+  /// A control pinned inside the trailing edge at its own size, not an icon's: a message field's send button. The
+  /// text pads clear of it by [trailingExtent], its width. Not in the React kit, whose fields put such a button
+  /// beside the input; added for Ghost.md's chat (Matt, 2026-10-17: "the send button should be nested inside the
+  /// input as well to the right"). Takes the place of [trailingIcon] when both are given.
+  final Widget? trailing;
+
+  /// How wide [trailing] is, in logical pixels: the room the text keeps clear for it.
+  final double trailingExtent;
 
   /// The element's id, in the semantics tree; the surrounding Field's where this is null.
   final String? id;
@@ -213,13 +224,16 @@ class GlacierInput extends StatelessWidget {
     return GlacierFieldCore(
       size: size,
       paddingStart: leadingIcon != null ? iconPad : pad,
-      paddingEnd: trailingIcon != null ? iconPad : pad,
+      paddingEnd: trailing != null ? trailingExtent + t.space(2) + t.space(1) : (trailingIcon != null ? iconPad : pad),
       look: (tokens, status) => lookOf(tokens, status, glass: glass),
-      overlay: leadingIcon == null && trailingIcon == null
+      overlay: leadingIcon == null && trailingIcon == null && trailing == null
           ? null
           : (context, _) => [
                 if (leadingIcon != null) FieldSlot(start: edge, ignorePointer: true, child: icon(leadingIcon!)),
-                if (trailingIcon != null) FieldSlot(end: edge, child: icon(trailingIcon!)),
+                if (trailing != null)
+                  FieldSlot(end: t.space(1), child: trailing!)
+                else if (trailingIcon != null)
+                  FieldSlot(end: edge, child: icon(trailingIcon!)),
               ],
       value: value,
       defaultValue: defaultValue ?? '',
