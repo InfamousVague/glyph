@@ -21,6 +21,7 @@ import '../ai/summary_text.dart' show summarySection;
 import '../ai/support/runnable.dart' show cannotRun;
 import '../art/art.dart';
 import '../book/book_spot.dart' show whereLeft;
+import '../calendar/calendar.dart' show calendar;
 import '../book/chapter_number.dart' show chapterOf;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
@@ -410,6 +411,9 @@ class _GhostRootState extends State<GhostRoot> {
   AccountGateState? _gate;
   AppLifecycleListener? _life;
 
+  /// The calendars' own: read again when the app comes back to the front.
+  AppLifecycleListener? _calendarLife;
+
   /// A member's caret a note is about to be opened at (an organization's Jump to cursor), by note; its desk takes it.
   final Map<String, Map<String, Object?>> _jumps = {};
 
@@ -696,6 +700,8 @@ class _GhostRootState extends State<GhostRoot> {
   /// A pull down from the top of the home page or All notes (docs/DESIGN.md §152; `pullRefresh`): a sync, waited for
   /// a few seconds at most, and the notes read again whatever it answered. With no account the notes are read.
   Future<void> _pullRefresh() async {
+    // The calendars too, without waiting on them: a slow calendar never holds the pull.
+    unawaited(calendar.syncNow());
     await _services?.engine?.syncWithin().then<void>((_) {}, onError: (Object _) {});
     await _library.refresh();
   }
@@ -888,6 +894,9 @@ class _GhostRootState extends State<GhostRoot> {
     services: _services,
     changes: _libraryChanges,
     queryNotes: () => _reads.queryNotes,
+    // The calendars' events (lib/calendar, docs/CALENDAR.md): `from: events`, and a calendar of to-dos.
+    queryEvents: calendar.queryEvents,
+    eventsChanged: calendar.events,
     // A note a query listed, opened: the note itself, or a to-do's note at its line.
     openAt: (id, line) => _shell.currentState?.openNote(id, at: line == null ? null : 'line:${line + 1}'),
     write: (id, change) => unawaited(_writeNote(id, change)),
@@ -1369,6 +1378,8 @@ class _GhostRootState extends State<GhostRoot> {
     if (widget.voice == null) _voice?.dispose();
     _libraryChanges.removeListener(_reads.changed);
     _linkIndex.dispose();
+    _calendarLife?.dispose();
+    calendar.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
     _trash.removeListener(_tick.tell);
@@ -1420,6 +1431,10 @@ class _GhostRootState extends State<GhostRoot> {
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
+    // The calendars, read for the life of the app (lib/calendar/calendar.dart, docs/CALENDAR.md): now, on their
+    // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.
+    calendar.start(notes: () => _reads.queryNotes);
+    _calendarLife = AppLifecycleListener(onResume: calendar.resumed);
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

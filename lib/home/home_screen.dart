@@ -53,6 +53,8 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../calendar/event.dart' show CalendarEvent, eventsOn;
+import '../core/days.dart' show isoDay;
 import '../core/page_scroll.dart';
 import '../core/book.dart';
 import '../core/note.dart';
@@ -65,6 +67,7 @@ import '../format/gist.dart' show Gists;
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../shell/header_pane.dart';
+import 'home_events.dart';
 import 'home_filters.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
@@ -179,6 +182,7 @@ class HomeScreen extends StatefulWidget {
     this.dockHalo,
     this.ghost,
     this.onSaveSearch,
+    this.events,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -264,6 +268,10 @@ class HomeScreen extends StatefulWidget {
 
   /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
   final ValueChanged<String>? onSaveSearch;
+
+  /// The calendars' events (lib/calendar/calendar.dart): today's are at the head of the page, under Today, when
+  /// there are any (docs/CALENDAR.md). None where it is left out.
+  final ValueListenable<List<CalendarEvent>>? events;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -821,6 +829,12 @@ class _HomeScreenState extends State<HomeScreen> {
         valueListenable: _notices,
         builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : _Gapped(gap: gap, children: notices),
       ),
+      // Today's events, when there are any; not while searching (docs/CALENDAR.md).
+      if (!searched && widget.events != null)
+        ValueListenableBuilder<List<CalendarEvent>>(
+          valueListenable: widget.events!,
+          builder: (context, events, _) => HomeTodayEvents(events: eventsOn(events, isoDay(DateTime.fromMillisecondsSinceEpoch(_now)))),
+        ),
       // The organizations joined, a card each; not while searching, nor inside one workspace.
       if (hasOrganization && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
     ];
