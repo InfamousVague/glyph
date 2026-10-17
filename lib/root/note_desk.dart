@@ -72,6 +72,9 @@
 ///   keeps what the layer says ([NoteSeams.headRoom]) and the note's page starts that much lower while the strip
 ///   is up, told after the frame it was measured in.
 /// - **A board's card has no plugin's rows** (`drawnBoards(actions:)`).
+/// - **A person who is a contact** (Settings › Contacts, lib/integrations/contacts): their chip's tap opens their
+///   card, Call, Text, Email and Open in Contacts beside the chip's own Remove ([personCard]); the +'s A person and
+///   Assign's pick one from the phone's contacts and write `@Sam-Ortiz` ([personPicker], `AddConfig.onPerson`).
 /// - **The plugins reach the note through the editor** (lib/editor/items/note_plugins.dart): a swipe on a list item
 ///   and the quiet words after a line are asked of the app's registry as they are used, a linked to-do's box and
 ///   its task are kept in step, a linked row opens its menu, and what the note is linked to is drawn at its top
@@ -148,6 +151,10 @@ import '../editor/media/note_embeds.dart';
 import '../editor/media/source_line.dart';
 import '../links/note_links.dart' show NoteLinksHere;
 import '../editor/plus/plus.dart';
+import '../integrations/contacts/contact_card.dart' show PersonCardAction, showPersonCard;
+import '../integrations/contacts/contact_match.dart' show mentionOf;
+import '../integrations/contacts/contact_picker.dart' show pickContact;
+import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
@@ -751,6 +758,9 @@ class NoteDeskState extends State<NoteDesk> {
     if (_world.dayPicker != null) dayPicker.of(_world.dayPicker!),
     // A reminder's day and time, where the phone reminds (lib/reminders): its calendar, then its clock.
     if (phoneReminders.value case final reminders?) reminderPicker.of(phoneReminderPicker(reminders, _world.dayPicker)),
+    // A person who is a contact opens their card, and Assign picks one (Settings › Contacts), each asked as it is used.
+    personCard.of(_personCard),
+    personPicker.of(PersonPicking(offered: () => phoneContacts.ready && !widget.readOnly, pick: (_) => _pickPerson())),
     // Boards drawn as boards, the fence still there to edit (Editor.tsx `drawnBoards()`).
     drawnBoards(),
     // A ```mermaid fence drawn as its diagram (Editor.tsx `drawnMermaid()`).
@@ -1478,6 +1488,39 @@ class NoteDeskState extends State<NoteDesk> {
     );
   }
 
+  /// A chip of a person who is a contact tapped: their card, at the chip, with the chip's own Remove. False for a
+  /// person who is no contact, whose page the band opens as before.
+  bool _personCard(EditorViewLike view, FieldTap tap, String name) {
+    if (!mounted || _leaving) return false;
+    final contact = phoneContacts.contactOf(name);
+    if (contact == null) return false;
+    _plus.close();
+    showPersonCard(
+      context,
+      contact: contact,
+      name: name,
+      at: Rect.fromLTWH(tap.x, tap.y, 0, context.tokens.len('app-body') * 1.35),
+      actions: <PersonCardAction>[
+        if (!view.state.readOnly) PersonCardAction(icon: Lucide.userMinus, label: 'Remove', name: 'Take ${personShown(name)} off', onPress: () => setLinePerson(view, tap.line, name, false)),
+      ],
+    );
+    return true;
+  }
+
+  /// A contact picked from the phone's, as the name a note writes for them (`Sam-Ortiz`); null for none.
+  Future<String?> _pickPerson() async {
+    if (!mounted) return null;
+    final contact = await pickContact(context);
+    return contact == null ? null : mentionOf(contact);
+  }
+
+  /// The +'s A person: the one picked written where the caret was, and the note has the focus back.
+  Future<void> _addPerson(EditorViewLike view) async {
+    final name = await _pickPerson();
+    if (name == null || !mounted || _leaving) return;
+    if (writePerson(view, name)) view.focus();
+  }
+
   /// The page inside the layers that hear it scroll. The same widgets with a view and without, so the page keeps
   /// its place in the tree (and its scroll position) when the editor's view arrives.
   Widget _around(BuildContext context, EditorView? view, Widget page) {
@@ -1508,6 +1551,8 @@ class NoteDeskState extends State<NoteDesk> {
           // Any file, and a document scanned into a PDF (lib/files/), where the device can.
           onFile: FilesKit.current?.picks != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, FilesKit.current!.pick)),
           onScan: FilesKit.current?.scans != true || widget.readOnly || view == null ? null : () => unawaited(_putFile(view, () => FilesKit.current!.scan(name: scanName(DateTime.now())))),
+          // Someone from the phone's contacts, where Settings › Contacts is on.
+          onPerson: !phoneContacts.on || widget.readOnly || view == null ? null : () => unawaited(_addPerson(view)),
           // A row that can never work is not drawn: only where the phone can say where it is at all.
           onPlace: _world.tags != null && _world.tags!.locations.cannotLocateHere == null && view != null ? () => unawaited(_addPlace(view)) : null,
         ),

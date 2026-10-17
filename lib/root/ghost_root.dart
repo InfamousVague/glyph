@@ -61,6 +61,7 @@ import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
 import '../importer/importer.dart' show Importer;
+import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/ids.dart' show randomId;
 import '../core/images.dart';
@@ -1506,6 +1507,9 @@ class _GhostRootState extends State<GhostRoot> {
     // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.
     calendar.start(notes: () => _reads.queryNotes);
     _calendarLife = AppLifecycleListener(onResume: calendar.resumed);
+    // Settings › Contacts (lib/integrations/contacts): the phone's contacts read where it is on, and the people the
+    // notes name, for its page.
+    phoneContacts.start(bodies: () => [for (final note in _reads.queryNotes) note.body]);
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

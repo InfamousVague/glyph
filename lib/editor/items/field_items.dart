@@ -5,8 +5,10 @@
 ///   Remove when it has one. The day it has is lit.
 /// - **Priority**: the five, the most urgent first, in the marks the chips draw, and None. The one it has is lit.
 /// - **A person** tapped: Remove.
-/// - **Assign**: the people the note already names, lit where they are on the line, each pressed on and off, and
-///   Someone new, which writes the at sign where a person goes and leaves the caret after it for the name.
+/// - **Assign**: the people the note already names, lit where they are on the line, each pressed on and off; A
+///   person, a contact picked from the phone's where Settings › Contacts is on ([personPicker]), put on the line as
+///   `@Sam-Ortiz`; and Someone new, which writes the at sign where a person goes and leaves the caret after it for
+///   the name.
 ///
 /// Every press writes through `lib/core/task_fields.dart` and closes the menu, but a person pressed on Assign,
 /// which stays so a second can be added. The editor gets its focus back only where it had it: a chip tapped on a
@@ -172,6 +174,26 @@ List<FieldItem>? fieldItems(EditorViewLike view, int line, FieldPage page, {Void
               haptic(HapticKind.selection);
               setLinePerson(view, line, person, !on);
               redraw?.call();
+            },
+          ),
+        );
+      }
+      final picking = view.state.facet(personPicker);
+      if (picking != null && picking.offered()) {
+        items.add(
+          FieldItem(
+            icon: Lucide.contactRound,
+            label: 'A person',
+            name: 'A person from your contacts',
+            onPress: (box) {
+              haptic(HapticKind.selection);
+              onClose();
+              // Opened from the press itself, before the menu goes; the name put on the line once one is picked.
+              unawaited(picking.pick(box.topLeft).then((name) {
+                if (name == null) return;
+                setLinePerson(view, line, name, true);
+                if (refocus) view.focus();
+              }));
             },
           ),
         );

@@ -116,6 +116,7 @@ class AddConfig {
     this.databases = false,
     this.tickets = false,
     this.blanks = false,
+    this.onPerson,
   });
 
   /// A picture: the screen opens its picker.
@@ -152,6 +153,10 @@ class AddConfig {
   final bool databases;
   final bool tickets;
   final bool blanks;
+
+  /// A person: the screen opens the contacts to pick from and writes the one picked ([writePerson]); absent where
+  /// Settings › Contacts is off.
+  final VoidCallback? onPerson;
 }
 
 /// Where the card goes ([placeList]): its corner, its width, and how tall its scrolling rows may be (null for as
@@ -264,6 +269,7 @@ const Map<String, LucideIcon> _icons = <String, LucideIcon>{
   'time': Lucide.clock,
   'table': Lucide.table,
   'note': Lucide.fileText,
+  'person': Lucide.contactRound,
   'todo': Lucide.listTodo,
   'more': Lucide.ellipsis,
   'heading': Lucide.heading,
@@ -424,6 +430,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       board: config.boards,
       database: config.databases,
       blank: config.blanks,
+      person: config.onPerson != null,
       effects: config.effects,
     );
     // `/` on an empty line opens straight onto the filterable palette of everything.
@@ -602,6 +609,8 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       config.onScan?.call();
     } else if (row.id == 'place') {
       config.onPlace?.call();
+    } else if (row.id == 'person') {
+      config.onPerson?.call();
     } else if (writeRow(view, row.id, now, effects: config.effects) && !view.hasFocus) {
       view.focus();
     }
