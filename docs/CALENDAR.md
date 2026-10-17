@@ -6,7 +6,7 @@ set up for it.
 ## 1. Reading a calendar, with nothing to set up
 
 Google Calendar gives every calendar a "Secret address in iCal format" (Settings › the calendar › Integrate
-calendar). Pasted into Ghost.md (Settings › Calendar › Add a calendar address), the app fetches it (an `.ics` file,
+calendar). Pasted into Ghost.md (Settings › Plugins › Calendar › Add a calendar address), the app fetches it (an `.ics` file,
 RFC 5545) when the app opens and every 30 minutes while it is open, and keeps the events on the device. Any calendar
 that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail's.
 
@@ -36,7 +36,7 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
 
 ### The app
 
-- Settings › Calendar › Connect Google Calendar (shown when `start` does not answer 503): opens `start` in the
+- Settings › Plugins › Calendar › Connect Google Calendar (shown when `start` does not answer 503): opens `start` in the
   browser with a fresh state and PKCE challenge, then claims (polling `claim` every 2 seconds for up to 10 minutes,
   and again when the app comes back to the front). The refresh token is kept as the iCal addresses are.
 - Then it reads the account's calendars (calendarList) and the events of the ones ticked (events.list with
@@ -68,7 +68,11 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
   to-dos' export; `setup.dart` is what the account keeps (the preferences' `calendars`, synced sealed);
   `store.dart` what each device keeps (`glyph-calendar-*`, `glyph-google-*`); `calendar.dart` the reading for the
   app's life, started by the root (lib/root/ghost_root.dart).
-- Settings › Calendar is a page behind Plugins (a row there, and the search), not a row of the list: the list is
-  held to the web's, as Daily notes is behind Workspaces.
+- The calendars are the **Calendar** plugin (lib/plugins/calendar, Matt 2026-10-17: "Ask Claude and other
+  integrations should be shipped as plugins"), built in and off until switched on in Settings › Plugins; its page,
+  Settings › Plugins › Calendar (lib/plugins/calendar/calendar_pane.dart), is the one that was Settings › Calendar.
+  Off, nothing is read, no to-do goes to Google's, and no query, calendar of to-dos or Today shows an event
+  (`CalendarService.start(on:, switched:)`); what was read and the calendars chosen stay, and come back with the
+  switch. A device that had a calendar added before it was a plugin finds it on, once (`Registry.adopt`).
 - The home page has no to-dos of its own any more (the dashboard went, docs/DESIGN.md §147), so today's events are
   at the head of the page, under Today, above the notes.

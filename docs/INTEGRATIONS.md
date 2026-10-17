@@ -49,8 +49,9 @@ DELETE /api/v1/hooks/inbox/{id} (signed in)
 
 ## 2. Phone contacts
 
-`@sam` and `@sam-ortiz` already name people on to-dos (core/taskFields). With Settings › Contacts on (off until the
-person turns it on, which asks the phone's permission), a person whose name matches a contact on the device (first
+`@sam` and `@sam-ortiz` already name people on to-dos (core/taskFields). With the **Contacts** plugin on (lib/plugins/
+contacts, Settings › Plugins; off until the person switches it on, which asks the phone's permission; its page,
+Settings › Plugins › Contacts, is what the phone allows and the people matched), a person whose name matches a contact on the device (first
 name, full name, or a name set by hand in the pane) shows the contact's picture in the chip, and a tap opens a card:
 Call, Text, Email, Open in Contacts. The + beside a line and a list item's press and hold gain "A person", which
 picks a contact and writes `@first-last`. Nothing about a contact leaves the device or enters a note but the name
@@ -97,7 +98,9 @@ nearest (`nearestPlaces(…, most: 20)`), "Always" asked after "When In Use" as 
 
 ## 4. Todoist and Things
 
-Settings › Import (beside Obsidian and Evernote, lib/importer):
+Settings › Import (beside Obsidian and Evernote, lib/importer). Todoist and Things are each a plugin
+(lib/plugins/todoist, lib/plugins/things), built in and off until switched on in Settings › Plugins: each one's page
+holds its import, and Settings › Import offers it only while it is on.
 
 - **Todoist:** an API token (Todoist › Settings › Integrations › Developer) or a project's CSV export. Each project
   becomes a note (sections as headings), tasks as `- [ ]` with due dates `📅`, priorities (p1-p4 as ⏫ 🔼 🔽 none),

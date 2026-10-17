@@ -16,6 +16,31 @@ switched off in **Settings › Plugins**. Four ship as standard and Slack ships 
 A switched-off plugin offers nothing anywhere, at once. Its data stays where it was, so switching it back on
 restores it as it was. A reset clears every plugin's storage, switched on or not.
 
+## In the Flutter app
+
+The Flutter app (repo root, `lib/plugins/`) ships the web's five and its own integrations as built-in plugins, all in
+`builtIn` in `lib/plugins/built_in.dart`, in this order (Matt, 2026-10-17: "Ask Claude and other integrations should
+be shipped as plugins"). Each has its manifest, its icon, its switch in Settings › Plugins and, where it has anything
+to set, its page there; switched off it offers nothing, and keeps what it kept.
+
+| Plugin | Default | What it adds in the Flutter app | Folder |
+| --- | --- | --- | --- |
+| **Notion**, **GitHub**, **Marks**, **Slack** | as above | as above | `lib/plugins/<id>/`, `marks_plugin.dart` |
+| **Claude** | on | Both ways: the app's own Claude with your Anthropic API key (every dock's Claude, the chat, the command bar's Ask Claude, the "Ask Claude" note; docs/CLAUDE_APP.md) and the connector's page. Its page is in two parts, In the app and From Claude's own app. Off, no dock has Claude and the inbox asks nothing; the connector is disconnected in Claude, not here. | `lib/plugins/claude/` |
+| **Place reminders** | off | A to-do's `📍` place, reminded on arrival (docs/INTEGRATIONS.md §3). | `lib/plugins/places/` |
+| **Webhooks** | off | Outgoing and incoming webhooks (docs/INTEGRATIONS.md §1). | `lib/integrations/webhooks/` |
+| **Calendar** | off | iCal addresses and Google Calendar: events in queries and on Today, dated to-dos on Google's (docs/CALENDAR.md). Its page was Settings › Calendar. A device that had a calendar before finds it on, once. | `lib/plugins/calendar/` |
+| **Contacts** | off | The phone's contacts for the people on to-dos: a contact's chip and card, and "A person" (docs/INTEGRATIONS.md §2). Switching it on asks the phone. Its page was Settings › Contacts. A device that had it on finds it on. | `lib/plugins/contacts/` |
+| **Rich embeds** | on | YouTube, Spotify and Figma links alone on a line as cards that play or show them; off, plain link cards. No page. | `lib/plugins/rich_embeds/` |
+| **Todoist** | off | The Todoist import (a token or a CSV export) on its page, and on Settings › Import while on. | `lib/plugins/todoist/` |
+| **Things** | off | The Things 3 import (its data on a Mac, or a pasted list) on its page, and on Settings › Import while on. | `lib/plugins/things/` |
+
+A plugin's own code asks whether it is on with `pluginOn(manifest)` (`lib/plugins/registry.dart`), which reads the
+app's registry, or the plugin's default before any plugin is in place (a test that builds a screen without the
+launch). `Registry.adopt(id, inUse:)` switches on, once, a plugin that ships off for a device that was already using
+its feature before it was a plugin. A plugin's id is a name an item's mark can carry only where it can link items
+(a note link, a note action, the swipe, a suggestion or marks), so `[calendar](…)` at the end of a to-do stays a link.
+
 ## How a plugin is put together
 
 ```

@@ -13,6 +13,7 @@ import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/plugins_pane.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
+import 'package:ghost_md/settings/settings_search.dart' show searchSettings;
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:glacier/glacier.dart';
 
@@ -219,6 +220,32 @@ void main() {
       expect(claude.words, webClaude.description);
       expect([for (final setting in claude.settings) setting.name], ['Connect', 'What Claude can do', 'Your key']);
       expect(sections.indexOf(claude), sections.indexWhere((s) => s.id == 'plugins') + 3);
+      await endSettings(tester);
+    });
+
+    // The app's own integrations are plugins now (Matt, 2026-10-17): every one has its card, and the search finds
+    // Ask Claude and its key on Claude's page, as it found them on Settings › Ask Claude.
+    testWidgets('lists every plugin that ships, the app’s own among them, and the search finds Ask Claude and the API key on Claude’s page', (tester) async {
+      final registry = install(tester, createRegistry(builtIn, store: MemorySwitches()));
+      await openPane(tester, 'plugins', size: const Size(390, 6000));
+      expect(heroTitles(tester), ['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack', 'Place reminders', 'Webhooks', 'Calendar', 'Contacts', 'Rich embeds', 'Todoist', 'Things']);
+      expect(find.textContaining('5 of 12 on.', skipOffstage: false), findsOneWidget);
+      expect([for (final name in ['Claude', 'Rich embeds', 'Calendar', 'Contacts', 'Todoist', 'Things']) switchOf(tester, name).checked], [true, true, false, false, false, false]);
+      final sections = tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
+      List<(String, String?)> found(String words) => [for (final hit in searchSettings(sections, words)) (hit.section.id, hit.setting)];
+      expect(found('ask claude'), contains(('plugin:claude', 'Ask Claude')));
+      expect(found('api key'), contains(('plugin:claude', 'API key')));
+      expect(found('anthropic'), contains(('plugin:claude', 'API key')));
+      // No section of its own any more, and no page for a plugin that is off: Calendar is found on Plugins, by its card.
+      expect(sections.map((s) => s.id), isNot(contains('ask-claude')));
+      expect(found('calendar').map((hit) => hit.$1), isNot(contains('plugin:calendar')));
+      expect(found('calendar'), contains(('plugins', 'Calendar')));
+      await endSettings(tester);
+
+      registry.setEnabled('calendar', true);
+      await openPane(tester, 'plugins');
+      final now = tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
+      expect([for (final hit in searchSettings(now, 'calendar addresses')) hit.section.id], contains('plugin:calendar'));
       await endSettings(tester);
     });
 

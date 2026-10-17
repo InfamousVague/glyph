@@ -12,6 +12,18 @@ docs/CLAUDE_LIVE.md is Claude reaching the account from outside, through the con
 the app asks Claude itself, with the person's Anthropic API key, and so sees Claude's words as the model writes them.
 The connector can only type a tool call's words once the call is whole; here a note fills in token by token.
 
+## The Claude plugin
+
+Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins". The app's own Claude is the
+**Claude** plugin's (lib/plugins/claude), the same plugin as the connector's page: one switch in Settings › Plugins,
+standard, so on until switched off. Its page, Settings › Plugins › Claude, is in two parts: **In the app** (the key,
+the model, the "Ask Claude" note: lib/plugins/claude/claude_in_app.dart) and **From Claude's own app** (the
+connector, as the web's page has it: claude_pane.dart). Switched off, no dock has Claude, the chat does not open (and
+closes if it was up), the command bar has no Ask Claude, an AI's row has no Chat, the bar goes and the inbox asks
+nothing (`claudeInApp()`, asked by lib/root/root_claude.dart, the runner's `allowed` and the inbox's `on`). The
+connector is not touched: Claude reaches in from its own app until it is disconnected there. Local only holds the
+plugin off with every plugin that uses the internet, the app's Claude with it (it talks to `api.anthropic.com`).
+
 ## What a person sees
 
 1. **Claude on the dock.** Every page's dock has Claude at its head (docs/DOCK.md, since 2026-10-17; the home page's
@@ -35,15 +47,16 @@ The connector can only type a tool call's words once the call is whole; here a n
    again for the note. The carets go when the run ends. Follow for an AI through the connector does the same: the
    app keeps where each AI's caret was last seen in each note, and a note followed into after the AI has stopped
    typing shows Claude's caret there and scrolls to it.
-5. **The "Ask Claude" note.** With a key and the switch on (Settings › Ask Claude), a `- [ ]` request written in the
-   account's own note titled "Ask Claude" is done about four seconds after it last changed, never while the caret is
+5. **The "Ask Claude" note.** With a key and the switch on (Settings › Plugins › Claude), a `- [ ]` request written in
+   the account's own note titled "Ask Claude" is done about four seconds after it last changed, never while the caret is
    on its line: Claude does it while it is watched, then the app writes one line under it, indented, and ticks it,
    unless it could not be done (mcp/prompts.ts's own format, so the connector's routine and the app agree). Without a
    key, what is written in the chat goes into that note as a request, for the connector's agents to work through.
 
 ## The key
 
-Settings › Ask Claude (lib/settings/panes/claude_key_pane.dart): the key, checked before it is kept (one read of
+Settings › Plugins › Claude, In the app (lib/plugins/claude/claude_in_app.dart; Settings › Ask Claude, a section of
+its own, until 2026-10-17): the key, checked before it is kept (one read of
 `GET /v1/models`), shown only as its start and last four, with Check and Forget (asked twice); the model (Sonnet 5.5
 by default, Opus 5.5, Haiku 5.5); the inbox switch. The key is kept in the device's secure storage
 (lib/account/device_keys.dart: the Android Keystore, the Keychain on a Mac and an iPhone), never in the preferences,
@@ -112,10 +125,10 @@ observer of the person's presses and keys.
 | The stream, the input reader, the tools, a run, the runner, the inbox | lib/claude/ |
 | Typing and Claude's caret in an editor | lib/claude/live_typing.dart, in lib/root/note_desk.dart's extensions |
 | The chat, the bar, the dock's Claude, the mark | lib/claude/claude_chat.dart, claude_bar.dart, claude_dock.dart, claude_mark.dart |
-| The key's page | lib/settings/panes/claude_key_pane.dart, lib/settings/settings_sections.dart (`ask-claude`) |
+| The key's page, and the plugin | lib/plugins/claude/ (claude.dart's manifest and `claudeInApp`, claude_in_app.dart, claude_pane.dart) |
 | The library and the screen as Claude reaches them, the chat's part, the inbox's note | lib/root/root_claude.dart, ghost_root.dart, root_parts.dart |
 | The dock's slot | lib/home/home_screen.dart (`HomeScreen.claude`); every other page's, lib/shell/page_dock.dart (docs/DOCK.md) |
 | Chat on an AI's row | lib/orgs/ui/organization_screen.dart (`onChat`) |
 | Where a connector AI last typed, for Follow | lib/live/follow.dart |
 | Ask Claude in the command bar | lib/commands/palette.dart, app_commands.dart |
-| Tests | test/claude/, test/editor_ai/wisp_typed_test.dart, test/root/wiring_test.dart, test/settings/settings_sheet_test.dart |
+| Tests | test/claude/, test/plugins/claude/, test/editor_ai/wisp_typed_test.dart, test/root/wiring_test.dart, test/settings/settings_sheet_test.dart |
