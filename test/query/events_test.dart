@@ -50,6 +50,7 @@ void main() {
     expect(names(run('from: events\nwhere: calendar = Home and location contains street')), ['Dentist']);
     expect(names(run('from: events\nwhere: end >= 2026-10-10')), ['Lisbon']);
     expect(names(run('from: events\nwhere: location is empty')), ['Bank holiday', 'Lisbon']);
+    expect(names(run('from: events\nwhere: calendar = Home and not allDay')), ['Dentist']);
   });
 
   test('`"words"` look in its title, where it is and its calendar', () {
