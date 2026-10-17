@@ -425,12 +425,12 @@ void main() {
       await close(tester);
     });
 
-    test('are the five that ship, over the ground they are given', () {
+    test('are the five that ship, and Webhooks, the port's own, over the ground they are given', () {
       final ground = PluginGround();
       final registry = installPlugins(ground: ground, prefs: PreferencesStore());
       expect(identical(pluginGround, ground), isTrue);
       expect(identical(plugins, registry), isTrue);
-      expect(registry.all().map((plugin) => plugin.manifest.id), ['notion', 'github', 'marks', 'claude', 'slack']);
+      expect(registry.all().map((plugin) => plugin.manifest.id), ['notion', 'github', 'marks', 'claude', 'slack', 'webhooks']);
     });
 
     test('give a note\'s editor, its band and its + their formattings: the switched-on plugins\', read as each is made', () {
