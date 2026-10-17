@@ -68,6 +68,7 @@ class ClaudeRun extends ChangeNotifier {
   ClaudeRun({
     required this.api,
     required this.model,
+    this.effort,
     required this.notes,
     required this.desk,
     required this.prompt,
@@ -78,6 +79,9 @@ class ClaudeRun extends ChangeNotifier {
 
   final ClaudeApi api;
   final String model;
+
+  /// The effort to ask for (`output_config.effort`), or null for the model's own.
+  final String? effort;
   final ClaudeNotes notes;
   final ClaudeDesk desk;
   final String prompt;
@@ -231,6 +235,7 @@ class ClaudeRun extends ChangeNotifier {
     final call = _call = api.stream({
       'model': model,
       'max_tokens': maxTokens,
+      if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
       'tools': claudeTools,
       'messages': _messages,

@@ -4,6 +4,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/claude/claude_run.dart';
+import 'package:ghost_md/claude/claude_settings.dart' show defaultClaudeEffort;
 import 'package:ghost_md/claude/claude_tools.dart';
 import 'package:ghost_md/claude/live_typing.dart';
 import 'package:ghost_md/claude/messages_api.dart';
@@ -171,6 +172,21 @@ void main() {
       expect(jsonDecode((results.single as Map)['content'] as String), {'id': 'n1', 'title': 'Weekend plan', 'done': true});
       final tools = api.asked.first['tools']! as List;
       expect([for (final tool in tools) if ((tool as Map)['eager_input_streaming'] == true) tool['name']], [ClaudeTool.create, ClaudeTool.append, ClaudeTool.replace, ClaudeTool.rewrite]);
+    });
+
+    // Matt, 2026-10-17: "add a model and effort selector to the agent page". A chosen effort goes with the request as
+    // `output_config.effort`; none chosen leaves the model to its own.
+    testWidgets('asks with the effort chosen, and with none when it is the model\'s own', (tester) async {
+      final notes = _Notes();
+      final desk = _Desk(notes);
+      final chosen = _Api([_turn(words: 'Done.')]);
+      await tester.runAsync(ClaudeRun(api: chosen, model: 'claude-opus-5-5', effort: 'xhigh', notes: notes, desk: desk, prompt: 'x').run);
+      expect(chosen.asked.single['model'], 'claude-opus-5-5');
+      expect(chosen.asked.single['output_config'], {'effort': 'xhigh'});
+      final left = _Api([_turn(words: 'Done.')]);
+      await tester.runAsync(ClaudeRun(api: left, model: 'claude-sonnet-5-5', notes: notes, desk: desk, prompt: 'x').run);
+      expect(left.asked.single.containsKey('output_config'), isFalse);
+      expect((defaultClaudeEffort('claude-sonnet-5-5'), defaultClaudeEffort('claude-opus-5-5'), defaultClaudeEffort('claude-haiku-5-5')), ('high', 'medium', 'medium'));
     });
 
     testWidgets('changes one passage of an open note in place, the old words taken out and the new typed in', (tester) async {

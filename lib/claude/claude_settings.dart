@@ -15,6 +15,7 @@ import '../account/device_keys.dart' show SecureStore, deviceSecureStore;
 const String claudeKeyName = 'anthropic-api-key';
 const String claudeModelName = 'anthropic-model';
 const String claudeInboxName = 'anthropic-inbox';
+const String claudeEffortName = 'anthropic-effort';
 
 /// A model the app offers.
 @immutable
@@ -34,6 +35,28 @@ const List<ClaudeModel> claudeModels = [
 ];
 
 const String defaultClaudeModel = 'claude-sonnet-5-5';
+
+/// How hard Claude thinks before it answers: the API's `output_config.effort`. Lower is quicker and cheaper, higher
+/// more thorough. In the order the chat shows them, each with the word it shows.
+const List<(String, String)> claudeEfforts = [
+  ('low', 'Low'),
+  ('medium', 'Medium'),
+  ('high', 'High'),
+  ('xhigh', 'Extra high'),
+  ('max', 'Max'),
+];
+
+/// The effort a model takes when none is said: Opus 5.5's and Haiku 5.5's is medium, Sonnet 5.5's high
+/// (platform.claude.com/docs). The chat shows it chosen until another is.
+String defaultClaudeEffort(String model) => model == 'claude-sonnet-5-5' ? 'high' : 'medium';
+
+/// The effort's word as a person reads it.
+String claudeEffortLabel(String effort) {
+  for (final (id, words) in claudeEfforts) {
+    if (id == effort) return words;
+  }
+  return effort;
+}
 
 /// The model's name as a person reads it.
 String claudeModelLabel(String id) {
@@ -58,6 +81,7 @@ class ClaudeSettings extends ChangeNotifier {
 
   String? _key;
   String _model = defaultClaudeModel;
+  String? _effort;
   bool _inbox = true;
   bool _loaded = false;
   Future<void>? _loading;
@@ -68,6 +92,12 @@ class ClaudeSettings extends ChangeNotifier {
   String? get key => _key;
   bool get hasKey => (_key ?? '').trim().isNotEmpty;
   String get model => _model;
+
+  /// The effort asked for: the one chosen, or the model's own when none is.
+  String get effort => _effort ?? defaultClaudeEffort(_model);
+
+  /// Whether an effort was chosen (sent with every request) rather than left to the model.
+  bool get effortChosen => _effort != null;
 
   /// Whether requests added to the "Ask Claude" note are done as they are added.
   bool get inbox => _inbox;
@@ -80,6 +110,8 @@ class ClaudeSettings extends ChangeNotifier {
       final key = await _store.read(claudeKeyName);
       final model = await _store.read(claudeModelName);
       final inbox = await _store.read(claudeInboxName);
+      final effort = await _store.read(claudeEffortName);
+      if (effort != null && claudeEfforts.any((e) => e.$1 == effort)) _effort = effort;
       _key = (key ?? '').trim().isEmpty ? null : key!.trim();
       if (model != null && model.isNotEmpty) _model = model;
       _inbox = inbox != 'off';
@@ -103,6 +135,14 @@ class ClaudeSettings extends ChangeNotifier {
     _model = id;
     notifyListeners();
     await _store.write(claudeModelName, id);
+  }
+
+  /// Chooses an effort, or goes back to the model's own with null.
+  Future<void> setEffort(String? effort) async {
+    if (effort == _effort) return;
+    _effort = effort;
+    notifyListeners();
+    await _store.write(claudeEffortName, effort);
   }
 
   Future<void> setInbox(bool on) async {

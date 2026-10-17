@@ -74,7 +74,7 @@ class ClaudeRunner extends ChangeNotifier {
       rules = null;
     }
     final system = [claudeSystem(now: _now(), rules: rules), if (extraSystem != null) extraSystem].join('\n\n');
-    final made = ClaudeRun(api: _api(key), model: settings.model, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
+    final made = ClaudeRun(api: _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);

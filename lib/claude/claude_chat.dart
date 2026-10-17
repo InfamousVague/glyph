@@ -81,6 +81,10 @@ class _ClaudeChatState extends State<ClaudeChat> {
 
   /// Requests sent to the inbox from this chat, shown as said.
   final List<String> _sent = [];
+
+  /// Whether the model and effort pickers are open under the head.
+  bool _choosing = false;
+  void _toggleChoosing() => setState(() => _choosing = !_choosing);
   VoidCallback? _stopBack;
 
   @override
@@ -131,7 +135,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
     final t = context.tokens;
     final wide = MediaQuery.sizeOf(context).width >= 720;
     final keyboard = MediaQuery.viewInsetsOf(context).bottom;
-    final listen = Listenable.merge([widget.runner, if (widget.follow != null) widget.follow!]);
+    final listen = Listenable.merge([widget.runner, widget.runner.settings, if (widget.follow != null) widget.follow!]);
     final panel = Semantics(
       scopesRoute: true,
       explicitChildNodes: true,
@@ -153,6 +157,7 @@ class _ClaudeChatState extends State<ClaudeChat> {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   _Head(state: this),
+                  if (_choosing && widget.runner.settings.hasKey) _Choices(settings: widget.runner.settings),
                   Expanded(child: _Messages(state: this)),
                   _Composer(state: this),
                 ],
@@ -206,6 +211,61 @@ class _Round extends StatelessWidget {
   }
 }
 
+/// The model and the effort, under the head while open: two of the kit's segmented controls, each choice kept at
+/// once for this device (Settings › Ask Claude keeps the same). Matt, 2026-10-17: "add a model and effort selector to
+/// the agent page".
+class _Choices extends StatelessWidget {
+  const _Choices({required this.settings});
+
+  final ClaudeSettings settings;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    Widget label(String words) => Padding(
+          padding: EdgeInsets.only(bottom: t.space(1)),
+          child: Text(words, style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: t.color('glacier-text-subtle'))),
+        );
+    // Short words in the control, where five must fit across a phone.
+    const shortEffort = {'low': 'Low', 'medium': 'Med', 'high': 'High', 'xhigh': 'X-high', 'max': 'Max'};
+    return ListenableBuilder(
+      listenable: settings,
+      builder: (context, _) => Container(
+        key: const ValueKey('claude-choices'),
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(3)),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')))),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            label('Model'),
+            GlacierSegmentedControl(
+              key: const ValueKey('claude-model'),
+              ariaLabel: 'Model',
+              fullWidth: true,
+              size: GlacierSegmentedSize.sm,
+              options: [for (final model in claudeModels) GlacierSegmentedOption(value: model.id, label: Text(model.name))],
+              value: settings.model,
+              onValueChange: (id) => settings.setModel(id),
+            ),
+            SizedBox(height: t.space(3)),
+            label('Effort: how hard Claude thinks before answering'),
+            GlacierSegmentedControl(
+              key: const ValueKey('claude-effort'),
+              ariaLabel: 'Effort',
+              fullWidth: true,
+              size: GlacierSegmentedSize.sm,
+              options: [for (final (id, _) in claudeEfforts) GlacierSegmentedOption(value: id, label: Text(shortEffort[id] ?? id))],
+              value: settings.effort,
+              onValueChange: (id) => settings.setEffort(id),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Head extends StatelessWidget {
   const _Head({required this.state});
 
@@ -221,8 +281,10 @@ class _Head extends StatelessWidget {
     final line = run != null && run.working
         ? (at == null ? 'Thinking…' : '${at.doing[0].toUpperCase()}${at.doing.substring(1)} ${at.title.isEmpty ? 'a note' : at.title}')
         : runner.settings.hasKey
-            ? claudeModelLabel(runner.settings.model)
+            ? '${claudeModelLabel(runner.settings.model)} · ${claudeEffortLabel(runner.settings.effort)} effort'
             : 'No API key on this device';
+    // The line under the name opens the model and effort pickers, while Claude is not at work.
+    final choosable = runner.settings.hasKey && !(run != null && run.working);
     final ink = t.color('app-ink');
     return Container(
       padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
@@ -245,7 +307,24 @@ class _Head extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Text(chat.agent ?? 'Claude', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)),
-                Text(line, key: const ValueKey('claude-chat-line'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle'))),
+                if (!choosable)
+                  Text(line, key: const ValueKey('claude-chat-line'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle')))
+                else
+                  GlacierPressable(
+                    key: const ValueKey('claude-choose'),
+                    onPressed: state._toggleChoosing,
+                    semanticLabel: 'Model and effort: $line. ${state._choosing ? 'Close' : 'Change'}',
+                    builder: (context, pressing) => Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Flexible(
+                          child: Text(line, key: const ValueKey('claude-chat-line'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle'))),
+                        ),
+                        SizedBox(width: t.space(1)),
+                        AppIcon(state._choosing ? Lucide.chevronUp : Lucide.chevronDown, size: 13, color: t.color('glacier-text-subtle')),
+                      ],
+                    ),
+                  ),
               ],
             ),
           ),
