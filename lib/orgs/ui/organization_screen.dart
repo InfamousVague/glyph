@@ -81,6 +81,7 @@ class OrganizationScreen extends StatefulWidget {
     required this.onAccount,
     this.onJumpTo,
     this.onFollow,
+    this.onChat,
     this.seen = const [],
     this.wisp = true,
     this.onSendLink,
@@ -120,6 +121,10 @@ class OrganizationScreen extends StatefulWidget {
 
   /// Follow an AI online here (lib/live/follow.dart), from its row; absent, and there is no Follow.
   final ValueChanged<OrgPresence>? onFollow;
+
+  /// An AI's Chat: the chat with Claude opened for it (lib/claude/claude_chat.dart; Matt: "Make the ask Claude and
+  /// other agents open a chat when we go to talk to them").
+  final ValueChanged<OrgAi>? onChat;
 
   /// Who is in the organization's notes now, by device.
   final List<OrgPresence> seen;
@@ -391,7 +396,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               // The AIs seen here through a member's connector, after the people and never counted with them; each
               // online with what it is doing, and one online with no row yet given one.
               for (final (ai, here) in aiLines(org?.ais ?? const <OrgAi>[], widget.seen, now: now))
-                _AiLine(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, now: now, here: here, onJump: widget.onJumpTo ?? widget.onOpenNote, onFollow: widget.onFollow),
+                _AiLine(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, now: now, here: here, onJump: widget.onJumpTo ?? widget.onOpenNote, onFollow: widget.onFollow, onChat: widget.onChat),
             ],
           ),
         ),
@@ -977,7 +982,7 @@ class _MemberLineState extends State<_MemberLine> {
 /// `.aiRow` is `.memberRow`'s measures without the button. The initial stands in an outline, not a fill
 /// (`.member[data-state='ai'] .avatar`): listed with the people, and not one of them.
 class _AiLine extends StatelessWidget {
-  const _AiLine({super.key, required this.ai, required this.me, this.now, this.here, this.onJump, this.onFollow});
+  const _AiLine({super.key, required this.ai, required this.me, this.now, this.here, this.onJump, this.onFollow, this.onChat});
   final OrgAi ai;
   final String me;
   final int? now;
@@ -986,6 +991,7 @@ class _AiLine extends StatelessWidget {
   final OrgPresence? here;
   final ValueChanged<String>? onJump;
   final ValueChanged<OrgPresence>? onFollow;
+  final ValueChanged<OrgAi>? onChat;
 
   @override
   Widget build(BuildContext context) {
@@ -1052,6 +1058,7 @@ class _AiLine extends StatelessWidget {
         );
     final follow = onFollow;
     final jump = onJump;
+    final chat = onChat;
     return Container(
       padding: EdgeInsets.symmetric(vertical: t.space(3)),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule'), width: hair))),
@@ -1093,7 +1100,7 @@ class _AiLine extends StatelessWidget {
               ],
             ),
           ),
-          if (here != null && ((note != null && jump != null) || follow != null)) ...[
+          if ((here != null && ((note != null && jump != null) || follow != null)) || chat != null) ...[
             SizedBox(height: t.space(2)),
             Padding(
               padding: EdgeInsetsDirectional.only(start: side + t.space(3)),
@@ -1102,8 +1109,9 @@ class _AiLine extends StatelessWidget {
                 runSpacing: t.space(2),
                 children: [
                   // `at.cursor ? 'Jump to cursor' : 'Open the note'`, as a member's profile says it.
-                  if (note != null && jump != null) pill('ai-jump', here.editingPlace ? 'Jump to cursor' : (here.editingCanvas ? 'Open the canvas' : 'Open the note'), () => jump(note)),
-                  if (follow != null) pill('ai-follow', 'Follow', () => follow(here)),
+                  if (chat != null) pill('ai-chat', 'Chat', () => chat(ai)),
+                  if (here != null && note != null && jump != null) pill('ai-jump', here.editingPlace ? 'Jump to cursor' : (here.editingCanvas ? 'Open the canvas' : 'Open the note'), () => jump(note)),
+                  if (here != null && follow != null) pill('ai-follow', 'Follow', () => follow(here)),
                 ],
               ),
             ),

@@ -98,6 +98,7 @@ import '../ai/summary_keep.dart' show summaryBehind;
 import '../capture/refine.dart' show RefineState;
 import '../capture/recorder.dart' show SpokenAsk;
 import '../format/device_facts.dart' show DeviceFacts;
+import '../claude/live_typing.dart' show claudeTyping;
 import '../live/editor_binding.dart' show liveBindingSlot;
 import '../live/open.dart' show NoteLive, OpenLive, TeamBinding;
 import '../live/team_canvas.dart' show TeamCanvasHost, TeamCanvasPeople;
@@ -769,6 +770,8 @@ class NoteDeskState extends State<NoteDesk> {
     noteComments(() => _comments.hooks),
     // Claude's suggested edits in CriticMarkup, with Keep and Revert (docs/CLAUDE_LIVE.md, "Suggest mode").
     suggestions(),
+    // Claude typing as it writes, with its caret (lib/claude/live_typing.dart, docs/CLAUDE_APP.md).
+    claudeTyping,
     mediaExtensions(
       seams: _mediaSeams,
       // A place in the words draws its map under its line, as the note's own tag does at its top.

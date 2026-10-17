@@ -31,6 +31,7 @@ import '../core/films.dart' show Films;
 import '../core/phone_pictures.dart' show corePictureAdopter;
 import '../core/place_tags.dart';
 import '../editor/ai/blanks.dart' show openNoteBlanks;
+import '../editor/editor.dart' as ed show Change, EditorViewLike, TransactionSpec;
 import '../editor/items/field_menu.dart' show DayPicker;
 import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/clip_refs.dart' show TapeIds;
@@ -80,6 +81,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart' show NoteFacts;
 import '../core/note_folders.dart';
 import '../core/note_text.dart';
+import '../core/search.dart' show searchNotes, searchWords;
 import '../core/phone_connection.dart' show Connection;
 import '../core/preferences.dart';
 import '../core/properties.dart';
@@ -132,6 +134,14 @@ import '../orgs/ui/join_sheet.dart';
 import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
+import '../claude/claude_chat.dart';
+import '../claude/claude_bar.dart';
+import '../claude/claude_dock.dart';
+import '../claude/claude_inbox.dart';
+import '../claude/claude_run.dart' show ClaudeDesk;
+import '../claude/claude_runner.dart';
+import '../claude/claude_settings.dart' show claudeSettings;
+import '../claude/claude_tools.dart' show ClaudeNotes, NoteBrief, NoteHit, NoteRead;
 import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline, Seen, aiKey;
 import '../orgs/types.dart' show OrgRow;
@@ -179,6 +189,7 @@ import 'iphone_wiring.dart';
 import 'update_wiring.dart';
 import 'voice_wiring.dart';
 
+part 'root_claude.dart';
 part 'root_commands.dart';
 part 'root_parts.dart';
 part 'root_voice.dart';
@@ -818,6 +829,42 @@ class _GhostRootState extends State<GhostRoot> {
   /// The + sheet, the workspace it makes into where it was an organization's +, and the New notebook sheet with its
   /// own.
   bool _newSheet = false;
+
+  /// The chat with Claude is up (lib/root/root_claude.dart), and the agent it was opened for, if any.
+  bool _askClaude = false;
+  String? _chatAgent;
+
+  /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
+  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this));
+
+  /// The "Ask Claude" note, worked through as requests are written in it.
+  late final ClaudeInbox _claudeInbox = ClaudeInbox(
+    runner: _claude,
+    body: _claudeInboxBody,
+    changes: _libraryChanges,
+    write: (id, change) => _RootClaudeDesk(this).change(id, change),
+    caretLine: _claudeInboxCaretLine,
+  );
+
+  /// The inbox: the account's own note titled "Ask Claude", never an organization's, its words as its editor has
+  /// them where it is open.
+  ({String id, String body})? _claudeInboxBody() {
+    for (final note in _shown) {
+      if (note.archivedAt != null || (note.path ?? '').startsWith('orgs/')) continue;
+      if (noteTitle(note.body).trim().toLowerCase() != inboxTitle.toLowerCase()) continue;
+      final open = openNoteScreen(_shell.currentContext, note.id)?.view;
+      return (id: note.id, body: open?.state.doc.toString() ?? note.body);
+    }
+    return null;
+  }
+
+  /// The line the person's caret is on in the inbox, where it is open.
+  int? _claudeInboxCaretLine(String id) {
+    final view = openNoteScreen(_shell.currentContext, id)?.view;
+    if (view == null) return null;
+    final state = view.state;
+    return state.doc.lineAt(state.selection.main.head).number - 1;
+  }
   String? _newInto;
   NewBookKind? _bookSheet;
   String? _bookInto;
@@ -1361,6 +1408,8 @@ class _GhostRootState extends State<GhostRoot> {
   @override
   void dispose() {
     _stopDesktop?.call();
+    _claudeInbox.dispose();
+    _claude.dispose();
     _organize.dispose();
     _wispEdge.removeListener(_smoke);
     _localOnly.removeListener(plugins.preferencesChanged);
@@ -1448,6 +1497,8 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
+    // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).
+    _startClaude();
     _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
     // The calendars, read for the life of the app (lib/calendar/calendar.dart, docs/CALENDAR.md): now, on their
     // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.

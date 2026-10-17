@@ -147,6 +147,7 @@ class PaletteDoing {
     this.localGraph,
     this.noteLinks,
     this.today,
+    this.askClaude,
     this.tags,
     this.openSmart,
   });
@@ -212,6 +213,9 @@ class PaletteDoing {
   final void Function(String noteId)? noteLinks;
   /// Today's note, the Tags page, and a smart notebook's page (the port's own, 2026-10-16).
   final VoidCallback? today;
+
+  /// Ask Claude (lib/claude/claude_chat.dart): the app's own Claude, with the person's API key.
+  final VoidCallback? askClaude;
   final VoidCallback? tags;
   final void Function(String id)? openSmart;
 }
@@ -352,6 +356,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;
   if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
+  final askClaude = doing.askClaude;
+  if (askClaude != null) add('ask-claude', 'Ask Claude', 'Ghost.md', 'claude ai anthropic assistant write chat ask', askClaude);
   final tags = doing.tags;
   if (tags != null) add('tags', 'Tags', 'Notes', 'tag hashtag labels rename', tags);
   final openSmart = doing.openSmart;

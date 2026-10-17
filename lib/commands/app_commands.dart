@@ -142,6 +142,7 @@ PaletteDoing paletteDoingFor({
   void Function(String id)? localGraph,
   void Function(String id)? noteLinks,
   VoidCallback? today,
+  VoidCallback? askClaude,
   VoidCallback? tags,
   void Function(String id)? openSmart,
 }) {
@@ -181,6 +182,7 @@ PaletteDoing paletteDoingFor({
     localGraph: localGraph,
     noteLinks: noteLinks,
     today: today,
+    askClaude: askClaude,
     tags: tags,
     openSmart: openSmart,
   );

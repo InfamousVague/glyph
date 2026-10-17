@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/claude/claude_chat.dart';
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
@@ -682,9 +683,10 @@ void main() {
       await close(tester);
     });
 
-    // docs/CLAUDE_LIVE.md: the Claude chip in the top bar while an AI is online, its menu, Follow's bar and the
-    // notice with Watch.
-    testWidgets('draws the Claude chip while an AI is online, follows it into its note from the chip\'s menu with a bar to stop, and gives the notice with Watch', (tester) async {
+    // docs/CLAUDE_LIVE.md, docs/CLAUDE_APP.md: Claude on the home page's dock (where the top bar's chip was), a dot on
+    // it while an AI is online, its sheet with what the AI is doing, Follow and Open, Follow's bar and the notice
+    // with Watch.
+    testWidgets('marks Claude on the dock while an AI is online, follows it into its note from the chat with a bar to stop, and gives the notice with Watch', (tester) async {
       final device = await Device.make();
       final online = ValueNotifier<List<AiOnline>>(const []);
       final follow = FollowAi(online: () => online.value, changes: online, bound: BoundEditors())..start();
@@ -693,17 +695,18 @@ void main() {
       final groceries = library.create('# Groceries\n\n- milk');
       await tester.pump(const Duration(milliseconds: 200));
       final shell = tester.state<AppShellState>(find.byType(AppShell));
+      expect(find.byKey(const ValueKey('dock-claude')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dock-claude-online')), findsNothing);
       expect(find.byKey(const ValueKey('ai-chip')), findsNothing);
 
-      // Online and reading: the chip, and no notice (it is not editing).
+      // Online and reading: the dot on the dock, and no notice (it is not editing).
       online.value = [AiOnline(name: 'Claude', client: 3, hue: 'violet', via: 'matt', at: Whereabouts(note: groceries.id, title: 'Groceries', doing: 'reading'))];
       await tester.pump(const Duration(milliseconds: 200));
-      expect(find.byKey(const ValueKey('ai-chip')), findsOneWidget);
-      expect(find.descendant(of: find.byKey(const ValueKey('ai-chip')), matching: find.text('Claude')), findsOneWidget);
+      expect(find.byKey(const ValueKey('dock-claude-online')), findsOneWidget);
       expect(find.text('Watch'), findsNothing);
 
-      // Its menu: what it is doing, Follow, Open.
-      await tester.tap(find.byKey(const ValueKey('ai-chip')));
+      // Its chat: what it is doing, Follow, Open.
+      await tester.tap(find.byKey(const ValueKey('dock-claude')));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Claude is reading Groceries'), findsOneWidget);
       expect(find.text('Open Groceries'), findsOneWidget);
@@ -711,7 +714,8 @@ void main() {
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 100));
       }
-      // The note it is on, opened, and the bar.
+      // The chat away, the note it is on opened, and the bar.
+      expect(find.byType(ClaudeChat), findsNothing);
       expect(shell.shown, groceries.id);
       expect(find.byKey(const ValueKey('follow-bar')), findsOneWidget);
       expect(find.text('Following Claude · reading Groceries'), findsOneWidget);
@@ -735,10 +739,10 @@ void main() {
       expect(follow.following?.name, 'Claude');
       expect(shell.shown, plan.id);
 
-      // Gone: no chip, nothing followed.
+      // Gone: no dot, nothing followed.
       online.value = const [];
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.byKey(const ValueKey('ai-chip')), findsNothing);
+      expect(find.byKey(const ValueKey('dock-claude-online')), findsNothing);
       expect(find.byKey(const ValueKey('follow-bar')), findsNothing);
       await tester.pump(const Duration(seconds: 9));
       await close(tester);

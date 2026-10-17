@@ -183,6 +183,7 @@ class HomeScreen extends StatefulWidget {
     this.ghost,
     this.onSaveSearch,
     this.events,
+    this.claude,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -208,6 +209,10 @@ class HomeScreen extends StatefulWidget {
 
   /// The command palette; absent, and the dock has no Search.
   final VoidCallback? onSearch;
+
+  /// Claude at the head of the dock (lib/claude/claude_dock.dart): Ask Claude, and Claude at work or online. It
+  /// hears what it shows for itself; absent, the dock has no Claude.
+  final Widget? claude;
 
   /// Every note, as a grid of cards.
   final VoidCallback onAllNotes;
@@ -933,7 +938,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // The dock: a floating column in the bottom right, the palette, write, then Speak nearest the thumb.
     final dock = HomeDock(
       behind: behind,
-      dock: _Dock(onNew: _new, onCapture: widget.onCapture == null ? null : _capture, onSearch: widget.onSearch == null ? null : _search),
+      dock: _Dock(onNew: _new, onCapture: widget.onCapture == null ? null : _capture, onSearch: widget.onSearch == null ? null : _search, claude: widget.claude),
       alignment: AlignmentDirectional.bottomEnd,
       padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4), bottom: safeBottom + t.space(4)),
     );
@@ -1324,11 +1329,14 @@ class _AllNotes extends StatelessWidget {
 /// top, write in the middle, Speak last, nearest the thumb, still the one ink-filled thing, as a circle the size of
 /// the other two so the column is one width.
 class _Dock extends StatelessWidget {
-  const _Dock({required this.onNew, required this.onCapture, required this.onSearch});
+  const _Dock({required this.onNew, required this.onCapture, required this.onSearch, this.claude});
 
   final VoidCallback onNew;
   final VoidCallback? onCapture;
   final VoidCallback? onSearch;
+
+  /// Claude, a ring of its own over Search (lib/claude/claude_dock.dart).
+  final Widget? claude;
 
   @override
   Widget build(BuildContext context) {
@@ -1356,6 +1364,10 @@ class _Dock extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (claude != null) ...[
+                  claude!,
+                  SizedBox(height: gap),
+                ],
                 if (onSearch != null) ...[
                   // The magnifier leans in when pressed, rather than turning.
                   _Round(

@@ -52,6 +52,8 @@ extension _RootParts on _GhostRootState {
         ),
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
+        // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
+        _part('askClaude', () => (_askClaude, _chatAgent), _askClaudePart),
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
@@ -172,8 +174,9 @@ extension _RootParts on _GhostRootState {
       onRefresh: _library.refresh,
       // Claude in the bar while an AI is online, and the bar that says it is followed (docs/CLAUDE_LIVE.md): each
       // hears Follow for itself.
-      barChip: _follow == null ? null : (changes: _follow!, build: (context) => AiChip.shows(_follow!) ? AiChip(follow: _follow!, onOpen: _openForAi) : null),
-      banner: _follow == null ? null : FollowBar(follow: _follow!),
+      // Claude is on the home page's dock now (lib/claude/claude_dock.dart), not in the bar. Under the bar: Follow's
+      // bar for an AI through the connector, and the app's own Claude's while it works (docs/CLAUDE_APP.md).
+      banner: _claudeBanner(),
       noteBuilder: _note,
       // The recorder, the whole window: a fresh mount for each capture, keyed by the shell.
       captureBuilder: voice == null || capture == null
@@ -435,6 +438,8 @@ extension _RootParts on _GhostRootState {
       clock: widget.clock,
       onAllNotes: shell.showAllNotes,
       onSearch: _search,
+      // Claude at the head of the dock: Ask Claude, and Claude at work or online (docs/CLAUDE_APP.md).
+      claude: _claudeDock(),
       // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
       onSwipe: (note, action) {
         if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
@@ -586,6 +591,7 @@ extension _RootParts on _GhostRootState {
         localGraph: (id) => _showGraph(focus: id, title: noteTitle(_library.noteOf(id)?.body ?? '')),
         noteLinks: _openNoteLinks,
         today: _organize.today,
+        askClaude: () => _openAskClaude(),
         tags: _organize.showTags,
         openSmart: _organize.showSmart,
       ),
@@ -889,6 +895,8 @@ extension _RootParts on _GhostRootState {
       seen: _seenIn(id),
       onJumpTo: (noteId) => _jumpTo(shell, id, noteId),
       onFollow: _follow == null ? null : _followFrom,
+      // An AI's Chat: the chat with Claude, opened for it (docs/CLAUDE_APP.md, "The chat").
+      onChat: (ai) => _openAskClaude(agent: ai.name),
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,
