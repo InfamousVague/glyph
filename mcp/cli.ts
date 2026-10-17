@@ -161,7 +161,8 @@ export async function runCli(argv: readonly string[], io: CliIo): Promise<void> 
       const account = await openAccount();
       // Make the "Claude rules" note if it is not there, and hand it to the AI as this server's instructions.
       const rules = await ensureRulesNote(account).catch(() => null);
-      const server = buildServer(account, undefined, { instructions: rulesInstructions(rules?.note.body ?? DEFAULT_RULES) });
+      // Over stdio the server can speak between requests, so Claude may subscribe to a note and hear when it changes.
+      const server = buildServer(account, undefined, { instructions: rulesInstructions(rules?.note.body ?? DEFAULT_RULES), subscriptions: true });
       await server.connect(io.transport ? io.transport() : new StdioServerTransport());
       io.err(`glyph-mcp ${VERSION}: serving ${account.handle}'s notes over stdio.\n`);
       return;
