@@ -16,8 +16,8 @@ import java.util.UUID
 
 /**
  * Something shared into Ghost.md from another app's share sheet (the manifest's SEND and SEND_MULTIPLE filters, for
- * text, links, pictures and any file): the phone's half of `ghost_md/share` (lib/share/share_in.dart), in the pattern
- * of AppLinks.kt.
+ * text, links, pictures and any file), or a .ghostex opened from Files (its VIEW filter, [opened]): the phone's half
+ * of `ghost_md/share` (lib/share/share_in.dart), in the pattern of AppLinks.kt.
  *
  * A share that starts the app arrives before any Dart is listening, so each one WAITS HERE UNTIL ASKED FOR, in the
  * process, as a link does:
@@ -67,6 +67,7 @@ class ShareIn(private val activity: Activity, private val pictures: Pictures) {
   }
 
   private fun keep(intent: Intent) {
+    if (intent.action == Intent.ACTION_VIEW) return opened(intent)
     if (intent.action != Intent.ACTION_SEND && intent.action != Intent.ACTION_SEND_MULTIPLE) return
     val text = intent.getCharSequenceExtra(Intent.EXTRA_TEXT)?.toString()
     val subject = intent.getStringExtra(Intent.EXTRA_SUBJECT)
@@ -95,6 +96,33 @@ class ShareIn(private val activity: Activity, private val pictures: Pictures) {
       if (!text.isNullOrBlank()) share.put("text", text.take(LONGEST_TEXT))
       if (!subject.isNullOrBlank()) share.put("subject", subject.take(LONGEST_LINE))
       if (!title.isNullOrBlank()) share.put("title", title.take(LONGEST_LINE))
+      synchronized(waiting) { waiting.add(share.toString()) }
+      activity.runOnUiThread { channel?.invokeMethod("arrived", null) }
+    }.start()
+  }
+
+  /**
+   * A .ghostex opened from Files or a mail (the manifest's VIEW filter): kept as a share of that one file, copied
+   * whole as any shared file is, which Dart sends to Settings › Import (lib/export/ghostex_calls.dart `ghostexShared`)
+   * rather than into a note. Anything else opened here is not this class's: a `ghostmd://` link is AppLinks.kt's.
+   */
+  private fun opened(intent: Intent) {
+    val uri = intent.data?.takeIf { it.scheme == "content" } ?: return
+    val (name, _) = described(uri)
+    if (!name.lowercase().endsWith(".ghostex")) return
+    val mime = intent.type ?: "application/octet-stream"
+    Thread {
+      val item = try {
+        read(uri, mime)
+      } catch (error: Throwable) {
+        Log.w(TAG, "opened export not read", error)
+        null
+      }
+      val share = JSONObject()
+        .put("id", UUID.randomUUID().toString())
+        .put("mime", mime)
+        .put("items", JSONArray().apply { item?.let { put(it) } })
+        .put("unread", if (item == null) 1 else 0)
       synchronized(waiting) { waiting.add(share.toString()) }
       activity.runOnUiThread { channel?.invokeMethod("arrived", null) }
     }.start()
