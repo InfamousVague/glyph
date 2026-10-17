@@ -1,7 +1,7 @@
 /// The "Ask Claude" inbox, worked through by the app itself (docs/CLAUDE_APP.md, "The inbox"; docs/CLAUDE_LIVE.md,
 /// "The Ask Claude inbox"). The note is the connector's: a personal note titled "Ask Claude" whose open `- [ ]`
 /// items are requests. The connector's prompt and the Mac's scheduled routine work through it now and then; with a
-/// key kept on this device and the inbox switch on (Settings › Ask Claude), the app does each request a few
+/// key kept on this device and the inbox switch on (Settings › Plugins › Claude), the app does each request a few
 /// seconds after it is written, live, and answers it in the connector's own way: a line under it, indented two
 /// spaces, `  - ` and one sentence of what was done, and the request ticked unless it could not be done.
 ///
@@ -136,10 +136,12 @@ String inboxPrompt(String request) => [
 class ClaudeInbox {
   /// [body] reads the inbox's words now (from its editor where it is open), or null for no inbox; [changes] says
   /// when they may have changed; [caretLine] is the line the person's caret is on in it, or null where it is not
-  /// open; [write] changes its words (through its editor where it is open).
-  ClaudeInbox({required this.runner, required this.body, required this.changes, required this.write, this.caretLine});
+  /// open; [write] changes its words (through its editor where it is open). [on] is whether the app's Claude is on
+  /// (the Claude plugin's switch, lib/plugins/claude): off, nothing is asked, and [changes] says when it moves.
+  ClaudeInbox({required this.runner, required this.body, required this.changes, required this.write, this.caretLine, this.on});
 
   final ClaudeRunner runner;
+  final bool Function()? on;
   final ({String id, String body})? Function() body;
   final Listenable changes;
   final int? Function(String id)? caretLine;
@@ -164,7 +166,7 @@ class ClaudeInbox {
   }
 
   Future<void> _look() async {
-    if (_working || !runner.ready || !runner.settings.inbox) return;
+    if (_working || !(on?.call() ?? true) || !runner.ready || !runner.settings.inbox) return;
     final inbox = body();
     if (inbox == null) return;
     final caret = caretLine?.call(inbox.id);

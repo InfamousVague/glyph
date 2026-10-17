@@ -2,16 +2,12 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
-import '../../calendar/calendar.dart' show calendar;
 import '../../core/preferences.dart';
-import '../../integrations/contacts/contacts.dart' show phoneContacts;
 import '../../plugins/reach.dart';
 import '../../plugins/registry.dart';
 import '../../plugins/types.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
-import 'calendar_pane.dart' show calendarSummary;
-import 'contacts_pane.dart' show contactsSummary;
 import 'settings_host.dart';
 
 /// What Settings' search finds on Plugins (`findable`, src/app/plugins/PluginsPane.findable.ts): every plugin, on
@@ -112,37 +108,6 @@ class PluginsPane extends StatelessWidget {
             const SettingsFootnote(
               child: Text('Plugins ship inside Ghost.md and update with it. There is nothing to install, and nothing here reaches anywhere its card does not say.'),
             ),
-            // The calendars (docs/CALENDAR.md): built in, not a plugin, and their page is behind this one. Drawn where the
-            // app reads calendars at all, which is once its root has started them (lib/root/ghost_root.dart).
-            if (open != null && calendar.started)
-              PaneSection(
-                title: 'Calendar',
-                children: [
-                  SettingRow(
-                    key: const ValueKey('plugins-calendar'),
-                    icon: const AppIcon(Lucide.calendarDays, size: 20),
-                    label: 'Calendars',
-                    hint: Text(calendarSummary(prefs.value)),
-                    onPress: () => open('calendar'),
-                  ),
-                ],
-              ),
-            // The phone's contacts for the people on to-dos (lib/integrations/contacts): built in, not a plugin, and
-            // their page is behind this one. Drawn where the app reads them at all: where its root has started them on
-            // a device with an address book (lib/root/ghost_root.dart).
-            if (open != null && phoneContacts.started)
-              PaneSection(
-                title: 'Contacts',
-                children: [
-                  SettingRow(
-                    key: const ValueKey('plugins-contacts'),
-                    icon: const AppIcon(Lucide.contactRound, size: 20),
-                    label: 'Contacts',
-                    hint: Text(contactsSummary(phoneContacts)),
-                    onPress: () => open('contacts'),
-                  ),
-                ],
-              ),
           ],
         );
       },

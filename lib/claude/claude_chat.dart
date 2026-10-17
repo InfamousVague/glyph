@@ -68,7 +68,7 @@ class ClaudeChat extends StatefulWidget {
   final VoidCallback onClose;
   final void Function(String noteId) onOpenNote;
 
-  /// Settings › Ask Claude, where the key is added.
+  /// The Claude plugin's page (Settings › Plugins › Claude), where the key is added.
   final VoidCallback onSettings;
 
   /// The chip's Open: the note an AI is on, at its caret.
@@ -245,7 +245,7 @@ class _Round extends StatelessWidget {
 }
 
 /// The model and the effort, under the head while open: two of the kit's segmented controls, each choice kept at
-/// once for this device (Settings › Ask Claude keeps the same). Matt, 2026-10-17: "add a model and effort selector to
+/// once for this device (the Claude plugin's page keeps the same). Matt, 2026-10-17: "add a model and effort selector to
 /// the agent page".
 class _Choices extends StatelessWidget {
   const _Choices({required this.settings});

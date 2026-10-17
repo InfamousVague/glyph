@@ -114,6 +114,19 @@ class Registry extends ChangeNotifier {
     return null;
   }
 
+  /// Whether [id]'s switch has ever been moved on this device (it then has one of its own, kept).
+  bool hasSwitch(String id) => _switches.containsKey(id);
+
+  /// Switches on, once, a plugin that ships off but whose feature this device was already using before it was a
+  /// plugin (a calendar added, the contacts turned on): [inUse] says so. A plugin whose switch has been moved, either
+  /// way, is left as it was set.
+  void adopt(String id, {required bool inUse}) {
+    if (!inUse || hasSwitch(id) || byId(id) == null) return;
+    _switches = {..._switches, id: true};
+    _store.write(_switches);
+    _told();
+  }
+
   bool isEnabled(String id) {
     final plugin = byId(id);
     if (plugin == null) return false;
@@ -211,14 +224,20 @@ class Registry extends ChangeNotifier {
   }
 }
 
+/// Whether [plugin] can write an item's mark or read one back: a link, an action on a note, the swipe, a word after
+/// a line, or its marks' details.
+bool _linksItems(GlyphPlugin plugin) =>
+    plugin.marks != null || plugin.itemAction != null || plugin.suggest != null || plugin.noteActions.isNotEmpty || plugin.noteLinks.isNotEmpty;
+
 /// Makes a registry of [plugins] (`createRegistry`). [localOnly] is the preference, asked on every question.
 Registry createRegistry(List<GlyphPlugin> plugins, {SwitchStore store = const StoredSwitches(), bool Function()? localOnly}) {
   final ids = <String>{};
   for (final plugin in plugins) {
     if (!ids.add(plugin.manifest.id)) throw ArgumentError('Two plugins are called “${plugin.manifest.id}”.');
     _checkExtensions(plugin);
-    // Its id is the name its item marks carry (lib/core/item_links.dart).
-    registerMarkName(plugin.manifest.id);
+    // Its id is the name its item marks carry (lib/core/item_links.dart), where it can mark an item at all: a plugin
+    // that links nothing (Calendar, Contacts, Things) leaves "[calendar](…)" at the end of an item a link.
+    if (_linksItems(plugin)) registerMarkName(plugin.manifest.id);
   }
   final registry = Registry._(List.unmodifiable(plugins), store, localOnly ?? () => false);
   // A switched-off plugin reads nothing back, so its marks draw plain.
@@ -236,3 +255,8 @@ Registry get plugins => _plugins;
 
 /// Makes [registry] the app's.
 void usePlugins(Registry registry) => _plugins = registry;
+
+/// Whether the plugin [manifest] names is on in the app's registry: for a built-in plugin's own code, which asks it
+/// of itself as it is used. Before any plugin is put in place (a test that builds a screen without the app's
+/// launch), whether it ships on, as [plugins] would say once it had them.
+bool pluginOn(PluginManifest manifest) => _plugins.all().isEmpty ? manifest.standard : _plugins.isEnabled(manifest.id);

@@ -153,6 +153,6 @@ class ClaudeSettings extends ChangeNotifier {
   }
 }
 
-/// This device's, as the app reads and writes them: Settings › Ask Claude and the root's runner share it, as the app
+/// This device's, as the app reads and writes them: the Claude plugin's page and the root's runner share it, as the app
 /// shares `preferences`. Read on first use.
 final ClaudeSettings claudeSettings = ClaudeSettings(deviceSecureStore());

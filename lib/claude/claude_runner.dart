@@ -19,13 +19,17 @@ import 'messages_api.dart';
 const String claudeRulesTitle = 'Claude rules';
 
 class ClaudeRunner extends ChangeNotifier {
-  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now})
+  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
         _now = now ?? DateTime.now {
     settings.addListener(notifyListeners);
   }
 
   final ClaudeSettings settings;
+
+  /// Whether the app's Claude is on (the Claude plugin's switch, lib/plugins/claude): an ask while it is off is
+  /// refused. Always, where none is given.
+  final bool Function()? allowed;
   final ClaudeNotes notes;
   final ClaudeDesk desk;
   final ClaudeApi Function(String key) _api;
@@ -61,10 +65,14 @@ class ClaudeRunner extends ChangeNotifier {
   }
 
   Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem}) async {
+    if (!(allowed?.call() ?? true)) {
+      started.completeError(const ClaudeError('Claude is switched off on this device. Switch it on in Settings › Plugins.'));
+      return;
+    }
     await settings.load();
     final key = settings.key;
     if (key == null) {
-      started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Ask Claude.'));
+      started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Plugins › Claude.'));
       return;
     }
     String? rules;

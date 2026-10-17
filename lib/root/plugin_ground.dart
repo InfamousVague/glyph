@@ -10,7 +10,7 @@
 ///   manifest before a request leaves (`PluginHost.fetch`), and a redirect would be a second request nobody checked;
 /// - **the phone's browser** for an address a plugin opens (lib/core/open_link.dart).
 ///
-/// Then the five that ship (lib/plugins/built_in.dart), and each one's secrets read once (`host.secrets.warm()`),
+/// Then the ones that ship (lib/plugins/built_in.dart), and each one's secrets read once (`host.secrets.warm()`),
 /// so "is there a token?" is true to the store from the first draw.
 library;
 
@@ -62,7 +62,7 @@ Fetcher pluginFetcher({HttpClient? client, bool debug = !kReleaseMode}) {
   };
 }
 
-/// Puts the ground under the plugins' hosts and the five that ship in the app's registry, and reads each one's
+/// Puts the ground under the plugins' hosts and the ones that ship in the app's registry, and reads each one's
 /// secrets once. Before the first screen is built; answers the registry.
 Registry installPlugins({PluginGround? ground, PreferencesStore? prefs}) {
   usePluginGround(ground ?? PluginGround(secrets: deviceSecureStore(), fetch: pluginFetcher(), open: openLink));

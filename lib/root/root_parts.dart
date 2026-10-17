@@ -38,11 +38,11 @@ extension _RootParts on _GhostRootState {
         }, _atWorkPart),
         // Settings is handed what its pages read whether it is open or shut (the models, the tapes' room, the
         // updates), so it is built again as those change; never for a runner's turn or the home page's news.
-        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel, _builtReport.value), _settingsPart),
+        _part('settings', () => (_settings, _settingsPage, _voice, _voiceAt, _modelsAt, _updatesAt, _voice == null ? null : _tapeFacts, _voice == null || _read, preferences.value.formatModel, _builtReport.value, _claudeOn), _settingsPart),
         // The palette's commands and a note's menu are made from the notes while each is open; shut, neither
         // draws anything, and each is built with the notes as they are the moment it opens.
         _part('commands', () => ((_commands.currentState?.isOpen ?? false) ? _library.value : null, _workspaces.value, _prefsAt, _capture != null), _commandsPart),
-        _part('noteMenu', () => _menu.value == null ? null : _shown, _noteMenuPart),
+        _part('noteMenu', () => _menu.value == null ? null : (_shown, _claudeOn), _noteMenuPart),
         // What the + makes (notes/NewSheet.tsx). The rows read where to make it as they are pressed, since the
         // sheet closes first.
         _part(
@@ -53,7 +53,7 @@ extension _RootParts on _GhostRootState {
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
         // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
-        _part('askClaude', () => (_askClaude, _chatAgent, _chatInitial), _askClaudePart),
+        _part('askClaude', () => (_askClaude && _claudeOn, _chatAgent, _chatInitial), _askClaudePart),
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
@@ -114,6 +114,8 @@ extension _RootParts on _GhostRootState {
       readSidebarShown(_stored),
       readAsideShown(_stored),
       _unread,
+      // The app's Claude's bar under the top bar (the Claude plugin's switch).
+      _claudeOn,
     );
   }
 
@@ -223,7 +225,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -250,7 +252,7 @@ extension _RootParts on _GhostRootState {
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
       collectionBuilder: (context, shell, screen) => _part(
         'collection',
-        () => (screen, shell.notes, _workspaces.value),
+        () => (screen, shell.notes, _workspaces.value, _claudeOn),
         (context) => CollectionScreen(
           kind: screen.kind,
           name: screen.key,
@@ -410,6 +412,8 @@ extension _RootParts on _GhostRootState {
           _voiceModelLine,
           _accountAt,
           _presenceAt,
+          // Claude on the dock, or not (the Claude plugin's switch).
+          _claudeOn,
         ),
         (context) => _homePage(context, shell),
       );
@@ -464,6 +468,7 @@ extension _RootParts on _GhostRootState {
       ghost: _homeGhost,
       onSaveSearch: _organize.saveSearch,
       // Today's events at the head of the page (docs/CALENDAR.md).
+      // None while the Calendar plugin is off (lib/plugins/calendar): the service holds none then.
       events: calendar.events,
     );
   }
@@ -480,7 +485,7 @@ extension _RootParts on _GhostRootState {
   /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
   /// build records, and Settings at its foot.
   PageDockSeam _notesDock() => PageDockSeam(
-        claude: _claudeDockAbout,
+        claude: _claudeForDock,
         halo: _pageDockHalo,
         actions: [
           DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
@@ -491,7 +496,7 @@ extension _RootParts on _GhostRootState {
       );
 
   /// Claude and the halo, for a page whose dock's rings are its own: a note, an organization, Settings.
-  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeDockAbout, halo: _pageDockHalo);
+  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeForDock, halo: _pageDockHalo);
 
   static Widget _homeGhost(BuildContext context, HomeGhost it) => Ghost(
         scene: switch (it.scene) {
@@ -616,7 +621,7 @@ extension _RootParts on _GhostRootState {
         localGraph: (id) => _showGraph(focus: id, title: noteTitle(_library.noteOf(id)?.body ?? '')),
         noteLinks: _openNoteLinks,
         today: _organize.today,
-        askClaude: () => _openAskClaude(),
+        askClaude: _claudeOn ? () => _openAskClaude() : null,
         tags: _organize.showTags,
         openSmart: _organize.showSmart,
       ),
@@ -852,7 +857,7 @@ extension _RootParts on _GhostRootState {
   Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => Selected(
         listenable: _tick,
         name: 'note',
-        select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt),
+        select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt, _claudeOn),
         builder: (context, _) => _desked(context, shell, screen),
       );
 
@@ -896,7 +901,7 @@ extension _RootParts on _GhostRootState {
   Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) => Selected(
         listenable: _tick,
         name: 'organization',
-        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge),
+        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeOn),
         builder: (context, _) => _organizationPageOf(context, shell, screen),
       );
 
@@ -923,7 +928,7 @@ extension _RootParts on _GhostRootState {
       onJumpTo: (noteId) => _jumpTo(shell, id, noteId),
       onFollow: _follow == null ? null : _followFrom,
       // An AI's Chat: the chat with Claude, opened for it (docs/CLAUDE_APP.md, "The chat").
-      onChat: (ai) => _openAskClaude(agent: ai.name),
+      onChat: _claudeOn ? (ai) => _openAskClaude(agent: ai.name) : null,
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,

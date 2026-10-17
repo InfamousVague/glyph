@@ -9,6 +9,11 @@
 /// ([CalendarService.resumed]), and one soon after the calendars change in Settings or on another device. Nothing is
 /// fetched with Local only on, and nothing at all for an account with no calendars.
 ///
+/// The app's calendars are the Calendar plugin's (lib/plugins/calendar, off until switched on): the root hands
+/// [CalendarService.start] the plugin's switch. While it is off nothing is read, no to-do goes to Google's, and
+/// [CalendarService.events] holds none, so no query and no Today shows one; what was read stays kept, and is shown
+/// again the moment it is switched on, with a read soon after. A service started with no switch is always on.
+///
 /// Google's sign-in is collected by polling `claim` every 2 seconds for up to 10 minutes after Connect, and again
 /// when the app comes back to the front, as docs/CALENDAR.md has it. Connect is offered only where glyph-api's
 /// `start` does not answer 503 ([CalendarService.checkOffered]), in a build that has a service at all.
@@ -70,8 +75,17 @@ class CalendarService extends ChangeNotifier {
   Fetcher get _fetcher => _fetch ??= ioFetcher();
   PreferencesStore get prefs => _prefs ?? preferences;
 
-  /// Every event read, every calendar's together, in [inDayOrder]. Told to its listeners when a read changes them.
+  /// Every event read, every calendar's together, in [inDayOrder]; none while the plugin is off ([active]). Told to
+  /// its listeners when a read, or the switch, changes them.
   late final ValueNotifier<List<CalendarEvent>> events = ValueNotifier(_merged());
+
+  /// The Calendar plugin's switch, as [start] was handed it: on where it was handed none.
+  bool Function() _on = _always;
+  static bool _always() => true;
+  Listenable? _switched;
+
+  /// Whether the calendars are read and shown: the plugin is on.
+  bool get active => _on();
 
   List<QueryEvent>? _queryEvents;
 
@@ -130,6 +144,7 @@ class CalendarService extends ChangeNotifier {
   }
 
   List<CalendarEvent> _merged() {
+    if (!active) return const [];
     final live = _sources(setup);
     return inDayOrder([
       for (final MapEntry(:key, :value) in _kept.events().entries)
@@ -159,11 +174,15 @@ class CalendarService extends ChangeNotifier {
   bool get started => _started;
 
   /// Starts reading for the life of the app: a read now, then on the beats, and when the calendars change. [notes]
-  /// is the library a pass of to-dos reads. Once.
-  void start({List<QueryNote> Function()? notes}) {
+  /// is the library a pass of to-dos reads. [on] is the Calendar plugin's switch, and [switched] says when it moves.
+  /// Once.
+  void start({List<QueryNote> Function()? notes, bool Function()? on, Listenable? switched}) {
     _notes = notes ?? _notes;
     if (_started) return;
     _started = true;
+    _on = on ?? _always;
+    _wasOn = active;
+    _switched = switched?..addListener(_onSwitch);
     _seen = jsonOfSetup(setup);
     _wasLocal = _localOnly;
     prefs.addListener(_onPrefs);
@@ -193,6 +212,8 @@ class CalendarService extends ChangeNotifier {
     if (!_started) return;
     _started = false;
     prefs.removeListener(_onPrefs);
+    _switched?.removeListener(_onSwitch);
+    _switched = null;
     _icalBeat?.cancel();
     _googleBeat?.cancel();
     _soon?.cancel();
@@ -208,6 +229,22 @@ class CalendarService extends ChangeNotifier {
   }
 
   static String jsonOfSetup(CalendarSetup setup) => jsonEncode(setup.toJson());
+
+  /// The plugin switched: its events shown or put away at once, and read soon where it came on.
+  bool _wasOn = true;
+  void _onSwitch() {
+    final now = active;
+    if (now == _wasOn) return;
+    _wasOn = now;
+    _changed();
+    if (!now) return;
+    _soon?.cancel();
+    _soon = Timer(const Duration(milliseconds: 300), () {
+      _soon = null;
+      unawaited(syncIcal(force: true));
+      unawaited(syncGoogle());
+    });
+  }
 
   /// The settings changed: when the calendars are among what changed (here or on another device), what is new is
   /// read soon and what is gone is forgotten. Local only turned off is a read too.
@@ -255,7 +292,7 @@ class CalendarService extends ChangeNotifier {
       });
 
   Future<void> _ical(bool force) async {
-    if (_localOnly) return;
+    if (_localOnly || !active) return;
     final current = setup;
     for (final address in current.addresses) {
       if (_readByGoogle(address, current)) continue;
@@ -471,7 +508,7 @@ class CalendarService extends ChangeNotifier {
   Future<void> _google() async {
     final google = setup.google;
     final api = _api;
-    if (google == null || api == null || _localOnly) return;
+    if (google == null || api == null || _localOnly || !active) return;
     String? problem;
     try {
       final session = GoogleSession(api: api, refreshToken: google.refreshToken, tokens: _kept.tokens, onTokens: (next) => _kept.tokens = next);

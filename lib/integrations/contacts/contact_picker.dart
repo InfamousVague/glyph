@@ -58,7 +58,7 @@ class _ContactPickerState extends State<ContactPicker> {
         final found = contactsLike(store.everyone, _typed);
         final blocks = <Widget>[SheetTitle.text(widget.title)];
         if (!store.ready) {
-          blocks.add(SheetNote(store.busy ? 'Reading your contacts…' : 'Turn on Settings › Contacts to pick someone from your contacts.'));
+          blocks.add(SheetNote(store.busy ? 'Reading your contacts…' : 'Switch on Contacts in Settings › Plugins to pick someone from your contacts.'));
         } else {
           blocks
             ..add(

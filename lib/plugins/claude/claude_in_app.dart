@@ -1,3 +1,13 @@
+/// The Claude plugin's "In the app" half (docs/CLAUDE_APP.md, "The key"): the person's Anthropic API key, kept on
+/// this device only, the model, and the "Ask Claude" note's switch. Its cards stand on the plugin's page
+/// (claude_pane.dart) above the connector's. They were Settings › Ask Claude, a page of their own, until the app's
+/// Claude became the plugin's (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins").
+/// The app's own; the web app has none of it.
+///
+/// A key is checked before it is kept (one small read of the API, lib/claude/messages_api.dart [ClaudeApi.check]),
+/// so a key mistyped is said at once rather than at the first ask. Forget asks twice.
+library;
+
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
@@ -5,42 +15,38 @@ import 'package:glacier/glacier.dart';
 
 import '../../claude/claude_settings.dart';
 import '../../claude/messages_api.dart';
-import '../../plugins/github/plain_field.dart';
-import '../kit/settings_kit.dart';
-import '../settings_search.dart';
-import 'pane_parts.dart';
+import '../../settings/kit/settings_kit.dart';
+import '../../settings/panes/pane_parts.dart' show armedFor;
+import '../../settings/settings_search.dart';
+import '../github/plain_field.dart';
 
-/// What Settings' search finds on Claude.
-const List<SettingsFindable> claudeFindable = [
+/// What Settings' search finds of the app's Claude on the plugin's page: its cards, and the key's row.
+const List<SettingsFindable> claudeInAppFindable = [
+  SettingsFindable('Ask Claude', 'anthropic claude ask chat dock in the app'),
   SettingsFindable('API key', 'anthropic api key claude sk-ant console token'),
   SettingsFindable('Model', 'claude sonnet opus haiku model'),
   SettingsFindable('Ask Claude note', 'inbox ask claude requests to-do automatic'),
 ];
 
-/// Claude's row in the list.
-String claudeSummary() {
-  if (!claudeSettings.loaded) unawaited(claudeSettings.load());
-  return claudeSettings.hasKey ? claudeModelLabel(claudeSettings.model) : 'Add your API key';
+/// The row to the plugin's page on its card: the model Claude answers with, or that a key is wanted.
+String claudeSummary([ClaudeSettings? settings]) {
+  final claude = settings ?? claudeSettings;
+  if (!claude.loaded) unawaited(claude.load());
+  return claude.hasKey ? claudeModelLabel(claude.model) : 'Add your API key';
 }
 
-/// Settings › Ask Claude (docs/CLAUDE_APP.md, "The key"): the person's Anthropic API key, kept on this device only, the
-/// model, and the "Ask Claude" note's switch. The app's own; the web app has no such page.
-///
-/// A key is checked before it is kept (one small read of the API, lib/claude/messages_api.dart [ClaudeApi.check]),
-/// so a key mistyped is said at once rather than at the first ask. Forget asks twice.
-class ClaudeKeyPane extends StatefulWidget {
-  const ClaudeKeyPane({super.key, this.settings});
+/// The three cards, Ask Claude (the key), Model and Ask Claude note, a page's gap apart.
+class ClaudeInApp extends StatefulWidget {
+  const ClaudeInApp({super.key, this.settings});
 
   /// The settings to read and write; the app's own when null.
   final ClaudeSettings? settings;
 
-  static Widget hosted(BuildContext context) => const ClaudeKeyPane();
-
   @override
-  State<ClaudeKeyPane> createState() => _ClaudeKeyPaneState();
+  State<ClaudeInApp> createState() => _ClaudeInAppState();
 }
 
-class _ClaudeKeyPaneState extends State<ClaudeKeyPane> {
+class _ClaudeInAppState extends State<ClaudeInApp> {
   final TextEditingController _typed = TextEditingController();
   bool _checking = false;
   String? _problem;
@@ -135,14 +141,18 @@ class _ClaudeKeyPaneState extends State<ClaudeKeyPane> {
       builder: (context, _) {
         final settings = _settings;
         final key = settings.key;
-        return PaneBody(
+        // Cards among the page's own, as far apart as PaneBody sets them.
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          spacing: context.tokens.space(4),
           children: [
             if (_problem != null) SettingsCallout(child: Text(_problem!)),
             if (_said != null) SettingsCallout(child: Text(_said!)),
             PaneSection(
-              title: 'Claude',
+              title: 'Ask Claude',
               description: const Text(
-                'Ask Claude from the dock on the home page or the command bar, and it reads, makes and changes your notes, typing into the note as you watch. It uses your own Anthropic API key: what you ask, and the notes Claude reads to answer, go from this device to Anthropic, and Anthropic bills the key.',
+                'Ask Claude from the dock on any page or the command bar, and it reads, makes and changes your notes, typing into the note as you watch. It uses your own Anthropic API key: what you ask, and the notes Claude reads to answer, go from this device to Anthropic, and Anthropic bills the key.',
               ),
               footer: const Text('The key is kept on this device alone, in its secure storage. It is never synced; give each device its own. Make one at console.anthropic.com.'),
               children: [

@@ -150,8 +150,10 @@ import '../orgs/types.dart' show OrgRow;
 import '../orgs/ui/organization_log.dart';
 import '../orgs/ui/organization_screen.dart';
 import '../perf/frame_log.dart';
-import '../plugins/claude/claude.dart' show claudeHandle;
-import '../plugins/registry.dart' show plugins;
+import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
+import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
+import '../plugins/contacts/contacts.dart' show contactsSwitch;
+import '../plugins/registry.dart' show Registry, plugins;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../scene/at_work.dart';
@@ -841,16 +843,36 @@ class _GhostRootState extends State<GhostRoot> {
   String? _chatInitial;
 
   /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
-  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this));
+  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this), allowed: claudeInApp);
 
   /// The "Ask Claude" note, worked through as requests are written in it.
   late final ClaudeInbox _claudeInbox = ClaudeInbox(
     runner: _claude,
     body: _claudeInboxBody,
-    changes: _libraryChanges,
+    // The notes, and the Claude plugin's switch: switched on again, the inbox looks at once.
+    changes: Listenable.merge([_libraryChanges, _pluginsHeard]),
     write: (id, change) => _RootClaudeDesk(this).change(id, change),
     caretLine: _claudeInboxCaretLine,
+    on: claudeInApp,
   );
+
+  /// The registry the root hears (lib/plugins/registry.dart): the app's as the root came up.
+  final Registry _pluginsHeard = plugins;
+
+  /// Whether the app's own Claude is on, as the parts last read it (the Claude plugin's switch).
+  bool get _claudeOn => claudeInApp();
+
+  /// A plugin was switched on or off, or Local only held some off: the parts that draw Claude (every dock, the chat,
+  /// the bar) read again, and the app's Claude switched off closes its chat and stops what it was doing.
+  void _pluginsMoved() {
+    if (!mounted) return;
+    _told(() {
+      if (!_claudeOn) {
+        _askClaude = false;
+        _claude.stop();
+      }
+    });
+  }
 
   /// The inbox: the account's own note titled "Ask Claude", never an organization's, its words as its editor has
   /// them where it is open.
@@ -1421,6 +1443,7 @@ class _GhostRootState extends State<GhostRoot> {
     _wispEdge.removeListener(_smoke);
     _localOnly.removeListener(plugins.preferencesChanged);
     _localOnly.removeListener(_localOnlyMoved);
+    _pluginsHeard.removeListener(_pluginsMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_updatesChanged);
@@ -1502,6 +1525,8 @@ class _GhostRootState extends State<GhostRoot> {
     _localOnly.addListener(_localOnlyMoved);
     // Who Claude's page in Settings reads as signed in (plugins/claude): this build's account, where it has one.
     claudeHandle = () => _services?.session?.handle;
+    // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
+    _pluginsHeard.addListener(_pluginsMoved);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).
@@ -1509,11 +1534,15 @@ class _GhostRootState extends State<GhostRoot> {
     _linkIndex = LinkIndexer(notes: () => _shown, changes: _libraryChanges);
     // The calendars, read for the life of the app (lib/calendar/calendar.dart, docs/CALENDAR.md): now, on their
     // beats, and when the app comes back to the front; the to-dos a pass puts on Google's are the library's.
-    calendar.start(notes: () => _reads.queryNotes);
+    // Only while the Calendar plugin is on (lib/plugins/calendar), which a device that had a calendar before it was a
+    // plugin finds on. Where the registry has no such plugin (a test's), the calendars are read as they always were.
+    final calendarHere = _pluginsHeard.byId(calendarManifest.id) != null;
+    if (calendarHere) _pluginsHeard.adopt(calendarManifest.id, inUse: calendarInUse(calendar));
+    calendar.start(notes: () => _reads.queryNotes, on: calendarHere ? calendarOn : null, switched: _pluginsHeard);
     _calendarLife = AppLifecycleListener(onResume: calendar.resumed);
-    // Settings › Contacts (lib/integrations/contacts): the phone's contacts read where it is on, and the people the
-    // notes name, for its page.
-    phoneContacts.start(bodies: () => [for (final note in _reads.queryNotes) note.body]);
+    // The Contacts plugin (lib/plugins/contacts, lib/integrations/contacts): the phone's contacts read where it is
+    // on, and the people the notes name, for its page. Its switch is the plugin's.
+    phoneContacts.start(bodies: () => [for (final note in _reads.queryNotes) note.body], switched: contactsSwitch());
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);

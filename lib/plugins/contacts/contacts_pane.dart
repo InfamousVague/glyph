@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/widgets.dart';
-import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
@@ -11,12 +10,12 @@ import '../../integrations/contacts/contact_card.dart' show ContactFace;
 import '../../integrations/contacts/contact_match.dart' show personMatchKey;
 import '../../integrations/contacts/contact_picker.dart';
 import '../../integrations/contacts/contacts.dart';
-import '../kit/settings_kit.dart';
-import '../settings_search.dart';
+import '../../settings/kit/settings_kit.dart';
+import '../../settings/settings_search.dart';
 
-/// What Settings' search finds on Contacts: the switch, and the people once it is on.
+/// What Settings' search finds on Contacts: what the phone allows, and the people once it allows it.
 List<SettingsFindable> contactsFindable(ContactsStore store) => [
-  const SettingsFindable('Use my contacts', 'contacts address book phone people call text email picture'),
+  const SettingsFindable('Your contacts', 'contacts address book phone people call text email picture allow permission'),
   if (store.ready) const SettingsFindable('People in your notes', 'people person assignee match contact link unlink'),
 ];
 
@@ -30,11 +29,12 @@ String contactsSummary(ContactsStore store) {
   return '$matched of ${people.length} matched';
 }
 
-/// Settings › Contacts (docs/INTEGRATIONS.md §2; the port's own, 2026-10-17): the phone's contacts for the people
-/// named on to-dos. A page behind Plugins, as Calendar is.
+/// The Contacts plugin's page, Settings › Plugins › Contacts (docs/INTEGRATIONS.md §2; the port's own, 2026-10-17,
+/// and a page of its own behind Plugins until it was a plugin): the phone's contacts for the people named on to-dos.
 ///
-/// - **Use my contacts**, off until it is turned on, which is when the phone asks. Refused, it stays off and says
-///   so; refused for good, it offers the phone's own settings, where it can be allowed.
+/// - **Your contacts**: what the phone allows. The plugin's switch on its card is the page's switch: switched on, the
+///   phone asks. Refused, the page says so and asks again with Allow; refused for good, it offers the phone's own
+///   settings, where it can be allowed. Drawn by itself (as a test does) where it is off, it offers to turn it on.
 /// - **People in your notes**, once it is on: everyone a note names (`@sam`), with the contact each is, matched by
 ///   name ("Matched by name"), set by hand ("Chosen by you") or none. Choose picks another from the contacts; Unlink
 ///   says this person is no contact; By name takes back what was set by hand. Kept on this device only.
@@ -98,8 +98,22 @@ class _ContactsPaneState extends State<ContactsPane> {
         final store = _store;
         final access = store.access;
         final unavailable = access == ContactsAccess.unavailable;
-        final refused = !store.on && (access == ContactsAccess.denied || access == ContactsAccess.blocked);
+        final refused = access == ContactsAccess.denied || access == ContactsAccess.blocked;
         final people = store.ready ? store.peopleNamed() : const <String>[];
+        final String said;
+        if (store.busy && !store.ready) {
+          said = 'Asking…';
+        } else if (!store.on) {
+          said = 'Off. Turning it on asks to read your contacts.';
+        } else if (store.ready) {
+          said = 'Read on this device only.';
+        } else if (unavailable) {
+          said = 'This device has none Ghost.md can read.';
+        } else if (refused) {
+          said = 'Not allowed.';
+        } else {
+          said = 'Not read yet.';
+        }
         return PaneBody(
           children: [
             PaneSection(
@@ -107,38 +121,26 @@ class _ContactsPaneState extends State<ContactsPane> {
               description: const Text('See the picture of a person named on a to-do, and call, text or email them from their chip. Write @sam on a to-do, or pick someone with A person.'),
               children: [
                 SettingRow(
+                  key: const ValueKey<String>('contacts-access'),
                   icon: const AppIcon(Lucide.contactRound, size: 16),
-                  label: 'Use my contacts',
-                  hint: Text(store.busy && !store.on ? 'Asking…' : (store.on ? 'Read on this device only.' : 'Off. Turning it on asks to read your contacts.')),
-                  control: GlacierSwitch(
-                    ariaLabel: 'Use my contacts',
-                    checked: store.on,
-                    disabled: unavailable && !store.on,
-                    onCheckedChange: (on) {
-                      if (on) {
-                        unawaited(store.turnOn());
-                      } else {
-                        store.turnOff();
-                      }
-                    },
-                  ),
+                  label: 'Your contacts',
+                  hint: Text(said),
+                  // Off, as where the page is drawn by itself: the way on, which asks. The plugin's card is the switch.
+                  control: store.on || unavailable ? null : RowAction(onPress: () => unawaited(store.turnOn()), child: const Text('Turn on')),
                 ),
               ],
             ),
             if (unavailable) const SettingsCallout(child: Text('This device has no contacts Ghost.md can read.')),
-            if (refused)
+            if (store.on && refused && !store.busy)
               SettingsCallout(
-                action: access == ContactsAccess.blocked ? RowAction(onPress: () => unawaited(store.book.openSettings()), child: const Text('Open settings')) : null,
+                action: access == ContactsAccess.blocked
+                    ? RowAction(onPress: () => unawaited(store.book.openSettings()), child: const Text('Open settings'))
+                    : RowAction(onPress: () => unawaited(store.turnOn()), child: const Text('Allow')),
                 child: Text(
                   access == ContactsAccess.blocked
-                      ? 'Ghost.md is not allowed to read your contacts. Allow it in your device’s settings, then turn this on.'
-                      : 'Ghost.md was not allowed to read your contacts. Turn this on to be asked again.',
+                      ? 'Ghost.md is not allowed to read your contacts. Allow it in your device’s settings, then come back here.'
+                      : 'Ghost.md was not allowed to read your contacts. Allow asks again.',
                 ),
-              ),
-            if (store.on && !store.ready && !store.busy && access != null && access != ContactsAccess.granted)
-              SettingsCallout(
-                action: RowAction(onPress: () => unawaited(store.turnOn()), child: const Text('Allow')),
-                child: const Text('Ghost.md can no longer read your contacts.'),
               ),
             if (store.ready)
               PaneSection(

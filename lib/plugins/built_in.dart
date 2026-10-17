@@ -1,7 +1,7 @@
 /// The plugins that ship with Ghost.md, and the one call that puts them in place. The foot of
 /// `src/app/plugins/registry.ts` (`BUILT_IN`, `plugins`, and the feed's rows handed on).
 ///
-/// On the page the registry is made as its module loads, so every file that imports it has the five. Here nothing
+/// On the page the registry is made as its module loads, so every file that imports it has its five. Here nothing
 /// runs until it is asked, and registry.dart cannot name the plugins it is the ground of (each of them imports it),
 /// so the list lives in this file and the app's root says when:
 ///
@@ -17,24 +17,42 @@
 ///
 /// What differs: `localOnly` is handed in, where registry.ts read the preferences it imports (registry.dart knows
 /// none); and the feed's rows reach the plugins from here rather than from the registry's own module, for the same
-/// reason the list is here.
+/// reason the list is here. And the list is longer: the web's five, then the integrations the app has of its own,
+/// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
+/// Contacts, Rich embeds, Todoist and Things. The app's own Claude is the Claude plugin's other half.
 library;
 
 import '../sync/arrived.dart' show onArrived;
+import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
+import 'contacts/contacts.dart' show contactsPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'notion/notion.dart' show notionPlugin;
 import 'registry.dart';
+import 'rich_embeds/rich_embeds.dart' show richEmbedsPlugin;
 import 'slack/slack.dart' show slackPlugin;
+import 'things/things.dart' show thingsPlugin;
+import 'todoist/todoist.dart' show todoistPlugin;
 import 'types.dart';
 
-/// The plugins that ship with Ghost.md (`BUILT_IN`), in the page's order.
-final List<GlyphPlugin> builtIn = List.unmodifiable([notionPlugin, githubPlugin, marksPlugin, claudePlugin, slackPlugin]);
+/// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, one a line.
+final List<GlyphPlugin> builtIn = List.unmodifiable([
+  notionPlugin,
+  githubPlugin,
+  marksPlugin,
+  claudePlugin,
+  slackPlugin,
+  calendarPlugin,
+  contactsPlugin,
+  richEmbedsPlugin,
+  todoistPlugin,
+  thingsPlugin,
+]);
 
 void Function()? _unhear;
 
-/// Makes the five the app's ([plugins]), and hands them every pass of the feed's rows from now on, so the sync
+/// Makes the built-in plugins the app's ([plugins]), and hands them every pass of the feed's rows from now on, so the sync
 /// engine never names one. [store] is where the switches are kept (the device's, unless a test says); [localOnly]
 /// is the preference, asked on every question. Asked twice, the second registry takes the first's place and the
 /// rows go to it alone.

@@ -70,7 +70,7 @@ ClaudeError errorOf(int status, String body) {
     // Not JSON: the status says it.
   }
   final said = switch (status) {
-    401 => 'The API key was refused. Check it in Settings › Ask Claude.',
+    401 => 'The API key was refused. Check it in Settings › Plugins › Claude.',
     403 => 'This key may not use that. ${message ?? ''}'.trim(),
     429 => 'Too many requests for this key just now. Try again in a moment.',
     529 => 'Claude is overloaded just now. Try again in a moment.',

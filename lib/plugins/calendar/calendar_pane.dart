@@ -8,9 +8,9 @@ import '../../calendar/calendar.dart';
 import '../../calendar/setup.dart';
 import '../../core/preferences.dart';
 import '../../sync/engine.dart' show syncedWhen;
-import '../account_forms.dart';
-import '../kit/settings_kit.dart';
-import '../settings_search.dart';
+import '../../settings/account_forms.dart';
+import '../../settings/kit/settings_kit.dart';
+import '../../settings/settings_search.dart';
 
 /// What Settings' search finds on Calendar: what the page draws now. Google's card is drawn where its sign-in is
 /// offered ([offered]) or already connected, and the to-dos' once it is connected.
@@ -32,8 +32,9 @@ String calendarSummary(Preferences prefs) {
   return addresses ?? 'None yet';
 }
 
-/// Settings › Calendar (docs/CALENDAR.md; the port's own, 2026-10-17): the calendars whose events the app shows in
-/// queries, on a calendar of to-dos and on the home page's Today. Three cards:
+/// The Calendar plugin's page, Settings › Plugins › Calendar (docs/CALENDAR.md; the port's own, 2026-10-17, and a page
+/// of its own behind Plugins until it was a plugin): the calendars whose events the app shows in queries, on a
+/// calendar of to-dos and on the home page's Today. Three cards:
 ///
 /// - **Calendar addresses**: a calendar's secret iCal address pasted in (Google's, iCloud's, Outlook's, any), read
 ///   when the app opens and every 30 minutes; each listed by its calendar's name with how its last read went, and

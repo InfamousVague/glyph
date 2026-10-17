@@ -8,16 +8,13 @@ import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
+import '../plugins/things/things.dart' show thingsOn;
+import '../plugins/todoist/todoist.dart' show todoistOn;
 import 'panes/backup_pane.dart';
-import '../calendar/calendar.dart' show calendar;
-import 'panes/calendar_pane.dart';
 import 'panes/library_folder_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
-import 'panes/claude_key_pane.dart';
-import 'panes/contacts_pane.dart';
-import '../integrations/contacts/contacts.dart' show phoneContacts;
 import 'panes/cheat_sheet.dart';
 import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
@@ -309,18 +306,19 @@ final List<SettingsSectionSpec> _sections = [
     pane: ExportPane.hosted,
   ),
   // Notes from another app, into a workspace of their own: a page behind Export's Import row, on Android and the Mac,
-  // which have a picker for a folder. The app's own: the web app has no such page, so its file is Export's.
+  // which have a picker for a folder. The app's own: the web app has no such page, so its file is Export's. Obsidian
+  // and Evernote are always here; Todoist and Things while their plugins are on (lib/plugins/todoist, things).
   SettingsSectionSpec(
     id: 'import',
     label: 'Import',
-    words: 'import obsidian vault evernote enex todoist things move from another app bring in',
+    words: 'import obsidian vault evernote enex move from another app bring in',
     glyph: SettingsGlyph.folderInput,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
     where: (facts) => !facts.ios,
-    summary: (facts) => _static('From Obsidian, Evernote, Todoist or Things', facts),
-    settings: (facts) => importFindable,
-    pane: ImportPane.hosted,
+    summary: (facts) => importSummary(importKinds()),
+    settings: (facts) => importFindableOf(importKinds()),
+    pane: (context) => ImportPane.hosted(context, kinds: importKinds()),
     listed: false,
     parent: 'export',
   ),
@@ -363,18 +361,6 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
   ),
-  // Claude with the person's own Anthropic API key (docs/CLAUDE_APP.md): the app's own section, on every device.
-  SettingsSectionSpec(
-    id: 'ask-claude',
-    label: 'Ask Claude',
-    words: 'anthropic api key claude ask sonnet opus haiku inbox',
-    glyph: SettingsGlyph.sparkles,
-    group: 2,
-    webFile: 'settings/AiPane.tsx',
-    summary: (facts) => claudeSummary(),
-    settings: (facts) => claudeFindable,
-    pane: ClaudeKeyPane.hosted,
-  ),
   SettingsSectionSpec(
     id: 'plugins',
     label: 'Plugins',
@@ -387,37 +373,6 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => pluginsFindable(plugins.all()),
     // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card.
     pane: PluginsPane.hosted,
-  ),
-  // The calendars whose events the app shows (docs/CALENDAR.md): an iCal address, or Google signed in. A page behind
-  // Plugins, what reaches beyond the phone, off the list so the list stays the web's, and found by the search. The
-  // port's own, 2026-10-17; it has no page in tauri/, so its file is Plugins'.
-  SettingsSectionSpec(
-    id: 'calendar',
-    label: 'Calendar',
-    words: 'calendar events google ical ics webcal outlook icloud schedule agenda',
-    glyph: SettingsGlyph.calendarDays,
-    group: 2,
-    webFile: 'plugins/PluginsPane.tsx',
-    summary: (facts) => calendarSummary(facts.prefs),
-    settings: (facts) => calendarFindable(facts.prefs, offered: calendar.offered == true),
-    pane: CalendarPane.hosted,
-    listed: false,
-    parent: 'plugins',
-  ),
-  // The phone's contacts for the people named on to-dos (docs/INTEGRATIONS.md §2): a page behind Plugins, as Calendar
-  // is, off the list and found by the search. The port's own, 2026-10-17; its file is Plugins'.
-  SettingsSectionSpec(
-    id: 'contacts',
-    label: 'Contacts',
-    words: 'contacts address book people person phone call text sms email picture assignee',
-    glyph: SettingsGlyph.contact,
-    group: 2,
-    webFile: 'plugins/PluginsPane.tsx',
-    summary: (facts) => contactsSummary(phoneContacts),
-    settings: (facts) => contactsFindable(phoneContacts),
-    pane: ContactsPane.hosted,
-    listed: false,
-    parent: 'plugins',
   ),
   SettingsSectionSpec(
     id: 'about',
@@ -520,6 +475,25 @@ class SettingsNotPortedCard extends StatelessWidget {
         title: 'Not ported yet',
         body: Text('${spec.label} is still the web app’s. Its page will come from src/app/${spec.webFile}.'),
       );
+}
+
+/// The imports Settings › Import offers: Obsidian's and Evernote's, and Todoist's and Things' while their plugins
+/// are on.
+List<ImportKind> importKinds() => [ImportKind.obsidian, ImportKind.evernote, if (todoistOn()) ImportKind.todoist, if (thingsOn()) ImportKind.things];
+
+/// Import's line: where it brings notes from.
+String importSummary(List<ImportKind> kinds) {
+  final names = [
+    for (final kind in kinds)
+      switch (kind) {
+        ImportKind.obsidian => 'Obsidian',
+        ImportKind.evernote => 'Evernote',
+        ImportKind.todoist => 'Todoist',
+        ImportKind.things => 'Things',
+      },
+  ];
+  if (names.length <= 1) return names.isEmpty ? 'Nothing to import' : 'From ${names.single}';
+  return 'From ${names.sublist(0, names.length - 1).join(', ')} or ${names.last}';
 }
 
 /// Whether Settings has a Backup page: not on an iPhone, and not in the Mac App Store's build.

@@ -1,8 +1,11 @@
-/// Settings › Contacts as the app holds it (docs/INTEGRATIONS.md §2): whether it is on, the matches set by hand, and
-/// the address book read while it is on.
+/// The Contacts plugin as the app holds it (docs/INTEGRATIONS.md §2; lib/plugins/contacts): whether it is on, the
+/// matches set by hand, and the address book read while it is on.
 ///
-/// - **Off until the person turns it on**, which is when the phone asks ([ContactsStore.turnOn]). Refused, it stays
-///   off and says so; refused for good, the page offers the phone's own settings.
+/// - **Off until the person turns it on**, which is when the phone asks ([ContactsStore.turnOn]). Refused, it reads
+///   nothing and its page says so; refused for good, the page offers the phone's own settings.
+/// - **Its switch is the plugin's** where the app hands one ([ContactsSwitch], given to [ContactsStore.start]): the
+///   plugin switched on asks the phone, and switched off puts the book out of memory. A store with no switch keeps
+///   its own, in [ContactSettings.on], as it did before it was a plugin; a device that had it on finds the plugin on.
 /// - **This device's own.** The switch and the hand-set matches are kept in its memory under `glyph-contacts`
 ///   (lib/core/stored.dart), never synced: another phone has another address book. The contacts themselves are held
 ///   in memory only, read again when the app starts, when the book changes and when the page is opened.
@@ -27,7 +30,8 @@ import 'contact_match.dart';
 class ContactSettings {
   const ContactSettings({this.on = false, this.links = const <String, String>{}});
 
-  /// Whether Settings › Contacts is on: off until turned on.
+  /// Whether it is on, where the store keeps its own switch: off until turned on. Handed the plugin's, the store
+  /// moves this one's "on" to it and keeps it off ([ContactsStore.start]).
   final bool on;
 
   /// The matches set by hand: a person's key ([personMatchKey]) to a contact's id, or to '' for no contact.
@@ -60,6 +64,17 @@ class ContactSettings {
 /// The key the choices are kept under.
 const String contactSettingsKey = 'glyph-contacts';
 
+/// Where the switch is, when it is not the store's own: the Contacts plugin's (lib/plugins/contacts). [read] says
+/// whether it is on, [write] moves it, and [changes] says when it moved, by whoever moved it.
+@immutable
+class ContactsSwitch {
+  const ContactsSwitch({required this.read, required this.write, this.changes});
+
+  final bool Function() read;
+  final void Function(bool on) write;
+  final Listenable? changes;
+}
+
 /// Settings › Contacts: the choices, the address book's answer and the people in it.
 class ContactsStore extends ChangeNotifier {
   ContactsStore({ContactBook? book, Stored? kept})
@@ -80,12 +95,23 @@ class ContactsStore extends ChangeNotifier {
   bool _gone = false;
   StreamSubscription<void>? _watch;
   List<String> Function()? _bodies;
+  ContactsSwitch? _switch;
+  bool _wasOn = false;
 
   /// What the person chose.
   ContactSettings get settings => _settings;
 
-  /// Whether Settings › Contacts is on.
-  bool get on => _settings.on;
+  /// Whether it is on: the plugin's switch where [start] was handed one, else the store's own.
+  bool get on => _switch?.read() ?? _settings.on;
+
+  void _setOn(bool value) {
+    final held = _switch;
+    if (held != null) {
+      held.write(value);
+    } else {
+      _keep(_settings.copyWith(on: value));
+    }
+  }
 
   /// The address book's last answer; null until it has been asked.
   ContactsAccess? get access => _access;
@@ -104,10 +130,39 @@ class ContactsStore extends ChangeNotifier {
   bool _started = false;
 
   /// From the app's start: the notes' words, for the people the page lists, and the book read when it is on.
-  void start({List<String> Function()? bodies}) {
+  /// [switched] is the plugin's switch, which is this store's from now on: a device that had its own on finds the
+  /// plugin on, once.
+  void start({List<String> Function()? bodies, ContactsSwitch? switched}) {
     _bodies = bodies ?? _bodies;
     _started = book is! NoContactBook;
+    if (switched != null && !identical(switched, _switch)) _useSwitch(switched);
     if (on) unawaited(read());
+  }
+
+  void _useSwitch(ContactsSwitch switched) {
+    _switch?.changes?.removeListener(_switchMoved);
+    _switch = switched;
+    // The store's own "on", from before it was a plugin, becomes the plugin's, and is then the plugin's alone.
+    if (_settings.on) {
+      if (!switched.read()) switched.write(true);
+      _keep(_settings.copyWith(on: false));
+    }
+    _wasOn = on;
+    switched.changes?.addListener(_switchMoved);
+  }
+
+  /// The plugin switched (or anything else in what told it): on, the phone is asked, which answers at once where
+  /// it was allowed before; off, the book is put out of memory.
+  void _switchMoved() {
+    final now = on;
+    if (now == _wasOn || _gone) return;
+    _wasOn = now;
+    if (now) {
+      unawaited(turnOn());
+    } else {
+      _forgetBook();
+      _tell();
+    }
   }
 
   /// Turns it on: the phone asks first, and it stays off where the answer is no. Answers how the asking went.
@@ -125,7 +180,8 @@ class ContactsStore extends ChangeNotifier {
     if (_gone) return said;
     _access = said;
     if (said == ContactsAccess.granted) {
-      _keep(_settings.copyWith(on: true));
+      _wasOn = true;
+      _setOn(true);
       await read();
     } else {
       _tell();
@@ -135,7 +191,8 @@ class ContactsStore extends ChangeNotifier {
 
   /// Turns it off: the book is put out of memory, the matches set by hand are kept for next time.
   void turnOff() {
-    _keep(_settings.copyWith(on: false));
+    _wasOn = false;
+    _setOn(false);
     _forgetBook();
     _tell();
   }
@@ -252,6 +309,7 @@ class ContactsStore extends ChangeNotifier {
   @override
   void dispose() {
     _gone = true;
+    _switch?.changes?.removeListener(_switchMoved);
     unawaited(_watch?.cancel());
     super.dispose();
   }

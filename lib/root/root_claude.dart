@@ -10,7 +10,9 @@ extension _RootClaude on _GhostRootState {
   }
 
   /// The chat with Claude, or with [agent] (an organization's AI row's Chat), its field starting with [initial].
+  /// Nothing while the Claude plugin is off.
   void _openAskClaude({String? agent, String? initial}) {
+    if (!_claudeOn) return;
     _shell.currentState?.closeSidebar();
     _told(() {
       _askClaude = true;
@@ -21,8 +23,12 @@ extension _RootClaude on _GhostRootState {
 
   void _closeAskClaude() => _told(() => _askClaude = false);
 
-  /// Claude on the home page's dock.
-  Widget _claudeDock() => ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude);
+  /// Claude on the home page's dock; none while the Claude plugin is off.
+  Widget? _claudeDock() => _claudeOn ? ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude) : null;
+
+  /// Claude for a page's dock (see [_claudeDockAbout]); none while the Claude plugin is off, so the dock has a ring
+  /// fewer.
+  DockClaudeBuilder? get _claudeForDock => _claudeOn ? _claudeDockAbout : null;
 
   /// Claude at the head of a page's dock (docs/DOCK.md): the chat, about what the page is about where it says. The
   /// chat holds no subject, so a note's `[[Title]]` is put in its field, ready to ask about.
@@ -41,7 +47,7 @@ extension _RootClaude on _GhostRootState {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_follow != null) FollowBar(follow: _follow!),
-          ClaudeBar(runner: _claude, onReply: _openAskClaude, onOpenNote: _openForClaude),
+          if (_claudeOn) ClaudeBar(runner: _claude, onReply: _openAskClaude, onOpenNote: _openForClaude),
         ],
       );
 
@@ -53,7 +59,7 @@ extension _RootClaude on _GhostRootState {
   }
 
   Widget _askClaudePart(BuildContext context) {
-    if (!_askClaude) return _RootParts._nothing;
+    if (!_askClaude || !_claudeOn) return _RootParts._nothing;
     return ClaudeChat(
       runner: _claude,
       follow: _follow,
@@ -63,7 +69,8 @@ extension _RootClaude on _GhostRootState {
       onOpenNote: _openForClaude,
       onSettings: () {
         _told(() => _askClaude = false);
-        _openSettingsAt('ask-claude');
+        // The key is added on the Claude plugin's page (lib/plugins/claude).
+        _openSettingsAt('plugin:claude');
       },
       onOpenAi: _openForAi,
       onInbox: _toClaudeInbox,

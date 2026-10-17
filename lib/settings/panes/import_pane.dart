@@ -11,13 +11,26 @@ import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import 'settings_host.dart';
 
-/// What Settings' search finds on Import.
-const List<SettingsFindable> importFindable = [
-  SettingsFindable('Obsidian vault', 'import obsidian vault folder markdown canvas move from'),
-  SettingsFindable('Evernote export (.enex)', 'import evernote enex export notebook move from'),
-  SettingsFindable('Todoist', 'import todoist tasks to-dos projects api token csv export move from'),
-  SettingsFindable('Things 3', 'import things cultured code to-dos areas projects paste copy move from'),
-];
+/// Where an import comes from. Obsidian's and Evernote's are the app's own; Todoist's and Things' are each a
+/// plugin's (lib/plugins/todoist, lib/plugins/things), on their pages and on Import only while they are on.
+enum ImportKind { obsidian, evernote, todoist, things }
+
+/// What Settings' search finds of each import, by the card or row that names it.
+const Map<ImportKind, SettingsFindable> _findable = {
+  ImportKind.obsidian: SettingsFindable('Obsidian vault', 'import obsidian vault folder markdown canvas move from'),
+  ImportKind.evernote: SettingsFindable('Evernote export (.enex)', 'import evernote enex export notebook move from'),
+  ImportKind.todoist: SettingsFindable('Todoist', 'import todoist tasks to-dos projects api token csv export move from'),
+  ImportKind.things: SettingsFindable('Things 3', 'import things cultured code to-dos areas projects paste copy move from'),
+};
+
+/// What Settings' search finds on a page offering [kinds].
+List<SettingsFindable> importFindableOf(Iterable<ImportKind> kinds) => [for (final kind in ImportKind.values) if (kinds.contains(kind)) _findable[kind]!];
+
+/// Where an import goes, said over the app's own imports, or under a plugin's.
+const String _where = 'Notes from another app come into a workspace of their own, named for the day, so they can be taken out again in one go. Nothing you have is changed.';
+
+/// What Settings' search finds on Import with every import offered.
+final List<SettingsFindable> importFindable = importFindableOf(ImportKind.values);
 
 /// Where an import is: not begun, choosing, bringing things in, done, or stopped by a failure.
 sealed class _State {
@@ -60,12 +73,17 @@ class _Failed extends _State {
 /// The calls are the [Importer] it is handed, or the one Settings was given (`SettingsFeatures.importer`). With
 /// none, as in a picture of the page, the rows are drawn and cannot be pressed. Not on an iPhone, whose section is
 /// not listed (settings_sections.dart).
+///
+/// [kinds] are the imports it offers: Settings › Import's are Obsidian's and Evernote's, and Todoist's and Things'
+/// while their plugins are on (settings_sections.dart); each of those plugins' pages is this page with its own alone,
+/// where the words on where an import goes stand under it.
 class ImportPane extends StatefulWidget {
-  const ImportPane({super.key, this.importer});
+  const ImportPane({super.key, this.importer, this.kinds = ImportKind.values});
 
   final Importer? importer;
+  final List<ImportKind> kinds;
 
-  static Widget hosted(BuildContext context) => ImportPane(importer: SettingsHost.maybeOf(context)?.features.importer);
+  static Widget hosted(BuildContext context, {List<ImportKind> kinds = ImportKind.values}) => ImportPane(importer: SettingsHost.maybeOf(context)?.features.importer, kinds: kinds);
 
   @override
   State<ImportPane> createState() => _ImportPaneState();
@@ -138,6 +156,8 @@ class _ImportPaneState extends State<ImportPane> {
     final can = widget.importer != null && state is! _Running;
     final progress = state is _Running ? state.progress : null;
     final mac = widget.importer?.thingsOnMacOffered ?? false;
+    final kinds = widget.kinds;
+    final core = kinds.contains(ImportKind.obsidian) || kinds.contains(ImportKind.evernote);
     return PaneBody(
       children: [
         if (state is _Running)
@@ -158,86 +178,93 @@ class _ImportPaneState extends State<ImportPane> {
           ),
         if (state is _Done) ..._done(context, state),
         if (state is _Failed) SettingsCallout(child: Text(state.why)),
-        PaneSection(
-          description: const Text('Notes from another app come into a workspace of their own, named for the day, so they can be taken out again in one go. Nothing you have is changed.'),
-          children: [
-            SettingRow(
-              icon: const AppIcon(Lucide.folderInput, size: 20),
-              label: 'Obsidian vault',
-              hint: const Text('Choose the vault’s folder. Its notes, folders, pictures, files and canvases come in as they are.'),
-              onPress: can ? _obsidian : null,
-              disabled: !can,
-            ),
-            SettingRow(
-              icon: const AppIcon(Lucide.bookOpen, size: 20),
-              label: 'Evernote export (.enex)',
-              hint: const Text('Choose one or more .enex files. Each becomes a notebook, with its tags, dates, pictures and files.'),
-              onPress: can ? _evernote : null,
-              disabled: !can,
-            ),
-          ],
-        ),
-        PaneSection(
-          title: 'Todoist',
-          description: const Text('Each project becomes a note, its sections headings and its tasks to-dos, with their dates, priorities, labels and sub-tasks. The token is in Todoist › Settings › Integrations › Developer; it is used for this import and not kept.'),
-          children: [
-            SettingRow(
-              label: 'Completed tasks too',
-              hint: const Text('Those done in the last year, ticked. With a token only: an export has none.'),
-              control: GlacierSwitch(ariaLabel: 'Completed tasks too', checked: _todoistDone, disabled: !can, onCheckedChange: (on) => setState(() => _todoistDone = on)),
-            ),
-            SettingsForm(
-              children: [
-                GlacierInput(
-                  ariaLabel: 'Todoist API token',
-                  placeholder: 'API token',
-                  type: GlacierInputType.password,
-                  autoCorrect: false,
-                  spellCheck: false,
+        if (core)
+          PaneSection(
+            description: const Text(_where),
+            children: [
+              if (kinds.contains(ImportKind.obsidian))
+                SettingRow(
+                  icon: const AppIcon(Lucide.folderInput, size: 20),
+                  label: 'Obsidian vault',
+                  hint: const Text('Choose the vault’s folder. Its notes, folders, pictures, files and canvases come in as they are.'),
+                  onPress: can ? _obsidian : null,
                   disabled: !can,
-                  value: _token,
-                  onChange: (text) => setState(() => _token = text),
-                  onSubmitted: (_) => can ? _todoist() : null,
                 ),
-                FormSubmit(wordKey: const ValueKey('import-todoist'), 'Import from Todoist', onPressed: can && _token.trim().isNotEmpty ? _todoist : null),
-              ],
-            ),
-            SettingRow(
-              icon: const AppIcon(Lucide.table, size: 20),
-              label: 'Todoist CSV export (.csv)',
-              hint: const Text('Choose one or more projects’ exports (on a project’s menu, Manage data › Export as CSV). Each becomes a note.'),
-              onPress: can ? _todoistCsv : null,
-              disabled: !can,
-            ),
-          ],
-        ),
-        PaneSection(
-          title: 'Things 3',
-          description: const Text('Areas become notebooks and projects their pages, with headings, to-dos, When dates, deadlines, tags, notes and checklists.'),
-          children: [
-            if (mac) ...[
+              if (kinds.contains(ImportKind.evernote))
+                SettingRow(
+                  icon: const AppIcon(Lucide.bookOpen, size: 20),
+                  label: 'Evernote export (.enex)',
+                  hint: const Text('Choose one or more .enex files. Each becomes a notebook, with its tags, dates, pictures and files.'),
+                  onPress: can ? _evernote : null,
+                  disabled: !can,
+                ),
+            ],
+          ),
+        if (kinds.contains(ImportKind.todoist))
+          PaneSection(
+            title: 'Todoist',
+            description: const Text('Each project becomes a note, its sections headings and its tasks to-dos, with their dates, priorities, labels and sub-tasks. The token is in Todoist › Settings › Integrations › Developer; it is used for this import and not kept.'),
+            children: [
               SettingRow(
-                icon: const AppIcon(Lucide.squareCheckBig, size: 20),
-                label: 'From Things on this Mac',
-                hint: const Text('Reads a copy of Things’ own data, every area and project. The Mac may ask first.'),
-                onPress: can ? _thingsOnMac : null,
+                label: 'Completed tasks too',
+                hint: const Text('Those done in the last year, ticked. With a token only: an export has none.'),
+                control: GlacierSwitch(ariaLabel: 'Completed tasks too', checked: _todoistDone, disabled: !can, onCheckedChange: (on) => setState(() => _todoistDone = on)),
+              ),
+              SettingsForm(
+                children: [
+                  GlacierInput(
+                    ariaLabel: 'Todoist API token',
+                    placeholder: 'API token',
+                    type: GlacierInputType.password,
+                    autoCorrect: false,
+                    spellCheck: false,
+                    disabled: !can,
+                    value: _token,
+                    onChange: (text) => setState(() => _token = text),
+                    onSubmitted: (_) => can ? _todoist() : null,
+                  ),
+                  FormSubmit(wordKey: const ValueKey('import-todoist'), 'Import from Todoist', onPressed: can && _token.trim().isNotEmpty ? _todoist : null),
+                ],
+              ),
+              SettingRow(
+                icon: const AppIcon(Lucide.table, size: 20),
+                label: 'Todoist CSV export (.csv)',
+                hint: const Text('Choose one or more projects’ exports (on a project’s menu, Manage data › Export as CSV). Each becomes a note.'),
+                onPress: can ? _todoistCsv : null,
                 disabled: !can,
               ),
+            ],
+          ),
+        if (kinds.contains(ImportKind.things))
+          PaneSection(
+            title: 'Things 3',
+            description: const Text('Areas become notebooks and projects their pages, with headings, to-dos, When dates, deadlines, tags, notes and checklists.'),
+            children: [
+              if (mac) ...[
+                SettingRow(
+                  icon: const AppIcon(Lucide.squareCheckBig, size: 20),
+                  label: 'From Things on this Mac',
+                  hint: const Text('Reads a copy of Things’ own data, every area and project. The Mac may ask first.'),
+                  onPress: can ? _thingsOnMac : null,
+                  disabled: !can,
+                ),
+                SettingRow(
+                  label: 'The Logbook too',
+                  hint: const Text('Done and cancelled to-dos, ticked.'),
+                  control: GlacierSwitch(ariaLabel: 'The Logbook too', checked: _thingsDone, disabled: !can, onCheckedChange: (on) => setState(() => _thingsDone = on)),
+                ),
+              ],
               SettingRow(
-                label: 'The Logbook too',
-                hint: const Text('Done and cancelled to-dos, ticked.'),
-                control: GlacierSwitch(ariaLabel: 'The Logbook too', checked: _thingsDone, disabled: !can, onCheckedChange: (on) => setState(() => _thingsDone = on)),
+                icon: const AppIcon(Lucide.clipboardPaste, size: 20),
+                label: 'Paste from Things',
+                hint: const Text('In Things, open a list and choose Share › Copy, then press here. The list becomes one note.'),
+                onPress: can ? _thingsPaste : null,
+                disabled: !can,
               ),
             ],
-            SettingRow(
-              icon: const AppIcon(Lucide.clipboardPaste, size: 20),
-              label: 'Paste from Things',
-              hint: const Text('In Things, open a list and choose Share › Copy, then press here. The list becomes one note.'),
-              onPress: can ? _thingsPaste : null,
-              disabled: !can,
-            ),
-          ],
-        ),
+          ),
+        // A plugin's page has no Obsidian card to say it over: said under its own.
+        if (!core) const SettingsFootnote(child: Text(_where)),
       ],
     );
   }
