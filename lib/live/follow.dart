@@ -13,6 +13,7 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../claude/live_typing.dart' show clearClaudeCaret, showClaudeCaret;
 import '../editor/editor.dart';
 import 'editor_binding.dart';
 import 'presence.dart';
@@ -50,12 +51,23 @@ class FollowAi extends ChangeNotifier {
   /// Which note each AI was last heard editing, so a notice is given when it starts on one and not on every word.
   final Map<String, String?> _editing = {};
 
+  /// Where the AI's caret was last seen in each note, by note: once it has finished typing the room carries no
+  /// caret, and a note opened to follow it shows Claude's caret there and scrolls to it (Matt: "If we follow Claude
+  /// I also want to see a cursor where Claude last typed and scroll the screen to there after navigating us to the
+  /// note").
+  final Map<String, int> _lastHead = {};
+
+  /// The editor a remembered caret is drawn in, until the AI's own caret is placed again or nobody is followed.
+  LiveBinding? _marked;
+
   /// Starts hearing the rooms. Once.
   void start() {
     if (_started) return;
     _started = true;
     changes.addListener(_heard);
     bound.addListener(_attach);
+    bound.addListener(_hearCarets);
+    _hearCarets();
     _heard();
   }
 
@@ -158,6 +170,7 @@ class FollowAi extends ChangeNotifier {
   }
 
   void _unwatch() {
+    _unmark();
     final was = _watching;
     _watching = null;
     if (was == null) return;
@@ -174,7 +187,18 @@ class FollowAi extends ChangeNotifier {
     for (final each in binding.carets.value) {
       if (each.ai && each.name.toLowerCase() == ai.name.toLowerCase()) caret = each;
     }
-    if (caret == null) return;
+    final note = _opened;
+    if (caret == null) {
+      // None in the room: where it last typed, drawn and scrolled to once for this editor.
+      final last = note == null ? null : _lastHead[note];
+      if (last != null && !identical(_marked, binding)) {
+        _marked = binding;
+        showClaudeCaret(binding.view, last);
+      }
+      return;
+    }
+    if (note != null) _lastHead[note] = caret.head;
+    _unmark();
     final limit = binding.view.state.doc.length;
     final head = caret.head.clamp(0, limit);
     try {
@@ -184,12 +208,46 @@ class FollowAi extends ChangeNotifier {
     }
   }
 
+  /// Each bound editor's carets heard, followed or not, so where an AI last typed in a note is known when it is
+  /// followed into it later.
+  final Map<LiveBinding, VoidCallback> _caretEars = {};
+
+  void _hearCarets() {
+    final now = bound.all;
+    final live = now.values.toSet();
+    for (final gone in _caretEars.keys.where((b) => !live.contains(b)).toList()) {
+      gone.carets.removeListener(_caretEars.remove(gone)!);
+    }
+    for (final MapEntry(key: note, value: binding) in now.entries) {
+      if (_caretEars.containsKey(binding)) continue;
+      void heard() {
+        for (final caret in binding.carets.value) {
+          if (caret.ai) _lastHead[note] = caret.head;
+        }
+      }
+
+      _caretEars[binding] = heard;
+      binding.carets.addListener(heard);
+    }
+  }
+
+  void _unmark() {
+    final marked = _marked;
+    _marked = null;
+    if (marked != null && marked.bound) clearClaudeCaret(marked.view);
+  }
+
   @override
   void dispose() {
     if (_started) {
       changes.removeListener(_heard);
       bound.removeListener(_attach);
+      bound.removeListener(_hearCarets);
     }
+    for (final MapEntry(key: binding, value: ear) in _caretEars.entries) {
+      binding.carets.removeListener(ear);
+    }
+    _caretEars.clear();
     _unwatch();
     super.dispose();
   }

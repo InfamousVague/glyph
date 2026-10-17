@@ -250,6 +250,9 @@ class BoundEditors extends ChangeNotifier {
   /// The binding of [noteId]'s editor, or null while it is not open and bound here.
   LiveBinding? of(String noteId) => _bound[noteId];
 
+  /// Every bound editor now, by note id.
+  Map<String, LiveBinding> get all => Map.unmodifiable(_bound);
+
   void put(String noteId, LiveBinding binding) {
     if (identical(_bound[noteId], binding)) return;
     _bound[noteId] = binding;
