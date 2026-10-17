@@ -96,6 +96,13 @@ const double _lift = 4;
 const double _boxBend = 8;
 const double _boxLift = 0;
 
+/// How an AI's typed word moves ([WispKind.typed], `Moving.light`): the same curves, a third of the throw, less
+/// than half the blur and half the lift, over its short arc (`typedArrivalMs`), so the word reads at once and the
+/// smoke is a breath round it. With the full bend and blur Claude's words stood blurred for a quarter second each.
+const double _lightBend = 12;
+const double _lightSoft = 2;
+const double _lightLift = 2;
+
 /// A filter at `t` of its arc, 0 to 1: what `shape` writes into a slot.
 ///
 /// Arriving: the bend is over by three quarters of the way and the blur a little later, so the last frames near
@@ -103,16 +110,17 @@ const double _boxLift = 0;
 /// first third and lifts into place. Leaving: the same curves backwards, thinning as it goes.
 ///
 /// The numbers are rounded as the page writes them into its attributes.
-({double scale, double stdDeviation, double dy, double slope}) shapeAt(double t, {bool leaving = false, bool box = false}) {
+({double scale, double stdDeviation, double dy, double slope}) shapeAt(double t, {bool leaving = false, bool box = false, bool light = false}) {
   final p = leaving ? 1 - t : t;
   final spread = math.max(0.0, 1 - p / 0.72);
   final soft = math.max(0.0, 1 - p / 0.9);
   final alpha = leaving ? 1 - t : math.min(1.0, t / 0.3);
-  final bend = box ? _boxBend : _bend;
-  final rise = box ? _boxLift : _lift;
+  final bend = box ? _boxBend : (light ? _lightBend : _bend);
+  final rise = box ? _boxLift : (light ? _lightLift : _lift);
+  final blur = light ? _lightSoft : _soft;
   final lift = leaving ? -rise * 1.2 * t : rise * (1 - math.min(1.0, t / 0.5));
   double fixed(double value, int digits) => double.parse(value.toStringAsFixed(digits));
-  return (scale: fixed(bend * spread * spread, 2), stdDeviation: fixed(_soft * soft * soft, 2), dy: fixed(lift, 2), slope: fixed(alpha, 3));
+  return (scale: fixed(bend * spread * spread, 2), stdDeviation: fixed(blur * soft * soft, 2), dy: fixed(lift, 2), slope: fixed(alpha, 3));
 }
 
 /// One filter of the pool, and whether a word is wearing it.
@@ -195,6 +203,7 @@ class WispArrivalsPlugin extends PluginValue {
         _starts.remove(id);
       }
     }
+    _plain.retainAll(alive);
     var arriving = false;
     for (final m in current) {
       // What left is the departures' to draw (`wispDepartures`).
@@ -210,7 +219,13 @@ class WispArrivalsPlugin extends PluginValue {
         // A word never takes a filter from one still moving: with none free it waits its turn, unseen, and starts
         // when one settles. So a long phrase keeps arriving at the pace the phone can draw, instead of the rest
         // being set all at once to make room.
+        // An AI's typed word with every filter worn is simply there, and settled next frame: it never waits unseen.
+        if (m.light && _plain.contains(m.id)) continue;
         final found = _slot();
+        if (found == null && m.light) {
+          _plain.add(m.id);
+          continue;
+        }
         if (found == null) {
           // It waits, and nothing here asks for another look. When one settles, the `settle` it dispatches redraws
           // through the editor's own update, and this word takes the filter that was freed.
@@ -229,7 +244,7 @@ class WispArrivalsPlugin extends PluginValue {
         _slots[m.id] = slot;
         _starts[m.id] = math.max(m.at, now);
         // Not yet on screen until its moment: fully bent, blurred and clear.
-        _shape(slot, 0, m.box);
+        _shape(slot, 0, m.box, m.light);
       }
       // The word's letters, spaces aside, each a character whole however many code units it is.
       var pos = m.from;
@@ -257,6 +272,9 @@ class WispArrivalsPlugin extends PluginValue {
   /// When each word with a filter really began: its turn, or later if it had to wait for a filter.
   final Map<int, double> _starts = <int, double>{};
 
+  /// An AI's typed words that found every filter worn: drawn plain, and settled on the next frame.
+  final Set<int> _plain = <int>{};
+
   /// One frame: every moving thing's filter set for its moment; the ones past the end handed back to settle.
   void _tick(Duration _) {
     if (_gone) return;
@@ -268,7 +286,7 @@ class WispArrivalsPlugin extends PluginValue {
       view.dispatch(const TransactionSpec());
       if (_gone) return;
     }
-    final done = <int>[];
+    final done = <int>[..._plain];
     for (final m in moving(view.state)) {
       final slot = _slots[m.id];
       if (slot == null) continue;
@@ -277,7 +295,7 @@ class WispArrivalsPlugin extends PluginValue {
         done.add(m.id);
         continue;
       }
-      _shape(slot, math.max(0.0, t), m.box);
+      _shape(slot, math.max(0.0, t), m.box, m.light);
     }
     if (done.isNotEmpty) {
       view.dispatch(TransactionSpec(effects: settle.of(done)));
@@ -288,8 +306,8 @@ class WispArrivalsPlugin extends PluginValue {
   }
 
   /// A slot's filter at `t` of an arriving word's arc ([shapeAt]).
-  void _shape(_Slot slot, double t, bool box) {
-    final shape = shapeAt(t, box: box);
+  void _shape(_Slot slot, double t, bool box, bool light) {
+    final shape = shapeAt(t, box: box, light: light);
     slot.smoke
       ..scale = shape.scale
       ..stdDeviation = shape.stdDeviation

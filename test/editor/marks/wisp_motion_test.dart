@@ -61,6 +61,34 @@ void main() {
       expect(normal.gap, greaterThan(0));
     });
 
+    test('sets an AI\'s typed words moving at once and briefly, only its last few, at no slower a pace', () {
+      // Claude's words are already let out a word at a time (lib/claude/typing_pacer.dart): none waits a turn, and
+      // each is legible within typedArrivalMs (Matt: "we need the wisp on entry to be near instant").
+      final next = heard(state(), const ChangeSpec(from: 0, insert: 'pack the bags'), WispKind.typed);
+      expect(texts(next), ['pack', 'the', 'bags']);
+      for (final m in moving(next)) {
+        expect(m.at, 50000);
+        expect(m.dur, lessThanOrEqualTo(typedArrivalMs));
+        expect(m.light, isTrue);
+      }
+      // A page of them at once (Stop, or the connector's words landing together): only the last few smoke, the rest
+      // are simply there, so none waits unseen on the pool.
+      final page = [for (var n = 0; n < 60; n++) 'w$n'].join(' ');
+      final flushed = heard(state(), ChangeSpec(from: 0, insert: page), WispKind.typed);
+      expect(texts(flushed), [for (var n = 60 - typedSmokyWords; n < 60; n++) 'w$n']);
+      // A relaxed pace stretches the person's smoke, not Claude's; a brisk one still shortens it.
+      final relaxed = heard(state('', [wispPace.of(1.6)]), const ChangeSpec(from: 0, insert: 'pack the bags'), WispKind.typed);
+      expect(moving(relaxed).every((m) => m.dur <= typedArrivalMs && m.at == 50000), isTrue);
+      final brisk = heard(state('', [wispPace.of(0.6)]), const ChangeSpec(from: 0, insert: 'pack the bags'), WispKind.typed);
+      expect(moving(brisk).every((m) => m.dur <= typedArrivalMs * 0.6), isTrue);
+      // The recorder's heard words are as they were: their turns one after another, the full arc.
+      final recorder = moving(heard(state(), const ChangeSpec(from: 0, insert: 'pack the bags')));
+      expect(recorder.every((m) => !m.light && m.dur >= 350), isTrue);
+      expect(recorder.last.at, greaterThan(recorder.first.at));
+      // With reduced motion, nothing at all.
+      expect(moving(heard(state('', [wispStill.of(true)]), const ChangeSpec(from: 0, insert: 'pack the bags'), WispKind.typed)), isEmpty);
+    });
+
     test('finds what a rewrite really changed', () {
       expect(commonEnds('buy mil', 'buy milk'), (prefix: 7, suffix: 0));
       expect(commonEnds('buy milk', 'buy oat milk'), (prefix: 4, suffix: 4));
