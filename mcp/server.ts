@@ -518,12 +518,20 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
    * The account and its organizations read fresh, as this AI: an organization read is told the AI's name, so its
    * members see it listed beside them (mcp/team.ts `announce`).
    */
-  const fresh = () => {
+  const fresh = async () => {
     account.actsAs(by(undefined));
-    return account.pull();
+    const pulled = await account.pull();
+    seen();
+    return pulled;
   };
   /** A note's title as a notification names it, as the list does. */
   const titled = (record: NoteRecord): string => noteTitle(record.note.body) || 'Untitled';
+  /**
+   * Claude online for the account's devices for five minutes more, and where: reading or editing a note, or - with
+   * none named, as every tool's first read says - on no note in particular (mcp/live.ts, docs/CLAUDE_LIVE.md).
+   */
+  const seen = (doing?: 'reading' | 'editing', record?: NoteRecord | null): void =>
+    void account.live()?.touch(doing && record ? { note: record.note.id, title: titled(record), doing, ...(record.org ? { org: record.org.id } : {}) } : null, by(undefined));
   const authorField = z
     .string()
     .optional()
@@ -573,6 +581,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
       guarded(async () => {
         await fresh();
         const record = await find(account, id, title);
+        seen('reading', record);
         const settings = await settingsOf(account);
         const deleted = settings.trash[record.note.id];
         return text({ ...whole(record, spaceOf(account, record, settings)), ...(deleted ? { inTrash: true, deleted: iso(deleted) } : {}) });
@@ -641,6 +650,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         const made = await account.create(authored(words, author), { pinned: Boolean(pinned), ...(org ? { org } : {}) });
         // A personal workspace is a filing in the settings, as the app's own is.
         if (into && !org) await account.changePrefs((prefs) => filedIn(prefs, [made.note.id], into!.id));
+        seen('editing', made);
         await account.postNotification('note-created', { noteId: made.note.id, title: titled(made), by: by(author) });
         return text({ created: whole(made, into ? { ...into, organization: Boolean(org) } : null) });
       }),
@@ -651,7 +661,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Replace a note’s body',
       description:
-        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. An organization’s note is not refused: the lines that differ are written into the team’s shared document as a change, which merges with what the other members are writing. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it.',
+        'The whole markdown body of a note replaced with `body`. Read the note first and send it back changed: this writes from the version last read, and if another device changed the note meanwhile the write is refused and their version shown, never overwritten. An organization’s note is not refused: the lines that differ are written into the team’s shared document as a change, which merges with what the other members are writing. For adding a line or a task to the end of a note, prefer append_to_note. A notebook’s or a journal’s list of [[links]] is its pages: a link left out of the new body takes that page or entry out of it, though its note stays. For a new journal entry use add_journal_entry. A ticket’s properties are its front matter (type: ticket, id, status, assignee, priority, due, blocked-by…): keep the block and change a value to change it. Someone with the note open watches your words typed in as they land, so write a long change in parts, a section per call, and they see it fill in.',
       inputSchema: {
         id: z.string().describe('The note’s id.'),
         body: z.string().describe(`The new markdown body, whole. ${BLANKS}`),
@@ -662,6 +672,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
       guarded(async () => {
         await fresh();
         if (!body.trim()) return failed('A note needs some words. To remove a note, archive it with set_note_flags.');
+        seen('editing', await account.get(id));
         // The authors the note had stay, whatever the new body says: a rewrite doesn't take anyone off. Nor where
         // it was written, nor the keys that make it a notebook, a journal or an entry.
         let before = '';
@@ -679,7 +690,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
     {
       title: 'Add to a note',
       description:
-        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time. Not for a journal: write an entry in one with add_journal_entry.',
+        'Words added to a note the way the app’s own "add task" does: a task or an item joins the note’s list, in the list’s own style, or starts one; a paragraph goes on the end. Safe against another device editing at the same time. Not for a journal: write an entry in one with add_journal_entry. Someone with the note open watches your words typed in as they land, so write a long change in parts, a section per call, and they see it fill in.',
       inputSchema: {
         id: z.string().optional().describe('The note’s id.'),
         title: z.string().optional().describe('Or its title.'),
@@ -694,6 +705,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         const target = await find(account, id, title);
         // A journal's words are the list of its entries: an entry is a note of its own, with its line (below).
         if (isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is a journal: its words are the list of its entries. Use add_journal_entry to write one.`);
+        seen('editing', target);
         const how = as === 'task' || as === 'item' ? 'item' : as === 'paragraph' ? 'paragraph' : 'leave';
         let added: string[] = [];
         const written = await account.edit(target.note.id, (note) => {
@@ -726,6 +738,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         await fresh();
         const target = await find(account, id, title);
         if (after !== undefined && after.trim() && placePicture(target.note.body, '', after) === null) return failed(`No line of “${titled(target)}” reads “${after.trim()}”.`);
+        seen('editing', target);
         const picture = await download(url);
         const name = pictureName(picture.kind);
         // The file first: a note naming a picture its readers cannot fetch draws a broken one on every device.
@@ -767,6 +780,7 @@ export function buildServer(account: GlyphAccount, hosted?: HostedHooks, options
         await fresh();
         const target = (await account.get(journal)) ?? (await find(account, undefined, journal));
         if (!isJournalBody(target.note.body)) return failed(`“${noteTitle(target.note.body)}” is not a journal. Use append_to_note or create_note for it.`);
+        seen('editing', target);
         // The hosted server's clock is the box's, not the person's: an entry named and filed by it would be an hour or a
         // day out. The local one (`npm run mcp`) runs on the person's own computer.
         if (!at && hosted) return failed('Say when, as `at`: the person’s local time, YYYY-MM-DDTHH:MM. This server’s clock is not theirs.');

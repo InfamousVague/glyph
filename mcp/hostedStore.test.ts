@@ -19,7 +19,8 @@ const ACCOUNT_KEY = Buffer.alloc(32, 7).toString('base64url');
 const dir = mkdtempSync(join(tmpdir(), 'glyph-mcp-store-'));
 let files = 0;
 const aFile = () => join(dir, `sessions-${++files}.json`);
-const account = {} as GlyphAccount;
+/** An account as the store holds one: only let go of, when its session ends (mcp/live.ts). */
+const account = { letGo: () => undefined } as unknown as GlyphAccount;
 
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 

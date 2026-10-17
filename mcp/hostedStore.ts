@@ -205,6 +205,8 @@ export function hostedStore(now: () => number, file?: string) {
   }
 
   function drop(id: string): void {
+    // Off the live relay at once, rather than five minutes from its last call (mcp/live.ts).
+    sessions.get(id)?.account?.letGo();
     sessions.delete(id);
     for (const [c, issued] of codes) if (issued.sessionId === id) codes.delete(c);
     for (const [t, issued] of accessTokens) if (issued.sessionId === id) accessTokens.delete(t);

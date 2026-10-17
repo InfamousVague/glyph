@@ -58,8 +58,12 @@ const Y = await import('yjs');
 
 const row = (id: string, colour: string | null = null, state: OrgRow['state'] = 'member'): OrgRow => ({ id, name: id, hue: null, role: 'member', state, members: 2, createdAt: 1, colour });
 const tick = () => new Promise((settled) => setTimeout(settled, 0));
-/** Lets the watcher settle: the rooms module loads on demand, so a change takes a few turns to show. */
+/**
+ * Lets the watcher settle: the rooms module loads on demand, so a change takes a few turns to show. The load itself
+ * is waited for, not counted in turns: cold, team.ts and the teamRoom.ts it says again took more than ten.
+ */
 async function settled() {
+  await import('./team.ts');
   for (let i = 0; i < 10; i += 1) await tick();
 }
 const fire = (listeners: Set<() => void>) => listeners.forEach((listener) => listener());

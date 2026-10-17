@@ -9,6 +9,8 @@ import type { Note } from '../tauri/src/app/core/store.ts';
 import { derive, fromBase64Url, open, passwordSalt, ROUNDS, seal, sealBytes, toBase64Url, unwrap } from '../tauri/src/app/core/sync/crypto.ts';
 import type { Bytes } from '../tauri/src/app/core/sync/crypto.ts';
 import type { FeedItem, NotePayload } from '../tauri/src/app/core/sync/notes.ts';
+import { liveUrl } from '../tauri/src/app/core/live/transport.ts';
+import { LiveClient, type LiveDeps } from './live.ts';
 import { pictureId, TeamNotes, type OrgName } from './team.ts';
 
 /**
@@ -93,6 +95,12 @@ export interface Hooks {
   key?: CryptoKey;
   /** The session could not be renewed and needs the password again. */
   lapsed?: () => void;
+  /**
+   * Claude online and typing in the notes a person has open (mcp/live.ts, docs/CLAUDE_LIVE.md): on unless `false`,
+   * and off by default when a `fetcher` is given, since a service in memory has no relay. A test's own socket and
+   * pace go here.
+   */
+  live?: false | Pick<LiveDeps, 'socket' | 'pace'>;
 }
 
 /** One JSON call to `<api>/v1/<path>`. */
@@ -147,13 +155,49 @@ export class GlyphAccount {
   private teamsFault: string | null = null;
   /** The AI this client is working for, by the name its app gave (`actsAs`); null until it is known. */
   private ai: string | null = null;
+  /** The relay client, made the first time it is asked for (`live`); null when this account has none. */
+  private relay: LiveClient | null | undefined;
 
   constructor(
     private session: StoredSession,
     private readonly hooks: Hooks = {},
   ) {
     this.key = hooks.key ?? null;
-    this.teams = new TeamNotes({ call: (method, path, body) => this.call(method, path, body), bytes: (method, path, body) => this.bytes(method, path, body), accountKey: () => this.accountKey() });
+    this.teams = new TeamNotes({
+      call: (method, path, body) => this.call(method, path, body),
+      bytes: (method, path, body) => this.bytes(method, path, body),
+      accountKey: () => this.accountKey(),
+      // A team note's change typed into its room while a member has it open; nothing is typed while Claude is not online.
+      type: async (orgId, noteId, doc, words) => Boolean(this.relay?.online && (await this.relay.typeTeam(orgId, noteId, doc, words))),
+    });
+  }
+
+  /**
+   * The account's client on the live relay (mcp/live.ts): Claude seen online by the account's devices and its
+   * organizations', and typing in the notes they have open. Made the first time it is asked for, and null when the
+   * hooks turned it off.
+   */
+  live(): LiveClient | null {
+    if (this.relay !== undefined) return this.relay;
+    const options = this.hooks.live ?? (this.hooks.fetcher ? false : {});
+    this.relay =
+      options === false
+        ? null
+        : new LiveClient({
+            url: liveUrl(this.session.api),
+            token: () => this.session.token,
+            resume: () => this.resume(),
+            handle: () => this.session.handle,
+            accountKey: () => this.accountKey(),
+            orgKeys: () => this.teams.keys(),
+            ...options,
+          });
+    return this.relay;
+  }
+
+  /** The relay let go of, for good: the session holding this account is over (mcp/hostedStore.ts). */
+  letGo(): void {
+    this.relay?.close();
   }
 
   /**
@@ -433,6 +477,9 @@ export class GlyphAccount {
     const before = current.note;
     const next = change({ ...before });
     const note: Note = { ...before, ...next, id, createdAt: before.createdAt, updatedAt: Math.max(Date.now(), before.updatedAt + 1) };
+    // Typed into the note's room while a device of the account has it open; the words the room ends with are the
+    // ones written, so that device's next pass reads its own words back and has nothing to copy.
+    if (note.body !== before.body && this.relay?.online) note.body = (await this.relay.typeOwn(id, before.body, note.body)) ?? note.body;
     if (note.body !== before.body) {
       note.formatted = null;
       note.formattedFor = null;

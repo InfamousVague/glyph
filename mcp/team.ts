@@ -43,6 +43,11 @@ export interface TeamService {
   /** A file's bytes fetched, or sent; a refusal thrown as `call` throws one. */
   bytes(method: 'GET' | 'PUT', path: string, body?: Bytes): Promise<Bytes>;
   accountKey(): Promise<CryptoKey>;
+  /**
+   * `words` typed into a team note's document while a member who has the note open watches them come (mcp/live.ts):
+   * true once they are in it, false when nobody is watching and the caller reconciles them at once, as ever.
+   */
+  type?(orgId: string, noteId: string, doc: TeamDoc, words: string): Promise<boolean>;
 }
 
 /** The organization a team note is in. */
@@ -422,6 +427,11 @@ export class TeamNotes {
     return changed;
   }
 
+  /** The organizations whose key in force is in hand: the ones whose rooms the connector can seal a word in (mcp/live.ts). */
+  keys(): { id: string; key: CryptoKey }[] {
+    return [...this.orgs.values()].filter((held) => held.key).map((held) => ({ id: held.row.id, key: held.key! }));
+  }
+
   /** Every organization read fresh: the list, the keys, the rows since each cursor, the logs that moved. */
   refresh(): Promise<number> {
     this.refreshing ??= this.read().finally(() => {
@@ -580,23 +590,30 @@ export class TeamNotes {
 
   /**
    * A team note changed by `change`. Its words are reconciled into its document as the app reconciles them, and what
-   * that changed goes to the note's log as updates; a pin or an archive that changed is put as its row.
+   * that changed goes to the note's log as updates; a pin or an archive that changed is put as its row. A member with
+   * the note open sees the words come as they are typed (`TeamService.type`, mcp/live.ts), and the log is written
+   * the same either way.
+   *
+   * The change is made once, before the log is written: a post refused because the key turned (S11) is sealed again
+   * and sent again, the same updates, never the change made a second time, which a member who watched it typed would
+   * hold twice.
    */
   async edit(id: string, change: (note: Note) => Note, now = Date.now()): Promise<TeamRecord> {
     const found = this.find(id);
     if (!found) throw new Error(`No team note ${id}.`);
     const { held } = found;
-    await this.underKey(held, async () => {
-      const key = this.keyOf(held);
-      const entry = held.notes.get(id);
-      if (!entry) throw new Error(`No team note ${id}.`);
-      const before = entry.note;
-      const next: Note = { ...before, ...change({ ...before }), id, createdAt: before.createdAt };
-      const doc = looseTeamDoc(id, { state: entry.state, seq: entry.seq, snapshotSeq: entry.seq, pending: [] });
-      try {
-        doc.reconcile(next.body);
+    this.keyOf(held);
+    const before = found.entry.note;
+    const next: Note = { ...before, ...change({ ...before }), id, createdAt: before.createdAt };
+    const doc = looseTeamDoc(id, { state: found.entry.state, seq: found.entry.seq, snapshotSeq: found.entry.seq, pending: [] });
+    try {
+      if (!(await this.service.type?.(held.row.id, id, doc, next.body))) doc.reconcile(next.body);
+      let seq = found.entry.seq;
+      await this.underKey(held, async () => {
+        const key = this.keyOf(held);
+        const entry = held.notes.get(id);
+        if (!entry) throw new Error(`No team note ${id}.`);
         let cut = false;
-        let seq = entry.seq;
         for (let pending = doc.pending(); pending.length && !cut; pending = doc.pending()) {
           const batch = pending.slice(0, POST_AT_MOST);
           const blobs: string[] = [];
@@ -632,11 +649,11 @@ export class TeamNotes {
         // that names a picture the row does not list is put again, or the picture is a name with nothing behind it.
         const pictured = imageNames(words).join('\n') !== imageNames(before.body).join('\n');
         if (cut || pictured || particulars(note) !== particulars(before)) entry.owed = true;
-      } finally {
-        await release(doc);
-      }
-      if (entry.owed) await this.putRow(held, id);
-    });
+        if (entry.owed) await this.putRow(held, id);
+      });
+    } finally {
+      await release(doc);
+    }
     return this.get(id)!;
   }
 
