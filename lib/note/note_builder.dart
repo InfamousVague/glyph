@@ -26,6 +26,7 @@ import '../core/workspaces.dart';
 import '../notes/note_actions.dart';
 import '../notes/note_templates.dart' show NoteTemplate;
 import '../shell/app_shell.dart';
+import '../shell/page_dock.dart' show PageDockSeam;
 import 'note_editor.dart';
 import 'note_screen.dart';
 
@@ -53,7 +54,8 @@ final Expando<({String id, Set<String> keys})> _taken = Expando<({String id, Set
 /// them with; [say] is a toast of the screen's own (a version put back, a board made). [bookOf] is the note's place in
 /// its notebook as the app reads it (App.tsx `placeInBook`: a journal's entries in the order they were written);
 /// left out, it is the first book whose index names the note. [templates] and [onTemplates] are the blank page's
-/// cards; [onJournal] is told of the journal on screen; [tags] is the places notes keep (lib/core/place_tags.dart).
+/// cards; [onJournal] is told of the journal on screen; [tags] is the places notes keep (lib/core/place_tags.dart);
+/// [dock] is Claude and the halo for the note's dock (lib/shell/page_dock.dart).
 ShellNoteBuilder noteScreenBuilder({
   required NoteLibrary library,
   required WorkspaceStore workspaces,
@@ -72,6 +74,7 @@ ShellNoteBuilder noteScreenBuilder({
   VoidCallback? onTemplates,
   ValueChanged<JournalWriter?>? onJournal,
   PlaceTags? tags,
+  PageDockSeam? dock,
 }) {
   return (context, shell, screen) {
     final note = screen.note;
@@ -113,6 +116,7 @@ ShellNoteBuilder noteScreenBuilder({
       editorBuilder: editor,
       seams: seams,
       say: say == null ? null : (message) => say(context, message),
+      dock: dock,
     );
   };
 }

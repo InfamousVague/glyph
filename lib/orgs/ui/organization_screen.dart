@@ -17,6 +17,10 @@
 /// The members are read when the page opens, when the organization's news arrives, and when a pull from the top
 /// takes the feed again.
 ///
+/// At its bottom end corner, the dock every page has (lib/shell/page_dock.dart, [OrganizationScreen.dock]): Claude,
+/// a new note in this organization, Invite for an owner or an admin, and the organization's settings at its foot.
+/// Each is the page's own: the hero's New and Invite, the bar's cog.
+///
 /// What differs from the web page:
 /// - The account, the organizations and the feed are the [AccountServices] it is handed; the workspaces are theirs.
 /// - **Who is in the app now** comes from the live service on the web (`core/live/presence.ts`), which is not
@@ -54,6 +58,7 @@ import '../../settings/invite_links.dart';
 import '../../settings/kit/settings_kit.dart' show GoWord, SettingsWord;
 import '../../sheet/css.dart';
 import '../../shell/header_pane.dart';
+import '../../shell/page_dock.dart';
 import '../orgs.dart';
 import 'org_news.dart';
 import 'parts.dart';
@@ -86,6 +91,7 @@ class OrganizationScreen extends StatefulWidget {
     this.wisp = true,
     this.onSendLink,
     this.now,
+    this.dock,
   });
 
   final AccountServices? services;
@@ -133,6 +139,9 @@ class OrganizationScreen extends StatefulWidget {
   final bool wisp;
   final void Function(String title, String url)? onSendLink;
   final int Function()? now;
+
+  /// Claude and the halo for the page's dock (docs/DOCK.md); no dock where it is left out.
+  final PageDockSeam? dock;
 
   @override
   State<OrganizationScreen> createState() => _OrganizationScreenState();
@@ -269,7 +278,16 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     final bar = safeTop + t.space(2) * 2 + [t.space(8), if (hasCog) cog, titleLine].reduce(math.max);
     final under = bar.roundToDouble();
     final top = math.max(under, safeTop) + t.space(4);
-    final foot = t.len('app-safe-bottom') + t.space(10);
+    // The dock's rings, each one the page already has: New and Invite in the hero, the cog in the bar.
+    final dockSeam = widget.dock;
+    final dockRings = <DockAction>[
+      if (member) DockAction(id: 'org-new', label: 'New note in this organization', icon: Lucide.plus, motion: DockMotion.turn, onPressed: widget.onNew),
+      if (canInvite) DockAction(id: 'org-invite', label: 'Invite', tip: 'Invite someone', icon: Lucide.userPlus, onPressed: _toInvite),
+    ];
+    final dockFoot = hasCog ? DockAction(id: 'org-settings', label: 'Organization settings', icon: Lucide.settings, onPressed: widget.onSettings) : null;
+    final rings = (dockSeam?.claude != null ? 1 : 0) + dockRings.length + (dockFoot != null ? 1 : 0);
+    // And at least the room the dock stands in, so the activity's last rows scroll clear of it.
+    final foot = t.len('app-safe-bottom') + (dockSeam == null ? t.space(10) : math.max(t.space(10), pageDockRoom(t, rings)));
     final sm = t.fontSize('sm');
     final md = t.fontSize('md');
 
@@ -549,7 +567,12 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
         child: ClipRect(
           child: Stack(
             children: [
-              Positioned.fill(child: held ? page(null) : PullToRefresh(controller: _scroller, onRefresh: _refresh, top: top, builder: (context, pull) => page(pull))),
+              Positioned.fill(
+                child: () {
+                  final Widget body = held ? page(null) : PullToRefresh(controller: _scroller, onRefresh: _refresh, top: top, builder: (context, pull) => page(pull));
+                  return dockSeam == null ? body : PageDockFrame(seam: dockSeam, actions: dockRings, foot: dockFoot, child: body);
+                }(),
+              ),
               HeaderPane(
                 child: Padding(
                   key: const ValueKey('organization-bar'),

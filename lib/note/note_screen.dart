@@ -53,6 +53,12 @@
 ///   is at the window's top behind the glass, where it cannot be read, and the page drops a line while it is said.
 ///   Neither is carried: the sentence is where the page's own comment says it is, under the header.
 /// - The arrival (`noteRise`: the body rising 8px as it fades in) is drawn for the page as a whole.
+/// - **The dock** (lib/shell/page_dock.dart, [NoteScreen.dock]), which the page has only on its home page: at the
+///   bottom end corner, Claude (the chat with the note's `[[Title]]` in its field), and the note's own actions for
+///   what is up. A note's words: Find in note, Speak into it, Add (the +'s list at the caret's line), and its ⋯ at
+///   the foot. A canvas: Add a card and Fit (the canvas's own, offered by its view), and its ⋯. A notebook's index:
+///   Add a page and Read straight through; a journal's, New entry; each with its ⋯. It steps aside while the keyboard
+///   is up, so it never stands over the caret, and the page keeps room at its foot for it.
 library;
 
 import 'dart:async';
@@ -99,7 +105,9 @@ import '../core/page_scroll.dart' show pullRestPhysics;
 import '../notes/note_templates.dart' show NoteTemplate, fillNoteTemplate;
 import '../notes/pull_to_refresh.dart';
 import '../notes/template_cards.dart';
+import '../home/home_icons.dart' show HomeGlyph;
 import '../shell/header_pane.dart';
+import '../shell/page_dock.dart';
 import '../shell/screen.dart' show Caret;
 import '../shell/top_bar_tools.dart';
 import '../sheet/css.dart';
@@ -135,6 +143,7 @@ class NoteLinksSeam {
 class NoteSeams {
   const NoteSeams({
     this.onFind,
+    this.onAdd,
     this.onShare,
     this.sharing,
     this.sharingSection,
@@ -172,6 +181,9 @@ class NoteSeams {
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
   final void Function(EditorView view, String initial)? onFind;
+
+  /// The +'s list opened for the caret's line (lib/editor/plus), from the dock's Add.
+  final void Function(EditorView view)? onAdd;
 
   /// The note's share link in a window of its own (share/ShareRows.tsx).
   final VoidCallback? onShare;
@@ -323,6 +335,7 @@ class NoteScreen extends StatefulWidget {
     this.debounce = saveDebounce,
     this.lifecycle = true,
     this.clock,
+    this.dock,
   });
 
   final Note note;
@@ -399,6 +412,9 @@ class NoteScreen extends StatefulWidget {
   final Duration debounce;
   final bool lifecycle;
   final DateTime Function()? clock;
+
+  /// Claude and the halo for the page's dock (docs/DOCK.md); no dock where it is left out.
+  final PageDockSeam? dock;
 
   @override
   State<NoteScreen> createState() => NoteScreenState();
@@ -487,6 +503,15 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   late final ValueNotifier<NoteToolsModel> _toolsModel = ValueNotifier(_model());
   late final Widget _tools = NoteTools(model: _toolsModel);
   late final Widget _more = NoteMore(onMore: _openMore);
+
+  /// The rings a canvas, a notebook's index or a journal offers the dock (lib/shell/page_dock.dart): the screen is
+  /// built again when what they look like changes, which is seldom (a notebook read straight through, a canvas
+  /// that can no longer change), for the dock and the room its page keeps for it.
+  late final DockOffers _dockOffers = DockOffers()..addListener(_offered);
+
+  void _offered() {
+    if (widget.dock != null) _redraw();
+  }
   String _toolsKey = '';
 
   PreferencesStore get _prefs => widget.preferences ?? preferences;
@@ -664,6 +689,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ..removeListener(_saved)
       ..dispose();
     _toolsModel.dispose();
+    _dockOffers.dispose();
     _scroll.dispose();
     _rise.dispose();
     _unfold?.dispose();
@@ -1490,6 +1516,40 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     setState(() => _typedBody = next);
   }
 
+  /// What the note is, in the dock's words for its ⋯.
+  String get _dockKind => _isCanvas ? 'Canvas' : (_isJournal ? 'Journal' : (_isBook ? 'Notebook' : 'Note'));
+
+  /// The dock's rings for what is up (docs/DOCK.md), each one the screen already has: for a note's words, Find in
+  /// note, Speak into it and the +'s list; for a canvas, a notebook's index or a journal, what its view offers; and
+  /// the ⋯, the More sheet, at the foot.
+  List<DockAction> _dockRings() {
+    final seams = widget.seams;
+    final view = _view;
+    if (!_words) return _dockOffers.actions;
+    final speak = _speakWords;
+    return [
+      if (seams.onFind != null && view != null && _raw) DockAction(id: 'note-find', label: 'Find in note', icon: Lucide.search, motion: DockMotion.lean, onPressed: () => seams.onFind!(view, '')),
+      if (speak != null && !widget.readOnly) DockAction(id: 'note-speak', label: speak, glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+      if (seams.onAdd != null && view != null && plusAllowed) DockAction(id: 'note-add', label: 'Add to this line', tip: 'Add', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: () => seams.onAdd!(view)),
+    ];
+  }
+
+  DockAction get _dockFoot => DockAction(id: 'note-options', label: '$_dockKind options', icon: Lucide.ellipsis, onPressed: _openMore);
+
+  /// How many rings the dock has now, for the room the page keeps at its foot.
+  int get _dockCount => widget.dock == null ? 0 : (widget.dock!.claude != null ? 1 : 0) + _dockRings().length + 1;
+
+  /// The page under its dock, stepping aside while the keyboard is up.
+  Widget _docked(PageDockSeam dock, Widget page) => PageDockFrame(
+        seam: dock,
+        subject: () => _saving.title,
+        actions: _dockRings(),
+        foot: _dockFoot,
+        stepAside: true,
+        label: '$_dockKind actions',
+        child: page,
+      );
+
   @override
   Widget build(BuildContext context) => _KeyboardWatch(child: LayoutBuilder(builder: (context, box) => _build(context, box.maxWidth)));
 
@@ -1544,6 +1604,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     );
     _tellOffers(offered != null);
 
+    final dockRings = _dockCount;
     final words = CustomScrollView(
       key: _page,
       controller: _scroll,
@@ -1603,6 +1664,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // every extension of the note's resolved (tool/perf.sh mac, canvas-open and notebook-open: 3 to 4 ms of the
         // opening frame's 12).
         _EditorBehind(hidden: !_words || _listening, later: !_words, builder: (context) => widget.editorBuilder(context, spec)),
+        // A notebook's index and a journal end clear of the dock, as a note's words do.
+        if (!_words && !_drawing && dockRings > 0) SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom') + pageDockRoom(t, dockRings))),
         // `{shown === 'transcript' ? <div className={styles.body}><TranscriptWords tape={tape} /></div> : null}`:
         // the rest of the page, `.body { flex: 1; min-block-size: 0; padding-block-end: var(--app-safe-bottom) }`,
         // arriving as a body does (`noteRise`).
@@ -1617,8 +1680,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         if (_words && _raw) ...[
           // A new note's blank page (the names under its first line, the template cards under them, and the ghost
           // under those) is a block inside the editor, after line 1 ([_offersBlock]).
-          // `.body { padding-block-end: var(--app-safe-bottom) }`.
-          SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom'))),
+          // `.body { padding-block-end: var(--app-safe-bottom) }`, and the room the dock stands in where it is.
+          SliverToBoxAdapter(child: SizedBox(height: t.len('app-safe-bottom') + pageDockRoom(t, dockRings))),
           if (book != null && seams.bookFoot != null) SliverToBoxAdapter(child: seams.bookFoot!(context, book)),
           // `.page[data-scrolls] > .body { flex: 1 0 auto }`: the editor is the rest of the page, and a tap there is a tap in it.
           SliverFillRemaining(
@@ -1655,78 +1718,87 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             child: scroller,
           );
 
-    return ColoredBox(
-      color: t.color('glacier-bg'),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          TopBarFill(
-            tools: inBar ? _tools : null,
-            tail: inBar ? _more : null,
-            child: Listener(
-              onPointerDown: _pointerDown,
-              onPointerMove: _pointerMove,
-              onPointerUp: _pointerUp,
-              onPointerCancel: _pointerUp,
-              onPointerSignal: (_) => _keeper?.touched(),
-              // The note goes to smoke as it slips behind the header, and off the bottom where the dock is; not a
-              // canvas, which is not a page that scrolls off its foot.
-              // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
-              // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
-              child: _AboveKeyboard(
-                child: WispEdge(
-                  under: under,
-                  foot: !_isCanvas,
-                  // No scrollbar of a desktop's own on a note: the page's note has none (art/wisp_edge.dart).
-                  scrollbar: false,
-                  // `.screen[data-unfolding] .body`: paper folded down its middle, foreshortened, flattening as the
-                  // hinge does. Only the note moves; the header and the app's own bar are the phone's.
-                  child: ValueListenableBuilder<double?>(
-                    valueListenable: unfold.progress,
-                    child: page,
-                    builder: (context, at, child) => at == null
-                        ? KeyedSubtree(key: _unfolding, child: child!)
-                        : Transform(
-                            alignment: Alignment.center,
-                            transform: Matrix4.diagonal3Values(0.72 + 0.28 * at, 0.965 + 0.035 * at, 1),
-                            child: KeyedSubtree(key: _unfolding, child: child!),
-                          ),
-                  ),
-                ),
+    final dock = widget.dock;
+    final layers = <Widget>[
+      TopBarFill(
+        tools: inBar ? _tools : null,
+        tail: inBar ? _more : null,
+        child: Listener(
+          onPointerDown: _pointerDown,
+          onPointerMove: _pointerMove,
+          onPointerUp: _pointerUp,
+          onPointerCancel: _pointerUp,
+          onPointerSignal: (_) => _keeper?.touched(),
+          // The note goes to smoke as it slips behind the header, and off the bottom where the dock is; not a
+          // canvas, which is not a page that scrolls off its foot.
+          // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
+          // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
+          child: _AboveKeyboard(
+            child: WispEdge(
+              under: under,
+              foot: !_isCanvas,
+              // No scrollbar of a desktop's own on a note: the page's note has none (art/wisp_edge.dart).
+              scrollbar: false,
+              // `.screen[data-unfolding] .body`: paper folded down its middle, foreshortened, flattening as the
+              // hinge does. Only the note moves; the header and the app's own bar are the phone's.
+              child: ValueListenableBuilder<double?>(
+                valueListenable: unfold.progress,
+                child: page,
+                builder: (context, at, child) => at == null
+                    ? KeyedSubtree(key: _unfolding, child: child!)
+                    : Transform(
+                        alignment: Alignment.center,
+                        transform: Matrix4.diagonal3Values(0.72 + 0.28 * at, 0.965 + 0.035 * at, 1),
+                        child: KeyedSubtree(key: _unfolding, child: child!),
+                      ),
               ),
             ),
           ),
-          // The crease's shadow while the note unfolds; nothing the rest of the time (`.crease`).
-          ValueListenableBuilder<double?>(
-            valueListenable: unfold.progress,
-            builder: (context, at, _) => at == null ? const SizedBox.shrink() : IgnorePointer(child: UnfoldCrease(at: at, ink: t.color('app-ink'))),
-          ),
-          // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
-          if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
-          // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
-          HeaderPane(
-            child: inBar
-                ? null
-                : Padding(
-                    // `.header { padding-inline: gutters; padding-block: safe-top + space-1, space-2 }`
-                    padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
-                    child: LayoutBuilder(
-                      builder: (context, box) => Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
-                    ),
-                  ),
-          ),
-          // The note's one line of problems: the sentence said of the note now (`pictures.problem`), and under it
-          // in time a save refused for good.
-          if (_stopped || seams.problem != null)
-            Positioned(
-              top: headerHeight,
-              left: 0,
-              right: 0,
-              child: _ProblemLine(said: seams.problem, standing: _stopped ? saveStoppedWords : null, gutter: gutter),
-            ),
-          if (view != null && _words && seams.over != null) ...seams.over!(context, view),
-          if (_settingsOpen) _settings(context),
-        ],
+        ),
+      ),
+      // The crease's shadow while the note unfolds; nothing the rest of the time (`.crease`).
+      ValueListenableBuilder<double?>(
+        valueListenable: unfold.progress,
+        builder: (context, at, _) => at == null ? const SizedBox.shrink() : IgnorePointer(child: UnfoldCrease(at: at, ink: t.color('app-ink'))),
+      ),
+      // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
+      if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
+      // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
+      HeaderPane(
+        child: inBar
+            ? null
+            : Padding(
+                // `.header { padding-inline: gutters; padding-block: safe-top + space-1, space-2 }`
+                padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
+                child: LayoutBuilder(
+                  builder: (context, box) => Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
+                ),
+              ),
+      ),
+      // The note's one line of problems: the sentence said of the note now (`pictures.problem`), and under it
+      // in time a save refused for good.
+      if (_stopped || seams.problem != null)
+        Positioned(
+          top: headerHeight,
+          left: 0,
+          right: 0,
+          child: _ProblemLine(said: seams.problem, standing: _stopped ? saveStoppedWords : null, gutter: gutter),
+        ),
+    ];
+
+    return DockOfferScope(
+      offers: _dockOffers,
+      child: ColoredBox(
+        color: t.color('glacier-bg'),
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            // The dock over the page, under what floats over the words and under the More sheet.
+            if (dock == null) ...layers else Positioned.fill(child: _docked(dock, Stack(fit: StackFit.expand, children: layers))),
+            if (view != null && _words && seams.over != null) ...seams.over!(context, view),
+            if (_settingsOpen) _settings(context),
+          ],
+        ),
       ),
     );
   }

@@ -36,6 +36,8 @@
 ///   is no drag between widgets of that kind yet); `videos`.
 /// - The keys are the canvas's while it has the keyboard's focus, which a press on it gives it; the web listened on
 ///   the window and looked at what was focused.
+/// - **On a page with a dock** (lib/shell/page_dock.dart) the canvas offers it its own Add a card and Fit, beside the
+///   toolbar's, and its map stands to the dock's start rather than under it.
 library;
 
 import 'dart:ui' as ui show Canvas;
@@ -53,6 +55,8 @@ import '../core/images.dart';
 import '../core/link_preview.dart' show LinkOpener;
 import '../core/preferences.dart';
 import '../editor/input/felt.dart' show fireFelt;
+import '../home/home_icons.dart' show HomeGlyph;
+import '../shell/page_dock.dart';
 import '../perf/frame_log.dart';
 import '../sheet/css.dart' show pageText;
 import 'add_sheet.dart';
@@ -1005,167 +1009,175 @@ class CanvasViewState extends State<CanvasView> {
     for (final line in lined) {
       if (line.edge.id == _picked) pickedLine = line;
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // The screen's size before anything is drawn on it: the camera fits the canvas, and the cards near the
-        // screen have their words from the first frame.
-        _camera.resized(constraints.maxWidth, constraints.maxHeight);
-        _takeNear();
-        _below = _barBelow();
-        // A card that has left the canvas is kept no longer.
-        if (_cards.length > live.nodes.length) {
-          final there = {for (final node in live.nodes) node.id};
-          _cards.removeWhere((id, _) => !there.contains(id));
-        }
-        final threads = widget.threads;
-        final editedBy = widget.editedBy;
-        if (_editing != _toldEditing) {
-          final now = _toldEditing = _editing;
-          // After the frame: whoever hears it may draw again for it.
-          final tell = widget.onEditing;
-          if (tell != null) WidgetsBinding.instance.addPostFrameCallback((_) => tell(now));
-        }
-        return Focus(
-          focusNode: _focus,
-          autofocus: true,
-          onKeyEvent: _key,
-          child: Semantics(
-            container: true,
-            image: !editable,
-            label: 'A canvas of ${live.nodes.length} cards',
-            child: Listener(
-              behavior: HitTestBehavior.opaque,
-              onPointerDown: _down,
-              onPointerMove: (event) {
-                if (!_owned.contains(event.pointer)) _gestures.move(event.pointer, event.localPosition.dx, event.localPosition.dy);
-              },
-              onPointerUp: _up,
-              onPointerCancel: (event) => _up(event, cancelled: true),
-              onPointerSignal: _signal,
-              onPointerPanZoomStart: (event) => _gestures.panZoomStart(event.localPosition.dx, event.localPosition.dy),
-              onPointerPanZoomUpdate: (event) => _gestures.panZoomUpdate(event.localPan.dx, event.localPan.dy, event.scale),
-              onPointerPanZoomEnd: (_) => _gestures.panZoomEnd(),
-              child: ClipRect(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // `.canvas`: the note's ground, and the dots under the cards.
-                    ColoredBox(color: t.color('glacier-bg')),
-                    // A layer of their own: the dots are drawn again at every move of the camera, and without one
-                    // the ground, the tools and the map's frame were drawn again with them.
-                    RepaintBoundary(child: CustomPaint(painter: DotsPainter(camera: _camera, ink: t.color('app-ink')))),
-                    if (live.nodes.isEmpty)
-                      IgnorePointer(
-                        child: Center(
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              // `.emptyCanvasArt { inline-size: min(70vw, 28rem, 40dvh × ratio) }`: sized by the
-                              // screen, where the drawing alone filled the canvas's whole width (710 px wide on a
-                              // phone where the page's is 333).
-                              Ghost(scene: GhostScene.emptyCanvas, align: GhostAlign.center, maxWidth: 0.7 * t.css.vw < t.lenOf('28rem') ? 0.7 * t.css.vw : t.lenOf('28rem')),
-                              SizedBox(height: t.space(3)),
-                              Text(editable ? 'Double-tap to add a card.' : 'An empty canvas.', style: pageText(t, t.fontSize('md'), color: t.color('glacier-text-muted'))),
-                            ],
+    // The page's dock, where it has one: Add a card and Fit, as the toolbar has them.
+    return DockOffer(
+      actions: [
+        if (editable) DockAction(id: 'canvas-add', label: 'Add a card', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: () => setState(() => _adding = AddStep.what)),
+        DockAction(id: 'canvas-fit', label: 'Fit the whole canvas on the screen', tip: 'Fit to screen', icon: Lucide.maximize, onPressed: _camera.fit),
+      ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The screen's size before anything is drawn on it: the camera fits the canvas, and the cards near the
+          // screen have their words from the first frame.
+          _camera.resized(constraints.maxWidth, constraints.maxHeight);
+          _takeNear();
+          _below = _barBelow();
+          // A card that has left the canvas is kept no longer.
+          if (_cards.length > live.nodes.length) {
+            final there = {for (final node in live.nodes) node.id};
+            _cards.removeWhere((id, _) => !there.contains(id));
+          }
+          final threads = widget.threads;
+          final editedBy = widget.editedBy;
+          if (_editing != _toldEditing) {
+            final now = _toldEditing = _editing;
+            // After the frame: whoever hears it may draw again for it.
+            final tell = widget.onEditing;
+            if (tell != null) WidgetsBinding.instance.addPostFrameCallback((_) => tell(now));
+          }
+          return Focus(
+            focusNode: _focus,
+            autofocus: true,
+            onKeyEvent: _key,
+            child: Semantics(
+              container: true,
+              image: !editable,
+              label: 'A canvas of ${live.nodes.length} cards',
+              child: Listener(
+                behavior: HitTestBehavior.opaque,
+                onPointerDown: _down,
+                onPointerMove: (event) {
+                  if (!_owned.contains(event.pointer)) _gestures.move(event.pointer, event.localPosition.dx, event.localPosition.dy);
+                },
+                onPointerUp: _up,
+                onPointerCancel: (event) => _up(event, cancelled: true),
+                onPointerSignal: _signal,
+                onPointerPanZoomStart: (event) => _gestures.panZoomStart(event.localPosition.dx, event.localPosition.dy),
+                onPointerPanZoomUpdate: (event) => _gestures.panZoomUpdate(event.localPan.dx, event.localPan.dy, event.scale),
+                onPointerPanZoomEnd: (_) => _gestures.panZoomEnd(),
+                child: ClipRect(
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      // `.canvas`: the note's ground, and the dots under the cards.
+                      ColoredBox(color: t.color('glacier-bg')),
+                      // A layer of their own: the dots are drawn again at every move of the camera, and without one
+                      // the ground, the tools and the map's frame were drawn again with them.
+                      RepaintBoundary(child: CustomPaint(painter: DotsPainter(camera: _camera, ink: t.color('app-ink')))),
+                      if (live.nodes.isEmpty)
+                        IgnorePointer(
+                          child: Center(
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                // `.emptyCanvasArt { inline-size: min(70vw, 28rem, 40dvh × ratio) }`: sized by the
+                                // screen, where the drawing alone filled the canvas's whole width (710 px wide on a
+                                // phone where the page's is 333).
+                                Ghost(scene: GhostScene.emptyCanvas, align: GhostAlign.center, maxWidth: 0.7 * t.css.vw < t.lenOf('28rem') ? 0.7 * t.css.vw : t.lenOf('28rem')),
+                                SizedBox(height: t.space(3)),
+                                Text(editable ? 'Double-tap to add a card.' : 'An empty canvas.', style: pageText(t, t.fontSize('md'), color: t.color('glacier-text-muted'))),
+                              ],
+                            ),
                           ),
                         ),
-                      ),
-                    CanvasWorld(
-                      camera: _camera,
-                      children: [
-                        for (final node in live.nodes) ..._card(context, t, node, editable: editable),
-                        // Another member writing in a card: a ring in their colour and their handle on its corner,
-                        // scaled with the world as the card is (`.card[data-edited-by]`).
-                        if (editedBy != null)
-                          for (final node in live.nodes)
-                            if (editedBy(node.id) case final by?)
-                              Placed(
-                                key: ValueKey('edited ${node.id}'),
-                                at: Offset(node.x, node.y),
-                                size: Size(node.width, node.height),
-                                child: IgnorePointer(child: EditedBy(by: by, radius: t.radius('lg') + (node.isGroup ? 4 : 0), paper: t.color('app-paper'), corner: t.radius('md'), label: t.textAt(11, weight: 'medium', height: 1.3))),
-                              ),
-                        Placed(
-                          key: const ValueKey('lines'),
-                          at: Offset.zero,
-                          size: Size.zero,
-                          // A layer of their own: a pan sets the lines down again and draws none of them.
-                          child: RepaintBoundary(child: IgnorePointer(child: CustomPaint(painter: LinesPainter(lines: lined, picked: _picked, t: t)))),
-                        ),
-                        ..._rounds(context),
-                        // The picked line's words and its cross, over the line's middle, in the canvas's own pixels.
-                        if (pickedLine != null)
+                      CanvasWorld(
+                        camera: _camera,
+                        children: [
+                          for (final node in live.nodes) ..._card(context, t, node, editable: editable),
+                          // Another member writing in a card: a ring in their colour and their handle on its corner,
+                          // scaled with the world as the card is (`.card[data-edited-by]`).
+                          if (editedBy != null)
+                            for (final node in live.nodes)
+                              if (editedBy(node.id) case final by?)
+                                Placed(
+                                  key: ValueKey('edited ${node.id}'),
+                                  at: Offset(node.x, node.y),
+                                  size: Size(node.width, node.height),
+                                  child: IgnorePointer(child: EditedBy(by: by, radius: t.radius('lg') + (node.isGroup ? 4 : 0), paper: t.color('app-paper'), corner: t.radius('md'), label: t.textAt(11, weight: 'medium', height: 1.3))),
+                                ),
                           Placed(
-                            key: ValueKey('words ${pickedLine.edge.id}'),
-                            at: Offset(pickedLine.path.mid.x, pickedLine.path.mid.y),
-                            anchor: Alignment.center,
-                            child: _own(LineWords(key: ValueKey(pickedLine.edge.id), edge: pickedLine.edge, onLabel: _labelLine, onRemove: _removeLine)),
+                            key: const ValueKey('lines'),
+                            at: Offset.zero,
+                            size: Size.zero,
+                            // A layer of their own: a pan sets the lines down again and draws none of them.
+                            child: RepaintBoundary(child: IgnorePointer(child: CustomPaint(painter: LinesPainter(lines: lined, picked: _picked, t: t)))),
                           ),
-                        // The picked card's ring and handles, and its bar, over everything else in the world.
-                        if (wearing != null)
-                          ...Handles(
-                            node: wearing,
-                            camera: _camera,
-                            snap: _snap,
-                            coarse: _coarse,
-                            onPreview: _previewSize,
-                            onResize: _resizeCard,
-                            own: _own,
-                            felt: _felt,
-                          ).build(context),
-                        if (wearing != null) CardBar.place(node: wearing, below: _below, child: _barOf(context, wearing, threads)),
-                      ],
-                    ),
-                    // The toolbar: icons, floating at the bottom left; the map at the bottom right.
-                    Positioned(left: t.space(3), bottom: t.space(3), child: _tools(context)),
-                    Positioned(
-                      right: t.space(3),
-                      bottom: t.space(3),
-                      child: Minimap(canvas: live, lines: lined, camera: _camera, big: _mapBig, onBig: () => setState(() => _mapBig = true), own: _own, pictures: widget.pictures),
-                    ),
-                    if (_adding != null)
-                      AddSheet(
-                        step: _adding!,
-                        titles: widget.wiki?.titles?.call() ?? const [],
-                        aboutCard: _picking != null && !_picking!.isGroup,
-                        onClose: () => setState(() => _adding = null),
-                        onWords: () {
-                          setState(() => _adding = null);
-                          addCard(_camera.middle());
-                        },
-                        onNote: (title) {
-                          setState(() => _adding = null);
-                          addNoteCard(title);
-                        },
-                        onLink: (url) {
-                          setState(() => _adding = null);
-                          _addLinkCard(url);
-                        },
-                        onPicture: () {
-                          setState(() => _adding = null);
-                          _addPicture();
-                        },
-                        onChart: () {
-                          setState(() => _adding = null);
-                          _addStartedCard(chartCard);
-                        },
-                        onTable: () {
-                          setState(() => _adding = null);
-                          _addStartedCard(tableCard);
-                        },
-                        onGroup: () {
-                          setState(() => _adding = null);
-                          _addGroup();
-                        },
-                        onStep: (step) => setState(() => _adding = step),
+                          ..._rounds(context),
+                          // The picked line's words and its cross, over the line's middle, in the canvas's own pixels.
+                          if (pickedLine != null)
+                            Placed(
+                              key: ValueKey('words ${pickedLine.edge.id}'),
+                              at: Offset(pickedLine.path.mid.x, pickedLine.path.mid.y),
+                              anchor: Alignment.center,
+                              child: _own(LineWords(key: ValueKey(pickedLine.edge.id), edge: pickedLine.edge, onLabel: _labelLine, onRemove: _removeLine)),
+                            ),
+                          // The picked card's ring and handles, and its bar, over everything else in the world.
+                          if (wearing != null)
+                            ...Handles(
+                              node: wearing,
+                              camera: _camera,
+                              snap: _snap,
+                              coarse: _coarse,
+                              onPreview: _previewSize,
+                              onResize: _resizeCard,
+                              own: _own,
+                              felt: _felt,
+                            ).build(context),
+                          if (wearing != null) CardBar.place(node: wearing, below: _below, child: _barOf(context, wearing, threads)),
+                        ],
                       ),
-                  ],
+                      // The toolbar: icons, floating at the bottom left; the map at the bottom right.
+                      Positioned(left: t.space(3), bottom: t.space(3), child: _tools(context)),
+                      Positioned(
+                        // To the start of the page's dock, where there is one, rather than under it.
+                        right: t.space(3) + (PageDockRoom.maybeOf(context)?.end ?? 0),
+                        bottom: t.space(3),
+                        child: Minimap(canvas: live, lines: lined, camera: _camera, big: _mapBig, onBig: () => setState(() => _mapBig = true), own: _own, pictures: widget.pictures),
+                      ),
+                      if (_adding != null)
+                        AddSheet(
+                          step: _adding!,
+                          titles: widget.wiki?.titles?.call() ?? const [],
+                          aboutCard: _picking != null && !_picking!.isGroup,
+                          onClose: () => setState(() => _adding = null),
+                          onWords: () {
+                            setState(() => _adding = null);
+                            addCard(_camera.middle());
+                          },
+                          onNote: (title) {
+                            setState(() => _adding = null);
+                            addNoteCard(title);
+                          },
+                          onLink: (url) {
+                            setState(() => _adding = null);
+                            _addLinkCard(url);
+                          },
+                          onPicture: () {
+                            setState(() => _adding = null);
+                            _addPicture();
+                          },
+                          onChart: () {
+                            setState(() => _adding = null);
+                            _addStartedCard(chartCard);
+                          },
+                          onTable: () {
+                            setState(() => _adding = null);
+                            _addStartedCard(tableCard);
+                          },
+                          onGroup: () {
+                            setState(() => _adding = null);
+                            _addGroup();
+                          },
+                          onStep: (step) => setState(() => _adding = step),
+                        ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }

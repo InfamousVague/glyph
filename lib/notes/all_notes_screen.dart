@@ -26,6 +26,8 @@
 /// - The glide back to the top borrows more room than the page did (lib/core/glide_to_top.dart).
 /// - The smoke under the bar is [WispEdge], asked for with [AllNotesScreen.wisp] (the `wispEdge` preference); the
 ///   page's hook also measured the bar, where here its height is worked out from the same rules that lay it out.
+/// - **The dock** (lib/shell/page_dock.dart, [AllNotesScreen.dock]) floats at the bottom end corner as the home
+///   page's does: Claude, Search, +, Speak and Settings. The page has none; the cards' foot leaves it room.
 library;
 
 import 'dart:math' as math;
@@ -55,6 +57,7 @@ import '../home/search_hints.dart';
 import '../perf/frame_log.dart';
 import '../shell/desktop/desktop_scrollbar.dart' show desktopScrollbarWidth;
 import '../shell/header_pane.dart';
+import '../shell/page_dock.dart';
 import '../shell/wide_screen.dart' show mousePointer;
 import 'all_notes.dart';
 import 'pull_to_refresh.dart';
@@ -92,6 +95,7 @@ class AllNotesScreen extends StatefulWidget {
     this.speaks = false,
     this.wisp = true,
     this.onSaveSearch,
+    this.dock,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -146,11 +150,20 @@ class AllNotesScreen extends StatefulWidget {
   /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
   final ValueChanged<String>? onSaveSearch;
 
+  /// The dock (docs/DOCK.md); none where it is left out.
+  final PageDockSeam? dock;
+
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
 }
 
 class _AllNotesScreenState extends State<AllNotesScreen> {
+  /// The page with its dock over it, where there is one.
+  Widget _docked(Widget page) {
+    final dock = widget.dock;
+    return dock == null ? page : PageDockFrame(seam: dock, child: page);
+  }
+
   final ScrollController _scroller = ScrollController();
   final TextEditingController _field = TextEditingController();
   final FocusNode _focus = FocusNode(debugLabel: 'Search your notes');
@@ -496,7 +509,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // Another workspace, order, archive or tapes chosen: the page glides back to its top rather than jumping there.
     final room = _glide.keyed('${workspace ?? 'all'}|${_sort.id}|${_archived ? 'archive' : ''}|${_tapes ? 'tapes' : ''}', still: t.reducedMotion);
     // `padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10))`
-    final foot = t.len('app-safe-bottom') + t.space(10) + room;
+    // And at least the room the dock stands in, so the last cards scroll clear of it.
+    final dock = widget.dock;
+    final foot = math.max(t.len('app-safe-bottom') + t.space(10), dock == null ? 0.0 : t.len('app-safe-bottom') + pageDockRoom(t, dock.rings)) + room;
     final hasSpaces = spaces.list.isNotEmpty;
     final window = MediaQuery.sizeOf(context).width;
     // `padding-inline: var(--app-gutter-start) var(--app-gutter-end)`
@@ -633,7 +648,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
       child: ClipRect(
         child: Stack(
           children: [
-            Positioned.fill(child: onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: onRefresh, top: top, builder: (context, pull) => page(pull))),
+            Positioned.fill(
+              child: _docked(onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: onRefresh, top: top, builder: (context, pull) => page(pull))),
+            ),
             // The bar: the arrow home, the page's name for a screen reader, and the search taking the rest of the line.
             HeaderPane(
               child: Padding(

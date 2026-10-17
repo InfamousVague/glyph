@@ -9,12 +9,13 @@ extension _RootClaude on _GhostRootState {
     _claudeInbox.start();
   }
 
-  /// The chat with Claude, or with [agent] (an organization's AI row's Chat).
-  void _openAskClaude({String? agent}) {
+  /// The chat with Claude, or with [agent] (an organization's AI row's Chat), its field starting with [initial].
+  void _openAskClaude({String? agent, String? initial}) {
     _shell.currentState?.closeSidebar();
     _told(() {
       _askClaude = true;
       _chatAgent = agent;
+      _chatInitial = initial;
     });
   }
 
@@ -22,6 +23,17 @@ extension _RootClaude on _GhostRootState {
 
   /// Claude on the home page's dock.
   Widget _claudeDock() => ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude);
+
+  /// Claude at the head of a page's dock (docs/DOCK.md): the chat, about what the page is about where it says. The
+  /// chat holds no subject, so a note's `[[Title]]` is put in its field, ready to ask about.
+  Widget _claudeDockAbout(String Function()? subject) => ClaudeDockButton(
+        runner: _claude,
+        follow: _follow,
+        onPressed: () {
+          final about = subject?.call().trim() ?? '';
+          _openAskClaude(initial: about.isEmpty ? null : '[[$about]] ');
+        },
+      );
 
   /// The bars under the top bar: Follow's, for an AI through the connector, and the app's own Claude's.
   Widget _claudeBanner() => Column(
@@ -46,6 +58,7 @@ extension _RootClaude on _GhostRootState {
       runner: _claude,
       follow: _follow,
       agent: _chatAgent,
+      initial: _chatInitial,
       onClose: _closeAskClaude,
       onOpenNote: _openForClaude,
       onSettings: () {

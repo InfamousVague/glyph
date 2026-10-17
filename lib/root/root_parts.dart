@@ -53,7 +53,7 @@ extension _RootParts on _GhostRootState {
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
         // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
-        _part('askClaude', () => (_askClaude, _chatAgent), _askClaudePart),
+        _part('askClaude', () => (_askClaude, _chatAgent, _chatInitial), _askClaudePart),
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
@@ -244,6 +244,7 @@ extension _RootParts on _GhostRootState {
           onOrganizationSettings: _services == null ? null : _openOrganizationSettings,
           wisp: preferences.value.wispEdge,
           onSaveSearch: _organize.saveSearch,
+          dock: _notesDock(),
         ),
       ),
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
@@ -264,6 +265,7 @@ extension _RootParts on _GhostRootState {
           onNoteMenu: _menu.open,
           stored: _stored,
           clock: widget.clock,
+          dock: _notesDock(),
         ),
       ),
       sidebarBuilder: (context, shell, close) => _part(
@@ -438,8 +440,10 @@ extension _RootParts on _GhostRootState {
       clock: widget.clock,
       onAllNotes: shell.showAllNotes,
       onSearch: _search,
-      // Claude at the head of the dock: Ask Claude, and Claude at work or online (docs/CLAUDE_APP.md).
+      // Claude at the head of the dock: Ask Claude, and Claude at work or online (docs/CLAUDE_APP.md); Settings at
+      // its foot (docs/DOCK.md).
       claude: _claudeDock(),
+      onSettings: _openSettings,
       // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
       onSwipe: (note, action) {
         if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
@@ -469,6 +473,25 @@ extension _RootParts on _GhostRootState {
   static Widget _headerEdge(BuildContext context, HomeEdge edge, Widget scroller) => WispEdge(under: edge.under, foot: true, child: scroller);
 
   static Widget _dockHalo(BuildContext context, HomeDock it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding);
+
+  /// Every other page's halo: none while its dock has stepped aside for the keyboard.
+  static Widget _pageDockHalo(BuildContext context, DockPlace it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown);
+
+  /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
+  /// build records, and Settings at its foot.
+  PageDockSeam _notesDock() => PageDockSeam(
+        claude: _claudeDockAbout,
+        halo: _pageDockHalo,
+        actions: [
+          DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
+          DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _plus),
+          if (_capture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+        ],
+        foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _openSettings),
+      );
+
+  /// Claude and the halo, for a page whose dock's rings are its own: a note, an organization, Settings.
+  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeDockAbout, halo: _pageDockHalo);
 
   static Widget _homeGhost(BuildContext context, HomeGhost it) => Ghost(
         scene: switch (it.scene) {
@@ -530,6 +553,8 @@ extension _RootParts on _GhostRootState {
       onBoard: _openExample(() => boardNoteBody),
       onCanvas: _openExample(() async => sampleCanvasBody(await _samplePicture())),
       onHowCanvas: _openExample(howCanvasBody),
+      // Claude alone on Settings' dock (docs/DOCK.md).
+      dock: _pageDock(),
     );
   }
 
@@ -862,6 +887,8 @@ extension _RootParts on _GhostRootState {
           // The bar's History button: the side panel at its History tab, where the window has one; else More's page.
           onHistory: _asideHistoryOf(context, shell) == null ? null : () => _openHistoryAside(shell),
           tags: _places,
+          // Claude, about this note, at the head of its dock; the note's own rings under it (docs/DOCK.md).
+          dock: _pageDock(),
         )(context, shell, screen),
       );
   /// An organization's dashboard or its log: built again with the notes, the account and its sync, who is in its
@@ -900,6 +927,8 @@ extension _RootParts on _GhostRootState {
       onLog: () => shell.openOrganizationLog(id),
       onAccount: _toAccount,
       wisp: wisp,
+      // Claude, then the page's own New, Invite and cog (docs/DOCK.md).
+      dock: _pageDock(),
     );
   }
 

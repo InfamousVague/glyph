@@ -46,6 +46,8 @@
 /// - **Tab and the arrows in Start with**: the arrows move the choice and the focus together, as on the page; every
 ///   row can take the focus by Tab, where the page gave Tab one stop.
 /// - A `.tool`'s `2em` is of a button's own 13.33 px on the page (it has no `font: inherit`), and is here too.
+/// - **On a page with a dock** (lib/shell/page_dock.dart) the index offers it Add a page and Read straight through,
+///   its own two buttons; reading straight through, the way back to the index in Read straight through's place.
 library;
 
 import 'dart:math' as math;
@@ -82,6 +84,7 @@ import '../editor/view/column.dart';
 import '../editor/view/editor_view.dart';
 import '../editor/view/sliver.dart';
 import '../editor/view/view_mode.dart';
+import '../home/home_icons.dart' show HomeGlyph;
 import '../note/byline.dart';
 import '../note/page_head.dart';
 import '../notes/note_templates.dart';
@@ -89,6 +92,7 @@ import '../notes/ticket_mark.dart';
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
+import '../shell/page_dock.dart';
 import 'book_spot.dart';
 import 'book_spot_watch.dart';
 import 'entry_starts.dart';
@@ -1385,35 +1389,55 @@ class BookViewState extends State<BookView> {
     final numbers = numbered(chapters);
     // `.book { padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8) }`
     final padding = EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8));
-    return OnBack(
-      // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook.
-      active: _adding != null && !_reading,
-      onBack: _closeAdding,
-      child: DefaultTextStyle(
-        style: bookText(t, em),
-        // A sliver of the note's page (lib/note/note_screen.dart `seams.book`). Reading straight through, a long
-        // page's lines are a sliver of their own, so the page lays out those near its window and not the page. The
-        // index is one box.
-        child: SliverMainAxisGroup(
-          slivers: [
-            // The index stays in the tree, out of sight, while the pages are read straight through: back at it,
-            // its rows and the notebook's own words are the ones that were there, built again where they have
-            // changed and laid out where that changed them, where every row was made and laid out from nothing
-            // (tool/perf.sh, notebook-index: nineteen rows, one frame of 5 to 13 ms on a Mac and 24 on the Fold).
-            // Out of sight it is the widgets it last was: nothing of it is built for a frame of the read-through.
-            // A notebook that opens being read has no index until it is gone back to.
-            if (!_reading || _indexKept != null)
-              SliverOffstage(
-                key: const ValueKey('book-index-sliver'),
-                offstage: _reading,
-                sliver: SliverToBoxAdapter(
-                  // A layer of its own: the index is one box in the note's scroller, and without one every row of
-                  // it was drawn again at each frame of a scroll.
-                  child: _reading ? _indexKept! : (_indexKept = RepaintBoundary(child: Padding(padding: padding, child: _index(context, t, em, chapters, numbers)))),
+    // The page's dock, where it has one: the index's own Add a page and Read straight through.
+    return DockOffer(
+      actions: [
+        if (!widget.readOnly)
+          DockAction(
+            id: 'book-add-page',
+            label: 'Add a page',
+            glyph: HomeGlyph.plus,
+            motion: DockMotion.turn,
+            onPressed: () {
+              if (_reading) _setReading(false);
+              setState(() => _adding = _Adding.page);
+            },
+          ),
+        if (_reading)
+          DockAction(id: 'book-index', label: 'Back to the index', tip: 'Index', icon: Lucide.list, onPressed: () => _setReading(false))
+        else if (chapters.isNotEmpty)
+          DockAction(id: 'book-read', label: 'Read straight through', icon: Lucide.bookOpen, onPressed: () => _setReading(true)),
+      ],
+      child: OnBack(
+        // While a form is open, the back gesture (Escape on a desktop) closes it before it would leave the notebook.
+        active: _adding != null && !_reading,
+        onBack: _closeAdding,
+        child: DefaultTextStyle(
+          style: bookText(t, em),
+          // A sliver of the note's page (lib/note/note_screen.dart `seams.book`). Reading straight through, a long
+          // page's lines are a sliver of their own, so the page lays out those near its window and not the page. The
+          // index is one box.
+          child: SliverMainAxisGroup(
+            slivers: [
+              // The index stays in the tree, out of sight, while the pages are read straight through: back at it,
+              // its rows and the notebook's own words are the ones that were there, built again where they have
+              // changed and laid out where that changed them, where every row was made and laid out from nothing
+              // (tool/perf.sh, notebook-index: nineteen rows, one frame of 5 to 13 ms on a Mac and 24 on the Fold).
+              // Out of sight it is the widgets it last was: nothing of it is built for a frame of the read-through.
+              // A notebook that opens being read has no index until it is gone back to.
+              if (!_reading || _indexKept != null)
+                SliverOffstage(
+                  key: const ValueKey('book-index-sliver'),
+                  offstage: _reading,
+                  sliver: SliverToBoxAdapter(
+                    // A layer of its own: the index is one box in the note's scroller, and without one every row of
+                    // it was drawn again at each frame of a scroll.
+                    child: _reading ? _indexKept! : (_indexKept = RepaintBoundary(child: Padding(padding: padding, child: _index(context, t, em, chapters, numbers)))),
+                  ),
                 ),
-              ),
-            if (_reading) KeyedSubtree(key: const ValueKey('book-reading-sliver'), child: _readThrough(context, t, em, chapters, numbers, padding)),
-          ],
+              if (_reading) KeyedSubtree(key: const ValueKey('book-reading-sliver'), child: _readThrough(context, t, em, chapters, numbers, padding)),
+            ],
+          ),
         ),
       ),
     );
