@@ -108,6 +108,7 @@ import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
 import '../home/home_layout.dart';
+import '../home/home_icons.dart' show HomeGlyph;
 import '../home/home_screen.dart';
 import '../home/note_peek.dart' show PeekPictures;
 import '../launch/launch_screen.dart';
@@ -169,6 +170,7 @@ import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
 import '../shell/ai_chip.dart';
 import '../shell/app_shell.dart';
+import '../shell/page_dock.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart' show mobileDevice, mousePointer, splitFits;
@@ -832,9 +834,11 @@ class _GhostRootState extends State<GhostRoot> {
   /// own.
   bool _newSheet = false;
 
-  /// The chat with Claude is up (lib/root/root_claude.dart), and the agent it was opened for, if any.
+  /// The chat with Claude is up (lib/root/root_claude.dart), the agent it was opened for, if any, and the words its
+  /// field starts with: what the page whose dock opened it is about.
   bool _askClaude = false;
   String? _chatAgent;
+  String? _chatInitial;
 
   /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
   late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this));

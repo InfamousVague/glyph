@@ -27,7 +27,11 @@
 /// - `@container journal (min-width: 44rem)` is asked of the room the view is given, less its own padding.
 /// - **A spoken entry** (`makeEntry`'s `speak`) is the recorder's, a later stage: [JournalPages.newEntry] makes the
 ///   typed one. Where an entry was written (`tagEntryIfWanted`) is the shell's to ask after it, with the phone.
+/// - **On a page with a dock** (lib/shell/page_dock.dart) the journal offers it New entry, its own button: the
+///   templates open under it, brought into view.
 library;
+
+import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -40,8 +44,10 @@ import '../core/note.dart';
 import '../core/note_text.dart' show noteTitle, titleKey;
 import '../core/template.dart' show Placing, fillTemplate, openEnd;
 import '../core/untouched.dart';
+import '../home/home_icons.dart' show HomeGlyph;
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
+import '../shell/page_dock.dart';
 import 'book_view.dart';
 import 'entry_starts.dart';
 import 'journal.dart';
@@ -91,6 +97,19 @@ class _JournalViewState extends State<JournalView> {
   /// New entry pressed: the templates to start it from are showing.
   bool _choosing = false;
 
+  /// New entry's place, to bring it into view from the dock.
+  final GlobalKey _newEntry = GlobalKey(debugLabel: 'journal new entry');
+
+  /// The dock's New entry: the templates, under the journal's own New entry, in view.
+  void _choose() {
+    setState(() => _choosing = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final at = _newEntry.currentContext;
+      if (!mounted || at == null) return;
+      unawaited(Scrollable.ensureVisible(at, duration: context.tokens.reducedMotion ? Duration.zero : const Duration(milliseconds: 300), curve: Curves.easeOut));
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -105,129 +124,134 @@ class _JournalViewState extends State<JournalView> {
     final line = snapBorder(context, 1);
     final rule = t.color('glacier-border-subtle');
 
-    return DefaultTextStyle(
-      style: bookText(t, em),
-      child: Padding(
-        // `.journal { composes: book }`: `padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8)`
-        padding: EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8)),
-        child: LayoutBuilder(
-          builder: (context, box) {
-            // `@container journal (min-width: 44rem)`: the Fold opened out, a row is one line.
-            final wide = box.maxWidth >= t.lenOf('44rem');
-            return CssFlow(
-              children: [
-                if (onNewEntry != null)
-                  CssFlow.block(
-                    // `.adds { margin-block: 0 var(--glacier-space-4) }`
-                    margin: EdgeInsets.only(bottom: t.space(4)),
-                    child: Align(
-                      alignment: AlignmentDirectional.centerStart,
-                      child: BookAction(key: const ValueKey('journal-new-entry'), icon: Lucide.plus, label: 'New entry', expanded: _choosing, onPressed: () => setState(() => _choosing = !_choosing)),
-                    ),
-                  ),
-                if (onNewEntry != null && _choosing)
-                  _TemplateChoice(
-                    usual: template,
-                    journal: name,
-                    now: widget.clock?.call() ?? DateTime.now(),
-                    onPick: (text) {
-                      setState(() => _choosing = false);
-                      onNewEntry(text);
-                    },
-                    onCancel: () => setState(() => _choosing = false),
-                  ),
-                if (words.before.isNotEmpty) BookWords(words: words.before, known: widget.known, open: widget.open, drawing: widget.drawing),
-                if (months.isEmpty && unwritten.isEmpty)
-                  CssFlow.block(
-                    // `.empty { margin-block: var(--glacier-space-3); color: var(--glacier-text-muted) }`
-                    margin: EdgeInsets.symmetric(vertical: t.space(3)),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        cssLines('No entries yet.', bookText(t, em, color: muted)),
-                        // `.quiet { font-size: sm; color: var(--glacier-text-subtle) }`
-                        cssLines(templateSentence(template), bookText(t, t.fontSize('sm'), color: t.color('glacier-text-subtle'))),
-                      ],
-                    ),
-                  ),
-                for (final (n, month) in months.indexed)
-                  if (n < openMonths || _unfolded.contains(month.key))
-                    _month(t, key: ValueKey('journal-month:${month.key}'), label: month.label, rows: [for (final entry in month.entries) _entry(t, em, entry, wide: wide)], line: line, rule: rule)
-                  else
+    // The page's dock, where it has one: New entry.
+    return DockOffer(
+      actions: [if (onNewEntry != null) DockAction(id: 'journal-new-entry', label: 'New entry', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _choose)],
+      child: DefaultTextStyle(
+        style: bookText(t, em),
+        child: Padding(
+          // `.journal { composes: book }`: `padding: var(--glacier-space-4) var(--glacier-space-5) var(--glacier-space-8)`
+          padding: EdgeInsets.fromLTRB(t.space(5), t.space(4), t.space(5), t.space(8)),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              // `@container journal (min-width: 44rem)`: the Fold opened out, a row is one line.
+              final wide = box.maxWidth >= t.lenOf('44rem');
+              return CssFlow(
+                children: [
+                  if (onNewEntry != null)
                     CssFlow.block(
-                      // `.folded { margin-block-start: var(--glacier-space-2) }`, `.folded + .folded { margin-block-start: 0 }`
-                      margin: EdgeInsets.only(top: n > openMonths && !_unfolded.contains(months[n - 1].key) ? 0 : t.space(2)),
-                      child: GlacierPressable(
-                        key: ValueKey('journal-folded:${month.key}'),
-                        semanticLabel: '${month.label} · ${month.entries.length}',
-                        excludeSemantics: true,
-                        onPressed: () => setState(() => _unfolded.add(month.key)),
-                        builder: (context, state) => DecoratedBox(
-                          decoration: BoxDecoration(border: Border(top: BorderSide(color: rule, width: line))),
-                          child: Padding(
-                            // `padding: var(--glacier-space-3) var(--glacier-space-1)`, under its line.
-                            padding: EdgeInsets.fromLTRB(t.space(1), t.space(3) + line, t.space(1), t.space(3)),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Flexible(
-                                  child: cssLines('${month.label} · ${month.entries.length}', bookText(t, em, weight: 'medium', color: muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]), maxLines: 1, softWrap: false),
-                                ),
-                                lucide(Lucide.chevronRight, size: 16, color: muted),
-                              ],
+                      // `.adds { margin-block: 0 var(--glacier-space-4) }`
+                      margin: EdgeInsets.only(bottom: t.space(4)),
+                      child: Align(
+                        key: _newEntry,
+                        alignment: AlignmentDirectional.centerStart,
+                        child: BookAction(key: const ValueKey('journal-new-entry'), icon: Lucide.plus, label: 'New entry', expanded: _choosing, onPressed: () => setState(() => _choosing = !_choosing)),
+                      ),
+                    ),
+                  if (onNewEntry != null && _choosing)
+                    _TemplateChoice(
+                      usual: template,
+                      journal: name,
+                      now: widget.clock?.call() ?? DateTime.now(),
+                      onPick: (text) {
+                        setState(() => _choosing = false);
+                        onNewEntry(text);
+                      },
+                      onCancel: () => setState(() => _choosing = false),
+                    ),
+                  if (words.before.isNotEmpty) BookWords(words: words.before, known: widget.known, open: widget.open, drawing: widget.drawing),
+                  if (months.isEmpty && unwritten.isEmpty)
+                    CssFlow.block(
+                      // `.empty { margin-block: var(--glacier-space-3); color: var(--glacier-text-muted) }`
+                      margin: EdgeInsets.symmetric(vertical: t.space(3)),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          cssLines('No entries yet.', bookText(t, em, color: muted)),
+                          // `.quiet { font-size: sm; color: var(--glacier-text-subtle) }`
+                          cssLines(templateSentence(template), bookText(t, t.fontSize('sm'), color: t.color('glacier-text-subtle'))),
+                        ],
+                      ),
+                    ),
+                  for (final (n, month) in months.indexed)
+                    if (n < openMonths || _unfolded.contains(month.key))
+                      _month(t, key: ValueKey('journal-month:${month.key}'), label: month.label, rows: [for (final entry in month.entries) _entry(t, em, entry, wide: wide)], line: line, rule: rule)
+                    else
+                      CssFlow.block(
+                        // `.folded { margin-block-start: var(--glacier-space-2) }`, `.folded + .folded { margin-block-start: 0 }`
+                        margin: EdgeInsets.only(top: n > openMonths && !_unfolded.contains(months[n - 1].key) ? 0 : t.space(2)),
+                        child: GlacierPressable(
+                          key: ValueKey('journal-folded:${month.key}'),
+                          semanticLabel: '${month.label} · ${month.entries.length}',
+                          excludeSemantics: true,
+                          onPressed: () => setState(() => _unfolded.add(month.key)),
+                          builder: (context, state) => DecoratedBox(
+                            decoration: BoxDecoration(border: Border(top: BorderSide(color: rule, width: line))),
+                            child: Padding(
+                              // `padding: var(--glacier-space-3) var(--glacier-space-1)`, under its line.
+                              padding: EdgeInsets.fromLTRB(t.space(1), t.space(3) + line, t.space(1), t.space(3)),
+                              child: Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Flexible(
+                                    child: cssLines('${month.label} · ${month.entries.length}', bookText(t, em, weight: 'medium', color: muted).copyWith(fontFeatures: const <FontFeature>[FontFeature.tabularFigures()]), maxLines: 1, softWrap: false),
+                                  ),
+                                  lucide(Lucide.chevronRight, size: 16, color: muted),
+                                ],
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
-                if (unwritten.isNotEmpty)
-                  _month(
-                    t,
-                    key: const ValueKey('journal-unwritten'),
-                    label: 'Not written yet',
-                    line: line,
-                    rule: rule,
-                    rows: [
-                      for (final title in unwritten)
-                        // `.planned { display: flex; align-items: center; gap: var(--glacier-space-2) }`
-                        Row(
-                          spacing: t.space(2),
-                          children: [
-                            Expanded(
-                              child: GlacierPressable(
-                                key: ValueKey('journal-planned:$title'),
-                                semanticLabel: '$title, not written yet',
-                                excludeSemantics: true,
-                                onPressed: () => widget.open(title),
-                                builder: (context, state) => Padding(
-                                  // `.plannedTitle { padding: 0.35em 0.2em; color: muted; text-overflow: ellipsis }`
-                                  padding: EdgeInsets.symmetric(vertical: 0.35 * em, horizontal: 0.2 * em),
-                                  child: Align(alignment: AlignmentDirectional.centerStart, child: cssLines(title, bookText(t, em, color: muted), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+                  if (unwritten.isNotEmpty)
+                    _month(
+                      t,
+                      key: const ValueKey('journal-unwritten'),
+                      label: 'Not written yet',
+                      line: line,
+                      rule: rule,
+                      rows: [
+                        for (final title in unwritten)
+                          // `.planned { display: flex; align-items: center; gap: var(--glacier-space-2) }`
+                          Row(
+                            spacing: t.space(2),
+                            children: [
+                              Expanded(
+                                child: GlacierPressable(
+                                  key: ValueKey('journal-planned:$title'),
+                                  semanticLabel: '$title, not written yet',
+                                  excludeSemantics: true,
+                                  onPressed: () => widget.open(title),
+                                  builder: (context, state) => Padding(
+                                    // `.plannedTitle { padding: 0.35em 0.2em; color: muted; text-overflow: ellipsis }`
+                                    padding: EdgeInsets.symmetric(vertical: 0.35 * em, horizontal: 0.2 * em),
+                                    child: Align(alignment: AlignmentDirectional.centerStart, child: cssLines(title, bookText(t, em, color: muted), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+                                  ),
                                 ),
                               ),
-                            ),
-                            GlacierPressable(
-                              semanticLabel: 'Take $title out of the journal',
-                              excludeSemantics: true,
-                              onPressed: () => widget.onChange(withoutChapter(body, title)),
-                              // `.tool`, whose 2em is of a button's own 13.33px (rows.module.css).
-                              builder: (context, state) => Container(
-                                width: 2 * 13.3333,
-                                height: 2 * 13.3333,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(shape: BoxShape.circle, color: state.hovered ? _ink(t, 0.08) : null),
-                                child: lucide(Lucide.x, size: 16, color: state.hovered ? t.color('glacier-text') : muted),
+                              GlacierPressable(
+                                semanticLabel: 'Take $title out of the journal',
+                                excludeSemantics: true,
+                                onPressed: () => widget.onChange(withoutChapter(body, title)),
+                                // `.tool`, whose 2em is of a button's own 13.33px (rows.module.css).
+                                builder: (context, state) => Container(
+                                  width: 2 * 13.3333,
+                                  height: 2 * 13.3333,
+                                  alignment: Alignment.center,
+                                  decoration: BoxDecoration(shape: BoxShape.circle, color: state.hovered ? _ink(t, 0.08) : null),
+                                  child: lucide(Lucide.x, size: 16, color: state.hovered ? t.color('glacier-text') : muted),
+                                ),
                               ),
-                            ),
-                          ],
-                        ),
-                    ],
-                  ),
-                if (words.after.isNotEmpty) BookWords(words: words.after, known: widget.known, open: widget.open, drawing: widget.drawing),
-              ],
-            );
-          },
+                            ],
+                          ),
+                      ],
+                    ),
+                  if (words.after.isNotEmpty) BookWords(words: words.after, known: widget.known, open: widget.open, drawing: widget.drawing),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );

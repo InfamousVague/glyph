@@ -12,9 +12,13 @@
 ///
 /// What a page shows is the archive left out, as a search leaves it out, unless a smart notebook's search says
 /// `is:archived`.
+///
+/// Each page has the dock the home page has (lib/shell/page_dock.dart, [CollectionScreen.dock]): Claude, Search, +,
+/// Speak and Settings, at the bottom end corner; its foot leaves it room.
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/services.dart' show TextCapitalization, TextInputAction;
 import 'package:flutter/widgets.dart';
@@ -35,6 +39,7 @@ import '../home/home_text.dart';
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
 import '../shell/header_pane.dart';
+import '../shell/page_dock.dart';
 import '../shell/screen.dart' show CollectionKind;
 
 /// How the Tags page was last ordered, on this device.
@@ -59,6 +64,7 @@ class CollectionScreen extends StatefulWidget {
     this.onNoteMenu,
     this.stored,
     this.clock,
+    this.dock,
   });
 
   final CollectionKind kind;
@@ -84,6 +90,9 @@ class CollectionScreen extends StatefulWidget {
   final void Function(String id, Offset at)? onNoteMenu;
   final Stored? stored;
   final int Function()? clock;
+
+  /// The dock (docs/DOCK.md); none where it is left out.
+  final PageDockSeam? dock;
 
   @override
   State<CollectionScreen> createState() => _CollectionScreenState();
@@ -120,6 +129,12 @@ class _CollectionScreenState extends State<CollectionScreen> {
     if (mounted) setState(() {});
   }
 
+  /// The page with its dock over it, where there is one.
+  Widget _docked(Widget page) {
+    final dock = widget.dock;
+    return dock == null ? page : PageDockFrame(seam: dock, child: page);
+  }
+
   void _setSort(TagSort sort) {
     (widget.stored ?? stored).writeText(tagsSortKey, sort == TagSort.name ? 'name' : 'count');
     setState(() => _sort = sort);
@@ -139,7 +154,9 @@ class _CollectionScreenState extends State<CollectionScreen> {
     final hairline = t.len('glacier-hairline');
     final bar = safeTop + t.space(2) * 2 + t.space(8) + hairline * 2;
     final top = bar.roundToDouble() + t.space(4);
-    final foot = t.len('app-safe-bottom') + t.space(10);
+    final dock = widget.dock;
+    // And at least the room the dock stands in, so the last rows scroll clear of it.
+    final foot = t.len('app-safe-bottom') + (dock == null ? t.space(10) : math.max(t.space(10), pageDockRoom(t, dock.rings)));
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
     final SmartNotebook? smart = widget.kind == CollectionKind.smart ? widget.smart.byId(widget.name) : null;
@@ -169,11 +186,13 @@ class _CollectionScreenState extends State<CollectionScreen> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: CustomScrollView(
-                key: ValueKey('collection-scroll-${widget.kind.name}'),
-                slivers: [
-                  SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd, foot), sliver: SliverMainAxisGroup(slivers: slivers)),
-                ],
+              child: _docked(
+                CustomScrollView(
+                  key: ValueKey('collection-scroll-${widget.kind.name}'),
+                  slivers: [
+                    SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd, foot), sliver: SliverMainAxisGroup(slivers: slivers)),
+                  ],
+                ),
               ),
             ),
             HeaderPane(

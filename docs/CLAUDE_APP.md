@@ -14,11 +14,14 @@ The connector can only type a tool call's words once the call is whole; here a n
 
 ## What a person sees
 
-1. **Claude on the dock.** The home page's dock has Claude at its head: a ring in Claude's orange (`#d97757`, the
-   landing page's `.brand-claude`) with its mark in ivory. It turns slowly while Claude works in the app, and wears a
-   small ivory dot while an AI is online through the connector. The top bar's Claude chip is gone; its menu (what each
-   AI online is doing, Follow, Open) is in the chat.
-2. **The chat.** A tap on the dock, the command bar's Ask Claude, the bar's Reply, or Chat on an AI's row of an
+1. **Claude on the dock.** Every page's dock has Claude at its head (docs/DOCK.md, since 2026-10-17; the home page's
+   alone before): a ring in Claude's orange (`#d97757`, the landing page's `.brand-claude`) with its mark in ivory. It
+   turns slowly while Claude works in the app, and wears a small ivory dot while an AI is online through the
+   connector. The top bar's Claude chip is gone; its menu (what each AI online is doing, Follow, Open) is in the chat.
+   On a note (a canvas, a notebook and a journal too) it opens the chat with the note's `[[Title]] ` in the field,
+   ready to ask about it, since the chat holds no subject of its own; elsewhere with the field empty. The rest of each
+   page's dock, and Settings or the note's ⋯ at its foot, are docs/DOCK.md's.
+2. **The chat.** A tap on a dock, the command bar's Ask Claude, the bar's Reply, or Chat on an AI's row of an
    organization's page opens a chat: over the whole window on a phone, a panel down the right on a wide one, closed by
    its back arrow or the back gesture. The person's words on the right, Claude's on the left as they arrive, each tool
    as a quiet line that opens its note, the field over the keyboard, Send (Stop while Claude works), New chat.
@@ -103,7 +106,7 @@ observer of the person's presses and keys.
 | The chat, the bar, the dock's Claude, the mark | lib/claude/claude_chat.dart, claude_bar.dart, claude_dock.dart, claude_mark.dart |
 | The key's page | lib/settings/panes/claude_key_pane.dart, lib/settings/settings_sections.dart (`ask-claude`) |
 | The library and the screen as Claude reaches them, the chat's part, the inbox's note | lib/root/root_claude.dart, ghost_root.dart, root_parts.dart |
-| The dock's slot | lib/home/home_screen.dart (`HomeScreen.claude`) |
+| The dock's slot | lib/home/home_screen.dart (`HomeScreen.claude`); every other page's, lib/shell/page_dock.dart (docs/DOCK.md) |
 | Chat on an AI's row | lib/orgs/ui/organization_screen.dart (`onChat`) |
 | Where a connector AI last typed, for Follow | lib/live/follow.dart |
 | Ask Claude in the command bar | lib/commands/palette.dart, app_commands.dart |

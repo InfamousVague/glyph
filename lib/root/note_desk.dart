@@ -1439,6 +1439,28 @@ class NoteDeskState extends State<NoteDesk> {
     _plus.recheck(view);
   }
 
+  /// The dock's Add (docs/DOCK.md): the +'s list for the caret's line, as a press on the + opens it, placed against
+  /// the caret, which is brought into view first. Nothing where the + is not allowed now: find up, a run writing, the
+  /// note read only.
+  void _openAdd(EditorView view) {
+    if (!mounted || _leaving || !_plusAllowed()) return;
+    _band.close();
+    final head = view.state.selection.main.head;
+    view.dispatch(const TransactionSpec(scrollIntoView: true));
+    _plus.hooks.onOpen(
+      PlusOpening(
+        rect: () {
+          final at = head < view.state.doc.length ? head : view.state.doc.length;
+          final coords = view.coordsAtPos(at);
+          if (coords == null) return null;
+          return Rect.fromLTWH(coords.left, coords.top, 0, coords.height < 1 ? 1 : coords.height);
+        },
+        line: view.state.doc.lineAt(head).number,
+        by: PlusBy.pointer,
+      ),
+    );
+  }
+
   void _closeFind() {
     if (_finding == null || !mounted) return;
     setState(() => _finding = null);
@@ -1889,6 +1911,8 @@ class NoteDeskState extends State<NoteDesk> {
       // The run that is on wears a dot on its row.
       aiRunning: ai == null ? null : () => ai.runningKind?.id,
       onFind: _openFind,
+      // The dock's Add: the +'s list for the caret's line.
+      onAdd: _openAdd,
       // Comment in the bar and in More, and More's "3 comments, 1 open" with their list.
       onComment: (view) => _comments.start(),
       commentsSummary: _comments.summary,

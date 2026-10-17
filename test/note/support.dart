@@ -17,6 +17,7 @@ import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/note/note_settings.dart';
 import 'package:ghost_md/sheet/kit.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/page_dock.dart' show PageDockSeam;
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/shell/top_bar.dart';
 
@@ -78,7 +79,7 @@ NoteSeams measuredSeams(List<String> asked) => NoteSeams(
     );
 
 /// A note's screen as the app draws it: [note] open in its tab in the app's shell on a window of [size], or, with
-/// [bar] false, the screen alone with no bar over it.
+/// [bar] false, the screen alone with no bar over it. [dock] gives it the dock (lib/shell/page_dock.dart).
 Future<NoteScreenState> pumpNote(
   WidgetTester tester,
   NoteWorld world,
@@ -97,6 +98,7 @@ Future<NoteScreenState> pumpNote(
   Set<String> taken = const {},
   DateTime Function()? clock,
   Duration settle = const Duration(milliseconds: 500),
+  PageDockSeam? dock,
 }) async {
   final sheet = await appSheet(tester);
   Widget screen(Note open, {String? at, Caret? caret}) => NoteScreen(
@@ -121,6 +123,7 @@ Future<NoteScreenState> pumpNote(
         seams: seams ?? const NoteSeams(),
         say: (message) => world.asked.add('say $message'),
         lifecycle: false,
+        dock: dock,
       );
   await pumpApp(
     tester,

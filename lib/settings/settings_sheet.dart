@@ -5,6 +5,7 @@ import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
 import '../perf/frame_log.dart';
+import '../shell/page_dock.dart' show PageDockSeam;
 import 'kit/settings_icons.dart';
 import 'panes/settings_host.dart';
 import 'settings_screen.dart';
@@ -62,6 +63,7 @@ class SettingsSheet extends StatefulWidget {
     this.onAcademy,
     this.onOrganization,
     this.onOpenLink,
+    this.dock,
   });
 
   final bool open;
@@ -120,6 +122,9 @@ class SettingsSheet extends StatefulWidget {
 
   /// Opens a link outside the app.
   final void Function(String url)? onOpenLink;
+
+  /// Claude and the halo for Settings' dock (docs/DOCK.md); none where it is left out.
+  final PageDockSeam? dock;
 
   @override
   State<SettingsSheet> createState() => _SettingsSheetState();
@@ -236,7 +241,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   parent: spec.parent,
                 ),
           ];
-          return SettingsScreen(open: widget.open, onClose: widget.onClose, sections: sections, goTo: _goTo, split: widget.split);
+          return SettingsScreen(open: widget.open, onClose: widget.onClose, sections: sections, goTo: _goTo, split: widget.split, dock: widget.dock);
         },
       ),
     );

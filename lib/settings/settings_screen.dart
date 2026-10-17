@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' show ImageFilter, SemanticsRole;
 
 import 'package:flutter/foundation.dart';
@@ -12,6 +13,7 @@ import '../core/back.dart';
 import '../perf/frame_log.dart';
 import '../shell/desktop/mac_drag_strip.dart';
 import '../shell/desktop/mac_lights.dart' show titlebarOverlay;
+import '../shell/page_dock.dart';
 import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
@@ -152,6 +154,8 @@ enum _SwipeMark { none, through }
 /// - [split] lets the shell say the shape itself; left out, it is the sidebar's line asked of this window.
 /// - The Mac's title bar rule (`data-titlebar='overlay'`) is [SettingsScreenState._head]'s: the head starts under
 ///   the window's buttons, and their row drags the window (lib/shell/desktop/mac_drag_strip.dart).
+/// - Given [dock], the dock every page has (lib/shell/page_dock.dart) floats at its bottom end corner with Claude
+///   alone in it, its chat opened over Settings; the pages' foot leaves it room.
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({
     super.key,
@@ -163,6 +167,7 @@ class SettingsScreen extends StatefulWidget {
     this.search = true,
     this.closeWord,
     this.split,
+    this.dock,
   });
 
   final bool open;
@@ -184,6 +189,9 @@ class SettingsScreen extends StatefulWidget {
 
   /// Whether to draw the split view; null asks the window ([settingsSplitFits]).
   final bool? split;
+
+  /// Claude and the halo for the dock (docs/DOCK.md); no dock where it is left out.
+  final PageDockSeam? dock;
 
   @override
   State<SettingsScreen> createState() => SettingsScreenState();
@@ -721,7 +729,9 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
     final searchable = widget.search;
     final hits = searchSettings(sections, _query);
     final looking = searchable && _query.trim().isNotEmpty;
-    final bottom = t.lenOf('calc(var(--app-safe-bottom) + var(--glacier-space-16))');
+    final dock = widget.dock;
+    // And at least the room the dock stands in, Claude alone, so a page's last rows scroll clear of it.
+    final bottom = math.max(t.lenOf('calc(var(--app-safe-bottom) + var(--glacier-space-16))'), dock == null ? 0.0 : t.len('app-safe-bottom') + pageDockRoom(t, dock.claude != null ? 1 : 0));
     final gutter = EdgeInsets.only(left: t.len('app-gutter-start'), right: t.len('app-gutter-end'));
 
     // The way out, over the list and over the split view: the screen's name with the arrow, leaving for the notes,
@@ -836,10 +846,14 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
           style: _body(t),
           // The page ends where the keyboard begins, as the web page's window does when the keyboard comes up, so
           // what the search finds can be scrolled clear of it.
-          child: Padding(
-            padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
-          ),
+          child: () {
+            final Widget page = Padding(
+              padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: body),
+            );
+            // Claude alone: the chat it opens comes up over Settings.
+            return dock == null ? page : PageDockFrame(seam: dock, actions: const <DockAction>[], label: '${widget.title} actions', child: page);
+          }(),
         ),
       ),
     );

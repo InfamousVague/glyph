@@ -6,7 +6,8 @@
 /// the filters - All, Notebooks, Notes, Pinned, and the workspace - with a chip under the search for each one on
 /// (`home_filters.dart`). Then the notebooks and the notes in the layout chosen in Settings: the sections
 /// `home_layout.dart` `homePlan` lays out, each drawn as cards, rows or lines. At the foot, the way to All notes; and
-/// floating at the bottom right, the dock: Search, +, and Speak nearest the thumb.
+/// floating at the bottom right, the dock (lib/shell/page_dock.dart, the same on every page): Claude, Search, +, Speak,
+/// and Settings at its foot.
 ///
 /// The page sits under the app's tab bar, which is not drawn here: it pads by `--app-safe-top` (the notch and the
 /// bar), `--app-safe-bottom` and the gutters, and puts up only the glass pane the bar sits on (app.css
@@ -46,7 +47,6 @@
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/rendering.dart';
@@ -66,7 +66,9 @@ import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
+import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
+import '../shell/page_dock.dart';
 import 'home_events.dart';
 import 'home_filters.dart';
 import 'home_icons.dart';
@@ -78,7 +80,6 @@ import 'home_rows.dart';
 import 'home_text.dart';
 import 'lazy_page.dart';
 import 'note_card.dart';
-import '../app/plain.dart';
 
 /// Which ghost an empty page asks for (`<Ghost scene=...>`): a library with nothing in it, a workspace with nothing
 /// in it, or a search or filter that found nothing.
@@ -110,7 +111,7 @@ class HomeDock {
   /// What scrolls behind the dock: the page's scroller, the whole of the screen's box.
   final Widget behind;
 
-  /// The dock itself: Search, +, and Speak.
+  /// The dock itself: Claude, Search, +, Speak and Settings.
   final Widget dock;
 
   /// Where the dock stands in the screen's box: its bottom end corner, in from the edges by [padding].
@@ -163,6 +164,7 @@ class HomeScreen extends StatefulWidget {
     required this.onNew,
     this.onCapture,
     this.onSearch,
+    this.onSettings,
     required this.onAllNotes,
     this.onSwipe,
     this.onRefresh,
@@ -209,6 +211,9 @@ class HomeScreen extends StatefulWidget {
 
   /// The command palette; absent, and the dock has no Search.
   final VoidCallback? onSearch;
+
+  /// The app's Settings, at the dock's foot (docs/DOCK.md); absent, the dock has none.
+  final VoidCallback? onSettings;
 
   /// Claude at the head of the dock (lib/claude/claude_dock.dart): Ask Claude, and Claude at work or online. It
   /// hears what it shows for itself; absent, the dock has no Claude.
@@ -334,6 +339,7 @@ class _Drawn {
     required this.sideKey,
     required this.keyboard,
     required this.seams,
+    this.cover = 0,
   });
 
   final _Read read;
@@ -354,6 +360,10 @@ class _Drawn {
   /// drawn, and a seam left out is a page drawn without it.
   final int seams;
 
+  /// How much of the window's end the chat with Claude covers (lib/shell/page_dock.dart `windowEndCover`): the dock
+  /// stands out to its start.
+  final double cover;
+
   bool same(_Drawn other) =>
       identical(read, other.read) &&
       identical(tokens, other.tokens) &&
@@ -364,7 +374,8 @@ class _Drawn {
       (identical(orgNews, other.orgNews) || listEquals(orgNews, other.orgNews)) &&
       sideKey == other.sideKey &&
       keyboard == other.keyboard &&
-      seams == other.seams;
+      seams == other.seams &&
+      cover == other.cover;
 }
 
 class _HomeScreenState extends State<HomeScreen> {
@@ -409,6 +420,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     widget.workspaces.addListener(_redraw);
+    windowEndCover.addListener(_redraw);
     if (widget.gists == null) _runner = Gists()..addListener(_gistsSpoke);
   }
 
@@ -424,6 +436,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     widget.workspaces.removeListener(_redraw);
+    windowEndCover.removeListener(_redraw);
     _runner
       ?..removeListener(_gistsSpoke)
       ..dispose();
@@ -463,6 +476,7 @@ class _HomeScreenState extends State<HomeScreen> {
   void _new() => widget.onNew();
   void _capture() => widget.onCapture?.call();
   void _search() => widget.onSearch?.call();
+  void _settings() => widget.onSettings?.call();
   void _allNotes() => widget.onAllNotes();
   Future<void> _refresh() async => widget.onRefresh?.call();
   void _manage(Workspace? which) => widget.onManageWorkspace?.call(which);
@@ -569,7 +583,9 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.onNewOrganization != null ? 128 : 0) |
           (widget.headerEdge != null ? 256 : 0) |
           (widget.dockHalo != null ? 512 : 0) |
-          (widget.ghost != null ? 1024 : 0),
+          (widget.ghost != null ? 1024 : 0) |
+          (widget.onSettings != null ? 2048 : 0),
+      cover: windowEndCover.value,
     );
     // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
     // and nothing else of it is built for them.
@@ -621,7 +637,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final top = under + t.space(1) + t.space(2) + t.space(6);
     // Room at the foot for the dock's column to stand clear of the last lines.
     final safeBottom = drawn.keyboard ? 0.0 : t.len('app-safe-bottom');
-    final foot = safeBottom + t.space(4) + ring * 4 + t.space(2) * 5 + t.space(6);
+    // Four rings as it was, and the fifth, Settings, where it is given.
+    final rings = widget.onSettings != null ? 5 : 4;
+    final foot = safeBottom + t.space(4) + ring * rings + t.space(2) * (rings + 1) + t.space(6);
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
     final swipes = widget.onSwipe != null;
@@ -935,12 +953,26 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // One scroller for the whole page, under the top bar.
     final behind = widget.onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: _refresh, top: top, builder: (context, pull) => page(pull));
-    // The dock: a floating column in the bottom right, the palette, write, then Speak nearest the thumb.
+    // The dock: a floating column in the bottom right, Claude, the palette, write, Speak, and Settings at its foot.
     final dock = HomeDock(
       behind: behind,
-      dock: _Dock(onNew: _new, onCapture: widget.onCapture == null ? null : _capture, onSearch: widget.onSearch == null ? null : _search, claude: widget.claude),
+      dock: PageDock(
+        // What the home page's dock has always been called to a screen reader.
+        label: 'New note',
+        claude: widget.claude,
+        actions: [
+          // The magnifier leans in when pressed, rather than turning.
+          if (widget.onSearch != null) DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
+          // A new note: the + gives a quarter turn when pressed.
+          DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _new),
+          // Speak is the screen's one ink pill: the thing Ghost.md is for, where the thumb already is.
+          if (widget.onCapture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
+        ],
+        foot: widget.onSettings == null ? null : DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _settings),
+      ),
       alignment: AlignmentDirectional.bottomEnd,
-      padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4), bottom: safeBottom + t.space(4)),
+      // Out to the start of the chat down the right of a wide window, where it is up.
+      padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4) + drawn.cover, bottom: safeBottom + t.space(4)),
     );
     return _screen(t, widget.dockHalo, dock);
   }
@@ -1320,131 +1352,6 @@ class _AllNotes extends StatelessWidget {
             ),
           );
         },
-      ),
-    );
-  }
-}
-
-/// `.dock`: write, Speak and the palette as a floating column locked to the bottom right, on every screen. Search on
-/// top, write in the middle, Speak last, nearest the thumb, still the one ink-filled thing, as a circle the size of
-/// the other two so the column is one width.
-class _Dock extends StatelessWidget {
-  const _Dock({required this.onNew, required this.onCapture, required this.onSearch, this.claude});
-
-  final VoidCallback onNew;
-  final VoidCallback? onCapture;
-  final VoidCallback? onSearch;
-
-  /// Claude, a ring of its own over Search (lib/claude/claude_dock.dart).
-  final Widget? claude;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final gap = t.space(2);
-    final ring = t.len('app-ring');
-    final radius = BorderRadius.circular(t.radius('full'));
-    final turn = t.transition('app-turn');
-    // The glyphs are `1.15rem`, the size `.round` sets.
-    final glyph = t.lenOf('1.15rem');
-    return Semantics(
-      container: true,
-      label: 'New note',
-      // Each button its own, however few there are: one alone would otherwise be read as the dock itself.
-      explicitChildNodes: true,
-      child: ClipRRect(
-        borderRadius: radius,
-        // One of the bars' group where there is one (lib/notes/tabs/bar_parts.dart `BarGlass`).
-        child: BackdropFilter.grouped(enabled: !ghostPlain, 
-          filter: ui.ImageFilter.blur(sigmaX: 14, sigmaY: 14),
-          child: Container(
-            padding: EdgeInsets.all(gap + t.len('glacier-hairline')),
-            foregroundDecoration: BoxDecoration(border: Border.all(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')), borderRadius: radius),
-            decoration: BoxDecoration(color: t.colorOf(ghostPlain ? 'color-mix(in srgb, var(--glacier-bg) 94%, transparent)' : 'color-mix(in srgb, var(--glacier-bg) 82%, transparent)'), borderRadius: radius),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (claude != null) ...[
-                  claude!,
-                  SizedBox(height: gap),
-                ],
-                if (onSearch != null) ...[
-                  // The magnifier leans in when pressed, rather than turning.
-                  _Round(
-                    key: const ValueKey('dock-search'),
-                    label: 'Search and commands',
-                    onPressed: onSearch!,
-                    builder: (pressed) => AnimatedScale(scale: pressed ? 0.9 : 1, duration: turn.duration, curve: turn.curve, child: HomeIcon(HomeGlyph.magnifier, size: glyph, color: t.color('glacier-text'))),
-                  ),
-                  SizedBox(height: gap),
-                ],
-                // A new note: the + gives a quarter turn when pressed.
-                _Round(
-                  key: const ValueKey('dock-add'),
-                  label: 'Write a note',
-                  onPressed: onNew,
-                  builder: (pressed) => AnimatedRotation(turns: pressed ? 0.25 : 0, duration: turn.duration, curve: turn.curve, child: HomeIcon(HomeGlyph.plus, size: glyph, color: t.color('glacier-text'))),
-                ),
-                if (onCapture != null) ...[
-                  SizedBox(height: gap),
-                  // Speak is the screen's one ink pill: the thing Ghost.md is for, where the thumb already is.
-                  GlacierPressable(
-                    key: const ValueKey('dock-speak'),
-                    onPressed: onCapture,
-                    semanticLabel: 'Speak a voice note',
-                    builder: (context, state) => GlacierFocusRing(
-                      visible: state.focused,
-                      offset: 3,
-                      color: t.color('app-ink'),
-                      child: AnimatedScale(
-                        scale: state.pressed ? 0.98 : 1,
-                        duration: t.duration('glacier-duration-fast'),
-                        curve: t.curve('glacier-ease-out'),
-                        child: Container(
-                          width: ring,
-                          height: ring,
-                          alignment: Alignment.center,
-                          decoration: BoxDecoration(color: t.color('app-ink'), shape: BoxShape.circle),
-                          child: HomeIcon(HomeGlyph.mic, size: 18, strokeWidth: 2.2, color: t.color('app-paper')),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// `.round`: an icon in a ring the height of the Speak pill, there but a step quieter than the one filled thing on
-/// the screen. Each gives a small move when pressed.
-class _Round extends StatelessWidget {
-  const _Round({super.key, required this.label, required this.onPressed, required this.builder});
-
-  final String label;
-  final VoidCallback onPressed;
-  final Widget Function(bool pressed) builder;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final ring = t.len('app-ring');
-    return GlacierPressable(
-      onPressed: onPressed,
-      semanticLabel: label,
-      builder: (context, state) => GlacierFocusRing(
-        visible: state.focused,
-        child: Container(
-          width: ring,
-          height: ring,
-          alignment: Alignment.center,
-          decoration: BoxDecoration(color: t.color('glacier-bg'), shape: BoxShape.circle, border: Border.all(color: t.color('glacier-border-strong'), width: t.len('app-line'))),
-          child: builder(state.pressed),
-        ),
       ),
     );
   }
