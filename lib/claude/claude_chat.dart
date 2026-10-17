@@ -18,8 +18,14 @@
 ///
 /// When Claude starts writing in a note, the root puts the chat away and opens the note (lib/root/root_claude.dart),
 /// and the bar over it carries on from here.
+///
+/// Opened from a page's dock (lib/shell/page_dock.dart), the page says what it is about: a note's `[[Title]]` is put
+/// in the field ready to ask about ([ClaudeChat.initial]); the chat holds no subject of its own. Down the right of a
+/// wide window it says how much of the window's end it covers ([windowEndCover]), so the page's dock stands clear of
+/// it.
 library;
 
+import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import 'package:flutter/services.dart' show TextInputAction;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -30,10 +36,14 @@ import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline;
 import '../sheet/css.dart';
 import '../sheet/kit.dart' show SheetField;
+import '../shell/page_dock.dart' show windowEndCover;
 import 'claude_mark.dart';
 import 'claude_run.dart';
 import 'claude_runner.dart';
 import 'claude_settings.dart';
+
+/// The chat's width as a panel down the right of a wide window.
+const double claudeChatPanelWidth = 420;
 
 class ClaudeChat extends StatefulWidget {
   const ClaudeChat({
@@ -68,7 +78,8 @@ class ClaudeChat extends StatefulWidget {
   /// Without a key: a request written into the "Ask Claude" note, for the connector's agents.
   final Future<void> Function(String request)? onInbox;
 
-  /// Words the field starts with.
+  /// Words the field starts with: what the page it was opened from is about. Another given while the chat is up
+  /// (a wide window's dock pressed on another note) takes the field's place, where nothing has been written in it.
   final String? initial;
 
   @override
@@ -96,7 +107,27 @@ class _ClaudeChatState extends State<ClaudeChat> {
   }
 
   @override
+  void didUpdateWidget(ClaudeChat old) {
+    super.didUpdateWidget(old);
+    final initial = widget.initial;
+    if (initial != null && initial != old.initial && (_field.text.trim().isEmpty || _field.text == old.initial)) _field.text = initial;
+  }
+
+  /// How much of the window's end the chat covers, as it was last said.
+  double _covers = 0;
+
+  void _cover(double width) {
+    if (width == _covers) return;
+    _covers = width;
+    // After the frame: the docks that hear it are being built in it.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _covers == width) windowEndCover.value = width;
+    });
+  }
+
+  @override
   void dispose() {
+    if (_covers > 0) SchedulerBinding.instance.addPostFrameCallback((_) => windowEndCover.value = 0);
     _stopBack?.call();
     _field.dispose();
     _focus.dispose();
@@ -163,8 +194,10 @@ class _ClaudeChatState extends State<ClaudeChat> {
         ),
       ),
     );
+    // Over the whole window on a phone: nothing of the page is in reach then, and nothing moves for it.
+    _cover(wide ? claudeChatPanelWidth : 0);
     if (!wide) return panel;
-    return Align(alignment: Alignment.centerRight, child: SizedBox(width: 420, height: double.infinity, child: panel));
+    return Align(alignment: Alignment.centerRight, child: SizedBox(width: claudeChatPanelWidth, height: double.infinity, child: panel));
   }
 }
 

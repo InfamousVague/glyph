@@ -346,14 +346,16 @@ class _DockHaloState extends State<DockHalo> {
 
 /// A dock floating over what scrolls behind it, with the wisp round it: [behind] fills the box, [dock] is laid
 /// over it at [alignment] inside [padding], and the halo is drawn round wherever that puts it. The home page's
-/// dock, with its scroller.
+/// dock, with its scroller; and every page's (lib/shell/page_dock.dart), with the page. While [shown] is false (the
+/// dock stepped aside for the keyboard) there is no halo, and [behind] is drawn as it is.
 class DockSmoke extends StatefulWidget {
-  const DockSmoke({super.key, required this.behind, required this.dock, this.alignment = Alignment.bottomCenter, this.padding = EdgeInsets.zero});
+  const DockSmoke({super.key, required this.behind, required this.dock, this.alignment = Alignment.bottomCenter, this.padding = EdgeInsets.zero, this.shown = true});
 
   final Widget behind;
   final Widget dock;
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry padding;
+  final bool shown;
 
   @override
   State<DockSmoke> createState() => _DockSmokeState();
@@ -382,7 +384,7 @@ class _DockSmokeState extends State<DockSmoke> {
     return Stack(
       fit: StackFit.expand,
       children: [
-        DockHalo(dock: _rect, child: widget.behind),
+        DockHalo(dock: widget.shown ? _rect : null, child: widget.behind),
         Padding(
           padding: widget.padding,
           child: Align(
