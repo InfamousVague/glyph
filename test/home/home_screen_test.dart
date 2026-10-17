@@ -944,6 +944,31 @@ void main() {
       await away(tester);
     });
 
+    // docs/CLAUDE_LIVE.md: "Claude is editing Roadmap" on the home page, as the AI it is.
+    testWidgets('say an AI on a note as an AI, with its spark and what it is doing, and open the note', (tester) async {
+      final it = seeded();
+      it.workspaces.ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+      it.workspaces.fileNote('weekend', 'org-acme');
+      it.workspaces.chooseWorkspace('org-acme');
+      const withClaude = [
+        HomeOrg(id: 'acme', name: 'Acme', hue: 'violet', members: 3, here: [
+          OrgPresence(client: 'c9', handle: 'Claude', hue: 'violet', ai: true, via: 'ana', editingNote: 'weekend', editingTitle: 'Weekend trip', doing: 'editing'),
+          OrgPresence(client: 'c8', handle: 'Cursor', ai: true, via: 'ana', editingNote: 'weekend', editingTitle: 'Weekend trip', doing: 'reading'),
+          OrgPresence(client: 'c1', handle: 'ana', editingNote: 'weekend', editingTitle: 'Weekend trip'),
+        ]),
+      ];
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: withClaude));
+      await settle(tester);
+      expect(find.text('Claude is editing Weekend trip'), findsOneWidget);
+      expect(find.text('Cursor is reading Weekend trip'), findsOneWidget);
+      expect(find.text('ana is editing Weekend trip'), findsOneWidget);
+      // The AIs wear the spark, the person a dot.
+      expect(find.byKey(const ValueKey('event-ai')), findsNWidgets(2));
+      await tester.tap(find.text('Claude is editing Weekend trip'));
+      expect(it.asked.said, ['open weekend']);
+      await away(tester);
+    });
+
     testWidgets('are not drawn for an account in none', (tester) async {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, organizations: const []));

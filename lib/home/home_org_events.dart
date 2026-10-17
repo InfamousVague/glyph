@@ -8,12 +8,17 @@
 /// (`core/live/presence.ts`, `core/notifications/feed.ts`), which are stage 7; here they are handed in, the news as
 /// [OrgNews] already said in words. A piece of news wears its kind's colour as a dot, where the web draws the kind's
 /// own mark (`notes/orgNews.tsx`).
+///
+/// An AI on a note (docs/CLAUDE_LIVE.md, "Claude online") is said as one: "Claude is editing Roadmap", or reading
+/// it, with the AI's spark where a person has their colour's dot.
 library;
 
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app/widgets.dart';
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/workspaces.dart';
@@ -82,10 +87,11 @@ class HomeOrgEvents extends StatelessWidget {
           _Line(
             key: 'live-${each.client}',
             at: 0,
-            words: '${each.handle} is editing ${each.editingTitle == null || each.editingTitle!.isEmpty ? 'a note' : each.editingTitle}',
+            words: '${each.handle} is ${each.ai ? each.doing ?? 'editing' : 'editing'} ${each.editingTitle == null || each.editingTitle!.isEmpty ? 'a note' : each.editingTitle}',
             note: each.editingNote,
             live: true,
             dot: each.hue ?? 'ink',
+            ai: each.ai,
           ),
     ];
     final rest = <_Line>[
@@ -132,7 +138,14 @@ class HomeOrgEvents extends StatelessWidget {
                       SizedBox(
                         width: t.lenOf('1.1rem'),
                         child: Center(
-                          child: line.dot != null
+                          child: line.ai
+                              ? GlacierScope(
+                                  attrs: {'hue': line.dot ?? 'ink'},
+                                  child: Builder(
+                                    builder: (context) => AppIcon(Lucide.sparkles, key: const ValueKey('event-ai'), size: 13, color: context.tokens.colorOf('var(--app-space, var(--app-ink))'), semanticLabel: 'AI'),
+                                  ),
+                                )
+                              : line.dot != null
                               ? GlacierScope(
                                   attrs: {'hue': line.dot!},
                                   child: Builder(
@@ -182,7 +195,7 @@ class HomeOrgEvents extends StatelessWidget {
 }
 
 class _Line {
-  const _Line({required this.key, required this.at, required this.words, this.note, this.live = false, this.dot});
+  const _Line({required this.key, required this.at, required this.words, this.note, this.live = false, this.dot, this.ai = false});
   final String key;
   final int at;
   final String words;
@@ -191,4 +204,7 @@ class _Line {
 
   /// A hue for a dot in place of the page's mark: who is editing, or a piece of news in its kind's colour.
   final String? dot;
+
+  /// An AI on the note: its spark in place of the dot.
+  final bool ai;
 }

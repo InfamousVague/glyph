@@ -41,6 +41,10 @@ typedef ShellScreenBuilder<S extends Screen> = Widget Function(BuildContext cont
 /// Builds something that is over the screen until [close] is called: the notifications, the notes' card.
 typedef ShellOverlayBuilder = Widget Function(BuildContext context, AppShellState shell, VoidCallback close);
 
+/// Something the bar draws that hears for itself what it shows ([AppShell.barChip]): built again when [changes]
+/// says so, and drawn only while [build] answers a widget.
+typedef ShellBarChip = ({Listenable changes, Widget? Function(BuildContext context) build});
+
 /// Builds the aside for the screen that is up, or answers null where there is nothing for it to hold - no book, no
 /// run of chapters, no note's history - in which case there is no aside and no toggle for it.
 typedef ShellAsideBuilder = Widget? Function(BuildContext context, AppShellState shell);
@@ -125,6 +129,8 @@ class AppShell extends StatefulWidget {
     this.onRefresh,
     this.untouchedEntryOf,
     this.liveTitles,
+    this.barChip,
+    this.banner,
     this.backStack,
     this.leavesAtRoot = false,
     this.mobile,
@@ -227,6 +233,13 @@ class AppShell extends StatefulWidget {
   final String? Function(String id)? untouchedEntryOf;
 
   final LiveTitles? liveTitles;
+
+  /// The Claude chip in the bar, before the people icon, while an AI is online (lib/shell/ai_chip.dart).
+  final ShellBarChip? barChip;
+
+  /// A slim bar under the top bar, over the screen: Follow's "Following Claude · Stop" (lib/shell/ai_chip.dart
+  /// `FollowBar`), which draws nothing while nobody is followed.
+  final Widget? banner;
 
   /// The back stack; the app's own unless a test brings one.
   final BackStack? backStack;
@@ -675,6 +688,13 @@ class AppShellState extends State<AppShell> {
                       // the note again in another part of the tree.
                       _panes(context, split: split, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
                     if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
+                    if (widget.banner case final banner?)
+                      Positioned(
+                        top: tabBar ? (split ? 0 : context.tokens.len('app-inset-top')) + AppTabBar.heightOf(context.tokens) : context.tokens.len('app-inset-top'),
+                        left: 0,
+                        right: 0,
+                        child: banner,
+                      ),
                     // The notifications, a card at the right under the bell.
                     if (_notificationsOpen)
                       OnBack(
@@ -764,8 +784,9 @@ class AppShellState extends State<AppShell> {
 
   /// The app's own tab row, one bar of one height on every screen that has it.
   Widget _bar(BuildContext context, {required bool docked, required bool sidebarShown, required bool quietBar, required bool asideHolds}) {
+    final chip = widget.barChip;
     return ListenableBuilder(
-      listenable: _barTools,
+      listenable: chip == null ? _barTools : Listenable.merge([_barTools, chip.changes]),
       builder: (context, _) => AppTabBar(
         style: widget.topBar,
         child: NoteTabs(
@@ -777,6 +798,7 @@ class AppShellState extends State<AppShell> {
           finePointer: widget.finePointer,
           tools: _barTools.tools,
           tail: _barTools.tail,
+          presence: chip?.build(context),
           onOpen: openNote,
           onClose: closeTab,
           onNew: widget.onNew,

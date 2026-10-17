@@ -22,6 +22,9 @@
 /// - **Who is in the app now** comes from the live service on the web (`core/live/presence.ts`), which is not
 ///   ported: [OrganizationScreen.seen] is handed in, and is nobody until it is. A member's "Jump to cursor" opens
 ///   the note they are editing; where their caret is waits for live typing too.
+/// - **An AI online** (docs/CLAUDE_LIVE.md) is in [OrganizationScreen.seen] too, marked as one: never a member
+///   present, even under a member's handle, it is shown on its own AI row as online, with what it is doing there
+///   ("editing Roadmap"), Jump and Follow; an AI online that has no row yet is given one.
 /// - The rows do not rise as they arrive (`animation: rise`), and the cards do not carry the AI corner mark; the
 ///   pull's ring and the smoke are All notes' own.
 /// - The phone's back gesture is the shell's (lib/shell/app_shell.dart wraps the screen in `OnBack`).
@@ -41,6 +44,7 @@ import '../../core/note.dart';
 import '../../core/notifications.dart';
 import '../../core/preferences.dart';
 import '../../home/home_organizations.dart' show OrgPresence;
+import '../../live/presence.dart' show aiDoingWords;
 import '../../home/note_card.dart';
 import '../../notes/pull_to_refresh.dart';
 import '../../notes/when.dart';
@@ -76,6 +80,7 @@ class OrganizationScreen extends StatefulWidget {
     required this.onLog,
     required this.onAccount,
     this.onJumpTo,
+    this.onFollow,
     this.seen = const [],
     this.wisp = true,
     this.onSendLink,
@@ -112,6 +117,9 @@ class OrganizationScreen extends StatefulWidget {
 
   /// A note opened where a member is editing it, from their profile; the row's own press when null.
   final ValueChanged<String>? onJumpTo;
+
+  /// Follow an AI online here (lib/live/follow.dart), from its row; absent, and there is no Follow.
+  final ValueChanged<OrgPresence>? onFollow;
 
   /// Who is in the organization's notes now, by device.
   final List<OrgPresence> seen;
@@ -380,8 +388,10 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                 for (final m in [...joined, ...invited]) _MemberLine(key: ValueKey('member:${m.handle}'), member: m, me: me, seen: widget.seen, now: now, onJump: widget.onJumpTo ?? widget.onOpenNote)
               else
                 Text('Reading the members…', style: pageText(t, sm, color: t.color('app-ink-3'))),
-              // The AIs seen here through a member's connector, after the people and never counted with them.
-              for (final ai in org?.ais ?? const <OrgAi>[]) _AiLine(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, now: now),
+              // The AIs seen here through a member's connector, after the people and never counted with them; each
+              // online with what it is doing, and one online with no row yet given one.
+              for (final (ai, here) in aiLines(org?.ais ?? const <OrgAi>[], widget.seen, now: now))
+                _AiLine(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, now: now, here: here, onJump: widget.onJumpTo ?? widget.onOpenNote, onFollow: widget.onFollow),
             ],
           ),
         ),
@@ -796,7 +806,8 @@ class _MemberLineState extends State<_MemberLine> {
     final md = t.fontSize('md');
     final self = member.handle.toLowerCase() == widget.me.toLowerCase();
     final joined = member.state == 'member';
-    final devices = [for (final s in widget.seen) if (s.handle.toLowerCase() == member.handle.toLowerCase()) s];
+    // An AI is never a member present, even one whose name is a member's handle.
+    final devices = [for (final s in widget.seen) if (!s.ai && s.handle.toLowerCase() == member.handle.toLowerCase()) s];
     OrgPresence? at;
     for (final device in devices) {
       if (device.editingNote != null) {
@@ -958,66 +969,146 @@ class _MemberLineState extends State<_MemberLine> {
 
 /// An AI seen in the organization through a member's connector (lib/orgs/types.dart `OrgAi`; `AiLine`): a line as a
 /// member's is - an initial, the name with an AI chip, and whose connector it came through and when it was last
-/// seen - that opens nothing, since there is no one to find in the app. Removing one is in the organization's
-/// settings.
+/// seen. Removing one is in the organization's settings.
+///
+/// Online ([here], docs/CLAUDE_LIVE.md), a dot on its initial and the line says what it is doing ("editing
+/// Roadmap", "reading Roadmap", "online"), with Jump to the note it is on, at its caret, and Follow.
 ///
 /// `.aiRow` is `.memberRow`'s measures without the button. The initial stands in an outline, not a fill
 /// (`.member[data-state='ai'] .avatar`): listed with the people, and not one of them.
 class _AiLine extends StatelessWidget {
-  const _AiLine({super.key, required this.ai, required this.me, this.now});
+  const _AiLine({super.key, required this.ai, required this.me, this.now, this.here, this.onJump, this.onFollow});
   final OrgAi ai;
   final String me;
   final int? now;
 
+  /// Its entry online, or null while it is not.
+  final OrgPresence? here;
+  final ValueChanged<String>? onJump;
+  final ValueChanged<OrgPresence>? onFollow;
+
   @override
   Widget build(BuildContext context) {
+    final here = this.here;
+    return GlacierScope(
+      attrs: {if (here?.hue != null) 'hue': here!.hue!},
+      child: Builder(builder: (context) => _build(context, here)),
+    );
+  }
+
+  Widget _build(BuildContext context, OrgPresence? here) {
     final t = context.tokens;
     final sm = t.fontSize('sm');
     final md = t.fontSize('md');
     final hair = snapBorder(context, t.len('glacier-hairline'));
     final side = t.lenOf('2.25rem');
-    final avatar = CustomPaint(
-      painter: _PillOutline(color: t.color('app-ink-3'), width: hair, dashed: false),
-      child: Container(
-        key: const ValueKey('ai-avatar'),
-        width: side,
-        height: side,
-        alignment: Alignment.center,
-        child: Text(ai.name.isEmpty ? '' : ai.name.substring(0, 1).toUpperCase(), style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-      ),
+    final space = t.colorOf('var(--app-space, var(--app-ink))');
+    final online = here != null;
+    final avatar = Stack(
+      clipBehavior: Clip.none,
+      children: [
+        CustomPaint(
+          painter: _PillOutline(color: online ? space : t.color('app-ink-3'), width: hair, dashed: false),
+          child: Container(
+            key: const ValueKey('ai-avatar'),
+            width: side,
+            height: side,
+            alignment: Alignment.center,
+            child: Text(ai.name.isEmpty ? '' : ai.name.substring(0, 1).toUpperCase(), style: pageText(t, sm, weight: 'semibold', color: online ? space : t.color('app-ink-2'))),
+          ),
+        ),
+        if (online)
+          Positioned(
+            right: -1,
+            bottom: -1,
+            child: Container(
+              key: const ValueKey('ai-here'),
+              width: t.lenOf('0.62rem'),
+              height: t.lenOf('0.62rem'),
+              decoration: BoxDecoration(shape: BoxShape.circle, color: space, boxShadow: [BoxShadow(color: t.color('app-paper'), spreadRadius: 2)]),
+            ),
+          ),
+      ],
     );
+    final note = here?.editingNote;
+    final doing = here == null ? null : aiDoingWords(note == null ? null : (here.doing ?? 'editing'), here.editingTitle);
+    Widget pill(String key, String words, VoidCallback onPressed) => GlacierPressable(
+          key: ValueKey(key),
+          onPressed: onPressed,
+          builder: (context, state) => GlacierFocusRing(
+            visible: state.focused,
+            radius: t.radius('full'),
+            offset: 3,
+            color: t.color('app-ink'),
+            child: Container(
+              padding: EdgeInsets.symmetric(vertical: 0.35 * sm, horizontal: 0.9 * sm),
+              decoration: ShapeDecoration(
+                color: state.hovered ? t.colorOf('color-mix(in oklch, var(--app-space, var(--app-ink)) 10%, transparent)') : null,
+                shape: StadiumBorder(side: BorderSide(color: space, width: hair)),
+              ),
+              child: Text(words, style: pageText(t, sm, weight: 'medium', color: space)),
+            ),
+          ),
+        );
+    final follow = onFollow;
+    final jump = onJump;
     return Container(
       padding: EdgeInsets.symmetric(vertical: t.space(3)),
       decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.color('app-rule'), width: hair))),
-      // One thing to a reader, as a member's row is one button: the name, that it is an AI, and its line.
-      child: MergeSemantics(
-        child: Row(
-          children: [
-            ExcludeSemantics(child: avatar),
-            SizedBox(width: t.space(3)),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // `.handle` with its chip, measured as a member's is (see `_MemberLine`).
-                  SizedBox(
-                    height: 1.6 * t.fontSize('xs') + 2 * hair + 1.75,
-                    child: Row(
-                      children: [
-                        Flexible(child: Text(ai.name, style: pageText(t, md, weight: 'medium', color: t.color('app-ink')), maxLines: 1, overflow: TextOverflow.ellipsis)),
-                        SizedBox(width: t.space(2)),
-                        const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 1.75), child: RoleChip.ai())),
-                      ],
-                    ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // One thing to a reader, as a member's row is one button: the name, that it is an AI, and its line.
+          MergeSemantics(
+            child: Row(
+              children: [
+                ExcludeSemantics(child: avatar),
+                SizedBox(width: t.space(3)),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // `.handle` with its chip, measured as a member's is (see `_MemberLine`).
+                      SizedBox(
+                        height: 1.6 * t.fontSize('xs') + 2 * hair + 1.75,
+                        child: Row(
+                          children: [
+                            Flexible(child: Text(ai.name, style: pageText(t, md, weight: 'medium', color: t.color('app-ink')), maxLines: 1, overflow: TextOverflow.ellipsis)),
+                            SizedBox(width: t.space(2)),
+                            const Align(alignment: Alignment.topCenter, child: Padding(padding: EdgeInsets.only(top: 1.75), child: RoleChip.ai())),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 0.15 * 16),
+                      Text(
+                        doing ?? aiLine(ai, me: me, now: now),
+                        key: const ValueKey('ai-since'),
+                        style: pageText(t, sm, weight: note != null ? 'medium' : 'regular', color: note != null ? space : (online ? t.color('app-ink-2') : t.color('app-ink-3'))),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 0.15 * 16),
-                  Text(aiLine(ai, me: me, now: now), key: const ValueKey('ai-since'), style: pageText(t, sm, color: t.color('app-ink-3'))),
+                ),
+              ],
+            ),
+          ),
+          if (here != null && ((note != null && jump != null) || follow != null)) ...[
+            SizedBox(height: t.space(2)),
+            Padding(
+              padding: EdgeInsetsDirectional.only(start: side + t.space(3)),
+              child: Wrap(
+                spacing: t.space(2),
+                runSpacing: t.space(2),
+                children: [
+                  // `at.cursor ? 'Jump to cursor' : 'Open the note'`, as a member's profile says it.
+                  if (note != null && jump != null) pill('ai-jump', here.editingPlace ? 'Jump to cursor' : (here.editingCanvas ? 'Open the canvas' : 'Open the note'), () => jump(note)),
+                  if (follow != null) pill('ai-follow', 'Follow', () => follow(here)),
                 ],
               ),
             ),
           ],
-        ),
+        ],
       ),
     );
   }

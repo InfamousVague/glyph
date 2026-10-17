@@ -28,6 +28,8 @@ import 'package:ghost_md/editor/items/items.dart' show FieldMenuHost, bookmarkLi
 import 'package:ghost_md/editor/marks/marks.dart' show typing;
 import 'package:ghost_md/editor/plus/plus.dart' show PlusLayer, moreRows, readGates;
 import 'package:ghost_md/home/home_screen.dart';
+import 'package:ghost_md/live/editor_binding.dart' show BoundEditors;
+import 'package:ghost_md/live/follow.dart';
 import 'package:ghost_md/live/presence.dart';
 import 'package:ghost_md/note/note_place.dart' show placeOf;
 import 'package:ghost_md/note/note_screen.dart';
@@ -57,7 +59,7 @@ import 'part_of.dart';
 void main() {
   setUpAll(loadAppFonts);
 
-  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink, List<Seen> Function(String orgId)? presence, Preferences prefs = const Preferences(theme: 'light')}) async {
+  Future<SampleLibrary> open(WidgetTester tester, {AccountServices? services, Size size = const Size(390, 844), LinkOpener? openLink, List<Seen> Function(String orgId)? presence, FollowAi? follow, Preferences prefs = const Preferences(theme: 'light')}) async {
     final library = SampleLibrary.seeded();
     await pumpApp(
       tester,
@@ -65,7 +67,7 @@ void main() {
       prefs: prefs,
       // A memory of its own for each app opened: what one test kept on the device (a note's versions) is not there
       // for the next.
-      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), stored: MemoryStored(), clock: () => seedNow, services: services, openLink: openLink, presence: presence),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), stored: MemoryStored(), clock: () => seedNow, services: services, openLink: openLink, presence: presence, follow: follow),
     );
     await tester.pump(const Duration(milliseconds: 100));
     return library;
@@ -124,7 +126,7 @@ void main() {
       expect(accountBase('ftp://10.0.2.2/api'), isNull);
     });
 
-    test('Live typing’s switch is this device’s own flag, so a note of the account’s own can be live', () {
+    test('Live typing’s switch is this device’s own flag, on until it is turned off, so a note of the account’s own is live', () {
       final kept = MemoryStored();
       Future<Object?> core(String command, [Map<String, Object?> args = const <String, Object?>{}]) async => null;
       final wired = WiredAccount.make(
@@ -139,16 +141,21 @@ void main() {
         kept: kept,
       );
       addTearDown(wired.dispose);
-      // Off until set, as the page's.
-      expect((wired.services.liveTyping.value, wired.live.enabled.value, kept.readText('glyph-live')), (false, false, null));
+      // On with nothing written (docs/CLAUDE_LIVE.md, "Live typing for personal notes"), so Claude can type into a
+      // personal note open here.
+      expect((wired.services.liveTyping.value, wired.live.enabled.value, kept.readText('glyph-live')), (true, true, null));
       // The switch on Settings › Account › Sync.
+      wired.services.liveTyping.value = false;
+      expect((wired.live.enabled.value, kept.readText('glyph-live')), (false, '0'));
       wired.services.liveTyping.value = true;
       expect((wired.live.enabled.value, kept.readText('glyph-live')), (true, '1'));
-      wired.services.liveTyping.value = false;
-      expect((wired.live.enabled.value, kept.readText('glyph-live')), (false, null));
-      // Turned on from elsewhere, the switch is drawn on.
+      // Turned off and on again from elsewhere, the switch is drawn so.
+      wired.live.enabled.set(false);
+      expect(wired.services.liveTyping.value, isFalse);
       wired.live.enabled.set(true);
       expect(wired.services.liveTyping.value, isTrue);
+      // A device that turned it on by hand while it was a trial keeps it on.
+      kept.writeText('glyph-live', '1');
 
       // A device that had it on opens with the switch on.
       final again = WiredAccount.make(
@@ -672,6 +679,68 @@ void main() {
         await tester.pump(const Duration(milliseconds: 100));
       }
       expect(tester.widget<CanvasView>(find.byType(CanvasView)).goTo, (x: 300.0, y: 200.0));
+      await close(tester);
+    });
+
+    // docs/CLAUDE_LIVE.md: the Claude chip in the top bar while an AI is online, its menu, Follow's bar and the
+    // notice with Watch.
+    testWidgets('draws the Claude chip while an AI is online, follows it into its note from the chip\'s menu with a bar to stop, and gives the notice with Watch', (tester) async {
+      final device = await Device.make();
+      final online = ValueNotifier<List<AiOnline>>(const []);
+      final follow = FollowAi(online: () => online.value, changes: online, bound: BoundEditors())..start();
+      addTearDown(follow.dispose);
+      final library = await open(tester, services: device.services, follow: follow);
+      final groceries = library.create('# Groceries\n\n- milk');
+      await tester.pump(const Duration(milliseconds: 200));
+      final shell = tester.state<AppShellState>(find.byType(AppShell));
+      expect(find.byKey(const ValueKey('ai-chip')), findsNothing);
+
+      // Online and reading: the chip, and no notice (it is not editing).
+      online.value = [AiOnline(name: 'Claude', client: 3, hue: 'violet', via: 'matt', at: Whereabouts(note: groceries.id, title: 'Groceries', doing: 'reading'))];
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byKey(const ValueKey('ai-chip')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('ai-chip')), matching: find.text('Claude')), findsOneWidget);
+      expect(find.text('Watch'), findsNothing);
+
+      // Its menu: what it is doing, Follow, Open.
+      await tester.tap(find.byKey(const ValueKey('ai-chip')));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Claude is reading Groceries'), findsOneWidget);
+      expect(find.text('Open Groceries'), findsOneWidget);
+      await tester.tap(find.text('Follow Claude'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      // The note it is on, opened, and the bar.
+      expect(shell.shown, groceries.id);
+      expect(find.byKey(const ValueKey('follow-bar')), findsOneWidget);
+      expect(find.text('Following Claude · reading Groceries'), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('follow-stop')));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(find.byKey(const ValueKey('follow-bar')), findsNothing);
+      expect(follow.isFollowing, isFalse);
+
+      // Home, and Claude starts editing another note: the notice, and Watch follows it there.
+      shell.backToList();
+      await tester.pump(const Duration(milliseconds: 300));
+      final plan = library.create('# Plan\n\nSoon.');
+      await tester.pump(const Duration(milliseconds: 100));
+      online.value = [AiOnline(name: 'Claude', client: 3, hue: 'violet', via: 'matt', at: Whereabouts(note: plan.id, title: 'Plan', doing: 'editing'))];
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Claude is editing Plan'), findsOneWidget);
+      await tester.tap(find.text('Watch'));
+      for (var i = 0; i < 6; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(follow.following?.name, 'Claude');
+      expect(shell.shown, plan.id);
+
+      // Gone: no chip, nothing followed.
+      online.value = const [];
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.byKey(const ValueKey('ai-chip')), findsNothing);
+      expect(find.byKey(const ValueKey('follow-bar')), findsNothing);
+      await tester.pump(const Duration(seconds: 9));
       await close(tester);
     });
 

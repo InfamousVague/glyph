@@ -8,6 +8,8 @@ import '../account/ui_state.dart';
 import '../art/art.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
+import '../home/home_organizations.dart' show OrgPresence;
+import '../live/presence.dart' show aiDoingWords;
 import '../notes/workspace_swatch.dart';
 import '../orgs/orgs.dart';
 import '../orgs/ui/parts.dart';
@@ -71,10 +73,14 @@ class OrganizationSheet extends StatefulWidget {
     this.onSendLink,
     this.split,
     this.now,
+    this.seen = const [],
   });
 
   final AccountServices services;
   final String orgId;
+
+  /// Who is in the organization's notes now, for its AIs online (docs/CLAUDE_LIVE.md); nobody where not given.
+  final List<OrgPresence> seen;
   final OrganizationFrom? from;
   final VoidCallback onClose;
 
@@ -247,6 +253,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
                 },
                 onDo: _onDo,
                 onRemoveAi: _onRemoveAi,
+                seen: widget.seen,
               )
             : const PaneBody(children: [SettingsCallout(child: Text('This organization is not in your list any more.'))]),
       ),
@@ -490,7 +497,10 @@ class _GeneralState extends State<_General> {
 // --- Members ---------------------------------------------------------------------------------------------------------
 
 class _Members extends StatelessWidget {
-  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvite, required this.onDo, required this.onRemoveAi, this.onSendLink});
+  const _Members({required this.services, required this.row, required this.org, required this.me, required this.problem, required this.now, required this.onInvite, required this.onDo, required this.onRemoveAi, this.onSendLink, this.seen = const []});
+
+  /// Who is here now: the AIs online among them.
+  final List<OrgPresence> seen;
 
   final AccountServices services;
   final OrgRow row;
@@ -547,7 +557,9 @@ class _Members extends StatelessWidget {
               else
                 const SettingRow(label: 'Reading the members…'),
               // The AIs after the people: beside the members, never counted among them.
-              for (final ai in ais) AiRow(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, role: row.role, now: now, onRemove: onRemoveAi),
+              for (final (ai, here) in aiLines(ais, seen, now: now))
+                // A row made for an AI online and not listed yet is the dashboard's: there is nothing here to remove.
+                if (!ai.id.startsWith('live:')) AiRow(key: ValueKey('ai:${ai.id}'), ai: ai, me: me, role: row.role, now: now, onRemove: onRemoveAi, here: here),
             ],
           ),
         if (row.state == 'member') YourColourCard(services: services, row: row),
@@ -668,10 +680,14 @@ class _MemberRowState extends State<MemberRow> {
 /// An AI seen in the organization through a member's connector (lib/orgs/types.dart `OrgAi`; Matt: "when an AI has
 /// accessed an ORG add it as a member labeled as (AI)"; `AiRow`): a row as a member's is, its name with an AI chip,
 /// whose connector it came through and when it was last seen under it, and Remove for the owner, an admin, or that
-/// member.
+/// member. Online (docs/CLAUDE_LIVE.md), what it is doing stands in place of when it was last seen: "Online ·
+/// editing Roadmap".
 class AiRow extends StatefulWidget implements PaneRow {
-  const AiRow({super.key, required this.ai, required this.me, required this.role, required this.onRemove, this.now});
+  const AiRow({super.key, required this.ai, required this.me, required this.role, required this.onRemove, this.now, this.here});
   final OrgAi ai;
+
+  /// Its entry online, or null while it is not.
+  final OrgPresence? here;
   final String me;
 
   /// The signed-in person's own role here.
@@ -686,6 +702,14 @@ class AiRow extends StatefulWidget implements PaneRow {
 class _AiRowState extends State<AiRow> {
   bool _busy = false;
   String? _problem;
+
+  /// "Online", and what it is doing where it is on a note.
+  String? _online() {
+    final here = widget.here;
+    if (here == null) return null;
+    final note = here.editingNote;
+    return note == null ? 'Online' : 'Online · ${aiDoingWords(here.doing ?? 'editing', here.editingTitle)}';
+  }
 
   Future<void> _remove() async {
     setState(() {
@@ -709,7 +733,7 @@ class _AiRowState extends State<AiRow> {
     return SettingRow(
       label: ai.name,
       labelAfter: Padding(padding: EdgeInsetsDirectional.only(start: t.space(2)), child: const RoleChip.ai()),
-      hint: Text(_problem ?? aiLine(ai, me: widget.me, now: widget.now)),
+      hint: Text(_problem ?? _online() ?? aiLine(ai, me: widget.me, now: widget.now), key: const ValueKey('ai-hint')),
       layout: canRemove ? SettingRowLayout.stacked : SettingRowLayout.trailing,
       control: canRemove ? Align(alignment: AlignmentDirectional.centerStart, child: RowAction(key: const ValueKey('ai-remove'), onPress: () => unawaited(_remove()), disabled: _busy, child: const Text('Remove'))) : null,
     );

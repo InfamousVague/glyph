@@ -15,6 +15,13 @@
 ///   ([LiveSession.openUndo], [LiveSession.undoStep]), as liveBinding.ts gives the page's `Y.UndoManager`: a step
 ///   taken back goes to the room as the update it is, like a key.
 /// - `markShared` is the [SharedLive] the session was given.
+///
+/// And Claude (docs/CLAUDE_LIVE.md, "Carets in the app"): the account's connector joins a personal note's room to
+/// type into it, and says where its caret is in the room's awareness as a team's members do. The session hears the
+/// awareness ([Kind.presence]) as a team's room does (y-protocols, the core's [CrdtRoom]) and keeps the carets of
+/// the entries that say `ai: true` and no others ([LiveSession.carets]), for the binding to draw with the AI's name
+/// on them. The account's own devices still do not show each other theirs (tauri/docs/LIVE.md), and this device
+/// says nothing of its own.
 library;
 
 import 'dart:async';
@@ -26,6 +33,7 @@ import '../team/text_log.dart';
 import 'hub.dart' show RoomListener;
 import 'live_text.dart';
 import 'shared.dart';
+import 'team.dart' show CaretRoom, Me;
 import 'transport.dart';
 import 'wire.dart';
 
@@ -63,6 +71,41 @@ class SessionListener {
   final void Function(int count) peers;
 }
 
+/// The AIs in a personal note's room, as a [CaretRoom] for the binding: only the entries that say `ai: true`, and
+/// nothing said of this device's own caret.
+class AiCarets implements CaretRoom {
+  AiCarets();
+
+  @override
+  int clientId = -1;
+  Map<int, Map<String, Object?>> _states = const {};
+  final Set<void Function()> _listeners = {};
+
+  @override
+  Map<int, Map<String, Object?>> get states => _states;
+
+  @override
+  bool get saysCaret => false;
+
+  /// Nothing: a personal note's room never hears this device's caret.
+  @override
+  void setField(String field, Object? value) {}
+
+  @override
+  void Function() onChange(void Function() listener) {
+    _listeners.add(listener);
+    return () => _listeners.remove(listener);
+  }
+
+  void _set(Map<int, Map<String, Object?>> states) {
+    if (states.isEmpty && _states.isEmpty) return;
+    _states = Map.unmodifiable(states);
+    for (final listener in _listeners.toList()) {
+      listener();
+    }
+  }
+}
+
 /// How long a device that was not first waits for a document before asking again.
 const int askAgainMs = 2500;
 const int asks = 3;
@@ -93,6 +136,15 @@ class LiveSession implements RoomListener, LiveText {
   final TextLog _log = TextLog();
   final Set<void Function(TextSplice splice)> _splices = {};
 
+  /// The AIs' carets in the room, for the binding (docs/CLAUDE_LIVE.md).
+  final AiCarets carets = AiCarets();
+
+  /// The room's awareness, made when the first word of it arrives; and which awareness clients each connection
+  /// spoke for, dropped with the connection when it leaves.
+  Future<CrdtRoom>? _aware;
+  Future<void> _awareOps = Future<void>.value();
+  final Map<int, Set<int>> _spokeFor = {};
+
   /// Outgoing messages, one after another: sealing is asynchronous, and the order they were made in is kept.
   Future<void> _sending = Future<void>.value();
 
@@ -105,6 +157,9 @@ class LiveSession implements RoomListener, LiveText {
     _ops = done.then<void>((_) {}, onError: (Object _) {});
     return done;
   }
+
+  /// The document in the core, once made: what the AIs' carets are placed in.
+  Future<CrdtDoc> get document => _doc;
 
   @override
   String get words => _words;
@@ -126,11 +181,12 @@ class LiveSession implements RoomListener, LiveText {
   /// long a loaded machine takes.
   Future<void> sent() async {
     for (;;) {
-      final receiving = _receiving, ops = _ops, sending = _sending;
+      final receiving = _receiving, ops = _ops, sending = _sending, aware = _awareOps;
       await receiving;
       await ops;
+      await aware;
       await sending;
-      if (identical(receiving, _receiving) && identical(ops, _ops) && identical(sending, _sending)) return;
+      if (identical(receiving, _receiving) && identical(ops, _ops) && identical(sending, _sending) && identical(aware, _awareOps)) return;
     }
   }
 
@@ -189,6 +245,7 @@ class LiveSession implements RoomListener, LiveText {
   void joined(bool first, int peers) {
     _setPeers(peers);
     if (state == SessionState.closed) return;
+    if (peers == 0) _forget();
     if (state == SessionState.ready) {
       // Back after a drop. Alone, the document here is the room's; with others, trade whole documents, which Yjs
       // merges exactly when they share a seed (and `message` below handles the case where they do not).
@@ -210,6 +267,8 @@ class LiveSession implements RoomListener, LiveText {
   @override
   void peersChanged(int peers, [int? left]) {
     _setPeers(peers);
+    if (left != null) _forget(left);
+    if (peers == 0) _forget();
     if (state == SessionState.waiting && peers == 0) _seedHere();
   }
 
@@ -236,9 +295,67 @@ class LiveSession implements RoomListener, LiveText {
         // Safe before the document has come: a change whose history has not been seen waits for that history, and
         // then both are applied.
         await _apply(envelope.bytes);
+      case Kind.presence:
+        await _heard(from, envelope.bytes);
       default:
         break;
     }
+  }
+
+  Future<T> _nextAware<T>(Future<T> Function(CrdtRoom aware) op) {
+    final aware = _aware ??= _doc.then((doc) {
+      carets.clientId = doc.clientId;
+      return _deps.crdt.room(doc.clientId);
+    });
+    final done = _awareOps.then((_) async => op(await aware));
+    _awareOps = done.then<void>((_) {}, onError: (Object _) {});
+    return done;
+  }
+
+  /// An awareness update from a connection in the room, applied and remembered as its (as a team's room does,
+  /// team.dart), and the AIs' carets read again.
+  Future<void> _heard(int from, Uint8List update) async {
+    await _nextAware((aware) async {
+      final change = await aware.apply(update);
+      final spoken = _spokeFor.putIfAbsent(from, () => <int>{});
+      final stale = change.added.isEmpty ? const <int>[] : [for (final id in spoken) if (!change.added.contains(id) && !change.touched.contains(id)) id];
+      spoken
+        ..addAll(change.added)
+        ..addAll(change.touched);
+      var gone = change.removed.isNotEmpty;
+      if (stale.isNotEmpty) {
+        spoken.removeAll(stale);
+        gone = (await aware.remove(stale)).isNotEmpty || gone;
+      }
+      if (change.changed || gone) await _readCarets(aware);
+    });
+  }
+
+  /// The states that say `ai: true`, kept for the binding; every other one, this account's own devices among them,
+  /// left out.
+  Future<void> _readCarets(CrdtRoom aware) async {
+    final all = await aware.states();
+    if (state == SessionState.closed) return;
+    carets._set({
+      for (final one in all)
+        if (one.client != aware.clientId && Me.of(one.state['user'])?.ai == true) one.client: one.state,
+    });
+  }
+
+  /// The states a connection spoke for, dropped; or, with no connection named, every one.
+  void _forget([int? left]) {
+    if (_aware == null) return;
+    final gone = left == null ? [for (final ids in _spokeFor.values) ...ids] : [...?_spokeFor[left]];
+    if (left == null) {
+      _spokeFor.clear();
+    } else {
+      _spokeFor.remove(left);
+    }
+    if (gone.isEmpty) return;
+    unawaited(_nextAware((aware) async {
+      await aware.remove(gone);
+      await _readCarets(aware);
+    }).catchError((Object _) {}));
   }
 
   void close() {
@@ -248,6 +365,10 @@ class LiveSession implements RoomListener, LiveText {
     _clearRetry();
     _deps.transport.leave(noteId);
     _splices.clear();
+    carets._set(const {});
+    carets._listeners.clear();
+    final aware = _aware;
+    if (aware != null) unawaited(_awareOps.then((_) async => (await aware).close()).catchError((Object _) {}));
     unawaited(_next((doc) => doc.close()).catchError((Object _) {}));
   }
 
