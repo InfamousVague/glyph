@@ -2,7 +2,6 @@
 // `from: events` query drawn as what it finds, an event opening nothing and picking nothing, and a calendar of to-dos
 // with each day's events beside its to-dos, quieter: a ring on the day, a line above the day's to-dos, its hours
 // first.
-import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/query/query.dart';
 import 'package:ghost_md/editor/queries/queries.dart';

@@ -1,7 +1,6 @@
 // Today's events on the home page (lib/home/home_events.dart, home_screen.dart; docs/CALENDAR.md): the calendars'
 // events on today's date at the head of the page, under Today, each its hours or All day, its title and where it is;
 // nothing at all, and no room taken, on a day with none; and drawn again as the calendars change.
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/calendar/event.dart';
