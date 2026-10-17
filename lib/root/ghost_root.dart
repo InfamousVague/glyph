@@ -34,6 +34,7 @@ import '../editor/items/field_menu.dart' show DayPicker;
 import '../guide/guide_models.dart' show GuideModels, PhoneGuideModels;
 import '../editor/media/clip_refs.dart' show TapeIds;
 import '../editor/media/map_card.dart' show MapTilesBuilder;
+import '../editor/media/rich_embeds/oembed.dart' show KeptEmbeds, OEmbedFetch, PictureFetch;
 import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
@@ -214,7 +215,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -314,6 +315,12 @@ class GhostRoot extends StatefulWidget {
   /// Reads a linked page's title, site and summary (lib/core/link_preview.dart `linkPreviewFetch`). Absent, as in a
   /// test, a link's card says its site and its path and nothing is asked of anywhere.
   final LinkPreviewFetch? previewFetch;
+
+  /// Asks YouTube, Spotify or Figma what a link of theirs is, and reads the picture they name
+  /// (lib/editor/media/rich_embeds/oembed.dart `oEmbedFetch`, `pictureFetch`). Absent, as in a test, such a link's
+  /// card is the plain one, and a tap opens it.
+  final OEmbedFetch? embedFetch;
+  final PictureFetch? embedPictures;
 
   /// Voice, where a test brings its own; then nothing is made from [voiceMaking].
   final Voice? voice;
@@ -758,6 +765,15 @@ class _GhostRootState extends State<GhostRoot> {
     canAsk: () => preferences.value.linkPreviews && !preferences.value.localOnly,
   );
 
+  /// What YouTube, Spotify and Figma said of their links, kept on this device as the titles are, and asked, shown
+  /// and played under the same two switches: Link previews on and "Nothing leaves the phone" off.
+  late final KeptEmbeds _embeds = KeptEmbeds(
+    _stored,
+    fetch: widget.embedFetch,
+    pictures: widget.embedPictures,
+    allowed: () => preferences.value.linkPreviews && !preferences.value.localOnly,
+  );
+
   /// Following the links that opened the app, from the notes' first read until the app is gone.
   void Function()? _stopLinks;
 
@@ -904,6 +920,7 @@ class _GhostRootState extends State<GhostRoot> {
     newEntry: (id, template) => unawaited(_newEntry(id, template)),
     openLink: widget.openLink,
     previewer: _previews,
+    embeds: _embeds,
     ai: _aiWorld,
     tapePlayer: widget.tapePlayer,
     clipPlayer: widget.clipPlayer,
@@ -1347,6 +1364,7 @@ class _GhostRootState extends State<GhostRoot> {
     _stopShares?.call();
     _extras?.dispose();
     _previews.dispose();
+    _embeds.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
     _aiReady.dispose();

@@ -270,6 +270,7 @@ class NoteDeskWorld {
     this.newEntry,
     this.openLink,
     this.previewer,
+    this.embeds,
     this.holdNote,
     this.dropRefine,
     this.tapePlayer,
@@ -372,6 +373,10 @@ class NoteDeskWorld {
   /// What knows the titles of linked pages (lib/core/link_preview.dart `KeptLinkPreviews`); absent, a link's card
   /// says its site and its path.
   final LinkPreviewer? previewer;
+
+  /// What YouTube, Spotify and Figma said of their links (lib/editor/media/rich_embeds/oembed.dart `KeptEmbeds`);
+  /// absent, such a link's card is the plain one and plays nothing.
+  final EmbedSource? embeds;
 
   /// The better words' queue told a note is open, so it waits to write it, and told to drop what it has queued for
   /// words an Undo took out (lib/capture/refine.dart `holdNote`, `dropRefine`). Absent, there is no queue.
@@ -793,6 +798,7 @@ class NoteDeskState extends State<NoteDesk> {
     openLink: _world.openLink,
     linkMenus: LinkMenus(say: (message) => widget.say(message)),
     previewer: _world.previewer ?? noLinkPreviews,
+    embeds: _world.embeds ?? noEmbeds,
     linkPreviews: () => _prefs.value.linkPreviews,
     switches: _prefs,
     placeSwitches: () => (localOnly: _prefs.value.localOnly, mapTiles: _prefs.value.mapTiles),

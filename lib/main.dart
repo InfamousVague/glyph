@@ -43,6 +43,7 @@ import 'diag/error_log.dart';
 import 'files/files_kit.dart';
 import 'root/account_wiring.dart';
 import 'core/link_preview.dart' show linkPreviewFetch;
+import 'editor/media/rich_embeds/oembed.dart' show oEmbedFetch, pictureFetch;
 import 'perf/frame_log.dart';
 import 'perf/perf_run.dart';
 import 'perf/perf_seed.dart';
@@ -137,6 +138,8 @@ Future<void> main() async {
         shares: shares,
         openLink: openLink,
         previewFetch: iPhoneLinkPreviews() ? linkPreviewFetch() : null,
+        embedFetch: oEmbedFetch(),
+        embedPictures: pictureFetch(),
         restart: restart,
         launchSeat: seat,
         tapePlayer: tapes,
