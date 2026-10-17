@@ -60,11 +60,35 @@ jobs:
 
       - run: flutter pub get
 
+      # Each finding is said as an annotation on the run as well (file, line, words), where it can be read without the
+      # log. It does not stop the APK: what does not compile stops the build below anyway.
       - name: Analyze
-        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+        id: analyze
+        continue-on-error: true
+        run: |
+          set +e
+          flutter analyze --no-fatal-infos --no-fatal-warnings --no-pub > analyze.txt 2>&1
+          code=$?
+          cat analyze.txt
+          grep -E '^ *(error|warning) • ' analyze.txt | head -50 | while IFS= read -r line; do
+            level=$(printf '%s' "$line" | sed -E 's/^ *(error|warning) • .*/\1/')
+            words=$(printf '%s' "$line" | sed -E 's/^ *(error|warning) • (.*) • ([^ ]+):([0-9]+):([0-9]+) • (.*)$/\2 (\6)/')
+            file=$(printf '%s' "$line" | sed -E 's/^.* • ([^ ]+):([0-9]+):([0-9]+) • [^•]*$/\1/')
+            at=$(printf '%s' "$line" | sed -E 's/^.* • ([^ ]+):([0-9]+):([0-9]+) • [^•]*$/\2/')
+            echo "::$level file=$file,line=$at::$words"
+          done
+          exit $code
 
       - name: Tests that need no core
-        run: flutter test test/claude
+        id: tests
+        continue-on-error: true
+        run: |
+          set +e
+          flutter test test/claude --reporter expanded > tests.txt 2>&1
+          code=$?
+          cat tests.txt
+          grep -E '\[E\]|Expected:|Actual:|Error:' tests.txt | head -30 | while IFS= read -r line; do echo "::error title=test/claude::$line"; done
+          exit $code
 
       - name: Build the APK
         run: flutter build apk --release --target-platform android-arm64 --build-number ${{ github.run_number }}
@@ -74,3 +98,9 @@ jobs:
           name: ghost-flutter-apk-${{ github.run_number }}
           path: build/app/outputs/flutter-apk/app-release.apk
           if-no-files-found: error
+
+      - name: Analyze and tests passed
+        if: steps.analyze.outcome == 'failure' || steps.tests.outcome == 'failure'
+        run: |
+          echo "::error::analyze: ${{ steps.analyze.outcome }}, tests: ${{ steps.tests.outcome }} (the APK above was still built)"
+          exit 1
