@@ -425,7 +425,7 @@ void main() {
       await close(tester);
     });
 
-    test('are the five that ship, and Webhooks, the port's own, over the ground they are given', () {
+    test('are the five that ship, and Webhooks, the port’s own, over the ground they are given', () {
       final ground = PluginGround();
       final registry = installPlugins(ground: ground, prefs: PreferencesStore());
       expect(identical(pluginGround, ground), isTrue);
