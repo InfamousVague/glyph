@@ -16,13 +16,16 @@ import 'package:glacier/glacier.dart';
 
 import 'stage9_support.dart';
 
-/// Settings › Import (lib/settings/panes/import_pane.dart): its two rows, an import under way with how far it has
+/// Settings › Import (lib/settings/panes/import_pane.dart): its rows, an import under way with how far it has
 /// got and Stop, what it brought, what it renamed and what it left out, taking it back, a picker closed, and a
-/// failure. The import itself is stood in for (test/importer/ holds it).
+/// failure; Todoist's token handed on and let go, its CSV, and Things on a Mac and pasted. The import itself is
+/// stood in for (test/importer/ holds it).
 class FakeImporter extends Importer {
-  FakeImporter() : super(picker: ImportPicker(), workspaces: WorkspaceStore(), target: () => throw StateError('not here'));
+  FakeImporter({bool mac = false}) : super(picker: ImportPicker(), workspaces: WorkspaceStore(), target: () => throw StateError('not here'), onMac: mac);
 
-  int obsidians = 0, evernotes = 0;
+  int obsidians = 0, evernotes = 0, csvs = 0, macs = 0, pastes = 0;
+  final List<(String, bool)> tokens = [];
+  bool? logbook;
   final List<ImportReport> removed = [];
   Completer<ImportReport?> end = Completer<ImportReport?>();
   void Function(ImportProgress)? tell;
@@ -41,6 +44,35 @@ class FakeImporter extends Importer {
     evernotes += 1;
     tell = progress;
     asked = stopped;
+    return end.future;
+  }
+
+  @override
+  Future<ImportReport?> todoist(String token, {bool done = false, void Function(ImportProgress progress)? progress, bool Function()? stopped}) {
+    tokens.add((token, done));
+    tell = progress;
+    asked = stopped;
+    return end.future;
+  }
+
+  @override
+  Future<ImportReport?> todoistCsv({void Function(ImportProgress progress)? progress, bool Function()? stopped}) {
+    csvs += 1;
+    tell = progress;
+    return end.future;
+  }
+
+  @override
+  Future<ImportReport?> thingsOnMac({bool done = false, void Function(ImportProgress progress)? progress, bool Function()? stopped}) {
+    macs += 1;
+    logbook = done;
+    tell = progress;
+    return end.future;
+  }
+
+  @override
+  Future<ImportReport?> thingsPaste() {
+    pastes += 1;
     return end.future;
   }
 
@@ -71,11 +103,13 @@ void main() {
 
   bool off(WidgetTester tester, String row) => tester.widget<SettingRow>(rowCalled(row)).disabled;
 
-  testWidgets('two rows, which wait for an importer', (tester) async {
+  testWidgets('its rows, which wait for an importer', (tester) async {
     await open(tester, null);
-    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)']);
+    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'Completed tasks too', 'Todoist CSV export (.csv)', 'Paste from Things']);
     expect(off(tester, 'Obsidian vault'), isTrue);
     expect(off(tester, 'Evernote export (.enex)'), isTrue);
+    expect(off(tester, 'Todoist CSV export (.csv)'), isTrue);
+    expect(off(tester, 'Paste from Things'), isTrue);
     expect(find.textContaining('a workspace of their own, named for the day'), findsOneWidget);
     await endSettings(tester);
   });
@@ -133,6 +167,63 @@ void main() {
     importer.end.completeError(StateError('That folder could not be read.'));
     await letRun(tester);
     expect(find.text('That folder could not be read.'), findsOneWidget);
+    await endSettings(tester);
+  });
+
+  testWidgets('Todoist with a token: the token handed on with the switch, and let go from the field', (tester) async {
+    final importer = FakeImporter();
+    await open(tester, importer);
+    expect(tester.widget<SettingsWord>(find.byKey(const ValueKey('import-todoist'))).onPressed, isNull, reason: 'no token, nothing to press');
+    await tester.enterText(find.byType(EditableText), ' 0123abcd ');
+    await tester.pump();
+    await tapOn(tester, inRow('Completed tasks too', find.byType(GlacierSwitch)));
+    await tapOn(tester, find.byKey(const ValueKey('import-todoist')));
+    expect(importer.tokens, [('0123abcd', true)]);
+    expect(tester.widget<EditableText>(find.byType(EditableText)).controller.text, isEmpty, reason: 'the token is not kept in the field');
+    expect(find.text('Reading your Todoist account…'), findsOneWidget);
+    importer.tell!((done: 1, total: 4, on: 'Inbox'));
+    await tester.pump();
+    expect(find.text('Importing from Todoist, 1 of 4. Keep Ghost.md open.'), findsOneWidget);
+    importer.end.complete(ImportReport(from: 'Todoist')
+      ..groupId = 'w-todoist'
+      ..groupName = 'Imported from Todoist 2026-10-17'
+      ..notes = 4
+      ..tasks = 37
+      ..notebooks = 1
+      ..skipped.add('comments and attachments, which stay in Todoist'));
+    await letRun(tester);
+    expect(find.text('Imported 4 notes, 37 to-dos and 1 notebook, in the workspace Imported from Todoist 2026-10-17.'), findsOneWidget);
+    expect(find.text('Left out: comments and attachments, which stay in Todoist.'), findsOneWidget);
+    await endSettings(tester);
+  });
+
+  testWidgets('a Todoist CSV export through the picker', (tester) async {
+    final importer = FakeImporter();
+    await open(tester, importer);
+    await tapOn(tester, rowCalled('Todoist CSV export (.csv)'));
+    expect(importer.csvs, 1);
+    expect(find.text('Choose what to import.'), findsOneWidget);
+    importer.end.complete(null);
+    await letRun(tester);
+    await endSettings(tester);
+  });
+
+  testWidgets('Things: on a Mac from its own data, the Logbook if asked; anywhere pasted', (tester) async {
+    final importer = FakeImporter(mac: true);
+    await open(tester, importer);
+    expect(rowLabels(tester).sublist(4), ['From Things on this Mac', 'The Logbook too', 'Paste from Things']);
+    await tapOn(tester, rowCalled('From Things on this Mac'));
+    expect((importer.macs, importer.logbook), (1, false));
+    expect(find.text('Reading Things…'), findsOneWidget);
+    importer.end.complete(null);
+    await letRun(tester);
+
+    importer.end = Completer<ImportReport?>();
+    await tapOn(tester, rowCalled('Paste from Things'));
+    expect(importer.pastes, 1);
+    importer.end.completeError(StateError('Nothing is copied. In Things, open a list, choose Share › Copy, and come back.'));
+    await letRun(tester);
+    expect(find.text('Nothing is copied. In Things, open a list, choose Share › Copy, and come back.'), findsOneWidget);
     await endSettings(tester);
   });
 
