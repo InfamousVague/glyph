@@ -64,6 +64,7 @@ const _clipboardPaste = LucideIcon('clipboard-paste', ['M11 14h10', 'M16 4h2a2 2
 const _clock = LucideIcon('clock', ['M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z', 'M12 6v6l4 2'], [0]);
 const _code = LucideIcon('code', ['m16 18 6-6-6-6', 'm8 6-6 6 6 6'], []);
 const _compass = LucideIcon('compass', ['M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z', 'm16.24 7.76-1.804 5.411a2 2 0 0 1-1.265 1.265L7.76 16.24l1.804-5.411a2 2 0 0 1 1.265-1.265z'], [0]);
+const _contactRound = LucideIcon('contact-round', ['M16 2v2', 'M17.915 21a6 6 0 10-12 0', 'M8 2v2', 'M8 11A4 4 0 1 0 16 11A4 4 0 1 0 8 11Z', 'M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z'], [4]);
 const _copy = LucideIcon('copy', ['M10 8H20A2 2 0 0 1 22 10V20A2 2 0 0 1 20 22H10A2 2 0 0 1 8 20V10A2 2 0 0 1 10 8Z', 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'], [0]);
 const _copyPlus = LucideIcon('copy-plus', ['M15 12L15 18', 'M12 15L18 15', 'M10 8H20A2 2 0 0 1 22 10V20A2 2 0 0 1 20 22H10A2 2 0 0 1 8 20V10A2 2 0 0 1 10 8Z', 'M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'], [2]);
 const _crown = LucideIcon('crown', ['M11.562 3.266a.5.5 0 0 1 .876 0L15.39 8.87a1 1 0 0 0 1.516.294L21.183 5.5a.5.5 0 0 1 .798.519l-2.834 10.246a1 1 0 0 1-.956.734H5.81a1 1 0 0 1-.957-.734L2.02 6.02a.5.5 0 0 1 .798-.519l4.276 3.664a1 1 0 0 0 1.516-.294z', 'M5 21h14'], [0]);
@@ -137,6 +138,7 @@ const _mapPin = LucideIcon('map-pin', ['M20 10c0 4.993-5.539 10.193-7.399 11.799
 const _mapPinned = LucideIcon('map-pinned', ['M18 8c0 3.613-3.869 7.429-5.393 8.795a1 1 0 0 1-1.214 0C9.87 15.429 6 11.613 6 8a6 6 0 0 1 12 0', 'M10 8A2 2 0 1 0 14 8A2 2 0 1 0 10 8Z', 'M8.714 14h-3.71a1 1 0 0 0-.948.683l-2.004 6A1 1 0 0 0 3 22h18a1 1 0 0 0 .948-1.316l-2-6a1 1 0 0 0-.949-.684h-3.712'], [0]);
 const _maximize = LucideIcon('maximize', ['M8 3H5a2 2 0 0 0-2 2v3', 'M21 8V5a2 2 0 0 0-2-2h-3', 'M3 16v3a2 2 0 0 0 2 2h3', 'M16 21h3a2 2 0 0 0 2-2v-3'], []);
 const _megaphone = LucideIcon('megaphone', ['M11 6a13 13 0 0 0 8.4-2.8A1 1 0 0 1 21 4v12a1 1 0 0 1-1.6.8A13 13 0 0 0 11 14H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2z', 'M6 14a12 12 0 0 0 2.4 7.2 2 2 0 0 0 3.2-2.4A8 8 0 0 1 10 14', 'M8 6v8'], [0]);
+const _menu = LucideIcon('menu', ['M4 5h16', 'M4 12h16', 'M4 19h16'], []);
 const _messageCircleQuestionMark = LucideIcon('message-circle-question-mark', ['M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719', 'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3', 'M12 17h.01'], [0]);
 const _messageSquare = LucideIcon('message-square', ['M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z'], [0]);
 const _messageSquareDashed = LucideIcon('message-square-dashed', ['M14 3h2', 'M16 19h-2', 'M2 12v-2', 'M2 16v5.286a.71.71 0 0 0 1.212.502l1.149-1.149', 'M20 19a2 2 0 0 0 2-2v-1', 'M22 10v2', 'M22 6V5a2 2 0 0 0-2-2', 'M4 3a2 2 0 0 0-2 2v1', 'M8 19h2', 'M8 3h2'], []);
@@ -151,6 +153,7 @@ const _pause = LucideIcon('pause', ['M15 3H18A1 1 0 0 1 19 4V20A1 1 0 0 1 18 21H
 const _penLine = LucideIcon('pen-line', ['M13 21h8', 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z'], [1]);
 const _pencil = LucideIcon('pencil', ['M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z', 'm15 5 4 4'], [0]);
 const _pencilLine = LucideIcon('pencil-line', ['M13 21h8', 'm15 5 4 4', 'M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z'], [2]);
+const _phone = LucideIcon('phone', ['M13.832 16.568a1 1 0 0 0 1.213-.303l.355-.465A2 2 0 0 1 17 15h3a2 2 0 0 1 2 2v3a2 2 0 0 1-2 2A18 18 0 0 1 2 4a2 2 0 0 1 2-2h3a2 2 0 0 1 2 2v3a2 2 0 0 1-.8 1.6l-.468.351a1 1 0 0 0-.292 1.233 14 14 0 0 0 6.392 6.384'], [0]);
 const _pin = LucideIcon('pin', ['M12 17v5', 'M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z'], [1]);
 const _pinOff = LucideIcon('pin-off', ['M12 17v5', 'M15 9.34V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H7.89', 'm2 2 20 20', 'M9 9v1.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h11'], []);
 const _play = LucideIcon('play', ['M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z'], [0]);
@@ -287,6 +290,7 @@ abstract final class Lucide {
   static const clock = _clock;
   static const code = _code;
   static const compass = _compass;
+  static const contactRound = _contactRound;
   static const copy = _copy;
   static const copyPlus = _copyPlus;
   static const crown = _crown;
@@ -361,6 +365,7 @@ abstract final class Lucide {
   static const mapPinned = _mapPinned;
   static const maximize = _maximize;
   static const megaphone = _megaphone;
+  static const menu = _menu;
   static const messageCircleQuestionMark = _messageCircleQuestionMark;
   static const messageSquare = _messageSquare;
   static const messageSquareDashed = _messageSquareDashed;
@@ -376,6 +381,7 @@ abstract final class Lucide {
   static const penLine = _penLine;
   static const pencil = _pencil;
   static const pencilLine = _pencilLine;
+  static const phone = _phone;
   static const pin = _pin;
   static const pinOff = _pinOff;
   static const play = _play;
@@ -526,6 +532,8 @@ abstract final class Lucide {
     'code': _code,
     'code-square': _squareCode,
     'compass': _compass,
+    'contact-2': _contactRound,
+    'contact-round': _contactRound,
     'copy': _copy,
     'copy-plus': _copyPlus,
     'crown': _crown,
@@ -607,6 +615,7 @@ abstract final class Lucide {
     'map-pinned': _mapPinned,
     'maximize': _maximize,
     'megaphone': _megaphone,
+    'menu': _menu,
     'message-circle-question': _messageCircleQuestionMark,
     'message-circle-question-mark': _messageCircleQuestionMark,
     'message-square': _messageSquare,
@@ -627,6 +636,7 @@ abstract final class Lucide {
     'pen-square': _squarePen,
     'pencil': _pencil,
     'pencil-line': _pencilLine,
+    'phone': _phone,
     'pin': _pin,
     'pin-off': _pinOff,
     'play': _play,

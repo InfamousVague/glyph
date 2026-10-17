@@ -67,6 +67,13 @@
     <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!--
+      Settings › Contacts (lib/integrations/contacts; docs/INTEGRATIONS.md §2): the phone's contacts read, for a person
+      named on a to-do, once the person turns the switch on there, which is when Android asks. Read only, never
+      written, and nothing of a contact leaves the phone. Opening a contact in the Contacts app needs no permission.
+    -->
+    <uses-permission android:name="android.permission.READ_CONTACTS" />
+
     <!-- A phone with no microphone still lists the app: notes can be typed. -->
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
     <!-- Nor does a note need a position to be written: a phone with no location hardware still lists the app. -->

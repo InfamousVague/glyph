@@ -29,6 +29,12 @@ dependencies:
   # Each platform's own settings: a player started by the tap that made it, and played in its card.
   webview_flutter_android: ^4.14.1
   webview_flutter_wkwebview: ^3.27.0
+  # Settings › Contacts (lib/integrations/contacts, docs/INTEGRATIONS.md §2): the phone's own address book read on
+  # this device, for a person named on a to-do, and nothing of it sent anywhere. Android, the iPhone and the Mac.
+  flutter_contacts: ^2.6.0
+  # A contact's card calls, texts and emails (`tel:`, `sms:`, `mailto:`) through Flutter's own launcher, on every
+  # platform the contacts are read on; the app's own opener (core/open_link.dart) lets no `sms:` through.
+  url_launcher: ^6.3.3
 
 dev_dependencies:
   flutter_test:
