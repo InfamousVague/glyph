@@ -85,8 +85,11 @@ const Key _picture = ValueKey<String>('cm-mermaidPicture');
 
 void main() {
   setUpAll(loadAppFonts);
+  tearDown(() => diagramFullScreenButtons = true);
   int? apply;
   setUp(() {
+    // The page has no full-screen button: the drawing under it is what is held to the page.
+    diagramFullScreenButtons = false;
     // Every block read at once: the page's were, before it was measured.
     apply = CodeWorkBudget.apply;
     CodeWorkBudget.apply = null;

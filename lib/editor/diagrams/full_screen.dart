@@ -319,6 +319,12 @@ class DiagramLayerState extends State<DiagramLayer> {
   }
 }
 
+/// Whether drawn diagrams carry their full-screen button. The tests that lay a diagram's block over the web page's
+/// own (test/editor/blocks/reference_test.dart) turn it off: the page has no such button, and the drawing under it is
+/// what they hold to the page.
+@visibleForTesting
+bool diagramFullScreenButtons = true;
+
 /// A drawn picture with the full-screen button in its top corner: what a diagram's block and a query's timeline
 /// wrap their picture in.
 class WithFullScreen extends StatelessWidget {
@@ -329,6 +335,7 @@ class WithFullScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (!diagramFullScreenButtons) return child;
     final space1 = context.tokens.space(1);
     return Stack(
       clipBehavior: Clip.none,
