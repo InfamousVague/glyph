@@ -4,16 +4,19 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../export/ghostex_calls.dart' show Ghostex;
 import '../../importer/import_report.dart';
 import '../../importer/importer.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
+import 'ghostex_cards.dart';
 import 'settings_host.dart';
 
 /// What Settings' search finds on Import.
 const List<SettingsFindable> importFindable = [
   SettingsFindable('Obsidian vault', 'import obsidian vault folder markdown canvas move from'),
   SettingsFindable('Evernote export (.enex)', 'import evernote enex export notebook move from'),
+  ghostexImportFindable,
 ];
 
 /// Where an import is: not begun, choosing, bringing things in, done, or stopped by a failure.
@@ -49,12 +52,19 @@ class _Failed extends _State {
 /// The calls are the [Importer] it is handed, or the one Settings was given (`SettingsFeatures.importer`). With
 /// none, as in a picture of the page, the rows are drawn and cannot be pressed. Not on an iPhone, whose section is
 /// not listed (settings_sections.dart).
+///
+/// Below them, A .ghostex file (ghostex_cards.dart): an export of Ghost.md's own read back, over the [Ghostex] it is
+/// handed (`SettingsFeatures.ghostex`).
 class ImportPane extends StatefulWidget {
-  const ImportPane({super.key, this.importer});
+  const ImportPane({super.key, this.importer, this.ghostex});
 
   final Importer? importer;
+  final Ghostex? ghostex;
 
-  static Widget hosted(BuildContext context) => ImportPane(importer: SettingsHost.maybeOf(context)?.features.importer);
+  static Widget hosted(BuildContext context) {
+    final features = SettingsHost.maybeOf(context)?.features;
+    return ImportPane(importer: features?.importer, ghostex: features?.ghostex);
+  }
 
   @override
   State<ImportPane> createState() => _ImportPaneState();
@@ -145,6 +155,7 @@ class _ImportPaneState extends State<ImportPane> {
             ),
           ],
         ),
+        GhostexImportCard(ghostex: widget.ghostex),
       ],
     );
   }

@@ -71,9 +71,9 @@ void main() {
 
   bool off(WidgetTester tester, String row) => tester.widget<SettingRow>(rowCalled(row)).disabled;
 
-  testWidgets('two rows, which wait for an importer', (tester) async {
+  testWidgets('two rows, which wait for an importer, and A .ghostex file below them', (tester) async {
     await open(tester, null);
-    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)']);
+    expect(rowLabels(tester), ['Obsidian vault', 'Evernote export (.enex)', 'A .ghostex file']);
     expect(off(tester, 'Obsidian vault'), isTrue);
     expect(off(tester, 'Evernote export (.enex)'), isTrue);
     expect(find.textContaining('a workspace of their own, named for the day'), findsOneWidget);
