@@ -91,6 +91,23 @@ class DiagramAsk {
 
   static String _n(double value) => value.toStringAsFixed(3);
 
+  /// The same diagram painted the same way, drawn `room` wide on a page `room` wide with `gutter` either side: the
+  /// full-screen layer's picture (full_screen.dart), wider than the note's column so a gantt has room for its days.
+  DiagramAsk widened(double room, {required double gutter}) => DiagramAsk(
+        code: code,
+        dark: dark,
+        viewport: room,
+        room: room,
+        gutter: gutter,
+        em: em,
+        ui: ui,
+        note: note,
+        coding: coding,
+        ink: ink,
+        ratio: ratio,
+        timeline: timeline,
+      );
+
   /// Whether `other` asks for the same diagram painted the same way, in another room at most: a window being
   /// dragged wider, a phone unfolding.
   bool sameButRoom(DiagramAsk other) =>

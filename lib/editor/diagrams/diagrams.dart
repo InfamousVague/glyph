@@ -53,11 +53,13 @@ import '../view/drawn_block.dart';
 import '../view/editor_view.dart';
 import 'bridge.dart';
 import 'fences.dart';
+import 'full_screen.dart';
 import 'height.dart';
 import 'store.dart';
 
 export 'bridge.dart';
 export 'fences.dart';
+export 'full_screen.dart';
 export 'height.dart';
 export 'store.dart';
 
@@ -233,7 +235,13 @@ class DrawnDiagramState extends State<DrawnDiagram> {
         final room = constraints.maxWidth;
         if (room.isFinite && room > 0) _want(diagramAsk(context, widget.code, room));
         final picture = _picture;
-        if (picture != null) return _DiagramPicture(picture: picture, room: room);
+        if (picture != null) {
+          // Its own button to see it full screen (full_screen.dart), over the block's tap that opens the fence.
+          return WithFullScreen(
+            onFullScreen: () => openDiagramFullScreen(context, ask: _shownFor ?? diagramAsk(context, widget.code, room), shown: picture, label: 'Diagram'),
+            child: _DiagramPicture(picture: picture, room: room),
+          );
+        }
         final known = _mistake == null ? knownDiagramHeight(widget.code) : null;
         // Drawn here before, and on its way back: its room, kept, so the note does not move twice.
         if (known != null) return SizedBox(width: double.infinity, height: known);

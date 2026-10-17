@@ -152,7 +152,14 @@ class QueryGanttState extends State<QueryGantt> {
             final picture = _picture;
             if (picture != null) {
               // Mermaid's own drawing: `<div className="cm-mermaid gantt" data-drawn role="img" aria-label="Timeline">`.
-              return Semantics(container: true, image: true, label: 'Timeline', child: Part('gantt', child: _Picture(picture: picture, room: room)));
+              // The full-screen button beside the picture, not inside it: the picture is read as Timeline alone.
+              return Part(
+                'gantt',
+                child: WithFullScreen(
+                  onFullScreen: () => openDiagramFullScreen(context, ask: timelineAsk(context, look, code, room, widget.today), shown: picture, label: 'Timeline'),
+                  child: Semantics(container: true, image: true, label: 'Timeline', child: _Picture(picture: picture, room: room)),
+                ),
+              );
             }
             // .lines { padding: var(--glacier-space-2) var(--glacier-space-3); border-radius: var(--glacier-radius-md);
             //   background: var(--app-paper); font-family: var(--glacier-font-mono);
