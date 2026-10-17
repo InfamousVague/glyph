@@ -140,13 +140,14 @@ fn tokens(answer: &Value) -> Value {
     })
 }
 
-/// A state or a challenge: base64url, long enough not to be guessed.
-fn well_formed(value: &str) -> bool {
+/// A state or a challenge: base64url, long enough not to be guessed. Google's sign-in (`google.rs`) checks its own
+/// the same way.
+pub(crate) fn well_formed(value: &str) -> bool {
     base64url(value, STATE_LENGTH)
 }
 
 /// The PKCE S256 transform: the challenge a verifier proves.
-fn challenge_of(verifier: &str) -> String {
+pub(crate) fn challenge_of(verifier: &str) -> String {
     URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()))
 }
 
@@ -154,8 +155,8 @@ fn escape(text: &str) -> String {
     text.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;")
 }
 
-/// The page a browser lands on after Notion: one sentence, in Ghost.md's ink.
-fn page(status: StatusCode, heading: &str, line: &str) -> Response {
+/// The page a browser lands on after Notion, or after Google: one sentence, in Ghost.md's ink.
+pub(crate) fn page(status: StatusCode, heading: &str, line: &str) -> Response {
     let body = format!(
         "<!doctype html><meta charset=utf-8><meta name=viewport content=\"width=device-width,initial-scale=1\"><title>Ghost.md</title>\
          <style>body{{margin:0;min-height:100vh;display:grid;place-items:center;background:#000;color:#f5f5f5;font:17px/1.4 system-ui,sans-serif}}\

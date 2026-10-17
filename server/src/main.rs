@@ -1,5 +1,6 @@
 //! glyph-api: Ghost.md's service on attack.fm - accounts, end-to-end encrypted sync, shared links, live typing's relay,
-//! Notion sign-in and the door to Claude's hosted MCP server - and the voice-note formatting route it began as.
+//! Notion's and Google's sign-ins and the door to Claude's hosted MCP server - and the voice-note formatting route it
+//! began as.
 //!
 //!   /api/v1/*          accounts and end-to-end encrypted sync, see `accounts.rs`, `sync.rs`
 //!   /api/v1/shares/*   notes and books shared by their links, see `shares.rs`
@@ -9,6 +10,7 @@
 //!   /api/v1/notifications/*  what an account is told, as a feed, see `notifications.rs`
 //!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
 //!   /api/notion/*      Notion sign-in, see `notion.rs`
+//!   /api/google/*      Google sign-in, for Google Calendar, see `google.rs`
 //!   /api/mcp/*         Claude's hosted MCP server, running beside this one, see `mcp_proxy.rs`
 //!   GET  /api/health   the service is up, and whether the format route's model is, see `health` below
 //!   POST /api/format   annotations for a transcript, which nothing in the app asks for any more, see `format.rs`
@@ -21,16 +23,19 @@
 //! THE ENVIRONMENT, every variable the binary reads: GLYPH_API_BIND (where to listen, loopback); GLYPH_API_DATA (where
 //! accounts are kept - unset, the service runs without accounts, sync, shares or the relay); GLYPH_API_TOKEN,
 //! GLYPH_API_MODEL and OLLAMA_URL (the format route's token and model, `format.rs`); GLYPH_MCP_UPSTREAM
-//! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); and
+//! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); GOOGLE_CLIENT_ID,
+//! GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI (`google.rs`; unset, Google sign-in answers 503); and
 //! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail). On the box,
-//! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's client
-//! id and secret; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM and NOTION_REDIRECT_URI are left at their defaults.
+//! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's and
+//! Google's client ids and secrets; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM, NOTION_REDIRECT_URI and GOOGLE_REDIRECT_URI are
+//! left at their defaults.
 //!
 //! Caddy routes `/api/*` here (ghostmarkdown.com passes it as is; the attack.fm alias strips its `/glyph` first), so
 //! the routes carry `/api`.
 
 mod accounts;
 mod format;
+mod google;
 mod guard;
 mod identity;
 mod notion;
@@ -145,7 +150,7 @@ async fn allow_glyph_prefix(mut request: Request, next: Next) -> Response {
     next.run(request).await
 }
 
-/// Every route, merged: health and the format route, Notion, then - when the service has somewhere to keep them -
+/// Every route, merged: health and the format route, Notion, Google, then - when the service has somewhere to keep them -
 /// accounts, sync, shares, organizations, notifications and the relay, then the MCP proxy, all inside one CORS layer,
 /// under the `/glyph` compat strip.
 fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> Router {
@@ -162,11 +167,13 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
         .expose_headers([header::HeaderName::from_static("x-glyph-rev")])
         .max_age(Duration::from_secs(600));
     let notion = notion::Notion::from_env();
+    let google = google::Google::from_env();
     let mut routes = Router::new()
         .route("/api/health", get(health))
         .with_state(app.clone())
         .merge(format::router(app))
-        .merge(notion::router(notion));
+        .merge(notion::router(notion))
+        .merge(google::router(google));
     // Accounts and sync, when the service has somewhere to keep them.
     if let Some(accounts) = accounts {
         routes = routes

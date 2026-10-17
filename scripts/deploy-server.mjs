@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Ships glyph-api to attack.fm: Notion sign-in, the door to Claude's hosted
+ * Ships glyph-api to attack.fm: Notion's and Google's sign-ins, the door to Claude's hosted
  * MCP server (server/src/main.rs), and the voice-note formatting route it
  * began as.
  *
@@ -82,7 +82,7 @@ const PORT = 8796;
 const STAGE = '.glyph-api-stage';
 const API = 'https://ghostmarkdown.com/api';
 
-/** .env, with the token and the Notion credentials checked for shape as well as presence. */
+/** .env, with the token and the Notion and Google credentials checked for shape as well as presence. */
 function loadServerEnv() {
   const env = loadEnv([...BOX_ENV_KEYS, 'VITE_GLYPH_API_TOKEN']);
   // The shape is checked because the value is interpolated into a heredoc on
@@ -98,6 +98,15 @@ function loadServerEnv() {
   }
   if (Boolean(env.NOTION_CLIENT_ID) !== Boolean(env.NOTION_CLIENT_SECRET)) {
     fail('.env has one of NOTION_CLIENT_ID and NOTION_CLIENT_SECRET but not the other.');
+  }
+  // Connect Google Calendar (server/src/google.rs, docs/CALENDAR.md): a Google web client's ID and secret. Optional in
+  // the same way: without both, the Google routes answer 503 and the app does not offer the button. A client ID ends
+  // in .apps.googleusercontent.com, so a dot is allowed; nothing that could close a heredoc is.
+  for (const key of ['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET']) {
+    if (env[key] && !/^[A-Za-z0-9._-]{8,200}$/.test(env[key])) fail(`${key} in .env has characters a Google ${key.endsWith('ID') ? 'client ID' : 'secret'} doesn't.`);
+  }
+  if (Boolean(env.GOOGLE_CLIENT_ID) !== Boolean(env.GOOGLE_CLIENT_SECRET)) {
+    fail('.env has one of GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET but not the other.');
   }
   // Email to a note (server/src/mail.rs, tauri/docs/MAIL.md): Mailgun's HTTP webhook signing key. Optional: without it
   // the service takes no mail and the app does not offer an address. Its shape is checked for the same reason.
@@ -171,8 +180,9 @@ $SUDO install -d -o root -g root -m 755 ${REMOTE} ${REMOTE}/bin
 # written beside the live file and moved over it, so the service never reads
 # half of one. Unset straight after, so nothing started below inherits it.
 # The Notion client ID and secret travel the same way, and are written only
-# when both came (an empty line each when they did not); so does Mailgun's
-# signing key for email to a note, written only when it came.
+# when both came (an empty line each when they did not); so do Google's, for
+# Google Calendar; so does Mailgun's signing key for email to a note, written
+# only when it came.
 backup=
 if [ "$MCP_ONLY" != 1 ]; then
 {
@@ -180,6 +190,10 @@ if [ "$MCP_ONLY" != 1 ]; then
   if [ -n "$NOTION_CLIENT_ID_NEW" ] && [ -n "$NOTION_CLIENT_SECRET_NEW" ]; then
     printf 'NOTION_CLIENT_ID=%s\\n' "$NOTION_CLIENT_ID_NEW"
     printf 'NOTION_CLIENT_SECRET=%s\\n' "$NOTION_CLIENT_SECRET_NEW"
+  fi
+  if [ -n "$GOOGLE_CLIENT_ID_NEW" ] && [ -n "$GOOGLE_CLIENT_SECRET_NEW" ]; then
+    printf 'GOOGLE_CLIENT_ID=%s\\n' "$GOOGLE_CLIENT_ID_NEW"
+    printf 'GOOGLE_CLIENT_SECRET=%s\\n' "$GOOGLE_CLIENT_SECRET_NEW"
   fi
   if [ -n "$MAILGUN_SIGNING_KEY_NEW" ]; then
     printf 'GLYPH_MAILGUN_SIGNING_KEY=%s\\n' "$MAILGUN_SIGNING_KEY_NEW"
@@ -203,7 +217,7 @@ $SUDO install -o root -g root -m 755 "$STAGE/glyph-api" ${REMOTE}/bin/glyph-api.
 $SUDO mv -f ${REMOTE}/bin/glyph-api.new ${REMOTE}/bin/glyph-api
 $SUDO install -o root -g root -m 644 "$STAGE/glyph-api.service" /etc/systemd/system/${SERVICE}.service
 fi
-unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW
+unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW
 
 # Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
 # when either changed: a restart signs nobody out (its sessions are kept, sealed), but an unchanged server is left running all the same. The previous file is
@@ -270,8 +284,9 @@ echo "MCP_LOOPBACK $(curl -s -m 5 http://127.0.0.1:${MCP_PORT}/api/mcp/health)"
  * minutes apart, after an afternoon of benchmarking. One is what this box
  * can afford.
  *
- * stdin carries the token, then the Notion client ID and secret (each on a
- * line of its own, empty when not set), then a tarball. The remote shell `read`s the first line - bash reads a pipe one
+ * stdin carries the token, then the Notion client ID and secret, then
+ * Google's, then Mailgun's signing key (each on a line of its own, empty when
+ * not set), then a tarball. The remote shell `read`s the first line - bash reads a pipe one
  * byte at a time, precisely so that it never swallows what comes after the
  * newline - and tar gets the rest intact. So the token is never in a file on
  * this Mac, never in an argument list on either side (the remote command
@@ -289,12 +304,15 @@ function ship(env) {
     writeFileSync(join(local, 'install.sh'), INSTALL);
     const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
-      `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW; ` +
+      `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
+      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
-        Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n`),
+        Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n` +
+            `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n`,
+        ),
         bundle,
       ]),
       stdio: ['pipe', 'pipe', 'inherit'],
@@ -369,6 +387,17 @@ if (env.NOTION_CLIENT_ID) {
     fail(`/notion/start answered ${code}${location ? ` to ${new URL(location).host}` : ''}, expected a redirect to Notion.`);
   }
   ok(`Sign in with Notion hands off to api.notion.com (${code})`);
+}
+
+// Connect Google Calendar: the same check, against Google's consent screen.
+if (env.GOOGLE_CLIENT_ID) {
+  const probe = 'glyphdeploycheck'.repeat(3);
+  const start = curl(['-o', '/dev/null', '-w', '%{http_code} %{redirect_url}', `${API}/google/start?state=${probe}&challenge=${probe}`]).stdout;
+  const [code, location = ''] = start.split(' ');
+  if (!['302', '303', '307'].includes(code) || !location.startsWith('https://accounts.google.com/o/oauth2/v2/auth?')) {
+    fail(`/google/start answered ${code}${location ? ` to ${new URL(location).host}` : ''}, expected a redirect to Google.`);
+  }
+  ok(`Connect Google Calendar hands off to accounts.google.com (${code})`);
 }
 
 // Claude's server, through the proxy: the one path a person's Claude will take.
