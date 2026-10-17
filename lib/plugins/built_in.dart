@@ -22,6 +22,7 @@
 /// Contacts, Rich embeds, Todoist and Things. The app's own Claude is the Claude plugin's other half.
 library;
 
+import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
 import '../sync/arrived.dart' show onArrived;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
@@ -37,8 +38,9 @@ import 'things/things.dart' show thingsPlugin;
 import 'todoist/todoist.dart' show todoistPlugin;
 import 'types.dart';
 
-/// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, one a line
-/// (Place reminders, places/places.dart, which the page never had, among them).
+/// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, which the
+/// page never had, one a line: Place reminders (places/places.dart), Webhooks (docs/INTEGRATIONS.md, §1), and the
+/// integrations made plugins after them.
 final List<GlyphPlugin> builtIn = List.unmodifiable([
   notionPlugin,
   githubPlugin,
@@ -46,6 +48,7 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   claudePlugin,
   slackPlugin,
   placesPlugin,
+  webhooksPlugin,
   calendarPlugin,
   contactsPlugin,
   richEmbedsPlugin,

@@ -38,8 +38,8 @@ import 'support.dart';
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
 
 /// The five that ship, with nothing switched by hand: what the web page was measured over. This app's own (Place
-/// reminders, Calendar, Contacts, Rich embeds, Todoist and Things, which the page never had) are left out of them;
-/// test/plugins/places_test.dart and built_in_plugins_test.dart have their cards. Claude's card is the web's
+/// reminders, Webhooks, Calendar, Contacts, Rich embeds, Todoist and Things, which the page never had) are left out
+/// of them; test/plugins/places_test.dart and Webhooks' plugin_test.dart have their cards. Claude's card is the web's
 /// (support.dart `webClaude`): the plugin here is the app's own Claude too, which its card says, and the page
 /// measured had only the connector.
 Registry shippedRegistry() {

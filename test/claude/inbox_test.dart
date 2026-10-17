@@ -1,9 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:fake_async/fake_async.dart';
 import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_inbox.dart';
-import 'package:ghost_md/claude/claude_run.dart' show ClaudeDesk;
+import 'package:ghost_md/claude/claude_run.dart' show ClaudeDesk, ClaudeRun;
 import 'package:ghost_md/claude/claude_runner.dart';
 import 'package:ghost_md/claude/claude_settings.dart';
 import 'package:ghost_md/claude/claude_tools.dart' show ClaudeNotes;
@@ -75,30 +74,26 @@ void main() {
       expect(runner.conversation, isEmpty);
     });
 
-    test('asks nothing of the inbox while it is off, and looks again when it is switched on', () {
-      fakeAsync((async) {
-        final changes = ValueNotifier<int>(0);
-        var looked = 0;
-        final inbox = ClaudeInbox(
-          runner: runner,
-          body: () {
-            looked += 1;
-            return (id: 'inbox', body: '# Ask Claude\n\n- [ ] Write the plan');
-          },
-          changes: changes,
-          write: (id, change) async {},
-          on: () => on,
-        )..start();
-        async.elapse(inboxSettle + const Duration(seconds: 1));
-        expect(looked, 0);
-        expect(keys, isEmpty);
-        on = true;
-        changes.value += 1;
-        async.elapse(inboxSettle + const Duration(seconds: 1));
-        expect(looked, 1);
-        expect(keys, ['sk-ant-test-0000000000']);
-        inbox.dispose();
-      });
+    testWidgets('asks nothing of the inbox while it is off, and looks again when it is switched on', (tester) async {
+      final asking = _Asking(settings);
+      final changes = ValueNotifier<int>(0);
+      final inbox = ClaudeInbox(
+        runner: asking,
+        body: () => (id: 'inbox', body: '# Ask Claude\n\n- [ ] Write the plan'),
+        changes: changes,
+        write: (id, change) async {},
+        on: () => on,
+      )..start();
+      await tester.pump(inboxSettle + const Duration(seconds: 1));
+      expect(asking.asked, isEmpty);
+      on = true;
+      changes.value += 1;
+      await tester.pump(inboxSettle + const Duration(seconds: 1));
+      expect(asking.asked, hasLength(1));
+      expect(asking.asked.single, contains('Write the plan'));
+      inbox.dispose();
+      changes.dispose();
+      asking.dispose();
     });
   });
 }
@@ -111,4 +106,17 @@ class _NoNotes implements ClaudeNotes {
 class _NoDesk implements ClaudeDesk {
   @override
   dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+/// A runner that only says what it was asked, and refuses it.
+class _Asking extends ClaudeRunner {
+  _Asking(ClaudeSettings settings) : super(settings: settings, notes: _NoNotes(), desk: _NoDesk());
+
+  final List<String> asked = [];
+
+  @override
+  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem}) {
+    asked.add(prompt);
+    return Future<ClaudeRun>.error(const ClaudeError('refused'));
+  }
 }

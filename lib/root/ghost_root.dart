@@ -65,6 +65,7 @@ import '../core/export_all.dart' show ExportAll;
 import '../export/ghostex_calls.dart';
 import '../importer/importer.dart' show Importer;
 import '../integrations/contacts/contacts.dart' show phoneContacts;
+import '../integrations/webhooks/outgoing.dart' show webhooks;
 import '../core/front_matter.dart' show frontMatterOffset;
 import '../core/ids.dart' show randomId;
 import '../core/images.dart';
@@ -447,6 +448,9 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The calendars' own: read again when the app comes back to the front.
   AppLifecycleListener? _calendarLife;
+
+  /// The outgoing webhooks' own: what is waiting is sent as the app goes behind another.
+  AppLifecycleListener? _webhooksLife;
 
   /// A member's caret a note is about to be opened at (an organization's Jump to cursor), by note; its desk takes it.
   final Map<String, Map<String, Object?>> _jumps = {};
@@ -1494,6 +1498,8 @@ class _GhostRootState extends State<GhostRoot> {
     _linkIndex.dispose();
     _calendarLife?.dispose();
     calendar.stop();
+    _webhooksLife?.dispose();
+    webhooks.stop();
     _library.removeListener(_tick.tell);
     _workspaces.removeListener(_tick.tell);
     _trash.removeListener(_tick.tell);
@@ -1560,6 +1566,13 @@ class _GhostRootState extends State<GhostRoot> {
     // The Contacts plugin (lib/plugins/contacts, lib/integrations/contacts): the phone's contacts read where it is
     // on, and the people the notes name, for its page. Its switch is the plugin's.
     phoneContacts.start(bodies: () => [for (final note in _reads.queryNotes) note.body], switched: contactsSwitch());
+    // The outgoing webhooks (lib/integrations/webhooks, docs/INTEGRATIONS.md): what this device changes in a note,
+    // told to their URLs; a send still waiting goes as the app goes behind another. Matched rather than promoted, as
+    // the sync engine's touched is.
+    if (_library case final CoreLibrary core) {
+      webhooks.start(saves: core.savedHere, notes: () => _shown);
+      _webhooksLife = AppLifecycleListener(onHide: () => unawaited(webhooks.flush()));
+    }
     // What the parts on screen read, each told as it changes (lib/root/selected.dart): after the reads above have
     // been told, so a part built again reads the library as it now is.
     _library.addListener(_tick.tell);
