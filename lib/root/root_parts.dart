@@ -454,6 +454,8 @@ extension _RootParts on _GhostRootState {
       dockHalo: _dockHalo,
       ghost: _homeGhost,
       onSaveSearch: _organize.saveSearch,
+      // Today's events at the head of the page (docs/CALENDAR.md).
+      events: calendar.events,
     );
   }
 

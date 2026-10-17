@@ -1,4 +1,6 @@
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/widgets.dart';
+import 'package:ghost_md/calendar/event.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/core/note.dart';
@@ -41,7 +43,11 @@ class Home extends StatefulWidget {
     this.headerEdge,
     this.dockHalo,
     this.notices = const [],
+    this.events,
   });
+
+  /// The calendars' events, as the root hands them.
+  final ValueListenable<List<CalendarEvent>>? events;
 
   /// The notices above the notes, as the root hands them.
   final List<Widget> notices;
@@ -113,6 +119,7 @@ class _HomeState extends State<Home> {
         ghost: widget.ghost,
         headerEdge: widget.headerEdge,
         dockHalo: widget.dockHalo,
+        events: widget.events,
       ),
     );
   }

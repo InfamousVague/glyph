@@ -1,6 +1,7 @@
 # Queries in markdown
 
-A query is a fenced block that lists what matches across every note: to-dos, tickets or notes. In Ghost.md it is
+A query is a fenced block that lists what matches across every note: to-dos, tickets or notes, and, in the Flutter
+app, the events of the calendars it reads (docs/CALENDAR.md). In Ghost.md it is
 drawn as what it finds, live, as a list, a table, a board, a month, a timeline or a count. In any other app it is a
 code block of a few readable lines, which is all it is.
 
@@ -50,8 +51,8 @@ answered with the one it probably meant ("did you mean “from”?").
 ## from:
 
 First the kind: **`notes`** (the default; tickets are notes too), **`tickets`** (notes whose front matter says
-`type: ticket`), or **`tasks`** (every list item with a box, in any note). `issues`, `to-dos` and the singulars are
-read as the same.
+`type: ticket`), **`tasks`** (every list item with a box, in any note), or **`events`** (the calendars' events, below).
+`issues`, `to-dos` and the singulars are read as the same.
 
 Then where from, side by side for all of them, `or` for either, `not` or a dash to leave one out, brackets to say
 which goes with which:
@@ -96,6 +97,32 @@ Every record also has `title` (`note` reads better for a to-do: the note it is i
 `updated`, `kind`, `status` and `category` (where the status stands: To do, In progress, Done). A to-do has `text`
 (its words), `checked`, and `line`; its `status` is its own `[status:: …]`, else Done where it is ticked.
 
+## Events
+
+`from: events` (or `event`) lists the events of the calendars Settings › Calendar reads: an iCal address's, and
+Google's ticked calendars (docs/CALENDAR.md), 60 days back and 400 ahead, each instance of a repeating one on its
+own. An event is in no note, so `#tags`, `[[links]]` and `@people` find none; `"words"` look in its title, where it
+is and its calendar's name. Its fields:
+
+| Field | What it says |
+| --- | --- |
+| `title` | its title (`text` and `note` read the same) |
+| `start`, `end` | its first and its last day, on this device's clock: an all-day event of one day starts and ends on it |
+| `allDay` | yes or no (`allday`, `all-day`) |
+| `time` | its hours, `09:30–10:00`; nothing for an all-day one |
+| `location` | where it is |
+| `calendar` | its calendar's name |
+
+So `where: start >= today and start <= today+7` is the week ahead, `where: calendar = Work and not allDay` the
+work meetings. Events are listed the soonest first, a day's all-day ones before its hours; the columns are title,
+start, time, location and calendar. They show as a **list**, a **table**, a **calendar** (each on its first day), a
+**gantt** (a bar from its first day to its last) or a **count**. An event is the calendar's: a tap opens nothing,
+and nothing on it is picked.
+
+**A calendar of to-dos** (`from: tasks` with `show: calendar`) shows each day's events beside its to-dos, quieter: a
+ring on the day for each, after the to-dos' dots, and in the day listed under the month a line each above the
+to-dos, its hours (or All day) first, in the third ink.
+
 ## The defaults
 
 - **To-dos are the open ones**, unless the query asks about being done: a `where:` or `group:` naming `checked`,
@@ -103,7 +130,7 @@ Every record also has `title` (`note` reads better for a to-do: the note it is i
 - **The order.** Notes, the last changed first. Tickets, the most urgent first, then the soonest due, then by key.
   To-dos, the soonest due first, then the most urgent. Nothing in a field sorts last, whichever way.
 - **The columns.** Notes: title, updated. Tickets: id, title, status, assignee, priority, due. To-dos: the to-do,
-  due, priority, assignee, the note.
+  due, priority, assignee, the note. Events: title, start, time, location, calendar.
 
 ## The ways to show it
 
@@ -157,3 +184,6 @@ tickets: each row's status is a pill that opens its workflow's sheet (on a phone
   App hands it.
 - `src/app/editor/FieldPicker.tsx`, `fieldPicks.ts`: the sheet a value is picked from, and which sheet a field opens.
   `src/app/core/query/move.ts`: a field written into another note, a to-do's on its line.
+- Events are the Flutter app's own: `lib/core/query/records.dart` (`QueryEvent`, `withEvents`), `values.dart` (an
+  event's fields), `run.dart` (their defaults); `lib/editor/queries/queries.dart` and `query_view.dart` (a calendar
+  of to-dos with its days' events); the calendars themselves in `lib/calendar/`.

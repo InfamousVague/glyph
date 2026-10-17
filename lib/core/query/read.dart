@@ -66,8 +66,8 @@ abstract class QueryData {
 /// A number as JSON writes one the web wrote: a whole number without its `.0`.
 Object jsonNumber(num value) => value is double && value.isFinite && value == value.truncateToDouble() ? value.toInt() : value;
 
-/// What the records are (`QueryKind`).
-enum QueryKind { notes, tickets, tasks }
+/// What the records are (`QueryKind`): `events` is the port's own, the calendars' (docs/CALENDAR.md).
+enum QueryKind { notes, tickets, tasks, events }
 
 /// The ways a query is shown, in the order docs/QUERIES.md teaches them (`SHOWS`, `ShowAs`).
 enum ShowAs { table, list, board, calendar, gantt, count }
@@ -331,6 +331,8 @@ const Map<String, QueryKind> _kinds = {
   'task': QueryKind.tasks,
   'todos': QueryKind.tasks,
   'to-dos': QueryKind.tasks,
+  'events': QueryKind.events,
+  'event': QueryKind.events,
 };
 
 /// Another way of saying a way to show, read as that way.

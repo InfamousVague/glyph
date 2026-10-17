@@ -15,6 +15,10 @@
 /// words stay the same (lib/core/query/records.dart [RecordCache], one per editor), so a keystroke reads one note
 /// again, not all.
 ///
+/// **Events.** The calendars' events (lib/calendar, docs/CALENDAR.md) are read as records of their own
+/// ([QueryOptions.events]): `from: events` lists them, and a calendar of to-dos shows each day's beside its to-dos,
+/// quieter. An event is the calendar's: a tap on one opens nothing and nothing in it is picked.
+///
 /// **What a tap does.** A note or a ticket opens; a to-do opens its note at its line, or, in this note, puts the
 /// caret there. A to-do's box ticks it where it is written: in this note with the same edit a tap on the box makes
 /// (commands/task_toggle.dart `toggleBox`, its boards settled in the same undo), and in another through the screen
@@ -77,11 +81,15 @@ typedef NoteChange = String? Function(String body);
 
 /// What the screen hands the editor for its queries: the library, and how to reach and write what a query lists.
 class QueryOptions {
-  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add});
+  const QueryOptions({required this.notes, required this.noteId, required this.open, required this.write, this.add, this.events});
 
   /// Every note a query reads: the library a screen shows, without the Trash, the archive, the Guide or templates'
   /// pages.
   final List<QueryNote> Function() notes;
+
+  /// The calendars' events (lib/calendar, docs/CALENDAR.md): what `from: events` lists, and what a calendar of
+  /// to-dos shows beside them. Absent, there are none.
+  final List<QueryEvent> Function()? events;
 
   /// The open note's id, whose words are read as its editor has them; null for a note not yet in the store.
   final String? noteId;
@@ -237,7 +245,13 @@ class DrawnQuery extends StatelessWidget {
     final state = view.state;
     final editable = widget.canEdit;
     List<QueryNote> library() => _withOpen(options!.notes(), options.noteId, view.state.doc.toString());
-    final result = query != null && options != null ? runQuery(query, libraryOf(library(), _cacheOf(view)), widget.today) : null;
+    final events = options?.events?.call() ?? const <QueryEvent>[];
+    final read = query != null && options != null ? withEvents(libraryOf(library(), _cacheOf(view)), events) : null;
+    final result = query != null && read != null ? runQuery(query, read, widget.today) : null;
+    // A calendar of to-dos shows each day's events too, quieter than the to-dos (docs/CALENDAR.md).
+    final dayEvents = result != null && read != null && result.kind == QueryKind.tasks && result.show == ShowAs.calendar && events.isNotEmpty
+        ? [for (final group in runQuery(const Query(kind: QueryKind.events, show: ShowAs.calendar), read, widget.today).groups) ...group.rows]
+        : const <QueryRow>[];
 
     /// The opening fence's line, where the widget was told it is, if it is still a query's.
     Line? open() {
@@ -254,7 +268,8 @@ class DrawnQuery extends StatelessWidget {
     /// live doc and the drawing stay in step: a to-do's on its line (`withTaskField`, its person as `@name`), a
     /// note's or a ticket's in its front matter.
     void setField(QueryRow row, String field, String? value) {
-      if (!editable) return;
+      // An event is the calendar's, not a note's to write.
+      if (!editable || row.kind == RecordKind.event) return;
       fireMotor(HapticKind.selection);
       if (row.noteId != options?.noteId) {
         options?.write(row.noteId, (body) => movedBody(body, row.line, row.source, row.kind, field, value));
@@ -280,6 +295,7 @@ class DrawnQuery extends StatelessWidget {
       lines: widget.body,
       problem: reading.problem,
       result: result,
+      dayEvents: dayEvents,
       editable: editable,
       today: widget.today,
       locale: state.facet(fieldsLocale),
@@ -313,6 +329,8 @@ class DrawnQuery extends StatelessWidget {
         view.dispatch(TransactionSpec(selection: EditorSelection.single(widget.at), scrollIntoView: true));
       },
       onOpen: (row) {
+        // An event is in no note: there is nothing of it to open here.
+        if (row.kind == RecordKind.event) return;
         if (row.noteId == options?.noteId) {
           final line = row.kind == RecordKind.task ? _lineOf(view.state, row) : 1;
           if (line == null) return;

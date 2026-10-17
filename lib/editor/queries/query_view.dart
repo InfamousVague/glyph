@@ -74,6 +74,7 @@ class QueryView extends StatefulWidget {
     required this.lines,
     required this.problem,
     required this.result,
+    this.dayEvents = const [],
     required this.editable,
     this.today,
     this.locale,
@@ -98,6 +99,9 @@ class QueryView extends StatefulWidget {
 
   /// Null where the lines cannot be read, or there is no library to read.
   final QueryResult? result;
+
+  /// The calendars' events, as rows, that a calendar of to-dos shows quieter beside its own (docs/CALENDAR.md).
+  final List<QueryRow> dayEvents;
   final bool editable;
 
   /// The day the days are named from; the result's own where none is given.
@@ -249,7 +253,7 @@ class QueryViewState extends State<QueryView> {
     final onBody = widget.onBody;
     final picking = _picking;
     final onSet = widget.onSet;
-    final nothing = empty && !(result.show == ShowAs.board && result.groups.length > 1);
+    final nothing = empty && !(result.show == ShowAs.board && result.groups.length > 1) && !(result.show == ShowAs.calendar && widget.dayEvents.isNotEmpty);
     final totals = result.totals.isNotEmpty && result.show != ShowAs.table && result.show != ShowAs.count;
     return _frame('Query: $words', <Widget>[
       QueryHead(
@@ -269,7 +273,7 @@ class QueryViewState extends State<QueryView> {
         switch (result.show) {
           ShowAs.table => QueryTable(look: look, result: result, acts: acts, state: this),
           ShowAs.board => QueryBoard(look: look, result: result, acts: acts, state: this, height: widget.height, onHeight: widget.onHeight),
-          ShowAs.calendar => QueryCalendar(look: look, rows: rows, acts: acts),
+          ShowAs.calendar => QueryCalendar(look: look, rows: rows, acts: acts, events: widget.dayEvents),
           ShowAs.gantt => QueryGantt(look: look, result: result, today: acts.today),
           ShowAs.count => QueryCount(look: look, result: result),
           ShowAs.list => QueryList(look: look, result: result, acts: acts, state: this),
@@ -887,13 +891,17 @@ class _QueryTableState extends State<QueryTable> {
 const List<String> _weekdays = <String>['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 /// The query as a month (`CalendarView`): the month's weeks, a dot for each record on its day, and the day picked
-/// listed under it.
+/// listed under it. A calendar of to-dos is handed the calendars' events too ([events], docs/CALENDAR.md): each is a
+/// ring beside the day's dots and a quiet line above the day's to-dos, its hours first.
 class QueryCalendar extends StatefulWidget {
-  const QueryCalendar({super.key, required this.look, required this.rows, required this.acts});
+  const QueryCalendar({super.key, required this.look, required this.rows, required this.acts, this.events = const []});
 
   final QueryLook look;
   final List<QueryRow> rows;
   final QueryActs acts;
+
+  /// The events on the month's days, as rows; drawn quieter than [rows], and never opened or ticked.
+  final List<QueryRow> events;
 
   @override
   State<QueryCalendar> createState() => _QueryCalendarState();
@@ -915,10 +923,17 @@ class _QueryCalendarState extends State<QueryCalendar> {
     final rows = widget.rows;
     final weeks = monthWeeks(_month, rows, acts.today);
     final days = <CalendarDay>[for (final week in weeks) ...week];
+    // The events by day, from the same month: what each day's rings and quiet lines are.
+    final eventsOn = <String, List<QueryRow>>{
+      for (final week in widget.events.isEmpty ? const <List<CalendarDay>>[] : monthWeeks(_month, widget.events, acts.today))
+        for (final day in week)
+          if (day.rows.isNotEmpty) day.day: day.rows,
+    };
     // The day whose records are listed under the month: the one picked, a day of the weeks either side included,
     // else today in today's month, else the first day with anything on it.
     CalendarDay? shown;
-    for (final test in <bool Function(CalendarDay)>[(day) => day.day == _picked, (day) => day.today && day.inMonth && day.rows.isNotEmpty, (day) => day.inMonth && day.rows.isNotEmpty]) {
+    bool busy(CalendarDay day) => day.rows.isNotEmpty || eventsOn.containsKey(day.day);
+    for (final test in <bool Function(CalendarDay)>[(day) => day.day == _picked, (day) => day.today && day.inMonth && busy(day), (day) => day.inMonth && busy(day)]) {
       shown = days.where(test).firstOrNull;
       if (shown != null) break;
     }
@@ -930,7 +945,8 @@ class _QueryCalendarState extends State<QueryCalendar> {
       final picked = shown?.day == day.day;
       final late = day.rows.any((row) => row.overdue);
       final count = day.rows.length;
-      final said = '${daySaid(day.day, acts.today, acts.locale)}${count > 0 ? ', $count ${count == 1 ? 'thing' : 'things'}' : ''}';
+      final booked = eventsOn[day.day]?.length ?? 0;
+      final said = '${daySaid(day.day, acts.today, acts.locale)}${count > 0 ? ', $count ${count == 1 ? 'thing' : 'things'}' : ''}${booked > 0 ? ', $booked ${booked == 1 ? 'event' : 'events'}' : ''}';
       // .date { font-size: var(--glacier-font-size-xs); line-height: 1.6 }
       // .dayCell[data-today] .date { display: inline-grid; place-items: center; min-inline-size: 1.6em;
       //   block-size: 1.6em; border-radius: var(--glacier-radius-full); background: var(--app-ink);
@@ -952,6 +968,20 @@ class _QueryCalendarState extends State<QueryCalendar> {
       final rem = look.t.lenOf('1rem');
       final pip = 0.4 * rem;
       Widget? dots;
+      // An event is a ring in the fourth ink, after the day's dots: there, and quieter than anything to do.
+      final rings = booked == 0
+          ? null
+          : (booked > 2
+              ? PageWords('+$booked', look.sans(0.625 * rem, color: look.ink4, tabular: true), line: pageLine(0.625 * rem, QueryLook.leading), softWrap: false)
+              : Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    for (var index = 0; index < booked; index += 1) ...<Widget>[
+                      if (index > 0) const SizedBox(width: 2),
+                      Part('ring', child: Container(width: pip, height: pip, decoration: ShapeDecoration(shape: CircleBorder(side: BorderSide(color: look.ink4, width: 1))))),
+                    ],
+                  ],
+                ));
       if (count > 3) {
         dots = PageWords('$count', look.sans(0.625 * rem, color: late ? look.t.color('glacier-red-11') : look.ink2, tabular: true), line: pageLine(0.625 * rem, QueryLook.leading), softWrap: false);
       } else if (count > 0) {
@@ -991,7 +1021,19 @@ class _QueryCalendarState extends State<QueryCalendar> {
                 foregroundDecoration: picked ? BoxDecoration(borderRadius: radius, border: Border.all(color: look.ink2, width: 1.5)) : null,
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
-                  children: <Widget>[Part('date', child: date), if (dots != null) ...<Widget>[const SizedBox(height: 2), Part('dots', child: dots)]],
+                  children: <Widget>[
+                    Part('date', child: date),
+                    if (dots != null || rings != null) ...<Widget>[
+                      const SizedBox(height: 2),
+                      Part(
+                        'dots',
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: <Widget>[?dots, if (dots != null && rings != null) const SizedBox(width: 2), if (rings != null) Part('rings', child: rings)],
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
             ),
@@ -1096,9 +1138,10 @@ class _QueryCalendarState extends State<QueryCalendar> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: <Widget>[
                     Part('dayListHead', child: PageWords(daySaid(shown.day, acts.today, acts.locale), look.sans(look.em, weight: 'semibold', color: look.ink2), line: look.line)),
+                    for (final event in eventsOn[shown.day] ?? const <QueryRow>[]) QueryEventLine(look: look, row: event),
                     if (shown.rows.isNotEmpty)
                       for (final (index, row) in shown.rows.indexed) QueryRowLine(look: look, row: row, acts: acts, first: index == 0, keyLine: false)
-                    else
+                    else if (!eventsOn.containsKey(shown.day))
                       Padding(
                         padding: EdgeInsets.symmetric(vertical: look.space(1)),
                         child: Part('empty', child: PageWords('Nothing on this day.', look.sans(look.em, color: look.ink3), line: look.line)),
@@ -1124,6 +1167,47 @@ class _QueryCalendarState extends State<QueryCalendar> {
   }
 }
 
+/// An event on a calendar of to-dos' day list: its hours, then its title, in the third ink, a line to itself and
+/// nothing to press (docs/CALENDAR.md). The hours are the row's `time` cell, where its query has one.
+class QueryEventLine extends StatelessWidget {
+  const QueryEventLine({super.key, required this.row, required this.look});
+
+  final QueryRow row;
+  final QueryLook look;
+
+  /// What an event's line says before its title: its hours, or All day.
+  static String hoursOf(QueryRow row) {
+    for (final cell in row.cells) {
+      if (cell is TextCell && RegExp(r'^\d{2}:\d{2}').hasMatch(cell.text)) return cell.text;
+    }
+    return 'All day';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final quiet = look.sans(look.em, color: look.ink3);
+    return Semantics(
+      label: '${hoursOf(row)}, ${row.name}',
+      excludeSemantics: true,
+      child: Part(
+        'event',
+        child: Padding(
+          padding: EdgeInsets.symmetric(vertical: look.space(1)),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.baseline,
+            textBaseline: TextBaseline.alphabetic,
+            children: <Widget>[
+              PageWords(hoursOf(row), look.sans(look.xs, color: look.ink4, tabular: true), line: look.lineXs, softWrap: false),
+              SizedBox(width: look.space(2)),
+              Expanded(child: PageWords(row.name, quiet, line: look.line)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// The query as a count (`CountView`): how many, in a big number, and each total after it.
 class QueryCount extends StatelessWidget {
   const QueryCount({super.key, required this.look, required this.result});
@@ -1134,7 +1218,7 @@ class QueryCount extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final word = kindWords[result.kind]!.toLowerCase();
-    final one = const <QueryKind, String>{QueryKind.notes: 'note', QueryKind.tickets: 'ticket', QueryKind.tasks: 'to-do'}[result.kind]!;
+    final one = const <QueryKind, String>{QueryKind.notes: 'note', QueryKind.tickets: 'ticket', QueryKind.tasks: 'to-do', QueryKind.events: 'event'}[result.kind]!;
     // .countView { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--glacier-space-2); margin: 0 }
     // .bigNumber { font-size: var(--glacier-font-size-3xl, 2rem); font-weight: var(--glacier-font-weight-semibold);
     //   font-variant-numeric: tabular-nums; line-height: 1.1 }

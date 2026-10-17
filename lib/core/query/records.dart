@@ -53,8 +53,48 @@ class QueryNote {
   QueryNote withBody(String next) => QueryNote(id: id, body: next, createdAt: createdAt, updatedAt: updatedAt);
 }
 
-/// A note, a ticket (a note with `type: ticket`), or a to-do in a note (`RecordKind`).
-enum RecordKind { note, ticket, task }
+/// A note, a ticket (a note with `type: ticket`), a to-do in a note (`RecordKind`), or an event on a calendar
+/// (docs/CALENDAR.md: the port's own, which the web has not got).
+enum RecordKind { note, ticket, task, event }
+
+/// An event on one of the calendars the app reads (lib/calendar), as a query reads it: what `from: events` lists.
+class QueryEvent {
+  const QueryEvent({required this.id, required this.title, required this.start, required this.end, required this.allDay, this.location, this.calendar});
+
+  /// One instance's key, the same each time the calendar is read.
+  final String id;
+  final String title;
+
+  /// A time's moment; an all-day event's first day at midnight. [end] is where it stops and not in it: a day's
+  /// event ends at the next midnight.
+  final DateTime start;
+  final DateTime end;
+  final bool allDay;
+  final String? location;
+
+  /// The calendar's name.
+  final String? calendar;
+
+  /// The day it starts on, on this device's clock.
+  String get startDay => isoDay(start.toLocal());
+
+  /// The last day it is on: the day before an all-day event's end, and a timed one's own end day unless it ends at
+  /// midnight, which is the day before's.
+  String get endDay {
+    final last = end.toLocal();
+    final midnight = last.hour == 0 && last.minute == 0 && last.second == 0;
+    if (!end.isAfter(start)) return startDay;
+    return midnight ? isoDay(DateTime(last.year, last.month, last.day - 1)) : isoDay(last);
+  }
+
+  /// Its hours as a line says them, `09:30–10:00`; null for an all-day event.
+  String? get hours {
+    if (allDay) return null;
+    String clock(DateTime at) => '${at.hour.toString().padLeft(2, '0')}:${at.minute.toString().padLeft(2, '0')}';
+    final from = start.toLocal(), to = end.toLocal();
+    return end.isAfter(start) ? '${clock(from)}–${clock(to)}' : clock(from);
+  }
+}
 
 class QueryRecord {
   const QueryRecord({
@@ -78,6 +118,7 @@ class QueryRecord {
     required this.linksTo,
     required this.linkKeys,
     required this.haystack,
+    this.event,
   });
 
   final RecordKind kind;
@@ -135,6 +176,9 @@ class QueryRecord {
 
   /// What `"words"` in `from:` look through, lower case: a note's title and words, a to-do's words.
   final String haystack;
+
+  /// An event's own facts; null for anything else.
+  final QueryEvent? event;
 }
 
 /// A note in the library, as `from: [[…]]` finds one: by its title, or a ticket by its key (`LibraryNote`).
@@ -401,6 +445,46 @@ QueryLibrary libraryOf(List<QueryNote> notes, [RecordCache? cache]) {
     }
   }
   return QueryLibrary(records: records, byTitle: byTitle, byTicket: byTicket);
+}
+
+const Map<String, String> _noFields = {};
+
+/// [library] with every event in [events] as a record of its own (`from: events`, docs/CALENDAR.md). An event is
+/// in no note: it has no note's id, no line, no tags and no links, and its words are its title, where it is and its
+/// calendar's name.
+QueryLibrary withEvents(QueryLibrary library, List<QueryEvent> events) {
+  if (events.isEmpty) return library;
+  return QueryLibrary(
+    records: [
+      ...library.records,
+      for (final event in events)
+        QueryRecord(
+          kind: RecordKind.event,
+          noteId: '',
+          line: -1,
+          source: '',
+          title: event.title,
+          text: event.title,
+          done: null,
+          anchor: null,
+          notebook: null,
+          books: const [],
+          workflow: defaultStatuses,
+          tags: const [],
+          created: event.startDay,
+          updated: event.startDay,
+          props: _noFields,
+          ticket: null,
+          fields: null,
+          linksTo: const {},
+          linkKeys: const [],
+          haystack: [event.title, ?event.location, ?event.calendar].join('\n').toLowerCase(),
+          event: event,
+        ),
+    ],
+    byTitle: library.byTitle,
+    byTicket: library.byTicket,
+  );
 }
 
 /// The note `[[title]]` names in the library: by its title, as a link finds it, or a ticket by its key, as

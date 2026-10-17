@@ -61,3 +61,14 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
 | --- | --- |
 | Server sign-in | server/src/google.rs (new), wired in server/src/main.rs |
 | Calendar sources, store, sync, settings, query kind, home | lib/calendar/* (new), lib/core/query/*, lib/editor/queries/*, lib/settings/panes/*, lib/home/* |
+
+## In the Flutter app (2026-10-17)
+
+- `lib/calendar/ics.dart` reads an iCal file and lays its events out; `google.dart` is the sign-in, the calls and the
+  to-dos' export; `setup.dart` is what the account keeps (the preferences' `calendars`, synced sealed);
+  `store.dart` what each device keeps (`glyph-calendar-*`, `glyph-google-*`); `calendar.dart` the reading for the
+  app's life, started by the root (lib/root/ghost_root.dart).
+- Settings › Calendar is a page behind Plugins (a row there, and the search), not a row of the list: the list is
+  held to the web's, as Daily notes is behind Workspaces.
+- The home page has no to-dos of its own any more (the dashboard went, docs/DESIGN.md §147), so today's events are
+  at the head of the page, under Today, above the notes.

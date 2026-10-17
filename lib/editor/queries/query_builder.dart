@@ -31,6 +31,8 @@ const Map<String, QueryKind> _kindWord = <String, QueryKind>{
   'task': QueryKind.tasks,
   'todos': QueryKind.tasks,
   'to-dos': QueryKind.tasks,
+  'events': QueryKind.events,
+  'event': QueryKind.events,
 };
 
 final RegExp _space = RegExp(r'\s+');
@@ -46,6 +48,8 @@ const List<({QueryKind kind, String word, String label, LucideIcon icon})> build
   (kind: QueryKind.tasks, word: 'tasks', label: 'To-dos', icon: Lucide.listTodo),
   (kind: QueryKind.tickets, word: 'tickets', label: 'Tickets', icon: Lucide.ticket),
   (kind: QueryKind.notes, word: 'notes', label: 'Notes', icon: Lucide.fileText),
+  // The calendars' events (docs/CALENDAR.md): the port's own.
+  (kind: QueryKind.events, word: 'events', label: 'Events', icon: Lucide.calendarDays),
 ];
 
 /// A common filter per kind, each a ready `where:` (null is Everything, which takes the line off) (`FILTERS`).
@@ -64,6 +68,12 @@ const Map<QueryKind, List<({String id, String label, String? where})>> builderFi
   QueryKind.notes: <({String id, String label, String? where})>[
     (id: 'all', label: 'Everything', where: null),
     (id: 'recent', label: 'Changed this week', where: 'updated >= today-7'),
+  ],
+  QueryKind.events: <({String id, String label, String? where})>[
+    (id: 'all', label: 'Everything', where: null),
+    (id: 'soon', label: 'Coming up', where: 'start >= today'),
+    (id: 'today', label: 'Today', where: 'start = today'),
+    (id: 'week', label: 'This week', where: 'start >= today and start <= today+7'),
   ],
 };
 
@@ -100,7 +110,8 @@ class QueryBuilder extends StatelessWidget {
     final group = clauseValue(body, 'group');
     final show = (clauseValue(body, 'show') ?? '').trim().toLowerCase();
     final filters = builderFilters[kind]!;
-    final grouped = kind != QueryKind.notes;
+    // Statuses, people and priorities are a to-do's and a ticket's: a note and an event have none to group by.
+    final grouped = kind != QueryKind.notes && kind != QueryKind.events;
     final has = where != null && where.isNotEmpty;
     final none = group == null || group.isEmpty;
 

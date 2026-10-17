@@ -142,6 +142,8 @@ bool _picksDay(QueryRow row, String key) => _pickedDays.contains(key) && (row.ki
 /// What sheet a record's field opens, from what it holds now; null for a field nothing picks (a title, a tag, a
 /// note). [people] is asked only for a person, since answering it reads every note.
 FieldPick? pickOf(QueryRow row, String field, Cell cell, String today, List<String> Function() people) {
+  // An event is the calendar's to change, not a note's (docs/CALENDAR.md).
+  if (row.kind == RecordKind.event) return null;
   final key = field.toLowerCase();
   if (key == 'status') {
     if (row.kind == RecordKind.task) return row.done == null ? null : BoxPick(done: row.done!);
@@ -155,6 +157,7 @@ FieldPick? pickOf(QueryRow row, String field, Cell cell, String today, List<Stri
 
 /// Whether a field is one [pickOf] opens a sheet for, without reading the people.
 bool picksField(QueryRow row, String field) {
+  if (row.kind == RecordKind.event) return false;
   final key = field.toLowerCase();
   if (key == 'status') return row.kind != RecordKind.task || row.done != null;
   return key == 'priority' || key == 'assignee' || _picksDay(row, key);

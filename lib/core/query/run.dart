@@ -6,11 +6,12 @@
 ///
 /// The defaults are what make `from: #bug` alone a useful query:
 ///
-/// - **What is read.** Notes, unless `from:` says tickets or tasks. Notes include tickets, which are notes.
+/// - **What is read.** Notes, unless `from:` says tickets, tasks or events (the calendars', docs/CALENDAR.md). Notes
+///   include tickets, which are notes; an event is in no note.
 /// - **Open to-dos.** A tasks query lists the ones not ticked, unless it asks about being done: a `where:` or a
 ///   `group:` that names `checked`, `status`, `done` or `category`, or a board, whose columns are the statuses.
 /// - **The order.** Notes the last changed first; tickets the most urgent first, then the soonest due, then by key;
-///   to-dos the soonest due first, then the most urgent. A record with nothing in a field sorts after those that
+///   to-dos the soonest due first, then the most urgent; events the soonest first, a day's before the day's hours. A record with nothing in a field sorts after those that
 ///   have something, whichever way; a priority's none sits between medium and low, as Tasks sorts it.
 /// - **The way it is shown.** A table for tickets, a list for notes and to-dos.
 /// - **The columns.** Tickets: id, title, status, assignee, priority, due. To-dos: the to-do, due, priority,
@@ -288,19 +289,22 @@ class QueryResult extends QueryData {
       };
 }
 
-const Map<QueryKind, ShowAs> _defaultShow = {QueryKind.notes: ShowAs.list, QueryKind.tickets: ShowAs.table, QueryKind.tasks: ShowAs.list};
+const Map<QueryKind, ShowAs> _defaultShow = {QueryKind.notes: ShowAs.list, QueryKind.tickets: ShowAs.table, QueryKind.tasks: ShowAs.list, QueryKind.events: ShowAs.list};
 
 /// What each kind of record is called, many of them: a gantt's one section, a count's words (`KIND_WORDS`).
-const Map<QueryKind, String> kindWords = {QueryKind.notes: 'Notes', QueryKind.tickets: 'Tickets', QueryKind.tasks: 'To-dos'};
+const Map<QueryKind, String> kindWords = {QueryKind.notes: 'Notes', QueryKind.tickets: 'Tickets', QueryKind.tasks: 'To-dos', QueryKind.events: 'Events'};
 const Map<QueryKind, List<String>> _defaultColumns = {
   QueryKind.notes: ['title', 'updated'],
   QueryKind.tickets: ['id', 'title', 'status', 'assignee', 'priority', 'due'],
   QueryKind.tasks: ['text', 'due', 'priority', 'assignee', 'note'],
+  QueryKind.events: ['title', 'start', 'time', 'location', 'calendar'],
 };
 const Map<QueryKind, List<SortKey>> _defaultSort = {
   QueryKind.notes: [SortKey('updated', desc: true)],
   QueryKind.tickets: [SortKey('priority'), SortKey('due'), SortKey('id')],
   QueryKind.tasks: [SortKey('due'), SortKey('priority')],
+  // The soonest first, a day's events before the day's hours, and the hours in order.
+  QueryKind.events: [SortKey('start'), SortKey('allday', desc: true), SortKey('time')],
 };
 
 /// The fields that ask whether something is done, which turn off a tasks query's open-only default.
@@ -313,7 +317,8 @@ const List<String> _dayFields = ['due', 'scheduled', 'start', 'date'];
 bool _ofKind(QueryRecord record, QueryKind kind) => switch (kind) {
       QueryKind.tasks => record.kind == RecordKind.task,
       QueryKind.tickets => record.kind == RecordKind.ticket,
-      QueryKind.notes => record.kind != RecordKind.task,
+      QueryKind.notes => record.kind == RecordKind.note || record.kind == RecordKind.ticket,
+      QueryKind.events => record.kind == RecordKind.event,
     };
 
 /// Every `[[title]]` a `from:` names.
@@ -420,6 +425,28 @@ String? _dayOf(QueryRecord record, String field) {
 }
 
 QueryRow _rowOf(QueryRecord record, List<QueryColumn> columns, String today) {
+  final event = record.event;
+  if (event != null) {
+    // An event is on its first day, runs to its last (a gantt's bar), and is never late: it is not a thing to do.
+    return QueryRow(
+      key: 'event:${event.id}',
+      kind: record.kind,
+      noteId: record.noteId,
+      line: record.line,
+      source: record.source,
+      anchor: null,
+      name: record.title,
+      id: null,
+      done: null,
+      category: StatusCategory.todo,
+      workflow: record.workflow,
+      cells: [for (final column in columns) _cellOf(valueOf(record, column.field), column.field, today, false)],
+      day: event.startDay,
+      start: event.startDay,
+      due: event.endDay,
+      overdue: false,
+    );
+  }
   final category = categoryOf(record);
   final due = _dayOf(record, 'due');
   final done = category == StatusCategory.done || record.done == true;

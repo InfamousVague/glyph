@@ -256,6 +256,8 @@ class NoteDeskWorld {
     this.services,
     this.changes,
     this.queryNotes,
+    this.queryEvents,
+    this.eventsChanged,
     this.openAt,
     this.write,
     this.addTicket,
@@ -330,6 +332,11 @@ class NoteDeskWorld {
 
   /// The library a ```query reads (lib/root/library_reads.dart); absent, a query is drawn as its lines.
   final List<QueryNote> Function()? queryNotes;
+
+  /// The calendars' events a query reads (`from: events`, and a calendar of to-dos; docs/CALENDAR.md), and what
+  /// says they changed, when every query in the open note is drawn again. Absent, there are none.
+  final List<QueryEvent> Function()? queryEvents;
+  final Listenable? eventsChanged;
 
   /// A note a query listed, opened: the note itself, or a to-do's note at its line, from 0.
   final void Function(String noteId, int? line)? openAt;
@@ -857,6 +864,7 @@ class NoteDeskState extends State<NoteDesk> {
           open: (id, line) => _world.openAt?.call(id, line),
           write: (id, change) => _world.write?.call(id, change),
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
+          events: _world.queryEvents,
         );
 
   /// What a notebook's own words' queries read and do: [_queries] with no note read as typed. The words there are
@@ -871,12 +879,14 @@ class NoteDeskState extends State<NoteDesk> {
           open: (id, line) => _world.openAt?.call(id, line),
           write: (id, change) => _world.write?.call(id, change),
           add: _world.addTicket == null ? null : (draft, title, from) => _world.addTicket!(draft, title, from),
+          events: _world.queryEvents,
         );
 
   @override
   void initState() {
     super.initState();
     _world.changes?.addListener(_libraryChanged);
+    _world.eventsChanged?.addListener(_eventsChanged);
     plugins.addListener(_pluginsChanged);
     // While the note is open the better words wait to write it: the editor is its one writer.
     _world.holdNote?.call(widget.noteId, true);
@@ -1098,6 +1108,10 @@ class NoteDeskState extends State<NoteDesk> {
         if (mounted) _handed();
       });
     }
+    if (!identical(oldWidget.world.eventsChanged, _world.eventsChanged)) {
+      oldWidget.world.eventsChanged?.removeListener(_eventsChanged);
+      _world.eventsChanged?.addListener(_eventsChanged);
+    }
     if (identical(oldWidget.world.changes, _world.changes)) return;
     oldWidget.world.changes?.removeListener(_libraryChanged);
     _world.changes?.addListener(_libraryChanged);
@@ -1136,6 +1150,22 @@ class NoteDeskState extends State<NoteDesk> {
         if (retaped) _tapeSlot.reconfigure(tapeSource.of(tape)),
       ];
       if (effects.isNotEmpty) view.dispatch(TransactionSpec(effects: effects));
+    }
+
+    if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
+      tell();
+    } else {
+      SchedulerBinding.instance.addPostFrameCallback((_) => tell());
+    }
+  }
+
+  /// The calendars' events changed: a note with a query in it draws its queries again, after the frame where one is
+  /// being built. A note with none is told nothing.
+  void _eventsChanged() {
+    void tell() {
+      final view = _view;
+      if (!mounted || view == null || _world.queryNotes == null || queryFencesOf(view.state.doc).isEmpty) return;
+      view.dispatch(TransactionSpec(effects: [refreshQueries.of(null)]));
     }
 
     if (SchedulerBinding.instance.schedulerPhase == SchedulerPhase.idle) {
@@ -1310,6 +1340,7 @@ class NoteDeskState extends State<NoteDesk> {
     // Leaving the note takes its toast with it: an Undo for words no longer on screen would undo them unseen.
     if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
+    _world.eventsChanged?.removeListener(_eventsChanged);
     plugins.removeListener(_pluginsChanged);
     _bookmark?.dispose();
     _stripRoom.dispose();

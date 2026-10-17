@@ -293,8 +293,38 @@ Value _noteValue(QueryRecord record, String field) {
 /// A number as JavaScript's `String(n)` writes it: a whole one without its `.0`.
 String _jsNumber(double value) => value.isFinite && value == value.truncateToDouble() && value.abs() < 1e21 ? value.toStringAsFixed(0) : value.toString();
 
+/// An event's field (docs/CALENDAR.md): `title`, `start` and `end` (its first and last days), `allday`, `time` (its
+/// hours, `09:30–10:00`, nothing for a day's), `location` and `calendar`. Nothing else is on an event: it has no
+/// status, no tags and no note.
+Value _eventValue(QueryRecord record, String field) {
+  final event = record.event!;
+  switch (field) {
+    case 'title' || 'text' || 'note' || 'name':
+      return _text(event.title);
+    case 'start' || 'date' || 'day' || 'created' || 'updated':
+      return DayValue(event.startDay);
+    case 'end':
+      return DayValue(event.endDay);
+    case 'allday' || 'all-day':
+      return BoolValue(on: event.allDay);
+    case 'time' || 'hours':
+      return _text(event.hours);
+    case 'location' || 'where':
+      return _text(event.location);
+    case 'calendar':
+      return _text(event.calendar);
+    case 'kind':
+      return _text(record.kind.name);
+    case 'priority':
+      return const PriorityValue(null);
+    default:
+      return emptyValue;
+  }
+}
+
 /// What [field] (as read.dart `fieldName` keeps it) says on [record].
 Value valueOf(QueryRecord record, String field) {
+  if (record.kind == RecordKind.event) return _eventValue(record, field);
   switch (field) {
     case 'title':
     case 'note':
@@ -521,6 +551,7 @@ const Map<String, String> _labels = {
   'cancelled': 'Cancelled',
   'recurs': 'Repeats',
   'depends-on': 'Depends on',
+  'allday': 'All day',
 };
 
 final RegExp _dashes = RegExp(r'[-_]+');
