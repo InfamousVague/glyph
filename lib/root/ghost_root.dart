@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../account/crypto.dart' show CoreCrypto;
 import '../account/ui_state.dart';
 import '../aside/aside.dart';
 import '../aside/aside_history.dart';
@@ -26,6 +27,7 @@ import '../book/chapter_number.dart' show chapterOf;
 import '../book/entry_starts.dart' show pageBody;
 import '../book/journal.dart' as journal;
 import '../book/template_picker.dart' show EntryPlaceDevice;
+import '../core/geocode.dart' show PlaceSearch;
 import '../core/location.dart' show Locations, Locator, PlaceLookup;
 import '../core/films.dart' show Films;
 import '../core/phone_pictures.dart' show corePictureAdopter;
@@ -60,6 +62,7 @@ import '../core/canvas_body.dart';
 import '../core/command_mutations.dart' show PendingCommandUndo;
 import '../core/core_library.dart';
 import '../core/export_all.dart' show ExportAll;
+import '../export/ghostex_calls.dart';
 import '../importer/importer.dart' show Importer;
 import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../core/front_matter.dart' show frontMatterOffset;
@@ -67,6 +70,7 @@ import '../core/ids.dart' show randomId;
 import '../core/images.dart';
 import '../core/iphone_app.dart';
 import '../core/kept_trash.dart';
+import '../core/mac_app.dart' show runsAsMacApp;
 import '../core/library_files.dart' show LibraryFiles;
 import '../core/link_index.dart' show LinkIndexer, LinkPlace, Mention;
 import '../core/library_folder.dart' show LibraryFolder;
@@ -167,6 +171,8 @@ import '../share/ui/share_in_sheet.dart';
 import '../home_screen/home_host.dart' show PhoneHomeScreenHost;
 import '../home_screen/phone_entries.dart';
 import '../home_screen/raise_keyboard.dart' show raiseKeyboardSoon;
+import '../plugins/places/places.dart' show placeRemindersId;
+import '../reminders/place_host.dart' show PhonePlaceHost;
 import '../reminders/reminder_host.dart' show PhoneReminderHost;
 import '../reminders/tick_item.dart' show findItemNear;
 import '../shell/account_gate.dart';
@@ -232,7 +238,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -303,6 +309,10 @@ class GhostRoot extends StatefulWidget {
   final Locator? locator;
   final PlaceLookup? placeLookup;
   final MapTilesBuilder? mapTiles;
+
+  /// A place by its name, for Remind me at a place (lib/core/geocode.dart `geocodeSearch`); absent, as in a test,
+  /// the sheet has no search.
+  final PlaceSearch? placeSearch;
 
   /// The phone's picture chooser, given what keeps a chosen picture among the library's
   /// (lib/core/phone_pictures.dart `phonePicturePicker`). Absent, as in a test, no picture can be added.
@@ -742,6 +752,12 @@ class _GhostRootState extends State<GhostRoot> {
   /// Settings › Import: an Obsidian vault or Evernote's exports, into a workspace of their own (lib/importer/).
   late final Importer? _importer = _native == null ? null : Importer.overLibrary(library: _library, workspaces: _workspaces, invoke: _native.invoke);
 
+  /// Settings › Account › Export everything and Settings › Import › A .ghostex file (lib/export/ghostex_calls.dart):
+  /// the file named for the account, and sealed by the account's own crypto (its second lane where `main` made one).
+  late final Ghostex? _ghostex = _native == null
+      ? null
+      : Ghostex.overCore(library: _library, workspaces: _workspaces, invoke: _native.invoke, crypto: widget.account?.crypto ?? CoreCrypto(_native.invoke), handle: () => _services?.session?.handle);
+
   /// The notes' folder in the phone's Files app, for the sidebar's Browse files (lib/core/library_files.dart): the
   /// phone is asked the first time a sidebar is built, and the tool is there once it has said it can.
   late final LibraryFiles _files = LibraryFiles();
@@ -826,7 +842,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
   late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
-      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
       : null;
 
   /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
@@ -1020,6 +1036,7 @@ class _GhostRootState extends State<GhostRoot> {
     dayPicker: widget.dayPicker,
     mapTiles: widget.mapTiles,
     tags: _places,
+    placeSearch: widget.placeSearch,
     openTag: (tag) => _organize.showTag(tag),
     forgetTag: (id) => _places?.setPendingTag(id, null),
     holdNote: (id, on) => _voice?.recorder.refining?.holdNote(id, on),
@@ -1635,6 +1652,9 @@ class _GhostRootState extends State<GhostRoot> {
     final links = widget.links;
     if (mounted && links != null) {
       _stopLinks = followAppLinks((link) {
+        // A .ghostex the Mac's Finder opened (macos/Runner/GhostChannels.swift `arrived`): read back as Settings asks.
+        final finder = runsAsMacApp && _ghostex != null ? ghostexLinked(link) : null;
+        if (finder != null) return _readGhostex(finder);
         // A new note, a voice note, today's, the palette, or a note at a line: the phone's own ways in.
         if (followPhoneEntry(link, _phoneDoor)) return;
         // The kind and never the link: a share's link carries its key.
@@ -1644,7 +1664,14 @@ class _GhostRootState extends State<GhostRoot> {
     }
     // And what another app shared, which waits for the notes for the same reasons: its sheet offers them to add to.
     final shares = widget.shares;
-    if (mounted && shares != null) _stopShares = followShares((share) => setState(() => _sharing.add(share)), shares);
+    if (mounted && shares != null) {
+      _stopShares = followShares((share) {
+        // A .ghostex opened from Files, or shared here: Settings › Import reads it back, as the person chooses.
+        final opened = _ghostex != null ? ghostexShared(share) : null;
+        if (opened != null) return _readGhostex(opened);
+        setState(() => _sharing.add(share));
+      }, shares);
+    }
     // Reminders and the home screen, kept in step with the notes from here on.
     if (mounted) _extras?.start();
     if (!_real || !mounted) return;
@@ -1741,6 +1768,13 @@ class _GhostRootState extends State<GhostRoot> {
       });
 
   void _closeSettings() => setState(() => _settings = false);
+
+  /// A .ghostex opened from the phone's Files or the Mac's Finder: Settings › Import, where it waits for the person
+  /// ([ghostexWaiting], lib/settings/panes/ghostex_cards.dart).
+  void _readGhostex(GhostexChosen chosen) {
+    ghostexWaiting.value = chosen;
+    _openSettingsAt('import');
+  }
 
   void _trashNotes(Iterable<String> ids) => ids.forEach(_trash.trashNote);
 

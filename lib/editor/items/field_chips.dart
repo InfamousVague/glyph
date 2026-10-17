@@ -12,6 +12,8 @@
 ///                     or their initials where they have none
 ///     🔁 every week    a small repeat mark and its words
 ///     [effort:: 3]     the key quiet, the value as written
+///     📍 [Target](…)   a pin and the place's name, quiet; a quiet warning mark where the phone may not know when
+///                     it is there (lib/reminders/place_access.dart)
 ///
 /// What differs:
 /// - `chipElement` is [FieldChip], a widget, and the stylesheet (`fieldChipTheme`) is its build: every length is
@@ -39,13 +41,14 @@ import '../../core/task_fields.dart';
 import '../../integrations/contacts/contact_book.dart' show PhoneContact;
 import '../../integrations/contacts/contacts.dart';
 import '../../reminders/remind_choices.dart' show clockWords;
+import '../../reminders/place_syntax.dart' show readPlaceMark;
 import '../../reminders/reminder_syntax.dart' show readReminderTime;
 import '../looks/look.dart' show FaceMetrics, lineBoxHeight;
 import '../view/line.dart' show EditorRunScope;
 import 'inline_box.dart';
 
 /// Which page of the press-and-hold menu a tap on a chip opens; null, a tap edits it.
-enum FieldMenu { date, priority, person, remind }
+enum FieldMenu { date, priority, person, remind, place }
 
 /// How a chip is coloured: a day by when it is, a priority by its rank (its name), and the rest plain or quiet.
 typedef ChipTone = String;
@@ -186,6 +189,12 @@ ChipLook? chipLook(FieldSpan span, {required String today, required bool done, S
     final time = clockWords(at.hour, at.minute);
     return ChipLook(text: '${dayLabel(at.day, today, locale)} $time', icon: Lucide.alarmClock, tone: done ? 'done' : 'quiet', label: 'Reminder ${daySaid(at.day, today, locale)} at $time', menu: FieldMenu.remind, key: 'reminder');
   }
+  if (span.kind == FieldKind.tasks && span.key == 'place') {
+    // A place to be reminded at, `📍 [Target](geo:…)` (lib/reminders/place_syntax.dart): a pin and its name.
+    final mark = readPlaceMark(span.value);
+    if (mark == null) return null;
+    return ChipLook(text: mark.name, icon: Lucide.mapPin, tone: done ? 'done' : 'quiet', label: 'Remind me at ${mark.name}', menu: FieldMenu.place, key: 'place');
+  }
   if (span.kind == FieldKind.inline) {
     // Dataview's `[due:: 2026-10-03]` is the due day, written its way: drawn as one, and changed in its own form.
     final day = _dataviewDays[span.key];
@@ -194,6 +203,18 @@ ChipLook? chipLook(FieldSpan span, {required String today, required bool done, S
   }
   return null;
 }
+
+/// A place's chip where the phone may not know when it is there: its pin a warning's mark, and the reason said.
+ChipLook warnedPlace(ChipLook look) => ChipLook(
+  text: look.text,
+  icon: Lucide.triangleAlert,
+  tone: look.tone,
+  label: '${look.label}. Ghost.md can’t tell when you arrive: allow location all the time in Settings, Reminders',
+  menu: look.menu,
+  key: look.key,
+  initial: look.initial,
+  name: look.name,
+);
 
 /// Whether two looks draw the same chip, so the widget's element is kept.
 bool sameLook(ChipLook a, ChipLook b) => a.text == b.text && identical(a.icon, b.icon) && a.tone == b.tone && a.label == b.label && a.menu == b.menu && a.key == b.key && a.initial == b.initial && a.name == b.name;

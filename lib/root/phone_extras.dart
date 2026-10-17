@@ -11,6 +11,10 @@
 ///   through its editor, saved like typing, so the note's own next save never meets it as somebody else's words; into
 ///   any other note through the library (lib/reminders/done_writer.dart).
 /// - **A note opened** is first among the icon's recent notes.
+/// - **Places**, while the Place reminders plugin is on (lib/plugins/places): the same pass works out the open to-dos
+///   with a `📍` and hands the phone the whole set for its geofences (lib/reminders/place_scheduler.dart), and the
+///   plugin switched off clears them; as the app opens and comes back to the front, whether the location they need
+///   is allowed, for the chips' quiet warning ([placeWarning]).
 library;
 
 import 'dart:async';
@@ -27,6 +31,9 @@ import '../home_screen/home_host.dart';
 import '../home_screen/home_screen_data.dart';
 import '../reminders/background_tick.dart' as background show ghostBackground;
 import '../reminders/done_writer.dart';
+import '../reminders/place_access.dart' show placeAccessWarns;
+import '../reminders/place_host.dart';
+import '../reminders/place_scheduler.dart';
 import '../reminders/reminder_host.dart';
 import '../reminders/reminder_scheduler.dart';
 import '../reminders/reminder_settings.dart';
@@ -39,6 +46,9 @@ class PhoneExtras {
     required this.trash,
     required this.reminders,
     required this.home,
+    this.places,
+    bool Function()? placesOn,
+    this.placesSwitch,
     ReminderSettingsStore? settings,
     Stored? kept,
     this.openView,
@@ -46,8 +56,11 @@ class PhoneExtras {
     Duration settle = const Duration(milliseconds: 1500),
     Timer Function(Duration wait, void Function() then)? timer,
   })  : settings = settings ?? reminderSettings,
+        placesOn = placesOn ?? _off,
         _clock = clock ?? DateTime.now {
     _scheduler = ReminderScheduler(host: reminders, settings: this.settings, clock: _clock);
+    final watched = places;
+    _places = watched == null ? null : PlaceScheduler(host: watched, on: this.placesOn, reminders: this.settings);
     _home = HomeScreenData(host: home, kept: kept, clock: _clock);
     _settle = Settle(settle, _pass, timer: timer);
   }
@@ -58,11 +71,23 @@ class PhoneExtras {
   final HomeScreenHost home;
   final ReminderSettingsStore settings;
 
+  /// The phone's geofences, where it has them; null and nothing is watched.
+  final PlaceHost? places;
+
+  /// Whether the Place reminders plugin is switched on; off where nothing says.
+  final bool Function() placesOn;
+
+  /// What tells when [placesOn] may have changed: the plugins' registry.
+  final Listenable? placesSwitch;
+
+  static bool _off() => false;
+
   /// The editor of the note [noteId] where it is open on screen; null where it is not.
   final EditorViewLike? Function(String noteId)? openView;
 
   final DateTime Function() _clock;
   late final ReminderScheduler _scheduler;
+  late final PlaceScheduler? _places;
   late final HomeScreenData _home;
   late final Settle _settle;
   bool _started = false;
@@ -72,15 +97,36 @@ class PhoneExtras {
   @visibleForTesting
   ReminderScheduler get scheduler => _scheduler;
 
+  /// The places' scheduler, for a test.
+  @visibleForTesting
+  PlaceScheduler? get placeScheduler => _places;
+
   bool _skip(Note note) => trash.isTrashed(note.id);
 
   Future<void> _pass() async {
     final notes = library.value;
     await _scheduler.pass(notes, skip: _skip);
+    await _places?.pass(notes, skip: _skip);
     await _home.pass(notes, library.noteOf, skip: _skip);
   }
 
   void _changed() => _settle.poke();
+
+  /// The switches changed: the set again, and whether its chips warn.
+  void _placesChanged() {
+    if (places != null) placeRemindersOn.value = placesOn();
+    _settle.poke();
+    unawaited(readPlaceAccess());
+  }
+
+  /// Whether the location place reminders need is allowed, read again: the chips warn where it is not and places
+  /// are watched.
+  Future<void> readPlaceAccess() async {
+    final host = places, scheduler = _places;
+    if (host == null || scheduler == null) return;
+    final access = scheduler.watching ? await host.access() : null;
+    if (_started) placeWarning.value = scheduler.watching && placeAccessWarns(access);
+  }
 
   /// From the notes' first read on: listening, and the first pass at once.
   void start() {
@@ -90,9 +136,15 @@ class PhoneExtras {
     assert(identical(background.ghostBackground, background.ghostBackground));
     library.addListener(_changed);
     trash.addListener(_changed);
-    settings.addListener(_changed);
+    settings.addListener(_placesChanged);
     reminders.onTick = done;
     phoneReminders.value = reminders;
+    if (places != null) {
+      placesSwitch?.addListener(_placesChanged);
+      phonePlaces.value = places;
+      placeRemindersOn.value = placesOn();
+      unawaited(readPlaceAccess());
+    }
     _life = AppLifecycleListener(onResume: resumed);
     unawaited(_settle.now());
   }
@@ -106,8 +158,11 @@ class PhoneExtras {
   /// or the app's alarms were cleared under it.
   void resumed() {
     _scheduler.forget();
+    _places?.forget();
     _home.forget();
     _settle.poke();
+    // Allowed or taken back in the phone's settings meanwhile.
+    unawaited(readPlaceAccess());
   }
 
   /// Done for the item said as [words] on [line] of [noteId] (0 for a ticket), from outside the app's window.
@@ -148,8 +203,16 @@ class PhoneExtras {
     _life = null;
     library.removeListener(_changed);
     trash.removeListener(_changed);
-    settings.removeListener(_changed);
+    settings.removeListener(_placesChanged);
     reminders.onTick = null;
     if (identical(phoneReminders.value, reminders)) phoneReminders.value = null;
+    if (places != null) {
+      placesSwitch?.removeListener(_placesChanged);
+      if (identical(phonePlaces.value, places)) {
+        phonePlaces.value = null;
+        placeRemindersOn.value = false;
+        placeWarning.value = false;
+      }
+    }
   }
 }

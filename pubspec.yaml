@@ -35,6 +35,7 @@ dependencies:
   # A contact's card calls, texts and emails (`tel:`, `sms:`, `mailto:`) through Flutter's own launcher, on every
   # platform the contacts are read on; the app's own opener (core/open_link.dart) lets no `sms:` through.
   url_launcher: ^6.3.3
+  archive: ^4.5.2
 
 dev_dependencies:
   flutter_test:

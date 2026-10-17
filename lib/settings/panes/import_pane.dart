@@ -4,11 +4,13 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../export/ghostex_calls.dart' show Ghostex;
 import '../../importer/import_report.dart';
 import '../../importer/importer.dart';
 import '../account_forms.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
+import 'ghostex_cards.dart';
 import 'settings_host.dart';
 
 /// Where an import comes from. Obsidian's and Evernote's are the app's own; Todoist's and Things' are each a
@@ -23,8 +25,12 @@ const Map<ImportKind, SettingsFindable> _findable = {
   ImportKind.things: SettingsFindable('Things 3', 'import things cultured code to-dos areas projects paste copy move from'),
 };
 
-/// What Settings' search finds on a page offering [kinds].
-List<SettingsFindable> importFindableOf(Iterable<ImportKind> kinds) => [for (final kind in ImportKind.values) if (kinds.contains(kind)) _findable[kind]!];
+/// What Settings' search finds on a page offering [kinds]: with the app's own imports, A .ghostex file under them.
+List<SettingsFindable> importFindableOf(Iterable<ImportKind> kinds) => [
+  for (final kind in ImportKind.values)
+    if (kinds.contains(kind)) _findable[kind]!,
+  if (kinds.contains(ImportKind.obsidian) || kinds.contains(ImportKind.evernote)) ghostexImportFindable,
+];
 
 /// Where an import goes, said over the app's own imports, or under a plugin's.
 const String _where = 'Notes from another app come into a workspace of their own, named for the day, so they can be taken out again in one go. Nothing you have is changed.';
@@ -77,13 +83,20 @@ class _Failed extends _State {
 /// [kinds] are the imports it offers: Settings › Import's are Obsidian's and Evernote's, and Todoist's and Things'
 /// while their plugins are on (settings_sections.dart); each of those plugins' pages is this page with its own alone,
 /// where the words on where an import goes stand under it.
+///
+/// Below the app's own, A .ghostex file (ghostex_cards.dart): an export of Ghost.md's own read back, over the
+/// [Ghostex] it is handed (`SettingsFeatures.ghostex`). Not on a plugin's page.
 class ImportPane extends StatefulWidget {
-  const ImportPane({super.key, this.importer, this.kinds = ImportKind.values});
+  const ImportPane({super.key, this.importer, this.ghostex, this.kinds = ImportKind.values});
 
   final Importer? importer;
+  final Ghostex? ghostex;
   final List<ImportKind> kinds;
 
-  static Widget hosted(BuildContext context, {List<ImportKind> kinds = ImportKind.values}) => ImportPane(importer: SettingsHost.maybeOf(context)?.features.importer, kinds: kinds);
+  static Widget hosted(BuildContext context, {List<ImportKind> kinds = ImportKind.values}) {
+    final features = SettingsHost.maybeOf(context)?.features;
+    return ImportPane(importer: features?.importer, ghostex: features?.ghostex, kinds: kinds);
+  }
 
   @override
   State<ImportPane> createState() => _ImportPaneState();
@@ -263,6 +276,7 @@ class _ImportPaneState extends State<ImportPane> {
               ),
             ],
           ),
+        if (core) GhostexImportCard(ghostex: widget.ghostex),
         // A plugin's page has no Obsidian card to say it over: said under its own.
         if (!core) const SettingsFootnote(child: Text(_where)),
       ],

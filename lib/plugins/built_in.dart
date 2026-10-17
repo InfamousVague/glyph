@@ -29,6 +29,7 @@ import 'contacts/contacts.dart' show contactsPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'notion/notion.dart' show notionPlugin;
+import 'places/places.dart' show placesPlugin;
 import 'registry.dart';
 import 'rich_embeds/rich_embeds.dart' show richEmbedsPlugin;
 import 'slack/slack.dart' show slackPlugin;
@@ -36,13 +37,15 @@ import 'things/things.dart' show thingsPlugin;
 import 'todoist/todoist.dart' show todoistPlugin;
 import 'types.dart';
 
-/// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, one a line.
+/// The plugins that ship with Ghost.md (`BUILT_IN`): the page's five in its order, then the app's own, one a line
+/// (Place reminders, places/places.dart, which the page never had, among them).
 final List<GlyphPlugin> builtIn = List.unmodifiable([
   notionPlugin,
   githubPlugin,
   marksPlugin,
   claudePlugin,
   slackPlugin,
+  placesPlugin,
   calendarPlugin,
   contactsPlugin,
   richEmbedsPlugin,

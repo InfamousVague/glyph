@@ -21,6 +21,7 @@ import '../published_sites.dart';
 import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
+import 'ghostex_cards.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
@@ -61,6 +62,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
             if (shared) const SettingsFindable('Shared links', 'share publish read'),
             ...privacyFindable,
             ...locationFindable,
+            ghostexExportFindable,
             const SettingsFindable('Delete account', 'remove close erase data'),
           ]
         : const [])
@@ -70,6 +72,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
         SettingsFindable('Lost the password', 'forgot recovery code reset'),
         ...privacyFindable,
         ...locationFindable,
+        ghostexExportFindable,
       ];
 
 /// Account's row in the list (SettingsSheet.tsx: `syncSummary` with " · Local only" while that holds the sync off).
@@ -336,7 +339,7 @@ class _AccountPaneState extends State<AccountPane> {
           final privacy = PrivacyCard(store: store, onOpenLink: widget.onOpenLink);
           final location = LocationCard(store: store, onLocate: features.onLocate, cannot: features.cannotLocate, places: features.places);
           if (services == null && features.signedIn) {
-            return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs)]);
+            return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs), GhostexExportCard(ghostex: features.ghostex)]);
           }
           if (services == null || !services.signedIn) return _signedOut(prefs, privacy, location);
           _countStayed(prefs);
@@ -373,6 +376,7 @@ class _AccountPaneState extends State<AccountPane> {
               ),
               privacy,
               ...location.parts(prefs),
+              GhostexExportCard(ghostex: widget.features.ghostex),
             ],
           );
         },
@@ -462,6 +466,7 @@ class _AccountPaneState extends State<AccountPane> {
           if (mail != null && mailCardShown(mail)) MailCard(services: services),
           privacy,
           ...location.parts(prefs),
+          GhostexExportCard(ghostex: widget.features.ghostex),
           PaneSection(
             children: [
               SettingRow(

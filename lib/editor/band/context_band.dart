@@ -108,6 +108,11 @@ final class FieldRemindPage extends FieldPage {
   const FieldRemindPage();
 }
 
+/// A place reminder's chip: Change place and Remove (lib/reminders/place_syntax.dart).
+final class FieldPlacePage extends FieldPage {
+  const FieldPlacePage();
+}
+
 /// What a field page is drawn from (`FieldItemsProps`, editor/FieldItems.tsx).
 class FieldItemsRequest {
   const FieldItemsRequest({required this.view, required this.line, required this.page, required this.onBack, required this.onClose, required this.refocus, required this.felt, required this.redraw});
@@ -136,7 +141,7 @@ class FieldItemsRequest {
 /// The fields of a list item, for the band: which lines take them, and the rows of a field's page
 /// (`takesFields` and `FieldItems`; lib/editor/items hands this in).
 class BandFields {
-  const BandFields({required this.items, this.takes = takesFields, this.reminds});
+  const BandFields({required this.items, this.takes = takesFields, this.reminds, this.places, this.atPlace});
 
   /// A page's rows, [MenuItem]s and the like, Back first where the request has one.
   final List<Widget> Function(BuildContext context, FieldItemsRequest request) items;
@@ -146,6 +151,13 @@ class BandFields {
 
   /// Whether the editor offers Remind me: only where the phone reminds. Absent, never.
   final bool Function(EditorViewLike view)? reminds;
+
+  /// Whether the editor offers Remind me at a place: only where the phone watches places. Absent, never.
+  final bool Function(EditorViewLike view)? places;
+
+  /// Remind me at a place pressed for a line (counting from 1): its sheet, which writes the place picked; [refocus]
+  /// is whether the editor had its focus.
+  final void Function(EditorViewLike view, int line, bool refocus)? atPlace;
 }
 
 /// Whether a line can take fields from the menu: a list item, a bullet, a step or a to-do (`takesFields`).
@@ -582,6 +594,19 @@ class _ContextBandState extends State<ContextBand> {
         MenuItem(key: const ValueKey<String>('priority'), icon: Lucide.flag, label: 'Priority', onPress: fieldPage(const FieldPriorityPage())),
         MenuItem(key: const ValueKey<String>('assign'), icon: Lucide.userPlus, label: 'Assign', onPress: fieldPage(const FieldAssignPage())),
         if (widget.fields?.reminds?.call(view) ?? false) MenuItem(key: const ValueKey<String>('remind'), icon: Lucide.alarmClock, label: 'Remind me', onPress: fieldPage(const FieldRemindPage())),
+        // A sheet of its own, not a page of the band: a search, the note's places and here.
+        if ((widget.fields?.places?.call(view) ?? false) && widget.fields?.atPlace != null)
+          MenuItem(
+            key: const ValueKey<String>('remind-place'),
+            icon: Lucide.mapPin,
+            label: 'Remind me at a place',
+            onPress: () {
+              _felt(HapticKind.selection);
+              final refocus = view.hasFocus;
+              _close();
+              widget.fields!.atPlace!(view, offered.line, refocus);
+            },
+          ),
       ],
       if (boards.joinable) MenuItem(key: const ValueKey<String>('join-board'), icon: Lucide.layoutGrid, label: 'Add to board', onPress: _act(view, putOnBoard)),
       if (boards.list != null) MenuItem(key: const ValueKey<String>('list-board'), icon: Lucide.squareKanban, label: 'Board from list', onPress: _act(view, listToBoard)),

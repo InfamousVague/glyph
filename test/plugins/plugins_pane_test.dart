@@ -7,6 +7,7 @@ import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/reach.dart';
 import 'package:ghost_md/plugins/built_in.dart';
+import 'package:ghost_md/plugins/places/places.dart' show placeRemindersId;
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -37,8 +38,9 @@ import 'support.dart';
 
 Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
 
-/// The five that ship, with nothing switched by hand: what the web page was measured over.
-Registry shippedRegistry() => createRegistry(builtIn, store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
+/// The five that ship, with nothing switched by hand: what the web page was measured over. This app's own (Place
+/// reminders, which the page never had) is left out of them; test/plugins/places_test.dart has its card.
+Registry shippedRegistry() => createRegistry([for (final p in builtIn) if (p.manifest.id != placeRemindersId) p], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
 
 /// Makes [registry] the app's for this test.
 Registry install(WidgetTester tester, Registry registry) {

@@ -247,8 +247,22 @@ final class GhostChannels: NSObject {
     held.append(channel)
   }
 
-  /// A link the system handed the app (AppDelegate `application(_:open:)`). Only the app's own scheme is kept.
+  /// A link the system handed the app (AppDelegate `application(_:open:)`). Only the app's own scheme is kept, and
+  /// a .ghostex opened from Finder (Info.plist's `com.mattssoftware.ghostex`), kept as the app's own link to it,
+  /// `ghostmd://ghostex?path=…`, which the page sends to Settings › Import (lib/export/ghostex_calls.dart
+  /// `ghostexLinked`).
   func arrived(_ url: URL) {
+    if url.isFileURL {
+      guard url.pathExtension.lowercased() == "ghostex" else { return }
+      var link = URLComponents()
+      link.scheme = "ghostmd"
+      link.host = "ghostex"
+      link.queryItems = [URLQueryItem(name: "path", value: url.path)]
+      guard let made = link.url?.absoluteString else { return }
+      keptLinks.append(made)
+      links?.invokeMethod("arrived", arguments: nil)
+      return
+    }
     guard url.scheme?.lowercased() == "ghostmd" else { return }
     keptLinks.append(url.absoluteString)
     links?.invokeMethod("arrived", arguments: nil)

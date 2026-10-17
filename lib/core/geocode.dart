@@ -17,6 +17,11 @@
 /// - "No redirects" is the fetcher's to keep: a [Fetcher] has no such switch, and lib/account/api.dart's
 ///   `ioFetcher` follows them. [geocodeFetcher] is the one over `dart:io` that does not; through it a redirect is
 ///   a 3xx, and so a refusal.
+///
+/// A place searched for by its name, for Remind me at a place (lib/reminders/place_sheet.dart): [searchUrl] and
+/// [geocodeSearch], Nominatim's forward search on the same terms. It is asked only when a search is sent, never as
+/// the words are typed (the usage policy forbids an autocomplete on its servers), and a second apart across the app.
+/// Never under Local only: the sheet does not offer it then.
 library;
 
 import 'dart:async';
@@ -25,7 +30,7 @@ import 'dart:io';
 import 'dart:typed_data';
 
 import '../account/api.dart' show FetchRequest, FetchResponse, Fetcher;
-import 'location.dart' show PlaceAnswer, PlaceLookup;
+import 'location.dart' show PlaceAnswer, PlaceLookup, nominatimGapMs, shortPlace;
 import 'place_refs.dart' show jsNumber;
 
 /// How long Nominatim is waited for.
@@ -116,5 +121,103 @@ Fetcher geocodeFetcher({HttpClient? client}) {
       sent?.abort();
       throw TimeoutException('The request took too long.', request.timeout);
     });
+  };
+}
+
+// ---- a place searched for by its name ------------------------------------------------------------------------------
+
+/// The most places a search answers with.
+const int searchLimit = 8;
+
+/// The most a search's words may run to.
+const int _queryChars = 200;
+
+final RegExp _runOfSpaces = RegExp(r'\s+');
+
+/// Nominatim's forward search for [query], its first [searchLimit] places. Throws a [GeocodeError] for no words.
+Uri searchUrl(String query) {
+  final clean = query.trim().replaceAll(_runOfSpaces, ' ');
+  if (clean.isEmpty) throw const GeocodeError('Nothing to search for.');
+  final asked = clean.length > _queryChars ? clean.substring(0, _queryChars) : clean;
+  return Uri.https('nominatim.openstreetmap.org', '/search', <String, String>{'format': 'jsonv2', 'q': asked, 'limit': '$searchLimit', 'addressdetails': '1'});
+}
+
+/// One place a search found.
+class PlaceHit {
+  const PlaceHit({required this.lat, required this.lon, required this.name, required this.address});
+
+  final double lat;
+  final double lon;
+
+  /// Its short name, made as a reverse lookup's is (`shortPlace`): "Target, Hickory".
+  final String name;
+
+  /// The whole of what Nominatim calls it, for telling two of one name apart.
+  final String address;
+
+  @override
+  String toString() => 'PlaceHit($name, $lat, $lon)';
+}
+
+/// A search's answer read: each place with coordinates on Earth and a name. Throws a [GeocodeError] for an answer
+/// that is not a list.
+List<PlaceHit> searchHits(Object? json) {
+  if (json is! List) throw const GeocodeError("OpenStreetMap's answer wasn't JSON.");
+  final hits = <PlaceHit>[];
+  for (final each in json) {
+    if (each is! Map) continue;
+    final answer = each.cast<String, Object?>();
+    final lat = double.tryParse('${answer['lat']}'), lon = double.tryParse('${answer['lon']}');
+    if (lat == null || lon == null || !lat.isFinite || !lon.isFinite || lat.abs() > 90 || lon.abs() > 180) continue;
+    final read = PlaceAnswer.fromJson(answer);
+    final name = shortPlace(read, false);
+    if (name == null) continue;
+    hits.add(PlaceHit(lat: lat, lon: lon, name: name, address: read.displayName ?? name));
+  }
+  return hits;
+}
+
+/// A search of places by their names.
+typedef PlaceSearch = Future<List<PlaceHit>> Function(String query);
+
+/// A [PlaceSearch] that asks Nominatim through [fetch], as the app, at most once a second. [lang] and [version] are
+/// [geocodePlace]'s; [now] and [wait] are a test's. Throws a [GeocodeError].
+PlaceSearch geocodeSearch(
+  Fetcher fetch, {
+  String Function()? lang,
+  String version = geocodeAppVersion,
+  Duration timeout = geocodeTimeout,
+  int Function()? now,
+  Future<void> Function(Duration wait)? wait,
+}) {
+  var next = 0;
+  final clock = now ?? () => DateTime.now().millisecondsSinceEpoch;
+  final pause = wait ?? (duration) => Future<void>.delayed(duration);
+  return (query) async {
+    final url = searchUrl(query);
+    final gap = next - clock();
+    next = (gap > 0 ? next : clock()) + nominatimGapMs;
+    if (gap > 0) await pause(Duration(milliseconds: gap));
+    final FetchResponse response;
+    try {
+      response = await fetch(
+        FetchRequest(
+          method: 'GET',
+          url: url,
+          headers: <String, String>{'User-Agent': geocodeUserAgent(version), 'Accept': 'application/json', 'Accept-Language': acceptLanguage(lang?.call() ?? 'en')},
+          timeout: timeout,
+        ),
+      ).timeout(timeout);
+    } catch (_) {
+      throw const GeocodeError("OpenStreetMap couldn't be reached.");
+    }
+    if (!response.ok) throw GeocodeError('OpenStreetMap answered ${response.status}.');
+    final Object? json;
+    try {
+      json = jsonDecode(response.text);
+    } catch (_) {
+      throw const GeocodeError("OpenStreetMap's answer wasn't JSON.");
+    }
+    return searchHits(json);
   };
 }

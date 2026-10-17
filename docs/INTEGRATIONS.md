@@ -72,6 +72,29 @@ reminders' channel ("Buy diapers — you're at Target"), tapping it opens the no
 phone asks for location "all the time" when the first such reminder is made, saying why. iPhone: region monitoring
 (at most 20 at once, the nearest). The Mac has none.
 
+Built 2026-10-17 (Android): the field is lib/reminders/place_syntax.dart over core/task_fields.dart (key `place`,
+written where `⏰` is); the set is place_plan.dart (open to-dos only, at most 100, the nearest to the phone's last
+known position when there are more), handed over whole after every change by place_scheduler.dart from
+lib/root/phone_extras.dart's pass; the channel is `ghost_md/places` (place_host.dart: `set [{id, lat, lon, radius,
+title, text, place, noteId, line, words}]`, `clear`, `access`, `askForeground`, `askBackground`, `lastKnown`,
+`openSettings`) and its phone half android/…/ghost_md/reminders/Places.kt (play-services-location 21.3.0; the
+notification and its Done are Reminders.kt's, the restart's ReminderReceivers.kt's). The permission's steps are
+place_access.dart; the sheet is place_sheet.dart, its search lib/core/geocode.dart `geocodeSearch` (Nominatim,
+sent only, a second apart, never under Local only).
+
+A plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): **Place reminders**,
+lib/plugins/places, built in and off until switched on in Settings › Plugins, its page the location's state and the
+way to allow it. The `📍` is Markdown and is read and drawn whether it is on or not; Remind me at a place, a chip's
+Change place and the geofences are only there while it is on, and switching it off clears the geofences. It declares
+the notes and `native` (the location, kept on the phone), not the network, so Local only leaves it working; the
+search alone is off then. The first place reminder made on a phone is when it asks for the location
+(place_settings.dart keeps that it has).
+
+TODO (iPhone): the app has no iOS native layer for reminders yet (ios/Runner has no notifications or
+CLLocationManager), so place reminders are not offered there: `phonePlaces` stays null. When reminders come to the
+iPhone, `ghost_md/places` on its side is CLLocationManager region monitoring with the same set cut to the 20
+nearest (`nearestPlaces(…, most: 20)`), "Always" asked after "When In Use" as Android's order is here.
+
 ## 4. Todoist and Things
 
 Settings › Import (beside Obsidian and Evernote, lib/importer):
@@ -93,7 +116,7 @@ manifest.json                  { format: "ghostex", version: 1, exportedAt, app,
 notes/<workspace>/<title>.md   each note's markdown, as kept, front matter included
 pictures/<name>                the pictures the notes name
 files/<name>                   attachments
-recordings/<note id>.m4a       only when "Include recordings" is ticked
+recordings/<note id>.wav       only when "Include recordings" is ticked (the core keeps a recording as WAV)
 ```
 
 `manifest.json` lists every note with its id, path in the ZIP, title, created, updated, pinned, archived, workspace,
@@ -101,6 +124,14 @@ organization and tags. Options: include archived notes, include organizations' n
 "Protect with a password" (the ZIP sealed whole with AES-256-GCM under a key derived from the password, as the
 account's own key is). Settings › Import › A .ghostex file reads one back: every note made again (a note whose id is
 already here is skipped, or kept as a copy, as chosen), with its pictures and files.
+
+As built (lib/export/ghostex.dart, ghostex_seal.dart, ghostex_calls.dart; lib/importer/ghostex.dart): a protected file
+is `GHOSTEX1` ‖ version (1 byte) ‖ PBKDF2 rounds (4 bytes, big-endian) ‖ salt (16 random bytes) ‖ the ZIP's own
+random key wrapped under the password's (iv ‖ key ‖ tag, 60 bytes) ‖ the whole ZIP sealed under it (1 ‖ iv ‖
+AES-256-GCM ‖ tag, context `ghostex`). The core lets a derived password key wrap and never seal, as with the account
+key, so the ZIP has a key of its own. An organization's notes come back as the person's own, in a workspace of the
+organization's name: an import never shares. Opened from Android's Files (a VIEW filter on the `.ghostex` ending) or
+the Mac's Finder (`com.mattssoftware.ghostex`), the file lands in Settings › Import.
 
 ## Ownership
 

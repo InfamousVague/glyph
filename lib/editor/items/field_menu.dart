@@ -24,6 +24,8 @@ import '../../core/day_words.dart';
 import '../../core/days.dart';
 import '../../core/item_syntax.dart';
 import '../../core/task_fields.dart';
+import '../../reminders/place_host.dart' show placeRemindersOn;
+import '../../reminders/place_syntax.dart' show PlaceMark, placeOn, withPlace;
 import '../../reminders/reminder_syntax.dart' show ReminderTime, withReminder;
 import '../editor.dart';
 
@@ -88,6 +90,18 @@ class RemindPage extends FieldPage {
 
   @override
   int get hashCode => 3;
+}
+
+/// A place reminder's chip tapped: Change place, where the phone watches places ([placePicker] is given), and Remove
+/// (lib/reminders/place_syntax.dart).
+class PlacePage extends FieldPage {
+  const PlacePage();
+
+  @override
+  bool operator ==(Object other) => other is PlacePage;
+
+  @override
+  int get hashCode => 4;
 }
 
 /// A chip tapped: which page, for which line (counting from 1), and where the chip is on the screen.
@@ -260,6 +274,33 @@ final Facet<DateTime Function(), DateTime Function()?> fieldsNow = Facet.define<
 
 /// Sets line `number`'s reminder, or (with null) takes it off: `⏰ 2026-10-03 09:00` before Tasks' fields.
 bool setLineReminder(EditorViewLike view, int number, ReminderTime? at) => _rewrite(view, number, (text) => withReminder(text, at));
+
+/// Picks a place for line `line` of the note, with the one the line has shown; null where the sheet was put away
+/// (lib/reminders/place_sheet.dart: a search, the places in the note, and here).
+typedef PlacePicker = Future<PlaceMark?> Function(int line, PlaceMark? current);
+
+/// The sheet a place reminder is picked on. Given only where the phone watches places: absent, a line's menu offers
+/// no Remind me at a place, and a place's chip offers only Remove.
+final Facet<PlacePicker, PlacePicker?> placePicker = Facet.define<PlacePicker, PlacePicker?>(combine: (values) => values.isEmpty ? null : values.first);
+
+/// Whether Remind me at a place is offered in `view` now: the sheet was given, and the Place reminders plugin is on
+/// (lib/plugins/places). Off, a `📍` already written is still read and drawn: it is the note's Markdown.
+bool placesOffered(EditorViewLike view) => view.state.facet(placePicker) != null && placeRemindersOn.value;
+
+/// Sets line `number`'s place, or (with null) takes it off: `📍 [Target](geo:…)` before Tasks' fields.
+bool setLinePlace(EditorViewLike view, int number, PlaceMark? mark) => _rewrite(view, number, (text) => withPlace(text, mark));
+
+/// Remind me at a place for line `number`: the sheet [placePicker] opens, and the place picked written on the line,
+/// the line read again as it is then, since the note may have changed under the sheet. True where one was written.
+Future<bool> pickLinePlace(EditorViewLike view, int number, {bool refocus = false}) async {
+  final pick = view.state.facet(placePicker);
+  if (pick == null || !placesOffered(view) || number < 1 || number > view.state.doc.lines) return false;
+  final mark = await pick(number, placeOn(view.state.doc.line(number).text));
+  if (mark == null) return false;
+  final written = setLinePlace(view, number, mark);
+  if (refocus) view.focus();
+  return written;
+}
 
 /// A day picked from the calendar [dayPicker] opens, handed to `onPick` when it is one.
 Future<void> pickDay(EditorViewLike view, Offset at, String? current, void Function(String day) onPick) async {

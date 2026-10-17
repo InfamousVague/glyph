@@ -324,7 +324,7 @@ extension _RootVoice on _GhostRootState {
     // Test results: the report this build carries, and the fingerprint of the code the build was made from.
     final tests = _builtReport.value;
     if (voice == null) {
-      return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, importer: _importer, places: _places, testReport: tests, testBuildSource: buildSource);
+      return SettingsFeatures(onWayIn: wayIn, onSmokeBench: smoke, onPlayScene: scene, onReset: reset, libraryFolder: _libraryFolder, backup: _backups, export: _export, importer: _importer, ghostex: _ghostex, places: _places, testReport: tests, testBuildSource: buildSource);
     }
     final models = voice.models;
     final present = models == null ? const <String>{} : presentIds(models.models).toSet();
@@ -342,6 +342,7 @@ extension _RootVoice on _GhostRootState {
       backup: _backups,
       export: _export,
       importer: _importer,
+      ghostex: _ghostex,
       places: _places,
       testReport: tests,
       testBuildSource: buildSource,
