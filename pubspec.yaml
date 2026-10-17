@@ -22,6 +22,13 @@ dependencies:
   # (crypto). Both pure Dart, from the Dart team and the xml package's author.
   xml: ^7.0.1
   crypto: ^3.0.7
+  # Rich embeds (lib/editor/media/rich_embeds): a YouTube or Spotify player in its card, and a Figma file's
+  # interactive embed full screen, each a web view made only once the person taps. Flutter's own plugin, with
+  # Android's WebView and WebKit's WKWebView on the iPhone and the Mac; anywhere else a tap opens the link.
+  webview_flutter: ^4.14.1
+  # Each platform's own settings: a player started by the tap that made it, and played in its card.
+  webview_flutter_android: ^4.14.1
+  webview_flutter_wkwebview: ^3.27.0
 
 dev_dependencies:
   flutter_test:

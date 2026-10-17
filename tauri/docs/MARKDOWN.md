@@ -188,6 +188,23 @@ from a list of ideas.
   under it with the page's title, site and summary; a tap opens it. The title is read by the app (`link_preview`,
   native generation 17) for a card on screen, cached for a week, and never with Link previews off (Settings › Account › Privacy) or
   Local only on (the same card). Links a plugin reads keep their own rows. (`src/app/editor/linkCards.ts`)
+- **Rich embeds.** Added 2026-10-17 in the Flutter app only (Matt: "Rich embeds: YouTube, Spotify and Figma links
+  as playable or previewable cards, not just link cards"). A line that is only a YouTube, Spotify or Figma link gets
+  a rich card in the link card's place, and the line keeps its Markdown (`- [Song](https://open.spotify.com/track/…)`,
+  or the bare address alone on its line). A YouTube video (`youtube.com/watch?v=`, `youtu.be/`, `/shorts/`, `/live/`,
+  `/embed/`, `music.youtube.com`, with `t=` or `start=` as `90`, `90s` or `1m30s`) is its still, its title and channel
+  and a play disc; a tap plays it in the card, 16:9, in YouTube's player without its cookies
+  (`youtube-nocookie.com/embed/…`) from the start time, with Full screen in the corner and Open in YouTube. A Spotify
+  track, album, playlist, episode or show (`open.spotify.com/…`, `intl-xx/` and `embed/` too, or a `spotify:` URI
+  alone on its line) is its artwork and title; a tap puts Spotify's player in the card, 152 tall for a track or an
+  episode and 352 for the rest, with Open in Spotify. A Figma file, design, prototype or board (`figma.com/file|
+  design|proto|board/<key>/…`) is its picture and title; a tap opens Figma's interactive embed full screen over the
+  app, closed by its close, Escape or back, with Open in Figma. Titles and pictures come from each service's oEmbed,
+  asked for a card on screen and kept for a week (a failure for a day); the players are web views made by the tap,
+  so nothing plays or loads before it. With Link previews off or Local only on nothing is asked: the card is the
+  plain one, saying the service's name and the link, and a tap opens the link in the service's app or the browser
+  (Link previews off still draws this card, where no other link has one). A link the service would not answer for
+  is the plain link card; where the device has no web view, a tap opens the link. (`lib/editor/media/rich_embeds/`)
 - **The bookmark — `§§`.** Two section signs at the end of the bookmarked line's words (before a list item's mark,
   counters and anchor), one per note. The note opens there; the header's bookmark button moves it to the line being
   read, or takes it off that line. Drawn as a small ribbon. (`src/app/editor/bookmarkLine.ts`)

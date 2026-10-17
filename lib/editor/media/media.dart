@@ -4,6 +4,7 @@
 /// | --- | --- |
 /// | editor/links.ts | links.dart: [shortLinks] |
 /// | editor/linkCards.ts | link_cards.dart: [linkCards] |
+/// | (none: beyond the page) | rich_embeds/: YouTube, Spotify and Figma cards in a link card's place, [EmbedSource], [EmbedPlayers] |
 /// | editor/linkedRows.ts | linked_rows.dart: [linkedRows] |
 /// | editor/images.ts, useNotePictures.ts | images.dart: [inlineImages], [insertImage], [pasteImages], [NotePictures] |
 /// | editor/placeCards.ts | place_cards.dart: [placeCards] |
@@ -31,6 +32,8 @@ import 'links.dart';
 import 'map_card.dart';
 import 'picture_words.dart';
 import 'place_cards.dart';
+import 'rich_embeds/oembed.dart';
+import 'rich_embeds/players.dart';
 import 'videos.dart';
 
 export 'attachments.dart';
@@ -43,6 +46,9 @@ export 'linked_rows.dart';
 export 'links.dart';
 export 'map_card.dart';
 export 'place_cards.dart';
+export 'rich_embeds/oembed.dart';
+export 'rich_embeds/players.dart';
+export 'rich_embeds/providers.dart';
 export 'videos.dart';
 
 /// What the editor's links, pictures and media are told by whoever makes the editor. Everything is optional: with
@@ -52,6 +58,8 @@ class MediaSeams {
   const MediaSeams({
     this.pictures,
     this.previewer = noLinkPreviews,
+    this.embeds = noEmbeds,
+    this.embedPlayers = webViewEmbedPlayers,
     this.openLink,
     this.onLinkTap,
     this.linkPreviews,
@@ -72,6 +80,13 @@ class MediaSeams {
 
   /// What knows the titles of linked pages (lib/core/link_preview.dart).
   final LinkPreviewer previewer;
+
+  /// What YouTube, Spotify and Figma said of their links, and whether they may be asked
+  /// (lib/editor/media/rich_embeds/oembed.dart); [noEmbeds], which asks nothing and plays nothing, by default.
+  final EmbedSource embeds;
+
+  /// What plays a rich embed: the device's web views (rich_embeds/players.dart).
+  final EmbedPlayers embedPlayers;
 
   /// Opens a web address: a link card's tap.
   final LinkOpener? openLink;
@@ -130,7 +145,7 @@ Extension mediaExtensions({MediaSeams seams = const MediaSeams(), PlaceMode plac
   attachmentCards(cards: !peek),
   if (!peek) pictureWords(),
   shortLinks(still: peek, onOpen: seams.onLinkTap),
-  if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink),
+  if (!peek) linkCards(previewer: seams.previewer, open: seams.openLink, enabled: seams.linkPreviews, switches: seams.switches, reads: seams.linkRead ?? pluginReadsLink, embeds: seams.embeds, players: seams.embedPlayers),
   linkedRows(seams.linkMenus),
   clips(),
   if (seams.clipPlayer != null) clipPlayer.of(seams.clipPlayer!),

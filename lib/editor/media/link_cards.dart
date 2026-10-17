@@ -21,6 +21,10 @@
 /// - The theme's rules are drawn by the card's own widgets, each cited where it is drawn.
 ///   `-webkit-tap-highlight-color`, `cursor` and `outline-offset` have no counterpart; the keyboard's Enter and
 ///   Space on a focused card are the semantics' tap.
+/// - BEYOND THE PAGE: a YouTube, Spotify or Figma link draws its rich card instead (rich_embeds/cards.dart, Matt:
+///   "Rich embeds: YouTube, Spotify and Figma links as playable or previewable cards, not just link cards"), and a
+///   line that is only a `spotify:` URI is one too. With Link previews off, where no other link has a card, such a
+///   line still has the plain one, saying the service's name and the link and asking nothing (`embeds`, `players`).
 /// - A `where` line too long for its card is cut with an ellipsis here, as the stylesheet asks
 ///   (`text-overflow: ellipsis`). On the page it never is: the line's `nowrap` width is the card's least width,
 ///   which widens the whole editor past the screen instead (seen at 390 px with a 38-character path).
@@ -39,10 +43,17 @@ import '../view/editor_view.dart';
 import '../view/lines.dart';
 import 'images.dart' show gutterOf;
 import 'inline_box.dart';
+import 'rich_embeds/cards.dart';
+import 'rich_embeds/oembed.dart';
+import 'rich_embeds/players.dart';
+import 'rich_embeds/providers.dart';
 
 /// The whole line is a link: bare, `<bare>`, or `[words](address)`, optionally as a list item or a to-do.
 final RegExp _onlyLink = RegExp('^\\s*(?:$markerPattern\\s+(?:$boxPattern\\s+)?)?(?:<?(https?:\\/\\/[^\\s<>]+?)>?|\\[([^\\]\\n]+)\\]\\((https?:\\/\\/[^\\s)]+)\\))\\s*\$');
 final RegExp _trailing = RegExp(r'[.,;:!?]+$');
+
+/// The whole line is a `spotify:` URI, bare or as `[words](spotify:…)`: a link only where it is a rich embed.
+final RegExp _onlySpotify = RegExp('^\\s*(?:$markerPattern\\s+(?:$boxPattern\\s+)?)?(?:<?(spotify:[A-Za-z0-9:]+)>?|\\[([^\\]\\n]+)\\]\\((spotify:[A-Za-z0-9:]+)\\))\\s*\$');
 
 /// A line that is one link.
 @immutable
@@ -78,27 +89,34 @@ LinkLine? linkLine(String text, {LinkRead? reads}) {
 
 /// The link a line is and nothing more, whoever reads it.
 LinkLine? _onlyLinkOn(String text) {
-  final found = _onlyLink.firstMatch(text);
+  final found = _onlyLink.firstMatch(text) ?? _onlySpotify.firstMatch(text);
   if (found == null) return null;
   final url = (found.group(1) ?? found.group(3) ?? '').replaceFirst(_trailing, '');
   if (url.isEmpty) return null;
+  if (!url.startsWith('http') && richLinkOf(url) == null) return null;
   final words = jsTrim(found.group(2) ?? '');
   return LinkLine(url, words.isEmpty ? null : words);
 }
 
 /// The link each line is alone, kept for every line of a document (`LineFact`): whether a plugin reads it is asked
 /// each time, since that changes, but the line is put to the pattern once.
-final LineFact<LinkLine> _lone = LineFact<LinkLine>((text) => text.contains('http') ? _onlyLinkOn(text) : null);
+final LineFact<LinkLine> _lone = LineFact<LinkLine>((text) => text.contains('http') || text.contains('spotify:') ? _onlyLinkOn(text) : null);
 
 /// What the cards are told by whoever makes the editor.
 class LinkCardSeams {
-  const LinkCardSeams({this.previewer = noLinkPreviews, this.open, this.enabled, this.switches, this.reads});
+  const LinkCardSeams({this.previewer = noLinkPreviews, this.open, this.enabled, this.switches, this.reads, this.embeds = noEmbeds, this.players = webViewEmbedPlayers});
 
   final LinkPreviewer previewer;
   final LinkOpener? open;
   final bool Function()? enabled;
   final Listenable? switches;
   final LinkRead? reads;
+
+  /// What YouTube, Spotify and Figma said of their links (rich_embeds/oembed.dart), and the gate on asking them.
+  final EmbedSource embeds;
+
+  /// What plays them (rich_embeds/players.dart): the device's web views.
+  final EmbedPlayers players;
 }
 
 final Facet<LinkCardSeams, LinkCardSeams> _seams = Facet.define<LinkCardSeams, LinkCardSeams>(combine: (values) => values.isEmpty ? const LinkCardSeams() : values.first);
@@ -124,12 +142,44 @@ class LinkCardWidget extends EditorWidget {
   Widget build(BuildContext context) => _LinkCard(url: url, words: words, seams: EditorViewScope.maybeOf(context)?.state.facet(_seams) ?? const LinkCardSeams());
 }
 
+/// The card under a YouTube, Spotify or Figma link's line: its rich card, or the plain one with the switches shut.
+class RichEmbedWidget extends EditorWidget {
+  const RichEmbedWidget(this.link, this.words, {required this.allowed});
+
+  final RichLink link;
+  final String? words;
+
+  /// Link previews on and Local only off as the card was drawn: either shut, it is the plain card that asks
+  /// nothing.
+  final bool allowed;
+
+  @override
+  bool eq(RichEmbedWidget other) => other.link == link && other.words == words && other.allowed == allowed;
+
+  @override
+  Widget build(BuildContext context) {
+    final seams = EditorViewScope.maybeOf(context)?.state.facet(_seams) ?? const LinkCardSeams();
+    return RichEmbedCard(
+      link: link,
+      words: words,
+      allowed: allowed,
+      embeds: seams.embeds,
+      players: seams.players,
+      open: seams.open,
+      plain: (url, fixed) => _LinkCard(url: url, words: words, seams: seams, fixed: fixed),
+    );
+  }
+}
+
 class _LinkCard extends StatefulWidget {
-  const _LinkCard({required this.url, required this.words, required this.seams});
+  const _LinkCard({required this.url, required this.words, required this.seams, this.fixed});
 
   final String url;
   final String? words;
   final LinkCardSeams seams;
+
+  /// What the card says, where nothing is to be asked of the page: a rich embed's quiet card.
+  final LinkPreview? fixed;
 
   @override
   State<_LinkCard> createState() => _LinkCardState();
@@ -141,14 +191,15 @@ class _LinkCardState extends State<_LinkCard> {
   @override
   void initState() {
     super.initState();
-    widget.seams.previewer.wantPreview(widget.url);
+    if (widget.fixed == null) widget.seams.previewer.wantPreview(widget.url);
   }
 
   /// Another link in this card's place is asked for in its turn.
   @override
   void didUpdateWidget(_LinkCard old) {
     super.didUpdateWidget(old);
-    if (old.url != widget.url || !identical(old.seams.previewer, widget.seams.previewer)) widget.seams.previewer.wantPreview(widget.url);
+    if (widget.fixed != null) return;
+    if (old.url != widget.url || old.fixed != null || !identical(old.seams.previewer, widget.seams.previewer)) widget.seams.previewer.wantPreview(widget.url);
   }
 
   void _open() {
@@ -166,7 +217,7 @@ class _LinkCardState extends State<_LinkCard> {
     final em = base?.fontSize ?? t.len('app-body');
     final ink = base?.color ?? t.color('app-ink');
     final face = (base?.style ?? t.textAt(em, mono: true)).copyWith(color: ink, decoration: TextDecoration.none);
-    final known = widget.seams.previewer.previewFor(widget.url);
+    final known = widget.fixed ?? widget.seams.previewer.previewFor(widget.url);
     final knownSite = known?.site ?? '';
     final site = knownSite.isNotEmpty ? knownSite : siteOf(widget.url);
     final knownTitle = known?.title ?? '';
@@ -279,7 +330,8 @@ final StateEffectType<Null> refreshLinkCards = StateEffect.define<Null>();
 DecorationSet _decorate(EditorState state) {
   final builder = RangeSetBuilder<Decoration>();
   final seams = state.facet(_seams);
-  if (!(seams.enabled?.call() ?? true)) return builder.finish();
+  // Link previews off draws no plain cards; a rich embed's line still has its quiet one.
+  final on = seams.enabled?.call() ?? true;
   // The lines that are a link alone are the tree's own keeping; whether a plugin reads one is asked each time.
   final lines = _lone.of(state.doc);
   if (lines.isEmpty) return builder.finish();
@@ -291,7 +343,12 @@ DecorationSet _decorate(EditorState state) {
     final link = line.fact;
     // A link a plugin reads has its own row under the line (editor/linkedRows.ts).
     if (reads != null && reads(line.text, link.url)) continue;
-    builder.add(line.to, line.to, Decoration.widget(widget: LinkCardWidget(link.url, link.words, seams.previewer), block: true, side: 1));
+    final rich = richLinkOf(link.url);
+    if (rich != null) {
+      builder.add(line.to, line.to, Decoration.widget(widget: RichEmbedWidget(rich, link.words, allowed: on && seams.embeds.allowed), block: true, side: 1));
+    } else if (on) {
+      builder.add(line.to, line.to, Decoration.widget(widget: LinkCardWidget(link.url, link.words, seams.previewer), block: true, side: 1));
+    }
   }
   return builder.finish();
 }
@@ -350,5 +407,18 @@ final ViewPlugin<_Listen> _listen = ViewPlugin.define<_Listen>(_Listen.new);
 
 /// A card under each line that is only a link. `previewer` knows the pages' titles, `open` opens a page on a tap,
 /// `enabled` is the Link previews switch, `switches` says when it changed, and `reads` says a plugin has the link.
-Extension linkCards({LinkPreviewer previewer = noLinkPreviews, LinkOpener? open, bool Function()? enabled, Listenable? switches, LinkRead? reads}) =>
-    Extension.list(<Extension>[_seams.of(LinkCardSeams(previewer: previewer, open: open, enabled: enabled, switches: switches, reads: reads)), _cards, _listen]);
+/// `embeds` knows what YouTube, Spotify and Figma said of theirs and whether they may be asked, and `players` plays
+/// them (rich_embeds/).
+Extension linkCards({
+  LinkPreviewer previewer = noLinkPreviews,
+  LinkOpener? open,
+  bool Function()? enabled,
+  Listenable? switches,
+  LinkRead? reads,
+  EmbedSource embeds = noEmbeds,
+  EmbedPlayers players = webViewEmbedPlayers,
+}) => Extension.list(<Extension>[
+  _seams.of(LinkCardSeams(previewer: previewer, open: open, enabled: enabled, switches: switches, reads: reads, embeds: embeds, players: players)),
+  _cards,
+  _listen,
+]);
