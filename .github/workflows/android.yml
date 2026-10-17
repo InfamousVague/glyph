@@ -1,0 +1,76 @@
+# Ghost.md for Android: the Flutter app's APK, built on a Linux runner from every push to main, and by hand (Run
+# workflow). Matt, 2026-10-17: "kick off a CI process ... to build an APK from it".
+#
+# The steps are the ones a release on the Mac takes (tool/build-native.sh android, then flutter build apk), with what
+# the Mac has set up done here first: the NDK the script asks for (28.2, Flutter's), Rust's arm64 Android target, and
+# Flutter itself. The core is built with its engines (whisper.cpp and llama.cpp over one ggml), as the phone's is;
+# rust-cache keeps native/target between runs, so only the first pays the quarter of an hour CMake takes.
+#
+# Before the APK: `flutter analyze` (errors fail the run; warnings and infos are said and do not) and the tests that
+# need no core (test/claude). After it, the APK as an artifact. It is the ordinary build, "Ghost Flutter"
+# (com.mattssoftware.glyph.flutter), signed with the runner's debug key: it installs beside the real app, never over
+# it, and is not what scripts/deploy-flutter-apk.mjs publishes.
+name: Android build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      # The NDK tool/build-native.sh looks for first (`$ANDROID_HOME/ndk/28.*`), the one Flutter's Gradle names.
+      - name: Android NDK 28.2
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install 'ndk;28.2.13676358' > /dev/null
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-linux-android
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: native
+          # The engines' C++ is the long part: kept even when the app's own code then fails to build.
+          cache-on-failure: true
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter's version
+        run: flutter --version
+
+      - name: The core for the phone
+        run: tool/build-native.sh android
+
+      - run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze --no-fatal-infos --no-fatal-warnings
+
+      - name: Tests that need no core
+        run: flutter test test/claude
+
+      - name: Build the APK
+        run: flutter build apk --release --target-platform android-arm64 --build-number ${{ github.run_number }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ghost-flutter-apk-${{ github.run_number }}
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
