@@ -10,15 +10,20 @@ const isLow = (unit: number) => unit >= 0xdc00 && unit <= 0xdfff;
 const splitsPair = (words: string, at: number) =>
   at > 0 && at < words.length && isHigh(words.charCodeAt(at - 1)) && isLow(words.charCodeAt(at));
 
+/** What differs between two words: `gone` characters at `head` taken out, and `came` put in their place. */
+export interface TextSpan {
+  head: number;
+  gone: number;
+  came: string;
+}
+
 /**
- * The lines that differ between `from` and `to`, as one change to `text`: the common head and foot are kept, and
- * what lies between goes and comes. A change made elsewhere in the same stretch at the same moment merges by the
- * CRDT's rule, both sides' words kept.
+ * The stretch that differs between `from` and `to`: the common head and foot kept, what lies between gone and come.
  *
  * The head and foot are drawn back to whole characters. Two that share a half (😀 and 😁 share their first) would
  * otherwise be changed by the other half alone, and Yjs, cutting the pair, writes U+FFFD in its place for everyone.
  */
-export function applyTextDiff(text: Y.Text, from: string, to: string): void {
+export function textSpan(from: string, to: string): TextSpan {
   let head = 0;
   const most = Math.min(from.length, to.length);
   while (head < most && from[head] === to[head]) head += 1;
@@ -26,10 +31,17 @@ export function applyTextDiff(text: Y.Text, from: string, to: string): void {
   let foot = 0;
   while (foot < most - head && from[from.length - 1 - foot] === to[to.length - 1 - foot]) foot += 1;
   if (splitsPair(from, from.length - foot) || splitsPair(to, to.length - foot)) foot -= 1;
+  return { head, gone: from.length - head - foot, came: to.slice(head, to.length - foot) };
+}
+
+/**
+ * The lines that differ between `from` and `to`, as one change to `text` (`textSpan`). A change made elsewhere in the
+ * same stretch at the same moment merges by the CRDT's rule, both sides' words kept.
+ */
+export function applyTextDiff(text: Y.Text, from: string, to: string): void {
+  const { head, gone, came } = textSpan(from, to);
   text.doc?.transact(() => {
-    const gone = from.length - head - foot;
     if (gone > 0) text.delete(head, gone);
-    const came = to.slice(head, to.length - foot);
     if (came) text.insert(head, came);
   }, LOCAL);
 }
