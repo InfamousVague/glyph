@@ -14,6 +14,14 @@
 ///
 /// The phone holds the truth (it is asked at every start what is enabled, lib/root/voice_wiring.dart); the flag
 /// here is what the switch draws, and [switchVoiceAssistant] sets both.
+///
+/// **Back as a setting** (Matt, 2026-10-17: "add the setting back in to be able to bind ghost as the agent on the
+/// phone"). The same switch stands on the Claude plugin's page too, as Phone assistant (lib/plugins/claude/
+/// claude_in_app.dart), where a person finds it (Settings' search finds "assistant"), with the way to Android's
+/// Default digital assistant app screen ([openAssistantChooser]): the app cannot make itself the assistant, a person
+/// picks it there. It is one flag: the Developer row and the plugin's draw and set the same one. And the assistant
+/// now talks to Claude (lib/claude/claude_voice.dart) where Claude can answer, its plugin on and a key kept; else it
+/// records as it did (lib/root/capture_route.dart `assist`). Off by default still, on every device.
 library;
 
 import 'dart:async';
@@ -29,7 +37,7 @@ final DeviceFlag wipAssistant = DeviceFlag(wipAssistantKey);
 
 /// The switch's hint: what it turns on, and what works either way.
 const String wipAssistantHint = 'The side key as the phone’s assistant, and Record note on the app’s icon. Off, nothing outside Ghost.md starts a recording. '
-    'Recording, voice memos and meetings work either way. Open Ghost.md again after switching it.';
+    'Recording, voice memos and meetings work either way. Open Ghost.md again after switching it. The same switch is Phone assistant on Settings › Plugins › Claude.';
 
 /// Switches it: the flag, and the phone's half. [phone] is the phone's own unless a test gives another; a phone
 /// that will not answer leaves the flag as it was.
@@ -39,6 +47,25 @@ Future<void> switchVoiceAssistant(bool on, {Future<bool> Function(bool on)? phon
     wipAssistant.set(on);
   } catch (_) {
     // No phone under it (a Mac, a test): nothing to switch.
+  }
+}
+
+/// Opens Android's screen for choosing the digital assistant app (MeetingBridge.kt `openAssistantSettings`: Assist &
+/// voice input where the phone has it, else Default apps), answering whether one opened. False off a phone.
+Future<bool> openAssistantChooser() async {
+  try {
+    return await DeviceMeetingHost.channel.invokeMethod<bool>('openAssistantSettings') ?? false;
+  } catch (_) {
+    return false;
+  }
+}
+
+/// Whether Ghost.md is the phone's digital assistant app now (MeetingBridge.kt `isAssistant`). False off a phone.
+Future<bool> isPhoneAssistant() async {
+  try {
+    return await DeviceMeetingHost.channel.invokeMethod<bool>('isAssistant') ?? false;
+  } catch (_) {
+    return false;
   }
 }
 

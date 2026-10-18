@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -171,15 +172,18 @@ void main() {
 
     // Settings' contract (docs/DESIGN.md §138): each name the search lists for the page is a card on it.
     testWidgets('draws every card the search lists for the page, and a row for each thing Claude can do', (tester) async {
+      // On a phone, where Phone assistant is one of them.
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
       await pumpSettings(tester, SettingsPaneScope(finder: finder, child: SingleChildScrollView(child: Builder(builder: claudePlugin.settings!.pane))), size: const Size(390, 4000));
       final names = [for (final setting in claudePlugin.settings!.settings) setting.name];
-      expect(names, ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Connect', 'What Claude can do', 'Your key']);
+      expect(names, ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Phone assistant', 'Connect', 'What Claude can do', 'Your key']);
       expect(names.where((name) => finder.find(name) == null), isEmpty);
       for (final tool in canDo) {
         expect(find.text(tool.name, skipOffstage: false), findsOneWidget);
         expect(find.text(tool.words, skipOffstage: false), findsOneWidget);
       }
       await away(tester);
+      debugDefaultTargetPlatformOverride = null;
     });
     // The plugin is the app's own Claude too (docs/CLAUDE_APP.md): its page is in two parts, the app's first.
     testWidgets('is in two parts on the plugin’s page: In the app (the key, the model, the note), then From Claude’s own app', (tester) async {

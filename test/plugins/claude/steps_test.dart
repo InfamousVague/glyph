@@ -60,7 +60,7 @@ void main() {
       // Its row says what the app's Claude answers with, or that it wants a key.
       expect(claudePlugin.settings!.summary(), anyOf('Add your API key', 'Sonnet 5.5', 'Opus 5.5', 'Haiku 5.5'));
       expect(claudePlugin.settings!.hue, 'coral');
-      expect([for (final s in claudePlugin.settings!.settings) s.name], ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Connect', 'What Claude can do', 'Your key']);
+      expect([for (final s in claudePlugin.settings!.settings) s.name], ['Ask Claude', 'API key', 'Model', 'Ask Claude note', 'Phone assistant', 'Connect', 'What Claude can do', 'Your key']);
       expect([for (final s in claudePlugin.settings!.settings.skip(4)) '${s.name}: ${s.words}'], ['Connect: mcp server address hosted computer', 'What Claude can do: tools', 'Your key: secret connections']);
       expect(claudePlugin.noteLinks, isEmpty);
       expect(claudePlugin.noteActions, isEmpty);

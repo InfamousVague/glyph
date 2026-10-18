@@ -6,15 +6,24 @@
 ///
 /// A key is checked before it is kept (one small read of the API, lib/claude/messages_api.dart [ClaudeApi.check]),
 /// so a key mistyped is said at once rather than at the first ask. Forget asks twice.
+///
+/// On a phone, a fourth card: **Phone assistant** (Matt, 2026-10-17: "add the setting back in to be able to bind
+/// ghost as the agent on the phone"). Its switch is the one Settings › Developer has had (lib/core/wip.dart
+/// [switchVoiceAssistant]): on, Ghost.md is offered to Android as a digital assistant, and Android's Default digital
+/// assistant app screen is opened at once, since the app cannot pick itself; a person picks it there. Its second row
+/// opens that screen again and says whether Ghost.md is the one chosen, read again each time the app comes back.
 library;
 
 import 'dart:async';
 
+import 'package:flutter/foundation.dart' show ValueListenable, TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../art/art.dart' show AppIcon, Lucide;
 import '../../claude/claude_settings.dart';
 import '../../claude/messages_api.dart';
+import '../../core/wip.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/pane_parts.dart' show armedFor;
 import '../../settings/settings_search.dart';
@@ -26,7 +35,29 @@ const List<SettingsFindable> claudeInAppFindable = [
   SettingsFindable('API key', 'anthropic api key claude sk-ant console token'),
   SettingsFindable('Model', 'claude sonnet opus haiku model'),
   SettingsFindable('Ask Claude note', 'inbox ask claude requests to-do automatic'),
+  SettingsFindable('Phone assistant', 'assistant digital default side key gesture voice talk microphone bind gemini bixby'),
 ];
+
+/// What the Phone assistant card reaches (lib/core/wip.dart): the phone's own unless a test gives others.
+@immutable
+class PhoneAssistantSeam {
+  const PhoneAssistantSeam({this.on, this.set, this.choose, this.chosen});
+
+  /// Whether this device's switch is on.
+  final ValueListenable<bool>? on;
+  final Future<void> Function(bool on)? set;
+
+  /// Opens Android's Default digital assistant app screen.
+  final Future<bool> Function()? choose;
+
+  /// Whether Ghost.md is the phone's assistant now.
+  final Future<bool> Function()? chosen;
+
+  ValueListenable<bool> get _on => on ?? wipAssistant;
+  Future<void> _set(bool next) => (set ?? switchVoiceAssistant)(next);
+  Future<bool> _choose() => (choose ?? openAssistantChooser)();
+  Future<bool> _chosen() => (chosen ?? isPhoneAssistant)();
+}
 
 /// The row to the plugin's page on its card: the model Claude answers with, or that a key is wanted.
 String claudeSummary([ClaudeSettings? settings]) {
@@ -37,10 +68,16 @@ String claudeSummary([ClaudeSettings? settings]) {
 
 /// The three cards, Ask Claude (the key), Model and Ask Claude note, a page's gap apart.
 class ClaudeInApp extends StatefulWidget {
-  const ClaudeInApp({super.key, this.settings});
+  const ClaudeInApp({super.key, this.settings, this.assistant = const PhoneAssistantSeam(), this.phone});
 
   /// The settings to read and write; the app's own when null.
   final ClaudeSettings? settings;
+
+  /// What the Phone assistant card reaches.
+  final PhoneAssistantSeam assistant;
+
+  /// Whether the Phone assistant card is drawn: on Android, where there is an assistant to be, unless told.
+  final bool? phone;
 
   @override
   State<ClaudeInApp> createState() => _ClaudeInAppState();
@@ -54,19 +91,41 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
   bool _armed = false;
   Timer? _timer;
 
+  /// Whether Ghost.md is the phone's assistant, as last asked; null before the first answer.
+  bool? _chosen;
+  AppLifecycleListener? _life;
+
   ClaudeSettings get _settings => widget.settings ?? claudeSettings;
+  bool get _phone => widget.phone ?? defaultTargetPlatform == TargetPlatform.android;
 
   @override
   void initState() {
     super.initState();
     unawaited(_settings.load());
+    if (_phone) {
+      unawaited(_readChosen());
+      // Back from Android's screen: whether it was picked there is read again.
+      _life = AppLifecycleListener(onResume: () => unawaited(_readChosen()));
+    }
   }
 
   @override
   void dispose() {
     _typed.dispose();
     _timer?.cancel();
+    _life?.dispose();
     super.dispose();
+  }
+
+  Future<void> _readChosen() async {
+    final chosen = await widget.assistant._chosen();
+    if (mounted && chosen != _chosen) setState(() => _chosen = chosen);
+  }
+
+  /// The switch: on, Ghost.md is offered as an assistant and Android's screen is opened to pick it.
+  Future<void> _switchAssistant(bool on) async {
+    await widget.assistant._set(on);
+    if (on && !(_chosen ?? false)) await widget.assistant._choose();
   }
 
   Future<void> _keep() async {
@@ -132,6 +191,36 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
       _problem = null;
     });
     unawaited(_settings.setKey(null));
+  }
+
+  Widget _assistantCard(BuildContext context) {
+    final chosen = _chosen;
+    return ValueListenableBuilder<bool>(
+      valueListenable: widget.assistant._on,
+      builder: (context, on, _) => PaneSection(
+        title: 'Phone assistant',
+        description: const Text(
+          'Talk to Claude from anywhere: hold the side key, or use your phone’s assistant gesture, and Ghost.md listens, shows Claude thinking, then opens the note Claude writes in. Without an API key on this device, it records a voice note instead.',
+        ),
+        footer: const Text('Ghost.md cannot make itself the assistant: Android asks you to pick it. The microphone is only open while you talk, never waiting for a word.'),
+        children: [
+          SettingRow(
+            key: const ValueKey('claude-assistant'),
+            icon: const AppIcon(Lucide.mic, size: 20),
+            label: 'Ghost.md as the phone’s assistant',
+            hint: const Text('Switched on, the screen to choose it opens: pick Ghost.md under Default digital assistant app. Open Ghost.md again after switching it.'),
+            control: GlacierSwitch(ariaLabel: 'Ghost.md as the phone’s assistant', checked: on, onCheckedChange: (next) => unawaited(_switchAssistant(next))),
+          ),
+          if (on)
+            SettingRow(
+              key: const ValueKey('claude-assistant-choose'),
+              label: 'Default digital assistant app',
+              hint: Text(chosen == true ? 'Ghost.md is your phone’s assistant.' : 'Not chosen yet. Pick Ghost.md on Android’s screen.'),
+              value: RowAction(onPress: () => unawaited(widget.assistant._choose()), child: Text(chosen == true ? 'Change' : 'Choose')),
+            ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -214,6 +303,7 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
                 ),
               ],
             ),
+            if (_phone) _assistantCard(context),
           ],
         );
       },

@@ -236,6 +236,9 @@ void main() {
       expect(found('ask claude'), contains(('plugin:claude', 'Ask Claude')));
       expect(found('api key'), contains(('plugin:claude', 'API key')));
       expect(found('anthropic'), contains(('plugin:claude', 'API key')));
+      // Matt, 2026-10-17: "add the setting back in to be able to bind ghost as the agent on the phone".
+      expect(found('assistant'), contains(('plugin:claude', 'Phone assistant')));
+      expect(found('digital assistant'), contains(('plugin:claude', 'Phone assistant')));
       // No section of its own any more, and no page for a plugin that is off: Calendar is found on Plugins, by its card.
       expect(sections.map((s) => s.id), isNot(contains('ask-claude')));
       expect(found('calendar').map((hit) => hit.$1), isNot(contains('plugin:calendar')));

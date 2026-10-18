@@ -30,7 +30,7 @@ import 'claude_in_app.dart';
 import 'claude_pane.dart';
 
 export 'claude_guide.dart' show ClaudeGuide, cssLine, wrapCode;
-export 'claude_in_app.dart' show ClaudeInApp, claudeInAppFindable, claudeSummary;
+export 'claude_in_app.dart' show ClaudeInApp, PhoneAssistantSeam, claudeInAppFindable, claudeSummary;
 export 'claude_pane.dart' show ClaudePane, ClaudePartHeading;
 export 'steps.dart';
 
