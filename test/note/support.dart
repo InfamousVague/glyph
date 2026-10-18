@@ -79,7 +79,8 @@ NoteSeams measuredSeams(List<String> asked) => NoteSeams(
     );
 
 /// A note's screen as the app draws it: [note] open in its tab in the app's shell on a window of [size], or, with
-/// [bar] false, the screen alone with no bar over it. [dock] gives it the dock (lib/shell/page_dock.dart).
+/// [bar] false, the screen alone with no bar over it. [dock] gives it the dock (lib/shell/page_dock.dart);
+/// [backLabel] is the word on simple mode's way back.
 Future<NoteScreenState> pumpNote(
   WidgetTester tester,
   NoteWorld world,
@@ -99,6 +100,7 @@ Future<NoteScreenState> pumpNote(
   DateTime Function()? clock,
   Duration settle = const Duration(milliseconds: 500),
   PageDockSeam? dock,
+  String backLabel = 'Notes',
 }) async {
   final sheet = await appSheet(tester);
   Widget screen(Note open, {String? at, Caret? caret}) => NoteScreen(
@@ -124,6 +126,7 @@ Future<NoteScreenState> pumpNote(
         say: (message) => world.asked.add('say $message'),
         lifecycle: false,
         dock: dock,
+        backLabel: backLabel,
       );
   await pumpApp(
     tester,

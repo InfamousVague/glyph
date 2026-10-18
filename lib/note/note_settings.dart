@@ -34,6 +34,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/app_icon.dart';
+import 'note_tools.dart' show NoteKind, viewSwitchRow;
 import '../art/icons.dart';
 import '../book/journal.dart' show defaultTemplate, placeSentence, templateSentence;
 import '../book/template_picker.dart' show EntryPlaceDevice, TemplatePicker;
@@ -204,6 +205,17 @@ class NoteTicketKey {
   final ValueChanged<String> onChange;
 }
 
+/// The view switch for the More sheet's row (simple mode): what the note is drawn as, whether its page rather than
+/// its source is up, and the switch itself (note_tools.dart `viewSwitchWords`).
+@immutable
+class NoteViewSwitch {
+  const NoteViewSwitch({required this.kind, required this.page, required this.onSwitch});
+
+  final NoteKind kind;
+  final bool page;
+  final VoidCallback onSwitch;
+}
+
 /// The note's look, for its row of choices (`look`).
 @immutable
 class NoteLook {
@@ -285,6 +297,7 @@ class NoteSettings extends StatefulWidget {
     this.around,
     this.startAtItem,
     this.simple,
+    this.viewSwitch,
   });
 
   final String noteId;
@@ -362,6 +375,11 @@ class NoteSettings extends StatefulWidget {
 
   /// Simple mode (see the header); null asks the preferences.
   final bool? simple;
+
+  /// The view switch as a row, for simple mode, where the header has no switch of its own (GHST-105: "pin/archive/
+  /// view switch move into ⋯"): the first row of Reading it. Advanced mode's sheet never draws it, the bar's ring
+  /// being there.
+  final NoteViewSwitch? viewSwitch;
 
   @override
   State<NoteSettings> createState() => _NoteSettingsState();
@@ -665,6 +683,25 @@ class _NoteSettingsState extends State<NoteSettings> {
     ];
 
     // Reading it: the look and Find in both modes; the bookmark and the board are simple's "fancy", behind More….
+    // Simple's first row is the view switch, which the advanced header carries as a ring (GHST-105).
+    final Widget? switchRow = !simple || widget.viewSwitch == null
+        ? null
+        : Builder(
+            builder: (context) {
+              final it = widget.viewSwitch!;
+              final words = viewSwitchRow(it.kind, page: it.page);
+              return SheetRow(
+                key: const ValueKey<String>('note-view-switch'),
+                icon: _lucide(it.page ? Lucide.code : Lucide.bookOpen, 2.1),
+                label: words.label,
+                hint: words.hint,
+                onPress: () {
+                  widget.onClose();
+                  it.onSwitch();
+                },
+              );
+            },
+          );
     final Widget? lookRow = look != null ? LookChoice(look: look) : null;
     final Widget? bookmarkRow = widget.onBookmark == null
         ? null
@@ -677,7 +714,7 @@ class _NoteSettingsState extends State<NoteSettings> {
     final Widget? findRow = widget.onFind == null ? null : SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind);
     // A list laid out as columns, in the note's own words (docs/BOARDS.md).
     final Widget? boardRow = widget.onMakeBoard == null ? null : SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard);
-    final readingFirst = <Widget>[?lookRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
+    final readingFirst = <Widget>[?switchRow, ?lookRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
     final readingMore = <Widget>[if (simple) ?bookmarkRow, if (simple) ?boardRow];
     final reading = <Widget>[if (readingFirst.isNotEmpty) ...[const SheetHeading('Reading it'), SheetGroup(children: readingFirst)]];
     final readingRest = <Widget>[if (readingMore.isNotEmpty) ...[const SheetHeading('More ways to read it'), SheetGroup(children: readingMore)]];
