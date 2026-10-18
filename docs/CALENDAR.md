@@ -47,6 +47,11 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
   (`ghostmd://note/<id>`). The event's id is derived from the note id and the to-do's anchor or words, so the same
   to-do updates the same event: a changed date moves it, a ticked or removed to-do deletes it. Events the app did not
   make are never changed.
+- **Within moments** (Matt, 2026-10-17: "show up on my personal calendar in real time and are removed when
+  removed"): besides the 15-minute pass, the to-dos alone are put on Google four seconds after the notes change, here
+  or synced from another device (lib/calendar/calendar.dart `todosSoon`, `exportTodosNow`), and only when the
+  calendar's to-dos (each event's id, day and words) differ from what was put there last, so typing asks nothing of
+  Google. Every note the device shows is read, an organization's included; the archive and templates are not.
 
 ## Where events show
 
