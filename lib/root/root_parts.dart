@@ -958,19 +958,29 @@ extension _RootParts on _GhostRootState {
       };
 
   /// What is waiting on the person, above the notes (notes/Notices.tsx), in the page's order: a new version of the
-  /// app (lib/root/update_wiring.dart, from [GhostRoot.updates]), an invitation to an organization where the build
-  /// has an account, and the voice model while it is not ready.
+  /// app (lib/root/update_wiring.dart, from [GhostRoot.updates]), the simple-or-advanced question for an install
+  /// from before there was one (GHST-103), an invitation to an organization where the build has an account, and
+  /// the voice model while it is not ready.
   List<Widget> _notices() {
     final updates = widget.updates;
     final services = _services;
     final model = _voice?.recorder.voiceModel;
     return [
       if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
+      if (_asksExperience) notices.ExperienceCard(onPick: _pickExperience),
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
       if (model != null && _voiceModelLine != null)
         ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
     ];
   }
+
+  /// Whether home asks simple or advanced (GHST-103): the walkthrough has been seen (so it did not ask, or was
+  /// skipped before its page) and the choice was never made, here or on another device. Matt, 2026-10-18: new
+  /// installs choose in the walkthrough, "existing users see it on the card one time".
+  bool get _asksExperience => !preferences.value.experienceChosen && _guide?.open != true && _stored.flag(guideSeenKey, value: '1', unreadable: true).isMarked;
+
+  /// The card's answer: the choice, made for every device, and the card goes with it.
+  void _pickExperience(String mode) => preferences.update((now) => now.copyWith(experience: mode, experienceChosen: true));
 
   /// An update waiting: the sidebar's to carry on a wide window, where there is no home list to show it (App.tsx
   /// `notices`, notes/NoteTree.tsx): docked, and floating where the window is in two panes. Nothing while there is

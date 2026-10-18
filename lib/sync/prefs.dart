@@ -38,6 +38,9 @@ const List<String> syncedPrefs = [
   // The home page's layout: a way of looking at the same notes, chosen once for every device.
   'homeLayout',
   'homeLayoutChosen',
+  // Simple or advanced (GHST-103): one choice for the person, so a phone and a Mac match (Matt, 2026-10-18).
+  'experience',
+  'experienceChosen',
   'topBar',
   'density',
   'assist',

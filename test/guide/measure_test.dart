@@ -5,6 +5,7 @@ import 'package:ghost_md/art/shapes.dart';
 import 'package:ghost_md/art/wisp_text.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/guide/guide.dart';
+import 'package:ghost_md/guide/pages.dart';
 import 'package:ghost_md/guide/pages/parts.dart';
 import 'package:ghost_md/home/home_parts.dart' show CssLines;
 import 'package:glacier/glacier.dart' show ExactLines;
@@ -39,12 +40,19 @@ void main() {
   Finder lines(Finder inner) => find.ancestor(of: inner, matching: find.byWidgetPredicate((widget) => widget is CssLines || widget is ExactLines)).first;
   Finder boxOf(Finder inner) => find.ancestor(of: inner, matching: find.byType(Container)).first;
 
-  void frame(WidgetTester tester, Map<String, List<Map<String, dynamic>>> want, {required String skip, required String next}) {
-    // The dots.
-    final dots = find.descendant(of: find.bySemanticsLabel(RegExp(r'^Page \d of 4$')), matching: find.byType(AnimatedContainer));
-    expect(dots, findsNWidgets(4));
-    for (var i = 0; i < 4; i++) {
-      expectRect(rect(tester, dots.at(i)), want['dots']![i], 'dot $i');
+  void frame(WidgetTester tester, Map<String, List<Map<String, dynamic>>> want, {required String skip, required String next, int at = 0}) {
+    // The dots. The web's guide had four; the mode page (GHST-103) makes a fifth, after the theme page. Up to the
+    // theme page the dots agree dot for dot with the web's; past it the lit dot is one further along than the web's
+    // was, so only the dots before the mode page, and the lit dot's own size and height, are held to the web's.
+    final dots = find.descendant(of: find.bySemanticsLabel(RegExp(r'^Page \d of \d$')), matching: find.byType(AnimatedContainer));
+    expect(dots, findsNWidgets(walkthroughPages.length));
+    final webDots = want['dots']!;
+    for (var i = 0; i < webDots.length; i++) {
+      if (at < 2 || i < 2) expectRect(rect(tester, dots.at(i)), webDots[i], 'dot $i');
+    }
+    if (at >= 2) {
+      final lit = rect(tester, dots.at(at)), web = webDots[at - 1];
+      expect([lit.width, lit.height, lit.top].map((v) => v.toStringAsFixed(1)), [web['w'], web['h'], web['y']].map((v) => (v as num).toStringAsFixed(1)), reason: 'the lit dot');
     }
     expectRect(rect(tester, word(skip)), want['skip']!.single, skip);
     expectRect(rect(tester, word('Back')), want['nav']!.single, 'Back');
@@ -98,7 +106,7 @@ void main() {
   testWidgets('the theme page', (tester) async {
     // The page was measured with Light chosen: the second row is the one printed in reverse.
     final want = await show(tester, 'theme', 1);
-    frame(tester, want, skip: 'Skip', next: 'Next');
+    frame(tester, want, skip: 'Skip', next: 'Next', at: 1);
     expectRect(rect(tester, lines(find.text('Light or dark?'))), want['title']!.single, 'the title', width: false);
     expectRect(rect(tester, lines(find.textContaining('Pick one to see it.'))), want['lead']!.single, 'the lead', width: false);
     choices(tester, want);
@@ -106,8 +114,8 @@ void main() {
   });
 
   testWidgets('the model page', (tester) async {
-    final want = await show(tester, 'model', 2);
-    frame(tester, want, skip: 'Skip', next: 'Next');
+    final want = await show(tester, 'model', 3);
+    frame(tester, want, skip: 'Skip', next: 'Next', at: 3);
     expectRect(rect(tester, lines(find.text('Choose your model'))), want['title']!.single, 'the title', width: false);
     expectRect(rect(tester, lines(find.textContaining('It rewrites your notes'))), want['lead']!.single, 'the lead', width: false);
     choices(tester, want);
@@ -115,7 +123,7 @@ void main() {
   });
 
   testWidgets('the model page’s line about the download, scrolled to its end', (tester) async {
-    final want = await show(tester, 'model-fine', 2, models: () => FakeGuideModels());
+    final want = await show(tester, 'model-fine', 3, models: () => FakeGuideModels());
     final scroller = tester.state<ScrollableState>(find.byType(Scrollable).first);
     scroller.position.jumpTo(scroller.position.maxScrollExtent);
     await wait(tester, 600);
@@ -127,8 +135,8 @@ void main() {
   });
 
   testWidgets('the last page', (tester) async {
-    final want = await show(tester, 'start', 3);
-    frame(tester, want, skip: 'Close', next: 'Start');
+    final want = await show(tester, 'start', 4);
+    frame(tester, want, skip: 'Close', next: 'Start', at: 4);
     expectRect(rect(tester, find.byType(TipsShape)), want['art']!.single, 'the picture');
     expectRect(rect(tester, lines(find.text('Learn it, or just start.'))), want['title']!.single, 'the title', width: false);
     expectRect(rect(tester, lines(find.textContaining('The marks, the words you can say'))), want['lead']!.single, 'the lead', width: false);

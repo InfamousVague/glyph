@@ -1224,6 +1224,8 @@ class _GhostRootState extends State<GhostRoot> {
   void _prefsChanged() {
     _prefsAt += 1;
     _tick.tell();
+    // Advanced chosen: the example notes, for a library that began with the sample alone (GHST-103).
+    unawaited(_settleStarterExamples());
   }
 
   void _accountChanged() {
@@ -1699,12 +1701,44 @@ class _GhostRootState extends State<GhostRoot> {
     if (mounted) _extras?.start();
     if (!_real || !mounted) return;
     final seeded = _stored.flag('glyph-sample-note', unreadable: true);
-    if (seeded.isMarked) return;
+    final examples = _stored.flag(starterExamplesKey, unreadable: true);
+    if (seeded.isMarked) {
+      // An install from before there was a choice (GHST-103) was given every starter at once: never again.
+      if (!examples.isMarked) examples.mark();
+      return;
+    }
     seeded.mark();
-    if (_library.value.isNotEmpty) return;
-    for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch)) {
+    if (_library.value.isNotEmpty) {
+      examples.mark();
+      return;
+    }
+    // The sample note alone (Matt, 2026-10-18: "a simple install starts with the sample note only"); the tickets, the
+    // board, the notebook and the journal come with Advanced (_settleStarterExamples), chosen on the walkthrough's
+    // page after this.
+    for (final note in starterNotes(DateTime.now().millisecondsSinceEpoch, examples: false)) {
       // The sample note, made last, with its picture (`addSampleNote`).
       await _library.createNote(identical(note.body, sampleNoteBody) ? sampleNoteWith(await _samplePicture()) : note.body);
+    }
+    await _settleStarterExamples();
+  }
+
+  /// The key that says the example notes were given, or passed over (GHST-103).
+  static const String starterExamplesKey = 'glyph-starter-examples';
+
+  /// The example notes, once Advanced is chosen (the walkthrough, home's card, Settings) for a library that began
+  /// with the sample alone: the three tickets and their notebook, the board, the journal. Given once, and only to a
+  /// library that still holds nothing but the sample: a person with notes of their own, or an account's notes just
+  /// arrived, is not handed examples they never asked for.
+  Future<void> _settleStarterExamples() async {
+    if (!_real || !mounted || !_notesRead.isCompleted) return;
+    final now = preferences.value;
+    if (!now.experienceChosen || now.simple) return;
+    final examples = _stored.flag(starterExamplesKey, unreadable: true);
+    if (examples.isMarked) return;
+    examples.mark();
+    if (_library.value.length > 1) return;
+    for (final note in starterExamples(DateTime.now().millisecondsSinceEpoch)) {
+      await _library.createNote(note.body);
     }
   }
 

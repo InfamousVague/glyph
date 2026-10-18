@@ -108,12 +108,12 @@ void main() {
   group('The walkthrough', () {
     test('has no model page on an iPhone, and its last page is the last', () {
       expect(walkthroughPagesNow, GuidePage.values);
-      expect(isReadingPage(2), isTrue);
+      expect(isReadingPage(3), isTrue);
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       final pages = walkthroughPagesNow;
-      final reading = [isReadingPage(1), isReadingPage(2)];
+      final reading = [isReadingPage(2), isReadingPage(3)];
       debugDefaultTargetPlatformOverride = null;
-      expect(pages, [GuidePage.welcome, GuidePage.theme, GuidePage.start]);
+      expect(pages, [GuidePage.welcome, GuidePage.theme, GuidePage.mode, GuidePage.start]);
       expect(reading, [true, false]);
     });
   });

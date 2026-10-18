@@ -65,6 +65,18 @@ void main() {
     expect([for (final n in notes) n.updatedAt], [for (var i = 0; i < 8; i += 1) seedNow + i]);
   });
 
+  test('a simple install starts with the sample note alone, and the examples come with Advanced (GHST-103)', () {
+    final alone = starterNotes(seedNow, examples: false);
+    expect(alone.length, 1);
+    expect(alone.single.body, sampleNoteBody);
+    expect(alone.single.id, starterSampleId);
+    final examples = starterExamples(seedNow);
+    expect(examples.length, 7);
+    expect(examples.any((note) => note.body == sampleNoteBody), isFalse);
+    // Together, the eight a library from before the choice began with, sample last.
+    expect([...examples, ...alone].map((note) => note.id), starterNotes(seedNow).map((note) => note.id));
+  });
+
   group('the store', () {
     test('pins, archives, deletes and puts back, telling its listeners each time', () {
       var clock = 1000;

@@ -430,6 +430,36 @@ class _Paper extends StatelessWidget {
   }
 }
 
+/// Simple or advanced, asked once of an install from before there was a choice (GHST-103; Matt, 2026-10-18: new
+/// installs choose in the walkthrough, "existing users see it on the card one time"). The same paper as the update
+/// card, with the two modes as its actions; either puts the card away for good, and Settings has the choice from
+/// then on. Nothing to port: the choice is new with the Flutter app.
+class ExperienceCard extends StatelessWidget {
+  const ExperienceCard({super.key, required this.onPick});
+
+  /// `simple` or `advanced` (lib/core/preferences.dart `experienceIds`).
+  final ValueChanged<String> onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return _Paper(
+      key: const ValueKey('experience-card'),
+      icon: Lucide.feather,
+      lead: 'Simple or advanced?',
+      line: 'Simple keeps notes, lists and to-dos in front and the rest behind More. Change it any time in Settings.',
+      actions: Row(
+        mainAxisSize: MainAxisSize.min,
+        spacing: t.space(2),
+        children: [
+          _Action(label: 'Simple', onPressed: () => onPick('simple'), background: t.color('glacier-text'), color: t.color('glacier-bg')),
+          _Action(label: 'Advanced', onPressed: () => onPick('advanced'), background: t.color('glacier-surface-raised'), color: t.color('glacier-text')),
+        ],
+      ),
+    );
+  }
+}
+
 /// The Academy, offered on the home screen (`AcademyCard`; Matt: "I'd like the academy page to show up on the home
 /// screen kinda like the update banner for new users as a call to action banner"). Like the update card in shape and
 /// place, unlike it in voice: this is an invitation, and is the paper it sits on. Nothing differs from the page.

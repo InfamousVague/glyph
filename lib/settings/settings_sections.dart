@@ -81,6 +81,9 @@ class SettingsFacts {
 
   /// Whether developer mode is on (settings/developerMode.ts).
   final bool developer;
+
+  /// Simple mode (GHST-103): the sections a new person needs; the rest wait behind "Show everything".
+  bool get simple => prefs.simple;
 }
 
 /// One row of [settingsSections]: a section of the web app's Settings as SettingsSheet.tsx lists it, with the web

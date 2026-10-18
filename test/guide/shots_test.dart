@@ -12,7 +12,8 @@ void main() {
 
   for (final theme in ['light', 'dark']) {
     // The page's pictures were taken with the theme as the chosen one, so that row is the one printed in reverse.
-    for (final (index, name) in ['welcome', 'theme', 'model', 'start'].indexed) {
+    // The mode page (GHST-103) has no web picture beside it: it is new with the Flutter app.
+    for (final (index, name) in ['welcome', 'theme', 'mode', 'model', 'start'].indexed) {
       testWidgets('$name, $theme', (tester) async {
         final prefs = Preferences(theme: theme);
         final store = ValueNotifier<Preferences>(prefs);
@@ -34,7 +35,7 @@ void main() {
       final prefs = Preferences(theme: theme);
       final store = ValueNotifier<Preferences>(prefs);
       addTearDown(store.dispose);
-      await pumpGuide(tester, Guide(index: 2, onIndex: (_) {}, onClose: () {}, onAcademy: () {}, preferences: store, models: FakeGuideModels()), prefs: prefs);
+      await pumpGuide(tester, Guide(index: 3, onIndex: (_) {}, onClose: () {}, onAcademy: () {}, preferences: store, models: FakeGuideModels()), prefs: prefs);
       final scroller = tester.state<ScrollableState>(find.byType(Scrollable).first);
       scroller.position.jumpTo(scroller.position.maxScrollExtent);
       await wait(tester, 2000);

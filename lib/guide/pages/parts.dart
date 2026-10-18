@@ -136,12 +136,15 @@ class GuideChoices extends StatelessWidget {
 /// `.swatch`: what a row shows of its choice, 3.5rem square. The colours are the caller's: literal ones for a theme,
 /// because each has to look like its theme whichever theme is on screen around it.
 class GuideSwatch extends StatelessWidget {
-  const GuideSwatch({super.key, required this.text, required this.style, this.color, this.gradient, required this.border});
+  const GuideSwatch({super.key, required this.text, required this.style, this.color, this.gradient, required this.border, this.child});
   final String text;
   final TextStyle style;
   final Color? color;
   final Gradient? gradient;
   final Color border;
+
+  /// Drawn in place of [text] where the choice is not a look but a size (the mode page's icons).
+  final Widget? child;
 
   @override
   Widget build(BuildContext context) {
@@ -153,7 +156,7 @@ class GuideSwatch extends StatelessWidget {
         height: side,
         alignment: Alignment.center,
         decoration: BoxDecoration(color: color, gradient: gradient, borderRadius: BorderRadius.circular(t.radius('lg')), border: Border.all(color: border, width: 2)),
-        child: Text(text, style: style, maxLines: 1, softWrap: false),
+        child: child ?? Text(text, style: style, maxLines: 1, softWrap: false),
       ),
     );
   }

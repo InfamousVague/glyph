@@ -90,6 +90,14 @@ const List<String> topBarIds = ['classic', 'ledger', 'masthead', 'islands'];
 
 bool isTopBar(Object? style) => topBarIds.contains(style);
 
+/// How much of the app is shown (GHST-103). Matt, 2026-10-17: "allow selecting between simple and advanced mode
+/// where simple mode has a much more approachable UI with fancy features hidden behind more". `simple` keeps notes,
+/// lists and to-dos in front and the rest behind More; `advanced` is the whole app, as it was before there was a
+/// choice.
+const List<String> experienceIds = ['simple', 'advanced'];
+
+bool isExperience(Object? value) => experienceIds.contains(value);
+
 /// The kit's density stops (`Density`), tightest first.
 const List<String> densities = ['extra-compact', 'compact', 'comfortable', 'spacious', 'more-space'];
 
@@ -362,6 +370,8 @@ class Preferences {
     this.sidebarStyle = 'popover',
     this.homeLayout = 'spotlight',
     this.homeLayoutChosen = false,
+    this.experience = 'advanced',
+    this.experienceChosen = false,
     this.topBar = 'classic',
     this.accent = 'ink',
     this.density = 'comfortable',
@@ -426,6 +436,8 @@ class Preferences {
 
     final codeChosen = truthy('codeChosen');
     final homeLayoutChosen = truthy('homeLayoutChosen');
+    final experienceChosen = truthy('experienceChosen');
+    final experience = at('experience', d.experience);
     final codeLight = at('codeLight', d.codeLight), codeDark = at('codeDark', d.codeDark);
     final noteView = at('noteView', d.noteView), theme = at('theme', d.theme);
     final uiScale = at('uiScale', d.uiScale), sidebarStyle = at('sidebarStyle', d.sidebarStyle);
@@ -445,6 +457,9 @@ class Preferences {
       sidebarStyle: isSidebarStyle(sidebarStyle) ? sidebarStyle as String : d.sidebarStyle,
       homeLayout: isHomeLayout(homeLayout) && homeLayoutChosen ? homeLayout as String : d.homeLayout,
       homeLayoutChosen: homeLayoutChosen,
+      // Advanced until it is chosen: an install from before there was a choice is the whole app, as it was.
+      experience: isExperience(experience) && experienceChosen ? experience as String : d.experience,
+      experienceChosen: experienceChosen,
       topBar: isTopBar(topBar) ? topBar as String : d.topBar,
       // An accent or a rounding this build does not have is the app's own rather than a name nothing can draw.
       accent: isAccent(accent) ? accent as String : d.accent,
@@ -509,6 +524,16 @@ class Preferences {
 
   /// Whether the home page's layout was picked in Settings; until it is, it follows the default.
   final bool homeLayoutChosen;
+
+  /// How much of the app is shown ([experienceIds]): `simple` or `advanced`. Travels, so a phone and a Mac match.
+  final String experience;
+
+  /// Whether the mode was ever chosen (the walkthrough, home's one-time card, Settings); until it is, the app is
+  /// advanced, and a new install is asked.
+  final bool experienceChosen;
+
+  /// Simple mode: the fancy features behind More, a Format bar in the editor, fewer Settings.
+  bool get simple => experience == 'simple';
 
   /// How the top bar is laid out ([topBarIds]).
   final String topBar;
@@ -630,7 +655,8 @@ class Preferences {
   final Map<String, Object?> more;
 
   static const Set<String> _keys = {
-    'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'topBar', 'accent', 'density', 'rounding', 'assist', 'textSize', 'typeface', //
+    'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
+    'assist', 'textSize', 'typeface', //
     'noteFace', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
@@ -642,6 +668,8 @@ class Preferences {
     String? sidebarStyle,
     String? homeLayout,
     bool? homeLayoutChosen,
+    String? experience,
+    bool? experienceChosen,
     String? topBar,
     String? accent,
     String? density,
@@ -690,6 +718,8 @@ class Preferences {
         sidebarStyle: sidebarStyle ?? this.sidebarStyle,
         homeLayout: homeLayout ?? this.homeLayout,
         homeLayoutChosen: homeLayoutChosen ?? this.homeLayoutChosen,
+        experience: experience ?? this.experience,
+        experienceChosen: experienceChosen ?? this.experienceChosen,
         topBar: topBar ?? this.topBar,
         accent: accent ?? this.accent,
         density: density ?? this.density,
@@ -741,6 +771,8 @@ class Preferences {
         'sidebarStyle': sidebarStyle,
         'homeLayout': homeLayout,
         'homeLayoutChosen': homeLayoutChosen,
+        'experience': experience,
+        'experienceChosen': experienceChosen,
         'topBar': topBar,
         'accent': accent,
         'density': density,

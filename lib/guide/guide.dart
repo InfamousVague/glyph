@@ -22,6 +22,7 @@ library;
 
 import 'dart:math' as math;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -37,6 +38,7 @@ import 'bottom_nudge.dart';
 import 'guide_models.dart';
 import '../shell/desktop/mac_lights.dart';
 import 'pages.dart';
+import 'pages/mode.dart';
 import 'pages/model.dart';
 import 'pages/parts.dart';
 import 'pages/start.dart';
@@ -92,7 +94,8 @@ class _GuideState extends State<Guide> {
   final NoGuideModels _noModels = NoGuideModels();
   ScrollController _scroll = ScrollController();
 
-  List<GuidePage> get _pages => walkthroughPagesNow;
+  ValueNotifier<Preferences> get _prefs => widget.preferences ?? preferences;
+  List<GuidePage> get _pages => walkthroughPagesFor(ios: defaultTargetPlatform == TargetPlatform.iOS, prefs: _prefs.value);
   GuidePage get _page => _pages[widget.index.clamp(0, _pages.length - 1)];
   bool get _last => widget.index == _pages.length - 1;
 
@@ -100,6 +103,8 @@ class _GuideState extends State<Guide> {
   void initState() {
     super.initState();
     _nudge.addListener(_changed);
+    // The mode page takes the model page out of the count as Simple is tapped: the dots and Next follow at once.
+    _prefs.addListener(_changed);
     _opened();
   }
 
@@ -137,6 +142,7 @@ class _GuideState extends State<Guide> {
     _nudge
       ..removeListener(_changed)
       ..dispose();
+    _prefs.removeListener(_changed);
     _noModels.dispose();
     _scroll.dispose();
     super.dispose();
@@ -166,6 +172,7 @@ class _GuideState extends State<Guide> {
   Widget _view() => switch (_page) {
     GuidePage.welcome => GuideWelcome(recordsVoice: widget.recordsVoice),
     GuidePage.theme => GuideTheme(store: widget.preferences),
+    GuidePage.mode => GuideMode(store: widget.preferences),
     GuidePage.model => GuideModel(phone: widget.models ?? _noModels, store: widget.preferences),
     GuidePage.start => GuideStart(onAcademy: widget.onAcademy, recordsVoice: widget.recordsVoice),
   };

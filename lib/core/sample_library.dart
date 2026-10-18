@@ -620,15 +620,27 @@ List<String> exampleTicketBodies(DateTime today) {
 /// The notes a fresh library starts with (`addStarterExamples`, then `addSampleNote`): the three tickets and their
 /// notebook, the board, the journal's entry and then the journal, and the sample note, made last so it leads Recent.
 /// Each is made a millisecond after the one before, as they were made one after another.
-List<Note> starterNotes(int now) {
+///
+/// Without [examples], the sample note alone: what a fresh library gets until Advanced is chosen (GHST-103; Matt,
+/// 2026-10-18: a simple install starts with the sample note only, "the tickets, board, notebook and journal come with
+/// Advanced"). The examples are then [starterExamples], added when the choice is made.
+List<Note> starterNotes(int now, {bool examples = true}) {
   final at = DateTime.fromMillisecondsSinceEpoch(now);
   final journal = exampleJournal(at);
   final bodies = [...exampleTicketBodies(at), exampleNotebookBody(), boardNoteBody, journal.entry, journal.journal, sampleNoteBody];
   const ids = ['starter-ex-1', 'starter-ex-2', 'starter-ex-3', 'starter-notebook', 'starter-board', 'starter-entry', 'starter-journal', 'starter-sample'];
   return [
-    for (var i = 0; i < bodies.length; i += 1) Note(id: ids[i], body: bodies[i], createdAt: now + i, updatedAt: now + i),
+    for (var i = 0; i < bodies.length; i += 1)
+      if (examples || ids[i] == starterSampleId) Note(id: ids[i], body: bodies[i], createdAt: now + i, updatedAt: now + i),
   ];
 }
+
+/// The sample note's id among [starterNotes].
+const String starterSampleId = 'starter-sample';
+
+/// The starter notes that are not the sample: the three tickets and their notebook, the board, the journal and its
+/// entry, for a library that began with the sample alone.
+List<Note> starterExamples(int now) => [for (final note in starterNotes(now)) if (note.id != starterSampleId) note];
 
 /// The example board (`core/boardNote.ts` `boardNoteBody()`): a note that is a working board.
 const String boardNoteBody = r'''
