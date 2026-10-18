@@ -211,7 +211,10 @@ void main() {
       expect(labels(tester), ['Pin to the top', 'Archive', 'Showing the formatted note. Show the marks.', 'More for this note']);
       // Back to advanced while the note is open, with the marks showing again: the bar grows back.
       world.prefs.value = world.prefs.value.choosing('advanced').copyWith(noteView: 'mixed');
-      await tester.pump(const Duration(milliseconds: 100));
+      // The tools are handed their new model after the frame that redraws the screen.
+      for (var i = 0; i < 4; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(labels(tester), contains('Version history'));
       await closeNote(tester);
     });
