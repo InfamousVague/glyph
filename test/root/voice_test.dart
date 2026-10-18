@@ -134,6 +134,9 @@ void main() {
   setUpAll(() async {
     await loadAppFonts();
     queriesWatchMidnight = false;
+    // The app's Claude settings read once, here on the real clock: read first by a root inside a test, the read runs on
+    // that test's clock and is never done for the tests after it, which wait on it for the key.
+    await claudeSettings.load();
   });
 
   late SampleLibrary library;
@@ -613,10 +616,7 @@ void main() {
   // sound ripples then show claudes or whatever AI agent were using thought process and then follow along
   // automatically also add the setting back in to be able to bind ghost as the agent on the phone".
   group('Talk to Claude', () {
-    Future<void> key(WidgetTester tester, String? key) => tester.runAsync(() async {
-          await claudeSettings.load();
-          await claudeSettings.setKey(key);
-        });
+    Future<void> key(WidgetTester tester, String? key) => tester.runAsync(() => claudeSettings.setKey(key));
     Finder talk() => find.byKey(const ValueKey('dock-claude-talk'));
 
     testWidgets('is under Claude on every dock while Claude is on, beside Speak and not it, and nowhere while Claude is off or nothing can hear', (tester) async {
