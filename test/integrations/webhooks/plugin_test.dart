@@ -1,5 +1,5 @@
 // Webhooks as a plugin (lib/integrations/webhooks/plugin.dart; Matt, 2026-10-17: integrations ship as plugins): among
-// the plugins that ship, off until switched on, its page in Settings › Plugins once it is; and while it is off, or
+// the plugins that ship, off until switched on, its page a row of Settings once it is; and while it is off, or
 // Local only is on, the outgoing hooks hear nothing and the sync pass reads no inbox.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -51,15 +51,15 @@ void main() {
     expect(webhooksOn(), isFalse, reason: 'Local only holds off a plugin that reaches past the phone');
   });
 
-  testWidgets('its card is in Settings › Plugins, off; switched on, its page is behind Plugins', (tester) async {
+  testWidgets('its card is in Settings › Plugins, to discover; added, its page is a row of Settings of its own', (tester) async {
     await pumpSettings(tester, SingleChildScrollView(child: PluginsPane(registry: registry, onOpen: (id, {setting}) {})), prefs: const Preferences(theme: 'light'));
     expect(find.byWidgetPredicate((w) => w is PaneHero && w.title == 'Webhooks', skipOffstage: false), findsOneWidget);
-    expect(find.textContaining('5 of 12 on.', skipOffstage: false), findsOneWidget);
+    expect(find.textContaining('5 of 12 added.', skipOffstage: false), findsOneWidget);
     expect([for (final spec in pluginPageSections()) spec.id], isNot(contains('plugin:webhooks')));
     registry.setEnabled(webhooksId, true);
     await settleSettings(tester);
     final page = pluginPageSections().singleWhere((spec) => spec.id == 'plugin:webhooks');
-    expect((page.label, page.parent, page.listed), ('Webhooks', 'plugins', false));
+    expect((page.label, page.parent, page.listed), ('Webhooks', null, true));
     expect(webhooksPlugin.settings!.summary(), 'None going out');
     await endSettings(tester);
   });

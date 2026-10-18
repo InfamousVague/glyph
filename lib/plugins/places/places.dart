@@ -35,6 +35,12 @@ const PluginManifest placesManifest = PluginManifest(
   description: 'A to-do with a place reminds you when your phone arrives there.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.calendar,
+  tagline: 'Reminders when you arrive somewhere',
+  adds: [
+    'Remind me at a place, when you press and hold a to-do',
+    'A reminder as your phone arrives, while the app is closed',
+  ],
   // Off until switched on: it asks Android for the location all the time.
   standard: false,
   permissions: [

@@ -20,6 +20,13 @@ const PluginManifest manifest = PluginManifest(
   description: 'Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.connections,
+  tagline: 'List items as tasks on your Notion boards',
+  adds: [
+    'A Notion board to link a note to, on its settings',
+    'Swipe a list item left, or tap the quiet “Notion” after it, to send it as a task',
+    'Send list to Notion, once the note is linked',
+  ],
   standard: true,
   permissions: [
     PluginPermission(Permission.notes, 'Turns a sent item’s words into a link to its task, in the note it came from.'),

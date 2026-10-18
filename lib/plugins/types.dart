@@ -53,6 +53,22 @@ enum Permission {
   native,
 }
 
+/// Where a plugin stands in Settings › Plugins, which is a catalogue to browse (Matt, 2026-10-18: "rework the plugins
+/// page to be a marketplace"): the filter's words, in the order the filter and the catalogue have them. Not on the
+/// page, whose Plugins was a list of cards.
+enum PluginCategory {
+  ai('AI'),
+  calendar('Calendar & tasks'),
+  imports('Import'),
+  connections('Connections'),
+  editor('Editor');
+
+  const PluginCategory(this.label);
+
+  /// The filter's word for it, and the caption over its plugins.
+  final String label;
+}
+
 /// One permission, with the reason shown to the person.
 @immutable
 class PluginPermission {
@@ -84,13 +100,16 @@ class PluginManifest {
     this.native,
     required this.storage,
     this.secrets = const [],
+    this.category,
+    this.tagline,
+    this.adds = const [],
   });
 
   /// Stable, lowercase: the key its switch and its storage are kept under.
   final String id;
   final String name;
 
-  /// One sentence, for its row in Settings > Plugins.
+  /// What it does, in a sentence or two: its detail page in Settings › Plugins.
   final String description;
   final String version;
   final String author;
@@ -111,6 +130,18 @@ class PluginManifest {
   /// The names it keeps in the secure store, or the prefixes of them when one ends in `:` (a webhook per channel:
   /// `glyph-slack-webhook:`). A reset forgets them. Not on the page, where Rust or localStorage held them.
   final List<String> secrets;
+
+  /// Its shelf in the catalogue; one with none is found under All alone.
+  final PluginCategory? category;
+
+  /// A few words for its card in the catalogue, where [description] is the detail page's; the description when null.
+  final String? tagline;
+
+  /// What it puts in the app once added, a phrase each, for its detail page: "Swipe a list item to send it".
+  final List<String> adds;
+
+  /// The card's line: [tagline], or the [description] where there is none.
+  String get line => tagline ?? description;
 
   bool declares(Permission kind) => permissions.any((p) => p.kind == kind);
 }

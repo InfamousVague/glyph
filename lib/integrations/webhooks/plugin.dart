@@ -26,6 +26,12 @@ const PluginManifest webhooksManifest = PluginManifest(
   description: 'Tells a URL of yours when a note changes, and gives you URLs that add to a note: for Zapier, Make, IFTTT or a line of curl.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.connections,
+  tagline: 'Tell a URL when a note changes',
+  adds: [
+    'A URL of yours told whenever a note changes on this device',
+    'URLs that add to a note, for Zapier, Make, IFTTT or a line of curl',
+  ],
   // Off until switched on: it sends notes off the phone, to URLs the person adds.
   standard: false,
   permissions: [

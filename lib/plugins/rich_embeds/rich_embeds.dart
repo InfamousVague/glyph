@@ -19,6 +19,12 @@ const PluginManifest richEmbedsManifest = PluginManifest(
   description: 'Plays a YouTube video or a Spotify song in its link’s card, and shows a Figma file, where the link is alone on its line.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.editor,
+  tagline: 'YouTube, Spotify and Figma in their cards',
+  adds: [
+    'A YouTube video or a Spotify song played in its link’s card',
+    'A Figma file shown, where its link is alone on its line',
+  ],
   standard: true,
   permissions: [
     PluginPermission(Permission.network, 'Asks YouTube, Spotify or Figma for a link’s title and picture once Link previews are on, and plays it only when you tap it. Nothing of your notes goes but the link.'),

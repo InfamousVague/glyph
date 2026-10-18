@@ -55,10 +55,15 @@ void main() {
     });
     tearDown(() => usePlugins(before));
 
-    testWidgets('its card, off, with what it does and what it may reach', (tester) async {
+    testWidgets('its card, to discover, with its line and what it uses; its page, with what it does', (tester) async {
       usePlugins(createRegistry(builtIn, store: MemorySwitches()));
       await pumpSettings(tester, const SingleChildScrollView(child: PluginsPane()));
       expect(find.text('Place reminders', skipOffstage: false), findsWidgets);
+      expect(find.text('Reminders when you arrive somewhere', skipOffstage: false), findsOneWidget);
+      expect(find.descendant(of: find.ancestor(of: find.text('Reminders when you arrive somewhere', skipOffstage: false), matching: find.byType(PluginCard, skipOffstage: false)), matching: find.text('Uses your notes and your phone', skipOffstage: false), skipOffstage: false), findsOneWidget);
+      await endSettings(tester);
+
+      await pumpSettings(tester, SingleChildScrollView(child: PluginInfoPane(plugin: placesPlugin)));
       expect(find.text('A to-do with a place reminds you when your phone arrives there.', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });

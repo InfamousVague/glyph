@@ -37,6 +37,7 @@ class SettingsSection implements SearchableSection, SectionPlace {
     this.settings = const [],
     this.listed = true,
     this.parent,
+    this.searched = true,
   });
 
   @override
@@ -76,6 +77,10 @@ class SettingsSection implements SearchableSection, SectionPlace {
   /// The section a sub-page steps back to, and whose row is current in the split view while it shows.
   @override
   final String? parent;
+
+  /// False keeps it out of the search's results; it still opens from a row or a link.
+  @override
+  final bool searched;
 }
 
 /// Where to land (`SettingsTarget` with its nonce): a section, and a setting on its page to bring into view and

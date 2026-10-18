@@ -27,6 +27,13 @@ const PluginManifest calendarManifest = PluginManifest(
   description: 'Shows your calendars’ events in queries and on the home page’s Today, from an iCal address or Google Calendar, and can put dated to-dos on Google’s.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.calendar,
+  tagline: 'Your events in queries and on Today',
+  adds: [
+    'Your calendars’ events in queries and on the home page’s Today',
+    'An iCal address, or Google Calendar once you connect it',
+    'Dated to-dos on a Google calendar, where you switch that on',
+  ],
   // Off until switched on: it reads calendars from outside the phone, and only those the person adds.
   standard: false,
   permissions: [

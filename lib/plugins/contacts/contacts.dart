@@ -26,6 +26,12 @@ const PluginManifest contactsManifest = PluginManifest(
   description: 'Matches the people named on your to-dos to your phone’s contacts: their picture on the chip, a tap to call, text or email them, and A person to pick someone.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.calendar,
+  tagline: 'The people on your to-dos, from your contacts',
+  adds: [
+    'A contact’s picture on a person’s chip, and a tap to call, text or email them',
+    'A person, on the + beside a line, to pick someone from your contacts',
+  ],
   // Off until switched on: switching it on is when the phone asks to read the address book.
   standard: false,
   permissions: [

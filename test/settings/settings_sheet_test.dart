@@ -69,7 +69,7 @@ void main() {
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
         // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
-        'Plugins': '0 of 0 on',
+        'Plugins': '0 of 0 added',
         'About': '0.1.0',
       });
       expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
@@ -92,8 +92,9 @@ void main() {
         ('recording', 2, SettingsGlyph.mic),
         ('ai', 2, SettingsGlyph.sparkles),
         // Ask Claude, Calendar and Contacts were the port's own sections until they were plugins (2026-10-17): their
-        // pages are the Claude, Calendar and Contacts plugins' now, behind Plugins.
-        ('plugins', 2, SettingsGlyph.puzzle),
+        // pages are the Claude, Calendar and Contacts plugins' now. Plugins, the catalogue, heads a card of its own,
+        // its plugins' pages as rows after it once they are added (2026-10-18; test/plugins/plugins_pane_test.dart).
+        ('plugins', 5, SettingsGlyph.puzzle),
         ('about', 3, SettingsGlyph.info),
         ('cheatsheet', 3, SettingsGlyph.bookOpen),
         ('spec', 3, SettingsGlyph.fileCode),

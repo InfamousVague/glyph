@@ -27,6 +27,10 @@ abstract interface class SearchableSection {
   String? get summary;
   String? get words;
   List<SettingsFindable> get settings;
+
+  /// False leaves it out of what the search finds, though it can still be opened: a plugin's page in the catalogue
+  /// once its own page in Settings stands for it (settings_sections.dart). The port's own.
+  bool get searched;
 }
 
 /// One thing the search found (`SettingsHit`): a section, or a setting inside it.
@@ -56,6 +60,10 @@ bool _matches(List<String> typed, List<String?> texts) {
   return typed.every((want) => words.any((word) => word.startsWith(want)));
 }
 
+/// Whether every word of [query] starts a word of one of [texts], as the search matches them: for a page that filters
+/// its own things by what is typed (Settings › Plugins). Nothing typed matches everything.
+bool wordsFound(String query, List<String?> texts) => _matches(_wordsOf(query), texts);
+
 /// What the words find, in the list's order (`searchSettings`): each section found by itself, then each setting found
 /// inside it. A section found by its name is not repeated for every setting of its that also matches the words; its
 /// settings are shown only when the section's name alone wouldn't have found it.
@@ -64,6 +72,7 @@ List<SettingsHit<S>> searchSettings<S extends SearchableSection>(List<S> section
   if (typed.isEmpty) return const [];
   final hits = <SettingsHit<S>>[];
   for (final section in sections) {
+    if (!section.searched) continue;
     final byName = _matches(typed, [section.label]);
     if (byName || _matches(typed, [section.label, section.summary, section.words])) hits.add(SettingsHit(section));
     if (byName) continue;

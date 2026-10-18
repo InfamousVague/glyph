@@ -135,6 +135,13 @@ class Registry extends ChangeNotifier {
     return _switches[id] ?? plugin.manifest.standard;
   }
 
+  /// Whether [id] is added, as its switch is set, whatever Local only says: a plugin held off by it is still on the
+  /// catalogue's Added shelf (lib/settings/panes/plugins_pane.dart), saying why it does nothing. Not on the page.
+  bool switchedOn(String id) {
+    final plugin = byId(id);
+    return plugin != null && (_switches[id] ?? plugin.manifest.standard);
+  }
+
   void setEnabled(String id, bool on) {
     if (byId(id) == null || isEnabled(id) == on) return;
     _switches = {..._switches, id: on};
