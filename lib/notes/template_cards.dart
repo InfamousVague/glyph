@@ -36,6 +36,7 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/preferences.dart';
 import '../home/home_parts.dart';
 import '../home/home_text.dart';
 import '../editor/markdown_view.dart';
@@ -57,6 +58,7 @@ class TemplateCards extends StatelessWidget {
     this.refused,
     this.mapHeader,
     this.windowWidth,
+    this.simple,
   });
 
   /// The minute the notes would be made in.
@@ -88,8 +90,19 @@ class TemplateCards extends StatelessWidget {
   /// The window's width, as the stylesheet's media query asks it; the screen's where left out.
   final double? windowWidth;
 
+  /// Simple mode (GHST-103): no cards, the blank page is its placeholder and its names. Matt: "a much more
+  /// approachable UI with fancy features hidden behind more", and a blank page with eight cards on it is not that.
+  /// Null asks the preferences, since the screen that draws the cards is another piece's.
+  final bool? simple;
+
   @override
   Widget build(BuildContext context) {
+    final simple = this.simple;
+    if (simple != null) return simple ? const SizedBox.shrink() : _cards(context);
+    return ValueListenableBuilder<Preferences>(valueListenable: preferences, builder: (context, prefs, _) => prefs.simple ? const SizedBox.shrink() : _cards(context));
+  }
+
+  Widget _cards(BuildContext context) {
     final t = context.tokens;
     final gap = t.space(3);
     final cards = [
