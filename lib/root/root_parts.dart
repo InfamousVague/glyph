@@ -481,10 +481,10 @@ extension _RootParts on _GhostRootState {
   /// the same function every time the page is built: the page does no work for a seam that is the one it had.
   static Widget _headerEdge(BuildContext context, HomeEdge edge, Widget scroller) => WispEdge(under: edge.under, foot: true, child: scroller);
 
-  static Widget _dockHalo(BuildContext context, HomeDock it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding);
+  static Widget _dockHalo(BuildContext context, HomeDock it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, scale: it.scale);
 
   /// Every other page's halo: none while its dock has stepped aside for the keyboard.
-  static Widget _pageDockHalo(BuildContext context, DockPlace it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown);
+  static Widget _pageDockHalo(BuildContext context, DockPlace it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown, scale: it.scale);
 
   /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
   /// build records, and Settings at its foot.

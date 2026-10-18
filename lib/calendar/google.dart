@@ -148,12 +148,14 @@ class GoogleCalendarApi {
 
   static int _clock() => DateTime.now().millisecondsSinceEpoch;
 
-  /// Whether the service has Google sign-in set up: `start` answers anything but 503 to a probe, and answers at all.
-  /// The probe's state is too short to be kept, so it starts no sign-in.
+  /// Whether the service has Google sign-in set up: `start` turns the probe away as a broken link (400; its state is
+  /// too short to be kept, so it starts no sign-in) or as busy (429). A service with sign-in not set up answers 503,
+  /// and one from before it had Google at all answers 404 "no such route": neither offers Connect (Matt, 2026-10-17,
+  /// pressed it on such a service and was sent to that 404).
   Future<bool> offered() async {
     try {
       final response = await fetch(FetchRequest(method: 'GET', url: Uri.parse('$base/start?state=probe&challenge=probe'), timeout: const Duration(seconds: 10)));
-      return response.status != 503;
+      return response.status == 400 || response.status == 429;
     } catch (_) {
       return false;
     }

@@ -1571,7 +1571,7 @@ class _GhostRootState extends State<GhostRoot> {
     // plugin finds on. Where the registry has no such plugin (a test's), the calendars are read as they always were.
     final calendarHere = _pluginsHeard.byId(calendarManifest.id) != null;
     if (calendarHere) _pluginsHeard.adopt(calendarManifest.id, inUse: calendarInUse(calendar));
-    calendar.start(notes: () => _reads.queryNotes, on: calendarHere ? calendarOn : null, switched: _pluginsHeard);
+    calendar.start(notes: () => _reads.queryNotes, notesChanged: _library, on: calendarHere ? calendarOn : null, switched: _pluginsHeard);
     _calendarLife = AppLifecycleListener(onResume: calendar.resumed);
     // The Contacts plugin (lib/plugins/contacts, lib/integrations/contacts): the phone's contacts read where it is
     // on, and the people the notes name, for its page. Its switch is the plugin's.

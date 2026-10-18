@@ -14,10 +14,14 @@
 ///     PageDockFrame   a page with its dock over it, placed, kept clear of the keyboard and of the chat
 ///     DockOffer       a view inside a page (a canvas, a notebook, a journal) offering the page's dock its rings
 ///     PageDockRoom    how much of the page's end and foot the dock stands in, for what draws beside it
+///     DockShrink      the dock two thirds of itself while the page under it is scrolled
 ///
 /// While the keyboard is up in an editor the dock steps aside, so it never stands over the caret: it fades out (at
 /// once under reduced motion), takes no presses and says nothing, and comes back as the keyboard goes. Every ring is
 /// a button with its words said, and on a desktop (a mouse) the words come up beside it while the pointer rests on it.
+///
+/// While the page is scrolled the dock grows smaller, to two thirds of itself, and its own size again once the page
+/// is still. Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller". See [DockShrink].
 library;
 
 import 'dart:async';
@@ -25,6 +29,7 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -320,13 +325,18 @@ class _DockTipState extends State<DockTip> {
 /// aside, when there is no halo either.
 @immutable
 class DockPlace {
-  const DockPlace({required this.behind, required this.dock, required this.alignment, required this.padding, this.shown = true});
+  const DockPlace({required this.behind, required this.dock, required this.alignment, required this.padding, this.shown = true, this.scale});
 
   final Widget behind;
   final Widget dock;
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry padding;
   final bool shown;
+
+  /// How large the dock is drawn now, of the box it was laid out in, held to its corner at [alignment]: smaller
+  /// while the page scrolls ([DockShrink]). The halo is drawn round the dock as it is drawn, and its reach goes with
+  /// it. Null where the dock is always its own size.
+  final ValueListenable<double>? scale;
 }
 
 /// The halo round the dock: answers [DockPlace.behind] and [DockPlace.dock] laid together with the halo between,
@@ -462,25 +472,169 @@ class _PageDockFrameState extends State<PageDockFrame> {
       label: widget.label,
     );
     final still = t.reducedMotion;
-    final shown = AnimatedOpacity(
-      key: const ValueKey('page-dock'),
-      opacity: hidden ? 0 : 1,
-      duration: still ? Duration.zero : t.duration('glacier-duration-fast'),
-      curve: t.curve('glacier-ease-out'),
-      child: IgnorePointer(ignoring: hidden, child: ExcludeSemantics(excluding: hidden, child: dock)),
-    );
     final padding = EdgeInsetsDirectional.only(end: end, bottom: bottom);
     const alignment = AlignmentDirectional.bottomEnd;
     final halo = seam.halo;
     final ring = t.len('app-ring');
-    return PageDockRoom(
-      end: end + ring + 2 * (t.space(2) + t.len('glacier-hairline')),
-      // The bar's part of the room shrinks as the keyboard covers it, rather than all at once.
-      bottom: math.max(0.0, safe - keyboard) + pageDockRoom(t, dock.count),
-      child: halo != null
-          ? halo(context, DockPlace(behind: widget.child, dock: shown, alignment: alignment, padding: padding, shown: !hidden))
-          : Stack(fit: StackFit.expand, children: [widget.child, Padding(padding: padding, child: Align(alignment: alignment, child: shown))]),
+    // Smaller while the page scrolls: inside the fade, so the fade's box (what the halo measures) is the dock's own
+    // size, and the room the page keeps at its foot is the room it keeps at rest.
+    return DockShrink(
+      builder: (context, shrink) {
+        final shown = AnimatedOpacity(
+          key: const ValueKey('page-dock'),
+          opacity: hidden ? 0 : 1,
+          duration: still ? Duration.zero : t.duration('glacier-duration-fast'),
+          curve: t.curve('glacier-ease-out'),
+          child: shrink.dock(IgnorePointer(ignoring: hidden, child: ExcludeSemantics(excluding: hidden, child: dock))),
+        );
+        final behind = shrink.page(widget.child);
+        return PageDockRoom(
+          end: end + ring + 2 * (t.space(2) + t.len('glacier-hairline')),
+          // The bar's part of the room shrinks as the keyboard covers it, rather than all at once.
+          bottom: math.max(0.0, safe - keyboard) + pageDockRoom(t, dock.count),
+          child: halo != null
+              ? halo(context, DockPlace(behind: behind, dock: shown, alignment: alignment, padding: padding, shown: !hidden, scale: shrink.scale))
+              : Stack(fit: StackFit.expand, children: [behind, Padding(padding: padding, child: Align(alignment: alignment, child: shown))]),
+        );
+      },
     );
+  }
+}
+
+/// How large the dock is while the page under it is scrolled, of its own size. Matt, 2026-10-17: "when we scroll make
+/// the dock bar animate to be 33% smaller". Rings, the gaps between them, the pill round them and the halo round
+/// that, all of it, held to the dock's bottom end corner, so it stays where the thumb is.
+const double dockScrolledScale = 0.67;
+
+/// How long the page is still before the dock grows back: long enough that it does not pulse between one fling and
+/// the next, short enough that it is back before the eye goes looking for it.
+const Duration dockSettle = Duration(milliseconds: 320);
+
+/// Whether [n] is the page's own scroll, the one the dock grows smaller for: up and down, of the page itself
+/// (`depth` 0, nearest the listener). A carousel across the page, a code block's or a table's own scroller, the
+/// field of a search: each of those is a scroller inside the page, and the dock is left as it is.
+bool dockHearsScroll(ScrollNotification n) => n.depth == 0 && n.metrics.axis == Axis.vertical;
+
+/// The dock two thirds of itself ([dockScrolledScale]) while the page under it is scrolled, and its own size again a
+/// moment ([dockSettle]) after the page is still. Every page's dock ([PageDockFrame]) and the home page's
+/// (lib/home/home_screen.dart `_screen`).
+///
+/// It hears the page's scrolls, not the page: [DockShrinking.page] puts a listener round what scrolls, and
+/// [DockShrinking.dock] a scale round the dock, and an animation of this widget's own drives the scale. Nothing of the
+/// page, nor of the dock, is built again as it shrinks; the scale is a transform, so a ring is pressed where it is
+/// drawn, small or not, and its own motions (Claude's turning, a ring's lean and turn) go on inside it.
+///
+/// **The person's scrolls.** It grows smaller as the person scrolls the page: a drag (a thumb, a trackpad) or a
+/// wheel, which say so as they begin (`UserScrollNotification`, a drag's details). The page moved by the app (glided
+/// back to its top for another filter, a jump to where it was left, a heading brought into view) leaves the dock as it
+/// is: nobody's thumb is on the page then. Once small, it stays so through the fling that follows a drag and through
+/// the ticks of a wheel, and only grows back when the page has been still for [dockSettle].
+///
+/// Shrinks in `--glacier-duration-fast`, grows back in `--glacier-duration-normal`, both `--glacier-ease-out`; under
+/// reduced motion it is one size or the other at once.
+class DockShrink extends StatefulWidget {
+  const DockShrink({super.key, required this.builder});
+
+  /// The page and its dock, wrapped by [DockShrinking.page] and [DockShrinking.dock].
+  final Widget Function(BuildContext context, DockShrinking shrink) builder;
+
+  @override
+  State<DockShrink> createState() => _DockShrinkState();
+}
+
+/// What [DockShrink] hands its builder: the page's listener, the dock's scale, and the scale itself, for a halo.
+@immutable
+class DockShrinking {
+  const DockShrinking._(this.scale, this._heard);
+
+  /// How large the dock is now, of its own size: 1 at rest, [dockScrolledScale] while the page scrolls.
+  final Animation<double> scale;
+  final NotificationListenerCallback<ScrollNotification> _heard;
+
+  /// [child], what scrolls behind the dock, heard as it scrolls. The scrolls go on up past it.
+  Widget page(Widget child) => NotificationListener<ScrollNotification>(onNotification: _heard, child: child);
+
+  /// [child], the dock, drawn at [scale], held to its corner at [alignment].
+  Widget dock(Widget child, {AlignmentGeometry alignment = AlignmentDirectional.bottomEnd}) => _DockScaled(scale: scale, alignment: alignment, child: child);
+}
+
+class _DockScaled extends StatelessWidget {
+  const _DockScaled({required this.scale, required this.alignment, required this.child});
+
+  final Animation<double> scale;
+  final AlignmentGeometry alignment;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) =>
+      ScaleTransition(key: const ValueKey('page-dock-scale'), scale: scale, alignment: alignment.resolve(Directionality.maybeOf(context) ?? TextDirection.ltr), child: child);
+}
+
+class _DockShrinkState extends State<DockShrink> with SingleTickerProviderStateMixin {
+  /// 0 at rest, 1 small.
+  late final AnimationController _small = AnimationController(vsync: this);
+  late final DockShrinking _shrinking = DockShrinking._(_small.drive(Tween<double>(begin: 1, end: dockScrolledScale)), _heard);
+
+  /// Where [_small] is going: 0 or 1, so a scroll's every frame does not start the way there again.
+  double _goal = 0;
+  Timer? _settling;
+
+  // The kit's motion, as it was at the last build.
+  bool _still = false;
+  Duration _fast = Duration.zero, _normal = Duration.zero;
+  Curve _ease = Curves.linear;
+
+  @override
+  void dispose() {
+    _settling?.cancel();
+    _small.dispose();
+    super.dispose();
+  }
+
+  bool _heard(ScrollNotification n) {
+    if (!dockHearsScroll(n)) return false;
+    final theirs = switch (n) {
+      UserScrollNotification(:final direction) => direction != ScrollDirection.idle,
+      ScrollStartNotification(:final dragDetails) => dragDetails != null,
+      ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
+      _ => false,
+    };
+    if (theirs) {
+      _settling?.cancel();
+      _settling = null;
+      _go(1);
+    } else if (_goal == 1 && (n is ScrollStartNotification || n is ScrollUpdateNotification)) {
+      // Still moving: a fling after the drag, or the next tick of a wheel.
+      _settling?.cancel();
+      _settling = null;
+    } else if (_goal == 1 && n is ScrollEndNotification) {
+      _settling?.cancel();
+      _settling = Timer(dockSettle, () {
+        _settling = null;
+        if (mounted) _go(0);
+      });
+    }
+    return false;
+  }
+
+  void _go(double goal) {
+    if (_goal == goal) return;
+    _goal = goal;
+    if (_still) {
+      _small.value = goal;
+      return;
+    }
+    _small.animateTo(goal, duration: goal == 1 ? _fast : _normal, curve: _ease);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    _still = t.reducedMotion;
+    _fast = t.duration('glacier-duration-fast');
+    _normal = t.duration('glacier-duration-normal');
+    _ease = t.curve('glacier-ease-out');
+    return widget.builder(context, _shrinking);
   }
 }
 
