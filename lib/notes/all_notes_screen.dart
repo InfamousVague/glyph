@@ -96,6 +96,7 @@ class AllNotesScreen extends StatefulWidget {
     this.wisp = true,
     this.onSaveSearch,
     this.dock,
+    this.simple = false,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -152,6 +153,11 @@ class AllNotesScreen extends StatefulWidget {
 
   /// The dock (docs/DOCK.md); none where it is left out.
   final PageDockSeam? dock;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): no workspace pills over the
+  /// cards, and the search offers no operator chips and no Save, as home's; Order and the Tapes and Archived words
+  /// stay. The dock is the root's to trim (no Claude).
+  final bool simple;
 
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
@@ -533,7 +539,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             // The operators a search reads while the field is empty and has the keyboard, and what it understood of
             // what is typed (lib/home/search_hints.dart): the port's own, over the rest.
             final typed = _query.trim().isNotEmpty;
-            final hinted = typed ? (parseSearch(_query).parts.isNotEmpty || widget.onSaveSearch != null) : _focus.hasFocus;
+            final onSave = widget.simple || widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query);
+            final hinted = typed ? (parseSearch(_query).parts.isNotEmpty || onSave != null) : _focus.hasFocus && !widget.simple;
             // What stands over the cards: the workspaces, the order words, and the empty page's ghost.
             final head = Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -548,11 +555,12 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                       setState(() => _query = next);
                       _focus.requestFocus();
                     },
-                    onSave: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
+                    onSave: onSave,
                   ),
                   SizedBox(height: t.space(3)),
                 ],
-                if (hasSpaces) ...[
+                // Simple mode has no pills: the room they took is the controls' own margin.
+                if (hasSpaces && !widget.simple) ...[
                   WorkspaceBar(
                     store: widget.workspaces,
                     onManage: (which) => setState(() => _manage = (editing: which)),

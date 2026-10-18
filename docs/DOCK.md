@@ -63,6 +63,24 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
 A canvas's JSON and a notebook's Markdown, when the view switch shows them, are words: their dock is a note's, less
 Add, which a note of words alone has.
 
+### Simple mode (GHST-103, 2026-10-18)
+
+Matt, 2026-10-17: "allow selecting between simple and advanced mode where simple mode has a much more approachable UI
+with fancy features hidden behind more." With Simple chosen (Settings, the walkthrough, home's one-time card) the
+pages of notes keep their dock less Claude: Claude and Talk to Claude are advanced. Everything else about the dock is
+as above. The root decides (lib/root/root_parts.dart `_homePage`, `_notesDock`, reading `preferences.value.simple`);
+the home page's own dock is handed no Claude, and a page of notes' seam has none.
+
+| Page, in simple mode | Rings, head to foot |
+| --- | --- |
+| Home | Search, + (Write a note), Speak where the build records, Settings |
+| All notes | Search, +, Speak, Settings |
+| Tags, a tag's notes, a smart notebook | Search, +, Speak, Settings (reached only by a saved link or a tab: simple mode's sidebar and palette do not offer them) |
+| A note's words, a canvas, a notebook, a journal, an organization's dashboard, Settings | As advanced: these docks are the note's, the organization's and Settings' own slices, and are not trimmed here |
+
+The + in simple mode opens on Note and one row, "More…", that opens in place to Today, an entry, Canvas, Notebook,
+Meeting and a shared link (lib/notes/new_sheet.dart `NewSheet.simple`).
+
 Nothing is taken out of the top bars: the dock is another place for what is already there.
 
 ## Claude's subject
@@ -86,7 +104,7 @@ the home page does, with the field empty: an organization and Settings have no `
 | The dock smaller while the page scrolls, and its halo with it | lib/shell/page_dock.dart (`DockShrink`, `dockHearsScroll`), lib/art/dock_smoke.dart (`DockSmoke.scale`, `DockHalo.reach`), lib/home/home_screen.dart (`_screen`) |
 | The root's seams: Claude about a page, the halo, a page of notes' rings | lib/root/root_parts.dart (`_notesDock`, `_pageDock`), lib/root/root_claude.dart (`_claudeDockAbout`) |
 | The chat's field and its cover of the window's end | lib/claude/claude_chat.dart (`initial`, `windowEndCover`) |
-| Tests | test/shell/page_dock_test.dart (the pill, the tip, the offers, home, All notes, the collections, Settings), test/note/note_dock_test.dart (a note's words, a canvas, a notebook, a journal, the keyboard), test/orgs_ui/organization_dock_test.dart, test/root/wiring_test.dart ("puts the dock on every page"), test/shell/dock_scroll_test.dart (smaller while the page scrolls) |
+| Tests | test/shell/page_dock_test.dart (the pill, the tip, the offers, home, All notes, the collections, Settings), test/note/note_dock_test.dart (a note's words, a canvas, a notebook, a journal, the keyboard), test/orgs_ui/organization_dock_test.dart, test/root/wiring_test.dart ("puts the dock on every page"), test/shell/dock_scroll_test.dart (smaller while the page scrolls), test/root/simple_test.dart (no Claude on home's and All notes' docks in simple mode) |
 
 A page is handed a `PageDockSeam` (Claude, the halo, and for a page of notes its rings and Settings) and draws its dock
 with a `PageDockFrame` round what scrolls. A view inside a note offers its rings with a `DockOffer`, which the note's

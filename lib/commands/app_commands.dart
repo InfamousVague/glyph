@@ -103,6 +103,8 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     tabGroups: [for (final group in groups.list) (id: group.id, name: group.name)],
     tabGroup: open == null ? null : groups.of[open.id],
     smartNotebooks: smartNotebooks,
+    // Simple or advanced (GHST-103): the palette's own rule says which rows simple mode keeps.
+    simple: prefs.simple,
   );
 }
 

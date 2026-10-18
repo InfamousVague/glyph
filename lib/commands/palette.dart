@@ -70,6 +70,7 @@ class PaletteWorld {
     this.tabGroups = const [],
     this.tabGroup,
     this.smartNotebooks = const [],
+    this.simple = false,
   });
 
   /// Every note, newest first: each is an "Open …".
@@ -106,6 +107,14 @@ class PaletteWorld {
 
   /// The smart notebooks, in the sidebar's order: each is a "Show …" (lib/core/smart_notebooks.dart).
   final List<PaletteNamed> smartNotebooks;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the palette keeps a new note,
+  /// Speak, Home, All notes, Today's note, the tabs, Back, every note by name, the themes, Settings, the cheat
+  /// sheet, the Academy and the walkthrough, and leaves out what simple mode has no page or icon for: a new
+  /// notebook, journal or entry, the graph and a note's links, Ask Claude, Tags, the smart notebooks, a workspace's
+  /// filter, a tab's groups, Forward, Notifications and Organizations. The doings are still given; the rule is
+  /// here, so it is one rule and a test.
+  final bool simple;
 }
 
 /// What the palette can set off (`PaletteDoing`). Every one of these is something the app already does by hand. A
@@ -301,9 +310,9 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
       add('note:continue', 'Continue', here, 'ai carry on write more next', () => run(note.id, 'continue'));
       if (note.blanks > 0) add('note:fill', 'Fill the blanks', here, 'fill blank question answer ask ai square', () => run(note.id, 'fill'));
     }
-    final noteLinks = doing.noteLinks;
+    final noteLinks = world.simple ? null : doing.noteLinks;
     if (noteLinks != null) add('note:links', 'Links to this note', here, 'backlinks linked from mentions references', () => noteLinks(note.id));
-    final localGraph = doing.localGraph;
+    final localGraph = world.simple ? null : doing.localGraph;
     if (localGraph != null) add('note:graph', 'Local graph of this note', here, 'graph links network neighbours map', () => localGraph(note.id));
     add('note:pin', world.pinned ? 'Unpin it from the top' : 'Pin it to the top', here, 'star favourite', () => doing.pin(note.id, !world.pinned));
     add('note:archive', 'Archive this note', here, 'hide file away', () => doing.archive(note.id));
@@ -317,7 +326,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
       add('note:unfile', 'Take it out of its workspace', here, 'unfile workspace none inbox', () => doing.fileNote(note.id, null));
     }
     // Its tab's group: the way in on a phone, where a finger's hold on a tab is the drag, not a menu.
-    final isTab = world.tabs.any((tab) => tab.id == note.id);
+    // Simple mode keeps tabs and leaves their groups out, as the tab's own menu does.
+    final isTab = world.tabs.any((tab) => tab.id == note.id) && !world.simple;
     final groupTab = doing.groupTab;
     if (isTab && groupTab != null) {
       add('tab:group:new', 'Put this tab in a new group', here, 'tab group new colour', () => groupTab(note.id));
@@ -338,11 +348,12 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   // ---- making and going -------------------------------------------------------------------------------------------
   add('new', 'New note', 'Notes', 'write blank create add', doing.newNote, shortcut: '⌘N');
   // "book" and "chapters" stay among its words: a book was a notebook's name once.
-  final newNotebook = doing.newNotebook;
+  final simple = world.simple;
+  final newNotebook = simple ? null : doing.newNotebook;
   if (newNotebook != null) add('notebook', 'New notebook', 'Notes', 'book index pages chapters create', newNotebook);
-  final newJournal = doing.newJournal;
+  final newJournal = simple ? null : doing.newJournal;
   if (newJournal != null) add('journal', 'New journal', 'Notes', 'diary log dated entries daily', newJournal);
-  final newEntry = doing.newEntry;
+  final newEntry = simple ? null : doing.newEntry;
   if (newEntry != null) {
     for (final journal in world.journals.take(3)) {
       add('entry:${journal.id}', 'New entry in ${_titleOf(journal)}', 'Notes', 'journal diary today write entry', () => newEntry(journal.id));
@@ -352,15 +363,15 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (speak != null) add('speak', 'Speak a new note', 'Notes', 'record voice dictate mic talk', speak);
   add('list', 'Home', 'Notes', 'home list back dashboard start', doing.showList);
   add('notes', 'All notes', 'Notes', 'browse every grid cards library search archive', doing.browseNotes);
-  final graph = doing.graph;
+  final graph = simple ? null : doing.graph;
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;
   if (today != null) add('today', 'Today’s note', 'Notes', 'daily day date journal today page', today, shortcut: '⇧⌘D');
-  final askClaude = doing.askClaude;
+  final askClaude = simple ? null : doing.askClaude;
   if (askClaude != null) add('ask-claude', 'Ask Claude', 'Ghost.md', 'claude ai anthropic assistant write chat ask', askClaude);
-  final tags = doing.tags;
+  final tags = simple ? null : doing.tags;
   if (tags != null) add('tags', 'Tags', 'Notes', 'tag hashtag labels rename', tags);
-  final openSmart = doing.openSmart;
+  final openSmart = simple ? null : doing.openSmart;
   if (openSmart != null) {
     for (final smart in world.smartNotebooks) {
       add('smart:${smart.id}', 'Show ${smart.name}', 'Smart notebooks', 'smart notebook saved search ${smart.name}', () => openSmart(smart.id));
@@ -377,10 +388,11 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
     add('tab:close:${tab.id}', 'Close ${_titleOf(tab)}', 'Open tabs', 'tab shut', () => doing.closeTab(tab.id));
   }
   if (world.canBack) add('back', 'Back', 'Open tabs', 'history previous', doing.back);
-  if (world.canForward) add('forward', 'Forward', 'Open tabs', 'history next', doing.forward);
+  if (world.canForward && !simple) add('forward', 'Forward', 'Open tabs', 'history next', doing.forward);
 
   // ---- workspaces -------------------------------------------------------------------------------------------------
-  if (world.workspaces.isNotEmpty) {
+  // Simple mode has no workspace filter on its home page, so none here; filing a note in one stays, above.
+  if (world.workspaces.isNotEmpty && !simple) {
     if (world.workspace != null) add('space:all', 'Show all notes', 'Workspaces', 'workspace every unfiltered', () => doing.chooseWorkspace(null));
     for (final space in world.workspaces) {
       if (space.id == world.workspace) continue;
@@ -404,9 +416,9 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   // ---- the app ----------------------------------------------------------------------------------------------------
   const app = 'Ghost.md';
   add('settings', 'Settings', app, 'preferences options account sync type animations', doing.settings);
-  final notifications = doing.notifications;
+  final notifications = simple ? null : doing.notifications;
   if (notifications != null) add('notifications', 'Notifications', app, 'bell invites invitations inbox feed unread claude', notifications);
-  final organizations = doing.organizations;
+  final organizations = simple ? null : doing.organizations;
   if (organizations != null) add('organizations', 'Organizations', app, 'teams team org members invite', organizations);
   final cheatSheet = doing.cheatSheet;
   if (cheatSheet != null) add('cheatsheet', 'Cheat sheet', app, 'marks markdown reference help', cheatSheet);

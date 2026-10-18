@@ -637,8 +637,8 @@ class TabMenu extends StatelessWidget {
     required this.groups,
     required this.onDismiss,
     this.onRename,
-    required this.onNewGroup,
-    required this.onGroups,
+    this.onNewGroup,
+    this.onGroups,
     required this.onCloseTab,
     this.onDeleteNote,
     this.coarse,
@@ -652,8 +652,11 @@ class TabMenu extends StatelessWidget {
 
   /// Only a canvas or a book is renamed from its tab: a note is named by its first line, written in the note itself.
   final VoidCallback? onRename;
-  final VoidCallback onNewGroup;
-  final ValueChanged<TabGroups> onGroups;
+
+  /// The group rows: a new group, and joining or leaving one. Absent, the menu has none of them, which is simple
+  /// mode's menu (GHST-103): the tab, its close and its delete, and nothing to group.
+  final VoidCallback? onNewGroup;
+  final ValueChanged<TabGroups>? onGroups;
   final VoidCallback onCloseTab;
 
   /// The tab's note to the Trash, with an Undo; absent, the menu has no Delete.
@@ -664,6 +667,7 @@ class TabMenu extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final groupId = groups.of[noteId];
+    final onGroups = this.onGroups;
     final others = [for (final g in groups.list) if (g.id != groupId) g];
     return PopMenu(
       anchor: GlacierAnchor.key(anchor),
@@ -674,8 +678,8 @@ class TabMenu extends StatelessWidget {
       coarse: coarse,
       children: [
         if (onRename != null) GlacierMenuItem(onSelect: onRename, child: const Text('Rename')),
-        GlacierMenuItem(onSelect: onNewGroup, child: const Text('Add to a new group')),
-        if (others.isNotEmpty)
+        if (onNewGroup != null) GlacierMenuItem(onSelect: onNewGroup, child: const Text('Add to a new group')),
+        if (onGroups != null && others.isNotEmpty)
           ...PopSub.rows(
             context,
             label: 'Add to group',
@@ -686,8 +690,9 @@ class TabMenu extends StatelessWidget {
                 GlacierMenuItem(ariaLabel: 'Add to ${g.name}', onSelect: () => onGroups(joinGroup(groups, noteId, g.id)), icon: HueDot(g.hue), child: Text(g.name)),
             ],
           ),
-        if (groupId != null) GlacierMenuItem(onSelect: () => onGroups(leaveGroup(groups, noteId)), child: const Text('Remove from group')),
-        const GlacierMenuSeparator(),
+        if (onGroups != null && groupId != null) GlacierMenuItem(onSelect: () => onGroups(leaveGroup(groups, noteId)), child: const Text('Remove from group')),
+        // The rule under the rows above Close tab, when there are any.
+        if (onRename != null || onNewGroup != null || (onGroups != null && (others.isNotEmpty || groupId != null))) const GlacierMenuSeparator(),
         GlacierMenuItem(onSelect: onCloseTab, child: const Text('Close tab')),
         if (onDeleteNote != null) GlacierMenuItem(danger: true, style: dangerRowStyle(t), onSelect: onDeleteNote, child: const Text('Delete note')),
       ],
@@ -709,6 +714,7 @@ class GroupMenu extends StatelessWidget {
     required this.onGroups,
     this.onCloseTabs,
     this.coarse,
+    this.colours = true,
   });
 
   final GlobalKey anchor;
@@ -723,6 +729,10 @@ class GroupMenu extends StatelessWidget {
   final ValueChanged<List<String>>? onCloseTabs;
   final bool? coarse;
 
+  /// Whether the group can be coloured from here. Off in simple mode (GHST-103), whose chip keeps the way out of a
+  /// group made in advanced: Rename, Ungroup and Close group.
+  final bool colours;
+
   @override
   Widget build(BuildContext context) {
     return PopMenu(
@@ -734,21 +744,22 @@ class GroupMenu extends StatelessWidget {
       coarse: coarse,
       children: [
         GlacierMenuItem(onSelect: onRename, child: const Text('Rename')),
-        ...PopSub.rows(
-          context,
-          label: 'Colour',
-          reach: PopReach.down,
-          coarse: coarse,
-          children: [
-            for (final hue in workspaceHues)
-              GlacierMenuItem(
-                ariaLabel: 'Colour: ${_capitalise(hue)}',
-                onSelect: () => onGroups(recolourGroup(groups, group.id, hue)),
-                icon: HueDot(hue),
-                child: Text(_capitalise(hue)),
-              ),
-          ],
-        ),
+        if (colours)
+          ...PopSub.rows(
+            context,
+            label: 'Colour',
+            reach: PopReach.down,
+            coarse: coarse,
+            children: [
+              for (final hue in workspaceHues)
+                GlacierMenuItem(
+                  ariaLabel: 'Colour: ${_capitalise(hue)}',
+                  onSelect: () => onGroups(recolourGroup(groups, group.id, hue)),
+                  icon: HueDot(hue),
+                  child: Text(_capitalise(hue)),
+                ),
+            ],
+          ),
         const GlacierMenuSeparator(),
         GlacierMenuItem(onSelect: () => onGroups(ungroup(groups, group.id)), child: const Text('Ungroup')),
         GlacierMenuItem(danger: true, onSelect: () => onCloseTabs?.call(membersOf(groups, group.id, tabIds)), child: const Text('Close group')),
