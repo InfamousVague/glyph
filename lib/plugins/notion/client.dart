@@ -401,7 +401,7 @@ Future<Object?> notionRequest(String method, String path, [Object? body]) async 
   if (answer.status >= 400) {
     final said = answer.body;
     final message = said is Map && said['message'] is String ? said['message'] as String : null;
-    if (answer.status == 401) throw const NotionFailure('Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.');
+    if (answer.status == 401) throw const NotionFailure('Notion signed Ghost.md out. Sign in again in Settings › Notion.');
     if (answer.status == 404) {
       throw NotionFailure(path.startsWith('pages/') ? 'Notion can’t see that task. Share its board with Ghost.md in Notion.' : 'Notion can’t see that board. Share it with Ghost.md in Notion.');
     }

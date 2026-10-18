@@ -222,7 +222,7 @@ class GoogleSession {
     final held = _tokens;
     if (!fresh && held != null && held.expiresAt > api.now()) return held.accessToken;
     final next = await api.refresh(refreshToken);
-    if (next == null) throw const GoogleFailure('Google signed Ghost.md out. Connect Google Calendar again in Settings › Plugins › Calendar.', 401);
+    if (next == null) throw const GoogleFailure('Google signed Ghost.md out. Connect Google Calendar again in Settings › Calendar.', 401);
     _tokens = next;
     onTokens?.call(next);
     return next.accessToken;
@@ -255,7 +255,7 @@ class GoogleSession {
   Future<Object?> ask(String method, String path, {Map<String, Object?>? query, Object? body}) async {
     final answer = await call(method, path, query: query, body: body);
     if (answer.status >= 400) {
-      if (answer.status == 401) throw const GoogleFailure('Google signed Ghost.md out. Connect Google Calendar again in Settings › Plugins › Calendar.', 401);
+      if (answer.status == 401) throw const GoogleFailure('Google signed Ghost.md out. Connect Google Calendar again in Settings › Calendar.', 401);
       throw GoogleFailure(_said(answer.body) ?? 'Google answered ${answer.status}.', answer.status);
     }
     return answer.body;

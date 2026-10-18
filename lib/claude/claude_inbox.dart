@@ -1,7 +1,7 @@
 /// The "Ask Claude" inbox, worked through by the app itself (docs/CLAUDE_APP.md, "The inbox"; docs/CLAUDE_LIVE.md,
 /// "The Ask Claude inbox"). The note is the connector's: a personal note titled "Ask Claude" whose open `- [ ]`
 /// items are requests. The connector's prompt and the Mac's scheduled routine work through it now and then; with a
-/// key kept on this device and the inbox switch on (Settings › Plugins › Claude), the app does each request a few
+/// key kept on this device and the inbox switch on (Settings › Claude), the app does each request a few
 /// seconds after it is written, live, and answers it in the connector's own way: a line under it, indented two
 /// spaces, `  - ` and one sentence of what was done, and the request ticked unless it could not be done.
 ///

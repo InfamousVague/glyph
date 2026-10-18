@@ -235,7 +235,7 @@ Future<List<String>> keptWebhooks() async {
 /// round it (slack.rs `webhook_for`).
 Future<String> _webhookFor(String id) async {
   final url = allowedId(id) ? await host.secrets.read(_secretOf(id)) : null;
-  if (url == null || url.isEmpty) throw const SlackFailure("This channel's webhook isn't on this device. Add the channel again in Settings › Plugins › Slack.");
+  if (url == null || url.isEmpty) throw const SlackFailure("This channel's webhook isn't on this device. Add the channel again in Settings › Slack.");
   if (!allowedWebhook(url)) throw const SlackFailure(_notAWebhook);
   return url;
 }

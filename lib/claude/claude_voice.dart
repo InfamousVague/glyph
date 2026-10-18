@@ -280,7 +280,7 @@ class ClaudeVoice extends ChangeNotifier {
     final inbox = this.inbox;
     if (inbox == null) {
       _wantsKey = true;
-      return _fail('Claude answers here with your own Anthropic API key. Add one in Settings › Plugins › Claude.');
+      return _fail('Claude answers here with your own Anthropic API key. Add one in Settings › Claude.');
     }
     try {
       await inbox(prompt);

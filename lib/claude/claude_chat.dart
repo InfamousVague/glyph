@@ -68,7 +68,7 @@ class ClaudeChat extends StatefulWidget {
   final VoidCallback onClose;
   final void Function(String noteId) onOpenNote;
 
-  /// The Claude plugin's page (Settings › Plugins › Claude), where the key is added.
+  /// The Claude plugin's page (Settings › Claude), where the key is added.
   final VoidCallback onSettings;
 
   /// The chip's Open: the note an AI is on, at its caret.

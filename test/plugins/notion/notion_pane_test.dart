@@ -109,7 +109,7 @@ void main() {
 
       phone.answer = (request) async => json(401, {'message': 'API token is invalid.'});
       await pane(tester);
-      expect(calloutWords(tester), 'Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.');
+      expect(calloutWords(tester), 'Notion signed Ghost.md out. Sign in again in Settings › Notion.');
       await endSettings(tester);
     });
 
@@ -169,7 +169,7 @@ void main() {
       await picker(tester, () {});
       expect(find.text('Boards in Notion that Ghost.md can see.'), findsOneWidget);
       expect(find.text('No boards yet'), findsOneWidget);
-      expect(find.text('Sign in again from Settings › Plugins › Notion and tick the boards you want.'), findsOneWidget);
+      expect(find.text('Sign in again from Settings › Notion and tick the boards you want.'), findsOneWidget);
       await endSettings(tester);
 
       phone.answer = (request) async => json(404);
