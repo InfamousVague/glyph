@@ -2,7 +2,10 @@
 // (fake_google.dart): whether Connect is offered, the claim, the refresh when a token runs out, the calendars and
 // their events, and the to-dos put on a calendar by ids made from the to-do, with the app's mark, never touching an
 // event the app did not make.
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/account/api.dart' show FetchResponse;
 import 'package:ghost_md/calendar/google.dart';
 import 'package:ghost_md/core/query/query.dart';
 
@@ -23,12 +26,15 @@ void main() {
   setUp(() => google = FakeGoogle());
 
   group('signing in', () {
-    test('Connect is offered only where start does not answer 503, and the probe starts no sign-in', () async {
+    test('Connect is offered only where start turns the probe away as a broken link or busy, and the probe starts no sign-in', () async {
       expect(await api().offered(), isTrue);
       expect(google.calls.single, startsWith('GET /api/google/start?state=probe'));
       google.configured = false;
       expect(await api().offered(), isFalse);
       expect(await GoogleCalendarApi(base: fakeBase, fetch: (_) async => throw Exception('offline')).offered(), isFalse);
+      // A service from before it had Google: "no such route", which the button once led to.
+      expect(await GoogleCalendarApi(base: fakeBase, fetch: (_) async => FetchResponse(404, bytes: utf8.encode('{"error":"no such route"}'))).offered(), isFalse);
+      expect(await GoogleCalendarApi(base: fakeBase, fetch: (_) async => FetchResponse(429)).offered(), isTrue);
     });
 
     test('the browser goes to start with the state and the verifier’s SHA-256', () {
