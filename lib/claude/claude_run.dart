@@ -6,6 +6,15 @@
 /// words of a passage taken out, and Claude's new ones typed in at its caret (lib/claude/live_typing.dart). Where
 /// the note cannot be shown (the person went elsewhere, or there is no screen), it is written behind it, the same
 /// change by the library.
+///
+/// **Claude's thinking, shown** (Matt, 2026-10-17: "show claudes or whatever AI agent were using thought process"):
+/// every request asks for adaptive thinking with its summary shown (`thinking: {type: adaptive, display:
+/// summarized}`), where the model takes it ([claudeShowsThinking]). The current models think whether asked or not and
+/// hand back each thinking block with its text empty unless `display` asks for it; so the ask changes what is seen,
+/// not what is billed. The summary arrives as `thinking_delta`s, read into [ClaudeRun.thinking] as they come and kept
+/// as a `thought` step once the block closes. Every thinking block, an empty one and a `redacted_thinking` one too,
+/// goes back in the conversation exactly as it came, with its signature: the API checks them, and a block changed or
+/// left out of a tool's turn is refused.
 library;
 
 import 'dart:async';
@@ -42,7 +51,8 @@ enum ClaudeState { idle, thinking, writing, done, stopped, failed }
 class ClaudeStep {
   const ClaudeStep({required this.kind, required this.words, this.noteId});
 
-  /// `said` for Claude's words, `asked` for the person's, `tool` for what a tool did.
+  /// `said` for Claude's words, `asked` for the person's, `tool` for what a tool did, `thought` for the summary of
+  /// what Claude thought before it went on.
   final String kind;
   final String words;
   final String? noteId;
@@ -62,6 +72,14 @@ class ClaudeAt {
 
 /// How many requests one run may make: each tool answer is one more.
 const int claudeTurnLimit = 24;
+
+/// What a request asks of Claude's thinking: adaptive, its summary shown. Only the models the app offers
+/// (lib/claude/claude_settings.dart `claudeModels`, each of which thinks adaptively and shows a summary when asked);
+/// another id kept from before is sent no `thinking` at all, rather than one it might refuse.
+Map<String, Object?>? claudeThinkingFor(String model) => claudeShowsThinking(model) ? const {'type': 'adaptive', 'display': 'summarized'} : null;
+
+/// Whether [model] is asked for its thinking (see [claudeThinkingFor]).
+bool claudeShowsThinking(String model) => const {'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-haiku-5-5'}.contains(model);
 
 /// One run.
 class ClaudeRun extends ChangeNotifier {
@@ -103,6 +121,19 @@ class ClaudeRun extends ChangeNotifier {
   /// Claude's words of the request in flight, as they come.
   String _saying = '';
   String get saying => _saying;
+
+  /// The summary of Claude's thinking in the block streaming now, as it comes; '' between blocks. A thought that
+  /// has closed is a `thought` step ([lastThought]).
+  String _thinking = '';
+  String get thinking => _thinking;
+
+  /// The last thought Claude finished, or ''.
+  String get lastThought {
+    for (final step in _steps.reversed) {
+      if (step.kind == 'thought') return step.words;
+    }
+    return '';
+  }
 
   /// Every note this run wrote, by id, with its title.
   final Map<String, String> touched = {};
@@ -232,9 +263,11 @@ class ClaudeRun extends ChangeNotifier {
 
   /// One request, streamed: Claude's words and tools as they come, each tool answered once its input is whole.
   Future<_Reply> _ask() async {
+    final thinking = claudeThinkingFor(model);
     final call = _call = api.stream({
       'model': model,
       'max_tokens': maxTokens,
+      'thinking': ?thinking,
       if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
       'tools': claudeTools,
@@ -245,6 +278,7 @@ class ClaudeRun extends ChangeNotifier {
     final results = <Map<String, Object?>>[];
     String? stop;
     _saying = '';
+    _thinking = '';
     Object? failure;
     await for (final event in call.events.handleError((Object error) => failure ??= error)) {
       final data = _json(event.data);
@@ -255,6 +289,11 @@ class ClaudeRun extends ChangeNotifier {
           if (block is! Map) break;
           if (block['type'] == 'text') {
             blocks[index] = _Block.text();
+          } else if (block['type'] == 'thinking') {
+            blocks[index] = _Block.thought()..text.write(block['thinking'] as String? ?? '');
+          } else if (block['type'] == 'redacted_thinking') {
+            // Whole as it starts: nothing of it is read, and it goes back as it came.
+            blocks[index] = _Block.thought(redacted: block['data'] as String? ?? '');
           } else if (block['type'] == 'tool_use') {
             final made = blocks[index] = _Block.tool(block['id'] as String? ?? '', block['name'] as String? ?? '');
             final field = ClaudeTool.typed[made.name];
@@ -274,6 +313,13 @@ class ClaudeRun extends ChangeNotifier {
             block.text.write(text);
             _saying += text;
             notifyListeners();
+          } else if (delta['type'] == 'thinking_delta') {
+            final text = delta['thinking'] as String? ?? '';
+            block.text.write(text);
+            _thinking += text;
+            if (text.isNotEmpty) notifyListeners();
+          } else if (delta['type'] == 'signature_delta') {
+            block.signature.write(delta['signature'] as String? ?? '');
           } else if (delta['type'] == 'input_json_delta') {
             final piece = delta['partial_json'] as String? ?? '';
             block.json.write(piece);
@@ -283,7 +329,19 @@ class ClaudeRun extends ChangeNotifier {
           final index = (data['index'] as num?)?.toInt() ?? 0;
           final block = blocks[index];
           if (block == null) break;
-          if (block.name == null) {
+          if (block.thought) {
+            // Back exactly as it came, empty or not: the API checks it.
+            final redacted = block.redacted;
+            if (redacted != null) {
+              content.add({'type': 'redacted_thinking', 'data': redacted});
+            } else {
+              final words = block.text.toString();
+              content.add({'type': 'thinking', 'thinking': words, 'signature': block.signature.toString()});
+              if (words.trim().isNotEmpty) _steps.add(ClaudeStep(kind: 'thought', words: words.trim()));
+            }
+            _thinking = '';
+            notifyListeners();
+          } else if (block.name == null) {
             final words = block.text.toString();
             // The API refuses an empty text block back.
             if (words.isNotEmpty) content.add({'type': 'text', 'text': words});
@@ -418,11 +476,24 @@ class _Reply {
 class _Block {
   _Block.text()
       : id = null,
-        name = null;
-  _Block.tool(this.id, this.name);
+        name = null,
+        thought = false,
+        redacted = null;
+  _Block.tool(this.id, this.name)
+      : thought = false,
+        redacted = null;
+  _Block.thought({this.redacted})
+      : id = null,
+        name = null,
+        thought = true;
 
   final String? id;
   final String? name;
+
+  /// A thinking block: its summary in [text], its [signature]; or, [redacted], one sent sealed.
+  final bool thought;
+  final String? redacted;
+  final StringBuffer signature = StringBuffer();
   final StringBuffer text = StringBuffer();
   final StringBuffer json = StringBuffer();
   PartialFields? reader;

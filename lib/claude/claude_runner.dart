@@ -3,6 +3,11 @@
 ///
 /// One run at a time: an ask while one is working waits for it (the inbox's requests queue behind the person's).
 /// The conversation is kept until the sheet's New chat or the app closes; it is never written anywhere.
+///
+/// A conversation keeps the system prompt it began with: Claude's thinking blocks go back with every follow-up
+/// (lib/claude/claude_run.dart), and the API refuses a block once anything sent before it has changed, the system
+/// prompt included. So a follow-up asked the next day, or after the "Claude rules" note was edited, is asked with the
+/// day and the rules the conversation started with; New chat takes the new ones.
 library;
 
 import 'dart:async';
@@ -48,6 +53,9 @@ class ClaudeRunner extends ChangeNotifier {
   /// The runs of this conversation, oldest first, for the sheet.
   final List<ClaudeRun> conversation = [];
 
+  /// The system prompt this conversation was begun with, kept for its follow-ups (see the header).
+  String? _system;
+
   Future<void> _queue = Future<void>.value();
 
   /// Whether Claude can be asked: a key is kept.
@@ -75,13 +83,20 @@ class ClaudeRunner extends ChangeNotifier {
       started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Plugins › Claude.'));
       return;
     }
-    String? rules;
-    try {
-      rules = (await notes.read(title: claudeRulesTitle))?.body;
-    } catch (_) {
-      rules = null;
+    final kept = alone || _history.isEmpty ? null : _system;
+    final String system;
+    if (kept != null) {
+      system = kept;
+    } else {
+      String? rules;
+      try {
+        rules = (await notes.read(title: claudeRulesTitle))?.body;
+      } catch (_) {
+        rules = null;
+      }
+      system = [claudeSystem(now: _now(), rules: rules), ?extraSystem].join('\n\n');
+      if (!alone) _system = system;
     }
-    final system = [claudeSystem(now: _now(), rules: rules), ?extraSystem].join('\n\n');
     final made = ClaudeRun(api: _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
@@ -100,6 +115,7 @@ class ClaudeRunner extends ChangeNotifier {
   void newChat() {
     if (working) return;
     _history = const [];
+    _system = null;
     conversation.clear();
     notifyListeners();
   }

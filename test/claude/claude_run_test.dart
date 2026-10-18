@@ -3,8 +3,10 @@
 import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_run.dart';
-import 'package:ghost_md/claude/claude_settings.dart' show defaultClaudeEffort;
+import 'package:ghost_md/claude/claude_runner.dart';
+import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings, defaultClaudeEffort;
 import 'package:ghost_md/claude/claude_tools.dart';
 import 'package:ghost_md/claude/live_typing.dart';
 import 'package:ghost_md/claude/messages_api.dart';
@@ -187,6 +189,109 @@ void main() {
       await tester.runAsync(ClaudeRun(api: left, model: 'claude-sonnet-5-5', notes: notes, desk: desk, prompt: 'x').run);
       expect(left.asked.single.containsKey('output_config'), isFalse);
       expect((defaultClaudeEffort('claude-sonnet-5-5'), defaultClaudeEffort('claude-opus-5-5'), defaultClaudeEffort('claude-haiku-5-5')), ('high', 'medium', 'medium'));
+    });
+
+    // Matt, 2026-10-17: "show claudes or whatever AI agent were using thought process". Every request asks for
+    // adaptive thinking with its summary shown, the summary arrives as it is thought, is kept as a step, and every
+    // thinking block goes back as it came, its signature and a sealed one too, in the turn that called the tool.
+    testWidgets('asks for Claude\'s thinking, shows it as it comes, and sends each block back as it came', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk\n';
+      final desk = _Desk(notes);
+      final thought = [
+        _e('message_start', {'type': 'message_start'}),
+        _e('content_block_start', {
+          'index': 0,
+          'content_block': {'type': 'thinking', 'thinking': '', 'signature': ''},
+        }),
+        _e('content_block_delta', {
+          'index': 0,
+          'delta': {'type': 'thinking_delta', 'thinking': 'The person wants '},
+        }),
+        _e('content_block_delta', {
+          'index': 0,
+          'delta': {'type': 'thinking_delta', 'thinking': 'their groceries read.'},
+        }),
+        _e('content_block_delta', {
+          'index': 0,
+          'delta': {'type': 'signature_delta', 'signature': 'sig-1'},
+        }),
+        _e('content_block_stop', {'index': 0}),
+        _e('content_block_start', {
+          'index': 1,
+          'content_block': {'type': 'redacted_thinking', 'data': 'sealed'},
+        }),
+        _e('content_block_stop', {'index': 1}),
+        _e('content_block_start', {
+          'index': 2,
+          'content_block': {'type': 'tool_use', 'id': 'toolu_9', 'name': ClaudeTool.read, 'input': <String, Object?>{}},
+        }),
+        _e('content_block_delta', {
+          'index': 2,
+          'delta': {'type': 'input_json_delta', 'partial_json': jsonEncode({'id': 'g'})},
+        }),
+        _e('content_block_stop', {'index': 2}),
+        _e('message_delta', {
+          'delta': {'stop_reason': 'tool_use'},
+        }),
+      ];
+      final api = _Api([thought, _turn(words: 'Milk.')]);
+      final run = ClaudeRun(api: api, model: 'claude-opus-5-5', notes: notes, desk: desk, prompt: 'what is on my list');
+      final seen = <String>[];
+      run.addListener(() {
+        if (run.thinking.isNotEmpty && (seen.isEmpty || seen.last != run.thinking)) seen.add(run.thinking);
+      });
+      await tester.runAsync(run.run);
+
+      expect(api.asked.first['thinking'], {'type': 'adaptive', 'display': 'summarized'});
+      expect(seen, ['The person wants ', 'The person wants their groceries read.']);
+      expect(run.thinking, '');
+      expect(run.lastThought, 'The person wants their groceries read.');
+      expect([for (final step in run.steps) step.kind], ['asked', 'thought', 'tool', 'said']);
+      final turn = (api.asked[1]['messages']! as List)[1] as Map;
+      expect(turn['role'], 'assistant');
+      expect(turn['content'], [
+        {'type': 'thinking', 'thinking': 'The person wants their groceries read.', 'signature': 'sig-1'},
+        {'type': 'redacted_thinking', 'data': 'sealed'},
+        {
+          'type': 'tool_use',
+          'id': 'toolu_9',
+          'name': ClaudeTool.read,
+          'input': {'id': 'g'},
+        },
+      ]);
+      // A model id the app does not offer is sent no thinking at all.
+      final other = _Api([_turn(words: 'Done.')]);
+      await tester.runAsync(ClaudeRun(api: other, model: 'claude-sonnet-4-5', notes: notes, desk: desk, prompt: 'x').run);
+      expect(other.asked.single.containsKey('thinking'), isFalse);
+    });
+
+    // The thinking blocks go back with a follow-up, and the API refuses one once the system prompt before it has
+    // changed: a conversation keeps the day and the rules it began with, and New chat takes the new ones.
+    testWidgets('keeps the system prompt a conversation began with for its follow-ups', (tester) async {
+      final notes = _Notes()..bodies['r'] = '# Claude rules\n\nBe brief.';
+      final api = _Api([_turn(words: 'One.'), _turn(words: 'Two.'), _turn(words: 'Three.')]);
+      var day = DateTime(2026, 10, 17);
+      final settings = ClaudeSettings(MemorySecureStore());
+      await tester.runAsync(() => settings.setKey('sk-ant-test-0000000000'));
+      final runner = ClaudeRunner(settings: settings, notes: notes, desk: _Desk(notes), api: (_) => api, now: () => day);
+      Future<void> ask(String words) async {
+        final run = await runner.ask(words);
+        while (run.working || run.state == ClaudeState.idle) {
+          await Future<void>.delayed(const Duration(milliseconds: 5));
+        }
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+      }
+
+      await tester.runAsync(() => ask('first'));
+      day = DateTime(2026, 10, 18);
+      notes.bodies['r'] = '# Claude rules\n\nBe long.';
+      await tester.runAsync(() => ask('second'));
+      expect(api.asked[1]['system'], api.asked[0]['system']);
+      expect(api.asked[1]['system'] as String, allOf(contains('2026-10-17'), contains('Be brief.')));
+      runner.newChat();
+      await tester.runAsync(() => ask('third'));
+      expect(api.asked[2]['system'] as String, allOf(contains('2026-10-18'), contains('Be long.')));
+      runner.dispose();
     });
 
     testWidgets('changes one passage of an open note in place, the old words taken out and the new typed in', (tester) async {

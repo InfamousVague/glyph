@@ -436,10 +436,12 @@ class _Messages extends StatelessWidget {
           switch (step.kind) {
             'asked' => _Bubble(words: step.words, mine: true),
             'said' => _Bubble(words: step.words),
+            'thought' => _Thought(words: step.words),
             _ => _Step(step: step, onOpenNote: onOpenNote),
           },
+        if (run.thinking.trim().isNotEmpty) _Thought(words: run.thinking.trim(), live: true),
         if (run.saying.trim().isNotEmpty) _Bubble(words: run.saying.trim(), live: true),
-        if (run.working && run.saying.isEmpty) _Quiet(run.state == ClaudeState.writing ? 'Writing…' : 'Thinking…'),
+        if (run.working && run.saying.isEmpty && run.thinking.trim().isEmpty) _Quiet(run.state == ClaudeState.writing ? 'Writing…' : 'Thinking…'),
         if (run.state == ClaudeState.stopped) const _Quiet('Stopped.'),
         if (run.state == ClaudeState.failed) _Quiet(run.problem ?? 'Something went wrong.'),
       ];
@@ -605,6 +607,34 @@ class _Quiet extends StatelessWidget {
     return Padding(
       padding: EdgeInsets.symmetric(vertical: t.space(1)),
       child: Text(words, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle'))),
+    );
+  }
+}
+
+/// What Claude thought before it went on (lib/claude/claude_run.dart, "Claude's thinking, shown"): the summary in
+/// the page's quiet text under a hairline of Claude's orange down its start, a few lines of it, so a long thought
+/// does not push the conversation away. Still arriving, it is read out as it changes.
+class _Thought extends StatelessWidget {
+  const _Thought({required this.words, this.live = false});
+
+  final String words;
+  final bool live;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      key: const ValueKey('claude-thought'),
+      margin: EdgeInsets.symmetric(vertical: t.space(1)),
+      padding: EdgeInsets.only(left: t.space(2)),
+      decoration: BoxDecoration(border: Border(left: BorderSide(color: claudeOrange.withValues(alpha: 0.45), width: 2))),
+      child: Semantics(
+        liveRegion: live,
+        label: 'Claude thought: $words',
+        child: ExcludeSemantics(
+          child: Text(words, maxLines: live ? 6 : 4, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle'))),
+        ),
+      ),
     );
   }
 }
