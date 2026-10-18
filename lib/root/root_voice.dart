@@ -53,6 +53,8 @@ extension _RootVoice on _GhostRootState {
         clearStage: () {
           FocusManager.instance.primaryFocus?.unfocus();
           _guide?.hide();
+          // A recording takes the microphone: an ask being said to Claude is let go first.
+          _talk?.cancel();
           if (mounted) {
             _told(() {
               _settings = false;
