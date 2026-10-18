@@ -50,7 +50,14 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import '../../calendar/setup.dart' show CalendarAddress, CalendarSetup, addressId, withCalendarSetup;
+import '../../claude/claude_runner.dart' show debugClaudeApi;
+import '../../claude/claude_settings.dart' show claudeSettings;
 import '../../core/mac_app.dart';
+import '../../core/preferences.dart' show preferences;
+import '../../core/sample_library.dart' show tourExtraNotes;
+import '../../plugins/registry.dart' show plugins;
+import '../tour_claude.dart';
 import '../../core/stored_device.dart';
 import '../../editor/editor_widget.dart';
 import '../../editor/input/ime.dart';
@@ -65,6 +72,8 @@ bool macTourWantsInventedLibrary() {
   if (!kDebugMode || !runsAsMacApp) return false;
   final asked = (Platform.environment['GHOST_TOUR'] ?? '').trimLeft().startsWith('invented');
   if (asked) debugPrint('[tour] the invented library, for the store pictures: no core is opened for this start');
+  // `invented+`: with the 2.2 pictures' notes besides (lib/shell/tour_claude.dart).
+  if (asked && (Platform.environment['GHOST_TOUR'] ?? '').trimLeft().startsWith('invented+')) tourExtraNotes = storePictureNotes;
   return asked;
 }
 
@@ -121,9 +130,26 @@ class _Tour {
 
   Future<void> _step(String name, String arg) async {
     switch (name) {
-      case 'invented':
+      case 'invented' || 'invented+':
         // Read before the app was made ([macTourWantsInventedLibrary]); nothing to do by now.
         break;
+      case 'claude':
+        // The store pictures' Claude (lib/shell/tour_claude.dart): a stand-in key held in memory for this start, and
+        // a scripted stream in place of Anthropic's API. Nothing is sent anywhere.
+        claudeSettings.debugStandIn('store-pictures-stand-in');
+        debugClaudeApi = (_) => TourClaudeApi();
+        _say('claude: the scripted conversation');
+      case 'plugin':
+        final parts = arg.split(',');
+        final id = parts.first.trim();
+        plugins.setEnabled(id, !(parts.length > 1 && parts[1].trim() == 'off'));
+        await _frames();
+        _say('plugin $id on: ${plugins.isEnabled(id)}');
+      case 'calendar':
+        final url = arg.trim();
+        preferences.update((now) => withCalendarSetup(now, CalendarSetup(addresses: [CalendarAddress(id: addressId(url), url: url)])));
+        await _frames();
+        _say('calendar added');
       case 'wait':
         await Future<void>.delayed(Duration(milliseconds: int.parse(arg)));
       case 'shot':
