@@ -29,6 +29,12 @@
 /// - **The effects are handed in** ([PlusEffect]), where the web asked its plugin registry
 ///   (`plugins.formats()`): the marks are another piece's (lib/editor/marks).
 /// - **A row's id is a string** (`'picture'`, `'query:week'`, `'effect:Heat'`), as it is on the page.
+/// - **Simple mode** (GHST-103; Matt: "simple mode has a much more approachable UI with fancy features hidden
+///   behind more"): with [AddGates.simple] the first page is the things a note is made of, a picture, a to-do, a
+///   heading, the two lists, a quote, a table, a link, a divider, each with a line saying what it is, and More
+///   holds everything else in the order it has today. [AddGates.simple] off, nothing here is other than it was.
+/// - **A link**, `[text](url)` with "text" selected, is the port's own row ([linkSeed]): the page had none, since
+///   its band writes links. It is on simple's first page only; advanced's list is as it was.
 /// - [planFor] and [writeRow] take the state or a dispatch target rather than a view; [planFor] answers a
 ///   [RowWrite].
 /// - **The moment in words is English, in the phone's own order** ([stamp], [timeLabel]): the web asks `Intl` for
@@ -68,15 +74,19 @@ enum AddStep { more, board, database, note, canvas }
 /// A row as the list draws it. [id] is one of `picture`, `video`, `file`, `scan`, `place`, `time`, `table`, `note`, `person`, `todo`, `more`,
 /// `heading`, `bullets`, `numbers`, `quote`, `callout`, `choice`, `code`, `divider`, `board`, `query`,
 /// `query:<template>`, `dated`, `ticket`, `chart`, `formula`, `canvas`, `footnote`, `tag`, `counter`, `sum`,
-/// `blank`, `blankCells`, `effect:<name>`.
+/// `blank`, `blankCells`, `effect:<name>`, `link`.
 class AddRow {
-  const AddRow({required this.id, required this.words, this.label, this.dimmed, this.step});
+  const AddRow({required this.id, required this.words, this.label, this.dimmed, this.step, this.hint});
 
   final String id;
   final String words;
 
   /// Its name to a screen reader, where the words alone do not say it (the time row).
   final String? label;
+
+  /// A line under the words saying what the row makes, in plain words, for someone who does not know the marks
+  /// (simple's first page). Nowhere else: a list of hints is a long list.
+  final String? hint;
 
   /// Why it cannot be pressed: a choice the person made, named.
   final String? dimmed;
@@ -119,6 +129,7 @@ class AddGates {
     this.database = true,
     this.blank = true,
     this.person = false,
+    this.simple = false,
   });
 
   final bool picture;
@@ -150,6 +161,9 @@ class AddGates {
 
   /// A contact can be picked from the phone's address book: Settings › Contacts is on.
   final bool person;
+
+  /// Simple mode (`Preferences.simple`): the basics first, the rest behind More (see the header).
+  final bool simple;
 }
 
 /// The gates, for a screen that can do these (a picture picker, a video, a place, a note to link, a canvas to
@@ -169,6 +183,7 @@ AddGates readGates({
   bool database = true,
   bool blank = true,
   bool person = false,
+  bool simple = false,
   List<PlusEffect> effects = const <PlusEffect>[],
 }) => AddGates(
   picture: picture,
@@ -185,6 +200,7 @@ AddGates readGates({
   database: database,
   blank: blank,
   person: person,
+  simple: simple,
 );
 
 // ---- the moment, in words (core/stamp.ts, core/noteNames.ts) -----------------------------------------------------------
@@ -248,8 +264,13 @@ bool onNamingLine(EditorState state) {
 /// come first (a picture, a video, a place, the time), then the data trio made of words - a table, a board, a
 /// database - since those are the Notion and Jira features people came for (Matt: make "queries and boards and
 /// stuff easier to create"), then a link to a note and a to-do. `naming`: the caret is on the line that names the
-/// note.
+/// note. In simple mode, [simpleTopRows].
 List<AddRow> topRows(AddGates gates, DateTime now, [bool naming = false]) {
+  if (gates.simple) return simpleTopRows(gates);
+  return _fullTopRows(gates, now, naming);
+}
+
+List<AddRow> _fullTopRows(AddGates gates, DateTime now, [bool naming = false]) {
   final time = timeWords(now, naming);
   return <AddRow>[
     if (gates.picture) const AddRow(id: 'picture', words: 'A picture'),
@@ -270,14 +291,37 @@ List<AddRow> topRows(AddGates gates, DateTime now, [bool naming = false]) {
   ];
 }
 
+/// Simple mode's first page (GHST-103): what a plain note is made of, in the order someone writing one meets them,
+/// a picture first since it is the phone's own, then the to-do, the forms a line takes, a table, a link and a line
+/// across, and More. Each row says in a line what it makes, since the person simple is for may not know a heading
+/// from a quote by name; the rows keep the words they have everywhere else, so the Academy and the cheat sheet
+/// still name the same things. A line is short enough to stay one line in the list at its narrowest (a phone).
+List<AddRow> simpleTopRows(AddGates gates) => <AddRow>[
+  if (gates.picture) const AddRow(id: 'picture', words: 'A picture', hint: 'A photo from your phone.'),
+  const AddRow(id: 'todo', words: 'A to-do', hint: 'A box to tick off.'),
+  const AddRow(id: 'heading', words: 'A heading', hint: 'A title for a section.'),
+  const AddRow(id: 'bullets', words: 'A bulleted list', hint: 'Points, one to a line.'),
+  const AddRow(id: 'numbers', words: 'A numbered list', hint: 'Steps, in order.'),
+  const AddRow(id: 'quote', words: 'A quote', hint: 'Someone else’s words.'),
+  const AddRow(id: 'table', words: 'A table', hint: 'Rows and columns.'),
+  const AddRow(id: 'link', words: 'A link', hint: 'Words that open a web page.'),
+  const AddRow(id: 'divider', words: 'A divider', hint: 'A line across the page.'),
+  const AddRow(id: 'more', words: 'More', step: AddStep.more, hint: 'Dates, boards and the rest.'),
+];
+
 /// Every row the slash menu can reach, in one flat list to filter by typing (the `/` command palette): the first
 /// page's things without More, then everything More holds. The steps (a board, a database, a note, a canvas) are
 /// here too, so `/board` finds the board page.
-List<AddRow> allRows(AddGates gates, DateTime now, [bool naming = false]) => <AddRow>[...topRows(gates, now, naming).where((row) => row.id != 'more'), ...moreRows(gates)];
+List<AddRow> allRows(AddGates gates, DateTime now, [bool naming = false]) => <AddRow>[...topRows(gates, now, naming).where((row) => row.id != 'more'), ...moreRows(gates, now, naming)];
 
 /// More: the forms a line takes, the blocks, and the small marks, each with a seed. A board and a database are on
-/// the first page, not here; what is left is the rest a note is made of.
-List<AddRow> moreRows(AddGates gates) => <AddRow>[
+/// the first page, not here; what is left is the rest a note is made of. In simple mode, [simpleMoreRows].
+List<AddRow> moreRows(AddGates gates, [DateTime? now, bool naming = false]) {
+  if (gates.simple) return simpleMoreRows(gates, now ?? DateTime.now(), naming);
+  return _fullMoreRows(gates);
+}
+
+List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   const AddRow(id: 'heading', words: 'A heading'),
   const AddRow(id: 'bullets', words: 'A bulleted list'),
   const AddRow(id: 'numbers', words: 'A numbered list'),
@@ -302,6 +346,17 @@ List<AddRow> moreRows(AddGates gates) => <AddRow>[
   if (gates.blank && gates.tableAbove) const AddRow(id: 'blankCells', words: 'Blanks in the empty cells', label: 'Blanks in the empty cells of the table above'),
   for (final effect in gates.effects) AddRow(id: 'effect:${effect.name}', words: effectWords(effect)),
 ];
+
+/// Simple mode's More: everything the list offers that is not on simple's first page, in the order it has today
+/// (advanced's first page, then advanced's More), so a thing is where it always was once More is open. Matt:
+/// "fancy features hidden behind more".
+List<AddRow> simpleMoreRows(AddGates gates, DateTime now, [bool naming = false]) {
+  final front = <String>{for (final row in simpleTopRows(gates)) row.id};
+  return <AddRow>[
+    for (final row in <AddRow>[..._fullTopRows(gates, now, naming), ..._fullMoreRows(gates)])
+      if (!front.contains(row.id)) row,
+  ];
+}
 
 /// An effect's row, named as it is said while recording ("heated", "frosted"), so it reads as words that look a
 /// way: "Heated words". An effect with no word of its own is named by its name.
@@ -335,6 +390,10 @@ const String counterSeed = 'Count [0/8]';
 
 /// The words an effect's seed holds, selected to be written over.
 const String effectSeedWords = 'words';
+
+/// A link's seed, `[text](url)`, as the cheat sheet writes one: "text" is selected to be written over, and the url
+/// is the next thing to type past the `](`.
+const String linkSeed = '[text](url)';
 
 /// A small board, as Make a board writes one (core/boards `boardFrom`): the three columns, and one to-do named in
 /// the first, its words selected to be written over. The anchor is one no item in the note has yet.
@@ -454,6 +513,8 @@ RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> 
       return RowPlan(footnotePlan(state, at));
     case 'tag':
       return RowPlan(wordsPlan(state, at, '#tag', (from: 1, to: 4)));
+    case 'link':
+      return RowPlan(wordsPlan(state, at, linkSeed, (from: 1, to: 1 + 'text'.length)));
     case 'counter':
       return RowPlan(wordsPlan(state, at, counterSeed, (from: 0, to: counterSeed.indexOf(' ['))));
     case 'blank':

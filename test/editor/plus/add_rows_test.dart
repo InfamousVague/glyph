@@ -13,8 +13,8 @@ import '../commands/support.dart';
 
 final DateTime now = DateTime(2026, 9, 28, 14, 5);
 
-AddGates gates({bool picture = true, bool video = false, PlaceGate place = PlaceGate.on, bool note = true, bool canvas = true, List<PlusEffect> effects = const [], bool tableAbove = false, bool ticket = false}) =>
-    AddGates(picture: picture, video: video, place: place, note: note, canvas: canvas, effects: effects, tableAbove: tableAbove, ticket: ticket);
+AddGates gates({bool picture = true, bool video = false, PlaceGate place = PlaceGate.on, bool note = true, bool canvas = true, List<PlusEffect> effects = const [], bool tableAbove = false, bool ticket = false, bool simple = false}) =>
+    AddGates(picture: picture, video: video, place: place, note: note, canvas: canvas, effects: effects, tableAbove: tableAbove, ticket: ticket, simple: simple);
 
 TestView viewOf(String doc, [int? caret]) => TestView.of(doc, caret ?? doc.length, null, [history()]);
 
@@ -31,6 +31,49 @@ String written(String id, [String doc = 'Lunch\n', List<PlusEffect> effects = co
 }
 
 void main() {
+  group('in simple mode (GHST-103)', () {
+    const basics = ['A picture', 'A to-do', 'A heading', 'A bulleted list', 'A numbered list', 'A quote', 'A table', 'A link', 'A divider'];
+
+    test('the first page is the basics, each with a line saying what it makes, and More', () {
+      final top = topRows(gates(video: true, simple: true), now);
+      expect(top.map((row) => row.words), [...basics, 'More']);
+      expect(top.every((row) => row.hint != null), isTrue, reason: 'every row says what it makes');
+      expect(top.firstWhere((row) => row.id == 'heading').hint, 'A title for a section.');
+      expect(top.last.step, AddStep.more);
+    });
+
+    test('More holds everything else, in the order the list has today, without the lines', () {
+      final all = gates(video: true, simple: true, ticket: true, tableAbove: true, effects: [heat]);
+      final rest = moreRows(all, now);
+      expect(rest.map((row) => row.words), [
+        'A video', 'A place', stamp(now), 'A board', 'A database', 'A note', //
+        'A callout', 'A choice', 'A to-do with a due date', 'A block of code', 'Make this a ticket', 'A diagram', 'A formula', 'A canvas', 'A footnote', 'A tag', 'A counter', 'A sum', 'A blank for the AI', 'Blanks in the empty cells', 'Heated words',
+      ]);
+      expect(rest.any((row) => basics.contains(row.words)), isFalse);
+      expect(rest.any((row) => row.hint != null), isFalse);
+      // The steps are still steps there.
+      expect(rest.firstWhere((row) => row.id == 'board').step, AddStep.board);
+      expect(rest.firstWhere((row) => row.id == 'note').step, AddStep.note);
+    });
+
+    test('the flat list for the slash palette is the basics, then the rest', () {
+      final flat = allRows(gates(video: true, simple: true), now).map((row) => row.words).toList();
+      expect(flat.take(basics.length), basics);
+      expect(flat, isNot(contains('More')));
+      expect(flat.skip(basics.length).take(3), ['A video', 'A place', stamp(now)]);
+    });
+
+    test('A link writes [text](url) with "text" selected, to be written over', () {
+      expect(written('link'), 'Lunch\n[[text]](url)');
+    });
+
+    test('advanced is as it was: no link row, no lines', () {
+      final flat = allRows(gates(video: true), now);
+      expect(flat.any((row) => row.id == 'link'), isFalse);
+      expect(flat.any((row) => row.hint != null), isFalse);
+    });
+  });
+
   group('the list’s rows', () {
     test('lead with the phone’s things, then the data trio (table, board, database), then a note and a to-do, then More', () {
       final top = topRows(gates(video: true), now);
