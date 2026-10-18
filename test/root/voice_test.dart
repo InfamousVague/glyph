@@ -5,6 +5,8 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/ui_state.dart' show AccountServices;
 import 'package:ghost_md/capture/engine.dart';
+import 'package:ghost_md/claude/claude_settings.dart' show claudeSettings;
+import 'package:ghost_md/claude/claude_voice.dart' show claudeLinger;
 import 'package:ghost_md/capture/meeting_live.dart';
 import 'package:ghost_md/capture/recorder.dart';
 import 'package:ghost_md/capture/system_sound.dart' show SoundSupport;
@@ -22,6 +24,8 @@ import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry, plugins, usePlugins;
 import 'package:ghost_md/notes/new_sheet.dart';
 import 'package:ghost_md/root/capture_route.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -136,6 +140,7 @@ void main() {
   late _Service service;
   late MeetingLive live;
   late StreamController<void> keys;
+  late StreamController<void> assists;
   CaptureHandlers? handlers;
   late int cancels;
   String? stopSays;
@@ -145,6 +150,7 @@ void main() {
     service = _Service();
     live = MeetingLive(host: service, writeUpRunningNow: () => false);
     keys = StreamController<void>.broadcast(sync: true);
+    assists = StreamController<void>.broadcast(sync: true);
     handlers = null;
     cancels = 0;
     stopSays = null;
@@ -181,6 +187,7 @@ void main() {
       assistant: assistant,
       launch: launch,
       captureKey: keys.stream,
+      assistKey: assists.stream,
       canMeet: canMeet,
     );
   }
@@ -599,6 +606,122 @@ void main() {
       await tester.runAsync(() => voice.phoneSaid('unlocked'));
       expect(voice.locked, isFalse);
       await close(tester);
+    });
+  });
+
+  // Matt, 2026-10-17: "Add the AI voice input back in add a microphone icon to the dock bar ... When talking show the
+  // sound ripples then show claudes or whatever AI agent were using thought process and then follow along
+  // automatically also add the setting back in to be able to bind ghost as the agent on the phone".
+  group('Talk to Claude', () {
+    Future<void> key(WidgetTester tester, String? key) => tester.runAsync(() async {
+          await claudeSettings.load();
+          await claudeSettings.setKey(key);
+        });
+    Finder talk() => find.byKey(const ValueKey('dock-claude-talk'));
+
+    testWidgets('is under Claude on every dock while Claude is on, beside Speak and not it, and nowhere while Claude is off or nothing can hear', (tester) async {
+      await open(tester);
+      final home = find.descendant(of: find.byType(HomeScreen), matching: talk());
+      expect(home, findsOneWidget);
+      final claude = find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-claude')));
+      final speak = find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-speak')));
+      expect(tester.getRect(home).top, greaterThan(tester.getRect(claude).top));
+      expect(tester.getRect(home).top, lessThan(tester.getRect(speak).top));
+      // A note's dock has it too.
+      shellOf(tester).openNote(library.value.first.id);
+      await settle(tester);
+      expect(find.descendant(of: find.byType(NoteScreen), matching: talk()), findsOneWidget);
+      await close(tester);
+
+      // Claude's plugin off: no Talk to Claude, as no Claude.
+      final before = plugins;
+      addTearDown(() => usePlugins(before));
+      usePlugins(createRegistry(builtIn, store: MemorySwitches({'claude': false})));
+      await open(tester);
+      expect(talk(), findsNothing);
+      expect(find.byKey(const ValueKey('dock-speak')), findsOneWidget);
+      await close(tester);
+      usePlugins(before);
+
+      // Nothing to hear with: none.
+      await open(tester, voice: false);
+      expect(find.byKey(const ValueKey('dock-claude')), findsOneWidget);
+      expect(talk(), findsNothing);
+      await close(tester);
+    });
+
+    testWidgets('listens with the ripples and the words as they come, a tap sends them, and without a key they go to the Ask Claude note', (tester) async {
+      await key(tester, null);
+      await open(tester);
+      final before = library.value.length;
+      await tester.tap(talk());
+      await settle(tester, 3);
+      expect(find.byKey(const ValueKey('claude-voice-listening')), findsOneWidget);
+      expect(find.byKey(const Key('voice-waves')), findsOneWidget);
+      expect(handlers, isNotNull, reason: 'the ear is the recorder\'s transcriber');
+      expect(shellOf(tester).screen, isA<ScreenList>(), reason: 'no recording, no note of its own');
+      handlers!.onPartial('add milk');
+      await tester.pump();
+      expect(find.text('add milk'), findsOneWidget);
+      handlers!.onSegment(const Segment(startMs: 0, endMs: 900, text: 'Add milk to the groceries.'));
+      await tester.pump();
+      expect(find.text('Add milk to the groceries.'), findsOneWidget);
+      stopSays = 'Add milk to the groceries.';
+      await tester.tap(find.byKey(const ValueKey('claude-voice-mic')));
+      await until(tester, () => find.byKey(const ValueKey('claude-voice-sent')).evaluate().isNotEmpty, 'the words were not sent');
+      final inbox = library.value.where((note) => noteTitle(note.body) == 'Ask Claude').single;
+      expect(inbox.body, contains('- [ ] Add milk to the groceries.'));
+      expect(library.value.length, before + 1, reason: 'the inbox, and nothing else');
+      // It goes by itself.
+      await tester.pump(claudeLinger + const Duration(seconds: 1));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
+      await close(tester);
+    });
+
+    testWidgets('closes on its close while it listens, and the microphone goes with it', (tester) async {
+      await key(tester, null);
+      await open(tester);
+      await tester.tap(talk());
+      await settle(tester, 3);
+      expect(handlers, isNotNull);
+      await tester.tap(find.byKey(const ValueKey('claude-voice-close')));
+      await settle(tester, 2);
+      expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
+      expect(cancels, 1);
+      await close(tester);
+    });
+
+    testWidgets('is what the phone\'s assistant does where Claude can answer, and a recording where it cannot', (tester) async {
+      // No key: the assistant records, as it always has, launched by it or pressed while open.
+      await key(tester, null);
+      await open(tester, assistant: true, launch: 'assist');
+      await until(tester, () => handlers != null && shellOf(tester).screen is ScreenCapture, 'the assistant did not record');
+      expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
+      await close(tester);
+
+      // A key: Claude listens instead, and the assistant pressed again is "done".
+      await key(tester, 'sk-ant-test-0000000000');
+      addTearDown(() => claudeSettings.setKey(null));
+      await open(tester, assistant: true);
+      assists.add(null);
+      await until(tester, () => find.byKey(const ValueKey('claude-voice-listening')).evaluate().isNotEmpty, 'the assistant did not talk to Claude');
+      expect(shellOf(tester).screen, isA<ScreenList>());
+      // Record note, from the icon, is still a recording.
+      await tester.tap(find.byKey(const ValueKey('claude-voice-close')));
+      await settle(tester, 2);
+      keys.add(null);
+      await until(tester, () => shellOf(tester).screen is ScreenCapture, 'Record note did not record');
+      await close(tester);
+
+      // The phone locked: a recording, which knows the lock screen; a note Claude opens is not for it.
+      await open(tester, assistant: true);
+      service.lockedNow = true;
+      assists.add(null);
+      await until(tester, () => shellOf(tester).screen is ScreenCapture, 'the locked phone did not record');
+      expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
+      await close(tester);
+      await key(tester, null);
     });
   });
 
