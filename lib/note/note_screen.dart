@@ -352,12 +352,18 @@ class NoteScreen extends StatefulWidget {
     this.clock,
     this.dock,
     this.backLabel = 'Notes',
+    this.back = false,
   });
 
   final Note note;
   final NoteLibrary library;
   final WorkspaceStore workspaces;
   final VoidCallback onBack;
+
+  /// A Back of its own at the start of its header, where the app's bar is not there to hold Home: simple mode's
+  /// plain shell on a phone (GHST-105, lib/shell/app_shell.dart `_plain`). Nothing while the tools are in the bar's
+  /// slot, and nothing beside a list pane, where the note is never the only thing on screen.
+  final bool back;
   final ValueChanged<String> onDelete;
 
   /// Pin or unpin, given the note as it stands now (`onPin({...note, starred: pinned})`).
@@ -1677,7 +1683,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     // wide window with the keyboard down a pill at the foot beside the dock. Advanced mode has none.
     final formatting = prefs.simple && view != null && _words && _raw && !widget.readOnly;
     final keyboardBar = KeyboardBarScope.maybeOf(context);
-    final wide = MediaQuery.sizeOf(context).width >= 600;
+    // Wide is the page's own room, not the window's: beside simple mode's list column (GHST-105) a Fold opened out
+    // leaves the note 404 wide, where the pill stood past the dock's room and over the edge.
+    final wide = pageWidth >= 600;
     final Widget? formatStrip = formatting && keyboardUp && keyboardBar == null ? _formatBar(view, FormatBarLook.strip) : null;
     final formatPill = formatting && !keyboardUp && wide;
     _watchMinute(offering);
@@ -1888,10 +1896,30 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 // `.header { padding-inline: gutters; padding-block: safe-top + space-1, space-2 }`
                 padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
                 child: prefs.simple
+                    // Simple mode's own header (GHST-105): ‹ Notes, ⋯ and Done; the shell's plain path draws no bar.
                     ? NoteSimpleHeader(backLabel: widget.backLabel, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null)
                     : LayoutBuilder(
-                        builder: (context, box) => Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
-                      ),
+                  builder: (context, box) => widget.back
+                      // Simple mode's plain shell (GHST-105) has no bar and so no Home: the note's own Back at the
+                      // row's start, and the tools in what room is left past it.
+                      ? Row(
+                          children: [
+                            NoteToolButton(key: const ValueKey('note-back'), icon: Lucide.arrowLeft, label: 'Back to your notes', onPressed: _back, turns: false),
+                            const Spacer(),
+                            // The tools count what fits a frame after they are laid out: on the frame a window
+                            // narrows (a phone folded shut) they are drawn for the room they had, scaled down to
+                            // the room there is rather than past the edge.
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: NoteTools(model: _toolsModel, room: (box.maxWidth - t.len('app-bar-ring') - t.space(2)).clamp(0.0, double.infinity)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
+                ),
               ),
       ),
       // The note's one line of problems: the sentence said of the note now (`pictures.problem`), and under it

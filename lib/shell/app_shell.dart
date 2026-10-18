@@ -10,6 +10,7 @@ import '../core/tabs.dart';
 import '../core/workspaces.dart';
 import '../notes/note_tabs.dart';
 import '../perf/frame_log.dart';
+import '../simple/simple_pane.dart';
 import 'app_tab_bar.dart';
 import 'open_tabs.dart';
 import 'placeholders.dart';
@@ -121,6 +122,7 @@ class AppShell extends StatefulWidget {
     this.asideBuilder,
     this.asideCardBuilder,
     this.notificationsBuilder,
+    this.emptyPaneBuilder,
     this.onSettings,
     this.onOrganizations,
     this.onNew,
@@ -210,6 +212,10 @@ class AppShell extends StatefulWidget {
   /// The notifications, a card at the right under the bell (notes/NotificationsDrawer.tsx).
   final ShellOverlayBuilder? notificationsBuilder;
 
+  /// Simple mode's right pane while no note is open on a wide window (GHST-105, [_plain]): the ghost and "Pick a
+  /// note, or make one." Absent, the same words without the ghost.
+  final ShellBuilder? emptyPaneBuilder;
+
   /// Settings, from the cog. Absent, a stand-in card opens.
   final VoidCallback? onSettings;
 
@@ -249,9 +255,11 @@ class AppShell extends StatefulWidget {
   final bool leavesAtRoot;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "simple mode has a much more approachable UI with fancy features
-  /// hidden behind more"). The bar keeps Home, the sidebar, Back, the screen's own tools and the cog, and leaves out
-  /// the people icon, the bell, Forward and the aside with its toggle; the tabs keep a new tab, Close tab and Delete
-  /// note and leave out their groups. The root reads the preference and says.
+  /// hidden behind more"; then GHST-105, 2026-10-18: "it still is a bit complex with the tabs and such"). The
+  /// places are drawn plain ([_plain]): no control row and no tab row, no drawer, no docked sidebar, no aside, and
+  /// no row of open notes kept beyond the one on screen. A wide window is the list beside the note instead. The
+  /// bar's own simple trim (no people icon, bell, Forward or groups) stays in [_bar] for whoever draws it with
+  /// `simple` and the bar both, which nothing does now. The root reads the preference and says.
   final bool simple;
 
   /// A phone or a tablet, whatever its window's width; the device's answer unless a test says.
@@ -370,11 +378,18 @@ class AppShellState extends State<AppShell> {
   }
 
   /// What follows from the screen and the library: a note shown is a note open, and arriving somewhere is recorded.
+  /// In simple mode the row is the note on screen and nothing else (GHST-105): a note left on the way home is a tab
+  /// closed, and a row kept from advanced is cut to the note showing.
   void _sync() {
     _tabs.update(shown: shown, notes: _library, live: _seen.live);
+    if (widget.simple) _tabs.trimTo(shown);
     _walk.live = _seen.live;
     _walk.arrive(_screen.place);
   }
+
+  /// Whether simple mode draws the home page as a column beside the note (GHST-105, [_plain]): simple, on a window
+  /// wide enough for two panes. The root asks, to build the page for its column and the note without its Back.
+  bool listPane(BuildContext context) => widget.simple && splitFits(MediaQuery.sizeOf(context), mouse: _mouse);
 
   void _change(VoidCallback change) {
     if (!mounted) return;
@@ -401,7 +416,11 @@ class AppShellState extends State<AppShell> {
   /// [id] in a tab of its own: a tab pressed, an arrow's step, a title tapped on the home page. With [caret], a note
   /// just made, opened to be written in (App.tsx `showMade`).
   void openNote(String id, {String? at, Caret? caret}) => _change(() {
-        _tabs.replaceNext(null);
+        // Simple mode opens every note in the one tab there is (GHST-105): the note shown gives its place to the
+        // next, so the row never grows, and the preferences are written once for the open rather than once to add
+        // and once to trim.
+        final from = shown;
+        _tabs.replaceNext(widget.simple && from != null && from != id ? from : null);
         final note = _noteOf(id);
         if (note != null) _screen = ScreenNote(note, at: at, caret: caret);
         _drawer = false;
@@ -647,15 +666,18 @@ class AppShellState extends State<AppShell> {
     final split = sidebar && screen.isPlace;
     // A phone reading a note: the bar holds the note's own tools, so the people icon, the bell and the cog step out.
     final quietBar = _mobile && screen is ScreenNote;
+    // Simple mode's places are drawn plain (GHST-105): no bar over them, no sidebar beside them, no aside.
+    final plain = widget.simple && screen.isPlace;
     // The sidebar docked beside the note, rather than a card over it: a window wide enough, and Docked chosen.
-    final docked = split && widget.sidebarStyle == SidebarStyle.docked;
+    final docked = split && !plain && widget.sidebarStyle == SidebarStyle.docked;
     final sidebarShown = _sidebarShown ?? sidebarShownByDefault(mouse: _mouse);
     final dockShown = docked && sidebarShown;
-    // Docking takes over from a card left open, so the notes are never drawn twice.
-    if (docked) _drawer = false;
-    final tabBar = screen.isPlace;
+    // Docking takes over from a card left open, so the notes are never drawn twice; and plain has no card at all.
+    if (docked || plain) _drawer = false;
+    final tabBar = screen.isPlace && !plain;
     final stamps = <String, String?>{
-      // How tall the bar is: one line of controls, or that line with the open notes under it.
+      // How tall the bar is: one line of controls, or that line with the open notes under it; nothing where there
+      // is no bar, so `--app-safe-top` is the notch alone.
       'tabs': tabBar ? barRows(topBar, _tabs.tabs.length).stamp : null,
       // Whether the window is in two panes, said on the root so nothing else holds a copy of the threshold.
       'split': sidebar ? 'on' : null,
@@ -676,72 +698,137 @@ class AppShellState extends State<AppShell> {
           shell: this,
           // Rebuilt with every change of the shell's, so whatever asked for the shell is built again.
           stamp: Object(),
-          child: TopBarToolsScope(
-            notifier: _barTools,
-            child: Builder(
-              builder: (context) {
-                // The aside follows the sidebar's shell: a column beside a docked sidebar, else a card. Simple
-                // mode has none: the note's screen keeps its history and links in More.
-                final aside = tabBar && !widget.simple ? widget.asideBuilder?.call(context, this) : null;
-                final asideHolds = aside != null;
-                final asideDocked = docked && _asideShown && asideHolds;
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (!tabBar)
-                      _whole(context)
-                    else
-                      // One window or two panes, the place is the same child of the same row: a phone folded open or
-                      // shut keeps the screen it had - its scroll, its caret, what was typed - where the page made
-                      // the note again in another part of the tree.
-                      _panes(context, split: split, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
-                    if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
-                    if (widget.banner case final banner?)
-                      Positioned(
-                        top: tabBar ? (split ? 0 : context.tokens.len('app-inset-top')) + AppTabBar.heightOf(context.tokens) : context.tokens.len('app-inset-top'),
-                        left: 0,
-                        right: 0,
-                        child: banner,
-                      ),
-                    // The notifications, a card at the right under the bell.
-                    if (_notificationsOpen)
-                      OnBack(
-                        key: const ValueKey('back:notifications'),
-                        onBack: closeNotifications,
-                        child: widget.notificationsBuilder?.call(context, this, closeNotifications) ??
-                            CardPlaceholder(what: 'notifications', atEnd: true, wide: true, onClose: closeNotifications),
-                      ),
-                    // With the sidebar a floating card, the aside is the same card at the right.
-                    if (_asideShown && !asideDocked && asideHolds)
-                      OnBack(
-                        key: const ValueKey('back:aside'),
-                        onBack: _toggleAside,
-                        child: widget.asideCardBuilder?.call(context, this, _toggleAside) ?? _AsideCard(onClose: _toggleAside, child: aside),
-                      ),
-                    // Every note, in a card over the one being read; the tab row's icon opens it.
-                    if (_drawer)
-                      OnBack(
-                        key: const ValueKey('back:drawer'),
-                        onBack: closeSidebar,
-                        child: widget.sidebarBuilder?.call(context, this, closeSidebar) ??
-                            CardPlaceholder(
-                              what: 'all your notes',
-                              onClose: closeSidebar,
-                              children: [for (final note in notes.take(8)) PlaceholderRow(label: _tabTitle(note), onPressed: () => openNote(note.id))],
-                            ),
-                      ),
-                    if (_settings != null)
-                      OnBack(
-                        key: const ValueKey('back:settings'),
-                        onBack: () => _change(() => _settings = null),
-                        child: CardPlaceholder(what: _settings!, atEnd: true, onClose: () => _change(() => _settings = null)),
-                      ),
-                  ],
-                );
-              },
+          // The bar's slot for a screen's own tools is offered only where there is a bar: without it a note draws
+          // its tools in a header of its own (lib/note/note_screen.dart `inBar`), which is what simple mode's plain
+          // places want.
+          child: plain
+              ? Builder(builder: (context) => _frame(context, tabBar: tabBar, plain: true, split: split, sidebar: sidebar, docked: docked, dockShown: dockShown, sidebarShown: sidebarShown, quietBar: quietBar))
+              : TopBarToolsScope(
+                  notifier: _barTools,
+                  child: Builder(builder: (context) => _frame(context, tabBar: tabBar, plain: false, split: split, sidebar: sidebar, docked: docked, dockShown: dockShown, sidebarShown: sidebarShown, quietBar: quietBar)),
+                ),
+        ),
+      ),
+    );
+  }
+
+  /// The screen and everything over it, for one build. [plain] is simple mode's frame (GHST-105): the place, or
+  /// the list beside the place on a wide window ([sidebar]), with no bar and nothing of the bar's; the banner then
+  /// sits under the notch.
+  Widget _frame(
+    BuildContext context, {
+    required bool tabBar,
+    required bool plain,
+    required bool split,
+    required bool sidebar,
+    required bool docked,
+    required bool dockShown,
+    required bool sidebarShown,
+    required bool quietBar,
+  }) {
+    // The aside follows the sidebar's shell: a column beside a docked sidebar, else a card. Simple
+    // mode has none: the note's screen keeps its history and links in More.
+    final aside = tabBar && !widget.simple ? widget.asideBuilder?.call(context, this) : null;
+    final asideHolds = aside != null;
+    final asideDocked = docked && _asideShown && asideHolds;
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        if (plain)
+          _plain(context, split: sidebar)
+        else if (!tabBar)
+          _whole(context)
+        else
+          // One window or two panes, the place is the same child of the same row: a phone folded open or
+          // shut keeps the screen it had - its scroll, its caret, what was typed - where the page made
+          // the note again in another part of the tree.
+          _panes(context, split: split, dockShown: split && dockShown, aside: split && asideDocked ? aside : null),
+        if (tabBar) _bar(context, docked: docked, sidebarShown: sidebarShown, quietBar: quietBar, asideHolds: asideHolds),
+        if (widget.banner case final banner?)
+          Positioned(
+            top: tabBar ? (split ? 0 : context.tokens.len('app-inset-top')) + AppTabBar.heightOf(context.tokens) : context.tokens.len('app-inset-top'),
+            left: 0,
+            right: 0,
+            child: banner,
+          ),
+        // The notifications, a card at the right under the bell.
+        if (_notificationsOpen)
+          OnBack(
+            key: const ValueKey('back:notifications'),
+            onBack: closeNotifications,
+            child: widget.notificationsBuilder?.call(context, this, closeNotifications) ??
+                CardPlaceholder(what: 'notifications', atEnd: true, wide: true, onClose: closeNotifications),
+          ),
+        // With the sidebar a floating card, the aside is the same card at the right.
+        if (_asideShown && !asideDocked && asideHolds)
+          OnBack(
+            key: const ValueKey('back:aside'),
+            onBack: _toggleAside,
+            child: widget.asideCardBuilder?.call(context, this, _toggleAside) ?? _AsideCard(onClose: _toggleAside, child: aside),
+          ),
+        // Every note, in a card over the one being read; the tab row's icon opens it.
+        if (_drawer)
+          OnBack(
+            key: const ValueKey('back:drawer'),
+            onBack: closeSidebar,
+            child: widget.sidebarBuilder?.call(context, this, closeSidebar) ??
+                CardPlaceholder(
+                  what: 'all your notes',
+                  onClose: closeSidebar,
+                  children: [for (final note in notes.take(8)) PlaceholderRow(label: _tabTitle(note), onPressed: () => openNote(note.id))],
+                ),
+          ),
+        if (_settings != null)
+          OnBack(
+            key: const ValueKey('back:settings'),
+            onBack: () => _change(() => _settings = null),
+            child: CardPlaceholder(what: _settings!, atEnd: true, onClose: () => _change(() => _settings = null)),
+          ),
+      ],
+    );
+  }
+
+  /// Simple mode's frame for a place (GHST-105; Matt, 2026-10-18: "it still is a bit complex with the tabs and
+  /// such"): the place alone, the whole window, as a phone has it, with nothing of the shell's drawn over it. The
+  /// phone's back gesture is the place's own [OnBack], as ever; a note draws its own Back where it needs one
+  /// (lib/note/note_screen.dart `back`).
+  ///
+  /// On a window wide enough for two panes ([split]) the home page is a column at the start, kept up whatever is
+  /// on the right, and the place is the rest: the note being read, or with none open a quiet pane that says to pick
+  /// one. So a note opened from the list shows beside it, and the list never goes away. The panes wear the page's
+  /// class while the window is split, as the advanced frame's do ([_panes]).
+  Widget _plain(BuildContext context, {required bool split}) {
+    if (!split) return _place(context);
+    final t = context.tokens;
+    final window = MediaQuery.sizeOf(context).width;
+    final rule = BorderSide(color: t.color('glacier-border-subtle'));
+    final screen = _screen;
+    return GlacierScope(
+      classes: const {'app-split'},
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Semantics(
+            container: true,
+            explicitChildNodes: true,
+            label: 'Your notes',
+            child: Container(
+              width: simpleListColumn(window),
+              decoration: BoxDecoration(border: Border(right: rule)),
+              child: ClipRect(
+                child: KeyedSubtree(key: const ValueKey('simple:list'), child: widget.homeBuilder?.call(context, this) ?? HomePlaceholder(notes: notes, onOpen: openNote, onAllNotes: showAllNotes)),
+              ),
             ),
           ),
-        ),
+          Expanded(
+            key: const ValueKey('pane:place'),
+            child: ClipRect(
+              child: screen is ScreenList
+                  ? KeyedSubtree(key: const ValueKey('simple:empty'), child: widget.emptyPaneBuilder?.call(context, this) ?? const SimpleEmptyPane())
+                  : _place(context),
+            ),
+          ),
+        ],
       ),
     );
   }
