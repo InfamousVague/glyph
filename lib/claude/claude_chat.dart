@@ -548,7 +548,13 @@ class _Pill extends StatelessWidget {
   }
 }
 
-/// A message: the person's on the right in Claude's wash, Claude's on the left on the paper.
+/// Claude's own ink, the dark of its mark's page: what Claude's words are set in on its orange, which ivory is too
+/// light on to read (2.96 to 1; this is over 6).
+const Color _claudeSlate = Color(0xFF141413);
+
+/// A message, as a bubble (Matt, 2026-10-17: "make the messages formatted more like message bubbles match the color
+/// of the AI agent for the messages it sends"): Claude's on the left in its own orange, the person's on the right in
+/// a quiet wash of the ink. Each is rounded but for the corner by its speaker's side, where it tucks in.
 class _Bubble extends StatelessWidget {
   const _Bubble({required this.words, this.mine = false, this.live = false});
 
@@ -562,7 +568,9 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final width = MediaQuery.sizeOf(context).width;
-    final text = Text(words, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink')));
+    final text = Text(words, style: pageText(t, t.fontSize('sm'), color: mine ? t.color('app-ink') : _claudeSlate));
+    final round = Radius.circular(t.radius('xl'));
+    const tucked = Radius.circular(5);
     return Align(
       alignment: mine ? Alignment.centerRight : Alignment.centerLeft,
       child: ConstrainedBox(
@@ -571,8 +579,13 @@ class _Bubble extends StatelessWidget {
           margin: EdgeInsets.symmetric(vertical: t.space(1)),
           padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
           decoration: BoxDecoration(
-            color: mine ? claudeOrange.withValues(alpha: 0.14) : t.colorOf('color-mix(in oklch, var(--app-ink) 5%, transparent)'),
-            borderRadius: BorderRadius.circular(t.radius('lg')),
+            color: mine ? t.colorOf('color-mix(in oklch, var(--app-ink) 8%, transparent)') : claudeOrange,
+            borderRadius: BorderRadius.only(
+              topLeft: round,
+              topRight: round,
+              bottomLeft: mine ? round : tucked,
+              bottomRight: mine ? tucked : round,
+            ),
           ),
           child: Semantics(liveRegion: live, child: text),
         ),
@@ -638,8 +651,9 @@ class _Composer extends StatelessWidget {
     final run = runner.run;
     final hasKey = runner.settings.hasKey;
     if (!hasKey && chat.onInbox == null) return const SizedBox.shrink();
-    // Send is round, as tall as the field less a little room above and below, inside its trailing end.
-    final send = t.len('glacier-control-height-lg') - 2 * t.space(1);
+    // Send is a small round inside the field's trailing end, three fifths of its height (Matt, 2026-10-17: "Make the
+    // send / delete smaller"), and Stop the same.
+    final send = (t.len('glacier-control-height-lg') * 0.6).roundToDouble();
     return Container(
       padding: EdgeInsets.fromLTRB(t.space(3), t.space(2), t.space(3), t.space(3)),
       decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('glacier-border-subtle'), width: t.len('glacier-hairline')))),
@@ -678,8 +692,8 @@ class _Composer extends StatelessWidget {
             onSubmitted: (_) => state._send(),
             trailingExtent: send,
             trailing: runner.working
-                ? _Round(key: const ValueKey('claude-stop'), label: 'Stop Claude', onPressed: runner.stop, filled: true, side: send, child: const AppIcon(Lucide.square, size: 14, color: claudeIvory))
-                : _Round(key: const ValueKey('claude-send'), label: 'Send', onPressed: state._send, filled: true, side: send, child: const AppIcon(Lucide.arrowUp, size: 17, color: claudeIvory)),
+                ? _Round(key: const ValueKey('claude-stop'), label: 'Stop Claude', onPressed: runner.stop, filled: true, side: send, child: const AppIcon(Lucide.square, size: 11, color: claudeIvory))
+                : _Round(key: const ValueKey('claude-send'), label: 'Send', onPressed: state._send, filled: true, side: send, child: const AppIcon(Lucide.arrowUp, size: 15, color: claudeIvory)),
           ),
         ],
       ),
