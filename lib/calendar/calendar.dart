@@ -40,6 +40,11 @@ import 'store.dart';
 const Duration icalEvery = Duration(minutes: 30);
 const Duration googleEvery = Duration(minutes: 15);
 
+/// How soon after the notes change the to-dos are put on Google (Matt, 2026-10-17: "show up on my personal calendar
+/// in real time and are removed when removed"): a few seconds, so a run of typing is one pass, and only when what
+/// goes on the calendar is not what was put there last.
+const Duration todosSoon = Duration(seconds: 4);
+
 /// How a Google sign-in is waited for: a claim every 2 seconds, for 10 minutes.
 const Duration claimEvery = Duration(seconds: 2);
 const Duration claimFor = Duration(minutes: 10);
@@ -57,7 +62,7 @@ String? defaultGoogleBase() {
 const String _userAgent = 'GhostMd/0.1.0 (https://ghostmarkdown.com)';
 
 class CalendarService extends ChangeNotifier {
-  CalendarService({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, String? Function()? googleBase, int Function()? clock, Future<void> Function(String url)? open})
+  CalendarService({Fetcher? fetch, PreferencesStore? prefs, Stored Function()? kept, String? Function()? googleBase, int Function()? clock, Future<void> Function(String url)? open, this.todosWait = todosSoon})
       : _fetch = fetch,
         _prefs = prefs,
         _kept = CalendarKept(kept),
@@ -70,6 +75,9 @@ class CalendarService extends ChangeNotifier {
   final CalendarKept _kept;
   final String? Function() _googleBase;
   final int Function() _clock;
+
+  /// How long after the notes change the to-dos go to Google: [todosSoon], shorter in a test.
+  final Duration todosWait;
   final Future<void> Function(String url) _open;
 
   Fetcher get _fetcher => _fetch ??= ioFetcher();
@@ -164,6 +172,8 @@ class CalendarService extends ChangeNotifier {
   // ---- the schedule ----------------------------------------------------------------------------------------------
 
   List<QueryNote> Function()? _notes;
+  Listenable? _notesChanged;
+  Timer? _todosSoon;
   Timer? _icalBeat;
   Timer? _googleBeat;
   Timer? _soon;
@@ -174,12 +184,14 @@ class CalendarService extends ChangeNotifier {
   bool get started => _started;
 
   /// Starts reading for the life of the app: a read now, then on the beats, and when the calendars change. [notes]
-  /// is the library a pass of to-dos reads. [on] is the Calendar plugin's switch, and [switched] says when it moves.
-  /// Once.
-  void start({List<QueryNote> Function()? notes, bool Function()? on, Listenable? switched}) {
+  /// is the library a pass of to-dos reads, and [notesChanged] says when it changes (here or synced from another
+  /// device): the to-dos are put on Google soon after ([todosSoon]). [on] is the Calendar plugin's switch, and
+  /// [switched] says when it moves. Once.
+  void start({List<QueryNote> Function()? notes, Listenable? notesChanged, bool Function()? on, Listenable? switched}) {
     _notes = notes ?? _notes;
     if (_started) return;
     _started = true;
+    _notesChanged = notesChanged?..addListener(_onNotes);
     _on = on ?? _always;
     _wasOn = active;
     _switched = switched?..addListener(_onSwitch);
@@ -214,6 +226,10 @@ class CalendarService extends ChangeNotifier {
     prefs.removeListener(_onPrefs);
     _switched?.removeListener(_onSwitch);
     _switched = null;
+    _notesChanged?.removeListener(_onNotes);
+    _notesChanged = null;
+    _todosSoon?.cancel();
+    _todosSoon = null;
     _icalBeat?.cancel();
     _googleBeat?.cancel();
     _soon?.cancel();
@@ -498,6 +514,68 @@ class CalendarService extends ChangeNotifier {
 
   Future<void>? _googlePass;
 
+  /// What was last put on Google of the to-dos: the calendar and each event's id, day and words. Null until a pass
+  /// has, so the first after the app opens always does.
+  String? _exported;
+
+  static String _fingerprint(String calendarId, List<TodoEvent> todos) =>
+      [calendarId, ...([for (final todo in todos) '${todo.id}|${todo.day}|${todo.title}']..sort())].join('\n');
+
+  /// The notes changed: the to-dos put on Google soon, where they go there at all.
+  void _onNotes() {
+    final google = setup.google;
+    if (!_started || google == null || !google.todos || _localOnly || !active) return;
+    _todosSoon?.cancel();
+    _todosSoon = Timer(todosWait, () {
+      _todosSoon = null;
+      unawaited(exportTodosNow());
+    });
+  }
+
+  Future<void>? _todoPass;
+  bool _todosAgain = false;
+
+  /// Puts the to-dos on Google now, alone, without reading any calendar: an added or moved to-do's event made or
+  /// moved, a ticked or removed one's deleted. Nothing is asked of Google when they are what was put there last. A
+  /// change while a pass runs is put there once it ends.
+  Future<void> exportTodosNow() {
+    if (_todoPass != null) {
+      _todosAgain = true;
+      return _todoPass!;
+    }
+    return _todoPass = _exportTodos().whenComplete(() {
+      _todoPass = null;
+      if (_todosAgain) {
+        _todosAgain = false;
+        unawaited(exportTodosNow());
+      }
+    });
+  }
+
+  Future<void> _exportTodos() async {
+    final google = setup.google;
+    final api = _api;
+    final notes = _notes;
+    if (google == null || api == null || notes == null || !google.todos || _localOnly || !active) return;
+    final target = todoCalendarOf(google);
+    if (target == null) return;
+    // A whole pass running puts them there itself.
+    if (_googlePass case final running?) await running;
+    final wanted = todoEvents(libraryOf(notes()));
+    final print = _fingerprint(target, wanted);
+    if (print == _exported) return;
+    try {
+      await exportTodos(_session(google, api), target, wanted);
+      _exported = print;
+    } on GoogleFailure catch (failure) {
+      _kept.setStatus(googleSource, SourceStatus(at: _clock(), problem: failure.message));
+      _changed();
+    } catch (_) {
+      _kept.setStatus(googleSource, SourceStatus(at: _clock(), problem: 'Your to-dos couldn’t be put on Google Calendar.'));
+      _changed();
+    }
+  }
+
   /// Lists the calendars, reads the ticked ones, and puts the to-dos on theirs when that is on. A pass already
   /// running is the one answered.
   Future<void> syncGoogle() => _googlePass ??= _google().whenComplete(() {
@@ -505,13 +583,17 @@ class CalendarService extends ChangeNotifier {
         notifyListeners();
       });
 
+  /// The account's Google, its access kept on this device between passes.
+  GoogleSession _session(GoogleSetup google, GoogleCalendarApi api) =>
+      GoogleSession(api: api, refreshToken: google.refreshToken, tokens: _kept.tokens, onTokens: (next) => _kept.tokens = next);
+
   Future<void> _google() async {
     final google = setup.google;
     final api = _api;
     if (google == null || api == null || _localOnly || !active) return;
     String? problem;
     try {
-      final session = GoogleSession(api: api, refreshToken: google.refreshToken, tokens: _kept.tokens, onTokens: (next) => _kept.tokens = next);
+      final session = _session(google, api);
       final calendars = await session.calendars();
       _kept.calendars = calendars;
       final window = calendarWindow(DateTime.fromMillisecondsSinceEpoch(_clock()));
@@ -530,7 +612,9 @@ class CalendarService extends ChangeNotifier {
       final notes = _notes;
       final target = todoCalendarOf(google);
       if (google.todos && notes != null && target != null) {
-        await exportTodos(session, target, todoEvents(libraryOf(notes())));
+        final wanted = todoEvents(libraryOf(notes()));
+        await exportTodos(session, target, wanted);
+        _exported = _fingerprint(target, wanted);
       }
     } on GoogleFailure catch (failure) {
       problem = failure.message;
