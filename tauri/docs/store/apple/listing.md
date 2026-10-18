@@ -151,6 +151,16 @@ In `ghost-md-app-store-pack/screenshots/2026-10-18-flutter-2.2.1/` (`raw/`, kept
 The 2.0.5 set (seven pictures of the same invented library, 1290 x 2796) is still in
 `screenshots/2026-10-13-flutter-2.0.5/`, and still on the live 2.0.5 version.
 
+### The iPhone Duo set (APP_IPHONE_DUO)
+
+The same ten scenes, kickers and captions, 2007 x 2853 (the Duo's inner display, the size the 1.10.0 Duo set was
+accepted at), 24-bit PNG with no alpha, in `screenshots/2026-10-18-flutter-2.2.1/iphone-duo/` (raws in `raw-duo/`).
+**They are pictures of the Duo simulator's cover screen** (1398 x 2034, the app's phone layout), drawn whole inside the
+2007 x 2853 frame: the simulator boots folded, and nothing in `simctl` unfolds it (`io screenConfig` can power a screen
+on or off but SpringBoard stays on the cover). Unfolding is done in Xcode's Device Hub, not done here. The cover's own
+status cluster (the time and Wi-Fi at its right edge) shows in each picture. Shot by
+`tools/shoot-ios-2.2-duo-scene.sh` (screenshots from `--display=1`) and composed by `tools/compose-ios-2.2-duo.mjs`.
+
 ## Version 2.2.1 in App Store Connect (2026-10-18)
 
 - Build 2.2.1 (2002001) made by `tool/cutover-build-ios.sh 2.2.1` from 37dfa47e, validated and uploaded with
@@ -158,6 +168,6 @@ The 2.0.5 set (seven pictures of the same invented library, 1290 x 2796) is stil
 - Version 2.2.1 created (`ed771246-adbf-4016-8b51-ed5fdaa0dfb7`, `PREPARE_FOR_SUBMISSION`, released after approval
   as 2.0.5 was), the build attached, the en-US fields above set and read back, the subtitle set on the app info, the
   seven inherited screenshots taken off this version's set (2.0.5's own are untouched) and the ten above uploaded,
-  each `COMPLETE`. Review details came across from 2.0.5. **Not submitted**: Matt reviews, then submits.
+  each `COMPLETE`. The Duo set above was made on this version (2.0.5 had none) and its ten are `COMPLETE`. Review details came across from 2.0.5. **Not submitted**: Matt reviews, then submits.
 - The custom product page "Markdown, supercharged!" was not changed: its version 1 is waiting for review.
 
