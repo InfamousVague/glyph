@@ -524,7 +524,7 @@ class CalendarService extends ChangeNotifier {
   String? _exported;
 
   static String _fingerprint(String calendarId, List<TodoEvent> todos) =>
-      [calendarId, ...([for (final todo in todos) '${todo.id}|${todo.day}|${todo.title}']..sort())].join('\n');
+      [calendarId, ...([for (final todo in todos) '${todo.id}|${todo.day}|${todo.time}|${todo.title}']..sort())].join('\n');
 
   /// The notes changed: the to-dos put on Google soon, where they go there at all.
   void _onNotes() {
