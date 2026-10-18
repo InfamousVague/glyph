@@ -699,3 +699,90 @@ guide's goldens taken again for the fifth dot; `measure_test.dart` holds the web
 - The note's, an organization's and Settings' own docks keep Claude in Simple (`_pageDock`); home's and All notes'
   do not.
 - The Academy's "I know Markdown already" switch and the mode are not tied together.
+
+## simple-shell: simple mode as a shell of its own (GHST-105, branch `feat/simple-plain`, 2026-10-18)
+
+Matt, 2026-10-18: "The simple mode in the app is not quite right, it still is a bit complex with the tabs and such,
+spend a significant amount of time looking into simple apps like todoist and others to build out a clean simple
+UI". GHST-103 trimmed the advanced shell; this replaces it in simple mode with a shell of its own, built from what
+Apple Notes, Simplenote, Google Keep, Bear, Todoist, Things 3, Microsoft To Do, Apple Reminders and TickTick share
+on a phone (the ticket holds the research): one navigation stack with Back and no document tabs; a flat list or a
+few views as the first screen; search at the top of the list; one create button at the bottom right; Settings a
+quiet gear; rows of title, preview line and date; swipe right to pin, left to delete; a note with Back, ⋯ and Done
+and a short bar above the keyboard. His decisions: Notes / To-dos tabs with a big + and one mic above them; plain
+rows grouped Pinned then by day; ‹ Notes, ⋯, Done on a note with the title in the page; list left and note right on
+a wide window. Advanced is untouched.
+
+### The plain shell
+
+**Where:** `lib/shell/app_shell.dart` (`_plain`, `_frame`; `plain = simple && screen.isPlace`): no control row, no
+tab row (the `'tabs'` stamp is null, so `app-safe-top` is the inset alone), the banner under the inset, no drawer,
+no aside, no docked sidebar; the subtree is not under `TopBarToolsScope`, so a note draws its own header. Narrow:
+the place alone, its `OnBack` the phone's gesture. Wide (`splitFits`): a `Row` under `app-split` with the home
+builder in `simpleListColumn` (lib/shell/wide_screen.dart; semantics "Your notes", never torn down) and the place on
+the right, or `emptyPaneBuilder` / `SimpleEmptyPane` (lib/simple/simple_pane.dart) on the list screen. Tabs:
+`openNote` swaps the shown note's tab (`replaceNext`) and `_sync()` calls `OpenTabsController.trimTo(shown)`
+(lib/shell/open_tabs.dart), so `prefs.openNotes` is `[id]` or `[]` in simple. Whole-window screens (capture,
+meeting, Academy) are as they were.
+
+### The home page
+
+**Where:** `lib/simple/simple_home.dart` (`SimpleHome`, `SimpleRow`, `SimpleGroup`, `simpleGroups`,
+`simpleSwipes`), `lib/simple/simple_bar.dart` (`SimpleTab { notes, todos }`, `SimpleBar`, `SimpleActions`); the root
+builds it in `_simpleHome` (lib/root/root_parts.dart) in place of `HomeScreen`, keeping the tab on the device
+(`_simpleTab`, not synced).
+
+- Header: "Notes" or "To-dos" large, a gear on the right; a search field under it that filters as you type (no
+  operator chips, no Filters); the root's notices (update, the simple-or-advanced card, the Academy card) above the
+  rows.
+- Rows: title, one preview line, the date on the right, a hairline between; a pin mark on pinned rows; grouped
+  Pinned, Today, Yesterday, Earlier this week, This month, Earlier (the timeline's words). Tap opens; swipe right
+  pins, swipe left deletes; the row's menu holds the rest. Notebooks, journals and canvases that exist are rows by
+  their names.
+- Bottom: the bar with Notes and To-dos (icon and word, the current one in `app-ink`), and above its end a filled
+  round + (`simple-new`: a note straight away; held, the + sheet) and a plain round mic (`simple-speak`: Talk to
+  Claude where Claude can hear, the recorder otherwise; none where neither can). On a wide window the bar becomes a
+  two-word switch under the header and the two buttons sit at the column's foot (`pane: true`).
+- Empty: the ghost with "Write it, or tap the mic and say it." / "Tap + to write it."
+
+### To-dos
+
+**Where:** `lib/simple/simple_todos.dart` (`SimpleTodos`), `lib/simple/todos_groups.dart` (`todoGroups`, `Todo`,
+`TodoGroup`, `dueWords`, `priorityWords`). Every open to-do across the notes out of the trash (`openTasks`,
+lib/home/dashboard.dart, which skips fences, the archive and the Guide), its due day and priority read with
+`fieldsOf` (lib/core/task_fields.dart), grouped Overdue, Today, Later, Someday (dated groups by day then priority;
+Someday most recently touched first), with counts in the eyebrows; a collapsed Done shelf for what was ticked in
+this sitting. A row: a 44 px tick target (an empty ring, red when overdue), the words stripped of their fields, the
+note's name and day under them. The tick calls the root, which writes `tickedBody` through `_writeNote` as the
+query lists do; the words open the note at the line (`openNote(id, at: 'line:N')`). Re-read only when the notes
+list, the trash or the day changes. Laid out whole inside the page that scrolls.
+
+### The note
+
+**Where:** `lib/note/note_screen.dart` (`back`, `backLabel`), `lib/note/note_tools.dart` (`NoteSimpleHeader`,
+`NoteHeaderWord`, `viewSwitchRow`), `lib/note/format_bar.dart` (the tail), `lib/note/note_settings.dart`
+(`NoteViewSwitch`), `lib/root/note_desk.dart` (`onAddImage`), `lib/note/note_builder.dart`. In simple with no bar
+the note's header is ‹ Notes (or ‹ To-dos, the list it came from; none beside the list on a wide window), ⋯ for the
+sheet, and Done while the keyboard is up (lowers it, saved first); the title stays the page's first heading. The
+sheet's "Reading it" gains the view switch (Show the marks / Show the formatted note); Pin and Archive are there
+already; the dock draws nothing. The Format bar: Bold, Italic, Heading, List, To-do, Link, a divider, then
+picture (the band's Add image), + (the +'s list for the caret's line) and the mic (Talk into this note, or the
+root's Talk ring where Claude can hear, one mic), with Done after them on the iPhone's row; the row scrolls
+sideways with the six first. "Wide" for the pill is the page's own width, so a Fold opened out beside the list
+keeps the strip.
+
+### Tests
+
+`test/simple/simple_home_test.dart`, `simple_todos_test.dart`; `test/shell/simple_shell_test.dart` (replaces
+`simple_bar_test.dart`); `test/root/simple_test.dart` (the simple page, opening a note in the one tab, the To-dos
+tab and a tick written into its note, the simple-or-advanced card), `simple_wide_test.dart` (folded shut and
+opened out), `parts_test.dart`; `test/note/note_simple_header_test.dart`, `note_format_bar_test.dart`,
+`note_screen_test.dart` (the rig's `back` follows the mode).
+
+### Not done
+
+- The To-dos tab is not kept across launches (the app opens on Notes).
+- The Done shelf is per sitting: no tick writes a ✅ date, so "ticked today" cannot be read back from the notes.
+- Simple mode on a Mac has no title-bar drag strip (it lived in the bar); the header clears the window buttons.
+- The notifications card can still be opened programmatically in simple; nothing offers it.
+- Quick-add of a to-do from the To-dos tab (a line typed straight into the list) is not built; the + makes a note.
