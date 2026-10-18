@@ -77,11 +77,12 @@ void main() {
     // A rem is 20 pixels of the screen: the row's chip, 1.85rem, is 37 across.
     expect(tester.getRect(find.byKey(const ValueKey('settings-row-icon')).first).width, closeTo(1.85 * 16 * 1.25, 0.01));
     expect(tester.getRect(find.byType(SettingsSheet)), const Rect.fromLTWH(0, 0, 390, 844));
-    // The row is pressed where it is seen.
-    await tester.tapAt(tester.getCenter(find.text('Appearance')));
+    // The row is pressed where it is seen. Account's: since Simple or advanced heads the list (2026-10-18) the
+    // rows below it are a card further down, and at 125% Appearance's is off the phone's screen.
+    await tester.tapAt(tester.getCenter(find.text('Account')));
     await tester.pump();
     await settleSettings(tester);
-    expect(tester.widget<Text>(find.byKey(const ValueKey('settings-display'))).data, 'Appearance');
+    expect(tester.widget<Text>(find.byKey(const ValueKey('settings-display'))).data, 'Account');
     await tester.tapAt(tester.getCenter(find.byKey(const ValueKey('settings-head-word'))));
     await tester.pump();
     await settleSettings(tester);

@@ -19,7 +19,18 @@ import 'support.dart';
 /// Settings itself: the app's sections in the web app's order (src/app/settings/SettingsSheet.tsx), their live
 /// readings, the links into it, and the list held to the rects the web page measured (2026-10-07, 390 x 844 and
 /// 1280 x 800, light). The Flutter app is the phone app, so it lists what the web lists inside the Android app,
-/// which is three rows more than a browser's page: Library folder, Backup, Recording and AI.
+/// which is three rows more than a browser's page: Library folder, Backup, Recording and AI. Since 2026-10-18
+/// (GHST-103) Simple or advanced heads the list on a card of its own, so the web's first card is one row and a gap
+/// further down than the page measured it ([_abovePhone], [_aboveWide]); Simple's own shorter list is
+/// experience_pane_test.dart's.
+
+/// What stands over Account's card now: Simple or advanced's row (64.38 on a phone, as every row is) and the gap
+/// between two cards (17.85, as the page's second card has under its first).
+const double _abovePhone = 64.38 + 17.85;
+
+/// The same on a wide window, in the column's own measures: its row, and the gap between its cards
+/// (`--glacier-space-4` at the window's scale, 21.07).
+const double _aboveWide = 71.19 + 21.07;
 
 Future<void> _open(WidgetTester tester, {Preferences prefs = const Preferences(theme: 'light'), Size size = phone, int toCheatSheet = 0, int toModel = 0, SettingsTarget? toPage, VoidCallback? onClose}) =>
     pumpSettings(tester, SettingsSheet(open: true, onClose: onClose ?? () {}, toCheatSheet: toCheatSheet, toModel: toModel, toPage: toPage), size: size, prefs: prefs);
@@ -58,6 +69,8 @@ void main() {
     testWidgets('are the web app’s, in its order, each with its reading', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       expect(_rows(tester), {
+        // The port's own, first (GHST-103): the mode the app is in, advanced until it is chosen.
+        'Simple or advanced': 'Advanced',
         'Account': 'Not signed in',
         'Organizations': 'Signed out',
         'Workspaces': 'None yet',
@@ -72,12 +85,14 @@ void main() {
         'Plugins': '0 of 0 added',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
+      expect(_rows(tester).keys, ['Simple or advanced', 'Account', 'Organizations', 'Workspaces', 'Notifications', 'Library folder', 'Backup', 'Export', 'Appearance', 'Recording', 'AI', 'Plugins', 'About']);
       await endSettings(tester);
     });
 
     test('are one table: every section of the web’s sheet, each with its icon, its card and the web file its page is', () {
       expect([for (final spec in settingsSections) (spec.id, spec.group, spec.glyph)], [
+        // The port's own (2026-10-18, GHST-103): how much of the app there is, on a card of its own over Account's.
+        ('experience', 6, SettingsGlyph.slidersHorizontal),
         ('account', 0, SettingsGlyph.circleUser),
         ('organizations', 0, SettingsGlyph.userGroup),
         ('workspaces', 0, SettingsGlyph.folder),
@@ -118,7 +133,8 @@ void main() {
     testWidgets('wear the web’s colours: Account and Organizations blue, Notifications coral, Appearance purple, Recording red, Plugins green, the rest grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
-      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#2a9d4b', '#7c7c82'];
+      // Simple or advanced, first, is grey: a level to set, not a feature with a colour of its own.
+      final want = ['#7c7c82', '#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82', '#7c7c82', '#9a45c9', '#dd3a30', '#7c7c82', '#2a9d4b', '#7c7c82'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');
@@ -155,7 +171,7 @@ void main() {
     testWidgets('leave out what an iPhone has no use for, and add the hidden pages once they are unlocked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await _open(tester, size: const Size(390, 1200));
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Plugins', 'About']);
+      expect(_labels(tester), ['Simple or advanced', 'Account', 'Organizations', 'Workspaces', 'Notifications', 'Export', 'Appearance', 'Plugins', 'About']);
       debugDefaultTargetPlatformOverride = null;
       await endSettings(tester);
 
@@ -163,7 +179,7 @@ void main() {
       expect(_labels(tester), isNot(contains('Developer')));
       developerMode.set(true);
       await tester.pump();
-      expect(_labels(tester).sublist(12), ['Developer', 'Test results']);
+      expect(_labels(tester).sublist(13), ['Developer', 'Test results']);
       expect(_rows(tester)['Developer'], 'Benches, reset');
       await endSettings(tester);
     });
@@ -288,14 +304,16 @@ void main() {
       expect(tester.widget<Text>(find.text('Search settings')).style!.color, sameColor(cssColor(tester, 'oklch(0.8 0 0)')));
 
       // The rows: 64.38 the first, 65.38 each after it with its hairline; the chip, the label over its line, the
-      // chevron.
+      // chevron. The first card is Simple or advanced's now, where the page's first row was; Account's card and
+      // the rest follow it, each the page's own measure down.
       Rect row(String label) => tester.getRect(_rowFor(label));
-      expect(row('Account'), rectNear(22.31, 118.69, 345.38, 64.38, 0.1));
-      expect(row('Organizations'), rectNear(22.31, 183.06 + 1, 345.38, 64.38, 0.1));
-      expect(row('Workspaces').top, closeTo(248.44 + 1, 0.1));
-      expect(row('Notifications').top, closeTo(313.81 + 1, 0.1));
+      expect(row('Simple or advanced'), rectNear(22.31, 118.69, 345.38, 64.38, 0.1));
+      expect(row('Account'), rectNear(22.31, 118.69 + _abovePhone, 345.38, 64.38, 0.1));
+      expect(row('Organizations'), rectNear(22.31, 183.06 + 1 + _abovePhone, 345.38, 64.38, 0.1));
+      expect(row('Workspaces').top, closeTo(248.44 + 1 + _abovePhone, 0.1));
+      expect(row('Notifications').top, closeTo(313.81 + 1 + _abovePhone, 0.1));
       // The next card begins 17.85 under the first, where the page's second card does.
-      expect(row('Library folder').top, closeTo(397.03, 0.1));
+      expect(row('Library folder').top, closeTo(397.03 + _abovePhone, 0.1));
       expect(tester.getRect(find.byKey(const ValueKey('settings-row-icon')).first), rectNear(35.7, 136.08, 29.59, 29.59, 0.1));
       final chip = tester.widget<Container>(find.byKey(const ValueKey('settings-row-icon')).first).decoration! as BoxDecoration;
       expect(chip.borderRadius, BorderRadius.circular(8.8));
@@ -309,7 +327,7 @@ void main() {
       expect(tester.widget<Text>(label).style!.fontWeight, FontWeight.w500);
       expect(tester.widget<Text>(summary).style!.fontSize, closeTo(13.3948, 0.001));
       expect(tester.widget<Text>(summary).style!.color, sameColor(cssColor(tester, 'oklch(0.56 0 0)')));
-      final chevron = find.descendant(of: _rowFor('Account'), matching: find.byType(SettingsIcon)).last;
+      final chevron = find.descendant(of: _rowFor('Simple or advanced'), matching: find.byType(SettingsIcon)).last;
       expect(tester.getRect(chevron), rectNear(336.3, 141.88, 18, 18, 0.1));
       expect(tester.widget<SettingsIcon>(chevron).color, sameColor(cssColor(tester, 'oklch(0.8 0 0)')));
       // The card: paper-2 with the kit's large corner.
@@ -323,7 +341,8 @@ void main() {
       await settleSettings(tester);
       // `padding-block-start: calc(var(--app-inset-top) + var(--glacier-space-1))`: 36 of notch here.
       expect(tester.getRect(find.byKey(const ValueKey('settings-head-word'))).top, closeTo(36 + 4.45, 0.1));
-      expect(tester.getRect(_rowFor('Account')).top, closeTo(36 + 118.69, 0.1));
+      expect(tester.getRect(_rowFor('Simple or advanced')).top, closeTo(36 + 118.69, 0.1));
+      expect(tester.getRect(_rowFor('Account')).top, closeTo(36 + 118.69 + _abovePhone, 0.1));
       await endSettings(tester);
     });
 
@@ -343,13 +362,14 @@ void main() {
       expect(settingsSplitFits(tester.element(find.byType(SettingsSheet))), isTrue);
       final head = find.byKey(const ValueKey('settings-head-word'));
       expect(tester.getRect(head), rectNear(26.33, 5.27, 134.27, 63.22, 0.15));
-      // The first section's page shows until one is chosen, and its row is the current one, a shade deeper.
+      // The first section's page shows until one is chosen, and its row is the current one, a shade deeper. The
+      // first is Simple or advanced since 2026-10-18.
       final display = find.byKey(const ValueKey('settings-display'));
-      expect(tester.widget<Text>(display).data, 'Account');
+      expect(tester.widget<Text>(display).data, 'Simple or advanced');
       expect(tester.getRect(display), rectNear(346.33, 73.75, 907.34, 34.75, 0.3));
       expect(tester.widget<Text>(display).style!.fontSize, closeTo(30.2184, 0.001));
-      expect(tester.getSemantics(_rowFor('Account')), isSemantics(isSelected: true, isButton: true));
-      final ground = tester.widget<ColoredBox>(find.descendant(of: _rowFor('Account'), matching: find.byType(ColoredBox)).first).color;
+      expect(tester.getSemantics(_rowFor('Simple or advanced')), isSemantics(isSelected: true, isButton: true));
+      final ground = tester.widget<ColoredBox>(find.descendant(of: _rowFor('Simple or advanced'), matching: find.byType(ColoredBox)).first).color;
       expect(ground, sameColor(cssColor(tester, 'oklch(0.16 0 0)').withValues(alpha: 0.07)));
       // The column: 20rem with its hairline, the field over the sections in the header's glass, no chevrons.
       final field = find.byType(EditableText);
@@ -358,8 +378,9 @@ void main() {
       final glass = tester.widget<ColoredBox>(find.ancestor(of: pill, matching: find.byType(ColoredBox)).first);
       expect(glass.color, sameColor(cssColor(tester, 'oklch(0.995 0 0)').withValues(alpha: 0.66)));
       expect(tester.getRect(find.ancestor(of: pill, matching: find.byType(ColoredBox)).first), rectNear(0, 73.75, 319, 59.45, 0.15));
-      expect(tester.getRect(_rowFor('Account')), rectNear(21.06, 133.22, 276.88, 71.19, 0.15));
-      expect(tester.getRect(_rowFor('Organizations')).top, closeTo(204.41 + 1, 0.15));
+      expect(tester.getRect(_rowFor('Simple or advanced')), rectNear(21.06, 133.22, 276.88, 71.19, 0.15));
+      expect(tester.getRect(_rowFor('Account')), rectNear(21.06, 133.22 + _aboveWide, 276.88, 71.19, 0.15));
+      expect(tester.getRect(_rowFor('Organizations')).top, closeTo(204.41 + 1 + _aboveWide, 0.15));
       expect(tester.getRect(find.byKey(const ValueKey('settings-row-label')).first).topLeft, within(distance: 0.15, from: const Offset(82.25, 149.02)));
       expect(tester.getRect(find.byKey(const ValueKey('settings-row-label')).first).height, 21);
       expect(tester.getRect(find.byKey(const ValueKey('settings-row-summary')).first).top, closeTo(171.61, 0.15));
