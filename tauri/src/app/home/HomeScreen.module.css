@@ -90,7 +90,7 @@
 }
 
 .topBar:has(> .saidOnly:only-child) ~ .scroll {
-  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-1) + var(--glacier-space-2) + var(--glacier-space-6));
+  padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-1) + var(--glacier-space-3));
 }
 
 /* The screen's name for a screen reader alone: the page has no visible title (HomeScreen.tsx). */

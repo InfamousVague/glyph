@@ -627,7 +627,9 @@ class _HomeScreenState extends State<HomeScreen> {
     final safeTop = t.len('app-safe-top');
     final under = safeTop.roundToDouble() > safeTop ? safeTop.roundToDouble() : safeTop;
     final ring = t.len('app-ring');
-    final top = under + t.space(1) + t.space(2) + t.space(6);
+    // Under the bar, a short step to the search (Matt, 2026-10-17: "make the header of the app more condensed by
+    // default"; HomeScreen.module.css `.scroller`).
+    final top = under + t.space(1) + t.space(3);
     // Room at the foot for the dock's column to stand clear of the last lines. The phone's bar is always kept: with
     // the keyboard up, the page goes down under the keys by the bar's height ([_AboveKeyboard]), so the dock rides
     // the higher of the two and never has to leap when the keyboard is gone.
