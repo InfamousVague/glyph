@@ -623,14 +623,14 @@ void main() {
     Future<void> key(WidgetTester tester, String? key) => tester.runAsync(() => claudeSettings.setKey(key));
     Finder talk() => find.byKey(const ValueKey('dock-claude-talk'));
 
-    testWidgets('is under Claude on every dock while Claude is on, beside Speak and not it, and nowhere while Claude is off or nothing can hear', (tester) async {
+    testWidgets('is under Claude on every dock while Claude is on, the one microphone there, and nowhere while Claude is off or nothing can hear', (tester) async {
       await open(tester);
       final home = find.descendant(of: find.byType(HomeScreen), matching: talk());
       expect(home, findsOneWidget);
       final claude = find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-claude')));
-      final speak = find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-speak')));
       expect(tester.getRect(home).top, greaterThan(tester.getRect(claude).top));
-      expect(tester.getRect(home).top, lessThan(tester.getRect(speak).top));
+      // One microphone (GHST-104, Matt 2026-10-18): with Talk to Claude on a dock, Speak is left off.
+      expect(find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-speak'))), findsNothing);
       // A note's dock has it too.
       shellOf(tester).openNote(library.value.first.id);
       await settle(tester);
