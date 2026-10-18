@@ -69,6 +69,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
+import '../app/iphone_page.dart' show KeyboardBarOffer, KeyboardBarScope;
 import '../art/art.dart';
 import '../core/book.dart';
 import '../core/boards/make.dart';
@@ -112,6 +113,7 @@ import '../shell/screen.dart' show Caret;
 import '../shell/top_bar_tools.dart';
 import '../sheet/css.dart';
 import 'byline.dart';
+import 'format_bar.dart';
 import 'land_at.dart';
 import 'note_editor.dart';
 import 'note_place.dart';
@@ -439,6 +441,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   UnfoldDriver? _unfold;
 
   EditorView? _view;
+
+  /// Simple mode's Format bar as the iPhone's keyboard bar is offered it (format_bar.dart), made once a view and
+  /// kept: the bar hears a new offer at every change of what it is handed.
+  Widget? _formatRow;
+  EditorView? _formatRowFor;
   NotePlaceKeeper? _keeper;
   LandAt? _landing;
   Timer? _checking;
@@ -1516,6 +1523,15 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     setState(() => _typedBody = next);
   }
 
+  /// The Format bar's row for the iPhone's keyboard bar, the same widget for as long as the view is.
+  Widget _formatTools(EditorView view) {
+    if (!identical(_formatRowFor, view) || _formatRow == null) {
+      _formatRowFor = view;
+      _formatRow = FormatBar(view: view, look: FormatBarLook.row);
+    }
+    return _formatRow!;
+  }
+
   /// What the note is, in the dock's words for its ⋯.
   String get _dockKind => _isCanvas ? 'Canvas' : (_isJournal ? 'Journal' : (_isBook ? 'Notebook' : 'Note'));
 
@@ -1579,8 +1595,17 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final book = widget.book;
 
     // The keyboard up is the page ready for words, and once ready it stays ready.
-    if (!_ready && _KeyboardUp.of(context)) _ready = true;
+    final keyboardUp = _KeyboardUp.of(context);
+    if (!_ready && keyboardUp) _ready = true;
     final offered = offersShown ? names : null;
+    // Simple mode's Format bar (format_bar.dart), on a note of words that can be written: above the soft keyboard
+    // while it is up (the iPhone's own bar takes it, beside Done; elsewhere a strip the page ends above), and on a
+    // wide window with the keyboard down a pill at the foot beside the dock. Advanced mode has none.
+    final formatting = prefs.simple && view != null && _words && _raw && !widget.readOnly;
+    final keyboardBar = KeyboardBarScope.maybeOf(context);
+    final wide = MediaQuery.sizeOf(context).width >= 600;
+    final Widget? formatStrip = formatting && keyboardUp && keyboardBar == null ? FormatBar(view: view, look: FormatBarLook.strip) : null;
+    final formatPill = formatting && !keyboardUp && wide;
     _watchMinute(offering);
 
     final spec = NoteEditorSpec(
@@ -1734,6 +1759,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
           // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
           child: _AboveKeyboard(
+            foot: formatStrip,
             child: WispEdge(
               under: under,
               foot: !_isCanvas,
@@ -1763,6 +1789,21 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       ),
       // A note with no words yet: the ghost with its pen, a little under the first line, gone at the first word.
       if (_saving.blank && !_typed && offered == null) _BlankGhost(scroll: _scroll, top: padTop + (authors.isEmpty ? 0 : t.space(2) + 1.5 * 0.85 * t.fontSize('sm')) + t.lenOf('9rem')),
+      // The Format pill at the page's foot, to the dock's start where there is a dock, on the dock's own step up
+      // from the bottom (docs/DOCK.md): read under the dock's frame, which says how far in the dock stands.
+      if (formatPill)
+        Builder(
+          builder: (context) {
+            final room = PageDockRoom.maybeOf(context);
+            final end = room == null ? t.len('app-safe-right') + t.space(4) : room.end + t.space(2);
+            return Padding(
+              padding: EdgeInsetsDirectional.only(end: end, bottom: t.len('app-safe-bottom') + t.space(4)),
+              child: Align(alignment: AlignmentDirectional.bottomEnd, child: FormatBar(view: view, look: FormatBarLook.pill)),
+            );
+          },
+        ),
+      // On an iPhone the keyboard's bar draws the six beside its Done, so nothing stands over the page for them.
+      if (keyboardBar != null) Positioned(width: 0, height: 0, child: KeyboardBarOffer(tools: formatting ? _formatTools(view) : null)),
       // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
       HeaderPane(
         child: inBar
@@ -2226,12 +2267,20 @@ class _KeyboardUp extends InheritedWidget {
 }
 
 /// The page ending where the keyboard begins: the keyboard's height is asked here, where it is used, so its rise
-/// lays the page out again and builds nothing of the note's screen.
+/// lays the page out again and builds nothing of the note's screen. [foot], where given, stands between the page
+/// and the keyboard, the page ending above it: simple mode's Format strip (format_bar.dart).
 class _AboveKeyboard extends StatelessWidget {
-  const _AboveKeyboard({required this.child});
+  const _AboveKeyboard({required this.child, this.foot});
 
   final Widget child;
+  final Widget? foot;
 
   @override
-  Widget build(BuildContext context) => Padding(padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom), child: child);
+  Widget build(BuildContext context) {
+    final foot = this.foot;
+    return Padding(
+      padding: EdgeInsets.only(bottom: MediaQuery.viewInsetsOf(context).bottom),
+      child: foot == null ? child : Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: <Widget>[Expanded(child: child), foot]),
+    );
+  }
 }
