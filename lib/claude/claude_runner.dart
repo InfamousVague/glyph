@@ -23,6 +23,11 @@ import 'messages_api.dart';
 /// the app's Claude too.
 const String claudeRulesTitle = 'Claude rules';
 
+/// A DEBUG BUILD'S ONLY: the API a run is given in place of Anthropic's, set by the iPhone simulator's tour for the
+/// store pictures (lib/shell/tour_claude.dart, a scripted stream over the invented library). Read only where
+/// `kDebugMode`, a constant false in a release, so a release always talks to the real API.
+ClaudeApi Function(String key)? debugClaudeApi;
+
 class ClaudeRunner extends ChangeNotifier {
   ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
@@ -97,7 +102,7 @@ class ClaudeRunner extends ChangeNotifier {
       system = [claudeSystem(now: _now(), rules: rules), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
+    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);
