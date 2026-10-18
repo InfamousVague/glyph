@@ -1936,6 +1936,8 @@ class NoteDeskState extends State<NoteDesk> {
       onFind: _openFind,
       // The dock's Add: the +'s list for the caret's line.
       onAdd: _openAdd,
+      // Simple mode's Format bar puts a picture in from its tail, as the band's Add image does (GHST-105).
+      onAddImage: _pictures?.addPhoto,
       // Comment in the bar and in More, and More's "3 comments, 1 open" with their list.
       onComment: (view) => _comments.start(),
       commentsSummary: _comments.summary,
