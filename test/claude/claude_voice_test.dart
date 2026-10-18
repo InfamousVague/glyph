@@ -304,7 +304,7 @@ void main() {
     await beats(tester);
     expect(voice.stage, ClaudeVoiceStage.failed);
     expect(voice.wantsKey, isTrue);
-    expect(find.textContaining('Settings › Plugins › Claude'), findsOneWidget);
+    expect(find.textContaining('Settings › Claude'), findsOneWidget);
     await end(tester, voice);
   });
 

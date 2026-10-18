@@ -134,7 +134,7 @@ void main() {
       refusal = FetchResponse.json(401, {'message': 'Bad credentials'});
       final note = TestNote('- [ ] One\n- [ ] Two');
       await sendList(note);
-      expect(note.said, ['GitHub didn’t accept that token. Check it in Settings > Plugins > GitHub.']);
+      expect(note.said, ['GitHub didn’t accept that token. Check it in Settings > GitHub.']);
       expect(note.lines, ['- [ ] One', '- [ ] Two']);
       expect(ground.asked, hasLength(1));
       expect(felt, isEmpty);

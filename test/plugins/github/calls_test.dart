@@ -85,7 +85,7 @@ void main() {
 
       Future<Object?> read() => readIssue('https://github.com/o/r/issues/12');
       Future<Object?> write() => createIssue(owner: 'o', repo: 'r', title: 'Ship it');
-      expect(await refusal(401, 'Bad credentials', read), 'GitHub didn’t accept that token. Check it in Settings > Plugins > GitHub.');
+      expect(await refusal(401, 'Bad credentials', read), 'GitHub didn’t accept that token. Check it in Settings > GitHub.');
       expect(await refusal(403, 'API rate limit exceeded for 1.2.3.4', read), 'GitHub is rate limiting this phone. Try again in a few minutes.');
       expect(await refusal(404, 'Not Found', read), 'That issue isn’t readable with this token.');
       expect(await refusal(403, 'Resource not accessible by integration', write), 'That repo doesn’t allow this token to write issues.');

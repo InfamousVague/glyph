@@ -32,7 +32,7 @@ String calendarSummary(Preferences prefs) {
   return addresses ?? 'None yet';
 }
 
-/// The Calendar plugin's page, Settings › Plugins › Calendar (docs/CALENDAR.md; the port's own, 2026-10-17, and a page
+/// The Calendar plugin's page, Settings › Calendar (docs/CALENDAR.md; the port's own, 2026-10-17, and a page
 /// of its own behind Plugins until it was a plugin): the calendars whose events the app shows in queries, on a
 /// calendar of to-dos and on the home page's Today. Three cards:
 ///

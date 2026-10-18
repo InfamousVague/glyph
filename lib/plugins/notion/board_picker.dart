@@ -111,7 +111,7 @@ class _BoardPickerState extends State<BoardPicker> {
             else if (boards.isNotEmpty)
               for (final board in boards) SheetRow(key: ValueKey(board.id), icon: const NotionMark(), label: board.title, chosen: _chosen?.id == board.id, onPress: () => _choose(board))
             else
-              const SheetRow(label: 'No boards yet', hint: 'Sign in again from Settings › Plugins › Notion and tick the boards you want.'),
+              const SheetRow(label: 'No boards yet', hint: 'Sign in again from Settings › Notion and tick the boards you want.'),
           ],
         ),
         if (_chosen != null)

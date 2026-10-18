@@ -1,12 +1,10 @@
-import 'dart:convert';
-import 'dart:io';
-
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
-import 'package:ghost_md/plugins/reach.dart';
 import 'package:ghost_md/plugins/built_in.dart';
+import 'package:ghost_md/plugins/catalogue.dart';
+import 'package:ghost_md/plugins/reach.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -15,253 +13,418 @@ import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
 import 'package:ghost_md/settings/settings_search.dart' show searchSettings;
 import 'package:ghost_md/settings/settings_sheet.dart';
-import 'package:glacier/glacier.dart';
 
 import '../settings/panes/support.dart';
 import 'support.dart';
 
-/// Settings > Plugins (lib/settings/panes/plugins_pane.dart): the cases of `src/app/plugins/PluginsPane.test.tsx`,
-/// then the page inside the real sheet (its row, its sub-pages, the search), then the page held to the rects the web
-/// page measured.
+/// Settings › Plugins as a catalogue (lib/settings/panes/plugins_pane.dart; Matt, 2026-10-18: "rework the plugins
+/// page to be a marketplace, also move plugin settings to their own page under settings"): the shelves and their
+/// cards, the filter and the search, Add, Local only, a plugin's page in the catalogue, and the plugins' own pages
+/// as rows of Settings' list, found by the search and landed on by links.
 ///
-/// The page's own cases are run over stand-ins made from the web's five manifests (support.dart `webBuiltIn`), whose
-/// pages are a line of text each, so a case can say which page it opened. The measurements and the pictures are of
-/// the five that ship (lib/plugins/built_in.dart `builtIn`, [shippedRegistry]) on a fresh install, as the page was
-/// measured: their cards are their own manifests' words.
+/// Every case is over the plugins that ship (lib/plugins/built_in.dart `builtIn`) in a registry of the test's own
+/// with nothing switched by hand, which is a fresh install: Claude, GitHub, Notion, Marks and Rich embeds added.
 ///
-/// The measurements are `test/plugins/fixtures/plugins-pane-390.json`: the web app on its dev server in Chromium at
-/// 390 x 844, two device pixels to one, light, 2026-10-08, in three states (as it comes up; Claude's reasons open;
-/// Local only on). Across the page (x and width) every rect is held to half a pixel. Down it, the kit sets a line of
-/// small text 20 px high where the page has 20.09, and a hero's title 31 where the page has 30.88, so on a page
-/// 2100 px long the difference gathers to three pixels by the foot: each thing is held to half a pixel plus that
-/// gathering ([_slack]), and to three quarters of a pixel from the top of its own card.
+/// The page was a port of the web app's Plugins (src/app/plugins/PluginsPane.tsx) until then, held to its measured
+/// rects (fixtures/plugins-pane-390.json, fixtures/web/); it is the app's own now, and those are the web's page.
 
-Registry webRegistry([Map<String, bool>? switches]) => createRegistry(webBuiltIn(), store: MemorySwitches(switches), localOnly: () => preferences.value.localOnly);
-
-/// The five that ship, with nothing switched by hand: what the web page was measured over. This app's own (Place
-/// reminders, Webhooks, Calendar, Contacts, Rich embeds, Todoist and Things, which the page never had) are left out
-/// of them; test/plugins/places_test.dart and Webhooks' plugin_test.dart have their cards. Claude's card is the web's
-/// (support.dart `webClaude`): the plugin here is the app's own Claude too, which its card says, and the page
-/// measured had only the connector.
-Registry shippedRegistry() {
-  final web = {for (final p in webBuiltIn()) p.manifest.id: p};
-  return createRegistry([
-    for (final p in builtIn)
-      if (web.containsKey(p.manifest.id)) p.manifest.id == 'claude' ? web['claude']! : p,
-  ], store: MemorySwitches(), localOnly: () => preferences.value.localOnly);
-}
+/// A fresh install's plugins, Local only read from the app's preferences, with [store] for its switches.
+Registry shipped([MemorySwitches? store]) => createRegistry(builtIn, store: store ?? MemorySwitches(), localOnly: () => preferences.value.localOnly);
 
 /// Makes [registry] the app's for this test.
-Registry install(WidgetTester tester, Registry registry) {
+Registry install(Registry registry) {
   final before = plugins;
   addTearDown(() => usePlugins(before));
   usePlugins(registry);
   return registry;
 }
 
-Finder heroCalled(String name) => find.byWidgetPredicate((w) => w is PaneHero && w.title == name, skipOffstage: false);
-Finder cardOf(String name) => find.ancestor(of: heroCalled(name), matching: find.byType(PaneSection, skipOffstage: false)).first;
-Finder inCard(String name, Finder what) => find.descendant(of: cardOf(name), matching: what, skipOffstage: false);
+GlyphPlugin pluginOf(String id) => builtIn.singleWhere((p) => p.manifest.id == id);
 
-/// Every word a card draws, a word that goes somewhere included.
-String wordsOf(WidgetTester tester, Finder card) => [
-      for (final text in tester.widgetList<Text>(find.descendant(of: card, matching: find.byType(Text, skipOffstage: false), skipOffstage: false)))
-        if (text.data != null) text.data! else if (!text.textSpan!.toPlainText().contains('￼')) text.textSpan!.toPlainText(),
-    ].join(' | ');
+Finder heroCalled(String name) => find.byWidgetPredicate((w) => w is PaneHero && w.title == name, skipOffstage: false);
+Finder cardOf(String name) => find.ancestor(of: heroCalled(name), matching: find.byType(PluginCard, skipOffstage: false)).first;
+Finder inCard(String name, Finder what) => find.descendant(of: cardOf(name), matching: what, skipOffstage: false);
+Finder shelfCalled(String title) => find.byWidgetPredicate((w) => w is PluginShelf && w.title == title, skipOffstage: false);
+Finder chipCalled(String label) => find.byWidgetPredicate((w) => w is CategoryChip && w.label == label, skipOffstage: false);
+Finder rowOf(String sectionId) => find.byKey(ValueKey('row $sectionId'), skipOffstage: false);
+
+/// The names on a shelf's cards, in its order.
+List<String> shelf(WidgetTester tester, String title) => [
+      for (final card in tester.widgetList<PluginCard>(find.descendant(of: shelfCalled(title), matching: find.byType(PluginCard, skipOffstage: false), skipOffstage: false))) card.plugin.manifest.name,
+    ];
 
 List<String> heroTitles(WidgetTester tester) => [for (final hero in tester.widgetList<PaneHero>(find.byType(PaneHero, skipOffstage: false))) hero.title];
-GlacierSwitch switchOf(WidgetTester tester, String name) => tester.widget(inCard(name, find.byType(GlacierSwitch, skipOffstage: false)));
-Finder actionIn(String name, String word) => inCard(name, find.widgetWithText(RowAction, word, skipOffstage: false));
 
-/// The page by itself, outside Settings, with somewhere for its rows to go.
-Future<List<(String, String?)>> pumpPane(WidgetTester tester, Registry registry, {bool localOnly = false, bool goes = true}) async {
+/// The words, on the screen, of a sentence with a word that goes somewhere in it.
+String said(WidgetTester tester, Finder text) => tester.widget<Text>(text).textSpan!.toPlainText().replaceAll('￼', 'Local only');
+
+/// The catalogue by itself, outside Settings, with somewhere for its cards to go.
+Future<List<(String, String?)>> pumpPane(WidgetTester tester, Registry registry, {bool localOnly = false, bool goes = true, Size size = phone}) async {
   final opened = <(String, String?)>[];
   await pumpSettings(
     tester,
     SingleChildScrollView(child: PluginsPane(registry: registry, onOpen: goes ? (id, {setting}) => opened.add((id, setting)) : null)),
     prefs: Preferences(theme: 'light', localOnly: localOnly),
+    size: size,
   );
   return opened;
 }
 
-Map<String, dynamic> _fixture() => (jsonDecode(File('test/plugins/fixtures/plugins-pane-390.json').readAsStringSync()) as Map).cast<String, dynamic>();
+/// A plugin's page in the catalogue by itself.
+Future<List<(String, String?)>> pumpInfo(WidgetTester tester, Registry registry, String id, {bool localOnly = false}) async {
+  final opened = <(String, String?)>[];
+  await pumpSettings(
+    tester,
+    SingleChildScrollView(child: PluginInfoPane(plugin: registry.byId(id)!, registry: registry, onOpen: (id, {setting}) => opened.add((id, setting)))),
+    prefs: Preferences(theme: 'light', localOnly: localOnly),
+    size: const Size(390, 1400),
+  );
+  return opened;
+}
 
-/// How far a thing at [y] on the page may be from where the page has it: half a pixel, and the kit's whole-pixel
-/// lines gathered down to it (three pixels in 2100).
-double _slack(num y) => 0.5 + y / 600;
+Future<void> typeIn(WidgetTester tester, String words) async {
+  await tester.enterText(find.descendant(of: find.byKey(const ValueKey('plugins-find')), matching: find.byType(EditableText)), words);
+  await tester.pump();
+  await settleSettings(tester);
+}
+
+List<SettingsSection> sectionsOf(WidgetTester tester) => tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
+
+List<(String, String?)> found(WidgetTester tester, String words) => [for (final hit in searchSettings(sectionsOf(tester), words)) (hit.section.id, hit.setting)];
 
 void main() {
   setUpAll(loadAppFonts);
 
+  group('the catalogue’s order and words', () {
+    test('lists the plugins by category, then by name, and has the categories they are in', () {
+      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
+      expect([for (final c in categoriesOf(builtIn)) c.label], ['AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
+      // Every plugin that ships has a category, a line of its own and what it adds.
+      for (final plugin in builtIn) {
+        expect(plugin.manifest.category, isNotNull, reason: plugin.manifest.id);
+        expect(plugin.manifest.tagline, isNotNull, reason: plugin.manifest.id);
+        expect(plugin.manifest.tagline!.length, lessThan(50), reason: '${plugin.manifest.id}’s line fits a card');
+        expect(plugin.manifest.adds, isNotEmpty, reason: plugin.manifest.id);
+      }
+      // A plugin with no category is last, and its line is what it does.
+      final third = GlyphPlugin(manifest: manifestOf('aaa', name: 'Aardvark'), icon: 'puzzle');
+      expect(catalogueOrder([third, ...builtIn]).last, third);
+      expect(third.manifest.line, third.manifest.description);
+    });
+
+    test('says what a plugin uses in plain words', () {
+      expect(usesLine(pluginOf('notion').manifest), 'Uses your notes, the internet and your phone');
+      expect(usesLine(pluginOf('github').manifest), 'Uses your notes, the internet and the model on your phone');
+      expect(usesLine(pluginOf('rich-embeds').manifest), 'Uses the internet');
+      expect(usesLine(pluginOf('marks').manifest), 'Uses nothing past the note you are in');
+      expect(joinAnd(['a', 'b', 'c']), 'a, b and c');
+      // The web's card's words stay as they were, for what still reads them.
+      expect(reachLine(manifestOf('notion', permissions: [Permission.notes, Permission.network, Permission.native])), 'Your notes · The internet · Built-in app commands');
+    });
+
+    test('finds a plugin by its name, its line, what it does, what it adds or its category', () {
+      List<String> left(String query, [PluginCategory? category]) => [
+            for (final p in catalogueOrder(builtIn))
+              if (inCatalogue(p, query: query, category: category)) p.manifest.name,
+          ];
+      expect(left('spotify'), ['Rich embeds']);
+      expect(left('google'), ['Calendar']);
+      expect(left('zapier'), ['Webhooks']);
+      expect(left('', PluginCategory.imports), ['Things', 'Todoist']);
+      expect(left('cal', PluginCategory.calendar), ['Calendar', 'Contacts', 'Place reminders']);
+      expect(left('spotify', PluginCategory.ai), isEmpty);
+    });
+
+    test('a switch as set, whatever Local only says', () {
+      var localOnly = false;
+      final registry = createRegistry(builtIn, store: MemorySwitches(), localOnly: () => localOnly);
+      expect((registry.switchedOn('notion'), registry.switchedOn('slack'), registry.switchedOn('nothing')), (true, false, false));
+      localOnly = true;
+      expect((registry.isEnabled('notion'), registry.switchedOn('notion')), (false, true));
+    });
+  });
+
   group('Settings › Plugins', () {
-    testWidgets('has a card for every plugin that ships, Claude among them, each with its switch', (tester) async {
-      await pumpPane(tester, webRegistry());
-      expect(heroTitles(tester), ['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack']);
-      expect(switchOf(tester, 'Claude').ariaLabel, 'Claude plugin');
-      expect(find.bySemanticsLabel('Claude plugin'), findsOneWidget);
-      // Slack is off until switched on: it posts off the phone.
-      expect(find.textContaining('4 of 5 on.'), findsOneWidget);
-      expect(switchOf(tester, 'Slack').checked, isFalse);
-      expect(find.bySemanticsLabel('Library folder plugin'), findsNothing);
-      expect(switchOf(tester, 'Claude').checked, isTrue);
+    testWidgets('has every plugin on two shelves, Added and Discover, in the catalogue’s order', (tester) async {
+      await pumpPane(tester, shipped());
+      expect(heroTitles(tester).first, 'Plugins');
+      expect(find.textContaining('5 of 12 added.', skipOffstage: false), findsOneWidget);
+      expect(shelf(tester, 'Added'), ['Claude', 'GitHub', 'Notion', 'Marks', 'Rich embeds']);
+      expect(shelf(tester, 'Discover'), ['Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Slack', 'Webhooks']);
+      // The search finds the shelves by their captions.
+      expect(find.byWidgetPredicate((w) => w is SettingsFindableMark && w.name == 'Discover', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
 
-    testWidgets('says what a plugin may reach in one line, and the reasons a press away', (tester) async {
-      expect(reachLine(webNotion), 'Your notes · The internet (api.notion.com, ghostmarkdown.com) · Built-in app commands');
-      expect(reachLine(webClaude), 'Your notes · The internet (ghostmarkdown.com)');
-      await pumpPane(tester, webRegistry());
-      final card = cardOf('Claude');
-      expect(wordsOf(tester, card), contains(reachLine(webClaude)));
-      expect(wordsOf(tester, card), isNot(contains(webClaude.permissions[0].why)));
-      await tapOn(tester, actionIn('Claude', 'Why'));
-      expect(wordsOf(tester, card), contains(webClaude.permissions[0].why));
-      expect(actionIn('Claude', 'Less'), findsOneWidget);
-      // A row a permission, in Settings' words, under the line; and only on the card that was pressed.
-      expect([for (final row in tester.widgetList<SettingRow>(inCard('Claude', find.byType(SettingRow, skipOffstage: false)))) row.label], ['Read and write your notes from Claude', 'What it may reach', 'Your notes', 'The internet']);
-      expect(actionIn('Notion', 'Why'), findsOneWidget);
-      await tapOn(tester, actionIn('Claude', 'Less'));
-      expect(wordsOf(tester, card), isNot(contains(webClaude.permissions[0].why)));
+    testWidgets('a card says what the plugin is and what it uses, and Add, or that it is added', (tester) async {
+      await pumpPane(tester, shipped());
+      expect(inCard('Notion', find.text('List items as tasks on your Notion boards', skipOffstage: false)), findsOneWidget);
+      expect(inCard('Notion', find.text('Uses your notes, the internet and your phone', skipOffstage: false)), findsOneWidget);
+      expect(inCard('Marks', find.text('Uses nothing past the note you are in', skipOffstage: false)), findsOneWidget);
+      expect(inCard('Claude', find.text('Added', skipOffstage: false)), findsOneWidget);
+      expect(inCard('Claude', find.byType(RowAction, skipOffstage: false)), findsNothing);
+      expect(inCard('Slack', find.widgetWithText(RowAction, 'Add', skipOffstage: false)), findsOneWidget);
+      // Each in its own icon; one the kit does not draw is the puzzle piece.
+      expect(tester.widget<AppIcon>(inCard('Notion', find.byType(AppIcon, skipOffstage: false)).first).icon, Lucide.squareKanban);
+      await endSettings(tester);
+
+      final third = GlyphPlugin(manifest: manifestOf('third', name: 'Third', standard: false), icon: 'no-such-icon');
+      await pumpPane(tester, createRegistry([third], store: MemorySwitches()));
+      expect(tester.widget<AppIcon>(inCard('Third', find.byType(AppIcon, skipOffstage: false)).first).icon, Lucide.puzzle);
       await endSettings(tester);
     });
 
-    testWidgets('opens a plugin’s own page from its card', (tester) async {
-      final opened = await pumpPane(tester, webRegistry());
-      await tapOn(tester, inCard('Claude', rowCalled('Read and write your notes from Claude')));
-      expect(opened, [('plugin:claude', null)]);
+    testWidgets('Add switches the plugin on, kept, and the card moves to Added', (tester) async {
+      final store = MemorySwitches();
+      final registry = shipped(store);
+      await pumpPane(tester, registry);
+      await tapOn(tester, inCard('Slack', find.byType(RowAction, skipOffstage: false)));
+      expect(store.held, {'slack': true});
+      expect(registry.isEnabled('slack'), isTrue);
+      expect(shelf(tester, 'Added'), ['Claude', 'GitHub', 'Notion', 'Slack', 'Marks', 'Rich embeds']);
+      expect(shelf(tester, 'Discover'), isNot(contains('Slack')));
+      expect(find.textContaining('6 of 12 added.', skipOffstage: false), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('filters by category, All bringing them back, with the search inside the category chosen', (tester) async {
+      await pumpPane(tester, shipped());
+      expect([for (final chip in tester.widgetList<CategoryChip>(find.byType(CategoryChip, skipOffstage: false))) chip.label], ['All', 'AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
+      expect(tester.widget<CategoryChip>(chipCalled('All')).chosen, isTrue);
+      await tapOn(tester, chipCalled('Import'));
+      expect(heroTitles(tester), ['Plugins', 'Things', 'Todoist']);
+      expect(shelfCalled('Added'), findsNothing);
+      expect(tester.widget<CategoryChip>(chipCalled('Import')).chosen, isTrue);
+      await tapOn(tester, chipCalled('AI'));
+      expect(heroTitles(tester), ['Plugins', 'Claude']);
+      await typeIn(tester, 'spotify');
+      expect(heroTitles(tester), ['Plugins']);
+      expect(find.text('No plugin matches'), findsOneWidget);
+      expect(find.text('Nothing in AI matches “spotify”.'), findsOneWidget);
+      await tapOn(tester, find.text('Show every plugin'));
+      expect(heroTitles(tester).length, 13);
+      expect(tester.widget<CategoryChip>(chipCalled('All')).chosen, isTrue);
+      await endSettings(tester);
+    });
+
+    testWidgets('the search leaves the plugins it finds, on their shelves', (tester) async {
+      await pumpPane(tester, shipped());
+      await typeIn(tester, 'notes from claude');
+      expect(heroTitles(tester), ['Plugins', 'Claude']);
+      await typeIn(tester, 'google');
+      expect(shelf(tester, 'Discover'), ['Calendar']);
+      expect(shelfCalled('Added'), findsNothing);
+      await typeIn(tester, '');
+      expect(heroTitles(tester).length, 13);
       await endSettings(tester);
     });
 
     // Changed on purpose on the page (docs/DESIGN.md §138): "Local only" is a word that goes to its switch.
-    testWidgets('holds every plugin that uses the internet off under Local only, and its words open the switch', (tester) async {
-      final opened = await pumpPane(tester, webRegistry(), localOnly: true);
+    testWidgets('holds every plugin that uses the internet off under Local only, says so on its card, and its words open the switch', (tester) async {
+      final opened = await pumpPane(tester, shipped(), localOnly: true);
       final callout = find.byType(SettingsCallout);
-      final said = tester.widget<Text>(find.descendant(of: callout, matching: find.byWidgetPredicate((w) => w is Text && w.textSpan != null)));
-      expect(said.textSpan!.toPlainText().replaceAll('\uFFFC', 'Local only'), 'Local only is on, so plugins that use the internet are held off until it is off.');
+      expect(said(tester, find.descendant(of: callout, matching: find.byWidgetPredicate((w) => w is Text && w.textSpan != null))), 'Local only is on, so plugins that use the internet are held off until it is off.');
       await tapOn(tester, find.descendant(of: callout, matching: find.byType(GoWord)));
-      final notion = switchOf(tester, 'Notion');
-      expect((notion.disabled, notion.checked), (true, false));
-      expect(inCard('Notion', rowCalled('Off while Local only is on')), findsOneWidget);
-      final hint = tester.widget<Text>(inCard('Notion', find.byWidgetPredicate((w) => w is Text && (w.textSpan?.toPlainText().startsWith('It uses the internet. Switch ') ?? false), skipOffstage: false)));
-      expect(hint.textSpan!.toPlainText().replaceAll('￼', 'Local only'), 'It uses the internet. Switch Local only off to use it.');
-      await tapOn(tester, inCard('Notion', find.byType(GoWord, skipOffstage: false)));
-      // Both land on Account, at the Privacy card, lit.
+      // Slack is held: it says so, and cannot be added.
+      expect(tester.widget<RowAction>(inCard('Slack', find.byType(RowAction, skipOffstage: false))).disabled, isTrue);
+      expect(said(tester, inCard('Slack', find.byWidgetPredicate((w) => w is Text && (w.textSpan?.toPlainText().startsWith('Off while') ?? false), skipOffstage: false))), 'Off while Local only is on: it uses the internet.');
+      await tapOn(tester, inCard('Slack', find.byType(GoWord, skipOffstage: false)));
       expect(opened, [('account', 'Privacy'), ('account', 'Privacy')]);
-      // Marks reaches nothing past the phone, so it is not held.
-      expect(inCard('Marks', rowCalled('Off while Local only is on')), findsNothing);
-      expect(switchOf(tester, 'Marks').disabled, isFalse);
-      expect(find.textContaining('1 of 5 on.'), findsOneWidget);
-      // A plugin that is held has no page to go to, whatever its switch says.
-      expect(inCard('Claude', rowCalled('Read and write your notes from Claude')), findsNothing);
+      // Notion was added, and is still on Added, held; Marks reaches nothing past the phone and is not.
+      expect(shelf(tester, 'Added'), contains('Notion'));
+      expect(inCard('Notion', find.byType(GoWord, skipOffstage: false)), findsOneWidget);
+      expect(inCard('Marks', find.byType(GoWord, skipOffstage: false)), findsNothing);
+      expect(inCard('Place reminders', find.byType(GoWord, skipOffstage: false)), findsNothing);
       await endSettings(tester);
     });
 
-    test('says the internet plainly for a plugin that names no hosts', () {
-      expect(reachLine(manifestOf('notion', permissions: [Permission.notes, Permission.network, Permission.native])), 'Your notes · The internet · Built-in app commands');
+    testWidgets('a card opens its plugin’s page in the catalogue', (tester) async {
+      final opened = await pumpPane(tester, shipped());
+      await tapOn(tester, heroCalled('Notion'));
+      await tapOn(tester, heroCalled('Slack'));
+      expect(opened, [('plugins/notion', null), ('plugins/slack', null)]);
+      await endSettings(tester);
+    });
+
+    testWidgets('stands its cards one to a row on a phone, and two or three across where there is room', (tester) async {
+      expect([for (final width in [350.0, 540.0, 820.0, 1200.0]) PluginShelf.across(width, 12)], [1, 2, 3, 3]);
+      await pumpPane(tester, shipped());
+      final claude = tester.getRect(cardOf('Claude')), github = tester.getRect(cardOf('GitHub'));
+      expect((github.top > claude.bottom, claude.width), (true, github.width));
+      await endSettings(tester);
+
+      await pumpPane(tester, shipped(), size: const Size(900, 1600));
+      final tops = [for (final name in ['Claude', 'GitHub', 'Notion', 'Marks']) tester.getRect(cardOf(name)).top];
+      expect(tops.sublist(0, 3).toSet(), hasLength(1), reason: 'three across');
+      expect(tops[3], greaterThan(tops[0]));
+      // The cards of a line are as tall as its tallest.
+      expect({for (final name in ['Claude', 'GitHub', 'Notion']) tester.getRect(cardOf(name)).height}, hasLength(1));
+      await endSettings(tester);
+    });
+
+    testWidgets('reads “0 of 0 added” before any plugin is put in place, which is the app until built_in.dart installs them', (tester) async {
+      install(createRegistry(const [], store: MemorySwitches()));
+      await openPane(tester, 'plugins');
+      expect(heroTitles(tester), ['Plugins']);
+      expect(find.textContaining('0 of 0 added.'), findsOneWidget);
+      expect(find.text('There is no plugin in this build.', skipOffstage: false), findsOneWidget);
+      expect(pluginPageSections(), isEmpty);
+      expect(pluginInfoSections(), isEmpty);
+      await endSettings(tester);
     });
   });
 
-  group('a plugin’s card', () {
-    testWidgets('switches its plugin, which is kept, and has its page only while it is on', (tester) async {
+  group('a plugin’s page in the catalogue', () {
+    testWidgets('says what it does, what it adds and what it may reach, in plain words', (tester) async {
+      await pumpInfo(tester, shipped(), 'notion');
+      expect(cardTitles(tester), [null, 'What it does', 'What it adds', 'What it may reach']);
+      expect(find.text(pluginOf('notion').manifest.description, skipOffstage: false), findsOneWidget);
+      expect(rowLabels(tester, 'What it adds'), [...pluginOf('notion').manifest.adds, 'A page of its own in Settings']);
+      expect(rowLabels(tester, 'What it may reach'), ['Your notes', 'The internet', 'Your phone']);
+      final internet = tester.widget<SettingRow>(rowCalled('The internet')).hint! as Text;
+      expect(internet.data, endsWith('Only the items you send go. It talks to api.notion.com and ghostmarkdown.com and nowhere else.'));
+      expect(find.text('Connections · Ghost.md · version 1.0.0', skipOffstage: false), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('Add and Remove switch it, and once it is added its Settings row opens its own page', (tester) async {
       final store = MemorySwitches();
-      final registry = createRegistry(webBuiltIn(), store: store, localOnly: () => false);
-      await pumpPane(tester, registry);
-      expect(inCard('Slack', rowCalled('Channels to post to')), findsNothing);
-      await tapOn(tester, inCard('Slack', find.byType(GlacierSwitch, skipOffstage: false)));
+      final registry = shipped(store);
+      final opened = await pumpInfo(tester, registry, 'slack');
+      expect(tester.widget<PaneHero>(heroCalled('Slack')).status!.text, 'Not added');
+      expect(rowCalled('Settings'), findsNothing);
+      await tapOn(tester, inRow('Not added', find.widgetWithText(RowAction, 'Add')));
       expect(store.held, {'slack': true});
-      expect(find.textContaining('5 of 5 on.', skipOffstage: false), findsOneWidget);
-      expect(inCard('Slack', rowCalled('Channels to post to')), findsOneWidget);
-      await tapOn(tester, inCard('Claude', find.byType(GlacierSwitch, skipOffstage: false)));
-      expect(store.held, {'slack': true, 'claude': false});
-      expect(registry.isEnabled('claude'), isFalse);
-      expect(inCard('Claude', rowCalled('Read and write your notes from Claude')), findsNothing);
-      expect(switchOf(tester, 'Claude').checked, isFalse);
+      expect(registry.isEnabled('slack'), isTrue);
+      expect(tester.widget<PaneHero>(heroCalled('Slack')).status!.text, 'Added');
+      await tapOn(tester, rowCalled('Settings'));
+      expect(opened, [('plugin:slack', null)]);
+      await tapOn(tester, inRow('Added to Ghost.md', find.widgetWithText(RowAction, 'Remove')));
+      expect(store.held, {'slack': false});
+      expect(registry.isEnabled('slack'), isFalse);
+      expect(rowCalled('Settings'), findsNothing);
       await endSettings(tester);
     });
 
-    testWidgets('says where it comes from under it: Ghost.md’s own, or its author, and its version', (tester) async {
-      final third = GlyphPlugin(manifest: const PluginManifest(id: 'third', name: 'Third', description: 'From somebody else.', version: '2.3.0', author: 'Somebody', standard: false, permissions: [], storage: []), icon: 'no-such-icon');
-      await pumpPane(tester, createRegistry([...webBuiltIn(), third], store: MemorySwitches(), localOnly: () => false));
-      expect(inCard('Notion', find.text('Ships with Ghost.md · version 1.0.0', skipOffstage: false)), findsOneWidget);
-      // Slack is Ghost.md's too, and is not standard: the page says its author, as the web's does.
-      expect(inCard('Slack', find.text('Ghost.md · version 1.0.0', skipOffstage: false)), findsOneWidget);
-      expect(inCard('Third', find.text('Somebody · version 2.3.0', skipOffstage: false)), findsOneWidget);
-      // An icon the kit does not draw is the puzzle piece.
-      expect(tester.widget<AppIcon>(inCard('Third', find.byType(AppIcon, skipOffstage: false))).icon, Lucide.puzzle);
-      expect(tester.widget<AppIcon>(inCard('Notion', find.byType(AppIcon, skipOffstage: false)).first).icon, Lucide.squareKanban);
-      // A plugin with no page and nothing it may reach has the one row, with no line under it.
-      expect(tester.widget<SettingRow>(inCard('Marks', find.byType(SettingRow, skipOffstage: false))).hint, isNull);
+    testWidgets('Marks asks for nothing, and says so; it has no page of its own to go to', (tester) async {
+      await pumpInfo(tester, shipped(), 'marks');
+      expect(rowLabels(tester, 'What it may reach'), ['Nothing past the note you are in']);
+      expect(rowCalled('A page of its own in Settings'), findsNothing);
+      expect(rowCalled('Settings'), findsNothing);
       await endSettings(tester);
     });
 
-    testWidgets('has no row to its page, and its words go nowhere, where the page is drawn outside Settings', (tester) async {
-      await pumpPane(tester, webRegistry(), goes: false);
-      expect(inCard('Claude', rowCalled('Read and write your notes from Claude')), findsNothing);
-      expect(tester.widget<SettingRow>(inCard('Claude', rowCalled('What it may reach'))).onPress, isNull);
+    testWidgets('under Local only, one that uses the internet says so and cannot be added or removed', (tester) async {
+      final opened = await pumpInfo(tester, shipped(), 'slack', localOnly: true);
+      expect(tester.widget<PaneHero>(heroCalled('Slack')).status!.text, 'Held off by Local only');
+      expect(tester.widget<RowAction>(inRow('Not added', find.byType(RowAction))).disabled, isTrue);
+      await tapOn(tester, inRow('Off while Local only is on', find.byType(GoWord)));
+      expect(opened, [('account', 'Privacy')]);
       await endSettings(tester);
     });
   });
 
-  group('Plugins in Settings', () {
-    testWidgets('says how many are on in the list, and is found by every plugin’s name and what it does', (tester) async {
-      install(tester, webRegistry());
-      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1200));
-      expect(tester.widget<Text>(find.descendant(of: find.ancestor(of: find.text('Plugins'), matching: find.byType(GlacierPressable)).first, matching: find.byKey(const ValueKey('settings-row-summary')))).data, '4 of 5 on');
-      final sections = tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
-      final own = sections.firstWhere((s) => s.id == 'plugins');
-      expect([for (final setting in own.settings) (setting.name, setting.words)], [for (final plugin in webBuiltIn()) (plugin.manifest.name, plugin.manifest.description)]);
-      // Each switched-on plugin's own page follows, off the list, behind Plugins, in its own colour, with its own words.
-      expect([for (final s in sections) if (s.parent == 'plugins') (s.id, s.label, s.listed, s.hue, s.summary)], [
-        ('plugin:notion', 'Notion', false, 'graphite', 'Boards for your lists'),
-        ('plugin:github', 'GitHub', false, 'graphite', 'Repos, issues and context'),
-        ('plugin:claude', 'Claude', false, 'coral', 'Read and write your notes from Claude'),
-      ]);
-      final claude = sections.firstWhere((s) => s.id == 'plugin:claude');
-      expect(claude.words, webClaude.description);
-      expect([for (final setting in claude.settings) setting.name], ['Connect', 'What Claude can do', 'Your key']);
-      expect(sections.indexOf(claude), sections.indexWhere((s) => s.id == 'plugins') + 3);
+  group('the plugins in Settings', () {
+    testWidgets('Plugins heads a card of its own on the list, a row after it for each added plugin’s page', (tester) async {
+      install(shipped());
+      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1600));
+      final listed = [for (final s in sectionsOf(tester)) if (s.listed) s.id];
+      expect(listed.sublist(listed.indexOf('ai'), listed.indexOf('about') + 1), ['ai', 'plugins', 'plugin:claude', 'plugin:github', 'plugin:notion', 'about']);
+      final card = find.byKey(const ValueKey('cluster plugins'));
+      expect([for (final id in ['plugins', 'plugin:claude', 'plugin:github', 'plugin:notion']) find.descendant(of: card, matching: rowOf(id)).evaluate().length], [1, 1, 1, 1]);
+      expect(find.descendant(of: card, matching: rowOf('about')), findsNothing);
+      expect(tester.widget<Text>(find.descendant(of: rowOf('plugins'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 12 added');
+      expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
+      // Each in its own icon, and Claude in its coral.
+      expect(tester.widget<AppIcon>(find.descendant(of: rowOf('plugin:claude'), matching: find.byType(AppIcon)).first).icon, Lucide.bot);
+      final claude = sectionsOf(tester).singleWhere((s) => s.id == 'plugin:claude');
+      expect((claude.hue, claude.parent, claude.listed, claude.words), ('coral', null, true, pluginOf('claude').manifest.description));
+      // Every plugin's page in the catalogue is a sub-page of Plugins, in its green.
+      expect([for (final s in sectionsOf(tester)) if (s.parent == 'plugins') s.id], [for (final p in catalogueOrder(builtIn)) 'plugins/${p.manifest.id}']);
+      expect(sectionsOf(tester).singleWhere((s) => s.id == 'plugins/slack').hue, 'green');
       await endSettings(tester);
     });
 
-    // The app's own integrations are plugins now (Matt, 2026-10-17): every one has its card, and the search finds
-    // Ask Claude and its key on Claude's page, as it found them on Settings › Ask Claude.
-    testWidgets('lists every plugin that ships, the app’s own among them, and the search finds Ask Claude and the API key on Claude’s page', (tester) async {
-      final registry = install(tester, createRegistry(builtIn, store: MemorySwitches()));
-      await openPane(tester, 'plugins', size: const Size(390, 6000));
-      expect(heroTitles(tester), ['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack', 'Place reminders', 'Webhooks', 'Calendar', 'Contacts', 'Rich embeds', 'Todoist', 'Things']);
-      expect(find.textContaining('5 of 12 on.', skipOffstage: false), findsOneWidget);
-      expect([for (final name in ['Claude', 'Rich embeds', 'Calendar', 'Contacts', 'Todoist', 'Things']) switchOf(tester, name).checked], [true, true, false, false, false, false]);
-      final sections = tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
-      List<(String, String?)> found(String words) => [for (final hit in searchSettings(sections, words)) (hit.section.id, hit.setting)];
-      expect(found('ask claude'), contains(('plugin:claude', 'Ask Claude')));
-      expect(found('api key'), contains(('plugin:claude', 'API key')));
-      expect(found('anthropic'), contains(('plugin:claude', 'API key')));
+    testWidgets('a plugin’s row comes as it is added and goes as it is removed or held by Local only', (tester) async {
+      final registry = install(shipped());
+      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1800));
+      expect(rowOf('plugin:calendar'), findsNothing);
+      registry.setEnabled('calendar', true);
+      await tester.pump();
+      await settleSettings(tester);
+      expect(rowOf('plugin:calendar'), findsOneWidget);
+      final listed = [for (final s in sectionsOf(tester)) if (s.listed) s.id];
+      expect(listed.sublist(listed.indexOf('plugins'), listed.indexOf('about')), ['plugins', 'plugin:claude', 'plugin:calendar', 'plugin:github', 'plugin:notion']);
+      registry.setEnabled('calendar', false);
+      await tester.pump();
+      await settleSettings(tester);
+      expect(rowOf('plugin:calendar'), findsNothing);
+      preferences.update((now) => now.copyWith(localOnly: true));
+      // What the app's root does when the preferences change (lib/plugins/registry.dart).
+      registry.preferencesChanged();
+      await tester.pump();
+      await settleSettings(tester);
+      expect([for (final id in ['plugin:claude', 'plugin:github', 'plugin:notion']) rowOf(id).evaluate().length], [0, 0, 0]);
+      await endSettings(tester);
+    });
+
+    // Matt, 2026-10-17: Ask Claude and its key were Settings › Ask Claude's; they are on Claude's page, a row of
+    // Settings of its own since 2026-10-18.
+    testWidgets('the search lands on each plugin’s settings on its own page, and on its page in the catalogue while it is not added', (tester) async {
+      final registry = install(shipped());
+      await openPane(tester, 'plugins', size: const Size(390, 1200));
+      expect(found(tester, 'ask claude'), contains(('plugin:claude', 'Ask Claude')));
+      expect(found(tester, 'api key'), contains(('plugin:claude', 'API key')));
+      expect(found(tester, 'anthropic'), contains(('plugin:claude', 'API key')));
       // Matt, 2026-10-17: "add the setting back in to be able to bind ghost as the agent on the phone".
-      expect(found('assistant'), contains(('plugin:claude', 'Phone assistant')));
-      expect(found('digital assistant'), contains(('plugin:claude', 'Phone assistant')));
-      // No section of its own any more, and no page for a plugin that is off: Calendar is found on Plugins, by its card.
-      expect(sections.map((s) => s.id), isNot(contains('ask-claude')));
-      expect(found('calendar').map((hit) => hit.$1), isNot(contains('plugin:calendar')));
-      expect(found('calendar'), contains(('plugins', 'Calendar')));
+      expect(found(tester, 'assistant'), contains(('plugin:claude', 'Phone assistant')));
+      expect(found(tester, 'digital assistant'), contains(('plugin:claude', 'Phone assistant')));
+      // Claude has its own page, so its name finds that and not its page in the catalogue.
+      expect(found(tester, 'claude'), contains(('plugin:claude', null)));
+      expect(found(tester, 'claude').map((hit) => hit.$1), isNot(contains('plugins/claude')));
+      // Calendar is not added: its name finds its page in the catalogue, where it can be.
+      expect(found(tester, 'calendar'), contains(('plugins/calendar', null)));
+      expect(found(tester, 'calendar').map((hit) => hit.$1), isNot(contains('plugin:calendar')));
+      expect(found(tester, 'discover'), contains(('plugins', 'Discover')));
+      // Marks has no page but its page in the catalogue, added or not.
+      expect(found(tester, 'marks'), contains(('plugins/marks', null)));
       await endSettings(tester);
 
       registry.setEnabled('calendar', true);
       await openPane(tester, 'plugins');
-      final now = tester.state<SettingsScreenState>(find.byType(SettingsScreen)).widget.sections;
-      expect([for (final hit in searchSettings(now, 'calendar addresses')) hit.section.id], contains('plugin:calendar'));
+      expect(found(tester, 'calendar'), contains(('plugin:calendar', null)));
+      expect(found(tester, 'calendar').map((hit) => hit.$1), isNot(contains('plugins/calendar')));
+      expect(found(tester, 'calendar addresses'), contains(('plugin:calendar', 'Calendar addresses')));
+      expect(found(tester, 'google'), contains(('plugin:calendar', null)));
       await endSettings(tester);
     });
 
-    testWidgets('opens a plugin’s own page behind its card, and back from it comes to Plugins', (tester) async {
-      install(tester, webRegistry());
-      await openPane(tester, 'plugins');
-      expect(display(tester), 'Plugins');
-      expect(find.text('Not ported yet'), findsNothing);
-      await tapOn(tester, inCard('Claude', rowCalled('Read and write your notes from Claude')));
+    testWidgets('a plugin’s row opens its page straight from the list, and back goes to the list', (tester) async {
+      install(shipped());
+      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1600));
+      await tapOn(tester, rowOf('plugin:claude'));
       expect(display(tester), 'Claude');
-      expect(find.byKey(const ValueKey('page-of-Claude')), findsOneWidget);
-      // The head says where back goes.
+      expect(find.byType(PluginSettingsPage), findsOneWidget);
+      expect(tester.widget<Text>(find.descendant(of: find.byKey(const ValueKey('settings-head-word')), matching: find.byType(Text))).textSpan!.toPlainText(), contains('Settings'));
+      testBack.goBack();
+      await tester.pump();
+      await settleSettings(tester);
+      expect(display(tester), isNull);
+      await endSettings(tester);
+    });
+
+    testWidgets('a card opens its page in the catalogue, back from it is Plugins, and its Settings row and the page’s foot go between them', (tester) async {
+      install(shipped());
+      await openPane(tester, 'plugins');
+      await tapOn(tester, heroCalled('Notion'));
+      expect(display(tester), 'Notion');
+      expect(find.byType(PluginInfoPane), findsOneWidget);
       expect(tester.widget<Text>(find.descendant(of: find.byKey(const ValueKey('settings-head-word')), matching: find.byType(Text))).textSpan!.toPlainText(), contains('Plugins'));
+      await tapOn(tester, rowCalled('Settings'));
+      expect(display(tester), 'Notion');
+      expect(find.byType(PluginSettingsPage), findsOneWidget);
+      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('plugin-page-foot')), matching: find.byType(GoWord)));
+      expect(find.byType(PluginInfoPane), findsOneWidget);
       testBack.goBack();
       await tester.pump();
       await settleSettings(tester);
@@ -269,228 +432,98 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('gives a plugin switched on here its page at once, and takes “Local only” to Account’s Privacy card', (tester) async {
-      install(tester, webRegistry());
-      await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light'));
-      await tapOn(tester, inCard('Slack', find.byType(GlacierSwitch, skipOffstage: false)));
-      await tapOn(tester, inCard('Slack', rowCalled('Channels to post to')));
+    testWidgets('a plugin added from its page in the catalogue has its row on the list at once', (tester) async {
+      install(shipped());
+      await openPane(tester, 'plugins/slack', prefs: const Preferences(theme: 'light'));
       expect(display(tester), 'Slack');
-      expect(find.byKey(const ValueKey('page-of-Slack')), findsOneWidget);
-      await endSettings(tester);
-
-      install(tester, webRegistry());
-      await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light', localOnly: true));
-      await tapOn(tester, find.descendant(of: find.byType(SettingsCallout), matching: find.byType(GoWord)));
-      expect(display(tester), 'Account');
-      await endSettings(tester);
-    });
-
-    testWidgets('reads “0 of 0 on” before any plugin is put in place, which is the app until built_in.dart installs them', (tester) async {
-      install(tester, createRegistry(const [], store: MemorySwitches()));
-      await openPane(tester, 'plugins');
-      expect(heroTitles(tester), ['Plugins']);
-      expect(find.textContaining('0 of 0 on.'), findsOneWidget);
-      expect(pluginPageSections(), isEmpty);
-      // Calendar and Contacts were pages behind Plugins of their own until they were plugins: there are none now.
-      expect([for (final spec in settingsSections) if (spec.parent == 'plugins') spec.id], isEmpty);
+      await tapOn(tester, inRow('Not added', find.byType(RowAction)));
+      await tapOn(tester, rowCalled('Settings'));
+      expect(display(tester), 'Slack');
+      expect(find.byType(PluginSettingsPage), findsOneWidget);
+      testBack.goBack();
+      await tester.pump();
+      await settleSettings(tester);
+      expect(rowOf('plugin:slack'), findsOneWidget);
       await endSettings(tester);
     });
 
-    test('lists the pages of the plugins that are on, each a sub-page of Plugins, straight after it', () {
-      final before = plugins;
-      addTearDown(() => usePlugins(before));
-      final registry = webRegistry();
-      usePlugins(registry);
-      expect([for (final spec in pluginPageSections()) spec.id], ['plugin:notion', 'plugin:github', 'plugin:claude']);
-      final ids = [for (final spec in settingsSections) spec.id];
-      expect(ids.sublist(ids.indexOf('plugins'), ids.indexOf('about') + 1), ['plugins', 'plugin:notion', 'plugin:github', 'plugin:claude', 'about']);
-      registry.setEnabled('slack', true);
-      registry.setEnabled('notion', false);
-      expect([for (final spec in pluginPageSections()) (spec.id, spec.parent, spec.listed, spec.group)], [('plugin:github', 'plugins', false, 2), ('plugin:claude', 'plugins', false, 2), ('plugin:slack', 'plugins', false, 2)]);
-      expect(pluginsSummary(registry), '4 of 5 on');
-      expect(pluginPageId('notion'), 'plugin:notion');
+    testWidgets('links into Settings still land on a plugin’s page: Claude’s “Add an API key”, Todoist’s while it is added', (tester) async {
+      final registry = install(shipped());
+      await openPane(tester, 'plugin:claude', setting: 'API key');
+      expect(display(tester), 'Claude');
+      await endSettings(tester);
+      registry.setEnabled('todoist', true);
+      await openPane(tester, 'plugin:todoist');
+      expect(display(tester), 'Todoist');
+      expect(rowLabels(tester).take(2), ['Completed tasks too', 'Todoist CSV export (.csv)']);
+      await endSettings(tester);
+      await openPane(tester, 'plugins/todoist');
+      expect(display(tester), 'Todoist');
+      expect(find.byType(PluginInfoPane), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('finds only names the pages draw: every setting listed for Plugins and its plugins’ pages is on that page', (tester) async {
+      final registry = install(shipped());
+      for (final plugin in builtIn) {
+        if (plugin.manifest.id != 'contacts') registry.setEnabled(plugin.manifest.id, true);
+      }
+      final ids = [for (final spec in settingsSections) if (spec.id == 'plugins' || spec.id.startsWith('plugin:') || spec.id.startsWith('plugins/')) spec.id];
+      expect(ids, containsAll(['plugins', 'plugin:claude', 'plugin:calendar', 'plugins/marks']));
+      final missing = <String>[];
+      for (final id in ids) {
+        await openPane(tester, id, size: const Size(390, 4000));
+        final section = sectionsOf(tester).firstWhere((s) => s.id == id);
+        expect(display(tester), section.label);
+        for (final setting in section.settings) {
+          final named = find.byWidgetPredicate((w) => w is SettingsFindableMark && w.name != null && w.name!.toLowerCase().replaceAll('’', "'") == setting.name.toLowerCase().replaceAll('’', "'"), skipOffstage: false);
+          if (named.evaluate().isEmpty) missing.add('$id: ${setting.name}');
+        }
+        await endSettings(tester);
+      }
+      // Drawn only once signed in, as their pages' own tests hold.
+      expect(missing, ['plugin:notion: Boards']);
     });
   });
 
-  group('the page, against the web’s', () {
-    late Map<String, dynamic> web;
-    setUpAll(() => web = _fixture());
-
-    /// Holds what is drawn to one state of the fixture: every card, hero, switch, row, label, word and footer.
-    void hold(WidgetTester tester, String state, {required List<String> cards}) {
-      final at = (web['states'] as Map)[state] as Map;
-      List<Map> of(String name) => [for (final thing in at[name] as List) thing as Map];
-      // The page had scrolled where a press brought a row into view: every y is taken from its first card's.
-      final scrolled = (of('cards').first['y'] as num) - 122.73;
-      double y(Map thing) => (thing['y'] as num) - scrolled;
-
-      final sections = find.byType(PaneSection, skipOffstage: false);
-      // And here, where the same press scrolled this page: every rect is read from the first card's top too.
-      final moved = tester.getRect(surfaceOf(sections.at(0))).top - 122.73;
-      Rect rectOf(Finder finder) => tester.getRect(finder).shift(Offset(0, -moved));
-      final tops = <double>[];
-      final webTops = <double>[];
-      void near(String what, Rect got, Map want, {double? cardTop, double? webCardTop, bool size = true, bool wide = true}) {
-        final wy = y(want);
-        expect(got.left, closeTo(want['x'] as num, 0.5), reason: '$state: $what, x');
-        expect(got.top, closeTo(wy, _slack(wy)), reason: '$state: $what, y');
-        if (cardTop != null) expect(got.top - cardTop, closeTo(wy - webCardTop!, 0.75), reason: '$state: $what, from its card’s top');
-        if (wide) expect(got.width, closeTo(want['w'] as num, 0.5), reason: '$state: $what, width');
-        // A height of text is the page's lines of 20.09 against the kit's of 20.
-        if (size) expect(got.height, closeTo(want['h'] as num, 0.5 + (want['h'] as num) / 200), reason: '$state: $what, height');
-      }
-
-      expect(sections.evaluate().length, cards.length);
-      expect(of('cards').length, cards.length);
-      for (var i = 0; i < cards.length; i++) {
-        final surface = rectOf(surfaceOf(sections.at(i)));
-        near('the ${cards[i]} card', surface, of('cards')[i]);
-        tops.add(surface.top);
-        webTops.add(y(of('cards')[i]));
-      }
-
-      // Which card a thing at this y is in, on the page and here.
-      int cardAt(double top, List<double> all) => all.lastIndexWhere((t) => t <= top + 0.01);
-
-      final heroes = find.byType(PaneHero, skipOffstage: false);
-      for (var i = 0; i < cards.length; i++) {
-        final hero = heroes.at(i);
-        final texts = find.descendant(of: hero, matching: find.byType(Text, skipOffstage: false), skipOffstage: false);
-        expect(tester.widget<Text>(texts.at(0)).data, of('heroTitles')[i]['text']);
-        near('${cards[i]}’s title', rectOf(texts.at(0)), of('heroTitles')[i], cardTop: tops[i], webCardTop: webTops[i], wide: false);
-        near('${cards[i]}’s line', rectOf(texts.at(1)), of('heroMetas')[i], cardTop: tops[i], webCardTop: webTops[i]);
-        final icon = find.descendant(of: hero, matching: find.byType(AppIcon, skipOffstage: false), skipOffstage: false);
-        near('${cards[i]}’s icon', rectOf(icon), of('heroIcons')[i], cardTop: tops[i], webCardTop: webTops[i]);
-        near('${cards[i]}’s tile', rectOf(find.ancestor(of: icon, matching: find.byType(Container, skipOffstage: false)).first), of('heroGlyphs')[i], cardTop: tops[i], webCardTop: webTops[i]);
-        if (i > 0) {
-          final track = find.descendant(of: hero, matching: find.byType(GlacierSwitch, skipOffstage: false), skipOffstage: false);
-          expect(tester.widget<GlacierSwitch>(track).ariaLabel, of('switches')[i - 1]['text']);
-          near('${cards[i]}’s switch', rectOf(track), of('tracks')[i - 1], cardTop: tops[i], webCardTop: webTops[i]);
-        }
-      }
-
-      final rows = find.byType(SettingRow, skipOffstage: false);
-      expect(rows.evaluate().length, of('rows').length, reason: '$state: rows');
-      var hint = 0;
-      for (var i = 0; i < of('rows').length; i++) {
-        final row = rows.at(i);
-        final widget = tester.widget<SettingRow>(row);
-        final want = Map.of(of('rows')[i]);
-        expect(widget.label, of('labels')[i]['text'], reason: '$state: row $i');
-        final got = rectOf(row);
-        final card = cardAt(got.top, tops);
-        expect(card, cardAt(y(want), webTops), reason: '$state: ${widget.label} is in the card the page has it in');
-        // The page's row carries the hairline over it where it follows a row; here the card draws that line.
-        final ruled = i > 0 && cardAt(y(of('rows')[i - 1]), webTops) == card;
-        if (ruled) {
-          want['y'] = (want['y'] as num) + 1;
-          want['h'] = (want['h'] as num) - 1;
-        }
-        near('the row ${widget.label}', got, want, cardTop: tops[card], webCardTop: webTops[card]);
-        final texts = find.descendant(of: row, matching: find.byType(Text, skipOffstage: false), skipOffstage: false);
-        near('the label ${widget.label}', rectOf(texts.at(0)), of('labels')[i], cardTop: tops[card], webCardTop: webTops[card], wide: false);
-        if (widget.hint != null) {
-          near('the line under ${widget.label}', rectOf(texts.at(1)), of('hints')[hint], cardTop: tops[card], webCardTop: webTops[card], wide: false);
-          hint++;
-        }
-      }
-      expect(hint, of('hints').length, reason: '$state: every line under a label was held');
-
-      final chips = find.byWidgetPredicate((w) => w is SettingRow && w.icon != null, skipOffstage: false);
-      expect(chips.evaluate().length, of('rowIcons').length);
-      for (var i = 0; i < of('rowIcons').length; i++) {
-        final chip = find.ancestor(of: find.descendant(of: chips.at(i), matching: find.byType(AppIcon, skipOffstage: false), skipOffstage: false), matching: find.byType(Container, skipOffstage: false)).first;
-        near('the chip of a page’s row', rectOf(chip), of('rowIcons')[i]);
-      }
-
-      final actions = find.byType(RowAction, skipOffstage: false);
-      expect(actions.evaluate().length, of('actions').length);
-      for (var i = 0; i < of('actions').length; i++) {
-        expect(find.descendant(of: actions.at(i), matching: find.text(of('actions')[i]['text'] as String, skipOffstage: false), skipOffstage: false), findsOneWidget);
-        near('the word ${of('actions')[i]['text']}', rectOf(actions.at(i)), of('actions')[i]);
-      }
-
-      // The words under a card and at the page's foot stand in from its edge, as a card's title does: their tops.
-      final footers = [for (final section in tester.widgetList<PaneSection>(sections)) if (section.footer case final Text footer) footer.data!];
-      expect(footers, [for (final footer in of('footers')) footer['text']]);
-      for (var i = 0; i < footers.length; i++) {
-        final got = rectOf(find.descendant(of: sections.at(i + 1), matching: find.text(footers[i], skipOffstage: false), skipOffstage: false));
-        final wy = y(of('footers')[i]);
-        expect(got.top, closeTo(wy, _slack(wy)), reason: '$state: the words under ${cards[i + 1]}');
-        expect(got.top - tops[i + 1], closeTo(wy - webTops[i + 1], 1.2), reason: '$state: the words under ${cards[i + 1]}, from its card’s top');
-        expect(got.left, closeTo((of('footers')[i]['x'] as num) + 8.93, 0.5));
-      }
-      final foot = rectOf(find.textContaining('Plugins ship inside Ghost.md', skipOffstage: false));
-      expect(foot.top, closeTo(y(of('footnote').single), _slack(y(of('footnote').single))), reason: '$state: the footnote');
-
-      final callouts = of('callout');
-      expect(find.byType(SettingsCallout, skipOffstage: false).evaluate().length, callouts.length);
-      if (callouts.isNotEmpty) {
-        near('the callout', rectOf(find.descendant(of: find.byType(SettingsCallout), matching: find.byType(Container)).first), callouts.single, size: false);
-        final words = find.byType(GoWord, skipOffstage: false);
-        expect(words.evaluate().length, of('goWords').length);
-        for (var i = 0; i < of('goWords').length; i++) {
-          final wy = y(of('goWords')[i]);
-          final got = rectOf(find.descendant(of: words.at(i), matching: find.text('Local only', skipOffstage: false), skipOffstage: false));
-          expect(got.left, closeTo(of('goWords')[i]['x'] as num, 0.75), reason: '$state: “Local only” $i, x');
-          expect(got.width, closeTo(of('goWords')[i]['w'] as num, 0.75), reason: '$state: “Local only” $i, width');
-          expect(got.top, closeTo(wy, _slack(wy) + 0.5), reason: '$state: “Local only” $i, y');
-        }
-      }
-    }
-
-    const cards = ['Plugins', 'Notion', 'GitHub', 'Marks', 'Claude', 'Slack'];
-
-    testWidgets('as it comes up: six cards, their switches, their rows and what each may reach, rect for rect', (tester) async {
-      install(tester, shippedRegistry());
-      await openPane(tester, 'plugins');
-      expect(display(tester), 'Plugins');
-      expect(web['listRow'], 'Plugins4 of 5 on');
-      hold(tester, 'base', cards: cards);
-      // The first card is where the page has it to the half pixel, before anything has gathered.
-      expect(tester.getRect(surfaceOf(find.byType(PaneSection, skipOffstage: false).first)), rectNear(22.31, 122.73, 345.38, 160.44));
-      expect(tester.getRect(find.descendant(of: heroCalled('Notion'), matching: find.byType(GlacierSwitch))).size, const Size(44, 26));
-      await endSettings(tester);
-    });
-
-    testWidgets('with Claude’s reasons open: a row a permission under what it may reach', (tester) async {
-      install(tester, shippedRegistry());
-      await openPane(tester, 'plugins');
-      await tapOn(tester, actionIn('Claude', 'Why'));
-      hold(tester, 'why', cards: cards);
-      await endSettings(tester);
-    });
-
-    testWidgets('under Local only: the callout, and “Off while Local only is on” on the four that use the internet', (tester) async {
-      install(tester, shippedRegistry());
-      await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light', localOnly: true));
-      hold(tester, 'localOnly', cards: cards);
-      expect([for (final name in cards.skip(1)) switchOf(tester, name).disabled], [true, true, false, true, true]);
-      await endSettings(tester);
-    });
-  });
-
-  // Pictures of the page, drawn with the real faces, to lay beside the web app's own (fixtures/web/, taken over its
-  // dev server in Chromium at the same sizes, 2026-10-08): `flutter test --update-goldens`, then open shots/.
+  // Pictures of the page, drawn with the real faces: `flutter test --update-goldens`, then open shots/.
   group('pictures', () {
     for (final theme in ['light', 'dark']) {
       testWidgets('Plugins on a phone, $theme', (tester) async {
-        install(tester, shippedRegistry());
+        install(shipped());
         await openPane(tester, 'plugins', prefs: Preferences(theme: theme));
         await shot(tester, 'plugins-$theme');
       });
 
-      testWidgets('the whole page on a window tall enough to hold it, $theme', (tester) async {
-        install(tester, shippedRegistry());
-        await openPane(tester, 'plugins', prefs: Preferences(theme: theme), size: const Size(390, 2700));
+      testWidgets('the whole catalogue on a window tall enough to hold it, $theme', (tester) async {
+        install(shipped());
+        await openPane(tester, 'plugins', prefs: Preferences(theme: theme), size: const Size(390, 2900));
         await shot(tester, 'plugins-tall-$theme');
       });
     }
 
     testWidgets('Plugins under Local only, light', (tester) async {
-      install(tester, shippedRegistry());
+      install(shipped());
       await openPane(tester, 'plugins', prefs: const Preferences(theme: 'light', localOnly: true));
       await shot(tester, 'plugins-local-only-light');
+    });
+
+    testWidgets('Plugins on a wide window, three across, light', (tester) async {
+      install(shipped());
+      await openPane(tester, 'plugins', size: wideWindow);
+      await shot(tester, 'plugins-wide-light');
+    });
+
+    testWidgets('Notion’s page in the catalogue, light', (tester) async {
+      install(shipped());
+      await openPane(tester, 'plugins/notion', size: const Size(390, 1400));
+      await shot(tester, 'plugin-info-notion-light');
+    });
+
+    testWidgets('Settings’ list with the Plugins card, light', (tester) async {
+      install(shipped());
+      await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1400));
+      await shot(tester, 'settings-list-plugins-light');
     });
   });
 }

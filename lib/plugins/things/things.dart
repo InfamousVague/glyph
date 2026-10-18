@@ -19,6 +19,11 @@ const PluginManifest thingsManifest = PluginManifest(
   description: 'Brings Things 3 in: its areas as notebooks and its projects as their pages, from Things on this Mac or a list it copied.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.imports,
+  tagline: 'Bring Things 3 in',
+  adds: [
+    'Things 3 on Settings › Import: from Things on this Mac, or a list it copied',
+  ],
   // Off until switched on: an import is a thing done once, by someone moving from Things.
   standard: false,
   permissions: [

@@ -19,6 +19,14 @@ const PluginManifest manifest = PluginManifest(
       'Links a note to a repo: its list items become issues you can tick off from either side, and the repo is read on the phone into a short briefing so names and terms come out right when the note is formatted.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.connections,
+  tagline: 'Notes linked to repos, their items issues',
+  adds: [
+    'A GitHub repo to link a note to, on its settings',
+    'Swipe a list item left, or tap the quiet “GitHub” after it, to make it an issue',
+    'Send list to GitHub, once the note is linked',
+    'A briefing of the repo for the model as the note is formatted',
+  ],
   standard: true,
   permissions: [
     PluginPermission(Permission.notes, 'Sends a note’s list items to the repo as issues, and writes each one’s link back into the note.'),

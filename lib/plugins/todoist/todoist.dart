@@ -19,6 +19,11 @@ const PluginManifest todoistManifest = PluginManifest(
   description: 'Brings your Todoist projects in as notes, their sections headings and their tasks to-dos, from your account or a project’s CSV export.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.imports,
+  tagline: 'Bring your Todoist projects in',
+  adds: [
+    'Todoist on Settings › Import: from your account with a token, or a project’s CSV export',
+  ],
   // Off until switched on: an import is a thing done once, by someone moving from Todoist.
   standard: false,
   permissions: [

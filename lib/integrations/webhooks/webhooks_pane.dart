@@ -42,7 +42,7 @@ String scopeWords(WebhookScope scope, {String? Function(String id)? named}) {
   };
 }
 
-/// The Webhooks plugin's page, Settings › Plugins › Webhooks (docs/INTEGRATIONS.md, §1; the port's own, 2026-10-17;
+/// The Webhooks plugin's page, Settings › Webhooks (docs/INTEGRATIONS.md, §1; the port's own, 2026-10-17;
 /// plugin.dart), reached once the plugin is switched on:
 ///
 /// - **Outgoing webhooks**: a URL told when a note this device changes is made, edited or has a to-do ticked, for

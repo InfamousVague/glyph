@@ -29,7 +29,7 @@ String contactsSummary(ContactsStore store) {
   return '$matched of ${people.length} matched';
 }
 
-/// The Contacts plugin's page, Settings › Plugins › Contacts (docs/INTEGRATIONS.md §2; the port's own, 2026-10-17,
+/// The Contacts plugin's page, Settings › Contacts (docs/INTEGRATIONS.md §2; the port's own, 2026-10-17,
 /// and a page of its own behind Plugins until it was a plugin): the phone's contacts for the people named on to-dos.
 ///
 /// - **Your contacts**: what the phone allows. The plugin's switch on its card is the page's switch: switched on, the

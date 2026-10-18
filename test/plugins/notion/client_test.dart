@@ -242,7 +242,7 @@ void main() {
       phone.answer = (request) async => json(200, {'ok': 1});
       expect(await notionRequest('GET', 'users/me'), {'ok': 1});
       phone.answer = (request) async => json(401, {'message': 'API token is invalid.'});
-      await expectLater(notionRequest('GET', 'users/me'), throwsA(isA<NotionFailure>().having((f) => f.message, 'message', 'Notion signed Ghost.md out. Sign in again in Settings › Plugins › Notion.')));
+      await expectLater(notionRequest('GET', 'users/me'), throwsA(isA<NotionFailure>().having((f) => f.message, 'message', 'Notion signed Ghost.md out. Sign in again in Settings › Notion.')));
       phone.answer = (request) async => json(404);
       await expectLater(notionRequest('PATCH', 'pages/abc'), throwsA(isA<NotionFailure>().having((f) => f.message, 'message', 'Notion can’t see that task. Share its board with Ghost.md in Notion.')));
       await expectLater(notionRequest('POST', 'databases/abc/query'), throwsA(isA<NotionFailure>().having((f) => f.message, 'message', 'Notion can’t see that board. Share it with Ghost.md in Notion.')));

@@ -4,6 +4,7 @@ import '../account/ui_state.dart';
 import '../core/mac_app.dart' show macAppStore;
 import '../core/preferences.dart';
 import '../core/workspaces.dart' show Workspace;
+import '../plugins/catalogue.dart' show catalogueOrder;
 import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
@@ -104,6 +105,8 @@ class SettingsSectionSpec {
     this.parent,
     this.hue,
     this.pane,
+    this.icon,
+    this.searched = true,
   });
 
   final String id;
@@ -138,6 +141,12 @@ class SettingsSectionSpec {
 
   /// Its page. Null until it is ported, and the section then opens on a page that says so.
   final WidgetBuilder? pane;
+
+  /// Its own icon at a size, in place of [glyph]: a plugin's, on its row of the list (the port's own).
+  final Widget Function(double size)? icon;
+
+  /// False keeps it out of the search's results (`SettingsSection.searched`).
+  final bool searched;
 }
 
 String _static(String line, SettingsFacts _) => line;
@@ -161,41 +170,72 @@ String _static(String line, SettingsFacts _) => line;
 /// - AI's reading is the chosen model and what it takes to get, from the catalogue; About's is the version alone
 ///   until the app has an updater; Test results' is "No report yet" until a report is built in.
 /// - Plugins reads the app's registry (lib/plugins/registry.dart `plugins`), which is empty until the built-in
-///   plugins are put in place: its row then says "0 of 0 on". Each switched-on plugin's own page follows Plugins as a
-///   sub-page of it ([pluginPageSections]), so this table is read afresh each time it is asked for, where the web
-///   built its list on every draw. The sheet has to be drawn again when a switch moves for the row's count to
-///   follow it.
+///   plugins are put in place: its row then says "0 of 0 added". Plugins is a catalogue now, with a card of its own
+///   on the list (Matt, 2026-10-18: "rework the plugins page to be a marketplace, also move plugin settings to their
+///   own page under settings"): its row, then a row for each added plugin's own page ([pluginPageSections]), then
+///   every plugin's page in the catalogue, off the list ([pluginInfoSections]). So this table is read afresh each
+///   time it is asked for, where the web built its list on every draw, and the sheet draws it again whenever a
+///   plugin's switch moves.
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
 List<SettingsSectionSpec> get settingsSections => [
       for (final spec in _sections) ...[
         spec,
-        if (spec.id == 'plugins') ...pluginPageSections(),
+        if (spec.id == 'plugins') ...[...pluginPageSections(), ...pluginInfoSections()],
       ],
     ];
 
-/// Each switched-on plugin's own page, behind its card (SettingsSheet.tsx): a sub-page of Plugins in the plugin's
-/// own colour, found by the search by the plugin's name, what it does, and what its page lists. A plugin switched
-/// off, or held off by Local only, has no page.
+/// The card Plugins and the plugins' own pages share on the list, between AI's and About's.
+const int pluginsGroup = 5;
+
+/// Each added plugin's own page, a row of Settings' list on the Plugins card (Matt, 2026-10-18: "move plugin
+/// settings to their own page under settings"): in the plugin's own icon and colour, read by its own summary, and
+/// found by the search by the plugin's name, what it does, and what its page lists. In the catalogue's order (by
+/// category, then by name: Claude; Calendar, Contacts, Place reminders; Things, Todoist; GitHub, Notion, Slack,
+/// Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in the catalogue
+/// offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the catalogue
+/// ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on.
 ///
-/// What differs from the web original: a section's glyph is one of Settings' own ([SettingsGlyph]), so a plugin's
-/// page wears the puzzle piece where the search lists it, not the plugin's icon; its card on Plugins wears its own.
+/// What differs from the web original: there, each was a sub-page behind its card on Plugins, which is where it was
+/// here too until 2026-10-18.
 List<SettingsSectionSpec> pluginPageSections() => [
-      for (final plugin in plugins.enabled())
+      for (final plugin in catalogueOrder(plugins.enabled()))
         if (plugin.settings case final own?)
           SettingsSectionSpec(
             id: pluginPageId(plugin.manifest.id),
             label: plugin.manifest.name,
             words: plugin.manifest.description,
             glyph: SettingsGlyph.puzzle,
-            group: 2,
+            icon: (size) => pluginIcon(plugin, size),
+            group: pluginsGroup,
             webFile: 'plugins/PluginsPane.tsx',
             summary: (facts) => own.summary(),
             settings: (facts) => own.settings,
             hue: own.hue,
-            pane: own.pane,
-            listed: false,
-            parent: 'plugins',
+            pane: (context) => PluginSettingsPage(plugin: plugin),
           ),
+    ];
+
+/// Every plugin's page in the catalogue, added or not: a sub-page of Plugins, in Plugins' green, opened from its
+/// card. The search finds it by the plugin's name only while it is the plugin's one page: once the plugin is added
+/// and has a page of its own in Settings, that page is what the name finds.
+List<SettingsSectionSpec> pluginInfoSections() => [
+      for (final plugin in catalogueOrder(plugins.all()))
+        SettingsSectionSpec(
+          id: pluginInfoId(plugin.manifest.id),
+          label: plugin.manifest.name,
+          words: [plugin.manifest.description, plugin.manifest.category?.label, 'add'].nonNulls.join(' '),
+          glyph: SettingsGlyph.puzzle,
+          icon: (size) => pluginIcon(plugin, size),
+          group: pluginsGroup,
+          webFile: 'plugins/PluginsPane.tsx',
+          summary: (facts) => plugin.manifest.line,
+          settings: (facts) => pluginInfoFindable(plugin),
+          hue: 'green',
+          pane: (context) => PluginInfoPane.hosted(context, plugin),
+          listed: false,
+          parent: 'plugins',
+          searched: !(plugin.settings != null && plugins.isEnabled(plugin.manifest.id)),
+        ),
     ];
 
 final List<SettingsSectionSpec> _sections = [
@@ -364,17 +404,17 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
   ),
+  // The catalogue, first on a card of its own, with each added plugin's page after it (settingsSections).
   SettingsSectionSpec(
     id: 'plugins',
     label: 'Plugins',
-    words: 'extensions integrations add-ons',
+    words: 'extensions integrations add-ons marketplace catalogue store browse install',
     glyph: SettingsGlyph.puzzle,
-    group: 2,
+    group: pluginsGroup,
     webFile: 'plugins/PluginsPane.tsx',
     summary: (facts) => pluginsSummary(plugins),
-    // Every plugin, on or off: the way to switch on one that has no page yet.
-    settings: (facts) => pluginsFindable(plugins.all()),
-    // A card's row lands on that plugin's own page, and "Local only" on Account's Privacy card.
+    settings: (facts) => pluginsFindable(plugins),
+    // A card lands on that plugin's page in the catalogue, and "Local only" on Account's Privacy card.
     pane: PluginsPane.hosted,
   ),
   SettingsSectionSpec(

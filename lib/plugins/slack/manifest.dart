@@ -20,6 +20,12 @@ const PluginManifest manifest = PluginManifest(
   description: 'Posts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.connections,
+  tagline: 'Post a note to a Slack channel',
+  adds: [
+    'Post to Slack on a note’s settings, and Post the summary to Slack for a meeting',
+    'An organization’s news to the channel set for it',
+  ],
   // Off until switched on: it sends words off the phone, and only ever when the person has set a channel up for it.
   standard: false,
   permissions: [

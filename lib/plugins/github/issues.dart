@@ -112,7 +112,7 @@ Issue asIssue(Map<String, Object?> raw, String owner, String repo) {
 bool canWriteIssues() => githubToken().trim().isNotEmpty;
 
 /// `NEEDS_TOKEN`.
-const String needsToken = 'Add a GitHub token in Settings > Plugins > GitHub to send items as issues.';
+const String needsToken = 'Add a GitHub token in Settings > GitHub to send items as issues.';
 
 Future<Map<String, Object?>> _call(String method, String path, [Map<String, Object?>? body]) async {
   host.need(Permission.network);
@@ -145,7 +145,7 @@ String _trouble(FetchResponse answer, String method) {
   } catch (_) {
     // Not JSON: GitHub said nothing this can read.
   }
-  if (answer.status == 401) return 'GitHub didn’t accept that token. Check it in Settings > Plugins > GitHub.';
+  if (answer.status == 401) return 'GitHub didn’t accept that token. Check it in Settings > GitHub.';
   if (answer.status == 403 && _rateLimit.hasMatch(said)) return 'GitHub is rate limiting this phone. Try again in a few minutes.';
   if (answer.status == 403 || answer.status == 404) {
     return method == 'GET' ? 'That issue isn’t readable with this token.' : 'That repo doesn’t allow this token to write issues.';

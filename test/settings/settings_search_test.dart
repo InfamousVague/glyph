@@ -4,7 +4,7 @@ import 'package:ghost_md/settings/settings_search.dart';
 /// The web app's src/app/settings/settingsSearch.test.ts on the Dart port. `findSetting`, which read the page for
 /// the element naming a setting, is the kit's finder here and is tested with the screen (settings_screen_test.dart).
 class _Section implements SearchableSection {
-  const _Section(this.id, this.label, {this.summary, this.words, this.settings = const []});
+  const _Section(this.id, this.label, {this.summary, this.words, this.settings = const [], this.searched = true});
   @override
   final String id;
   @override
@@ -15,6 +15,8 @@ class _Section implements SearchableSection {
   final String? words;
   @override
   final List<SettingsFindable> settings;
+  @override
+  final bool searched;
 }
 
 // The shape of Settings since docs/DESIGN.md §138, cut down: Appearance holds what were Type's and Animations' rows.
@@ -68,6 +70,19 @@ void main() {
       expect(_found('"how ghost'), ['examples/Add the “How Ghost.md works” canvas']);
       expect(_found("ghost.md's"), ["recording/Use Ghost.md's guess"]);
       expect(fold('Add the “How Ghost.md works” canvas'), 'add the "how ghost.md works" canvas');
+    });
+
+    // A plugin's page in the catalogue, once its own page in Settings stands for it (settings_sections.dart).
+    test('leaves out a section that is not searched, by its name and by its settings', () {
+      const hidden = [_Section('plugins/notion', 'Notion', words: 'boards tasks', settings: [SettingsFindable('What it may reach')], searched: false)];
+      expect(searchSettings(hidden, 'notion'), isEmpty);
+      expect(searchSettings(hidden, 'reach'), isEmpty);
+    });
+
+    test('matches a page’s own things as the search does', () {
+      expect(wordsFound('cal goo', ['Calendar', 'From Google']), isTrue);
+      expect(wordsFound('alendar', ['Calendar']), isFalse);
+      expect(wordsFound('  ', ['Calendar']), isTrue);
     });
   });
 }

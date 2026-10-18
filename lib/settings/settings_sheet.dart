@@ -5,6 +5,7 @@ import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
 import '../perf/frame_log.dart';
+import '../plugins/registry.dart' show plugins;
 import '../shell/page_dock.dart' show PageDockSeam;
 import 'kit/settings_icons.dart';
 import 'panes/settings_host.dart';
@@ -204,7 +205,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
       notesInWorkspace: widget.notesInWorkspace,
       onTrashNotes: widget.onTrashNotes,
       child: ListenableBuilder(
-        listenable: Listenable.merge([store, developerMode, spaces, services?.changes]),
+        // The plugins too: a switch moved on Plugins adds or takes away its plugin's row on the list.
+        listenable: Listenable.merge([store, developerMode, spaces, services?.changes, plugins]),
         builder: (context, _) {
           if (ghostPerf) Perf.count(widget.open ? 'settings.sheet.open' : 'settings.sheet.shut');
           // Shut, it draws nothing, and nothing is worked out for it: this is built again at every change of any
@@ -232,13 +234,14 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   label: spec.label,
                   words: spec.words,
                   settings: spec.settings?.call(facts) ?? const [],
-                  icon: SettingsIcon(spec.glyph, size: 16),
+                  icon: spec.icon?.call(16) ?? SettingsIcon(spec.glyph, size: 16),
                   content: spec.pane ?? (context) => SettingsNotPorted(spec: spec),
                   summary: spec.summary?.call(facts),
                   group: spec.group,
                   hue: spec.hue,
                   listed: spec.listed,
                   parent: spec.parent,
+                  searched: spec.searched,
                 ),
           ];
           return SettingsScreen(open: widget.open, onClose: widget.onClose, sections: sections, goTo: _goTo, split: widget.split, dock: widget.dock);

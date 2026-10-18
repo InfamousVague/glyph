@@ -40,6 +40,14 @@ const PluginManifest claudeManifest = PluginManifest(
   description: 'Ask Claude in the app with your own API key, and read, add to and change your notes from Claude, through Ghost.md’s MCP server.',
   version: '1.1.0',
   author: 'Ghost.md',
+  category: PluginCategory.ai,
+  tagline: 'Ask Claude, here and from Claude’s own app',
+  adds: [
+    'Claude in the dock at the head of every page, and Ask Claude in the command bar',
+    'The chat, where Claude writes into the note as you watch',
+    'The “Ask Claude” note, done as requests are written in it',
+    'Ghost.md’s MCP server, for Claude’s own app to read and write your notes',
+  ],
   standard: true,
   permissions: [
     PluginPermission(Permission.notes, 'Asked here, Claude reads, makes and changes your notes on this device as you watch. From Claude’s own app it reads and writes them through the sync service once you sign it in.'),

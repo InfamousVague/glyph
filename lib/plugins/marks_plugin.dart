@@ -13,6 +13,12 @@ const PluginManifest marksManifest = PluginManifest(
       'Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout, an addition, and five effects: heat, frost, a wave, a shimmer and a haunting. Typed or said.',
   version: '1.0.0',
   author: 'Ghost.md',
+  category: PluginCategory.editor,
+  tagline: 'Smoke, highlights, asides and effects',
+  adds: [
+    'Seven marks of its own, typed or said: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout and an addition',
+    'Five effects: heat, frost, a wave, a shimmer and a haunting',
+  ],
   standard: true,
   permissions: [],
   storage: [],

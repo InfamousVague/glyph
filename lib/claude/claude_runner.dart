@@ -80,7 +80,7 @@ class ClaudeRunner extends ChangeNotifier {
     await settings.load();
     final key = settings.key;
     if (key == null) {
-      started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Plugins › Claude.'));
+      started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Claude.'));
       return;
     }
     final kept = alone || _history.isEmpty ? null : _system;

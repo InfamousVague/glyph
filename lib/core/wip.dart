@@ -37,7 +37,7 @@ final DeviceFlag wipAssistant = DeviceFlag(wipAssistantKey);
 
 /// The switch's hint: what it turns on, and what works either way.
 const String wipAssistantHint = 'The side key as the phone’s assistant, and Record note on the app’s icon. Off, nothing outside Ghost.md starts a recording. '
-    'Recording, voice memos and meetings work either way. Open Ghost.md again after switching it. The same switch is Phone assistant on Settings › Plugins › Claude.';
+    'Recording, voice memos and meetings work either way. Open Ghost.md again after switching it. The same switch is Phone assistant on Settings › Claude.';
 
 /// Switches it: the flag, and the phone's half. [phone] is the phone's own unless a test gives another; a phone
 /// that will not answer leaves the flag as it was.
