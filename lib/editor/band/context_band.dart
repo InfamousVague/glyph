@@ -55,6 +55,7 @@ import '../../art/lucide.g.dart';
 import '../../core/back.dart';
 import '../../core/item_links.dart';
 import '../../core/item_syntax.dart';
+import '../../core/preferences.dart' show preferences;
 import '../commands/format.dart';
 import '../editor.dart';
 import '../spell/spell_marks.dart' show misspellingAt, replaceMisspelling;
@@ -274,12 +275,18 @@ class ContextBand extends StatefulWidget {
     this.clipboard = const SystemClipboard(),
     this.felt,
     this.room,
+    this.simple,
     this.child,
   });
 
   /// The editor, or null where there is none yet: nothing is drawn.
   final EditorViewLike? view;
   final ContextBandController controller;
+
+  /// Whether the app is in simple mode (GHST-103, lib/core/preferences.dart `Preferences.simple`): Style stands
+  /// first in the actions, before Cut and Copy, and the Style page wears its hints with the plugins' marks behind
+  /// More (style_items.dart). Null reads the app's own preference as the band is drawn; a test says.
+  final bool? simple;
 
   /// Opens the picture picker; null where a picture makes no sense, and the word is not shown.
   final FutureOr<void> Function()? onAddImage;
@@ -339,6 +346,9 @@ class _ContextBandState extends State<ContextBand> {
   ScrollPosition? _noteScroll;
   bool _routed = false;
 
+  /// Simple mode's Style page with its More pressed: the plugins' marks shown, until the band opens again.
+  bool _moreStyles = false;
+
   ContextBandController get _controller => widget.controller;
 
   @override
@@ -391,6 +401,9 @@ class _ContextBandState extends State<ContextBand> {
 
   void _close() => _controller.close();
 
+  /// Simple mode, as the band was told or as the app's preference says now.
+  bool get _simple => widget.simple ?? preferences.value.simple;
+
   void _felt(HapticKind kind) => (widget.felt ?? (kind) => HapticsProvider.of(context)(kind))(kind);
 
   /// It leaves on a touch anywhere else.
@@ -423,6 +436,7 @@ class _ContextBandState extends State<ContextBand> {
       _offered = _read(view);
     } else if (!open) {
       _offered = null;
+      _moreStyles = false;
     }
     _route(open);
     if (open != _portal.isShowing) open ? _portal.show() : _portal.hide();
@@ -536,6 +550,16 @@ class _ContextBandState extends State<ContextBand> {
     final onComment = widget.onComment, onFind = widget.onFind, send = widget.send, onAddImage = widget.onAddImage;
     // The word under the caret, when the spell checker would have it otherwise (lib/editor/spell): what it offers.
     final misspelled = selected ? null : misspellingAt(view.state, view.state.selection.main.head);
+    final style = MenuItem(
+      key: const ValueKey<String>('style'),
+      icon: Lucide.type,
+      label: 'Style',
+      onPress: () {
+        _felt(HapticKind.selection);
+        _controller._turn(BandPage.styles);
+      },
+    );
+    final simple = _simple;
     return <Widget>[
       // First, so the right word is one press away: the page's WebView offered them in a popup of its own on a
       // word it had underlined. Three at most; the band is a line.
@@ -551,6 +575,10 @@ class _ContextBandState extends State<ContextBand> {
               if (still != null) view.dispatch(replaceMisspelling(still, suggestion));
             }),
           ),
+      // In simple mode Style leads, before Cut and Copy: the menu is where formatting is found, and someone new
+      // to the app is looking for Bold more often than the clipboard (GHST-103). A misspelling's words stay ahead
+      // of it: a wrong word wants its right one first.
+      if (simple) style,
       if (selected) ...<Widget>[
         MenuItem(key: const ValueKey<String>('cut'), icon: Lucide.scissors, label: 'Cut', onPress: _act(view, cut)),
         MenuItem(key: const ValueKey<String>('copy'), icon: Lucide.copy, label: 'Copy', onPress: _act(view, copy)),
@@ -611,15 +639,7 @@ class _ContextBandState extends State<ContextBand> {
       if (boards.joinable) MenuItem(key: const ValueKey<String>('join-board'), icon: Lucide.layoutGrid, label: 'Add to board', onPress: _act(view, putOnBoard)),
       if (boards.list != null) MenuItem(key: const ValueKey<String>('list-board'), icon: Lucide.squareKanban, label: 'Board from list', onPress: _act(view, listToBoard)),
       if (send != null && offered.lineWords.isNotEmpty) MenuItem(key: const ValueKey<String>('send'), icon: send.icon, label: send.label, onPress: _act(view, () => send.run(offered.lineWords))),
-      MenuItem(
-        key: const ValueKey<String>('style'),
-        icon: Lucide.type,
-        label: 'Style',
-        onPress: () {
-          _felt(HapticKind.selection);
-          _controller._turn(BandPage.styles);
-        },
-      ),
+      if (!simple) style,
       if (onAddImage != null) MenuItem(key: const ValueKey<String>('add-image'), icon: Lucide.imagePlus, label: 'Add image', onPress: _act(view, onAddImage)),
     ];
   }
@@ -640,7 +660,17 @@ class _ContextBandState extends State<ContextBand> {
       );
     } else if (page == BandPage.styles) {
       entrance = true;
-      rows = styleItems(view: view, onBack: _backFrom(toActions), onClose: _close, restyled: _changed, felt: _felt, formats: widget.formats);
+      rows = styleItems(
+        view: view,
+        onBack: _backFrom(toActions),
+        onClose: _close,
+        restyled: _changed,
+        felt: _felt,
+        formats: widget.formats,
+        simple: _simple,
+        moreShown: _moreStyles,
+        onMore: () => setState(() => _moreStyles = true),
+      );
     } else {
       rows = _actions(view, held, _offered ??= _read(view));
     }

@@ -64,3 +64,29 @@ Rules for the input layer:
 7. A push that changes the composing text restarts the input; clear composing on an editor-made caret move.
 8. Send `setEditableSizeAndTransform`, `setCaretRect`, `setComposingRect`.
 Why a window: pushing a 169 kB document costs ~47 ms on Android's main thread per editor-made change against ~0.5 ms.
+
+## Simple mode's Format bar (2026-10-18)
+
+The finding above still holds for advanced mode: there is no formatting toolbar, formatting is the press-and-hold
+band's Style page. Simple mode (GHST-103, lib/core/preferences.dart `Preferences.simple`) is the one exception, and it
+is Matt's: "allow selecting between simple and advanced mode where simple mode has a much more approachable UI with
+fancy features hidden behind more and work on making formatting and stuff easier to understand", and for it "A small
+Format bar in the editor". Someone new to Markdown looks for Bold where every other editor keeps it, and a band that
+only comes on a press-and-hold is not where they look first.
+
+- **The bar** (lib/note/format_bar.dart): Bold, Italic, Heading, List, To-do, Link, six of the Style page's rows
+  pressed from outside the band (`formatBarTools`, lib/editor/band/style_items.dart): the same edits, lit from the
+  same reading of the editor's state. A press never takes the editor's focus. Where it stands
+  (lib/note/note_screen.dart): on a phone a strip in the page's paper just above the soft keyboard while it is up,
+  the page ending above it; on an iPhone the keyboard bar's own row, beside Done (lib/app/iphone_page.dart
+  `KeyboardBarOffer`); on a desktop or a wide window with the keyboard down, a pill in the dock's hand across the
+  page's foot to the dock's start (docs/DOCK.md), which is "in the dock" without making its column twice as tall.
+  Advanced mode draws none of it.
+- **The Style page, both modes**: every row has a hint in plain words (Bold "Strong words", Quote "Someone else's
+  words", Rule "A line across the page"), said to a screen reader and shown on a desktop while the pointer rests on
+  the row. In simple mode the hint is drawn under the word, Style stands first in the band before Cut and Copy, and
+  the plugins' decorative marks (Spoiler … Haunt) wait behind a More row at the page's end. In advanced the band
+  keeps the geometry the web page was measured at (test/editor/band/band_reference_test.dart), so the hints are not
+  drawn there.
+- Tests: test/editor/band/format_bar_test.dart, test/note/note_format_bar_test.dart, and "simple mode" in
+  test/editor/band/context_band_test.dart.

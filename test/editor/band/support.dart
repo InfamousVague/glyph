@@ -128,6 +128,7 @@ Future<BandRig> pumpBand(
   List<BandFormat> formats = const <BandFormat>[],
   BandFields? fields,
   bool boards = false,
+  bool? simple,
 }) async {
   final view = EditorView(
     wholeDocument: true,
@@ -168,6 +169,7 @@ Future<BandRig> pumpBand(
                     formats: formats,
                     fields: fields,
                     boards: boards,
+                    simple: simple,
                     felt: rig.felt.add,
                     child: EditorColumn(view: view),
                   ),

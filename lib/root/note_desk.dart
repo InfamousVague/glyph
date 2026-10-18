@@ -212,10 +212,11 @@ List<GlyphFormat> noteFormats() => plugins.all().isEmpty ? marks : plugins.forma
 /// The marks as the band's Style page lists them, read as the band is drawn (`StyleItems.tsx`): each switched-on
 /// plugin's formattings, under its own icon (`format.icon ?? plugin.icon ?? Type`).
 List<band.BandFormat> bandFormats() => plugins.all().isEmpty
-    ? <band.BandFormat>[for (final mark in marks) band.BandFormat.of(mark, Lucide.all[mark.icon] ?? Lucide.type)]
+    ? <band.BandFormat>[for (final mark in marks) band.BandFormat.of(mark, Lucide.all[mark.icon] ?? Lucide.type, mark.about)]
     : <band.BandFormat>[
         for (final plugin in plugins.enabled())
-          for (final format in plugin.formats) band.BandFormat.of(format, Lucide.all[format.icon ?? plugin.icon] ?? Lucide.type),
+          // With the plugin's own line on what the mark is for, as the cheat sheet has it, for the Style page's hint.
+          for (final format in plugin.formats) band.BandFormat.of(format, Lucide.all[format.icon ?? plugin.icon] ?? Lucide.type, format.about),
       ];
 
 /// The effects as the +'s list offers them, at More's end, read as the list is (`addRows.ts` `readGates`).
