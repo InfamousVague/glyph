@@ -101,6 +101,18 @@ void main() {
         for (final heading in tester.widgetList<HomeHeading>(find.byType(HomeHeading))) heading.count == null ? heading.words : '${heading.words} ${heading.count}',
       ];
 
+  // The web page's numbers here were measured before the header was condensed (Matt, 2026-10-17: "make the header of
+  // the app more condensed by default"), and what that took off is worked out from the tokens it changed, at density
+  // 1.1. The bar lost the step over its row, space-2 to space-1, and a little of its rings, space-10 * 0.74 to 0.68:
+  // at 430 wide 4.50 + 2.70 = 7.20 (46.80 to 39.60), so the page, which pads by the bar to the whole pixel, pads by 40
+  // where it padded by 47. The step from the bar to the search went from space-1 + space-2 + space-6 to space-1 +
+  // space-3, 40.50 to 18.00: 22.50 less. Everything under the bar stands 7 + 22.50 higher.
+  const barLess = 4.50 + 2.70;
+  const lift = 7 + 22.50;
+  // The opened Fold's (669 wide, in two panes, whose bar keeps a space-2 under its row): the bar 58.48 to 50.93, the
+  // page padding by 58.48 (a fraction under a half is kept) and then by 51, 7.48; the step 42.44 to 18.86, 23.58 less.
+  const foldLift = 7.48 + 23.58;
+
   /// Whether [rect] is where the web page had it, to [within] of a pixel each way.
   void at(Rect rect, double left, double top, double width, double height, {double within = 0.75, String? reason}) {
     expect(rect.left, closeTo(left, within), reason: '${reason ?? ''} left');
@@ -236,27 +248,27 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
       await settle(tester);
-      // The header pane is the tab bar's height, and the page begins a row's air under it.
-      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(46.78, 0.1));
+      // The header pane is the tab bar's height, and the page begins a short step under it.
+      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(46.78 - barLess, 0.1));
       expect(tester.getRect(find.byType(EditableText)).left, closeTo(60.95, 0.75), reason: 'the field, past its mark');
-      at(tester.getRect(find.bySemanticsLabel('Filters')), 362.53, 87.48, 44.98, 44.98, reason: 'filters button');
-      at(tester.getRect(find.bySemanticsLabel('Search notebooks and notes').first), 22.48, 87.48, 331.06, 44.98, reason: 'search');
-      at(tester.getRect(find.text('Pinned')), 46.23, 159.44, 44.94, 16, reason: 'Pinned');
-      at(tester.getRect(key('line-weekend')), 22.48, 185.42, 385.03, 44.98, reason: 'the pinned line');
-      at(tester.getRect(find.text('Weekend trip')), 56.47, 197.91, 101.73, 20, reason: 'its name');
-      at(tester.getRect(find.descendant(of: key('line-weekend'), matching: find.text('1 hr ago'))), 359.23, 200.91, 43.78, 14, reason: 'its when');
-      at(tester.getRect(find.text('Recent')), 46.23, 258.38, 45.27, 16, reason: 'Recent');
-      at(tester.getRect(key('card-prd11')), 22.48, 283.36, 385.03, 249.44, reason: 'the first card');
-      at(tester.getRect(key('card-standup')), 22.48, 546.28, 385.03, 207.05, reason: 'the second card');
-      at(tester.getRect(key('card-flat')), 22.48, 766.81, 385.03, 168.69, reason: 'the third card');
+      at(tester.getRect(find.bySemanticsLabel('Filters')), 362.53, 87.48 - lift, 44.98, 44.98, reason: 'filters button');
+      at(tester.getRect(find.bySemanticsLabel('Search notebooks and notes').first), 22.48, 87.48 - lift, 331.06, 44.98, reason: 'search');
+      at(tester.getRect(find.text('Pinned')), 46.23, 159.44 - lift, 44.94, 16, reason: 'Pinned');
+      at(tester.getRect(key('line-weekend')), 22.48, 185.42 - lift, 385.03, 44.98, reason: 'the pinned line');
+      at(tester.getRect(find.text('Weekend trip')), 56.47, 197.91 - lift, 101.73, 20, reason: 'its name');
+      at(tester.getRect(find.descendant(of: key('line-weekend'), matching: find.text('1 hr ago'))), 359.23, 200.91 - lift, 43.78, 14, reason: 'its when');
+      at(tester.getRect(find.text('Recent')), 46.23, 258.38 - lift, 45.27, 16, reason: 'Recent');
+      at(tester.getRect(key('card-prd11')), 22.48, 283.36 - lift, 385.03, 249.44, reason: 'the first card');
+      at(tester.getRect(key('card-standup')), 22.48, 546.28 - lift, 385.03, 207.05, reason: 'the second card');
+      at(tester.getRect(key('card-flat')), 22.48, 766.81 - lift, 385.03, 168.69, reason: 'the third card');
       // Inside a card: its title, its notebook, its ticket's key and status, and when.
-      expect(tester.getRect(find.text('Fix the sign-in loop')).top, closeTo(302.34, 0.75));
-      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('Product'))), 56.81, 331.53, 41.25, 14, reason: 'the notebook');
-      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('PRD-11'))), 41.47, 354.52, 41.48, 14, reason: 'the key');
+      expect(tester.getRect(find.text('Fix the sign-in loop')).top, closeTo(302.34 - lift, 0.75));
+      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('Product'))), 56.81, 331.53 - lift, 41.25, 14, reason: 'the notebook');
+      at(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('PRD-11'))), 41.47, 354.52 - lift, 41.48, 14, reason: 'the key');
       expect(tester.getRect(find.descendant(of: key('card-prd11'), matching: find.text('In progress'))).left, closeTo(102.57, 0.75));
-      expect(tester.getRect(find.text('20 min ago')).top, closeTo(499.81, 0.75));
+      expect(tester.getRect(find.text('20 min ago')).top, closeTo(499.81 - lift, 0.75));
       // The words of the preview: a paragraph's two lines, then the to-dos hung on their boxes.
-      at(tester.getRect(editorText('Signing').first), 41.47, 386.48, 347.06, 34.78, reason: 'the preview: two lines, 17.4 each');
+      at(tester.getRect(editorText('Signing').first), 41.47, 386.48 - lift, 347.06, 34.78, reason: 'the preview: two lines, 17.4 each');
       expect(editorTextRect(tester, 'Find').left, closeTo(80.63, 0.75), reason: 'a to-do hangs past "- [x] "');
       at(tester.getRect(key('dock-search')), 362.44, 815.86, 39.59, 39.59, reason: 'Search');
       at(tester.getRect(key('dock-add')), 362.44, 864.44, 39.59, 39.59, reason: '+');
@@ -267,13 +279,13 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, layout: HomeLayout.timeline, speak: true));
       await settle(tester);
-      at(tester.getRect(find.text('Today')), 22.48, 159.44, 39.78, 16, reason: 'Today');
-      at(tester.getRect(key('row-prd11')), 22.48, 185.42, 385.03, 64.97, reason: 'a row');
-      at(tester.getRect(key('row-standup')), 22.48, 251.39, 385.03, 64.97, reason: 'the next row, a hairline down');
-      expect(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('Fix the sign-in loop'))).topLeft, within(distance: 0.75, from: const Offset(56.47, 198.91)));
-      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('20 min ago'))), 343.73, 203.73, 59.28, 14, reason: 'when');
-      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('PRD-11'))), 120.5, 222.91, 41.48, 14, reason: 'the ticket in the lead');
-      expect(tester.getRect(find.descendant(of: key('row-standup'), matching: words('Summary'))).top, closeTo(286.88, 0.75));
+      at(tester.getRect(find.text('Today')), 22.48, 159.44 - lift, 39.78, 16, reason: 'Today');
+      at(tester.getRect(key('row-prd11')), 22.48, 185.42 - lift, 385.03, 64.97, reason: 'a row');
+      at(tester.getRect(key('row-standup')), 22.48, 251.39 - lift, 385.03, 64.97, reason: 'the next row, a hairline down');
+      expect(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('Fix the sign-in loop'))).topLeft, within(distance: 0.75, from: const Offset(56.47, 198.91 - lift)));
+      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('20 min ago'))), 343.73, 203.73 - lift, 59.28, 14, reason: 'when');
+      at(tester.getRect(find.descendant(of: key('row-prd11'), matching: find.text('PRD-11'))), 120.5, 222.91 - lift, 41.48, 14, reason: 'the ticket in the lead');
+      expect(tester.getRect(find.descendant(of: key('row-standup'), matching: words('Summary'))).top, closeTo(286.88 - lift, 0.75));
       // With Speak, the dock is three: Search, +, and Speak nearest the thumb.
       at(tester.getRect(key('dock-search')), 362.44, 767.28, 39.59, 39.59, reason: 'Search');
       at(tester.getRect(key('dock-add')), 362.44, 815.86, 39.59, 39.59, reason: '+');
@@ -285,17 +297,17 @@ void main() {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), size: const Size(669, 951), split: true);
       await settle(tester);
-      at(tester.getRect(find.bySemanticsLabel('Filters')), 598.27, 100.91, 47.16, 47.16, reason: 'filters button');
-      at(tester.getRect(key('line-weekend')), 23.58, 202.77, 621.84, 47.16, reason: 'the pinned line');
-      at(tester.getRect(key('card-prd11')), 23.58, 304.63, 197.84, 261.05, reason: 'card 1');
-      at(tester.getRect(key('card-standup')), 235.56, 304.63, 197.86, 261.05, reason: 'card 2');
-      at(tester.getRect(key('card-flat')), 447.56, 304.63, 197.84, 261.05, reason: 'card 3');
-      at(tester.getRect(key('card-open-tickets')), 23.58, 579.81, 197.84, 214.2, reason: 'card 4');
+      at(tester.getRect(find.bySemanticsLabel('Filters')), 598.27, 100.91 - foldLift, 47.16, 47.16, reason: 'filters button');
+      at(tester.getRect(key('line-weekend')), 23.58, 202.77 - foldLift, 621.84, 47.16, reason: 'the pinned line');
+      at(tester.getRect(key('card-prd11')), 23.58, 304.63 - foldLift, 197.84, 261.05, reason: 'card 1');
+      at(tester.getRect(key('card-standup')), 235.56, 304.63 - foldLift, 197.86, 261.05, reason: 'card 2');
+      at(tester.getRect(key('card-flat')), 447.56, 304.63 - foldLift, 197.84, 261.05, reason: 'card 3');
+      at(tester.getRect(key('card-open-tickets')), 23.58, 579.81 - foldLift, 197.84, 214.2, reason: 'card 4');
       // The dates of a row of cards: the short cards' stand together, under previews grown to their six lines.
-      expect(tester.getRect(find.text('40 min ago')).top, closeTo(484.97, 0.75));
-      expect(tester.getRect(find.text('48 min ago')).top, closeTo(484.97, 0.75));
-      expect(tester.getRect(find.text('20 min ago')).top, closeTo(531.81, 0.75));
-      expect(tester.getRect(find.text('Today')).top, closeTo(822.3, 1));
+      expect(tester.getRect(find.text('40 min ago')).top, closeTo(484.97 - foldLift, 0.75));
+      expect(tester.getRect(find.text('48 min ago')).top, closeTo(484.97 - foldLift, 0.75));
+      expect(tester.getRect(find.text('20 min ago')).top, closeTo(531.81 - foldLift, 0.75));
+      expect(tester.getRect(find.text('Today')).top, closeTo(822.3 - foldLift, 1));
       at(tester.getRect(key('dock-add')), 598.23, 880.23, 41.48, 41.48, reason: '+');
       at(tester.getRect(key('dock-search')), 598.23, 829.33, 41.48, 41.48, reason: 'Search');
       await away(tester);
@@ -306,8 +318,8 @@ void main() {
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked), insets: true);
       await settle(tester);
       // pumpApp's phone: 36 at the top, 20 at the foot.
-      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(36 + 46.78, 0.1));
-      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(36 + 87.48, 0.75));
+      expect(tester.getSize(find.byType(HeaderPane)).height, closeTo(36 + 46.78 - barLess, 0.1));
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(36 + 87.48 - lift, 0.75));
       expect(tester.getRect(key('dock-add')).bottom, closeTo(932 - 20 - 17.98 - 9.99, 0.75));
       await away(tester);
     });
@@ -453,9 +465,9 @@ void main() {
       await settle(tester);
       await open(tester);
       // Where the web page's panel stood: hung from the button's end, seventeen rem wide.
-      expect(tester.getRect(find.text('SHOW')).topLeft, within(distance: 1.5, from: const Offset(153.97, 157.48)));
-      expect(tester.getRect(find.text('Notebooks').last).topLeft, within(distance: 1.5, from: const Offset(183.63, 237.45)));
-      expect(tester.getRect(find.text('New workspace')).topLeft, within(distance: 1.5, from: const Offset(183.63, 558.85)));
+      expect(tester.getRect(find.text('SHOW')).topLeft, within(distance: 1.5, from: const Offset(153.97, 157.48 - lift)));
+      expect(tester.getRect(find.text('Notebooks').last).topLeft, within(distance: 1.5, from: const Offset(183.63, 237.45 - lift)));
+      expect(tester.getRect(find.text('New workspace')).topLeft, within(distance: 1.5, from: const Offset(183.63, 558.85 - lift)));
       for (final choice in ['All, 20', 'Notebooks, 2', 'Notes, 18', 'Pinned, 1', 'Every workspace', 'Work', 'Home']) {
         expect(radio(choice), findsOneWidget, reason: choice);
       }
@@ -485,7 +497,7 @@ void main() {
       await settle(tester);
       expect(headings(tester), ['Pinned 1']);
       expect(find.bySemanticsLabel('Filters: Pinned'), findsOneWidget);
-      at(tester.getRect(find.bySemanticsLabel('Pinned: show everything')), 22.48, 145.95, 106.64, 35.98, within: 1.5, reason: 'the chip');
+      at(tester.getRect(find.bySemanticsLabel('Pinned: show everything')), 22.48, 145.95 - lift, 106.64, 35.98, within: 1.5, reason: 'the chip');
       // Nothing pinned, said plainly.
       it.library.pin('weekend', pinned: false);
       await settle(tester);
@@ -512,9 +524,9 @@ void main() {
       expect(find.bySemanticsLabel('Filters: Home'), findsOneWidget);
       // Its chip under the search, where the web page's stood, and the notes a row further down for it.
       final chip = tester.getRect(find.bySemanticsLabel('Home: every workspace'));
-      expect(chip.topLeft, within(distance: 0.75, from: const Offset(22.48, 145.95)));
+      expect(chip.topLeft, within(distance: 0.75, from: const Offset(22.48, 145.95 - lift)));
       expect(chip.height, closeTo(35.98, 0.75));
-      expect(tester.getRect(find.text('Recent')).top, closeTo(208.91, 0.75));
+      expect(tester.getRect(find.text('Recent')).top, closeTo(208.91 - lift, 0.75));
       // The panel offers its name and colour to change, and a new one.
       await open(tester);
       await tester.tap(find.text('Edit Home'));
@@ -696,7 +708,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       expect(find.bySemanticsLabel('Let go to refresh'), findsOneWidget);
       // The page comes down with the finger, at half its travel.
-      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48 + 64 + (82 - 64) / 3, 1));
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48 - lift + 64 + (82 - 64) / 3, 1));
       await gesture.up();
       await tester.pump();
       expect(it.asked.said, ['refresh']);
@@ -706,7 +718,7 @@ void main() {
       expect(find.bySemanticsLabel('Up to date'), findsOneWidget);
       await tester.pump(const Duration(milliseconds: 400));
       await tester.pump(const Duration(milliseconds: 400));
-      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48, 0.75));
+      expect(tester.getRect(find.bySemanticsLabel('Filters')).top, closeTo(87.48 - lift, 0.75));
       await away(tester);
     });
 
@@ -869,10 +881,10 @@ void main() {
       await settle(tester);
       expect([asked.last.scene, asked.last.lead, asked.last.heightShare], [HomeGhostScene.searchNothing, false, null]);
       // A small ghost, then the line (the web page's: the ghost's foot, then nine pixels to the words).
-      expect(tester.getRect(key('ghost')).top, closeTo(172.94, 0.75));
+      expect(tester.getRect(key('ghost')).top, closeTo(172.94 - lift, 0.75));
       expect(tester.getRect(find.text('Nothing has “zzzz”.')).top - tester.getRect(key('ghost')).bottom, closeTo(9, 0.75));
       expect(tester.widget<Text>(find.text('Nothing has “zzzz”.')).style!.fontSize, closeTo(23.5, 0.01));
-      at(tester.getRect(find.bySemanticsLabel('Clear the search')), 321.06, 96.48, 26.98, 26.98, reason: 'the cross in the search');
+      at(tester.getRect(find.bySemanticsLabel('Clear the search')), 321.06, 96.48 - lift, 26.98, 26.98, reason: 'the cross in the search');
       await away(tester);
 
       // Wider, the ghost and its words stand side by side.
@@ -1029,7 +1041,7 @@ void main() {
         ),
       );
       await settle(tester);
-      expect(given!.under, closeTo(47, 0.01), reason: 'the header pane, to the whole pixel the web measured');
+      expect(given!.under, closeTo(47 - 7, 0.01), reason: 'the header pane, to the whole pixel the web measured, less the condensed bar\'s');
       expect(given!.foot, closeTo(0 + 17.99 + 39.59 * 4 + 8.99 * 5 + 26.98, 0.5));
       expect(given!.controller.hasClients, isTrue);
       expect(find.descendant(of: key('wisp'), matching: key('home-scroll')), findsOneWidget);

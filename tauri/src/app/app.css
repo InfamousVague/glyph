@@ -60,7 +60,11 @@
    * (editor/NoteScreen.module.css `.cog`). The glyphs keep their size; only the ground around them shrinks, from
    * 35-44px to 30-37px. The home page's dock keeps `--app-ring`: it is a row of its own, under the thumb.
    */
-  --app-bar-ring: calc(var(--glacier-space-10) * 0.74);
+  /*
+   * Smaller again, with less air over the row, so the header is condensed by default (Matt, 2026-10-17: "make the
+   * header of the app more condensed by default"): 30-37px became 28-34px.
+   */
+  --app-bar-ring: calc(var(--glacier-space-10) * 0.68);
   /*
    * And how tall the row above it draws: the round controls it holds, which are all `--app-bar-ring`.
    *
@@ -111,7 +115,7 @@
    * Mac, which sets both below so the three outer edges of the bar's buttons match.
    */
   --app-bar-end: var(--app-gutter-end);
-  --app-bar-top: var(--glacier-space-2);
+  --app-bar-top: var(--glacier-space-1);
 
   /*
    * THE TYPE SCALE. Glyph is typography first: the words are the interface,
