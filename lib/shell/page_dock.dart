@@ -502,33 +502,34 @@ class _PageDockFrameState extends State<PageDockFrame> {
 }
 
 /// How large the dock is while the page under it is scrolled, of its own size. Matt, 2026-10-17: "when we scroll make
-/// the dock bar animate to be 33% smaller". Rings, the gaps between them, the pill round them and the halo round
-/// that, all of it, held to the dock's bottom end corner, so it stays where the thumb is.
-const double dockScrolledScale = 0.67;
+/// the dock bar animate to be 33% smaller", then "the navbar should only get 20% smaller 33% is too small". Rings, the
+/// gaps between them, the pill round them and the halo round that, all of it, held to the dock's bottom end corner,
+/// so it stays where the thumb is.
+const double dockScrolledScale = 0.8;
 
-/// How long the page is still before the dock grows back: long enough that it does not pulse between one fling and
-/// the next, short enough that it is back before the eye goes looking for it.
-const Duration dockSettle = Duration(milliseconds: 320);
+/// How near the page's top counts as at it, in logical pixels: the dock is whole again there.
+const double dockTopSlack = 4;
 
 /// Whether [n] is the page's own scroll, the one the dock grows smaller for: up and down, of the page itself
 /// (`depth` 0, nearest the listener). A carousel across the page, a code block's or a table's own scroller, the
 /// field of a search: each of those is a scroller inside the page, and the dock is left as it is.
 bool dockHearsScroll(ScrollNotification n) => n.depth == 0 && n.metrics.axis == Axis.vertical;
 
-/// The dock two thirds of itself ([dockScrolledScale]) while the page under it is scrolled, and its own size again a
-/// moment ([dockSettle]) after the page is still. Every page's dock ([PageDockFrame]) and the home page's
-/// (lib/home/home_screen.dart `_screen`).
+/// The dock four fifths of itself ([dockScrolledScale]) once the page under it is scrolled down, and its own size
+/// again when the page is back at its top (Matt, 2026-10-17: "it should stay small until scrolling back to the top of
+/// the page"). Every page's dock ([PageDockFrame]) and the home page's (lib/home/home_screen.dart `_screen`).
 ///
 /// It hears the page's scrolls, not the page: [DockShrinking.page] puts a listener round what scrolls, and
 /// [DockShrinking.dock] a scale round the dock, and an animation of this widget's own drives the scale. Nothing of the
 /// page, nor of the dock, is built again as it shrinks; the scale is a transform, so a ring is pressed where it is
 /// drawn, small or not, and its own motions (Claude's turning, a ring's lean and turn) go on inside it.
 ///
-/// **The person's scrolls.** It grows smaller as the person scrolls the page: a drag (a thumb, a trackpad) or a
-/// wheel, which say so as they begin (`UserScrollNotification`, a drag's details). The page moved by the app (glided
-/// back to its top for another filter, a jump to where it was left, a heading brought into view) leaves the dock as it
-/// is: nobody's thumb is on the page then. Once small, it stays so through the fling that follows a drag and through
-/// the ticks of a wheel, and only grows back when the page has been still for [dockSettle].
+/// **The person's scrolls.** It grows smaller as the person scrolls the page away from its top: a drag (a thumb, a
+/// trackpad) or a wheel, which say so as they begin (`UserScrollNotification`, a drag's details). The page moved by
+/// the app away from its top (a jump to where it was left, a heading brought into view) leaves the dock as it is:
+/// nobody's thumb is on the page then. Once small, it stays so however long the page is still, and grows back only
+/// when the page is at its top again ([dockTopSlack]), whoever took it there: the thumb, or the app gliding it back
+/// for another filter.
 ///
 /// Shrinks in `--glacier-duration-fast`, grows back in `--glacier-duration-normal`, both `--glacier-ease-out`; under
 /// reduced motion it is one size or the other at once.
@@ -547,7 +548,7 @@ class DockShrink extends StatefulWidget {
 class DockShrinking {
   const DockShrinking._(this.scale, this._heard);
 
-  /// How large the dock is now, of its own size: 1 at rest, [dockScrolledScale] while the page scrolls.
+  /// How large the dock is now, of its own size: 1 at the page's top, [dockScrolledScale] once scrolled down it.
   final Animation<double> scale;
   final NotificationListenerCallback<ScrollNotification> _heard;
 
@@ -577,7 +578,6 @@ class _DockShrinkState extends State<DockShrink> with SingleTickerProviderStateM
 
   /// Where [_small] is going: 0 or 1, so a scroll's every frame does not start the way there again.
   double _goal = 0;
-  Timer? _settling;
 
   // The kit's motion, as it was at the last build.
   bool _still = false;
@@ -586,34 +586,25 @@ class _DockShrinkState extends State<DockShrink> with SingleTickerProviderStateM
 
   @override
   void dispose() {
-    _settling?.cancel();
     _small.dispose();
     super.dispose();
   }
 
   bool _heard(ScrollNotification n) {
     if (!dockHearsScroll(n)) return false;
+    final metrics = n.metrics;
+    // At the top (or pulled past it, as a refresh is): whole, whoever brought the page there.
+    if (!metrics.hasPixels || metrics.pixels <= metrics.minScrollExtent + dockTopSlack) {
+      _go(0);
+      return false;
+    }
     final theirs = switch (n) {
       UserScrollNotification(:final direction) => direction != ScrollDirection.idle,
       ScrollStartNotification(:final dragDetails) => dragDetails != null,
       ScrollUpdateNotification(:final dragDetails) => dragDetails != null,
       _ => false,
     };
-    if (theirs) {
-      _settling?.cancel();
-      _settling = null;
-      _go(1);
-    } else if (_goal == 1 && (n is ScrollStartNotification || n is ScrollUpdateNotification)) {
-      // Still moving: a fling after the drag, or the next tick of a wheel.
-      _settling?.cancel();
-      _settling = null;
-    } else if (_goal == 1 && n is ScrollEndNotification) {
-      _settling?.cancel();
-      _settling = Timer(dockSettle, () {
-        _settling = null;
-        if (mounted) _go(0);
-      });
-    }
+    if (theirs) _go(1);
     return false;
   }
 

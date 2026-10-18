@@ -23,17 +23,18 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
   where the page has one: Settings on a page of notes, the ⋯ on a note, the cog on an organization's page.
 - **How it moves.** Search's magnifier leans in when pressed, a + gives a quarter turn, Speak's ink pill dips, the rest
   are still. Under reduced motion nothing turns and the dock comes and goes at once.
-- **While the page scrolls.** Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller". While
-  the person scrolls the page up or down (a thumb, a trackpad, a wheel) the whole dock, its rings, their gaps, the
-  pill and the halo round it, grows smaller to two thirds of itself (`dockScrolledScale`), held to its bottom end
-  corner, in `--glacier-duration-fast`; once the page has been still for a third of a second (`dockSettle`, so it
-  does not pulse between one fling and the next) it grows back in `--glacier-duration-normal`, both
-  `--glacier-ease-out`, and at once under reduced motion. Only the page's own scroll: a carousel across the page, a
-  code block's or a table's own scroller and a search's field leave it as it is, and so does the page moved by the
-  app rather than the person (a glide back to the top, a jump to where it was left). It is a transform, so a ring is
-  pressed where it is drawn, small or not, and Claude's turning and the rings' own motions go on inside it; the room
-  each page keeps at its foot is the room for the dock at rest, and the keyboard's step aside and ride are as they
-  were (`DockShrink`).
+- **While the page scrolls.** Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller", then
+  "the navbar should only get 20% smaller 33% is too small, also it should stay small until scrolling back to the top
+  of the page". Once the person scrolls the page down (a thumb, a trackpad, a wheel) the whole dock, its rings, their
+  gaps, the pill and the halo round it, grows smaller to four fifths of itself (`dockScrolledScale`), held to its
+  bottom end corner, in `--glacier-duration-fast`. It stays so however long the page is still, and grows back in
+  `--glacier-duration-normal` when the page is at its top again (within `dockTopSlack`), whoever took it there: the
+  thumb, or the app gliding it back for another filter. Both `--glacier-ease-out`, at once under reduced motion. Only
+  the page's own scroll: a carousel across the page, a code block's or a table's own scroller and a search's field
+  leave it as it is, and so does the page moved by the app away from its top (a jump to where it was left). It is a
+  transform, so a ring is pressed where it is drawn, small or not, and Claude's turning and the rings' own motions go
+  on inside it; the room each page keeps at its foot is the room for the dock at rest, and the keyboard's step aside
+  and ride are as they were (`DockShrink`).
 - **The keyboard.** On a note (any kind: words, a canvas, a notebook, a journal) the dock steps aside while the
   keyboard is up, so it never stands over the caret: it fades out, takes no presses and is not read, and the halo goes
   with it; it comes back as the keyboard goes. On the other pages it rides over the keyboard, as the home page's

@@ -1,9 +1,10 @@
 // The dock grows smaller while the page under it scrolls (lib/shell/page_dock.dart `DockShrink`, docs/DOCK.md "How
-// it moves"). Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller". Two thirds of itself
-// while the person scrolls the page, held to its bottom end corner; its own size again once the page has been still
-// a moment; its rings pressed where they are drawn while it is small; a carousel or a scroller inside the page leaves
-// it as it is; under reduced motion it is one size or the other at once. The halo goes with it, and the home page's
-// dock does the same.
+// it moves"). Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller", then "the navbar should
+// only get 20% smaller 33% is too small, also it should stay small until scrolling back to the top of the page". Four
+// fifths of itself once the person scrolls the page down, held to its bottom end corner; small however long the page
+// is still; its own size again at the page's top, whoever took it there; its rings pressed where they are drawn while
+// it is small; a carousel or a scroller inside the page leaves it as it is; under reduced motion it is one size or
+// the other at once. The halo goes with it, and the home page's dock does the same.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/dock_smoke.dart';
@@ -42,6 +43,19 @@ void main() {
     return gesture;
   }
 
+  ScrollPosition pageScroll(WidgetTester tester) => tester.state<ScrollableState>(find.byType(Scrollable).first).position;
+
+  /// The page taken back to its top by a drag down, as a thumb does, and let go.
+  Future<void> dragToTop(WidgetTester tester, {Offset from = const Offset(100, 300)}) async {
+    final gesture = await tester.startGesture(from);
+    while (pageScroll(tester).pixels > 0) {
+      await gesture.moveBy(const Offset(0, 60));
+      await tester.pump(const Duration(milliseconds: 16));
+    }
+    await gesture.up();
+    await tester.pumpAndSettle();
+  }
+
   void expectScaled(Rect now, Rect rested, double scale, {String? reason}) {
     expect(now.width, closeTo(rested.width * scale, 0.05), reason: reason);
     expect(now.height, closeTo(rested.height * scale, 0.05), reason: reason);
@@ -51,7 +65,8 @@ void main() {
   }
 
   group('while the page scrolls', () {
-    testWidgets('the dock is two thirds of itself, in its corner, and its own size again once the page is still', (tester) async {
+    testWidgets('the dock is four fifths of itself, in its corner, small however long the page is still, and its own size again at the top', (tester) async {
+      expect(dockScrolledScale, 0.8);
       await pumpApp(tester, home: page([]));
       await tester.pump(const Duration(milliseconds: 500));
       final rested = dock(tester);
@@ -59,35 +74,36 @@ void main() {
 
       final gesture = await scrollHeld(tester);
       await tester.pump(const Duration(milliseconds: 300));
-      expect(tester.state<ScrollableState>(find.byType(Scrollable).first).position.pixels, greaterThan(0));
+      expect(pageScroll(tester).pixels, greaterThan(0));
       expectScaled(dock(tester), rested, dockScrolledScale, reason: 'small while the thumb is on the page');
       await gesture.up();
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-      expectScaled(dock(tester), rested, dockScrolledScale, reason: 'a moment between one fling and the next');
-      await tester.pump(dockSettle);
-      await tester.pump(const Duration(milliseconds: 100));
-      final growing = dock(tester);
-      expect(growing.height, greaterThan(rested.height * dockScrolledScale + 0.5), reason: 'on its way back');
-      expect(growing.height, lessThan(rested.height));
-      await tester.pump(const Duration(milliseconds: 400));
-      expect(dock(tester), rested, reason: 'its own size, where it was');
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 3));
+      expectScaled(dock(tester), rested, dockScrolledScale, reason: 'still small, the page still and not at its top');
+
+      final back = await tester.startGesture(const Offset(100, 300));
+      await back.moveBy(const Offset(0, 40));
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(pageScroll(tester).pixels, greaterThan(dockTopSlack));
+      await tester.pump(const Duration(milliseconds: 300));
+      expectScaled(dock(tester), rested, dockScrolledScale, reason: 'scrolled up, but not to the top');
+      await back.up();
+      await tester.pumpAndSettle();
+      await dragToTop(tester);
+      expect(dock(tester), rested, reason: 'its own size at the top, where it was');
       await done(tester);
     });
 
-    testWidgets('a scroll begun again before it has settled keeps it small', (tester) async {
+    testWidgets('the page glided back to its top by the app makes it whole too', (tester) async {
       await pumpApp(tester, home: page([]));
       await tester.pump(const Duration(milliseconds: 500));
       final rested = dock(tester);
-      var gesture = await scrollHeld(tester);
+      final gesture = await scrollHeld(tester);
       await gesture.up();
-      await tester.pump(const Duration(milliseconds: 200));
-      gesture = await scrollHeld(tester);
-      await tester.pump(dockSettle);
+      await tester.pumpAndSettle();
       expectScaled(dock(tester), rested, dockScrolledScale);
-      await gesture.up();
-      await tester.pump(dockSettle);
-      await tester.pump(const Duration(milliseconds: 600));
+      pageScroll(tester).animateTo(0, duration: const Duration(milliseconds: 300), curve: Curves.linear);
+      await tester.pumpAndSettle();
       expect(dock(tester), rested);
       await done(tester);
     });
@@ -103,8 +119,7 @@ void main() {
       await pressAll(tester);
       expect(asked, ['claude', 'search', 'new', 'speak', 'settings']);
       await gesture.up();
-      await tester.pump(dockSettle);
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
       await done(tester);
     });
 
@@ -171,9 +186,10 @@ void main() {
       await tester.pump();
       expectScaled(dock(tester), rested, dockScrolledScale, reason: 'small at the first frame of the scroll');
       await gesture.up();
-      await tester.pump(dockSettle);
+      await tester.pumpAndSettle();
+      pageScroll(tester).jumpTo(0);
       await tester.pump();
-      expect(dock(tester), rested, reason: 'whole at the first frame after it settles');
+      expect(dock(tester), rested, reason: 'whole at the first frame at the top');
       await done(tester);
     });
 
@@ -198,8 +214,8 @@ void main() {
       expect(halo().dock!.size.height, closeTo(small.height, 0.05));
       expect(halo().reach, closeTo(dockSmokeReach * dockScrolledScale, 0.01));
       await gesture.up();
-      await tester.pump(dockSettle);
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      await dragToTop(tester);
       await tester.pump();
       expect(halo().dock, rested);
       await done(tester);
@@ -207,7 +223,7 @@ void main() {
   });
 
   group('the home page’s dock', () {
-    testWidgets('is two thirds of itself while the page scrolls, and whole again once it is still', (tester) async {
+    testWidgets('is four fifths of itself once the page is scrolled, and whole again at its top', (tester) async {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));
       await settle(tester);
@@ -218,8 +234,11 @@ void main() {
       await tester.tap(find.byKey(const ValueKey('dock-add')));
       expect(it.asked.said, contains('new'));
       await gesture.up();
-      await tester.pump(dockSettle);
-      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 2));
+      expectScaled(dock(tester), rested, dockScrolledScale, reason: 'small, the page still and not at its top');
+      pageScroll(tester).jumpTo(0);
+      await tester.pumpAndSettle();
       expect(dock(tester), rested);
       expect(find.byType(HomeScreen), findsOneWidget);
       await done(tester);
