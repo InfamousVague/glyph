@@ -197,8 +197,9 @@ class DeviceMeetingHost implements MeetingHost {
   /// The app has deleted a note the notification's Discard threw away.
   Future<void> forgetDiscarded(String noteId) => channel.invokeMethod<void>('forgetDiscarded', {'noteId': noteId});
 
-  /// What this launch was for, once: "capture" (the side key or the shortcut, only in a build with the assistant
-  /// on), "meeting" (the recording notification tapped) or "".
+  /// What this launch was for, once: "assist" (the phone's assistant: the side key held, the assistant gesture),
+  /// "capture" (the launcher's Record note), each only in a build with the assistant on; "meeting" (the recording
+  /// notification tapped) or "".
   Future<String> takeLaunch() async => await channel.invokeMethod<String>('takeLaunch') ?? '';
 
   /// Whether the phone is locked now.

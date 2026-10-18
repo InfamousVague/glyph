@@ -144,11 +144,14 @@ import '../home/home_organizations.dart' show OrgPresence;
 import '../claude/claude_chat.dart';
 import '../claude/claude_bar.dart';
 import '../claude/claude_dock.dart';
+import '../claude/claude_ear.dart' show recorderEar;
 import '../claude/claude_inbox.dart';
 import '../claude/claude_run.dart' show ClaudeDesk;
 import '../claude/claude_runner.dart';
 import '../claude/claude_settings.dart' show claudeSettings;
 import '../claude/claude_tools.dart' show ClaudeNotes, NoteBrief, NoteHit, NoteRead;
+import '../claude/claude_voice.dart' show ClaudeVoice, ClaudeVoiceStage;
+import '../claude/claude_voice_sheet.dart';
 import '../live/follow.dart';
 import '../live/presence.dart' show AiOnline, Seen, aiKey;
 import '../orgs/types.dart' show OrgRow;
@@ -862,6 +865,11 @@ class _GhostRootState extends State<GhostRoot> {
   String? _chatAgent;
   String? _chatInitial;
 
+  /// An ask said aloud to Claude, while its sheet is up (lib/root/root_claude.dart `_startTalk`), and whether the
+  /// phone's assistant started it, whose launch over the lock screen is taken back as it ends.
+  ClaudeVoice? _talk;
+  bool _talkFromAssistant = false;
+
   /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
   late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this), allowed: claudeInApp);
 
@@ -890,6 +898,7 @@ class _GhostRootState extends State<GhostRoot> {
       if (!_claudeOn) {
         _askClaude = false;
         _claude.stop();
+        _talk?.cancel();
       }
     });
   }
@@ -1458,6 +1467,7 @@ class _GhostRootState extends State<GhostRoot> {
   void dispose() {
     _stopDesktop?.call();
     _claude.stop();
+    _talk?.dispose();
     _claudeInbox.dispose();
     _claude.dispose();
     _organize.dispose();

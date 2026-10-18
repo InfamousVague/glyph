@@ -92,6 +92,7 @@ class CaptureRouteWorld {
     this.sayTooSoon,
     this.now,
     this.tagNew,
+    this.askAi,
   });
 
   /// Where a take's own new note was made (core/location.ts `tagNewNotesIfWanted`), asked once the capture's
@@ -127,6 +128,11 @@ class CaptureRouteWorld {
   /// The preferences; the app's own unless given.
   final PreferencesStore? prefs;
 
+  /// The phone's assistant asked (lib/claude/claude_voice.dart): Claude is talked to, answering whether it was. No,
+  /// where Claude cannot answer here (its plugin off, no key, the phone locked), and the assistant records as before.
+  /// None, and it always records.
+  final Future<bool> Function()? askAi;
+
   /// The side key pressed while the guide is on a page still to be read: "Not yet", not a recording.
   final bool Function()? tooSoon;
   final VoidCallback? sayTooSoon;
@@ -141,6 +147,7 @@ class CaptureRoute {
       _unwatch = live.subscribe(_discarded);
     }
     _keys = voice.captureKey?.listen((_) => sideKey());
+    _assists = voice.assistKey?.listen((_) => assist());
   }
 
   final Voice voice;
@@ -149,6 +156,7 @@ class CaptureRoute {
   VoidCallback? _unhear;
   VoidCallback? _unwatch;
   StreamSubscription<void>? _keys;
+  StreamSubscription<void>? _assists;
   bool _gone = false;
 
   PreferencesStore get _prefs => world.prefs ?? preferences;
@@ -159,6 +167,7 @@ class CaptureRoute {
     _unhear?.call();
     _unwatch?.call();
     unawaited(_keys?.cancel());
+    unawaited(_assists?.cancel());
   }
 
   /// The meeting screen for the meeting being recorded, when there is one: true when it opened (`showMeeting`).
@@ -189,13 +198,43 @@ class CaptureRoute {
   }
 
   /// As the app opens (the hook's two boot effects): the side key launched it and a recording is what it asked
-  /// for, only in a build with the assistant; else a meeting already being recorded shows its screen, once.
+  /// for, only in a build with the assistant; else a meeting already being recorded shows its screen, once. The
+  /// phone's assistant launched it: Claude is talked to where it can answer ([CaptureRouteWorld.askAi]), else it is
+  /// a recording as before.
   void boot() {
-    if (voice.assistant && voice.launch == 'capture' && !(world.tooSoon?.call() ?? false)) {
-      unawaited(start(true));
+    final launched = voice.launch == 'capture' || voice.launch == 'assist';
+    if (voice.assistant && launched && !(world.tooSoon?.call() ?? false)) {
+      if (voice.launch == 'assist' && !showMeeting(true)) {
+        unawaited(_talkOrRecord(() => start(true)));
+      } else {
+        unawaited(start(true));
+      }
     } else {
       showMeeting(false);
     }
+  }
+
+  /// Claude talked to, where it can answer; else [otherwise].
+  Future<void> _talkOrRecord(FutureOr<void> Function() otherwise) async {
+    final ask = world.askAi;
+    if (ask != null) {
+      try {
+        if (await ask()) return;
+      } catch (_) {
+        // Claude could not be asked: the assistant records, as it always has.
+      }
+    }
+    if (!_gone) await otherwise();
+  }
+
+  /// The phone's assistant, while the app is already open: over a capture or a meeting, the side key's own
+  /// ([sideKey]); otherwise Claude is talked to where it can answer, else it is the side key's capture.
+  void assist() {
+    if (_gone || !voice.assistant) return;
+    final current = world.screen();
+    if (current is ScreenCapture || current is ScreenMeeting) return sideKey();
+    if (world.tooSoon?.call() ?? false) return world.sayTooSoon?.call();
+    unawaited(_talkOrRecord(sideKey));
   }
 
   /// The side key, while the app is already open. During a capture it is the stop button; over a meeting's screen

@@ -54,6 +54,8 @@ extension _RootParts on _GhostRootState {
         _part('workspace', () => _workspace, _workspacePart),
         // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
         _part('askClaude', () => (_askClaude && _claudeOn, _chatAgent, _chatInitial), _askClaudePart),
+        // Claude talked to (lib/claude/claude_voice_sheet.dart): it hears the talk for itself while it is up.
+        _part('claudeTalk', () => _claudeOn ? _talk : null, _talkPart),
         // A smart notebook's sheet: a search kept by name, or one changed (lib/root/organize.dart).
         OrganizeSheets(organize: _organize),
         if (_services case final services?) ...[
@@ -225,7 +227,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn, _canTalk),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -252,7 +254,7 @@ extension _RootParts on _GhostRootState {
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
       collectionBuilder: (context, shell, screen) => _part(
         'collection',
-        () => (screen, shell.notes, _workspaces.value, _claudeOn),
+        () => (screen, shell.notes, _workspaces.value, _claudeOn, _canTalk),
         (context) => CollectionScreen(
           kind: screen.kind,
           name: screen.key,
@@ -447,6 +449,8 @@ extension _RootParts on _GhostRootState {
       // Claude at the head of the dock: Ask Claude, and Claude at work or online (docs/CLAUDE_APP.md); Settings at
       // its foot (docs/DOCK.md).
       claude: _claudeDock(),
+      // Talk to Claude under it, where Claude is on and the build can hear.
+      claudeTalk: _claudeTalkDock(),
       onSettings: _openSettings,
       // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
       onSwipe: (note, action) {
@@ -486,6 +490,7 @@ extension _RootParts on _GhostRootState {
   /// build records, and Settings at its foot.
   PageDockSeam _notesDock() => PageDockSeam(
         claude: _claudeForDock,
+        talk: _claudeTalkForDock,
         halo: _pageDockHalo,
         actions: [
           DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
@@ -496,7 +501,7 @@ extension _RootParts on _GhostRootState {
       );
 
   /// Claude and the halo, for a page whose dock's rings are its own: a note, an organization, Settings.
-  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeForDock, halo: _pageDockHalo);
+  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeForDock, talk: _claudeTalkForDock, halo: _pageDockHalo);
 
   static Widget _homeGhost(BuildContext context, HomeGhost it) => Ghost(
         scene: switch (it.scene) {
@@ -901,7 +906,7 @@ extension _RootParts on _GhostRootState {
   Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) => Selected(
         listenable: _tick,
         name: 'organization',
-        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeOn),
+        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeOn, _canTalk),
         builder: (context, _) => _organizationPageOf(context, shell, screen),
       );
 

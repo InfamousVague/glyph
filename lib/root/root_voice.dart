@@ -70,6 +70,8 @@ extension _RootVoice on _GhostRootState {
         fileNewNote: _workspaces.fileNewNote,
         untouched: _untouched,
         tooSoon: () => _guide?.onReadingPage() ?? false,
+        // The phone's assistant talks to Claude where Claude can answer here (lib/root/root_claude.dart).
+        askAi: _assistantTalk,
         sayTooSoon: () => _guide?.sayTooSoon(),
         // Once the note's screen is up and watches its tag, so the tag goes through its editor and not under it.
         tagNew: _places == null

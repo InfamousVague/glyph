@@ -203,7 +203,7 @@ class VoiceMaking {
   /// GHOST_ASSISTANT=1 or a developer switched them on for this phone (lib/core/wip.dart).
   final bool assistant;
 
-  /// What this launch was for, read once: "capture", "meeting" or "" (`takeCaptureLaunch`).
+  /// What this launch was for, read once: "assist", "capture", "meeting" or "" (`takeCaptureLaunch`).
   final String launch;
 
   /// Attaches to the phone and reads what the launch was for. Off Android the host has no service and answers so.
@@ -226,7 +226,7 @@ class VoiceMaking {
 /// Voice, as the root holds it: the recorder its screens are drawn over, and what the app asks of the phone about a
 /// meeting. A test makes one over a scripted recorder and a service of its own.
 class Voice {
-  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.cancelWriteUp, this.dispose_});
+  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.assistKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.cancelWriteUp, this.dispose_});
 
   /// Everything the recorder's screens reach (lib/capture/recorder.dart).
   final Recorder recorder;
@@ -242,12 +242,16 @@ class Voice {
   /// either way.
   final bool assistant;
 
-  /// What this launch was for: "capture", "meeting" or "".
+  /// What this launch was for: "assist" (the phone's assistant), "capture" (Record note), "meeting" or "".
   final String launch;
 
-  /// Told each time the side key asks for a capture while the app is open (`answerHost('capture', …)`); null where
-  /// nothing can say.
+  /// Told each time the launcher's Record note asks for a capture while the app is open (`answerHost('capture',
+  /// …)`); null where nothing can say.
   final Stream<void>? captureKey;
+
+  /// Told each time the phone's assistant (the side key held, the assistant gesture) asks while the app is open:
+  /// Claude is talked to where it can answer, else it is a capture as [captureKey]'s (lib/root/capture_route.dart).
+  final Stream<void>? assistKey;
 
   /// Whether a meeting can be recorded here (capture/meeting.dart `canRecordMeeting`), asked once by [start].
   bool canMeet;
@@ -450,13 +454,14 @@ class Voice {
     // The scripted WAV in place of the device, in a debug build that asked for it and has the file.
     final fixture = kDebugMode && ghostMicFixtureDefine ? File('${making.dataDir}/fixture.wav') : null;
     final keys = StreamController<void>.broadcast();
+    final assists = StreamController<void>.broadcast();
     final screenOff = <VoidCallback>{};
     var made = false;
     final heard = host.events.listen((event) {
       switch (event.name) {
         // Only a build with the assistant is ever asked for a capture by the phone (off unless the build or the phone's developer switch turned it on).
         case 'capture':
-          if (making.assistant) keys.add(null);
+          if (making.assistant) (event.argument == 'assist' ? assists : keys).add(null);
         case 'screenOff':
           for (final listener in screenOff.toList()) {
             listener();
@@ -551,6 +556,7 @@ class Voice {
       assistant: making.assistant,
       launch: making.launch,
       captureKey: keys.stream,
+      assistKey: assists.stream,
       canMeet: recorder.canRecordMeeting,
       removeAudio: (ids) async {
         if (ids.isEmpty) return const <String>[];
@@ -564,6 +570,7 @@ class Voice {
         unbind?.call();
         unawaited(heard.cancel());
         unawaited(keys.close());
+        unawaited(assists.close());
       },
     );
     made = true;

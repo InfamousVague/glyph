@@ -47,7 +47,9 @@ import java.util.concurrent.Executors
  * - `requestNotifications` -> "allowed" | "asked" | "blocked"; `canNotify` -> bool.
  * - `writeUp {noteId, now}` -> "queued" | a reason; `cancelWriteUp {noteId}` -> null; `cancelWriteUps` -> null,
  *   once every run has let go; `forgetDiscarded {noteId}` -> null.
- * - `takeLaunch` -> "capture" | "meeting" | "": what this launch was for, once.
+ * - `takeLaunch` -> "assist" | "capture" | "meeting" | "": what this launch was for, once. "assist" is the phone's
+ *   assistant (the side key held, the assistant gesture: GlyphSession, or ACTION_ASSIST), which talks to Claude
+ *   where Claude can answer (lib/root/capture_route.dart); "capture" is the launcher's Record note, a recording.
  * - `isLocked` -> bool; `setCapturing {on}` -> null (the screen kept on, and its going off heard);
  *   `endCapture {leave}` -> null.
  * - `isAssistant` -> bool; `openAssistantSettings` -> bool; `deviceMaker` -> String; `assistantEnabled` -> whether
@@ -59,7 +61,8 @@ import java.util.concurrent.Executors
  * - `meeting`: JSON `{event, noteId, elapsedMs, reason?, granted?, message?}`; `event` is started, silenced,
  *   sounding, stopped, failed, discarded, permission or open.
  * - `recordingDone`: JSON `{id, outcome}`, a write-up ended while the app was in front.
- * - `notified`: the notification prompt was answered. `capture`: a capture launch arrived while the app was open.
+ * - `notified`: the notification prompt was answered. `capture`: a capture launch arrived while the app was open,
+ *   its argument "assist" or "capture" as `takeLaunch` says them.
  *   `screenOff`: the screen went off during a dictation (the side key pressed to stop). `unlocked`: the phone was
  *   unlocked during a dictation. The Tauri page asked `isLocked()` at each use and was answered at once; a channel
  *   answers a moment later, so the app keeps the last answer, and this tells it the one moment that answer goes
@@ -298,7 +301,7 @@ class MeetingBridge(private val activity: Activity) {
   }
 
   fun onNewIntent(intent: Intent) {
-    if (takeCapture(intent) && say("capture", null)) pendingLaunch = null
+    if (takeCapture(intent) && say("capture", pendingLaunch)) pendingLaunch = null
     if (takeMeeting(intent)) {
       val json = JSONObject().put("event", "open").put("noteId", MeetingService.recordingNoteId() ?: JSONObject.NULL).put("elapsedMs", 0).toString()
       if (say("meeting", json)) pendingLaunch = null
@@ -372,10 +375,18 @@ class MeetingBridge(private val activity: Activity) {
   /** Record the request and let this one launch show over the lock screen; taken back by `endCapture`. */
   private fun takeCapture(intent: Intent?): Boolean {
     if (!isCapture(intent)) return false
-    pendingLaunch = "capture"
+    pendingLaunch = if (fromAssistant(intent)) "assist" else "capture"
     setLockScreenCapture(true)
     return true
   }
+
+  /**
+   * Whether the phone's assistant sent it: GlyphSession, which says how it was invoked (EXTRA_SOURCE), or a
+   * launcher or OEM build invoking the assistant by activity (ACTION_ASSIST). The launcher's Record note carries
+   * neither.
+   */
+  private fun fromAssistant(intent: Intent?): Boolean =
+    intent?.action == Intent.ACTION_ASSIST || intent?.hasExtra(MainActivity.EXTRA_SOURCE) == true
 
   private fun setLockScreenCapture(on: Boolean) {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {

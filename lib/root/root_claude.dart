@@ -1,7 +1,8 @@
 part of 'ghost_root.dart';
 
 /// The app's own Claude in the root (docs/CLAUDE_APP.md): the library and the screen as Claude's tools reach them,
-/// the chat with Claude, Claude on the dock, the bar over a note Claude writes in, and the "Ask Claude" inbox.
+/// the chat with Claude, Claude on the dock, the bar over a note Claude writes in, the "Ask Claude" inbox, and Claude
+/// talked to: the dock's orange mic and the phone's assistant (lib/claude/claude_voice.dart).
 extension _RootClaude on _GhostRootState {
   /// Starts the inbox once the library is read; the runner itself is made on first use.
   void _startClaude() {
@@ -22,6 +23,108 @@ extension _RootClaude on _GhostRootState {
   }
 
   void _closeAskClaude() => _told(() => _askClaude = false);
+
+  /// Whether Claude can be talked to here: its plugin on, and a recorder to hear with (lib/root/root_voice.dart).
+  bool get _canTalk => _claudeOn && _voice != null;
+
+  /// Talk to Claude on the home page's dock; none where Claude cannot be talked to.
+  Widget? _claudeTalkDock() => _canTalk ? ClaudeTalkButton(onPressed: () => _startTalk()) : null;
+
+  /// Talk to Claude for a page's dock, about what the page is about where it says (see [_claudeDockAbout]).
+  DockClaudeBuilder? get _claudeTalkForDock => _canTalk ? _claudeTalkAbout : null;
+
+  Widget _claudeTalkAbout(String Function()? subject) => ClaudeTalkButton(onPressed: () => _startTalk(about: subject?.call()));
+
+  /// Opens the ear for an ask said aloud (lib/claude/claude_voice.dart), its sheet over the app: from the dock, or,
+  /// [fromAssistant], the phone's assistant. Pressed again while it listens, it is done. Answers whether it opened:
+  /// not while Claude is off or nothing can hear, nor while the recorder or a meeting holds the microphone.
+  bool _startTalk({String? about, bool fromAssistant = false}) {
+    final voice = _voice;
+    if (!_canTalk || voice == null) return false;
+    final talking = _talk;
+    if (talking != null && talking.stage == ClaudeVoiceStage.listening) {
+      unawaited(talking.done());
+      return true;
+    }
+    if ((_shell.currentState?.screen.isRecording ?? false) || (voice.live?.meetingStateNow()?.recording ?? false)) return false;
+    if (talking != null) _endTalk();
+    FocusManager.instance.primaryFocus?.unfocus();
+    final recorder = voice.recorder;
+    late final ClaudeVoice talk;
+    talk = ClaudeVoice(
+      runner: _claude,
+      follow: _follow,
+      inbox: _toClaudeInbox,
+      about: about,
+      ear: recorderEar(
+        openMicrophone: recorder.openMicrophone,
+        startCapture: recorder.startCapture,
+        native: recorder.native,
+        simulate: recorder.simulate,
+        setLive: recorder.setRecorderLive,
+        haptic: recorder.host.haptic,
+        warn: recorder.warn,
+      ),
+      onEnd: () {
+        if (identical(_talk, talk)) _endTalk();
+      },
+    );
+    _told(() {
+      _askClaude = false;
+      _talk = talk;
+      _talkFromAssistant = fromAssistant;
+    });
+    talk.start();
+    return true;
+  }
+
+  /// The talk's sheet put away. Claude goes on with what it was asked, in the chat. A talk the phone's assistant
+  /// started takes back the launch's leave to show over the lock screen, as a recording's end does.
+  void _endTalk() {
+    final talk = _talk;
+    if (talk == null) return;
+    final assistant = _talkFromAssistant;
+    _told(() {
+      _talk = null;
+      _talkFromAssistant = false;
+    });
+    // After the frame: its sheet is being taken down in it.
+    WidgetsBinding.instance.addPostFrameCallback((_) => talk.dispose());
+    if (assistant) unawaited(_voice?.service?.endCapture(leave: false).then<void>((_) {}, onError: (Object _) {}));
+  }
+
+  /// The phone's assistant asked (lib/root/capture_route.dart `CaptureRouteWorld.askAi`): Claude is talked to where
+  /// it can answer here, with its plugin on and a key on this device, and the phone not locked (a note Claude opens
+  /// is not for the lock screen). Else the assistant records, as it did.
+  Future<bool> _assistantTalk() async {
+    if (!_canTalk) return false;
+    await claudeSettings.load();
+    final voice = _voice;
+    if (!mounted || voice == null || !_claude.ready) return false;
+    await voice.readLocked();
+    if (!mounted || voice.locked) return false;
+    return _startTalk(fromAssistant: true);
+  }
+
+  Widget _talkPart(BuildContext context) {
+    final talk = _talk;
+    if (talk == null || !_claudeOn) return _RootParts._nothing;
+    return ClaudeVoiceSheet(
+      voice: talk,
+      onChat: () {
+        _endTalk();
+        _openAskClaude();
+      },
+      onSettings: () {
+        _endTalk();
+        _openSettingsAt('plugin:claude');
+      },
+      onOpenNote: (id) {
+        _endTalk();
+        _openForClaude(id);
+      },
+    );
+  }
 
   /// Claude on the home page's dock; none while the Claude plugin is off.
   Widget? _claudeDock() => _claudeOn ? ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude) : null;
