@@ -333,6 +333,28 @@ void main() {
       expect(notes.bodies['g'], '# Groceries\n\n- milk\n- bread');
     });
 
+    // Matt, 2026-10-18: a note Claude made was never opened. Where the screen cannot show a new note, its words are
+    // still written into it, and the run says so rather than losing them quietly.
+    testWidgets('writes a new note behind the screen where it cannot be opened, and says so', (tester) async {
+      final notes = _Notes();
+      final desk = _Desk(notes, screen: false);
+      const body = '# Packing list\n\n- [ ] Passport\n';
+      final api = _Api([
+        _turn(tool: ClaudeTool.create, pieces: _cut(jsonEncode({'body': body}), 4)),
+        _turn(words: 'Done.'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'm', notes: notes, desk: desk, prompt: 'x');
+      await tester.runAsync(run.run);
+      expect(run.state, ClaudeState.done);
+      expect(desk.opened, ['n1']);
+      expect(notes.bodies['n1'], body);
+      expect(run.steps.where((step) => step.kind == 'tool').single.words, 'Wrote Packing list, out of sight: it could not be opened');
+      final results = ((api.asked[1]['messages']! as List).last as Map)['content'] as List;
+      final said = jsonDecode((results.single as Map)['content'] as String) as Map;
+      expect(said['id'], 'n1');
+      expect(said['shown'], startsWith('No:'));
+    });
+
     testWidgets('reads with its tools, and fails in words a person reads', (tester) async {
       final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk';
       final desk = _Desk(notes);

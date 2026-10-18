@@ -311,7 +311,13 @@ class _RootClaudeDesk implements ClaudeDesk {
     if (_root._library.noteOf(noteId) == null) return null;
     // The sheet makes way for the note.
     if (_root._askClaude) _root._told(() => _root._askClaude = false);
-    if (shell.shown != noteId) shell.openNote(noteId);
+    if (shell.shown != noteId) {
+      // The shell opens only a note it has been handed, and a note just made reaches it with the root's next build:
+      // asked before then, `openNote` found nothing and did nothing, and a note Claude made was never shown
+      // (2026-10-18). Handed the notes as they are now, it has it.
+      shell.takeNotes(_root._shown);
+      shell.openNote(noteId);
+    }
     // Its editor, once the screen has made it: a few frames.
     for (var i = 0; i < 60; i += 1) {
       final view = _viewOf(noteId);

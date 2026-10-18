@@ -532,6 +532,10 @@ class _Writing extends FieldListener {
   /// The note's title as it was, for the steps.
   String _title = '';
 
+  /// Whether the note was to be shown (made, or followed) and the screen could not show it: its words are written
+  /// behind the screen all the same, and the run says so, to the person and to Claude.
+  bool _unseen = false;
+
   @override
   void started(String key) {
     if (key != field) return;
@@ -571,8 +575,13 @@ class _Writing extends FieldListener {
     run.touched[id] = _title;
     run._at = ClaudeAt(id, _title, 'writing');
     run._set(ClaudeState.writing);
-    final view = run._following || created ? await run.desk.open(id) : null;
-    if (view == null) return;
+    final shown = run._following || created;
+    final view = shown ? await run.desk.open(id) : null;
+    if (view == null) {
+      // The words are kept as they come and written whole by [finish] (see [_behind]): none are lost.
+      _unseen = shown;
+      return;
+    }
     final body = view.state.doc.toString();
     final made = NoteTyper(view, follow: () => run._following, smoke: () => run.desk.smoke, open: () => run.desk.showing(id, view), onTouched: run.stopFollowing);
     switch (tool) {
@@ -626,13 +635,19 @@ class _Writing extends FieldListener {
     final note = await run.notes.read(id: id);
     final title = note?.title ?? _title;
     run.touched[id] = title;
-    run._tool(switch (tool) {
+    final did = switch (tool) {
       ClaudeTool.create => 'Wrote $title',
       ClaudeTool.append => 'Added to $title',
       ClaudeTool.replace => 'Changed $title',
       _ => 'Rewrote $title',
-    }, id);
-    return jsonEncode({'id': id, 'title': title, 'done': true});
+    };
+    run._tool(_unseen ? '$did, out of sight: it could not be opened' : did, id);
+    return jsonEncode({
+      'id': id,
+      'title': title,
+      'done': true,
+      if (_unseen) 'shown': 'No: the note could not be opened on the screen, so its words were written without being shown. Tell the person it is there.',
+    });
   }
 
   /// The change written by the desk where the screen did not take it: the whole of it when nothing was typed, or

@@ -5,7 +5,9 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/ui_state.dart' show AccountServices;
 import 'package:ghost_md/capture/engine.dart';
+import 'package:ghost_md/claude/claude_runner.dart' show debugClaudeApi;
 import 'package:ghost_md/claude/claude_settings.dart' show claudeSettings;
+import 'package:ghost_md/claude/claude_tools.dart' show ClaudeTool;
 import 'package:ghost_md/claude/claude_voice.dart' show claudeLinger;
 import 'package:ghost_md/capture/meeting_live.dart';
 import 'package:ghost_md/capture/recorder.dart';
@@ -24,6 +26,7 @@ import 'package:ghost_md/editor/media/clip_refs.dart' show TapeIds;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
+import 'package:ghost_md/note/open_screen.dart' show openNoteScreen;
 import 'package:ghost_md/plugins/built_in.dart' show builtIn;
 import 'package:ghost_md/plugins/registry.dart' show MemorySwitches, createRegistry, plugins, usePlugins;
 import 'package:ghost_md/notes/new_sheet.dart';
@@ -38,6 +41,7 @@ import 'package:ghost_md/tapes/note_tape.dart';
 import 'package:ghost_md/tapes/player.dart' show TapePlayer, markAudioRemoved;
 
 import '../account_ui/support.dart' show Device;
+import '../support/claude_script.dart';
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
 
@@ -677,6 +681,46 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
       await close(tester);
+    });
+
+    // Matt, 2026-10-18: a note Claude made was never opened. Asked aloud, the sheet makes way, down to its strip, and
+    // the new note is opened under it and typed into as Claude writes.
+    testWidgets('a note Claude is asked aloud to make is opened under the strip and typed into', (tester) async {
+      await key(tester, 'sk-ant-test-0000000000');
+      addTearDown(() => claudeSettings.setKey(null));
+      const body = '# Packing list\n\n- [ ] Passport\n- [ ] Charger\n- [ ] Rain jacket\n';
+      debugClaudeApi = (_) => ScriptedClaudeApi([
+            scriptedTurn(words: 'Making it.', tool: ClaudeTool.create, pieces: scriptedPieces(jsonEncode({'body': body}), 6)),
+            scriptedTurn(words: 'Wrote [[Packing list]].'),
+          ]);
+      addTearDown(() => debugClaudeApi = null);
+      await open(tester);
+      final before = {for (final note in library.value) note.id};
+      await tester.tap(talk());
+      await settle(tester, 3);
+      handlers!.onSegment(const Segment(startMs: 0, endMs: 900, text: 'Make me a packing list.'));
+      stopSays = 'Make me a packing list.';
+      await tester.tap(find.byKey(const ValueKey('claude-voice-mic')));
+      Note? made() => library.value.where((note) => !before.contains(note.id)).firstOrNull;
+      final seen = <String>[];
+      var strip = false;
+      bool typed() {
+        final note = made();
+        strip = strip || find.byKey(const ValueKey('claude-voice-following')).evaluate().isNotEmpty;
+        if (note == null) return false;
+        final words = openNoteScreen(tester.element(find.byType(AppShell)), note.id)?.view?.state.doc.toString();
+        if (words != null && (seen.isEmpty || seen.last != words)) seen.add(words);
+        return seen.contains(body) || note.body == body;
+      }
+
+      await until(tester, typed, 'Claude did not write the note');
+      expect(shellOf(tester).shown, made()!.id, reason: 'the new note was not opened');
+      expect(strip, isTrue, reason: 'the sheet did not make way');
+      expect(seen, contains(body));
+      expect(seen.where((words) => words.isNotEmpty && words.length < body.length && body.startsWith(words)), isNotEmpty, reason: 'not typed as it came: $seen');
+      await tester.pump(claudeLinger + const Duration(seconds: 1));
+      await close(tester);
+      await key(tester, null);
     });
 
     testWidgets('closes on its close while it listens, and the microphone goes with it', (tester) async {
