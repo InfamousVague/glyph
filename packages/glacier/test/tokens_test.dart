@@ -9,6 +9,9 @@ import 'package:glacier/glacier.dart';
 /// The token engine against the web app itself. `fixtures/web_tokens_375.json` is what Ghost.md's page computed for
 /// these custom properties in a 375 x 812 window (lengths by a probe element's width, colours by the pixel a canvas
 /// painted), in light, in dark, and inside `.app-inverse` in dark. The same stylesheets are read here.
+///
+/// `--app-bar-ring` was moved by hand when the header was condensed (2026-10-17, space-10 * 0.74 to 0.68): the page's
+/// 32.922 times 0.68 / 0.74 is 30.253, which its probe, laid out in 64ths of a pixel, reads as 30.25.
 void main() {
   final app = Directory('../../assets/css');
   final sheet = TokenSheet.parseAll([

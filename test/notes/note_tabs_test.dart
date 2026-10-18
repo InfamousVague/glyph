@@ -24,6 +24,15 @@ import 'bar_support.dart';
 /// The top bar, as `notes/NoteTabs.test.tsx` holds it, and where it is drawn: every box asserted here was measured on
 /// the web app's own page (Chromium over the dev server, the invented library of seed.mjs with Weekend trip,
 /// Groceries and Monday standup open) at the same window, and is held to half a pixel.
+///
+/// Measured before the header was condensed (Matt, 2026-10-17: "make the header of the app more condensed by
+/// default"), and moved since by what that changed in the tokens, at density 1.1: the step over the bar's row went
+/// from space-2 to space-1 and its rings from space-10 * 0.74 to 0.68. At 390 wide that is 8.93 to 4.46 over the row
+/// and rings of 33.02 to 30.35, so the controls stand 4.46 higher, the ones after the first 2.67 nearer it for each
+/// ring before them (the far group as much nearer the end), and what is under the row 4.46 + 2.67 = 7.14 higher; a
+/// capsule is its rings and their gaps. In two panes the same at 1280 (10.54 to 5.27, 38.98 to 35.83: 8.43) and 840
+/// (9.74 to 4.87, 36.03 to 33.12: 7.79); the Islands' one line there is the tab capsule's height, centred, so it
+/// goes up by 5.27 + 3.16 / 2, and the tabs' capsule stays centred between the two that shrank.
 void main() {
   setUpAll(loadAppFonts);
 
@@ -44,14 +53,14 @@ void main() {
     testWidgets('has no tab row with nothing open, and its controls still, in the middle of a bar one line tall', (tester) async {
       await pumpBar(tester, atHome: true);
       expect(find.byType(TabRow), findsNothing);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(46.41, 0.05));
-      expect(named(tester, 'Home'), boxAt(13.39, 11.16, 33.02, 33.02));
-      expect(named(tester, 'All your notes'), boxAt(50.86, 11.16, 33.02, 33.02));
-      expect(named(tester, 'Back to where you were'), boxAt(88.33, 11.16, 33.02, 33.02));
-      expect(named(tester, 'Forward again'), boxAt(125.8, 11.16, 33.02, 33.02));
-      expect(named(tester, 'Organizations'), boxAt(259.73, 11.16, 33.02, 33.02));
-      expect(named(tester, 'Notifications'), boxAt(297.2, 11.16, 33.02, 33.02));
-      expect(named(tester, 'Settings'), boxAt(334.67, 11.16, 33.02, 33.02));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(39.28, 0.05));
+      expect(named(tester, 'Home'), boxAt(13.39, 6.7, 30.35, 30.35));
+      expect(named(tester, 'All your notes'), boxAt(48.2, 6.7, 30.35, 30.35));
+      expect(named(tester, 'Back to where you were'), boxAt(83.02, 6.7, 30.35, 30.35));
+      expect(named(tester, 'Forward again'), boxAt(117.83, 6.7, 30.35, 30.35));
+      expect(named(tester, 'Organizations'), boxAt(267.71, 6.7, 30.35, 30.35));
+      expect(named(tester, 'Notifications'), boxAt(302.53, 6.7, 30.35, 30.35));
+      expect(named(tester, 'Settings'), boxAt(337.34, 6.7, 30.35, 30.35));
       await away(tester);
     });
 
@@ -193,13 +202,13 @@ void main() {
       await pumpBar(
         tester,
         open: three,
-        tools: const SizedBox(key: ValueKey('tools'), width: 70.48, height: 33.02),
-        tail: const SizedBox(key: ValueKey('more'), width: 33.02, height: 33.02),
+        tools: const SizedBox(key: ValueKey('tools'), width: 65.16, height: 30.35),
+        tail: const SizedBox(key: ValueKey('more'), width: 30.35, height: 30.35),
       );
       // Measured with a note's two tools in the slot and its More in the tail: the people icon, the bell and the cog
       // sit between them.
-      expect(tester.getRect(find.byKey(const ValueKey('more'))), boxAt(334.67, 8.92, 33.02, 33.02));
-      expect(named(tester, 'Settings').left, closeTo(297.2, 0.5));
+      expect(tester.getRect(find.byKey(const ValueKey('more'))), boxAt(337.34, 4.46, 30.35, 30.35));
+      expect(named(tester, 'Settings').left, closeTo(302.53, 0.5));
       expect(tester.getRect(find.byKey(const ValueKey('tools'))).right, closeTo(named(tester, 'Organizations').left - tokens(tester).space(1), 0.01));
       await away(tester);
     });
@@ -229,19 +238,19 @@ void main() {
   group('the bar’s styles', () {
     testWidgets('is Classic unless told otherwise: the controls, then the tabs standing on the bar’s foot, every tab with its cross', (tester) async {
       await pumpBar(tester, open: three, atHome: true);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(91.81, 0.05));
-      expect(named(tester, 'Home'), boxAt(13.39, 8.92, 33.02, 33.02));
-      expect(named(tester, 'Organizations'), boxAt(259.73, 8.92, 33.02, 33.02));
-      expect(named(tester, 'Settings'), boxAt(334.67, 8.92, 33.02, 33.02));
-      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 49.92, 390, 41.89));
-      expect(tab(tester, 0), boxAt(13.39, 50.89, 151, 40.92));
-      expect(tab(tester, 1), boxAt(166.39, 49.92, 194.23, 41.89));
-      expect(tab(tester, 2), boxAt(362.63, 49.92, 243.08, 41.89));
-      expect(named(tester, 'Weekend trip'), boxAt(14.39, 56.05, 117.78, 31.59));
-      expect(named(tester, 'Groceries, in Home'), boxAt(167.39, 50.92, 161.02, 40.89));
-      expect(tester.getRect(find.byType(SpacePill).first), boxAt(180.78, 56.72, 60.92, 29.3));
-      expect(named(tester, 'Close Weekend trip'), boxAt(132.17, 58.47, 26.77, 26.77));
-      expect(named(tester, 'New note in a new tab'), boxAt(612.16, 57.48, 26.77, 26.77));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(84.67, 0.05));
+      expect(named(tester, 'Home'), boxAt(13.39, 4.46, 30.35, 30.35));
+      expect(named(tester, 'Organizations'), boxAt(267.71, 4.46, 30.35, 30.35));
+      expect(named(tester, 'Settings'), boxAt(337.34, 4.46, 30.35, 30.35));
+      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 42.78, 390, 41.89));
+      expect(tab(tester, 0), boxAt(13.39, 43.75, 151, 40.92));
+      expect(tab(tester, 1), boxAt(166.39, 42.78, 194.23, 41.89));
+      expect(tab(tester, 2), boxAt(362.63, 42.78, 243.08, 41.89));
+      expect(named(tester, 'Weekend trip'), boxAt(14.39, 48.91, 117.78, 31.59));
+      expect(named(tester, 'Groceries, in Home'), boxAt(167.39, 43.78, 161.02, 40.89));
+      expect(tester.getRect(find.byType(SpacePill).first), boxAt(180.78, 49.58, 60.92, 29.3));
+      expect(named(tester, 'Close Weekend trip'), boxAt(132.17, 51.33, 26.77, 26.77));
+      expect(named(tester, 'New note in a new tab'), boxAt(612.16, 50.34, 26.77, 26.77));
       expect(find.byTooltip('x'), findsNothing);
       for (final title in ['Weekend trip', 'Groceries', 'Monday standup']) {
         expect(find.bySemanticsLabel('Close $title'), findsOneWidget);
@@ -251,27 +260,27 @@ void main() {
 
     testWidgets('as the Ledger puts the tabs first, with Home pinned in the row, and the row there with nothing open', (tester) async {
       await pumpBar(tester, style: TopBarStyle.ledger, open: three, atHome: true);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(91.81, 0.05));
-      expect(tester.getRect(find.byType(HomeTab)), boxAt(13.39, 8.67, 40.92, 40.92));
-      expect(tab(tester, 0), boxAt(56.31, 8.67, 119.78, 40.92));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(84.67, 0.05));
+      expect(tester.getRect(find.byType(HomeTab)), boxAt(13.39, 4.21, 40.92, 40.92));
+      expect(tab(tester, 0), boxAt(56.31, 4.21, 119.78, 40.92));
       // A tab that wears a pill is a pixel taller than the row is made, and stands on the row's line.
-      expect(tab(tester, 1), boxAt(178.09, 7.7, 163.02, 41.89));
-      expect(named(tester, 'All your notes'), boxAt(13.39, 56.05, 33.02, 33.02));
-      expect(named(tester, 'Back to where you were'), boxAt(50.86, 56.05, 33.02, 33.02));
-      expect(named(tester, 'Organizations'), boxAt(259.73, 56.05, 33.02, 33.02));
-      expect(named(tester, 'Settings'), boxAt(334.67, 56.05, 33.02, 33.02));
-      expect(named(tester, 'New note in a new tab'), boxAt(561.42, 15.75, 26.77, 26.77));
+      expect(tab(tester, 1), boxAt(178.09, 3.24, 163.02, 41.89));
+      expect(named(tester, 'All your notes'), boxAt(13.39, 51.59, 30.35, 30.35));
+      expect(named(tester, 'Back to where you were'), boxAt(48.2, 51.59, 30.35, 30.35));
+      expect(named(tester, 'Organizations'), boxAt(267.71, 51.59, 30.35, 30.35));
+      expect(named(tester, 'Settings'), boxAt(337.34, 51.59, 30.35, 30.35));
+      expect(named(tester, 'New note in a new tab'), boxAt(561.42, 11.29, 26.77, 26.77));
       // The cross is the open tab's alone.
       expect(find.bySemanticsLabel(RegExp('^Close ')), findsNothing);
       await away(tester);
       await pumpBar(tester, style: TopBarStyle.ledger, open: three, active: 'groceries');
-      expect(named(tester, 'Close Groceries'), boxAt(340.11, 15.77, 26.77, 26.77));
+      expect(named(tester, 'Close Groceries'), boxAt(340.11, 11.31, 26.77, 26.77));
       expect(find.bySemanticsLabel('Close Weekend trip'), findsNothing);
       await away(tester);
       // The row is always there, so Home always is.
       final log = await pumpBar(tester, style: TopBarStyle.ledger);
       expect(find.byType(TabRow), findsOneWidget);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(91.81, 0.05));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(84.67, 0.05));
       await tester.tap(find.byType(HomeTab));
       expect(log.said, ['home']);
       await away(tester);
@@ -279,51 +288,51 @@ void main() {
 
     testWidgets('as the Masthead says Home, Notes and Back as words, and draws the tabs as an index line', (tester) async {
       await pumpBar(tester, style: TopBarStyle.masthead, open: three, atHome: true);
-      expect(named(tester, 'Home'), boxAt(13.39, 8.92, 63.05, 33.02));
-      expect(named(tester, 'All your notes'), boxAt(80.89, 8.92, 62.88, 33.02));
-      expect(named(tester, 'Back to where you were'), boxAt(148.22, 8.92, 76.08, 33.02));
-      expect(named(tester, 'Organizations'), boxAt(233.2, 8.92, 68.41, 33.02));
+      expect(named(tester, 'Home'), boxAt(13.39, 4.46, 63.05, 30.35));
+      expect(named(tester, 'All your notes'), boxAt(80.89, 4.46, 62.88, 30.35));
+      expect(named(tester, 'Back to where you were'), boxAt(148.22, 4.46, 76.08, 30.35));
+      expect(named(tester, 'Organizations'), boxAt(233.2, 4.46, 68.41, 30.35));
       // The words come to more than a narrow phone's line: the last rings run past its end rather than shrinking.
-      expect(named(tester, 'Notifications'), boxAt(306.06, 8.92, 33.02, 33.02));
-      expect(named(tester, 'Settings'), boxAt(343.53, 8.92, 33.02, 33.02));
+      expect(named(tester, 'Notifications'), boxAt(306.06, 4.46, 30.35, 30.35));
+      expect(named(tester, 'Settings'), boxAt(340.87, 4.46, 30.35, 30.35));
       expect(find.text('Teams'), findsOneWidget);
       // Forward only when there is somewhere forward to go.
       expect(find.bySemanticsLabel('Forward again'), findsNothing);
-      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 50.89, 390, 40.92));
-      expect(tab(tester, 0), boxAt(13.39, 50.89, 103.94, 40.92));
-      expect(tab(tester, 1), boxAt(135.17, 50.89, 147.17, 40.92));
-      expect(tab(tester, 2), boxAt(300.19, 50.89, 196.02, 40.92));
-      expect(named(tester, 'New note in a new tab'), boxAt(518.5, 57.97, 26.77, 26.77));
+      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 43.75, 390, 40.92));
+      expect(tab(tester, 0), boxAt(13.39, 43.75, 103.94, 40.92));
+      expect(tab(tester, 1), boxAt(135.17, 43.75, 147.17, 40.92));
+      expect(tab(tester, 2), boxAt(300.19, 43.75, 196.02, 40.92));
+      expect(named(tester, 'New note in a new tab'), boxAt(518.5, 50.83, 26.77, 26.77));
       await away(tester);
       final log = await pumpBar(tester, style: TopBarStyle.masthead, open: three, active: 'groceries', canGoOn: true, canGoBack: true);
       await tester.tap(find.bySemanticsLabel('Forward again'));
       expect(log.said, ['on']);
-      expect(tab(tester, 1), boxAt(135.17, 50.89, 178.39, 40.92));
+      expect(tab(tester, 1), boxAt(135.17, 43.75, 178.39, 40.92));
       await away(tester);
     });
 
     testWidgets('as the Islands floats three capsules: the way around, the tabs, and the screen’s own', (tester) async {
       await pumpBar(tester, style: TopBarStyle.islands, open: three, atHome: true);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(107.81, 0.05));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(100.67, 0.05));
       final capsules = find.byType(BarCapsule);
-      expect(tester.getRect(capsules.at(0)), boxAt(13.39, 10.94, 146.06, 41.02));
-      expect(tester.getRect(capsules.at(1)), boxAt(254.64, 10.94, 113.05, 41.02));
-      expect(named(tester, 'Home'), boxAt(17.39, 14.94, 33.02, 33.02));
-      expect(named(tester, 'Forward again'), boxAt(122.44, 14.94, 33.02, 33.02));
-      expect(named(tester, 'Organizations'), boxAt(260.64, 14.94, 33.02, 33.02));
-      expect(named(tester, 'Settings'), boxAt(330.67, 14.94, 33.02, 33.02));
+      expect(tester.getRect(capsules.at(0)), boxAt(13.39, 6.48, 135.39, 38.35));
+      expect(tester.getRect(capsules.at(1)), boxAt(262.65, 6.48, 105.04, 38.35));
+      expect(named(tester, 'Home'), boxAt(17.39, 10.48, 30.35, 30.35));
+      expect(named(tester, 'Forward again'), boxAt(114.43, 10.48, 30.35, 30.35));
+      expect(named(tester, 'Organizations'), boxAt(268.65, 10.48, 30.35, 30.35));
+      expect(named(tester, 'Settings'), boxAt(333.34, 10.48, 30.35, 30.35));
       // The tabs' capsule on a line of its own on a phone.
-      expect(tester.getRect(find.byType(TabRow)), boxAt(13.39, 60.88, 354.3, 44.92));
-      expect(tab(tester, 0), boxAt(23.31, 64.88, 117.78, 36.92));
-      expect(tab(tester, 1), boxAt(145.55, 64.88, 161.02, 36.92));
-      expect(tester.getRect(find.byType(SpacePill).first), boxAt(158.94, 68.69, 60.92, 29.3));
-      expect(named(tester, 'New note in a new tab'), boxAt(561 - 31.22, 69.95, 26.77, 26.77));
+      expect(tester.getRect(find.byType(TabRow)), boxAt(13.39, 53.74, 354.3, 44.92));
+      expect(tab(tester, 0), boxAt(23.31, 57.74, 117.78, 36.92));
+      expect(tab(tester, 1), boxAt(145.55, 57.74, 161.02, 36.92));
+      expect(tester.getRect(find.byType(SpacePill).first), boxAt(158.94, 61.55, 60.92, 29.3));
+      expect(named(tester, 'New note in a new tab'), boxAt(561 - 31.22, 62.81, 26.77, 26.77));
       await away(tester);
       // With nothing open the bar is one line.
       await pumpBar(tester, style: TopBarStyle.islands, atHome: true);
-      expect(AppTabBar.heightOf(tokens(tester)), closeTo(54.41, 0.05));
-      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(13.39, 11.16, 146.06, 41.02));
-      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(254.64, 11.16, 113.05, 41.02));
+      expect(AppTabBar.heightOf(tokens(tester)), closeTo(47.27, 0.05));
+      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(13.39, 6.7, 135.39, 38.35));
+      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(262.65, 6.7, 105.04, 38.35));
       await away(tester);
     });
   });
@@ -332,45 +341,45 @@ void main() {
     testWidgets('the Classic bar is glass from the window’s top edge, its rings a size up, the tabs its bottom edge', (tester) async {
       await pumpBar(tester, open: three, groups: trip, atHome: true, size: const Size(1280, 800), split: true, fine: true);
       final t = tokens(tester);
-      expect(AppTabBar.heightOf(t) - notch, closeTo(104.67, 0.05));
+      expect(AppTabBar.heightOf(t) - notch, closeTo(96.24, 0.05));
       expect(tester.getTopLeft(find.byType(AppTabBar)).dy, 0);
-      expect(named(tester, 'Home'), boxAt(15.8, 10.53, 38.98, 38.98));
-      expect(named(tester, 'All your notes'), boxAt(65.31, 10.53, 38.98, 38.98));
-      expect(named(tester, 'Organizations'), boxAt(1115.66, 10.53, 38.98, 38.98));
-      expect(named(tester, 'Settings'), boxAt(1214.69, 10.53, 38.98, 38.98));
-      expect(tab(tester, 0), boxAt(15.8, 59.06, 168.22, 44.61));
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 68.13, 61.47, 25.5));
-      expect(tab(tester, 1), boxAt(253.48, 58.09, 214.2, 45.58));
-      expect(tab(tester, 2), boxAt(469.69, 58.09, 267.31, 45.58));
-      expect(named(tester, 'New note in a new tab'), boxAt(744.27, 65.08, 31.61, 31.61));
+      expect(named(tester, 'Home'), boxAt(15.8, 5.27, 35.83, 35.83));
+      expect(named(tester, 'All your notes'), boxAt(62.16, 5.27, 35.83, 35.83));
+      expect(named(tester, 'Organizations'), boxAt(1125.12, 5.27, 35.83, 35.83));
+      expect(named(tester, 'Settings'), boxAt(1217.85, 5.27, 35.83, 35.83));
+      expect(tab(tester, 0), boxAt(15.8, 50.63, 168.22, 44.61));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 59.7, 61.47, 25.5));
+      expect(tab(tester, 1), boxAt(253.48, 49.66, 214.2, 45.58));
+      expect(tab(tester, 2), boxAt(469.69, 49.66, 267.31, 45.58));
+      expect(named(tester, 'New note in a new tab'), boxAt(744.27, 56.65, 31.61, 31.61));
       // The row fits, so neither end fades.
       expect(find.byType(WispSides), findsNothing);
       await away(tester);
       // With nothing open the bar keeps its hairline and the air over it.
       await pumpBar(tester, atHome: true, size: const Size(1280, 800), split: true, fine: true);
-      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(65.33, 0.05));
+      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(56.9, 0.05));
       await away(tester);
     });
 
     testWidgets('the opened Fold’s bar is the same bar at its own size', (tester) async {
       await pumpBar(tester, open: three, active: 'groceries', quiet: true, canGoBack: true, size: const Size(840, 900), split: true);
-      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(98.31, 0.05));
-      expect(named(tester, 'Home'), boxAt(14.61, 9.73, 36.03, 36.03));
-      expect(named(tester, 'All your notes'), boxAt(60.38, 9.73, 36.03, 36.03));
-      expect(tab(tester, 0), boxAt(14.61, 54.53, 159.73, 42.78));
-      expect(tab(tester, 1), boxAt(176.34, 53.55, 204.36, 43.77));
-      expect(named(tester, 'New note in a new tab'), boxAt(644.95, 60.81, 29.22, 29.22));
+      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(90.52, 0.05));
+      expect(named(tester, 'Home'), boxAt(14.61, 4.86, 33.12, 33.12));
+      expect(named(tester, 'All your notes'), boxAt(57.47, 4.86, 33.12, 33.12));
+      expect(tab(tester, 0), boxAt(14.61, 46.74, 159.73, 42.78));
+      expect(tab(tester, 1), boxAt(176.34, 45.76, 204.36, 43.77));
+      expect(named(tester, 'New note in a new tab'), boxAt(644.95, 53.02, 29.22, 29.22));
       await away(tester);
     });
 
     testWidgets('the Islands’ three capsules share one line, the tabs between the other two', (tester) async {
       await pumpBar(tester, style: TopBarStyle.islands, open: three, groups: trip, atHome: true, size: const Size(1280, 800), split: true, fine: true);
-      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(73.33, 0.05));
-      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(15.8, 11.86, 169.94, 46.98));
-      expect(tester.getRect(find.byType(TabRow)), boxAt(302.23, 11.86, 704, 48.61));
-      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(1122.72, 11.86, 130.95, 46.98));
-      expect(tab(tester, 0), boxAt(313.77, 15.86, 129.34, 40.61));
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(450.38, 23.41, 61.47, 25.5));
+      expect(AppTabBar.heightOf(tokens(tester)) - notch, closeTo(64.9, 0.05));
+      expect(tester.getRect(find.byType(BarCapsule).at(0)), boxAt(15.8, 5.01, 157.32, 43.82));
+      expect(tester.getRect(find.byType(TabRow)), boxAt(300.65, 5.01, 704, 48.61));
+      expect(tester.getRect(find.byType(BarCapsule).at(1)), boxAt(1132.18, 5.01, 121.49, 43.82));
+      expect(tab(tester, 0), boxAt(312.19, 9.01, 129.34, 40.61));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(448.8, 16.56, 61.47, 25.5));
       await away(tester);
       // More tabs than fit, on the opened Fold: still one line, the tabs' capsule taking the room there is. (The
       // page's own line broke here, its third capsule wrapping under the first.)
@@ -388,8 +397,8 @@ void main() {
   group('a group’s chip', () {
     testWidgets('stands before its first tab in its colour, says how many tabs it holds, and folds them away on a tap', (tester) async {
       final log = await pumpBar(tester, open: three, groups: trip, atHome: true);
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(168.39, 58.84, 58.11, 24.03));
-      expect(tab(tester, 1), boxAt(230.5, 49.92, 194.23, 41.89));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(168.39, 51.7, 58.11, 24.03));
+      expect(tab(tester, 1), boxAt(230.5, 42.78, 194.23, 41.89));
       expect(find.bySemanticsLabel('Trip, 2 tabs'), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Trip, 2 tabs'));
       expect(log.said, ['groups Trip:sea:folded {groceries: g, standup: g}']);
@@ -398,9 +407,9 @@ void main() {
       await pumpBar(tester, open: three, groups: toggleGroup(trip, 'g'), atHome: true);
       expect(find.byType(NoteTab), findsOneWidget);
       expect(find.bySemanticsLabel('Trip, 2 tabs, folded'), findsOneWidget);
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(168.39, 59.33, 58.11, 24.03));
-      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 50.89, 390, 40.92));
-      expect(named(tester, 'New note in a new tab'), boxAt(234.95, 57.97, 26.77, 26.77));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(168.39, 52.19, 58.11, 24.03));
+      expect(tester.getRect(find.byType(TabRow)), boxAt(0, 43.75, 390, 40.92));
+      expect(named(tester, 'New note in a new tab'), boxAt(234.95, 50.83, 26.77, 26.77));
       await away(tester);
     });
 
@@ -458,7 +467,7 @@ void main() {
       await rename();
       expect(find.bySemanticsLabel('Group name'), findsOneWidget);
       // `.groupName { inline-size: 8rem }`, a line of the chip's type inside its padding and ring.
-      expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 67.84, 128, 26.06));
+      expect(tester.getRect(find.byType(GroupChip)), boxAt(188.02, 59.41, 128, 26.06));
       await tester.enterText(find.byType(EditableText), 'Weekend away');
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pump();
@@ -514,12 +523,12 @@ void main() {
       expect(find.text('Remove from group'), findsOneWidget);
       expect(find.text('Add to group'), findsNothing);
       // The menu hangs from the foot of the tab, 8px under it: the page's panel stood at [254, 112], its first row
-      // inside the panel's padding and hairline at [260.27, 118.27 179.47x42.31]. The kit puts a panel on a whole
-      // pixel, and the tab's foot is half a pixel from two of them.
+      // inside the panel's padding and hairline at [260.27, 118.27 179.47x42.31], before the bar was 8.43 shorter
+      // here. The kit puts a panel on a whole pixel, and the tab's foot is half a pixel from two of them.
       await tester.pump(const Duration(milliseconds: 300));
       final first = tester.getRect(find.ancestor(of: find.text('Add to a new group'), matching: find.byType(GlacierMenuItem)));
       expect(first.left, closeTo(260.27, 1.1));
-      expect(first.top, closeTo(118.27 + notch, 1.1));
+      expect(first.top, closeTo(118.27 - 8.43 + notch, 1.1));
       expect(first.size.width, closeTo(179.47, 0.5));
       expect(first.size.height, closeTo(42.31, 0.5));
       await tester.tap(find.text('Close tab'));

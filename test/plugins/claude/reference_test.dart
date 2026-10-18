@@ -16,6 +16,12 @@ import '../notion/support.dart' show Held, Measured;
 /// 390 x 844 on 2026-10-08 (fixtures/*.json: each named thing's `getBoundingClientRect`, to a hundredth). The page
 /// draws in a browser as it is, with nothing stood in for; every request not to the dev server was refused.
 ///
+/// The drawer hangs from the bar, so when the header was condensed (Matt, 2026-10-17: "make the header of the app
+/// more condensed by default") fixtures/guide-*.json were moved by what the bar lost at 390 wide, density 1.1, rather
+/// than measured again: the step over its row, space-2 to space-1, 4.46, and a little of its rings, space-10 * 0.74
+/// to 0.68, 2.68. Every rect under it is 7.14 higher, and the card and its scroller, which reach the window's foot,
+/// 7.14 taller.
+///
 /// Pictures: `flutter test --update-goldens test/plugins/claude/reference_test.dart`, then `shots/`.
 void main() {
   setUpAll(loadAppFonts);

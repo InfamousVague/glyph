@@ -42,9 +42,9 @@
  "card": [
   {
    "x": 0,
-   "y": 82.14,
+   "y": 75.0,
    "w": 390,
-   "h": 761.86,
+   "h": 769.0,
    "text": "Connecting ClaudeHostedOn your computerNothing to install. Claude connects to Ghost.md’s s",
    "size": 16,
    "weight": "400",
@@ -62,7 +62,7 @@
  "head": [
   {
    "x": 1,
-   "y": 83.14,
+   "y": 76.0,
    "w": 388,
    "h": 50.77,
    "text": "Connecting Claude",
@@ -82,7 +82,7 @@
  "title": [
   {
    "x": 23.31,
-   "y": 100.98,
+   "y": 93.84,
    "w": 170.22,
    "h": 24,
    "text": "Connecting Claude",
@@ -102,7 +102,7 @@
  "close": [
   {
    "x": 353.16,
-   "y": 103.98,
+   "y": 96.84,
    "w": 18,
    "h": 18,
    "text": "",
@@ -122,7 +122,7 @@
  "closeIcon": [
   {
    "x": 353.16,
-   "y": 103.98,
+   "y": 96.84,
    "w": 18,
    "h": 18,
    "text": "",
@@ -142,7 +142,7 @@
  "ways": [
   {
    "x": 23.31,
-   "y": 133.91,
+   "y": 126.77,
    "w": 343.38,
    "h": 36.38,
    "text": "HostedOn your computer",
@@ -162,7 +162,7 @@
  "way": [
   {
    "x": 26.31,
-   "y": 136.91,
+   "y": 129.77,
    "w": 167.69,
    "h": 30.38,
    "text": "Hosted",
@@ -180,7 +180,7 @@
   },
   {
    "x": 196,
-   "y": 136.91,
+   "y": 129.77,
    "w": 167.69,
    "h": 30.38,
    "text": "On your computer",
@@ -200,9 +200,9 @@
  "scroll": [
   {
    "x": 1,
-   "y": 183.67,
+   "y": 176.53,
    "w": 388,
-   "h": 660.33,
+   "h": 667.47,
    "text": "Nothing to install. Claude connects to Ghost.md’s server, and you sign in on a page once.1",
    "size": 16,
    "weight": "400",
@@ -220,7 +220,7 @@
  "lead": [
   {
    "x": 23.31,
-   "y": 183.67,
+   "y": 176.53,
    "w": 343.38,
    "h": 72.47,
    "text": "Nothing to install. Claude connects to Ghost.md’s server, and you sign in on a page once.",
@@ -240,7 +240,7 @@
  "steps": [
   {
    "x": 23.31,
-   "y": 273.98,
+   "y": 266.84,
    "w": 343.38,
    "h": 733.11,
    "text": "1Add the server to ClaudeIn claude.ai or Claude Desktop: Settings › Connectors › Add custo",
@@ -260,7 +260,7 @@
  "step": [
   {
    "x": 23.31,
-   "y": 273.98,
+   "y": 266.84,
    "w": 343.38,
    "h": 286.31,
    "text": "1Add the server to ClaudeIn claude.ai or Claude Desktop: Settings › Connectors › Add custo",
@@ -278,7 +278,7 @@
   },
   {
    "x": 23.31,
-   "y": 582.61,
+   "y": 575.47,
    "w": 343.38,
    "h": 193.55,
    "text": "2Sign in on the page that opensClaude opens a Ghost.md page in your browser. Sign in with ",
@@ -296,7 +296,7 @@
   },
   {
    "x": 23.31,
-   "y": 798.47,
+   "y": 791.33,
    "w": 343.38,
    "h": 113.23,
    "text": "3Ask in words“What’s in my Groceries note?” “Add ‘book the ferry’ as a task to my Trip pla",
@@ -314,7 +314,7 @@
   },
   {
    "x": 23.31,
-   "y": 934.02,
+   "y": 926.88,
    "w": 343.38,
    "h": 73.08,
    "text": "4To end itDisconnect the server in Claude. A week without using it ends it too, and the ke",
@@ -334,7 +334,7 @@
  "number": [
   {
    "x": 23.31,
-   "y": 274.78,
+   "y": 267.64,
    "w": 24,
    "h": 24,
    "text": "1",
@@ -352,7 +352,7 @@
   },
   {
    "x": 23.31,
-   "y": 583.41,
+   "y": 576.27,
    "w": 24,
    "h": 24,
    "text": "2",
@@ -370,7 +370,7 @@
   },
   {
    "x": 23.31,
-   "y": 799.27,
+   "y": 792.13,
    "w": 24,
    "h": 24,
    "text": "3",
@@ -388,7 +388,7 @@
   },
   {
    "x": 23.31,
-   "y": 934.81,
+   "y": 927.67,
    "w": 24,
    "h": 24,
    "text": "4",
@@ -408,7 +408,7 @@
  "stepBody": [
   {
    "x": 60.7,
-   "y": 273.98,
+   "y": 266.84,
    "w": 305.98,
    "h": 286.31,
    "text": "Add the server to ClaudeIn claude.ai or Claude Desktop: Settings › Connectors › Add custom",
@@ -426,7 +426,7 @@
   },
   {
    "x": 60.7,
-   "y": 582.61,
+   "y": 575.47,
    "w": 305.98,
    "h": 193.55,
    "text": "Sign in on the page that opensClaude opens a Ghost.md page in your browser. Sign in with y",
@@ -444,7 +444,7 @@
   },
   {
    "x": 60.7,
-   "y": 798.47,
+   "y": 791.33,
    "w": 305.98,
    "h": 113.23,
    "text": "Ask in words“What’s in my Groceries note?” “Add ‘book the ferry’ as a task to my Trip plan",
@@ -462,7 +462,7 @@
   },
   {
    "x": 60.7,
-   "y": 934.02,
+   "y": 926.88,
    "w": 305.98,
    "h": 73.08,
    "text": "To end itDisconnect the server in Claude. A week without using it ends it too, and the key",
@@ -482,7 +482,7 @@
  "stepTitle": [
   {
    "x": 60.7,
-   "y": 273.98,
+   "y": 266.84,
    "w": 305.98,
    "h": 24,
    "text": "Add the server to Claude",
@@ -500,7 +500,7 @@
   },
   {
    "x": 60.7,
-   "y": 582.61,
+   "y": 575.47,
    "w": 305.98,
    "h": 24,
    "text": "Sign in on the page that opens",
@@ -518,7 +518,7 @@
   },
   {
    "x": 60.7,
-   "y": 798.47,
+   "y": 791.33,
    "w": 305.98,
    "h": 24,
    "text": "Ask in words",
@@ -536,7 +536,7 @@
   },
   {
    "x": 60.7,
-   "y": 934.02,
+   "y": 926.88,
    "w": 305.98,
    "h": 24,
    "text": "To end it",
@@ -556,7 +556,7 @@
  "words": [
   {
    "x": 60.7,
-   "y": 306.91,
+   "y": 299.77,
    "w": 305.98,
    "h": 60.23,
    "text": "In claude.ai or Claude Desktop: Settings › Connectors › Add custom connector, with this ad",
@@ -574,7 +574,7 @@
   },
   {
    "x": 60.7,
-   "y": 615.53,
+   "y": 608.39,
    "w": 305.98,
    "h": 160.63,
    "text": "Claude opens a Ghost.md page in your browser. Sign in with your handle and password, and y",
@@ -592,7 +592,7 @@
   },
   {
    "x": 60.7,
-   "y": 831.39,
+   "y": 824.25,
    "w": 305.98,
    "h": 80.31,
    "text": "“What’s in my Groceries note?” “Add ‘book the ferry’ as a task to my Trip plan.” “Make a n",
@@ -610,7 +610,7 @@
   },
   {
    "x": 60.7,
-   "y": 966.94,
+   "y": 959.8,
    "w": 305.98,
    "h": 40.16,
    "text": "Disconnect the server in Claude. A week without using it ends it too, and the key with it.",
@@ -630,7 +630,7 @@
  "snippet": [
   {
    "x": 60.7,
-   "y": 376.06,
+   "y": 368.92,
    "w": 305.98,
    "h": 68.25,
    "text": "https://ghostmarkdown.com/api/mcpCopy",
@@ -648,7 +648,7 @@
   },
   {
    "x": 60.7,
-   "y": 453.23,
+   "y": 446.09,
    "w": 305.98,
    "h": 107.06,
    "text": "claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcpCopy",
@@ -668,7 +668,7 @@
  "code": [
   {
    "x": 75.09,
-   "y": 385.98,
+   "y": 378.84,
    "w": 243.97,
    "h": 48.41,
    "text": "https://ghostmarkdown.com/api/mcp",
@@ -686,7 +686,7 @@
   },
   {
    "x": 75.09,
-   "y": 463.16,
+   "y": 456.02,
    "w": 243.97,
    "h": 87.22,
    "text": "claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp",
@@ -706,7 +706,7 @@
  "copy": [
   {
    "x": 327.98,
-   "y": 385.98,
+   "y": 378.84,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -724,7 +724,7 @@
   },
   {
    "x": 327.98,
-   "y": 463.16,
+   "y": 456.02,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -744,7 +744,7 @@
  "copyIcon": [
   {
    "x": 334.38,
-   "y": 392.38,
+   "y": 385.24,
    "w": 16,
    "h": 16,
    "text": "",
@@ -762,7 +762,7 @@
   },
   {
    "x": 334.38,
-   "y": 469.55,
+   "y": 462.41,
    "w": 16,
    "h": 16,
    "text": "",

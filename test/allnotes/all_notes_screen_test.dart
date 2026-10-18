@@ -38,6 +38,13 @@ void main() {
   /// A mark said to a screen reader by that name: a card's pin, its archive, an organization's.
   Finder said(String label) => find.byWidgetPredicate((widget) => widget is Semantics && widget.properties.label == label);
 
+  // Those numbers were read before the header was condensed (Matt, 2026-10-17: "make the header of the app more
+  // condensed by default"), and everything on this page stands under it, so it is all higher by what the bar lost, at
+  // density 1.1: the step over its row, space-2 to space-1, and a little of its rings, space-10 * 0.74 to 0.68. At
+  // 390 wide 4.46 + 2.68; at 1000 wide 5.02 + 3.01.
+  const lift = 4.46 + 2.68;
+  const wideLift = 5.02 + 3.01;
+
   /// Whether [rect] is where the web page had it, to half a pixel each way.
   void at(Rect rect, double left, double top, double width, double height, {double within = 0.5, String? reason}) {
     expect(rect.left, closeTo(left, within), reason: '${reason ?? ''} left');
@@ -351,39 +358,39 @@ void main() {
     testWidgets('the bar, the pills, the line of words and the first card', (tester) async {
       await show(tester, allNotesLibrary(), spaces: true);
       // The bar: the arrow a gutter less a space in, the search to the other gutter, both under the tab bar's room.
-      at(tester.getRect(key('all-notes-back')), 13.39, 56.34, 35.7, 35.7, reason: 'back');
-      at(tester.getRect(key('all-notes-search')), 58.02, 55.34, 309.67, 37.7, reason: 'search');
-      at(tester.getRect(key('all-notes-search-mark')), 72.41, 66.19, 16, 16, reason: 'its mark');
-      at(tester.getRect(key('all-notes-field')), 97.33, 56.34, 264.91, 35.7, reason: 'the field');
-      expect(tester.getRect(key('all-notes-bar')).bottom, closeTo(101.97, 0.5), reason: 'the bar is 101.97 tall');
+      at(tester.getRect(key('all-notes-back')), 13.39, 56.34 - lift, 35.7, 35.7, reason: 'back');
+      at(tester.getRect(key('all-notes-search')), 58.02, 55.34 - lift, 309.67, 37.7, reason: 'search');
+      at(tester.getRect(key('all-notes-search-mark')), 72.41, 66.19 - lift, 16, 16, reason: 'its mark');
+      at(tester.getRect(key('all-notes-field')), 97.33, 56.34 - lift, 264.91, 35.7, reason: 'the field');
+      expect(tester.getRect(key('all-notes-bar')).bottom, closeTo(101.97 - lift, 0.5), reason: 'the bar ends 101.97 down, less the condensed header');
       // The pills, out to the window's edges, each an even ring round its word.
-      at(tester.getRect(key('workspace-bar')), 0, 119.84, 390, 36, reason: 'the row');
-      at(tester.getRect(find.ancestor(of: find.text('All'), matching: find.byType(Container)).first), 22.31, 121.84, 34.31, 32, reason: 'All');
-      at(tester.getRect(key('space-work')), 65.55, 121.84, 51.78, 32, reason: 'Work');
-      at(tester.getRect(key('space-home')), 126.25, 121.84, 55.88, 32, reason: 'Home');
-      at(tester.getRect(key('space-spare')), 191.05, 121.84, 55.52, 32, reason: 'Spare');
-      at(tester.getRect(key('space-add')), 255.48, 121.84, 32, 32, reason: '+');
+      at(tester.getRect(key('workspace-bar')), 0, 119.84 - lift, 390, 36, reason: 'the row');
+      at(tester.getRect(find.ancestor(of: find.text('All'), matching: find.byType(Container)).first), 22.31, 121.84 - lift, 34.31, 32, reason: 'All');
+      at(tester.getRect(key('space-work')), 65.55, 121.84 - lift, 51.78, 32, reason: 'Work');
+      at(tester.getRect(key('space-home')), 126.25, 121.84 - lift, 55.88, 32, reason: 'Home');
+      at(tester.getRect(key('space-spare')), 191.05, 121.84 - lift, 55.52, 32, reason: 'Spare');
+      at(tester.getRect(key('space-add')), 255.48, 121.84 - lift, 32, 32, reason: '+');
       // The line of words wraps on a phone: the order and Tapes, then the tally and Archived together.
-      at(tester.getRect(key('all-notes-controls')), 22.31, 178.16, 345.38, 44.45, reason: 'controls');
-      at(tester.getRect(key('sort-newest')), 22.31, 178.16, 77.06, 20, reason: 'Newest');
-      at(tester.getRect(key('sort-title')), 103.83, 178.16, 66.52, 20, reason: 'A to Z');
-      at(tester.getRect(key('tapes-word')), 183.73, 178.16, 105.72, 20, reason: 'Tapes');
-      at(tester.getRect(find.descendant(of: key('tapes-word'), matching: find.byType(CustomPaint)).first), 198.13, 181.13, 14.06, 14.06, reason: 'the cassette');
-      at(tester.getRect(key('all-notes-counts')), 22.31, 202.61, 345.38, 20, reason: 'counts');
-      at(tester.getRect(key('all-notes-tally')), 22.31, 204.61, 56.03, 16, reason: 'the tally');
-      at(tester.getRect(key('archive-word')), 246.23, 202.61, 121.45, 20, reason: 'Archived');
+      at(tester.getRect(key('all-notes-controls')), 22.31, 178.16 - lift, 345.38, 44.45, reason: 'controls');
+      at(tester.getRect(key('sort-newest')), 22.31, 178.16 - lift, 77.06, 20, reason: 'Newest');
+      at(tester.getRect(key('sort-title')), 103.83, 178.16 - lift, 66.52, 20, reason: 'A to Z');
+      at(tester.getRect(key('tapes-word')), 183.73, 178.16 - lift, 105.72, 20, reason: 'Tapes');
+      at(tester.getRect(find.descendant(of: key('tapes-word'), matching: find.byType(CustomPaint)).first), 198.13, 181.13 - lift, 14.06, 14.06, reason: 'the cassette');
+      at(tester.getRect(key('all-notes-counts')), 22.31, 202.61 - lift, 345.38, 20, reason: 'counts');
+      at(tester.getRect(key('all-notes-tally')), 22.31, 204.61 - lift, 56.03, 16, reason: 'the tally');
+      at(tester.getRect(key('archive-word')), 246.23, 202.61 - lift, 121.45, 20, reason: 'Archived');
       // The first card, a space under the line. (Its height is the card's own: see the last group.)
       final first = tester.getRect(key('card-prd11'));
-      expect([first.left, first.top, first.width], [closeTo(22.31, 0.5), closeTo(236, 0.5), closeTo(345.38, 0.5)]);
+      expect([first.left, first.top, first.width], [closeTo(22.31, 0.5), closeTo(236 - lift, 0.5), closeTo(345.38, 0.5)]);
       await away(tester);
     });
 
     testWidgets('the search with words in it: the x at its end, and the field giving it room', (tester) async {
       await show(tester, allNotesLibrary(), spaces: true);
       await type(tester, 'cabin');
-      at(tester.getRect(key('all-notes-field')), 97.33, 56.34, 241.98, 35.7, reason: 'the field');
-      at(tester.getRect(key('all-notes-clear')), 348.23, 67.19, 14, 14, reason: 'the x');
-      at(tester.getRect(key('all-notes-tally')), 22.31, 204.61, 46.23, 16, reason: '2 of 19');
+      at(tester.getRect(key('all-notes-field')), 97.33, 56.34 - lift, 241.98, 35.7, reason: 'the field');
+      at(tester.getRect(key('all-notes-clear')), 348.23, 67.19 - lift, 14, 14, reason: 'the x');
+      at(tester.getRect(key('all-notes-tally')), 22.31, 204.61 - lift, 46.23, 16, reason: '2 of 19');
       expect(find.text('2 of 19'), findsOneWidget);
       expect(cards(tester), ['weekend', 'cabin-canvas']);
       await away(tester);
@@ -391,11 +398,11 @@ void main() {
 
     testWidgets('with no workspaces, tapes or archive: one line, the tally taking the rest of it', (tester) async {
       await show(tester, [for (final note in allNotesLibrary()) Note(id: note.id, body: note.body, createdAt: note.createdAt, updatedAt: note.updatedAt, starred: note.starred)]);
-      at(tester.getRect(key('all-notes-controls')), 22.31, 133.23, 345.38, 20, reason: 'controls');
-      at(tester.getRect(key('sort-newest')), 22.31, 133.23, 77.06, 20, reason: 'Newest');
-      at(tester.getRect(key('all-notes-counts')), 183.73, 135.23, 183.95, 16, reason: 'counts');
-      at(tester.getRect(key('all-notes-tally')), 183.73, 135.23, 56.03, 16, reason: '20 notes');
-      expect(tester.getRect(key('card-prd11')).top, closeTo(166.63, 0.5));
+      at(tester.getRect(key('all-notes-controls')), 22.31, 133.23 - lift, 345.38, 20, reason: 'controls');
+      at(tester.getRect(key('sort-newest')), 22.31, 133.23 - lift, 77.06, 20, reason: 'Newest');
+      at(tester.getRect(key('all-notes-counts')), 183.73, 135.23 - lift, 183.95, 16, reason: 'counts');
+      at(tester.getRect(key('all-notes-tally')), 183.73, 135.23 - lift, 56.03, 16, reason: '20 notes');
+      expect(tester.getRect(key('card-prd11')).top, closeTo(166.63 - lift, 0.5));
       await away(tester);
     });
 
@@ -403,8 +410,8 @@ void main() {
       await show(tester, allNotesLibrary(), spaces: true);
       await tester.tap(key('sort-title'));
       await settle(tester);
-      at(tester.getRect(key('card-cabin-canvas')), 22.31, 236, 345.38, 71.81, reason: 'the canvas');
-      expect(tester.getRect(key('card-prd11')).top, closeTo(321.2, 0.5));
+      at(tester.getRect(key('card-cabin-canvas')), 22.31, 236 - lift, 345.38, 71.81, reason: 'the canvas');
+      expect(tester.getRect(key('card-prd11')).top, closeTo(321.2 - lift, 0.5));
       await away(tester);
     });
 
@@ -412,25 +419,25 @@ void main() {
       final spaces = allNotesWorkspaces()..chooseWorkspace('spare');
       await pumpAllNotes(tester, AllNotes(notes: allNotesLibrary(), workspaces: spaces, asked: Asked()));
       await settle(tester);
-      at(tester.getRect(key('all-notes-controls')), 22.31, 178.16, 345.38, 20, reason: 'controls');
-      at(tester.getRect(key('all-notes-tally')), 183.73, 180.16, 47.34, 16, reason: '0 notes');
-      at(tester.getRect(key('all-notes-empty')), 22.31, 211.55, 345.38, 483.58, reason: 'the empty page');
-      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 22.31, 238.31, 335.11, 320.7, reason: 'the ghost, 38% of the height');
-      at(tester.getRect(find.ancestor(of: find.text('Nothing in Spare yet.'), matching: find.byType(CssLines)).first), 22.31, 581.33, 345.38, 40.55, reason: 'the lead');
+      at(tester.getRect(key('all-notes-controls')), 22.31, 178.16 - lift, 345.38, 20, reason: 'controls');
+      at(tester.getRect(key('all-notes-tally')), 183.73, 180.16 - lift, 47.34, 16, reason: '0 notes');
+      at(tester.getRect(key('all-notes-empty')), 22.31, 211.55 - lift, 345.38, 483.58, reason: 'the empty page');
+      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 22.31, 238.31 - lift, 335.11, 320.7, reason: 'the ghost, 38% of the height');
+      at(tester.getRect(find.ancestor(of: find.text('Nothing in Spare yet.'), matching: find.byType(CssLines)).first), 22.31, 581.33 - lift, 345.38, 40.55, reason: 'the lead');
       final hint = tester.getRect(find.text('Write it, or tap Speak and say it.'));
-      expect([hint.left, hint.top], [closeTo(22.31, 0.5), closeTo(635.27, 0.5)]);
+      expect([hint.left, hint.top], [closeTo(22.31, 0.5), closeTo(635.27 - lift, 0.5)]);
       await away(tester);
     });
 
     testWidgets('a search that found nothing: the looking ghost, and where to look', (tester) async {
       await show(tester, allNotesLibrary(), spaces: true);
       await type(tester, 'zzzz');
-      at(tester.getRect(key('all-notes-empty')), 22.31, 236, 345.38, 507.72, reason: 'the empty page');
-      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 22.31, 262.77, 186.03, 320.69, reason: 'the ghost');
-      expect(tester.getRect(find.text('Nothing has “zzzz”.')).top, closeTo(605.77, 0.5));
+      at(tester.getRect(key('all-notes-empty')), 22.31, 236 - lift, 345.38, 507.72, reason: 'the empty page');
+      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 22.31, 262.77 - lift, 186.03, 320.69, reason: 'the ghost');
+      expect(tester.getRect(find.text('Nothing has “zzzz”.')).top, closeTo(605.77 - lift, 0.5));
       // Two lines of 24.17 in a column of 28 noughts.
       final hint = tester.getRect(find.ancestor(of: find.text('Try fewer words, or look in the archive.'), matching: find.byType(ConstrainedBox)).first);
-      at(hint, 22.31, 659.7, 283.63, 48.31, reason: 'the hint');
+      at(hint, 22.31, 659.7 - lift, 283.63, 48.31, reason: 'the hint');
       await away(tester);
     });
   });
@@ -438,21 +445,21 @@ void main() {
   group('where things stand on a wide window (Chromium, 1000x800, dark)', () {
     testWidgets('the bar, the pills, one line of words, and four cards across', (tester) async {
       await show(tester, allNotesLibrary(), spaces: true, size: const Size(1000, 800), split: true);
-      at(tester.getRect(key('all-notes-back')), 15.05, 73.22, 40.11, 40.11, reason: 'back');
-      at(tester.getRect(key('all-notes-search')), 65.17, 72.22, 909.77, 42.11, reason: 'search');
-      at(tester.getRect(key('all-notes-field')), 107.22, 73.22, 861.72, 40.11, reason: 'the field');
-      at(tester.getRect(key('workspace-bar')), 0, 144.05, 1000, 36.63, reason: 'the row');
-      at(tester.getRect(key('space-work')), 70.66, 146.05, 53.75, 32.63, reason: 'Work, taller than 2rem at this size');
-      at(tester.getRect(key('space-add')), 270.08, 146.36, 32, 32, reason: '+, in the middle of the row');
-      at(tester.getRect(key('all-notes-controls')), 25.06, 205.73, 949.88, 20, reason: 'controls');
-      at(tester.getRect(key('tapes-word')), 198.63, 205.73, 112.06, 20, reason: 'Tapes');
-      at(tester.getRect(key('all-notes-counts')), 325.72, 205.73, 649.22, 20, reason: 'counts');
-      at(tester.getRect(key('all-notes-tally')), 325.72, 207.73, 58.25, 16, reason: 'the tally');
-      at(tester.getRect(key('archive-word')), 846.53, 205.73, 128.41, 20, reason: 'Archived, at the line’s end');
+      at(tester.getRect(key('all-notes-back')), 15.05, 73.22 - wideLift, 40.11, 40.11, reason: 'back');
+      at(tester.getRect(key('all-notes-search')), 65.17, 72.22 - wideLift, 909.77, 42.11, reason: 'search');
+      at(tester.getRect(key('all-notes-field')), 107.22, 73.22 - wideLift, 861.72, 40.11, reason: 'the field');
+      at(tester.getRect(key('workspace-bar')), 0, 144.05 - wideLift, 1000, 36.63, reason: 'the row');
+      at(tester.getRect(key('space-work')), 70.66, 146.05 - wideLift, 53.75, 32.63, reason: 'Work, taller than 2rem at this size');
+      at(tester.getRect(key('space-add')), 270.08, 146.36 - wideLift, 32, 32, reason: '+, in the middle of the row');
+      at(tester.getRect(key('all-notes-controls')), 25.06, 205.73 - wideLift, 949.88, 20, reason: 'controls');
+      at(tester.getRect(key('tapes-word')), 198.63, 205.73 - wideLift, 112.06, 20, reason: 'Tapes');
+      at(tester.getRect(key('all-notes-counts')), 325.72, 205.73 - wideLift, 649.22, 20, reason: 'counts');
+      at(tester.getRect(key('all-notes-tally')), 325.72, 207.73 - wideLift, 58.25, 16, reason: 'the tally');
+      at(tester.getRect(key('archive-word')), 846.53, 205.73 - wideLift, 128.41, 20, reason: 'Archived, at the line’s end');
       // Four to a row, a space apart, one height.
       final row = [for (final id in ['prd11', 'standup', 'flat', 'open-tickets']) tester.getRect(key('card-$id'))];
       expect([for (final card in row) card.left], [closeTo(25.06, 0.5), closeTo(266.28, 0.5), closeTo(507.52, 0.5), closeTo(748.73, 0.5)]);
-      expect(row.every((card) => (card.top - 240.77).abs() < 0.5 && (card.width - 226.19).abs() < 0.5 && card.height == row.first.height), isTrue);
+      expect(row.every((card) => (card.top - (240.77 - wideLift)).abs() < 0.5 && (card.width - 226.19).abs() < 0.5 && card.height == row.first.height), isTrue);
       expect(tester.getRect(key('card-sprint')).left, closeTo(25.06, 0.5));
       await away(tester);
     });
@@ -461,21 +468,21 @@ void main() {
       final spaces = allNotesWorkspaces()..chooseWorkspace('spare');
       await pumpAllNotes(tester, AllNotes(notes: allNotesLibrary(), workspaces: spaces, asked: Asked()), size: const Size(1000, 800), split: true);
       await settle(tester);
-      at(tester.getRect(key('all-notes-empty')), 25.06, 240.77, 949.88, 430.17, reason: 'the empty page');
-      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 25.06, 270.84, 376.16, 359.98, reason: 'the ghost, 45% of the height');
+      at(tester.getRect(key('all-notes-empty')), 25.06, 240.77 - wideLift, 949.88, 430.17, reason: 'the empty page');
+      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 25.06, 270.84 - wideLift, 376.16, 359.98, reason: 'the ghost, 45% of the height');
       final lead = tester.getRect(find.ancestor(of: find.text('Nothing in Spare yet.'), matching: find.byType(CssLines)).first);
-      at(lead, 607.02, 406.95, 367.92, 47.03, reason: 'the lead');
+      at(lead, 607.02, 406.95 - wideLift, 367.92, 47.03, reason: 'the lead');
       final hint = tester.getRect(find.text('Write it, or tap Speak and say it.'));
-      expect([hint.left, hint.top], [closeTo(607.02, 0.5), closeTo(469.02, 0.5)]);
+      expect([hint.left, hint.top], [closeTo(607.02, 0.5), closeTo(469.02 - wideLift, 0.5)]);
       await away(tester);
     });
 
     testWidgets('a search that found nothing, its hint on two lines', (tester) async {
       await show(tester, allNotesLibrary(), spaces: true, size: const Size(1000, 800), split: true);
       await type(tester, 'zzzz');
-      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 25.06, 270.84, 208.83, 360, reason: 'the ghost');
-      expect(tester.getRect(find.text('Nothing has “zzzz”.')).top, closeTo(394.13, 0.5));
-      at(tester.getRect(find.ancestor(of: find.text('Try fewer words, or look in the archive.'), matching: find.byType(ConstrainedBox)).first), 607.02, 456.19, 300.77, 51.38, reason: 'the hint');
+      at(tester.getRect(find.descendant(of: key('all-notes-ghost'), matching: find.byType(Image))), 25.06, 270.84 - wideLift, 208.83, 360, reason: 'the ghost');
+      expect(tester.getRect(find.text('Nothing has “zzzz”.')).top, closeTo(394.13 - wideLift, 0.5));
+      at(tester.getRect(find.ancestor(of: find.text('Try fewer words, or look in the archive.'), matching: find.byType(ConstrainedBox)).first), 607.02, 456.19 - wideLift, 300.77, 51.38, reason: 'the hint');
       await away(tester);
     });
   });
@@ -657,7 +664,7 @@ void main() {
       await away(tester);
       // A note of four lines or fewer is the page's height already: Flat, 154.38.
       await show(tester, [for (final note in allNotesLibrary()) if (note.id == 'flat') note]);
-      at(tester.getRect(key('card-flat')), 22.31, 166.63, 345.38, 154.38, reason: 'Flat');
+      at(tester.getRect(key('card-flat')), 22.31, 166.63 - lift, 345.38, 154.38, reason: 'Flat');
       await away(tester);
     });
   });

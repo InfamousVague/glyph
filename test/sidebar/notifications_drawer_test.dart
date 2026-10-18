@@ -23,6 +23,12 @@ void main() {
   setUpAll(loadAppFonts);
   final library = SidebarLibrary.load();
 
+  // The web page's numbers below were read before the header was condensed (Matt, 2026-10-17: "make the header of the
+  // app more condensed by default"). The card hangs from the bar, so it and all in it stand higher by what the bar
+  // lost at 390 wide, density 1.1: the step over its row, space-2 to space-1, 4.46, and a little of its rings,
+  // space-10 * 0.74 to 0.68, 2.68.
+  const lift = 4.46 + 2.68;
+
   final card = find.byKey(const ValueKey('floating-card'));
   Finder button(String label) => find.bySemanticsLabel(label);
   Finder rowOf(String id) => find.byKey(ValueKey('notification-$id'));
@@ -402,55 +408,55 @@ void main() {
       Rect lines(String text) => tester.getRect(find.ancestor(of: find.text(text), matching: find.byType(CssLines)));
       Rect word(String text) => tester.getRect(find.ancestor(of: find.text(text), matching: find.byType(GlacierPressable)).first);
 
-      near(tester.getRect(card), [13.39, 55.34, 363.22, 649.22], what: 'the card');
+      near(tester.getRect(card), [13.39, 55.34 - lift, 363.22, 649.22], what: 'the card');
       // The head: tall as its words' 53.55, over a hairline.
-      near(tester.getRect(find.byKey(const ValueKey('notifications-head'))), [14.39, 56.34, 361.22, 81.33], what: 'the head');
+      near(tester.getRect(find.byKey(const ValueKey('notifications-head'))), [14.39, 56.34 - lift, 361.22, 81.33], what: 'the head');
       final title = tester.getRect(find.text('Notifications'));
-      expect([title.left, title.top, title.height], [closeTo(32.23, 0.5), closeTo(86.5, 0.5), 20]);
+      expect([title.left, title.top, title.height], [closeTo(32.23, 0.5), closeTo(86.5 - lift, 0.5), 20]);
       // On a phone the page's title has 96.97 of room and needs more: its count runs on under Mark all read.
-      near(tester.getRect(find.byKey(const ValueKey('notifications-count'))), [134.86, 88.14, 16.69, 16.7], what: 'the count');
-      near(word('Mark all read'), [138.13, 69.73, 102.67, 53.55], what: 'Mark all read');
-      near(word('Clear all'), [249.72, 69.73, 71.58, 53.55], what: 'Clear all');
-      near(tester.getRect(button('Close notifications')), [330.22, 80.5, 32, 32], what: 'the close');
+      near(tester.getRect(find.byKey(const ValueKey('notifications-count'))), [134.86, 88.14 - lift, 16.69, 16.7], what: 'the count');
+      near(word('Mark all read'), [138.13, 69.73 - lift, 102.67, 53.55], what: 'Mark all read');
+      near(word('Clear all'), [249.72, 69.73 - lift, 71.58, 53.55], what: 'Clear all');
+      near(tester.getRect(button('Close notifications')), [330.22, 80.5 - lift, 32, 32], what: 'the close');
 
       // An invitation: its mark, its sentence on one line, when, and Accept and Decline under the words.
-      near(tester.getRect(rowOf('n1')), [23.31, 142.13, 343.38, 126.72], what: 'the invitation');
-      near(tester.getRect(find.descendant(of: rowOf('n1'), matching: find.byKey(const ValueKey('notification-mark')))), [32.23, 155.52, 32, 32], what: 'its mark');
-      near(lines('sam invited you to Harbour Press'), [77.63, 155.52, 214.78, 20.08], what: 'its sentence');
+      near(tester.getRect(rowOf('n1')), [23.31, 142.13 - lift, 343.38, 126.72], what: 'the invitation');
+      near(tester.getRect(find.descendant(of: rowOf('n1'), matching: find.byKey(const ValueKey('notification-mark')))), [32.23, 155.52 - lift, 32, 32], what: 'its mark');
+      near(lines('sam invited you to Harbour Press'), [77.63, 155.52 - lift, 214.78, 20.08], what: 'its sentence');
       // The page's box is 51.97 x 15.11 from 155.52 with 1.11 of padding over the words.
-      near(tester.getRect(find.text('4 min ago')), [305.8, 155.52 + 1.11, 51.97, 14], what: 'when');
-      near(word('Accept'), [77.63, 200.91, 54.81, 53.55], what: 'Accept');
-      near(word('Decline'), [145.83, 200.91, 56.8, 53.55], what: 'Decline');
+      near(tester.getRect(find.text('4 min ago')), [305.8, 155.52 + 1.11 - lift, 51.97, 14], what: 'when');
+      near(word('Accept'), [77.63, 200.91 - lift, 54.81, 53.55], what: 'Accept');
+      near(word('Decline'), [145.83, 200.91 - lift, 56.8, 53.55], what: 'Decline');
 
       // A row with a cross: the words give it room.
-      near(tester.getRect(rowOf('n2')), [23.31, 268.84, 343.38, 59.78], what: 'a row');
-      near(lines('ana joined Ghost'), [77.63, 282.23, 175.09, 20.08], what: 'its sentence');
-      near(tester.getRect(find.text('50 min ago')), [266.11, 282.23 + 1.11, 59.19, 14], what: 'when');
-      near(tester.getRect(button('Clear: ana joined Ghost')), [329.77, 277.77, 28, 28], what: 'its cross');
-      near(tester.getRect(rowOf('n3')), [23.31, 328.63, 343.38, 59.78], what: 'the next');
+      near(tester.getRect(rowOf('n2')), [23.31, 268.84 - lift, 343.38, 59.78], what: 'a row');
+      near(lines('ana joined Ghost'), [77.63, 282.23 - lift, 175.09, 20.08], what: 'its sentence');
+      near(tester.getRect(find.text('50 min ago')), [266.11, 282.23 + 1.11 - lift, 59.19, 14], what: 'when');
+      near(tester.getRect(button('Clear: ana joined Ghost')), [329.77, 277.77 - lift, 28, 28], what: 'its cross');
+      near(tester.getRect(rowOf('n3')), [23.31, 328.63 - lift, 343.38, 59.78], what: 'the next');
 
       // A sentence on two lines, one with a line under it, and the last on four, with no rule under it.
-      near(tester.getRect(rowOf('n4')), [23.31, 388.41, 343.38, 67.94], what: 'two lines');
-      near(lines('ali made you an admin of Ghost'), [77.63, 401.8, 182.03, 40.16], what: 'its sentence');
-      near(tester.getRect(rowOf('n5')), [23.31, 456.34, 343.38, 66.95], what: 'answered');
-      near(lines('Accepted'), [77.63, 492.2, 201.88, 16.7], what: 'how');
-      near(tester.getRect(rowOf('n6')), [23.31, 523.3, 343.38, 59.78], what: 'kept twice');
-      near(tester.getRect(rowOf('n7')), [23.31, 583.08, 343.38, 107.09], what: 'the last');
-      near(lines('Someone removed jo from A workshop with a name long enough to wrap onto the next line'), [77.63, 596.47, 159.14, 80.31], what: 'its sentence');
-      near(tester.getRect(find.text('September 26')), [250.16, 596.47 + 1.11, 75.14, 14], what: 'when');
+      near(tester.getRect(rowOf('n4')), [23.31, 388.41 - lift, 343.38, 67.94], what: 'two lines');
+      near(lines('ali made you an admin of Ghost'), [77.63, 401.8 - lift, 182.03, 40.16], what: 'its sentence');
+      near(tester.getRect(rowOf('n5')), [23.31, 456.34 - lift, 343.38, 66.95], what: 'answered');
+      near(lines('Accepted'), [77.63, 492.2 - lift, 201.88, 16.7], what: 'how');
+      near(tester.getRect(rowOf('n6')), [23.31, 523.3 - lift, 343.38, 59.78], what: 'kept twice');
+      near(tester.getRect(rowOf('n7')), [23.31, 583.08 - lift, 343.38, 107.09], what: 'the last');
+      near(lines('Someone removed jo from A workshop with a name long enough to wrap onto the next line'), [77.63, 596.47 - lift, 159.14, 80.31], what: 'its sentence');
+      near(tester.getRect(find.text('September 26')), [250.16, 596.47 + 1.11 - lift, 75.14, 14], what: 'when');
       await away(tester);
     });
 
     testWidgets('signed out, is the web page’s: a short card with three lines in it', (tester) async {
       await show(tester, signedIn: false);
-      near(tester.getRect(card), [13.39, 55.34, 363.22, 166.64], what: 'the card');
+      near(tester.getRect(card), [13.39, 55.34 - lift, 363.22, 166.64], what: 'the card');
       // No words in the head: it is as tall as the close.
-      near(tester.getRect(find.byKey(const ValueKey('notifications-head'))), [14.39, 56.34, 361.22, 59.78], what: 'the head');
-      near(tester.getRect(button('Close notifications')), [330.22, 69.73, 32, 32], what: 'the close');
-      near(tester.getRect(find.byType(CssLines)), [32.23, 133.97, 325.53, 60.23], what: 'the words');
+      near(tester.getRect(find.byKey(const ValueKey('notifications-head'))), [14.39, 56.34 - lift, 361.22, 59.78], what: 'the head');
+      near(tester.getRect(button('Close notifications')), [330.22, 69.73 - lift, 32, 32], what: 'the close');
+      near(tester.getRect(find.byType(CssLines)), [32.23, 133.97 - lift, 325.53, 60.23], what: 'the words');
       final account = tester.getRect(find.text('Account'));
       expect([account.left, account.width], [closeTo(119.55, 0.5), closeTo(53.61, 0.5)]);
-      expect(account.center.dy, closeTo(174.13 + 20.08 / 2, 1));
+      expect(account.center.dy, closeTo(174.13 + 20.08 / 2 - lift, 1));
       await away(tester);
     });
 

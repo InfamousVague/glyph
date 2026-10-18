@@ -29,6 +29,12 @@ void main() {
   setUpAll(loadAppFonts);
   final library = SidebarLibrary.load();
 
+  // The web page's numbers below were read before the header was condensed (Matt, 2026-10-17: "make the header of the
+  // app more condensed by default"). The card hangs from the bar, so it and all in it stand higher by what the bar
+  // lost at 390 wide, density 1.1: the step over its row, space-2 to space-1, 4.46, and a little of its rings,
+  // space-10 * 0.74 to 0.68, 2.68. A card as tall as the window allows is that much taller.
+  const lift = 4.46 + 2.68;
+
   final card = find.byKey(const ValueKey('floating-card'));
   Finder button(String label) => find.bySemanticsLabel(label);
 
@@ -284,9 +290,9 @@ void main() {
 
       // The web page's, at 390 x 844: the drawer's card 13.39, 55.34, 320 wide; the bell's 13.39, 55.34, 363.22 wide,
       // its far edge 13.39 from the window's.
-      near(await at(const Size(390, 844)), [13.39, 55.34, 320, 202], what: 'start');
-      near(await at(const Size(390, 844), side: FloatingCardSide.end), [390 - 13.39 - 320, 55.34, 320, 202], what: 'end');
-      near(await at(const Size(390, 844), side: FloatingCardSide.end, wide: true), [13.39, 55.34, 363.22, 202], what: 'wide');
+      near(await at(const Size(390, 844)), [13.39, 55.34 - lift, 320, 202], what: 'start');
+      near(await at(const Size(390, 844), side: FloatingCardSide.end), [390 - 13.39 - 320, 55.34 - lift, 320, 202], what: 'end');
+      near(await at(const Size(390, 844), side: FloatingCardSide.end, wide: true), [13.39, 55.34 - lift, 363.22, 202], what: 'wide');
       expect(tester.widget<Transform>(find.descendant(of: card, matching: find.byType(Transform)).first).alignment, Alignment.topRight);
       // A narrow phone: `min(20rem, calc(100vw - var(--glacier-space-10)))`.
       final narrow = await at(const Size(320, 700));
@@ -295,7 +301,7 @@ void main() {
       expect(narrow.width, lessThan(320));
       // A phone's own bars: under the status bar and the tab row, in from a notch at the side.
       final phone = await at(const Size(390, 844), bare: false);
-      expect(phone.top, closeTo(55.34 + 36, 0.5));
+      expect(phone.top, closeTo(55.34 + 36 - lift, 0.5));
       // A desktop window: 26rem for the bell's, 20rem for the drawer's, hung from the bar by the same tokens.
       debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
       final desk = await at(const Size(1280, 800), side: FloatingCardSide.end, wide: true);
@@ -311,10 +317,10 @@ void main() {
       await show(tester, compact: false, closed: {}, trashOpen: true);
       final t = tester.element(card).tokens;
       // `calc(100dvh - var(--app-safe-top) - var(--app-safe-bottom) - var(--glacier-space-2) - var(--glacier-space-3))`:
-      // 775.27 on the web page, where its card measured 775.25.
+      // 775.27 on the web page, where its card measured 775.25, before the bar was `lift` shorter.
       final most = 844 - t.len('app-safe-top') - t.space(2) - t.space(3);
       expect(tester.getRect(card).height, closeTo(most, 0.01));
-      expect(most, closeTo(775.25, 0.1));
+      expect(most, closeTo(775.25 + lift, 0.1));
       final scroller = tester.state<ScrollableState>(find.descendant(of: card, matching: find.byType(Scrollable)));
       expect(scroller.position.maxScrollExtent, greaterThan(0));
       // The tools stay at the top and the foot at the bottom while the notes scroll between.
@@ -354,70 +360,70 @@ void main() {
         return box;
       }
 
-      near(tester.getRect(card), [13.39, 55.34, 320, 629.83], what: 'the card');
+      near(tester.getRect(card), [13.39, 55.34 - lift, 320, 629.83], what: 'the card');
       // The tools: 32.13 square, 4.46 apart, the close at the far end.
-      near(tester.getRect(button('New note')), [27.78, 65.27, 32.13, 32.13], what: 'New note');
-      near(tester.getRect(button('New workspace')), [64.36, 65.27, 32.13, 32.13], what: 'New workspace');
-      near(tester.getRect(button('Search and commands')), [100.94, 65.27, 32.13, 32.13], what: 'Search');
-      near(tester.getRect(button('Show each note drawn small')), [137.52, 65.27, 32.13, 32.13], what: 'names only');
-      near(tester.getRect(button('Fold every folder')), [174.09, 65.27, 32.13, 32.13], what: 'fold');
-      near(tester.getRect(button('Close')), [286.88, 65.27, 32.13, 32.13], what: 'Close');
-      near(tester.getRect(byLucide(Lucide.squarePen)), [35.34, 72.83, 17, 17], what: 'its mark');
+      near(tester.getRect(button('New note')), [27.78, 65.27 - lift, 32.13, 32.13], what: 'New note');
+      near(tester.getRect(button('New workspace')), [64.36, 65.27 - lift, 32.13, 32.13], what: 'New workspace');
+      near(tester.getRect(button('Search and commands')), [100.94, 65.27 - lift, 32.13, 32.13], what: 'Search');
+      near(tester.getRect(button('Show each note drawn small')), [137.52, 65.27 - lift, 32.13, 32.13], what: 'names only');
+      near(tester.getRect(button('Fold every folder')), [174.09, 65.27 - lift, 32.13, 32.13], what: 'fold');
+      near(tester.getRect(button('Close')), [286.88, 65.27 - lift, 32.13, 32.13], what: 'Close');
+      near(tester.getRect(byLucide(Lucide.squarePen)), [35.34, 72.83 - lift, 17, 17], what: 'its mark');
 
       // A workspace's folder: the chevron, its colour, its name, how many, and More.
-      near(tester.getRect(byLucide(Lucide.chevronRight).at(0)), [27.53, 112.47, 15, 15], what: 'the chevron');
-      near(tester.getRect(find.byKey(const ValueKey('folder-hue')).at(0)), [47.95, 116.66, 6.63, 6.63], what: 'the hue');
+      near(tester.getRect(byLucide(Lucide.chevronRight).at(0)), [27.53, 112.47 - lift, 15, 15], what: 'the chevron');
+      near(tester.getRect(find.byKey(const ValueKey('folder-hue')).at(0)), [47.95, 116.66 - lift, 6.63, 6.63], what: 'the hue');
       final work = tester.getRect(find.text('Work'));
-      expect([work.left, work.top, work.height], [closeTo(60, 0.5), closeTo(112.47, 0.5), 15]);
+      expect([work.left, work.top, work.height], [closeTo(60, 0.5), closeTo(112.47 - lift, 0.5), 15]);
       // The count's box is 280.09, 112.47, 13.83 x 15 with 6.03 of padding before the digit.
       final count = tester.getRect(find.text('2').first);
-      expect([count.left, count.right, count.top, count.height], [closeTo(280.09 + 6.03, 0.5), closeTo(280.09 + 13.83, 0.5), closeTo(112.47, 0.5), 15]);
-      near(tester.getRect(button('Rename, recolour or delete Work')), [298.14, 107.31, 25.33, 25.33], what: 'More');
-      near(tester.getRect(byLucide(Lucide.ellipsis).at(0)), [302.8, 111.97, 16, 16], what: 'its dots');
+      expect([count.left, count.right, count.top, count.height], [closeTo(280.09 + 6.03, 0.5), closeTo(280.09 + 13.83, 0.5), closeTo(112.47 - lift, 0.5), 15]);
+      near(tester.getRect(button('Rename, recolour or delete Work')), [298.14, 107.31 - lift, 25.33, 25.33], what: 'More');
+      near(tester.getRect(byLucide(Lucide.ellipsis).at(0)), [302.8, 111.97 - lift, 16, 16], what: 'its dots');
 
       // Its notes, in from its name on the guide: 26.83 a row.
-      near(tester.getRect(find.byKey(const ValueKey('note-row-launch'))), [45.09, 132.64, 278.38, 26.83], what: 'Launch week');
-      near(tester.getRect(find.byKey(const ValueKey('kind-mark')).at(0)), [54.69, 139.05, 14, 14], what: 'its kind');
-      near(tester.getRect(find.ancestor(of: find.text('Launch week'), matching: find.byType(CssLines))), [76.69, 137.75, 237.19, 16.61], what: 'its name');
-      near(tester.getRect(find.byKey(const ValueKey('note-row-standup'))), [45.09, 159.47, 278.38, 26.83], what: 'Monday standup');
-      near(folderBox('work'), [23.31, 107.31, 300.16, 78.98], what: 'the folder');
-      near(folderBox('home'), [23.31, 187.3, 300.16, 52.16], what: 'Home');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-launch'))), [45.09, 132.64 - lift, 278.38, 26.83], what: 'Launch week');
+      near(tester.getRect(find.byKey(const ValueKey('kind-mark')).at(0)), [54.69, 139.05 - lift, 14, 14], what: 'its kind');
+      near(tester.getRect(find.ancestor(of: find.text('Launch week'), matching: find.byType(CssLines))), [76.69, 137.75 - lift, 237.19, 16.61], what: 'its name');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-standup'))), [45.09, 159.47 - lift, 278.38, 26.83], what: 'Monday standup');
+      near(folderBox('work'), [23.31, 107.31 - lift, 300.16, 78.98], what: 'the folder');
+      near(folderBox('home'), [23.31, 187.3 - lift, 300.16, 52.16], what: 'Home');
 
       // An empty folder, and an organization's.
-      near(folderBox('garden'), [23.31, 240.45, 300.16, 39.33], what: 'Garden');
-      near(tester.getRect(find.text('Nothing here yet.').at(0)), [36.33, 267.78, 287.14, 12], what: 'Nothing here yet');
-      near(folderBox('org-o1'), [23.31, 283.78, 300.16, 39.33], what: 'Ghost');
+      near(folderBox('garden'), [23.31, 240.45 - lift, 300.16, 39.33], what: 'Garden');
+      near(tester.getRect(find.text('Nothing here yet.').at(0)), [36.33, 267.78 - lift, 287.14, 12], what: 'Nothing here yet');
+      near(folderBox('org-o1'), [23.31, 283.78 - lift, 300.16, 39.33], what: 'Ghost');
       // The mark is 10.84 square with 4.22 after it.
-      near(tester.getRect(find.byType(OrgMark)), [60, 291.02, 10.84 + 4.22, 10.84], what: 'the mark');
+      near(tester.getRect(find.byType(OrgMark)), [60, 291.02 - lift, 10.84 + 4.22, 10.84], what: 'the mark');
       expect(tester.getRect(find.text('Ghost')).left, closeTo(80.48, 0.5));
 
       // The notes filed in none.
-      near(tester.getRect(find.byKey(const ValueKey('note-row-long'))), [23.31, 327.11, 300.16, 26.83], what: 'the long name');
-      near(tester.getRect(find.ancestor(of: find.textContaining('A note whose name'), matching: find.byType(CssLines))), [54.91, 332.22, 258.97, 16.61], what: 'on one line');
-      near(tester.getRect(find.byKey(const ValueKey('note-row-packing'))), [23.31, 353.94, 300.16, 26.83], what: 'Packing list');
-      near(tester.getRect(find.byKey(const ValueKey('note-row-portugal'))), [23.31, 380.77, 300.16, 26.83], what: 'Portugal');
-      near(tester.getRect(find.byKey(const ValueKey('note-row-cabin'))), [23.31, 407.59, 300.16, 26.83], what: 'the canvas');
-      near(tester.getRect(find.byKey(const ValueKey('note-row-blank'))), [23.31, 434.42, 300.16, 26.83], what: 'Untitled');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-long'))), [23.31, 327.11 - lift, 300.16, 26.83], what: 'the long name');
+      near(tester.getRect(find.ancestor(of: find.textContaining('A note whose name'), matching: find.byType(CssLines))), [54.91, 332.22 - lift, 258.97, 16.61], what: 'on one line');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-packing'))), [23.31, 353.94 - lift, 300.16, 26.83], what: 'Packing list');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-portugal'))), [23.31, 380.77 - lift, 300.16, 26.83], what: 'Portugal');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-cabin'))), [23.31, 407.59 - lift, 300.16, 26.83], what: 'the canvas');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-blank'))), [23.31, 434.42 - lift, 300.16, 26.83], what: 'Untitled');
 
       // The archive, which has no More, and the trash, which has Empty.
-      near(folderBox('archive'), [23.31, 462.25, 300.16, 51.45], what: 'the archive');
-      near(tester.getRect(byLucide(Lucide.archive)), [47.95, 467.56, 14, 14], what: 'its mark');
+      near(folderBox('archive'), [23.31, 462.25 - lift, 300.16, 51.45], what: 'the archive');
+      near(tester.getRect(byLucide(Lucide.archive)), [47.95, 467.56 - lift, 14, 14], what: 'its mark');
       expect(tester.getRect(find.text('Archive')).left, closeTo(67.38, 0.5));
-      near(tester.getRect(find.byKey(const ValueKey('note-row-old'))), [45.09, 486.88, 278.38, 26.83], what: 'Old plans');
-      near(tester.getRect(find.byKey(const ValueKey('folder-trash'))), [23.31, 514.7, 300.16, 99.66], what: 'the trash');
-      near(boxOf('Empty'), [281.42, 518.52, 42.05, 17], what: 'Empty');
-      near(tester.getRect(find.byKey(const ValueKey('trash-row-torn'))), [45.09, 540.33, 278.38, 36.52], what: 'a thrown note');
-      near(tester.getRect(find.ancestor(of: find.text('Torn page'), matching: find.byType(CssLines))), [54.69, 550.28, 200.55, 16.61], what: 'its name');
-      near(tester.getRect(button('Restore Torn page')), [260.83, 545.92, 25.33, 25.33], what: 'Restore');
-      near(tester.getRect(button('Delete Torn page for good')), [291.75, 545.92, 25.33, 25.33], what: 'Delete for good');
-      near(tester.getRect(byLucide(Lucide.rotateCcw).at(0)), [265.98, 551.08, 15, 15], what: 'its mark');
-      near(tester.getRect(find.byKey(const ValueKey('trash-row-scrap'))), [45.09, 577.84, 278.38, 36.52], what: 'the other');
+      near(tester.getRect(find.byKey(const ValueKey('note-row-old'))), [45.09, 486.88 - lift, 278.38, 26.83], what: 'Old plans');
+      near(tester.getRect(find.byKey(const ValueKey('folder-trash'))), [23.31, 514.7 - lift, 300.16, 99.66], what: 'the trash');
+      near(boxOf('Empty'), [281.42, 518.52 - lift, 42.05, 17], what: 'Empty');
+      near(tester.getRect(find.byKey(const ValueKey('trash-row-torn'))), [45.09, 540.33 - lift, 278.38, 36.52], what: 'a thrown note');
+      near(tester.getRect(find.ancestor(of: find.text('Torn page'), matching: find.byType(CssLines))), [54.69, 550.28 - lift, 200.55, 16.61], what: 'its name');
+      near(tester.getRect(button('Restore Torn page')), [260.83, 545.92 - lift, 25.33, 25.33], what: 'Restore');
+      near(tester.getRect(button('Delete Torn page for good')), [291.75, 545.92 - lift, 25.33, 25.33], what: 'Delete for good');
+      near(tester.getRect(byLucide(Lucide.rotateCcw).at(0)), [265.98, 551.08 - lift, 15, 15], what: 'its mark');
+      near(tester.getRect(find.byKey(const ValueKey('trash-row-scrap'))), [45.09, 577.84 - lift, 278.38, 36.52], what: 'the other');
 
       // The foot.
-      near(tester.getRect(find.byKey(const ValueKey('tree-foot'))), [14.39, 633.2, 318, 50.97], what: 'the foot');
-      near(boxOf('Speak'), [27.78, 644.5, 87.89, 29.38], what: 'Speak');
-      near(tester.getRect(byLucide(Lucide.mic)), [40.5, 651.19, 16, 16], what: 'its mic');
-      near(tester.getRect(button('Settings')), [286.88, 643.13, 32.13, 32.13], what: 'Settings');
+      near(tester.getRect(find.byKey(const ValueKey('tree-foot'))), [14.39, 633.2 - lift, 318, 50.97], what: 'the foot');
+      near(boxOf('Speak'), [27.78, 644.5 - lift, 87.89, 29.38], what: 'Speak');
+      near(tester.getRect(byLucide(Lucide.mic)), [40.5, 651.19 - lift, 16, 16], what: 'its mic');
+      near(tester.getRect(button('Settings')), [286.88, 643.13 - lift, 32.13, 32.13], what: 'Settings');
       await away(tester);
     });
 
@@ -474,12 +480,12 @@ void main() {
       final t = tester.element(card).tokens;
       // The first row: 1px under its folder's name, 8 x 9.6 of padding, its name in semibold on a 16.61 line.
       final row = tester.getRect(find.byKey(const ValueKey('note-row-launch')));
-      expect([row.left, row.top, row.width], [closeTo(45.09, 0.5), closeTo(133.64, 0.5), closeTo(278.38, 0.5)]);
-      near(tester.getRect(find.ancestor(of: find.text('Launch week'), matching: find.byType(CssLines))), [54.69, 141.64, 259.19, 16.61], what: 'its name');
+      expect([row.left, row.top, row.width], [closeTo(45.09, 0.5), closeTo(133.64 - lift, 0.5), closeTo(278.38, 0.5)]);
+      near(tester.getRect(find.ancestor(of: find.text('Launch week'), matching: find.byType(CssLines))), [54.69, 141.64 - lift, 259.19, 16.61], what: 'its name');
       expect(tester.widget<Text>(find.text('Launch week')).style!.fontWeight, FontWeight.w600);
       // The page's peek starts 165.09 down: the name, the grid's 2.4, and `.rowPeek`'s 4.46.
       final peek = tester.getRect(find.byType(NotePeek).first);
-      expect([peek.left, peek.top, peek.width], [closeTo(54.69, 0.5), closeTo(165.09, 0.5), closeTo(259.19, 0.5)]);
+      expect([peek.left, peek.top, peek.width], [closeTo(54.69, 0.5), closeTo(165.09 - lift, 0.5), closeTo(259.19, 0.5)]);
       expect(tester.renderObject<RenderEditorLine>(find.descendant(of: find.byType(NotePeek).first, matching: find.byType(EditorLine)).first).spec.look.base.fontSize, closeTo(10.8194, 0.001));
       expect(row.bottom, closeTo(peek.bottom + 8, 0.01));
       // A long name wraps onto a second line and no further: 280.97 x 33.22 on the page.

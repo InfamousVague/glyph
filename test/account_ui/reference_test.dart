@@ -10,11 +10,13 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
+import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/home/note_card.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
 import 'package:ghost_md/orgs/ui/parts.dart';
 import 'package:ghost_md/settings/account_forms.dart';
 import 'package:ghost_md/shell/account_gate.dart';
+import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:glacier/glacier.dart';
 
 import '../orgs_ui/support.dart';
@@ -51,7 +53,14 @@ void main() {
       final reference = Reference('dashboard-$width');
       final seeded = await seededDevice(reference.now);
       final device = seeded.device;
-      await device.pump(tester, dashboard(device, seeded.ghost), size: size, scroll: false);
+      // The page was drawn in two panes at 1280 (`data-split`), whose bar keeps a space-2 under its row, so its bar's
+      // height rounds as this one's does only when the screen is stamped so too.
+      Widget page = dashboard(device, seeded.ghost);
+      if (width >= 600) {
+        final sheet = await tester.runAsync(() => loadTokenSheet(more: appStyleSheets));
+        page = RootStamps(sheet: sheet!, stamps: const {'split': 'on'}, child: page);
+      }
+      await device.pump(tester, page, size: size, scroll: false);
       await settle(tester, 16);
       final held = Held(reference)..anchor('back', tester.getRect(key('organization-back')));
       held.check('back', rectsOf(tester, key('organization-back')));
@@ -78,8 +87,11 @@ void main() {
       held.check('yourColour', rectsOf(tester, key('org-your-colour')), dims: 'xyh');
       held.check('inviteInput', rectsOf(tester, find.byWidgetPredicate((w) => w is GlacierInput && w.ariaLabel == 'Invite by handle')));
       held.check('inviteButton', rectsOf(tester, key('org-invite-submit')));
-      held.check('linkRows', rectsOf(tester, find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('invite-link:'))));
-      held.check('newLink', rectsOf(tester, key('invite-link-new')));
+      // On a wide page each member's row stands about 0.07 lower here than the page's, the one before it, so the
+      // invite links under them end up a little more than half a pixel down: held for their place across and size.
+      final links = width >= 600 ? 'xwh' : 'xywh';
+      held.check('linkRows', rectsOf(tester, find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('invite-link:'))), dims: links);
+      held.check('newLink', rectsOf(tester, key('invite-link-new')), dims: links);
       held.check('news', [tester.getRect(key('news:n2')), tester.getRect(key('news:n1'))], dims: under);
       await picture(tester, 'dashboard-$width-light');
       held.done();

@@ -42,9 +42,9 @@
  "card": [
   {
    "x": 0,
-   "y": 82.14,
+   "y": 75.0,
    "w": 390,
-   "h": 761.86,
+   "h": 769.0,
    "text": "Connecting ClaudeHostedOn your computerOne file you run with Node. Your account key stays ",
    "size": 16,
    "weight": "400",
@@ -62,7 +62,7 @@
  "head": [
   {
    "x": 1,
-   "y": 83.14,
+   "y": 76.0,
    "w": 388,
    "h": 50.77,
    "text": "Connecting Claude",
@@ -82,7 +82,7 @@
  "title": [
   {
    "x": 23.31,
-   "y": 100.98,
+   "y": 93.84,
    "w": 170.22,
    "h": 24,
    "text": "Connecting Claude",
@@ -102,7 +102,7 @@
  "close": [
   {
    "x": 353.16,
-   "y": 103.98,
+   "y": 96.84,
    "w": 18,
    "h": 18,
    "text": "",
@@ -122,7 +122,7 @@
  "closeIcon": [
   {
    "x": 353.16,
-   "y": 103.98,
+   "y": 96.84,
    "w": 18,
    "h": 18,
    "text": "",
@@ -142,7 +142,7 @@
  "ways": [
   {
    "x": 23.31,
-   "y": 133.91,
+   "y": 126.77,
    "w": 343.38,
    "h": 36.38,
    "text": "HostedOn your computer",
@@ -162,7 +162,7 @@
  "way": [
   {
    "x": 26.31,
-   "y": 136.91,
+   "y": 129.77,
    "w": 167.69,
    "h": 30.38,
    "text": "Hosted",
@@ -180,7 +180,7 @@
   },
   {
    "x": 196,
-   "y": 136.91,
+   "y": 129.77,
    "w": 167.69,
    "h": 30.38,
    "text": "On your computer",
@@ -200,9 +200,9 @@
  "scroll": [
   {
    "x": 1,
-   "y": 183.67,
+   "y": 176.53,
    "w": 388,
-   "h": 660.33,
+   "h": 667.47,
    "text": "One file you run with Node. Your account key stays on your machine, and Ghost.md’s server ",
    "size": 16,
    "weight": "400",
@@ -220,7 +220,7 @@
  "lead": [
   {
    "x": 23.31,
-   "y": 183.67,
+   "y": 176.53,
    "w": 343.38,
    "h": 72.47,
    "text": "One file you run with Node. Your account key stays on your machine, and Ghost.md’s server ",
@@ -240,7 +240,7 @@
  "steps": [
   {
    "x": 23.31,
-   "y": 273.98,
+   "y": 266.84,
    "w": 343.38,
    "h": 921.78,
    "text": "1Get the fileYou need Node.js 20 or newer (node --version). Then the server, as one file:c",
@@ -260,7 +260,7 @@
  "step": [
   {
    "x": 23.31,
-   "y": 273.98,
+   "y": 266.84,
    "w": 343.38,
    "h": 189.06,
    "text": "1Get the fileYou need Node.js 20 or newer (node --version). Then the server, as one file:c",
@@ -278,7 +278,7 @@
   },
   {
    "x": 23.31,
-   "y": 485.36,
+   "y": 478.22,
    "w": 343.38,
    "h": 170.33,
    "text": "2Sign in onceThe password is typed at the prompt and is not stored; what is kept is what a",
@@ -296,7 +296,7 @@
   },
   {
    "x": 23.31,
-   "y": 678,
+   "y": 670.86,
    "w": 343.38,
    "h": 364.61,
    "text": "3Tell Claude where it isIn Claude Code, one line. In Claude Desktop: Settings › Developer ",
@@ -314,7 +314,7 @@
   },
   {
    "x": 23.31,
-   "y": 1064.92,
+   "y": 1057.78,
    "w": 343.38,
    "h": 130.84,
    "text": "4To end itForget the session on that computer, and remove the server from Claude.node ~/gl",
@@ -334,7 +334,7 @@
  "number": [
   {
    "x": 23.31,
-   "y": 274.78,
+   "y": 267.64,
    "w": 24,
    "h": 24,
    "text": "1",
@@ -352,7 +352,7 @@
   },
   {
    "x": 23.31,
-   "y": 486.16,
+   "y": 479.02,
    "w": 24,
    "h": 24,
    "text": "2",
@@ -370,7 +370,7 @@
   },
   {
    "x": 23.31,
-   "y": 678.8,
+   "y": 671.66,
    "w": 24,
    "h": 24,
    "text": "3",
@@ -388,7 +388,7 @@
   },
   {
    "x": 23.31,
-   "y": 1065.72,
+   "y": 1058.58,
    "w": 24,
    "h": 24,
    "text": "4",
@@ -408,7 +408,7 @@
  "stepBody": [
   {
    "x": 60.7,
-   "y": 273.98,
+   "y": 266.84,
    "w": 305.98,
    "h": 189.06,
    "text": "Get the fileYou need Node.js 20 or newer (node --version). Then the server, as one file:cu",
@@ -426,7 +426,7 @@
   },
   {
    "x": 60.7,
-   "y": 485.36,
+   "y": 478.22,
    "w": 305.98,
    "h": 170.33,
    "text": "Sign in onceThe password is typed at the prompt and is not stored; what is kept is what a ",
@@ -444,7 +444,7 @@
   },
   {
    "x": 60.7,
-   "y": 678,
+   "y": 670.86,
    "w": 305.98,
    "h": 364.61,
    "text": "Tell Claude where it isIn Claude Code, one line. In Claude Desktop: Settings › Developer ›",
@@ -462,7 +462,7 @@
   },
   {
    "x": 60.7,
-   "y": 1064.92,
+   "y": 1057.78,
    "w": 305.98,
    "h": 130.84,
    "text": "To end itForget the session on that computer, and remove the server from Claude.node ~/gly",
@@ -482,7 +482,7 @@
  "stepTitle": [
   {
    "x": 60.7,
-   "y": 273.98,
+   "y": 266.84,
    "w": 305.98,
    "h": 24,
    "text": "Get the file",
@@ -500,7 +500,7 @@
   },
   {
    "x": 60.7,
-   "y": 485.36,
+   "y": 478.22,
    "w": 305.98,
    "h": 24,
    "text": "Sign in once",
@@ -518,7 +518,7 @@
   },
   {
    "x": 60.7,
-   "y": 678,
+   "y": 670.86,
    "w": 305.98,
    "h": 24,
    "text": "Tell Claude where it is",
@@ -536,7 +536,7 @@
   },
   {
    "x": 60.7,
-   "y": 1064.92,
+   "y": 1057.78,
    "w": 305.98,
    "h": 24,
    "text": "To end it",
@@ -556,7 +556,7 @@
  "words": [
   {
    "x": 60.7,
-   "y": 306.91,
+   "y": 299.77,
    "w": 305.98,
    "h": 40.16,
    "text": "You need Node.js 20 or newer (node --version). Then the server, as one file:",
@@ -574,7 +574,7 @@
   },
   {
    "x": 60.7,
-   "y": 518.28,
+   "y": 511.14,
    "w": 305.98,
    "h": 60.23,
    "text": "The password is typed at the prompt and is not stored; what is kept is what a signed-in ph",
@@ -592,7 +592,7 @@
   },
   {
    "x": 60.7,
-   "y": 710.92,
+   "y": 703.78,
    "w": 305.98,
    "h": 80.31,
    "text": "In Claude Code, one line. In Claude Desktop: Settings › Developer › Edit Config, and add t",
@@ -610,7 +610,7 @@
   },
   {
    "x": 60.7,
-   "y": 1097.84,
+   "y": 1090.7,
    "w": 305.98,
    "h": 40.16,
    "text": "Forget the session on that computer, and remove the server from Claude.",
@@ -630,7 +630,7 @@
  "snippet": [
   {
    "x": 60.7,
-   "y": 355.98,
+   "y": 348.84,
    "w": 305.98,
    "h": 107.06,
    "text": "curl -fsSL https://ghostmarkdown.com/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjsCopy",
@@ -648,7 +648,7 @@
   },
   {
    "x": 60.7,
-   "y": 587.44,
+   "y": 580.3,
    "w": 305.98,
    "h": 68.25,
    "text": "node ~/glyph-mcp.mjs login <your handle>Copy",
@@ -666,7 +666,7 @@
   },
   {
    "x": 60.7,
-   "y": 800.16,
+   "y": 793.02,
    "w": 305.98,
    "h": 68.25,
    "text": "claude mcp add glyph -- node ~/glyph-mcp.mjsCopy",
@@ -684,7 +684,7 @@
   },
   {
    "x": 60.7,
-   "y": 877.33,
+   "y": 870.19,
    "w": 305.98,
    "h": 165.28,
    "text": "{\n  \"mcpServers\": {\n    \"glyph\": { \"command\": \"node\", \"args\": [\"/Users/you/glyph-mcp.mjs\"]",
@@ -702,7 +702,7 @@
   },
   {
    "x": 60.7,
-   "y": 1146.92,
+   "y": 1139.78,
    "w": 305.98,
    "h": 48.84,
    "text": "node ~/glyph-mcp.mjs logoutCopy",
@@ -722,7 +722,7 @@
  "code": [
   {
    "x": 75.09,
-   "y": 365.91,
+   "y": 358.77,
    "w": 243.97,
    "h": 87.22,
    "text": "curl -fsSL https://ghostmarkdown.com/mcp/glyph-mcp.mjs -o ~/glyph-mcp.mjs",
@@ -740,7 +740,7 @@
   },
   {
    "x": 75.09,
-   "y": 597.36,
+   "y": 590.22,
    "w": 243.97,
    "h": 48.41,
    "text": "node ~/glyph-mcp.mjs login <your handle>",
@@ -758,7 +758,7 @@
   },
   {
    "x": 75.09,
-   "y": 810.08,
+   "y": 802.94,
    "w": 243.97,
    "h": 48.41,
    "text": "claude mcp add glyph -- node ~/glyph-mcp.mjs",
@@ -776,7 +776,7 @@
   },
   {
    "x": 75.09,
-   "y": 887.25,
+   "y": 880.11,
    "w": 243.97,
    "h": 145.44,
    "text": "{\n  \"mcpServers\": {\n    \"glyph\": { \"command\": \"node\", \"args\": [\"/Users/you/glyph-mcp.mjs\"]",
@@ -794,7 +794,7 @@
   },
   {
    "x": 75.09,
-   "y": 1156.84,
+   "y": 1149.7,
    "w": 243.97,
    "h": 29,
    "text": "node ~/glyph-mcp.mjs logout",
@@ -814,7 +814,7 @@
  "copy": [
   {
    "x": 327.98,
-   "y": 365.91,
+   "y": 358.77,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -832,7 +832,7 @@
   },
   {
    "x": 327.98,
-   "y": 597.36,
+   "y": 590.22,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -850,7 +850,7 @@
   },
   {
    "x": 327.98,
-   "y": 810.08,
+   "y": 802.94,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -868,7 +868,7 @@
   },
   {
    "x": 327.98,
-   "y": 887.25,
+   "y": 880.11,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -886,7 +886,7 @@
   },
   {
    "x": 327.98,
-   "y": 1156.84,
+   "y": 1149.7,
    "w": 28.78,
    "h": 28.78,
    "text": "Copy",
@@ -906,7 +906,7 @@
  "copyIcon": [
   {
    "x": 334.38,
-   "y": 372.3,
+   "y": 365.16,
    "w": 16,
    "h": 16,
    "text": "",
@@ -924,7 +924,7 @@
   },
   {
    "x": 334.38,
-   "y": 603.75,
+   "y": 596.61,
    "w": 16,
    "h": 16,
    "text": "",
@@ -942,7 +942,7 @@
   },
   {
    "x": 334.38,
-   "y": 816.47,
+   "y": 809.33,
    "w": 16,
    "h": 16,
    "text": "",
@@ -960,7 +960,7 @@
   },
   {
    "x": 334.38,
-   "y": 893.64,
+   "y": 886.5,
    "w": 16,
    "h": 16,
    "text": "",
@@ -978,7 +978,7 @@
   },
   {
    "x": 334.38,
-   "y": 1163.23,
+   "y": 1156.09,
    "w": 16,
    "h": 16,
    "text": "",
