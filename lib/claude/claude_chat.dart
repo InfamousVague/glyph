@@ -550,9 +550,10 @@ class _Pill extends StatelessWidget {
   }
 }
 
-/// Claude's own ink, the dark of its mark's page: what Claude's words are set in on its orange, which ivory is too
-/// light on to read (2.96 to 1; this is over 6).
-const Color _claudeSlate = Color(0xFF141413);
+/// What Claude's words are set in on its orange: white, as Matt asked (2026-10-18: "make the text in the agent's
+/// bubble white instead of black"). It was the dark of the mark's page before, for its contrast (over 6 to 1 where
+/// white is 3); the look won.
+const Color _claudeBubbleInk = Color(0xFFFFFFFF);
 
 /// A message, as a bubble (Matt, 2026-10-17: "make the messages formatted more like message bubbles match the color
 /// of the AI agent for the messages it sends"): Claude's on the left in its own orange, the person's on the right in
@@ -570,7 +571,7 @@ class _Bubble extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final width = MediaQuery.sizeOf(context).width;
-    final text = Text(words, style: pageText(t, t.fontSize('sm'), color: mine ? t.color('app-ink') : _claudeSlate));
+    final text = Text(words, style: pageText(t, t.fontSize('sm'), color: mine ? t.color('app-ink') : _claudeBubbleInk));
     final round = Radius.circular(t.radius('xl'));
     const tucked = Radius.circular(5);
     return Align(
