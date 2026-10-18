@@ -306,6 +306,11 @@ void main() {
       final chosen = launchWith({'experience': 'simple', 'experienceChosen': true});
       expect(chosen.toJson(), containsPair('experience', 'simple'));
       expect(chosen.copyWith(experience: 'advanced').simple, isFalse);
+      // Choosing Simple opens notes formatted; choosing Advanced leaves the view as it was.
+      final simple = Preferences.defaults.choosing('simple');
+      expect((simple.experience, simple.experienceChosen, simple.noteView), ('simple', true, 'formatted'));
+      final advanced = simple.choosing('advanced');
+      expect((advanced.experience, advanced.noteView), ('advanced', 'formatted'));
     });
 
     test('reads a top bar cut from the choices, the Strip or Thumb, as Classic, and keeps the four', () {

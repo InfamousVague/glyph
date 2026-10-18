@@ -980,7 +980,7 @@ extension _RootParts on _GhostRootState {
   bool get _asksExperience => !preferences.value.experienceChosen && _guide?.open != true && _stored.flag(guideSeenKey, value: '1', unreadable: true).isMarked;
 
   /// The card's answer: the choice, made for every device, and the card goes with it.
-  void _pickExperience(String mode) => preferences.update((now) => now.copyWith(experience: mode, experienceChosen: true));
+  void _pickExperience(String mode) => preferences.update((now) => now.choosing(mode));
 
   /// An update waiting: the sidebar's to carry on a wide window, where there is no home list to show it (App.tsx
   /// `notices`, notes/NoteTree.tsx): docked, and floating where the window is in two panes. Nothing while there is

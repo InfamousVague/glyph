@@ -535,6 +535,11 @@ class Preferences {
   /// Simple mode: the fancy features behind More, a Format bar in the editor, fewer Settings.
   bool get simple => experience == 'simple';
 
+  /// The mode chosen, wherever it is chosen (the walkthrough, home's card, Settings). Simple also opens notes
+  /// formatted rather than with their marks showing: the marks are what a new person finds hard to read, and the
+  /// view switch in the note's bar brings them back.
+  Preferences choosing(String mode) => copyWith(experience: mode, experienceChosen: true, noteView: mode == 'simple' ? 'formatted' : null);
+
   /// How the top bar is laid out ([topBarIds]).
   final String topBar;
 

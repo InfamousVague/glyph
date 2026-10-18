@@ -50,7 +50,7 @@ class GuideMode extends StatelessWidget {
                   hint: choice.hint,
                   // Simple is lit before anything is chosen: the page is for a new person.
                   on: now.experienceChosen ? now.experience == choice.value : choice.value == 'simple',
-                  onPick: () => prefs.value = prefs.value.copyWith(experience: choice.value, experienceChosen: true),
+                  onPick: () => prefs.value = prefs.value.choosing(choice.value),
                   swatch: (context) => _swatch(context.tokens, choice.value),
                 ),
             ],
