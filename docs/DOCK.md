@@ -18,7 +18,8 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
   `--app-ring` across, `--glacier-space-2` between them. The halo of smoke round it (lib/art/dock_smoke.dart
   `DockSmoke`) wherever the app draws one, as on the home page.
 - **The order.** Claude at the head, always: the orange ring (lib/claude/claude_dock.dart), turning while Claude works,
-  with its dot while an AI is online. What the page is for in the middle. A settings-type ring at the foot, always,
+  with its dot while an AI is online. Under it, where the build can hear, Talk to Claude: the plain ring with its rim and mic
+  in Claude's orange (docs/CLAUDE_APP.md, "Talking to Claude"), on every page whose dock has Claude. What the page is for in the middle. A settings-type ring at the foot, always,
   where the page has one: Settings on a page of notes, the ⋯ on a note, the cog on an organization's page.
 - **How it moves.** Search's magnifier leans in when pressed, a + gives a quarter turn, Speak's ink pill dips, the rest
   are still. Under reduced motion nothing turns and the dock comes and goes at once.

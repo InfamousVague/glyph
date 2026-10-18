@@ -52,6 +52,26 @@ plugin off with every plugin that uses the internet, the app's Claude with it (i
    on its line: Claude does it while it is watched, then the app writes one line under it, indented, and ticks it,
    unless it could not be done (mcp/prompts.ts's own format, so the connector's routine and the app agree). Without a
    key, what is written in the chat goes into that note as a request, for the connector's agents to work through.
+6. **Talking to Claude** (2026-10-17; lib/claude/claude_voice.dart, claude_voice_sheet.dart, claude_ear.dart). Under
+   Claude on every dock, where the build can hear, a plain ring with its rim and mic in Claude's orange: Talk to
+   Claude (Speak stays the ink-filled mic that records a voice note). A press opens a card at the foot: Claude's orange
+   mic with the recorder's own rings going out from it as the voice moves them, and the words under it as they are
+   heard. The ear is the recorder's: Whisper in the core, on the phone, its guesses shown as they come, stopped with
+   no note to keep a tape in, so no audio is kept. A tap is done, and so is a two-second pause once something was said
+   (a minute at most; ten seconds of nothing says so). The words go to the app's Claude in the chat's own
+   conversation (a note's dock puts `[[Title]] ` first), so they are in the chat afterwards; the card shows Claude's
+   thinking as it comes and a line for each tool. Once Claude writes in a note, the card makes way, down to a strip at
+   the head of the window (what Claude is doing, Stop, the chat, close), and the note is opened and typed into as for
+   the chat; the answer lands on the strip, which goes by itself after six seconds unless pressed. Without a key the
+   words go to the "Ask Claude" note, and an AI online through the connector is followed at once, the strip saying
+   what it is doing. No always-on microphone: the ear opens only on a press or the phone's assistant, and closes as
+   listening ends.
+7. **The phone's assistant.** Settings › Plugins › Claude › Phone assistant (Android): the switch that was only
+   Settings › Developer's (lib/core/wip.dart, one flag either way) offers Ghost.md to Android as a digital assistant
+   and opens Android's Default digital assistant app screen, since the app cannot pick itself; a second row says
+   whether it is the one chosen. The assistant (the side key held, the assistant gesture: MeetingBridge.kt's launch
+   "assist") then talks to Claude where its plugin is on, a key is kept and the phone is unlocked; otherwise, and for
+   the launcher's Record note, it records as before (lib/root/capture_route.dart `assist`).
 
 ## The key
 
@@ -75,10 +95,14 @@ letters, and when it ends. The whole input is still parsed once its block closes
 
 ## A run
 
-lib/claude/claude_run.dart: the request, Claude's words as they come, each tool answered once its input is whole, and
+lib/claude/claude_run.dart: the request, Claude's words and its thinking as they come, each tool answered once its input is whole, and
 the next request with the answers, up to 24 requests, until Claude stops calling tools, is stopped, or fails. The
 system prompt (lib/claude/claude_tools.dart `claudeSystem`) is who Claude is here, today's date, how to write into a
-note being watched, and the account's "Claude rules" note. One run at a time (lib/claude/claude_runner.dart); an ask
+note being watched, and the account's "Claude rules" note. Every request asks for adaptive thinking with its summary
+shown (`thinking: {type: "adaptive", display: "summarized"}`, on the three models the app offers); the summary streams
+as `thinking_delta`s, is kept as a step and shown in the chat and the voice card, and every thinking block (empty,
+signed, or `redacted_thinking`) goes back exactly as it came. A conversation keeps the system prompt it began with, so
+the blocks it sends back stay valid; New chat takes today's date and rules again. One run at a time (lib/claude/claude_runner.dart); an ask
 while one works waits for it. The chat's conversation is kept until New chat or the app closes, and written nowhere.
 
 ## Tools
@@ -125,6 +149,8 @@ observer of the person's presses and keys.
 | The stream, the input reader, the tools, a run, the runner, the inbox | lib/claude/ |
 | Typing and Claude's caret in an editor | lib/claude/live_typing.dart, in lib/root/note_desk.dart's extensions |
 | The chat, the bar, the dock's Claude, the mark | lib/claude/claude_chat.dart, claude_bar.dart, claude_dock.dart, claude_mark.dart |
+| Talking to Claude: the ask said aloud, its ear, its card and strip | lib/claude/claude_voice.dart, claude_ear.dart, claude_voice_sheet.dart; the root's `_startTalk` in lib/root/root_claude.dart |
+| The phone's assistant: its switch and its launch | lib/core/wip.dart, lib/plugins/claude/claude_in_app.dart, lib/root/capture_route.dart, android/…/MeetingBridge.kt |
 | The key's page, and the plugin | lib/plugins/claude/ (claude.dart's manifest and `claudeInApp`, claude_in_app.dart, claude_pane.dart) |
 | The library and the screen as Claude reaches them, the chat's part, the inbox's note | lib/root/root_claude.dart, ghost_root.dart, root_parts.dart |
 | The dock's slot | lib/home/home_screen.dart (`HomeScreen.claude`); every other page's, lib/shell/page_dock.dart (docs/DOCK.md) |
