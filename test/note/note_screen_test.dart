@@ -204,6 +204,18 @@ void main() {
       await closeNote(tester);
     });
 
+    testWidgets('in simple mode keep Pin, Archive, the view switch and More: versions, links, comments and the bookmark wait behind More (GHST-103)', (tester) async {
+      final world = NoteWorld();
+      world.prefs.value = world.prefs.value.choosing('simple');
+      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'));
+      expect(labels(tester), ['Pin to the top', 'Archive', 'Showing the formatted note. Show the marks.', 'More for this note']);
+      // Back to advanced while the note is open, with the marks showing again: the bar grows back.
+      world.prefs.value = world.prefs.value.choosing('advanced').copyWith(noteView: 'mixed');
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(labels(tester), contains('Version history'));
+      await closeNote(tester);
+    });
+
     testWidgets('are drawn in the top bar when it offers a place, and in the note’s own header when there is none', (tester) async {
       final world = NoteWorld();
       final note = await seeded(tester, world, '# Day\n');

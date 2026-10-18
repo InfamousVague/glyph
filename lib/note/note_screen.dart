@@ -1387,11 +1387,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final mark = _bookmark();
     final history = widget.versions != null && !_isCanvas && !widget.readOnly;
     final speak = _speakWords;
+    // Simple mode (GHST-103): the bar keeps Pin, Archive and Speak; sharing, versions, links, comments and the
+    // bookmark are behind the sheet's More, with the rest of the "fancy features".
+    final simple = _prefs.value.simple;
     return [
-      if (seams.onShare != null) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
-      if (history && _raw) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
+      if (seams.onShare != null && !simple) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
+      if (history && _raw && !simple) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
       // The notes that link here, their count on the ring (lib/links/note_links.dart).
-      if (seams.links case final links? when !_typed && _raw)
+      if (seams.links case final links? when !_typed && _raw && !simple)
         ToolAction(
           id: 'links',
           label: switch (links.count.value) { 0 => 'Links', 1 => 'Linked from 1 note', final n => 'Linked from $n notes' },
@@ -1399,8 +1402,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           count: links.count.value,
           onPress: () => _openSettings(null, 'links'),
         ),
-      if (seams.onComment != null && !_typed && view != null && _raw) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
-      if (mark != null && _raw) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
+      if (seams.onComment != null && !_typed && view != null && _raw && !simple) ToolAction(id: 'comment', label: 'Comment', icon: Lucide.messageSquarePlus, onPress: () => seams.onComment!(view)),
+      if (mark != null && _raw && !simple) ToolAction(id: 'bookmark', label: mark.marked ? 'Move or remove the bookmark' : 'Bookmark this line', icon: mark.marked ? Lucide.bookmarkCheck : Lucide.bookmark, onPress: mark.onPress, on: mark.marked),
       if (!widget.readOnly) ...[
         ToolAction(id: 'pin', label: _pinned ? 'Unpin' : 'Pin to the top', icon: _pinned ? Lucide.pinOff : Lucide.pin, onPress: togglePin, on: _pinned),
         ToolAction(id: 'archive', label: 'Archive', icon: Lucide.archive, onPress: _archive),

@@ -526,7 +526,8 @@ extension _RootParts on _GhostRootState {
       );
 
   /// Claude and the halo, for a page whose dock's rings are its own: a note, an organization, Settings.
-  PageDockSeam _pageDock() => PageDockSeam(claude: _claudeForDock, talk: _claudeTalkForDock, halo: _pageDockHalo);
+  /// Simple mode (GHST-103) has no Claude on any dock: a note's, an organization's and Settings' follow home's.
+  PageDockSeam _pageDock() => preferences.value.simple ? PageDockSeam(halo: _pageDockHalo) : PageDockSeam(claude: _claudeForDock, talk: _claudeTalkForDock, halo: _pageDockHalo);
 
   static Widget _homeGhost(BuildContext context, HomeGhost it) => Ghost(
         scene: switch (it.scene) {
