@@ -16,22 +16,29 @@
 /// - `:active` is the row's own pressed state, kept while a finger is down on it.
 library;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/app_icon.dart';
+import '../../shell/wide_screen.dart' show mousePointer;
 
 /// A drawn icon a menu can size and weigh (`MenuIcon`).
 typedef MenuIcon = LucideIcon;
 
 /// An icon over its word (`MenuWord`): the icon 20 across at a stroke of 2.1, the word in `.word`'s face. [ink] is
-/// the row's `color`.
+/// the row's `color`. [hint], where given, is one line in plain words under the word, in [hintInk] (the row's third
+/// ink): what the Style page's rows wear in simple mode (style_items.dart), for someone who does not know what
+/// "Quote" or "Rule" would do to their words.
 class MenuWord extends StatelessWidget {
-  const MenuWord({super.key, required this.icon, required this.label, required this.ink});
+  const MenuWord({super.key, required this.icon, required this.label, required this.ink, this.hint, this.hintInk});
 
   final MenuIcon icon;
   final String label;
   final Color ink;
+  final String? hint;
+  final Color? hintInk;
 
   /// `.word`: the kit's smallest step, bold, a hundredth of an em between its letters.
   static TextStyle style(Tokens t, Color ink) {
@@ -39,9 +46,13 @@ class MenuWord extends StatelessWidget {
     return t.textAt(px, weight: 'bold', color: ink, tracking: px * 0.01);
   }
 
+  /// The hint's face: the word's size, a plain weight, so the word still leads.
+  static TextStyle hintStyle(Tokens t, Color ink) => t.textAt(t.len('glacier-font-size-xs'), weight: 'medium', color: ink);
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final hint = this.hint;
     return Column(
       mainAxisSize: MainAxisSize.min,
       mainAxisAlignment: MainAxisAlignment.center,
@@ -50,6 +61,10 @@ class MenuWord extends StatelessWidget {
         // `.item { gap: 3px }`.
         const SizedBox(height: 3),
         Text(label, maxLines: 1, softWrap: false, style: style(t, ink)),
+        if (hint != null) ...<Widget>[
+          const SizedBox(height: 2),
+          Text(hint, maxLines: 1, softWrap: false, style: hintStyle(t, hintInk ?? ink)),
+        ],
       ],
     );
   }
@@ -70,8 +85,25 @@ class BandPlace extends InheritedWidget {
 /// `.item`'s box: the padding, the least size, the hairline before every row but the first, and the paper a
 /// pressed row takes. [lit] prints it in reverse (`.style[data-lit]`); [group] gives it a breath of room before it
 /// (`.style[data-group]`).
+///
+/// [hint] is one line in plain words on what the row does. It is always said to a screen reader after the word,
+/// and on a desktop it comes up over the row while the pointer rests there ([BandTip]). With [hintShown] it is
+/// also drawn under the word, which makes the row taller and wider than the page's measured band: simple mode's
+/// Style page draws it (Matt, 2026-10-18: "work on making formatting and stuff easier to understand"); advanced
+/// keeps the band as the page drew it.
 class BandItemBox extends StatefulWidget {
-  const BandItemBox({super.key, required this.icon, required this.label, required this.onPress, this.name, this.lit = false, this.group = false, this.checkbox = false});
+  const BandItemBox({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.onPress,
+    this.name,
+    this.lit = false,
+    this.group = false,
+    this.checkbox = false,
+    this.hint,
+    this.hintShown = false,
+  });
 
   final MenuIcon icon;
   final String label;
@@ -84,6 +116,8 @@ class BandItemBox extends StatefulWidget {
 
   /// `role="menuitemcheckbox"` with `aria-checked`, where false is a plain `menuitem`.
   final bool checkbox;
+  final String? hint;
+  final bool hintShown;
 
   @override
   State<BandItemBox> createState() => _BandItemBoxState();
@@ -103,11 +137,14 @@ class _BandItemBoxState extends State<BandItemBox> {
     final ink = t.color(widget.lit ? 'app-paper' : 'app-ink');
     final Color? paper = widget.lit ? t.color('app-ink') : (_down ? t.color('app-paper-3') : null);
     final hairline = t.len('glacier-hairline');
-    return Semantics(
+    final hint = widget.hint;
+    final drawn = widget.hintShown ? hint : null;
+    final Widget box = Semantics(
       container: true,
       button: true,
       checked: widget.checkbox ? widget.lit : null,
       label: widget.name ?? widget.label,
+      hint: hint,
       excludeSemantics: true,
       onTap: widget.onPress,
       child: GestureDetector(
@@ -126,7 +163,87 @@ class _BandItemBoxState extends State<BandItemBox> {
             border: first ? null : Border(left: BorderSide(color: t.color('app-rule'), width: hairline)),
           ),
           alignment: Alignment.center,
-          child: MenuWord(icon: widget.icon, label: widget.label, ink: ink),
+          child: MenuWord(icon: widget.icon, label: widget.label, ink: ink, hint: drawn, hintInk: widget.lit ? ink : t.color('app-ink-3')),
+        ),
+      ),
+    );
+    // Drawn under the word, there is nothing left for a tip to say.
+    if (hint == null || drawn != null) return box;
+    return BandTip(message: hint, child: box);
+  }
+}
+
+/// A line of words over a row, on a desktop, while the pointer rests on it: the row's [message], a step above it,
+/// in the ink's own paper. Nothing on a phone, where nothing rests, nor where the app has no overlay to draw it in.
+/// The dock's tip (lib/shell/page_dock.dart `DockTip`) stands beside its ring, since the dock is a column at the
+/// page's end; a row in a band has rows either side, so this one stands above.
+class BandTip extends StatefulWidget {
+  const BandTip({super.key, required this.message, required this.child, this.wait = const Duration(milliseconds: 450)});
+
+  final String message;
+  final Widget child;
+  final Duration wait;
+
+  @override
+  State<BandTip> createState() => _BandTipState();
+}
+
+class _BandTipState extends State<BandTip> {
+  final OverlayPortalController _portal = OverlayPortalController(debugLabel: 'band tip');
+  final LayerLink _link = LayerLink();
+  Timer? _waiting;
+
+  @override
+  void dispose() {
+    _waiting?.cancel();
+    super.dispose();
+  }
+
+  void _enter() {
+    _waiting?.cancel();
+    _waiting = Timer(widget.wait, () {
+      if (mounted && Overlay.maybeOf(context) != null) _portal.show();
+    });
+  }
+
+  void _exit() {
+    _waiting?.cancel();
+    if (_portal.isShowing) _portal.hide();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!mousePointer) return widget.child;
+    final t = context.tokens;
+    return MouseRegion(
+      onEnter: (_) => _enter(),
+      onExit: (_) => _exit(),
+      child: Listener(
+        onPointerDown: (_) => _exit(),
+        child: OverlayPortal(
+          controller: _portal,
+          overlayChildBuilder: (context) => Positioned(
+            left: 0,
+            top: 0,
+            child: CompositedTransformFollower(
+              link: _link,
+              showWhenUnlinked: false,
+              targetAnchor: Alignment.topCenter,
+              followerAnchor: Alignment.bottomCenter,
+              offset: Offset(0, -t.space(2)),
+              child: IgnorePointer(
+                child: ExcludeSemantics(
+                  child: Container(
+                    key: const ValueKey('band-tip'),
+                    padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
+                    decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('sm'))),
+                    child: Text(widget.message, maxLines: 1, softWrap: false, style: t.textAt(t.fontSize('xs'), weight: 'medium', height: 1.3, color: t.color('app-paper'))),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          child: CompositedTransformTarget(link: _link, child: widget.child),
         ),
       ),
     );

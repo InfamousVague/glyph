@@ -13,6 +13,14 @@
 /// menu, since it puts something in and there is nothing to keep lit. The arrow goes back. The commands are
 /// commands/format.dart.
 ///
+/// Every row has a hint in plain words, one line on what it does to the words ("Someone else's words" under Quote):
+/// said to a screen reader and shown on a desktop while the pointer rests on the row, and in simple mode drawn
+/// under the word too (Matt, 2026-10-18, GHST-103: "work on making formatting and stuff easier to understand").
+/// In simple mode the plugins' decorative marks (Spoiler, Highlight, Haunt and the rest) stand behind a More row
+/// at the page's end, which opens them in place: a first note wants Bold, a heading and a list, not twelve looks.
+/// Advanced lists them where they were. Simple mode's Format bar (lib/note/format_bar.dart) presses six of these
+/// rows from outside the band, through [formatBarTools]: the same edits, not a copy of them.
+///
 /// What differs:
 /// - the web read the switched-on plugins' formattings from the registry itself; here they are handed in
 ///   ([StyleItems.formats]), each with the icon it is drawn under, by whoever knows which marks are on
@@ -37,10 +45,11 @@ import 'menu_band.dart';
 /// A plugin's formatting on the Style page: its name, the run that wraps the words, and the icon it is drawn under
 /// (`InlineFormat` with `format.icon ?? plugin.icon ?? Type` already chosen).
 class BandFormat implements InlineFormatSyntax {
-  const BandFormat(this.name, this.delimiter, [this.icon = Lucide.type]);
+  const BandFormat(this.name, this.delimiter, [this.icon = Lucide.type, this.hint]);
 
-  /// A formatting the parser knows (lib/editor/syntax/language.dart), under [icon].
-  BandFormat.of(InlineFormatSyntax format, [this.icon = Lucide.type]) : name = format.name, delimiter = format.delimiter;
+  /// A formatting the parser knows (lib/editor/syntax/language.dart), under [icon], with the plugin's own line on
+  /// what it is for as its [hint] (`GlyphFormat.about`).
+  BandFormat.of(InlineFormatSyntax format, [this.icon = Lucide.type, this.hint]) : name = format.name, delimiter = format.delimiter;
 
   @override
   final String name;
@@ -49,36 +58,78 @@ class BandFormat implements InlineFormatSyntax {
   final String delimiter;
 
   final MenuIcon icon;
+
+  /// One line in plain words on what the mark does; a plugin that says nothing gets [plainHint].
+  final String? hint;
+
+  /// The hint for a plugin's mark that says nothing of itself.
+  static const String plainHint = 'A look for the words';
 }
 
-const List<({Mark mark, MenuIcon icon, String label})> _marks = <({Mark mark, MenuIcon icon, String label})>[
-  (mark: Mark.bold, icon: Lucide.bold, label: 'Bold'),
-  (mark: Mark.italic, icon: Lucide.italic, label: 'Italic'),
-  (mark: Mark.strike, icon: Lucide.strikethrough, label: 'Struck'),
-  (mark: Mark.code, icon: Lucide.code, label: 'Code'),
+/// One of the Style page's styles as something outside the band presses it: simple mode's Format bar
+/// (lib/note/format_bar.dart). [lit] is read from the editor's state on every draw, as the page's rows are; [run]
+/// answers the page's own transaction, or null where there is nothing to do.
+class StyleTool {
+  const StyleTool({required this.key, required this.icon, required this.label, required this.hint, required this.lit, required this.run});
+
+  /// The page's own key for the row: `mark:bold`, `block:task`, `insert:link`.
+  final String key;
+  final MenuIcon icon;
+  final String label;
+  final String hint;
+  final bool Function(EditorState state) lit;
+  final Transaction? Function(EditorState state, bool hasFocus) run;
+}
+
+/// The six the Format bar carries, in its order: Bold, Italic, Heading, List, To-do, Link. Each is the Style page's
+/// row of that name, pressed from outside the band (Matt, 2026-10-18: "A small Format bar in the editor" for simple
+/// mode).
+List<StyleTool> formatBarTools() => <StyleTool>[
+  for (final one in _marks)
+    if (one.mark == Mark.bold || one.mark == Mark.italic)
+      StyleTool(key: 'mark:${one.mark.name}', icon: one.icon, label: one.label, hint: one.hint, lit: (state) => activeMarks(state).contains(one.mark), run: (state, _) => toggleMark(state, one.mark)),
+  for (final one in _blocks)
+    if (one.block == Block.heading || one.block == Block.bullet || one.block == Block.task)
+      StyleTool(key: 'block:${one.block.name}', icon: one.icon, label: one.label, hint: one.hint, lit: (state) => activeBlock(state) == one.block, run: (state, _) => toggleBlock(state, one.block)),
+  for (final one in _inserts)
+    if (one.key == 'link') StyleTool(key: 'insert:${one.key}', icon: one.icon, label: one.label, hint: one.hint, lit: (_) => false, run: one.run),
 ];
 
-final List<({String key, MenuIcon icon, String label, Transaction Function(EditorState state, bool hasFocus) run})> _inserts =
-    <({String key, MenuIcon icon, String label, Transaction Function(EditorState state, bool hasFocus) run})>[
-      (key: 'link', icon: Lucide.link, label: 'Link', run: (state, _) => insertLink(state)),
-      (key: 'table', icon: Lucide.table, label: 'Table', run: (state, hasFocus) => insertTable(state, hasFocus: hasFocus)),
-      (key: 'rule', icon: Lucide.minus, label: 'Rule', run: (state, hasFocus) => insertRule(state, hasFocus: hasFocus)),
+// The hints are the plainest words for what each does, not Markdown's names for it.
+const List<({Mark mark, MenuIcon icon, String label, String hint})> _marks = <({Mark mark, MenuIcon icon, String label, String hint})>[
+  (mark: Mark.bold, icon: Lucide.bold, label: 'Bold', hint: 'Strong words'),
+  (mark: Mark.italic, icon: Lucide.italic, label: 'Italic', hint: 'A slant'),
+  (mark: Mark.strike, icon: Lucide.strikethrough, label: 'Struck', hint: 'Crossed out'),
+  (mark: Mark.code, icon: Lucide.code, label: 'Code', hint: 'Exactly as typed'),
+];
+
+final List<({String key, MenuIcon icon, String label, String hint, Transaction Function(EditorState state, bool hasFocus) run})> _inserts =
+    <({String key, MenuIcon icon, String label, String hint, Transaction Function(EditorState state, bool hasFocus) run})>[
+      (key: 'link', icon: Lucide.link, label: 'Link', hint: 'To a page or a note', run: (state, _) => insertLink(state)),
+      (key: 'table', icon: Lucide.table, label: 'Table', hint: 'Rows and columns', run: (state, hasFocus) => insertTable(state, hasFocus: hasFocus)),
+      (key: 'rule', icon: Lucide.minus, label: 'Rule', hint: 'A line across the page', run: (state, hasFocus) => insertRule(state, hasFocus: hasFocus)),
     ];
 
-const List<({Block block, MenuIcon icon, String label})> _blocks = <({Block block, MenuIcon icon, String label})>[
-  (block: Block.heading, icon: Lucide.heading, label: 'Heading'),
-  (block: Block.quote, icon: Lucide.textQuote, label: 'Quote'),
-  (block: Block.bullet, icon: Lucide.list, label: 'List'),
-  (block: Block.number, icon: Lucide.listOrdered, label: 'Numbered'),
-  (block: Block.task, icon: Lucide.listTodo, label: 'To-do'),
+const List<({Block block, MenuIcon icon, String label, String hint})> _blocks = <({Block block, MenuIcon icon, String label, String hint})>[
+  (block: Block.heading, icon: Lucide.heading, label: 'Heading', hint: 'A title for a section'),
+  (block: Block.quote, icon: Lucide.textQuote, label: 'Quote', hint: "Someone else's words"),
+  (block: Block.bullet, icon: Lucide.list, label: 'List', hint: 'Bullets'),
+  (block: Block.number, icon: Lucide.listOrdered, label: 'Numbered', hint: 'Steps in order'),
+  (block: Block.task, icon: Lucide.listTodo, label: 'To-do', hint: 'A box to tick'),
 ];
 
 /// The Back row's accessible name, on this page and on a field's.
 const String backName = "Back to the note's actions";
 
+/// Simple mode's More row at the end of the Style page: the word, and what it says it holds.
+const String moreStylesLabel = 'More', moreStylesHint = 'Spoiler, Highlight and other looks';
+
 /// The Style page's words, for the menu's band: Back, then the marks, the plugins' formats, the line forms, the
 /// inserts (`StyleItems`). [restyled] is told after a style is pressed, for the page to read the editor again;
 /// [felt] says each row's own tick.
+///
+/// [simple] draws each row's hint under its word, and keeps the plugins' [formats] behind a More row at the end
+/// until [moreShown]; [onMore] is More pressed. Advanced lists the formats after the marks, as the page did.
 List<Widget> styleItems({
   required EditorViewLike view,
   required VoidCallback onBack,
@@ -86,6 +137,9 @@ List<Widget> styleItems({
   required VoidCallback restyled,
   required void Function(HapticKind kind) felt,
   List<BandFormat> formats = const <BandFormat>[],
+  bool simple = false,
+  bool moreShown = false,
+  VoidCallback? onMore,
 }) {
   VoidCallback style(Transaction? Function(EditorState state) run) => () {
     felt(HapticKind.selection);
@@ -102,31 +156,78 @@ List<Widget> styleItems({
   final state = view.state;
   final lit = activeMarks(state);
   final block = activeBlock(state);
-  return <Widget>[
-    MenuItem(key: const ValueKey<String>('back'), icon: Lucide.chevronLeft, label: 'Back', onPress: onBack, name: backName),
-    for (final (i, one) in _marks.indexed)
-      StyleItem(key: ValueKey<String>('mark:${one.mark.name}'), icon: one.icon, label: one.label, i: i, lit: lit.contains(one.mark), onClick: style((s) => toggleMark(s, one.mark))),
+  // Where the plugins' marks stand: after Markdown's own in advanced; in simple, behind More at the end, and in
+  // its place once it is pressed. They come in on the clock in the order they are laid out.
+  final behindMore = simple && formats.isNotEmpty;
+  final formatRows = <Widget>[
     for (final (i, format) in formats.indexed)
       StyleItem(
         key: ValueKey<String>('format:${format.name}'),
         icon: format.icon,
         label: format.name,
-        i: _marks.length + i,
+        hint: format.hint ?? BandFormat.plainHint,
+        hintShown: simple,
+        i: (behindMore ? _marks.length + _blocks.length + _inserts.length : _marks.length) + i,
+        // One breath before the first of them, where they are a kind of their own at the end.
+        group: behindMore && i == 0,
         lit: activeWraps(state, <String>[format.delimiter]).isNotEmpty,
         onClick: style((s) => toggleWrap(s, format.delimiter)),
       ),
+  ];
+  final between = behindMore ? 0 : formats.length;
+  return <Widget>[
+    MenuItem(key: const ValueKey<String>('back'), icon: Lucide.chevronLeft, label: 'Back', onPress: onBack, name: backName),
+    for (final (i, one) in _marks.indexed)
+      StyleItem(
+        key: ValueKey<String>('mark:${one.mark.name}'),
+        icon: one.icon,
+        label: one.label,
+        hint: one.hint,
+        hintShown: simple,
+        i: i,
+        lit: lit.contains(one.mark),
+        onClick: style((s) => toggleMark(s, one.mark)),
+      ),
+    if (!behindMore) ...formatRows,
     for (final (i, one) in _blocks.indexed)
       StyleItem(
         key: ValueKey<String>('block:${one.block.name}'),
         icon: one.icon,
         label: one.label,
-        i: _marks.length + formats.length + i,
+        hint: one.hint,
+        hintShown: simple,
+        i: _marks.length + between + i,
         group: i == 0,
         lit: block == one.block,
         onClick: style((s) => toggleBlock(s, one.block)),
       ),
     for (final (i, one) in _inserts.indexed)
-      StyleItem(key: ValueKey<String>('insert:${one.key}'), icon: one.icon, label: one.label, i: _marks.length + formats.length + _blocks.length + i, group: i == 0, onClick: put(one.run)),
+      StyleItem(
+        key: ValueKey<String>('insert:${one.key}'),
+        icon: one.icon,
+        label: one.label,
+        hint: one.hint,
+        hintShown: simple,
+        i: _marks.length + between + _blocks.length + i,
+        group: i == 0,
+        onClick: put(one.run),
+      ),
+    if (behindMore && !moreShown)
+      StyleItem(
+        key: const ValueKey<String>('more-styles'),
+        icon: Lucide.ellipsis,
+        label: moreStylesLabel,
+        hint: moreStylesHint,
+        hintShown: true,
+        i: _marks.length + _blocks.length + _inserts.length,
+        group: true,
+        checkbox: false,
+        onClick: () {
+          felt(HapticKind.selection);
+          onMore?.call();
+        },
+      ),
+    if (behindMore && moreShown) ...formatRows,
   ];
 }
 
@@ -198,9 +299,21 @@ class _EntranceScope extends InheritedWidget {
 }
 
 /// A style: its icon over its word, lit (printed in reverse) while it applies, coming in out of smoke after the
-/// ones before it (`StyleItem`).
+/// ones before it (`StyleItem`). [hint] is its line in plain words, drawn under the word with [hintShown]
+/// (menu_band.dart `BandItemBox`).
 class StyleItem extends StatelessWidget {
-  const StyleItem({super.key, required this.icon, required this.label, required this.i, this.lit = false, this.group = false, required this.onClick});
+  const StyleItem({
+    super.key,
+    required this.icon,
+    required this.label,
+    required this.i,
+    this.lit = false,
+    this.group = false,
+    this.hint,
+    this.hintShown = false,
+    this.checkbox = true,
+    required this.onClick,
+  });
 
   final MenuIcon icon;
   final String label;
@@ -209,11 +322,16 @@ class StyleItem extends StatelessWidget {
   final int i;
   final bool lit;
   final bool group;
+  final String? hint;
+  final bool hintShown;
+
+  /// A style is a checkbox, lit while it applies; More, which opens rows, is a plain item.
+  final bool checkbox;
   final VoidCallback onClick;
 
   @override
   Widget build(BuildContext context) {
-    final box = BandItemBox(icon: icon, label: label, onPress: onClick, lit: lit, group: group, checkbox: true);
+    final box = BandItemBox(icon: icon, label: label, onPress: onClick, lit: lit, group: group, checkbox: checkbox, hint: hint, hintShown: hintShown);
     final at = StyleEntrance.of(context, i);
     if (at >= 1) return box;
     // `from { opacity: 0; filter: blur(6px); transform: translateY(4px) }`.

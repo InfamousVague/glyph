@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/core/back.dart';
+import 'package:ghost_md/core/preferences.dart' show preferences;
 import 'package:ghost_md/editor/band/band.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:glacier/glacier.dart';
@@ -402,6 +403,112 @@ void main() {
       expect(seen('Rule'), 0);
       await settle(tester);
       expect(seen('Rule'), 1);
+      await away(tester);
+    });
+  });
+
+  // GHST-103, simple mode (lib/core/preferences.dart `Preferences.simple`): Style first, the Style page's hints, and
+  // the plugins' marks behind More. Not the web's cases: the page has no simple mode.
+  group('simple mode', () {
+    testWidgets('puts Style first, before Cut and Copy; advanced keeps it where it was', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8, simple: true);
+      await hold(tester, rig);
+      expect(words(tester).take(3), <String>['Style', 'Cut', 'Copy']);
+      await away(tester);
+    });
+
+    testWidgets('draws a hint in plain words under every style, and keeps the decorative marks behind More', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8, formats: pageFormats(), simple: true);
+      await hold(tester, rig);
+      await choose(tester, 'Style');
+      expect(words(tester), <String>['Back', 'Bold', 'Italic', 'Struck', 'Code', 'Heading', 'Quote', 'List', 'Numbered', 'To-do', 'Link', 'Table', 'Rule', 'More']);
+      final hints = <String, String?>{for (final one in rows(tester)) one.label: one.hint};
+      expect(hints['Bold'], 'Strong words');
+      expect(hints['Italic'], 'A slant');
+      expect(hints['Heading'], 'A title for a section');
+      expect(hints['Quote'], "Someone else's words");
+      expect(hints['List'], 'Bullets');
+      expect(hints['Numbered'], 'Steps in order');
+      expect(hints['To-do'], 'A box to tick');
+      expect(hints['Code'], 'Exactly as typed');
+      expect(hints['Link'], 'To a page or a note');
+      expect(hints['Table'], 'Rows and columns');
+      expect(hints['Rule'], 'A line across the page');
+      expect(hints['More'], moreStylesHint);
+      // Drawn under the word, not only said.
+      expect(rows(tester).where((one) => one.label != 'Back').every((one) => one.hintShown), isTrue);
+      expect(find.text('A title for a section'), findsOneWidget);
+      // More is a plain row, not a style that could be lit.
+      expect(tester.widget<BandItemBox>(row('More')).checkbox, isFalse);
+
+      // More opens the marks in its place, at the end, and the page stays up.
+      await choose(tester, 'More');
+      expect(rig.controller.page, BandPage.styles);
+      final formats = <String>[for (final format in pageFormats()) format.name];
+      expect(words(tester), <String>['Back', 'Bold', 'Italic', 'Struck', 'Code', 'Heading', 'Quote', 'List', 'Numbered', 'To-do', 'Link', 'Table', 'Rule', ...formats]);
+      expect(tester.widget<BandItemBox>(row('Spoiler')).hint, BandFormat.plainHint);
+      expect(tester.widget<BandItemBox>(row('Spoiler')).group, isTrue, reason: 'a breath before the marks, a kind of their own');
+      await choose(tester, 'Spoiler');
+      expect(rig.text, 'buy ||milk||');
+      expect(tester.widget<BandItemBox>(row('Spoiler')).lit, isTrue);
+
+      // Opened again, More is back.
+      await away(tester);
+    });
+
+    testWidgets('More is folded again the next time the menu opens', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8, formats: pageFormats(), simple: true);
+      await hold(tester, rig);
+      await choose(tester, 'Style');
+      await choose(tester, 'More');
+      expect(words(tester), contains('Spoiler'));
+      rig.controller.close();
+      await tester.pump();
+      await hold(tester, rig);
+      await choose(tester, 'Style');
+      expect(words(tester), isNot(contains('Spoiler')));
+      expect(words(tester).last, 'More');
+      await away(tester);
+    });
+
+    testWidgets('in advanced the hints are said and tipped, not drawn, and the marks stand where the page had them', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8, formats: pageFormats(), simple: false);
+      await hold(tester, rig);
+      await choose(tester, 'Style');
+      expect(words(tester), <String>[for (final item in BandFixture.read('style').items) item['label'] as String]);
+      expect(words(tester), isNot(contains('More')));
+      final bold = tester.widget<BandItemBox>(row('Bold'));
+      expect(bold.hint, 'Strong words');
+      expect(bold.hintShown, isFalse);
+      expect(find.text('Strong words'), findsNothing);
+      // Said after the word to a screen reader.
+      expect(find.bySemanticsLabel('Bold').evaluate().isNotEmpty, isTrue);
+      final node = tester.getSemantics(find.bySemanticsLabel('Bold'));
+      expect(node.hint, 'Strong words');
+      // A desktop's tip is the row's to show; a phone's rests nothing on it.
+      expect(find.descendant(of: row('Bold'), matching: find.byType(BandTip)), findsOneWidget);
+      await away(tester);
+    });
+
+    testWidgets('with no plugin marks there is no More to open', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8, simple: true);
+      await hold(tester, rig);
+      await choose(tester, 'Style');
+      expect(words(tester), isNot(contains('More')));
+      expect(words(tester).last, 'Rule');
+      await away(tester);
+    });
+
+    testWidgets('reads the app’s own preference when the band is not told', (tester) async {
+      final rig = await pumpBand(tester, doc: 'buy milk', anchor: 4, head: 8);
+      preferences.value = preferences.value.choosing('simple');
+      await hold(tester, rig);
+      expect(words(tester).first, 'Style');
+      rig.controller.close();
+      await tester.pump();
+      preferences.value = preferences.value.choosing('advanced');
+      await hold(tester, rig);
+      expect(words(tester).first, 'Cut');
       await away(tester);
     });
   });
