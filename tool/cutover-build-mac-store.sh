@@ -183,13 +183,14 @@ check "the export-compliance answer" "$(value ITSAppUsesNonExemptEncryption)" "f
 [ -f "$app/Contents/Frameworks/libghost_core.dylib" ] || { echo "error: the app has no Rust core in it." >&2; failed=1; }
 if [ -z "$local_run" ]; then check "the link scheme" "$(value CFBundleURLTypes:0:CFBundleURLSchemes:0)" "ghostmd"; fi
 has="$(codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -convert json -o - - 2>/dev/null || echo '{}')"
-for key in com.apple.security.app-sandbox com.apple.security.network.client com.apple.security.device.audio-input com.apple.security.files.user-selected.read-write com.apple.security.files.bookmarks.app-scope; do
+for key in com.apple.security.app-sandbox com.apple.security.network.client com.apple.security.device.audio-input com.apple.security.files.user-selected.read-write com.apple.security.files.bookmarks.app-scope com.apple.security.personal-information.addressbook; do
   case "$has" in *"\"$key\":true"*) ;; *) echo "error: the app is not signed with $key." >&2; failed=1 ;; esac
 done
 if [ -z "$tour" ]; then
-  # A release has exactly those five, and nothing that loosens the hardened runtime.
+  # A release has exactly those six (the address book since 0783077c, for the Contacts plugin), and nothing that
+  # loosens the hardened runtime.
   count="$(printf '%s' "$has" | tr ',' '\n' | grep -c 'com\.apple\.' || true)"
-  check "the number of entitlements" "$count" "5"
+  check "the number of entitlements" "$count" "6"
   # Both kinds of Mac in every binary of the bundle, the core included.
   for binary in "$app/Contents/MacOS/Ghost.md" "$app/Contents/Frameworks/libghost_core.dylib" "$app"/Contents/Frameworks/*.framework/Versions/A/*; do
     [ -f "$binary" ] || continue
