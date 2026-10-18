@@ -987,8 +987,11 @@ class _HomeScreenState extends State<HomeScreen> {
           if (widget.onSearch != null) DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
           // A new note: the + gives a quarter turn when pressed.
           DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _new),
-          // Speak is the screen's one ink pill: the thing Ghost.md is for, where the thumb already is.
-          if (widget.onCapture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
+          // Speak is the screen's one ink pill: the thing Ghost.md is for, where the thumb already is. One microphone
+          // only: where Talk to Claude is on the dock, it is the microphone, and what is said goes to Claude rather
+          // than the phone's own models (Matt, 2026-10-18: "When Claude mode is enabled there should only be one
+          // microphone icon still it should just use Claude instead of the local models").
+          if (widget.onCapture != null && widget.claudeTalk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
         ],
         foot: widget.onSettings == null ? null : DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _settings),
       ),

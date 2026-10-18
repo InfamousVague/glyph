@@ -19,7 +19,12 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
   `DockSmoke`) wherever the app draws one, as on the home page.
 - **The order.** Claude at the head, always: the orange ring (lib/claude/claude_dock.dart), turning while Claude works,
   with its dot while an AI is online. Under it, where the build can hear, Talk to Claude: the plain ring with its rim and mic
-  in Claude's orange (docs/CLAUDE_APP.md, "Talking to Claude"), on every page whose dock has Claude. What the page is for in the middle. A settings-type ring at the foot, always,
+  in Claude's orange (docs/CLAUDE_APP.md, "Talking to Claude"), on every page whose dock has Claude. One microphone only
+  (GHST-104; Matt, 2026-10-18: "When Claude mode is enabled there should only be one microphone icon still it should
+  just use Claude instead of the local models"): where Talk to Claude is on a dock, the ink-filled Speak is not, on home,
+  on a page of notes and on a note; what is said goes to Claude, not to the recorder and the phone's own models. With
+  the Claude plugin off, or where the build cannot hear, Speak is the dock's microphone as it always was, and the
+  recorder is still reached by the sidebar's Speak pill, the palette's "Speak a new note" and the More sheet's row. What the page is for in the middle. A settings-type ring at the foot, always,
   where the page has one: Settings on a page of notes, the ⋯ on a note, the cog on an organization's page.
 - **How it moves.** Search's magnifier leans in when pressed, a + gives a quarter turn, Speak's ink pill dips, the rest
   are still. Under reduced motion nothing turns and the dock comes and goes at once.
@@ -50,10 +55,10 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
 
 | Page | Rings, head to foot | Each one is |
 | --- | --- | --- |
-| Home | Claude, Search, + (Write a note), Speak, Settings | Ask Claude; the command palette; the + sheet; the recorder; the app's Settings |
-| All notes | Claude, Search, +, Speak, Settings | the same, from the root (lib/root/root_parts.dart `_notesDock`) |
-| Tags, a tag's notes, a smart notebook | Claude, Search, +, Speak, Settings | the same |
-| A note's words | Claude, Find in note, Speak, Add, Note options | the chat with `[[Title]] ` in its field; the note's find bar; the note's own mic (Talk into this note, not on a spoken note, which has its tape's Add); the +'s list for the caret's line, placed at the caret; the More sheet (the header's ⋯) |
+| Home | Claude, Talk to Claude, Search, + (Write a note), Speak (only without Talk to Claude), Settings | Ask Claude; the ask said aloud; the command palette; the + sheet; the recorder; the app's Settings |
+| All notes | Claude, Talk to Claude, Search, +, Speak (only without Talk to Claude), Settings | the same, from the root (lib/root/root_parts.dart `_notesDock`) |
+| Tags, a tag's notes, a smart notebook | Claude, Talk to Claude, Search, +, Speak (only without Talk to Claude), Settings | the same |
+| A note's words | Claude, Talk to Claude, Find in note, Speak (only without Talk to Claude), Add, Note options | the chat with `[[Title]] ` in its field; the note's find bar; the note's own mic (Talk into this note, not on a spoken note, which has its tape's Add); the +'s list for the caret's line, placed at the caret; the More sheet (the header's ⋯) |
 | A canvas | Claude, Add a card, Fit to screen, Canvas options | the canvas's own Add (its sheet of kinds) and Fit (Shift+1), offered by its view; the More sheet |
 | A notebook's index | Claude, Add a page, Read straight through, Notebook options | the index's own Add a page (the form, its field focused) and Read straight through; while reading, Back to the index in its place; the More sheet |
 | A journal | Claude, New entry, Journal options | the journal's own New entry, its templates opened and brought into view; the More sheet |

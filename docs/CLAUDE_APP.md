@@ -54,7 +54,9 @@ plugin off with every plugin that uses the internet, the app's Claude with it (i
    key, what is written in the chat goes into that note as a request, for the connector's agents to work through.
 6. **Talking to Claude** (2026-10-17; lib/claude/claude_voice.dart, claude_voice_sheet.dart, claude_ear.dart). Under
    Claude on every dock, where the build can hear, a plain ring with its rim and mic in Claude's orange: Talk to
-   Claude (Speak stays the ink-filled mic that records a voice note). A press opens a card at the foot: Claude's orange
+   Claude. It is the dock's one microphone (GHST-104, 2026-10-18; Matt: "there should only be one microphone icon
+   still it should just use Claude instead of the local models"): the ink-filled Speak that records a voice note is
+   left off a dock that has Talk to Claude, and comes back where Claude is off or the build cannot hear. A press opens a card at the foot: Claude's orange
    mic with the recorder's own rings going out from it as the voice moves them, and the words under it as they are
    heard. The ear is the recorder's: Whisper in the core, on the phone, its guesses shown as they come, stopped with
    no note to keep a tape in, so no audio is kept. A tap is done, and so is a two-second pause once something was said

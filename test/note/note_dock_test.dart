@@ -154,4 +154,21 @@ void main() {
     await closeNote(tester);
     await done(tester);
   });
+  testWidgets('one microphone (GHST-104): with Talk to Claude on the dock the note’s own Speak is left off, and is back without it', (tester) async {
+    final world = NoteWorld();
+    final asked = <String>[];
+    final seams = NoteSeams(onFind: (view, initial) => asked.add('find "$initial"'), onAdd: (view) => asked.add('add at ${view.state.selection.main.head}'));
+    await pumpNote(tester, world, await seeded(tester, world, '# Plan\n\nWords.'), seams: seams, speak: true, dock: PageDockSeam(claude: fakeClaude(asked), talk: fakeClaude(asked)));
+    await settle(tester);
+    expect(dockOrder(tester), isNot(contains('note-speak')));
+    expect(dockOrder(tester), containsAll(['note-find', 'note-add', 'note-options']));
+    await closeNote(tester);
+    await done(tester);
+
+    await pumpNote(tester, world, await seeded(tester, world, '# Plan\n\nWords.'), seams: seams, speak: true, dock: PageDockSeam(claude: fakeClaude(asked)));
+    await settle(tester);
+    expect(dockOrder(tester), contains('note-speak'));
+    await closeNote(tester);
+    await done(tester);
+  });
 }

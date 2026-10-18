@@ -512,18 +512,22 @@ extension _RootParts on _GhostRootState {
   static Widget _pageDockHalo(BuildContext context, DockPlace it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown, scale: it.scale);
 
   /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
-  /// build records, and Settings at its foot. In simple mode (GHST-103) the same less Claude, as home's.
-  PageDockSeam _notesDock() => PageDockSeam(
-        claude: preferences.value.simple ? null : _claudeForDock,
-        talk: preferences.value.simple ? null : _claudeTalkForDock,
-        halo: _pageDockHalo,
-        actions: [
-          DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
-          DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _plus),
-          if (_capture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
-        ],
-        foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _openSettings),
-      );
+  /// build records, and Settings at its foot. In simple mode (GHST-103) the same less Claude, as home's. One
+  /// microphone only (GHST-104): where Talk to Claude is on the dock, Speak is not, as on home.
+  PageDockSeam _notesDock() {
+    final talk = preferences.value.simple ? null : _claudeTalkForDock;
+    return PageDockSeam(
+      claude: preferences.value.simple ? null : _claudeForDock,
+      talk: talk,
+      halo: _pageDockHalo,
+      actions: [
+        DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
+        DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _plus),
+        if (_capture != null && talk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+      ],
+      foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _openSettings),
+    );
+  }
 
   /// Claude and the halo, for a page whose dock's rings are its own: a note, an organization, Settings.
   /// Simple mode (GHST-103) has no Claude on any dock: a note's, an organization's and Settings' follow home's.

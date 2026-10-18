@@ -45,7 +45,11 @@ class Home extends StatefulWidget {
     this.notices = const [],
     this.events,
     this.simple = false,
+    this.talk = false,
   });
+
+  /// Talk to Claude on the dock, as the root hands it where Claude is on and the build can hear (GHST-104).
+  final bool talk;
 
   /// The calendars' events, as the root hands them.
   final ValueListenable<List<CalendarEvent>>? events;
@@ -125,6 +129,7 @@ class _HomeState extends State<Home> {
         dockHalo: widget.dockHalo,
         events: widget.events,
         simple: widget.simple,
+        claudeTalk: widget.talk ? const SizedBox(key: ValueKey('fake-talk'), width: 44, height: 44) : null,
       ),
     );
   }
