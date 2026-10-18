@@ -1897,7 +1897,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
                 padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
                 child: prefs.simple
                     // Simple mode's own header (GHST-105): ‹ Notes, ⋯ and Done; the shell's plain path draws no bar.
-                    ? NoteSimpleHeader(backLabel: widget.backLabel, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null)
+                    // Back only where the shell asks for it (a phone, one window): beside the list there is none.
+                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null)
                     : LayoutBuilder(
                   builder: (context, box) => widget.back
                       // Simple mode's plain shell (GHST-105) has no bar and so no Home: the note's own Back at the

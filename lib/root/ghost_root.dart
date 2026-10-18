@@ -188,6 +188,8 @@ import '../shell/screen.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart' show mobileDevice, mousePointer, splitFits;
 import '../simple/simple_home.dart';
+import '../simple/simple_todos.dart';
+import '../core/query/tick.dart' show tickedBody;
 import '../simple/simple_pane.dart';
 import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';

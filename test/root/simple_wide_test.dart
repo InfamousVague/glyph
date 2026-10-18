@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/note/note_tools.dart' show NoteSimpleHeader;
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_text.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -94,7 +95,7 @@ void main() {
     expect(find.byType(NoteScreen), findsOneWidget);
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).back, isFalse);
-    expect(find.byKey(const ValueKey('note-back')), findsNothing);
+    expect(find.byKey(NoteSimpleHeader.backKey), findsNothing);
     expect(tester.getRect(find.byType(NoteScreen)).left, closeTo(simpleListColumn(unfolded.width), 1));
     expect(preferences.value.openNotes, [standup.id]);
 
@@ -118,14 +119,14 @@ void main() {
     expect(find.byType(SimpleHome), findsNothing, reason: 'the note is the whole window');
     expect(find.bySemanticsLabel('Your notes'), findsNothing);
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).back, isTrue);
-    expect(find.byKey(const ValueKey('note-back')), findsOneWidget);
+    expect(find.byKey(NoteSimpleHeader.backKey), findsOneWidget);
     await resize(tester, unfolded);
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(find.byType(NoteScreen), findsOneWidget);
     expect(tester.widget<NoteScreen>(find.byType(NoteScreen)).back, isFalse);
     // Shut again, Back goes home: the simple page, the whole window, with the bar along its foot.
     await resize(tester, cover);
-    await tester.tap(find.byKey(const ValueKey('note-back')));
+    await tester.tap(find.byKey(NoteSimpleHeader.backKey));
     await settle(tester);
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(tester.widget<SimpleHome>(find.byType(SimpleHome)).pane, isFalse);

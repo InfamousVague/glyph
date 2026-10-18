@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/note/note_tools.dart' show NoteSimpleHeader;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -17,6 +18,7 @@ import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/page_dock.dart' show PageDock;
+import 'package:ghost_md/simple/simple_todos.dart' show SimpleTodos;
 import 'package:ghost_md/simple/simple_home.dart';
 
 import '../shell/dock_support.dart' show dockOrder;
@@ -131,7 +133,7 @@ void main() {
     expect(find.byType(NoteTabs), findsNothing);
     final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
     expect(screen.back, isTrue, reason: 'no bar with Home: the note draws its own Back');
-    await tester.tap(find.byKey(const ValueKey('note-back')));
+    await tester.tap(find.byKey(NoteSimpleHeader.backKey));
     await settle(tester);
     expect(find.byType(SimpleHome), findsOneWidget);
     expect(preferences.value.openNotes, isEmpty);
@@ -214,6 +216,19 @@ void main() {
     );
     await settle(tester);
     expect(find.byType(ExperienceCard), findsNothing);
+    await close(tester);
+  });
+  testWidgets('the To-dos tab lists every open to-do across the notes, and a tick is written into its note (GHST-105)', (tester) async {
+    final library = await open(tester, experience: 'simple');
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('simple-tab-todos')));
+    await settle(tester);
+    expect(find.byType(SimpleTodos), findsOneWidget);
+    expect(find.bySemanticsLabel('Tick Send the deposit'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Tick Send the deposit'));
+    await settle(tester, 8);
+    final flat = library.value.firstWhere((note) => note.body.contains('Send the deposit'));
+    expect(flat.body, contains('- [x] Send the deposit'));
     await close(tester);
   });
 }

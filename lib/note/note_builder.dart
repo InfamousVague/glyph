@@ -76,6 +76,8 @@ ShellNoteBuilder noteScreenBuilder({
   PlaceTags? tags,
   PageDockSeam? dock,
   bool back = false,
+  // Where Back goes in simple mode: the list it came from, Notes or To-dos (GHST-105).
+  String backLabel = 'Notes',
 }) {
   return (context, shell, screen) {
     final note = screen.note;
@@ -120,6 +122,7 @@ ShellNoteBuilder noteScreenBuilder({
       dock: dock,
       // Simple mode's plain shell on a phone (GHST-105): the note's own Back, since there is no bar with Home.
       back: back,
+      backLabel: backLabel,
     );
   };
 }

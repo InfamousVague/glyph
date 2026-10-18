@@ -477,8 +477,16 @@ extension _RootParts on _GhostRootState {
         clock: widget.clock,
         tab: _simpleTab,
         onTab: (tab) => _told(() => _simpleTab = tab),
-        // The To-dos list (lib/simple/simple_todos.dart) is wired here once it lands; until then the page says so.
-        todos: null,
+        // The To-dos tab: every open to-do across the notes (lib/simple/simple_todos.dart). A tick is written as
+        // the query lists write theirs (tickedBody); a tap opens the note at the line.
+        todos: SimpleTodos(
+          notes: _library,
+          trash: _trash,
+          clock: () => widget.clock == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(widget.clock!()),
+          onTick: (id, line, done) => unawaited(_writeNote(id, (body) => tickedBody(body, line, body.split('\n')[line], done))),
+          onOpen: (id, line) => shell.openNote(id, at: 'line:${line + 1}'),
+          onAdd: _new,
+        ),
         pane: pane,
         ghost: const Ghost(scene: GhostScene.noNotes, size: GhostSize.lead, heightShare: 0.38),
       );
@@ -991,6 +999,7 @@ extension _RootParts on _GhostRootState {
           // Claude, about this note, at the head of its dock; the note's own rings under it (docs/DOCK.md).
           dock: _pageDock(),
           back: back,
+          backLabel: _simpleTab == SimpleTab.todos ? 'To-dos' : 'Notes',
         )(context, shell, screen),
       );
   /// An organization's dashboard or its log: built again with the notes, the account and its sync, who is in its

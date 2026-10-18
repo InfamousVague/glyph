@@ -287,8 +287,9 @@ class _NoteToolsState extends State<NoteTools> {
 class NoteSimpleHeader extends StatelessWidget {
   const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.onDone});
 
-  /// The word the way back wears: where the note was opened from. "Notes", or "To-dos" for the to-do list.
-  final String backLabel;
+  /// The word the way back wears: where the note was opened from. "Notes", or "To-dos" for the to-do list. Null
+  /// draws no Back: on a wide window the list stays beside the note, so there is nowhere to go back to.
+  final String? backLabel;
   final VoidCallback onBack;
   final VoidCallback onMore;
 
@@ -304,7 +305,7 @@ class NoteSimpleHeader extends StatelessWidget {
     return Row(
       key: const ValueKey<String>('note-simple-header'),
       children: [
-        NoteHeaderWord(key: backKey, label: backLabel, semanticLabel: 'Back to $backLabel', chevron: true, onPressed: onBack),
+        if (backLabel case final back?) NoteHeaderWord(key: backKey, label: back, semanticLabel: 'Back to $back', chevron: true, onPressed: onBack),
         const Spacer(),
         NoteMore(onMore: onMore),
         if (onDone != null) ...[

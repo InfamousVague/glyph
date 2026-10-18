@@ -101,6 +101,9 @@ Future<NoteScreenState> pumpNote(
   Duration settle = const Duration(milliseconds: 500),
   PageDockSeam? dock,
   String backLabel = 'Notes',
+  // The note's own Back (GHST-105): a phone's plain shell in simple mode asks for it; a wide window's list pane does
+  // not. Null follows the store: Back in simple, none in advanced, as the root's phone wiring does.
+  bool? back,
 }) async {
   final sheet = await appSheet(tester);
   Widget screen(Note open, {String? at, Caret? caret}) => NoteScreen(
@@ -127,6 +130,7 @@ Future<NoteScreenState> pumpNote(
         lifecycle: false,
         dock: dock,
         backLabel: backLabel,
+        back: back ?? world.prefs.value.simple,
       );
   await pumpApp(
     tester,

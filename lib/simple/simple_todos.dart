@@ -214,8 +214,14 @@ class _SimpleTodosState extends State<SimpleTodos> {
     return Semantics(
       label: count == 1 ? 'To-dos, 1 open' : 'To-dos, $count open',
       container: true,
+      // Laid out whole, not a scroller of its own: the page it sits in (lib/simple/simple_home.dart) is the one
+      // that scrolls, header and all, as the Notes list does; a scroller inside a scroller has no height to take.
       child: ListView(
-        padding: EdgeInsets.fromLTRB(gutterStart, t.space(4), gutterEnd, t.space(16)),
+        shrinkWrap: true,
+        primary: false,
+        physics: const NeverScrollableScrollPhysics(),
+        // The page pads the gutters; this pads only the top and the foot.
+        padding: EdgeInsets.fromLTRB(0, t.space(4), 0, t.space(16)),
         children: [
           for (final child in children) Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: _measure), child: child)),
         ],
