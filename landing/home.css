@@ -121,7 +121,7 @@ code {
   margin-inline-start: auto;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 760px) {
   .bar-links {
     display: flex;
   }
@@ -493,17 +493,20 @@ code {
 #plan { --hue: var(--hue-purple); }
 #files { --hue: var(--hue-yellow); }
 #history { --hue: var(--hue-mint); }
-#ai { --hue: var(--hue-coral); }
-#connected { --hue: var(--hue-red); }
+#claude { --hue: var(--hue-coral); }
+#calendar { --hue: var(--hue-blue); }
+#plugins { --hue: var(--hue-purple); }
+#organize { --hue: var(--hue-green); }
+#teams { --hue: var(--hue-red); }
 #document { --hue: var(--hue-green); }
 #private { --hue: var(--hue-graphite); }
 
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 1) { --hue: var(--hue-blue); }
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 2) { --hue: var(--hue-purple); }
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 3) { --hue: var(--hue-coral); }
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 4) { --hue: var(--hue-green); }
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 5) { --hue: var(--hue-yellow); }
-:is(.shelf, .marks, .points, .facts) > li:nth-child(6n + 6) { --hue: var(--hue-mint); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 1) { --hue: var(--hue-blue); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 2) { --hue: var(--hue-purple); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 3) { --hue: var(--hue-coral); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 4) { --hue: var(--hue-green); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 5) { --hue: var(--hue-yellow); }
+:is(.shelf, .marks, .points, .facts, .tiles, .with-row) > li:nth-child(6n + 6) { --hue: var(--hue-mint); }
 
 .eyebrow .i,
 .with-i .i,
@@ -779,7 +782,7 @@ code {
   color: var(--ink-2);
 }
 
-/* ---- connected: Claude and Notion, each under its own mark ---------------------------------------------------------- */
+/* ---- Claude and the plugins: a product under its own mark ------------------------------------------------------------ */
 
 .duo {
   display: grid;
@@ -869,6 +872,157 @@ code {
 
 .brand-card .points-stack {
   margin: 0;
+}
+
+/* The row under the opening: what it works with, each a link to its section. Claude's and Notion's marks in their
+   own colours, the rest Lucide's on their hue's square. */
+.with-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: var(--glacier-space-6, 1.5rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.with-row a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-block-size: 2.25rem;
+  padding: 0.3rem 0.85rem 0.3rem 0.4rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  text-decoration: none;
+  transition: border-color 160ms var(--ease);
+}
+
+.with-row a:hover {
+  border-color: var(--ink-3);
+  color: var(--ink);
+}
+
+.with-row .i,
+.with-row .brand-mark {
+  box-sizing: border-box;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  padding: 0.3rem;
+  border-radius: 999px;
+}
+
+.with-row .i {
+  background: color-mix(in srgb, var(--hue) 16%, transparent);
+  color: var(--hue);
+}
+
+.with-row .brand-mark {
+  background: color-mix(in oklch, var(--ink) 6%, transparent);
+}
+
+/* Claude: two of the app's screens beside what it does in the app, then the card for Claude's own apps. */
+.sub {
+  margin: 0;
+  font-size: clamp(1.15rem, 2.4vw, 1.4rem);
+  letter-spacing: -0.02em;
+}
+
+.split-claude {
+  align-items: start;
+}
+
+.split-claude .points-stack {
+  margin-block-start: var(--glacier-space-5, 1.25rem);
+}
+
+.brand-card-wide {
+  margin-block-start: clamp(2.5rem, 6vw, 4rem);
+}
+
+.brand-cols {
+  display: grid;
+  gap: var(--glacier-space-5, 1.25rem);
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .brand-cols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+}
+
+.brand-card .fine {
+  margin: 0;
+}
+
+.brand-card .fine code {
+  overflow-wrap: anywhere;
+}
+
+#calendar .mark-code {
+  margin-block-start: var(--glacier-space-6, 1.5rem);
+  max-inline-size: 22rem;
+}
+
+#calendar .points-stack {
+  margin-block-start: 0;
+}
+
+/* Plugins: Notion's card and a screen, then the rest of the catalogue as tiles. */
+#plugins .split {
+  align-items: start;
+}
+
+.tiles {
+  display: grid;
+  gap: var(--glacier-space-3, 0.75rem);
+  margin: clamp(2.5rem, 6vw, 4rem) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 560px) {
+  .tiles {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 1000px) {
+  .tiles {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+.tiles li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 0.75rem;
+  align-content: start;
+  padding: 1.1rem 1.15rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-lg, 1rem);
+  background: var(--paper);
+}
+
+.tiles .i-lead {
+  grid-row: 1 / span 2;
+  margin: 0;
+  vertical-align: 0;
+}
+
+.tiles h3 {
+  margin: 0.15rem 0 0.25rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.tiles p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
 }
 
 /* ---- private ----------------------------------------------------------------------------------------------------- */
@@ -1110,7 +1264,8 @@ a.store:hover {
   }
 
   .pill,
-  .way {
+  .way,
+  .with-row a {
     transition: none;
   }
 

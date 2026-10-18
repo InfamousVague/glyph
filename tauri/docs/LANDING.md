@@ -1,10 +1,22 @@
 # ghostmarkdown.com
 
-The app's own site: what Ghost.md does for a life's notes, how it works with AI, and the ways to get it (docs/DESIGN.md
-§153, §154). One short page: the opening with the app on a wide screen; Organise (the home page, journals, boards and
-canvases); Work with AI (the phone's own AI and its marked changes, Claude's connector and its address to copy, Notion
-and GitHub); Document (meetings written up, with the app's own cassette); Private; the downloads; and a foot with the
-app's six themes to try on the site itself.
+The app's own site: what sets Ghost.md apart, the notes app under it, and the ways to get it (docs/DESIGN.md §153,
+§154). Since 2026-10-18 (Matt: "redo the website and the app store listing to highlight more important features that
+set us apart like the claude integrations and calendar integrations as well as notion etc") the page runs: the opening
+(the app on a wide screen, and a row of what it works with); **Claude** (the app's own Claude with your key,
+docs/CLAUDE_APP.md, and Claude's own apps through the connector, docs/CLAUDE_LIVE.md, with its address to copy);
+**Calendar** (docs/CALENDAR.md); **Plugins** (Notion's card, then the catalog's other plugins as tiles,
+tauri/docs/PLUGINS.md "In the Flutter app", docs/INTEGRATIONS.md); then the core: Plain Markdown (home, journals, boards,
+canvases), Voice (with the app's own cassette), Plan, Your files, Teams, Version history, Private; the downloads; and a
+foot with the app's six themes to try on the site itself.
+
+- **Per platform, as the code says.** Claude in the app, Calendar and the plugin catalog are the Flutter app's
+  (Android, iPhone, Mac); Windows and the browser are still the Tauri app. Talk to Claude, Speak and meetings are not
+  on the iPhone (lib/core/iphone_app.dart `recordsVoice`); Notion and Slack are not on the iPhone yet (`notOnIPhone`);
+  place reminders are Android's. A line on the page says so wherever it matters.
+- **Placeholders** (2026-10-18): the Claude pair (`shots/claude.webp`, `shots/ai.webp`), Calendar's phone
+  (`shots/fields.webp`) and Plugins' phone (`shots/board.webp`) stand in for the new iPhone screens (the Claude chat,
+  Claude typing, Today with its events, the plugins catalog or Notion's page). Each slot has a comment in index.html.
 It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh login. It has no npm alias.
 
 - **The files.** `index.html` (the page), `home.css` and `home.js` (its layout, the downloads, the address to copy and
