@@ -181,7 +181,6 @@ class _SimpleTodosState extends State<SimpleTodos> {
       for (final group in groups)
         (group: group.group, todos: [for (final todo in group.todos) if (!_doneKeys.contains(todo.key)) todo]),
     ].where((group) => group.todos.isNotEmpty).toList();
-    final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
     final count = open.fold(0, (n, group) => n + group.todos.length);
 
     if (open.isEmpty && _done.isEmpty) {
