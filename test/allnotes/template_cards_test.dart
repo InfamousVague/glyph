@@ -35,12 +35,13 @@ void main() {
     Size size = const Size(390, 844),
     String theme = 'dark',
     List<HapticKind>? felt,
+    bool simple = false,
   }) async {
     final chosen = <String>[];
     await pumpApp(
       tester,
       size: size,
-      prefs: AppPreferences(theme: theme),
+      prefs: AppPreferences(theme: theme, experience: simple ? 'simple' : 'advanced', experienceChosen: simple),
       home: Builder(
         builder: (context) => ColoredBox(
           color: context.tokens.color('glacier-bg'),
@@ -78,6 +79,17 @@ void main() {
   /// Whether the card's picture draws [words]: one of the editor's lines in it shows them.
   bool draws(String id, String words) => find.descendant(of: card(id), matching: editorText(words)).evaluate().isNotEmpty;
   bool says(String id, String words) => find.descendant(of: card(id), matching: find.text(words)).evaluate().isNotEmpty;
+
+  testWidgets('are not on the page in simple mode (GHST-103): the blank page is its names and its placeholder', (tester) async {
+    await show(tester, simple: true);
+    expect(cards(tester), isEmpty);
+    expect(find.bySemanticsLabel('Start from a template'), findsNothing);
+    // The choice made, the cards come.
+    preferences.update((now) => now.choosing('advanced'));
+    await tester.pump();
+    expect(cards(tester).length, 8);
+    await away(tester);
+  });
 
   testWidgets('are eight, each named by its template and described by its sentence, and a press chooses it', (tester) async {
     final chosen = await show(tester);

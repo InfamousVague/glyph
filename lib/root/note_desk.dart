@@ -1588,6 +1588,8 @@ class NoteDeskState extends State<NoteDesk> {
           // A question for the AI where its answer belongs: writing one needs no model, so the row is always there,
           // and under a table with an empty cell, a blank in every one (editor/addRows.ts).
           blanks: true,
+          // Simple mode (GHST-103): the basics first, the rest behind More.
+          simple: _prefs.value.simple,
           // Not on an iPhone, where the page's + has no picture (iphone_wiring.dart); the band's Add image stays.
           onPicture: _pictures == null || !plusOffersPicture() ? null : () => unawaited(_pictures.addPhoto()),
           onVideo: _world.films?.pick == null || widget.readOnly || view == null ? null : () => unawaited(_addVideo(view)),

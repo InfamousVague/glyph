@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
+import '../../core/preferences.dart';
 import '../kit/settings_type.dart';
 import '../settings_screen.dart' show SettingsNoSwipe;
 import '../settings_search.dart';
@@ -17,8 +18,52 @@ List<SettingsFindable> cheatSheetFindable() => [
     for (final row in group.rows) SettingsFindable(row.name, row.symbol),
 ];
 
+/// The basics (GHST-103; Matt: "work on making formatting and stuff easier to understand"): the dozen marks most
+/// notes are made of, each with a line saying what it does in plain words, first on the sheet in both modes. The
+/// rows are marks.g.dart's own, found by name, so what each shows to type is what the whole sheet shows; only the
+/// plain line is written here, since the snapshot is made, not written, and has no field for one.
+const String basicsTitle = 'The basics';
+const String basicsLead = 'Most notes are made of these dozen marks.';
+
+/// Each basic by the name marks.g.dart gives it, with its plain line.
+const List<(String, String)> basicsPlain = [
+  ('Title', 'The note’s name, on its first line.'),
+  ('Heading', 'A name for a section, so the note has parts.'),
+  ('Bold', 'Makes the words stand out.'),
+  ('Italic', 'Slants the words, for a stress or an aside.'),
+  ('A link', 'Words that open a web page when tapped.'),
+  ('A list', 'Points, one to a line, each with a dot.'),
+  ('In order', 'Steps, numbered.'),
+  ('A to-do', 'A box to tick when it is done.'),
+  ('A quote', 'Someone else’s words, set apart from yours.'),
+  ('A table', 'Rows and columns, drawn from the bars.'),
+  ('A picture', 'A picture in the note, from a file or a link.'),
+  ('A dividing line', 'A line across the page between parts.'),
+];
+
+/// The plain line for a mark, where it is one of the basics.
+String? plainLineOf(MarkRow row) {
+  for (final (name, line) in basicsPlain) {
+    if (name == row.name) return line;
+  }
+  return null;
+}
+
+/// The basics as a group: the rows of [markGroups] named in [basicsPlain], in that order. A name the snapshot
+/// does not have (a plugin's mark gone) is left out rather than invented.
+MarkGroup basicsGroup() {
+  final byName = <String, MarkRow>{
+    for (final group in markGroups)
+      for (final row in group.rows) row.name: row,
+  };
+  return MarkGroup(title: basicsTitle, lead: basicsLead, rows: [for (final (name, _) in basicsPlain) ?byName[name]]);
+}
+
+/// The title of the disclosure the rest of the sheet sits behind in simple mode.
+const String everythingElseTitle = 'Everything else';
+
 /// The marks left after the field (`found`): a mark is found by its name, its characters, or the words of its
-/// example.
+/// example. The basics are not searched: each is in its own group too, and would be found twice.
 List<MarkGroup> marksFound(String looking) {
   final words = looking.trim().toLowerCase();
   if (words.isEmpty) return markGroups;
@@ -54,8 +99,14 @@ bool _has(MarkRow row, String words) => [row.name, row.symbol, row.typed, row.wo
 /// - The search finds each mark by name, and opening one from Settings' search lands on the page without lighting
 ///   the card, since the card's name is not one of the kit's parts.
 /// - The field is an `EditableText` with the kit's handles and menu; the page's was an `<input type=search>`.
+/// - **The basics come first** ([basicsGroup]), in both modes, each card with its plain line. In simple mode
+///   (GHST-103) the groups after them sit behind one disclosure, Everything else, closed until pressed; in
+///   advanced they are open, as the page's are. A search shows what it finds in either mode.
 class CheatSheet extends StatefulWidget {
-  const CheatSheet({super.key});
+  const CheatSheet({super.key, this.simple});
+
+  /// Simple mode (see above); null asks the preferences.
+  final bool? simple;
 
   @override
   State<CheatSheet> createState() => _CheatSheetState();
@@ -64,8 +115,13 @@ class CheatSheet extends StatefulWidget {
 class _CheatSheetState extends State<CheatSheet> {
   final TextEditingController _field = TextEditingController();
   final FocusNode _focus = FocusNode(debugLabel: 'find a mark');
-  final Map<String, GlobalKey> _heads = {for (final group in markGroups) group.title: GlobalKey(debugLabel: 'marks ${group.title}')};
+  final Map<String, GlobalKey> _heads = {for (final group in [basicsGroup(), ...markGroups]) group.title: GlobalKey(debugLabel: 'marks ${group.title}')};
   final GlobalKey _sheet = GlobalKey(debugLabel: 'cheat sheet');
+
+  /// Simple mode's Everything else has been opened.
+  bool _rest = false;
+
+  bool get _simple => widget.simple ?? preferences.value.simple;
 
   /// How many groups are built: the first [_soon] with the page, and [_soon] more each frame after. The sheet is
   /// a hundred cards and more, and built whole its one frame was 22 ms on a Mac (measured, tool/perf.sh); the
@@ -89,6 +145,7 @@ class _CheatSheetState extends State<CheatSheet> {
     super.initState();
     _field.addListener(_changed);
     _focus.addListener(_changed);
+    if (widget.simple == null) preferences.addListener(_changed);
   }
 
   void _changed() => setState(() {});
@@ -97,7 +154,16 @@ class _CheatSheetState extends State<CheatSheet> {
   void dispose() {
     _field.dispose();
     _focus.dispose();
+    if (widget.simple == null) preferences.removeListener(_changed);
     super.dispose();
+  }
+
+  /// Everything else, opened: its groups built from here, and the page taken to its first.
+  void _openRest() {
+    setState(() => _rest = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _jump(markGroups.first.title);
+    });
   }
 
   /// The chips are a way down a long page: the group's heading goes to the top of whatever is scrolling
@@ -121,7 +187,10 @@ class _CheatSheetState extends State<CheatSheet> {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final looking = _field.text;
-    final found = marksFound(looking);
+    final simple = _simple;
+    // Searching: what is found, flat. Not: the basics, then the rest, which simple keeps behind Everything else.
+    final behind = simple && !_rest && looking.isEmpty;
+    final found = looking.isEmpty ? [basicsGroup(), if (!behind) ...markGroups] : marksFound(looking);
     final ground = t.colorOf('var(--sheet-ground, var(--glacier-bg))');
     final sm = t.fontSize('sm');
     final subtle = t.color('glacier-text-subtle');
@@ -152,9 +221,14 @@ class _CheatSheetState extends State<CheatSheet> {
                     padding: EdgeInsets.only(top: t.space(2)),
                     child: Row(
                       children: [
-                        for (var i = 0; i < markGroups.length; i++) ...[
+                        for (var i = 0; i < found.length; i++) ...[
                           if (i > 0) SizedBox(width: t.space(2)),
-                          _Chip(key: ValueKey('chip ${markGroups[i].title}'), title: markGroups[i].title, ground: ground, onPress: () => _jump(markGroups[i].title)),
+                          _Chip(key: ValueKey('chip ${found[i].title}'), title: found[i].title, ground: ground, onPress: () => _jump(found[i].title)),
+                        ],
+                        // Behind the disclosure, one chip for all of it, which opens it.
+                        if (behind) ...[
+                          SizedBox(width: t.space(2)),
+                          _Chip(key: const ValueKey('chip $everythingElseTitle'), title: everythingElseTitle, ground: ground, onPress: _openRest),
                         ],
                       ],
                     ),
@@ -204,9 +278,21 @@ class _CheatSheetState extends State<CheatSheet> {
                 style: pageText(t, sm, height: t.len('glacier-leading-md'), color: muted),
               ),
               SizedBox(height: t.space(3)),
-              _Cards(rows: found[g].rows, ground: ground),
+              _Cards(rows: found[g].rows, ground: ground, plain: found[g].title == basicsTitle),
             ],
           )),
+        ),
+      // Simple mode: the rest of the sheet, closed, with how much there is. Matt: "fancy features hidden behind
+      // more".
+      if (behind)
+        Padding(
+          padding: EdgeInsets.only(top: t.space(8)),
+          child: _Disclosure(
+            key: const ValueKey('everything-else'),
+            title: everythingElseTitle,
+            line: '${[for (final group in markGroups) group.rows.length].fold(0, (sum, n) => sum + n)} more marks, in ${markGroups.length} groups.',
+            onPress: _openRest,
+          ),
         ),
       if (found.isEmpty)
         Padding(
@@ -258,6 +344,55 @@ class _Pinned extends StatelessWidget {
   }
 }
 
+/// Everything else, closed: a row the shape of a card, its title and how much is behind it, and a chevron pointing
+/// down, since pressing it opens the rest below.
+class _Disclosure extends StatelessWidget {
+  const _Disclosure({super.key, required this.title, required this.line, required this.onPress});
+  final String title;
+  final String line;
+  final VoidCallback onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    final muted = t.color('glacier-text-muted');
+    return GlacierPressable(
+      onPressed: onPress,
+      semanticLabel: '$title, $line',
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        radius: t.radius('lg'),
+        child: Container(
+          padding: EdgeInsets.all(t.space(3)),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(t.color('app-ink').withValues(alpha: state.pressed ? 0.08 : 0.04), t.color('glacier-bg')),
+            borderRadius: BorderRadius.circular(t.radius('lg')),
+            border: Border.all(color: t.colorOf('color-mix(in oklch, var(--app-ink) 10%, transparent)'), width: t.len('glacier-hairline')),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(title, style: pageText(t, t.fontSize('md'), weight: 'semibold')),
+                    SizedBox(height: t.space(1)),
+                    Text(line, style: pageText(t, sm, color: muted)),
+                  ],
+                ),
+              ),
+              SizedBox(width: t.space(2)),
+              AppIcon(Lucide.chevronDown, size: 18, color: muted),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// `.chip`: a group's name in an outlined pill.
 class _Chip extends StatelessWidget {
   const _Chip({super.key, required this.title, required this.ground, required this.onPress});
@@ -297,11 +432,15 @@ class _Chip extends StatelessWidget {
 }
 
 /// `.cards`: `repeat(auto-fill, minmax(17rem, 1fr))`, a `--glacier-space-3` apart. The cards of a row are one
-/// height, and a board takes a row to itself.
+/// height, and a board takes a row to itself. A basic's card is keyed apart from the same mark's card in its own
+/// group, since both are on the page.
 class _Cards extends StatelessWidget {
-  const _Cards({required this.rows, required this.ground});
+  const _Cards({required this.rows, required this.ground, this.plain = false});
   final List<MarkRow> rows;
   final Color ground;
+
+  /// The basics: each card carries its plain line.
+  final bool plain;
 
   @override
   Widget build(BuildContext context) {
@@ -326,7 +465,7 @@ class _Cards extends StatelessWidget {
             for (var i = 0; i < lines.length; i++) ...[
               if (i > 0) SizedBox(height: gap),
               if (across == 1 || lines[i].first.looks == 'board')
-                MarkCard(key: ValueKey(lines[i].first.name), row: lines[i].first, ground: ground)
+                MarkCard(key: ValueKey(plain ? 'basic ${lines[i].first.name}' : lines[i].first.name), row: lines[i].first, ground: ground, plain: plain ? plainLineOf(lines[i].first) : null)
               else
                 IntrinsicHeight(
                   child: Row(
@@ -335,7 +474,7 @@ class _Cards extends StatelessWidget {
                       for (var c = 0; c < across; c++) ...[
                         if (c > 0) SizedBox(width: gap),
                         Expanded(
-                          child: c < lines[i].length ? MarkCard(key: ValueKey(lines[i][c].name), row: lines[i][c], ground: ground) : const SizedBox.shrink(),
+                          child: c < lines[i].length ? MarkCard(key: ValueKey(plain ? 'basic ${lines[i][c].name}' : lines[i][c].name), row: lines[i][c], ground: ground, plain: plain ? plainLineOf(lines[i][c]) : null) : const SizedBox.shrink(),
                         ),
                       ],
                     ],
@@ -349,11 +488,15 @@ class _Cards extends StatelessWidget {
   }
 }
 
-/// One mark (`Card`, `.card`): its icon and name, the characters in a ring, and what to type.
+/// One mark (`Card`, `.card`): its icon and name, the characters in a ring, and what to type. One of the basics
+/// says in a line what it does, under its name ([plainLineOf]).
 class MarkCard extends StatelessWidget {
-  const MarkCard({super.key, required this.row, this.ground});
+  const MarkCard({super.key, required this.row, this.ground, this.plain});
   final MarkRow row;
   final Color? ground;
+
+  /// What the mark does, in plain words; absent on all but the basics.
+  final String? plain;
 
   @override
   Widget build(BuildContext context) {
@@ -404,6 +547,10 @@ class MarkCard extends StatelessWidget {
               ),
             ],
           ),
+          if (plain != null) ...[
+            SizedBox(height: t.space(2)),
+            Text(plain!, style: pageText(t, sm, height: t.len('glacier-leading-md'), color: muted)),
+          ],
           // `.head { margin-block-end }` and the card's own gap.
           SizedBox(height: t.space(1) * 2),
           Semantics(

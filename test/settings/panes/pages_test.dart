@@ -8,6 +8,7 @@ import 'package:ghost_md/ai/backend.dart' show Output, Run;
 import 'package:ghost_md/ai/kinds.dart' show RunKind;
 import 'package:ghost_md/ai/runs.dart';
 import 'package:ghost_md/art/art.dart';
+import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/reset.dart' show spared;
 import 'package:ghost_md/core/wip.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
@@ -98,29 +99,78 @@ void main() {
     testWidgets('is a field, the groups as chips, and a card for each mark: its icon, its name, its characters and what to type', (tester) async {
       await openPane(tester, 'cheatsheet');
       expect(display(tester), 'Cheat sheet');
-      expect(tester.widgetList(find.byType(MarkCard, skipOffstage: false)).length, cheatSheetFindable().length);
-      // The field: a pill over the page, the chips under it, and the strip they make.
+      // Every mark's card, and the basics' own cards over them (GHST-103).
+      expect(tester.widgetList(find.byType(MarkCard, skipOffstage: false)).length, cheatSheetFindable().length + basicsGroup().rows.length);
+      // The field: a pill over the page, the chips under it, and the strip they make. The basics' chip is first,
+      // and the page's chips follow it, each where the page had it, one chip along.
       final field = find.ancestor(of: find.text('Find a mark'), matching: find.byType(DecoratedBox)).first;
       expect(tester.getRect(field), rectNear(22.31, 122.73, 345.38, 39.84));
-      expect(tester.getRect(find.byKey(const ValueKey('chip Words'))), rectNear(22.31, 184.89, 65.39, 27.38));
-      expect(tester.getRect(find.byKey(const ValueKey('chip Lines'))), rectNear(96.63, 184.89, 58.36, 27.38));
-      expect(tester.getRect(find.byKey(const ValueKey('chip Pointing somewhere'))), rectNear(163.91, 184.89, 153.63, 27.38));
-      // The first group and its first card.
-      expect(tester.getRect(find.text('WORDS')).topLeft, offsetMoreOrLessEquals(const Offset(22.31, 221.19), epsilon: 0.5));
-      expect(tester.getRect(find.text('Around the words they mark, anywhere in a line.')).top, closeTo(241.64, 0.5));
-      final bold = find.byKey(const ValueKey('Bold'));
-      expect(tester.getRect(bold).topLeft, offsetMoreOrLessEquals(const Offset(22.31, 275.11), epsilon: 0.5));
+      expect(tester.getRect(find.byKey(const ValueKey('chip The basics'))), rectNear(22.31, 184.89, 93.8, 27.38));
+      expect(tester.getRect(find.byKey(const ValueKey('chip Words'))), rectNear(125.04, 184.89, 65.39, 27.38));
+      expect(tester.getRect(find.byKey(const ValueKey('chip Lines'))), rectNear(199.36, 184.89, 58.36, 27.38));
+      expect(tester.getRect(find.byKey(const ValueKey('chip Pointing somewhere'))), rectNear(266.65, 184.89, 153.63, 27.38));
+      // The first group, The basics, where the page's first group stood, and its first card, which carries its
+      // plain line where the page's card went straight to TYPE: the card is that line and its gap taller.
+      expect(tester.getRect(find.text('THE BASICS')).topLeft, offsetMoreOrLessEquals(const Offset(22.31, 221.19), epsilon: 0.5));
+      expect(tester.getRect(find.text(basicsLead)).top, closeTo(241.64, 0.5));
+      final title = find.byKey(const ValueKey('basic Title'));
+      expect(tester.getRect(title).topLeft, offsetMoreOrLessEquals(const Offset(22.31, 275.11), epsilon: 0.5));
+      expect(tester.getRect(title).width, closeTo(345.38, 0.5));
+      expect(tester.getRect(find.descendant(of: title, matching: find.text('The note’s name, on its first line.'))).topLeft, offsetMoreOrLessEquals(const Offset(36.7, 326.41), epsilon: 0.5));
+      expect(tester.getRect(find.descendant(of: title, matching: find.text('TYPE'))).topLeft, offsetMoreOrLessEquals(const Offset(36.7, 355.41), epsilon: 0.5));
+      expect(tester.getRect(title).height, closeTo(159.9, 0.75));
+      // A mark's own card, Bold in Words, further down now: the page's card, measured from its own corner.
+      final bold = find.byKey(const ValueKey('Bold'), skipOffstage: false);
+      final at = tester.getRect(bold).topLeft;
       expect(tester.getRect(bold).width, closeTo(345.38, 0.5));
-      expect(tester.getRect(find.descendant(of: bold, matching: find.byType(AppIcon))), rectNear(42.7, 295.5, 16, 16));
-      expect(tester.getRect(find.descendant(of: bold, matching: find.text('Bold'))).topLeft, offsetMoreOrLessEquals(const Offset(73.63, 293.5), epsilon: 0.5));
-      expect(boxOf(tester, find.descendant(of: bold, matching: find.text('**'))), rectNear(323.19, 291.5, 30.11, 24));
-      expect(tester.getRect(find.descendant(of: bold, matching: find.text('TYPE'))).topLeft, offsetMoreOrLessEquals(const Offset(36.7, 326.41), epsilon: 0.5));
+      expect(tester.getRect(find.descendant(of: bold, matching: find.byType(AppIcon), skipOffstage: false)), rectNear(at.dx + 20.39, at.dy + 20.39, 16, 16));
+      expect(tester.getRect(find.descendant(of: bold, matching: find.text('Bold', skipOffstage: false), skipOffstage: false)).topLeft, offsetMoreOrLessEquals(at + const Offset(51.32, 18.39), epsilon: 0.5));
+      expect(boxOf(tester, find.descendant(of: bold, matching: find.text('**', skipOffstage: false), skipOffstage: false)), rectNear(at.dx + 300.88, at.dy + 16.39, 30.11, 24));
+      expect(tester.getRect(find.descendant(of: bold, matching: find.text('TYPE', skipOffstage: false), skipOffstage: false)).topLeft, offsetMoreOrLessEquals(at + const Offset(14.39, 51.3), epsilon: 0.5));
       // What to type: the page's block, with its margin under it (the rect here counts it, the page's does not).
-      final typed = tester.getRect(find.descendant(of: bold, matching: find.byKey(const ValueKey('mark-typed'))));
-      expect(Rect.fromLTWH(typed.left, typed.top, typed.width, typed.height - tokensAt(tester, bold).space(2)), rectNear(36.7, 344.86, 316.59, 37.92));
+      final typed = tester.getRect(find.descendant(of: bold, matching: find.byKey(const ValueKey('mark-typed'), skipOffstage: false), skipOffstage: false));
+      expect(Rect.fromLTWH(typed.left, typed.top, typed.width, typed.height - tokensAt(tester, bold).space(2)), rectNear(at.dx + 14.39, at.dy + 69.75, 316.59, 37.92));
       // "Reads", the line as the note draws it, waits for the editor: a card ends at what to type.
-      expect(find.text('READS'), findsNothing);
+      expect(find.text('READS', skipOffstage: false), findsNothing);
       expect(tester.getRect(bold).height, closeTo(131.0, 0.75));
+      // Advanced: the whole sheet open, nothing behind a disclosure.
+      expect(find.byKey(const ValueKey('everything-else'), skipOffstage: false), findsNothing);
+      await endSettings(tester);
+    });
+
+    testWidgets('in simple mode keeps everything past the basics behind one disclosure, opened by it or its chip, and a search looks past it (GHST-103)', (tester) async {
+      await openPane(tester, 'cheatsheet', prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true));
+      List<String> cards() => [for (final card in tester.widgetList<MarkCard>(find.byType(MarkCard, skipOffstage: false))) card.row.name];
+      expect(find.text('THE BASICS'), findsOneWidget);
+      expect(cards().length, basicsGroup().rows.length);
+      expect(find.text('WORDS', skipOffstage: false), findsNothing);
+      // The chips: the basics, and one for all the rest.
+      expect(find.byKey(const ValueKey('chip The basics')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip Everything else')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip Words')), findsNothing);
+      final rest = find.byKey(const ValueKey('everything-else'), skipOffstage: false);
+      expect(rest, findsOneWidget);
+      expect(find.descendant(of: rest, matching: find.text('${cheatSheetFindable().length} more marks, in ${markGroups.length} groups.', skipOffstage: false), skipOffstage: false), findsOneWidget);
+      // A search finds a mark behind it.
+      await tester.enterText(find.byType(EditableText), 'spoiler');
+      await tester.pump();
+      expect(cards(), ['Spoiler']);
+      expect(rest, findsNothing);
+      await tester.tap(find.bySemanticsLabel('Clear'));
+      await tester.pump();
+      expect(rest, findsOneWidget);
+      // Opened, the rest is the sheet as advanced has it, from its first group.
+      await tester.ensureVisible(rest);
+      await tester.pump();
+      await tester.tap(rest);
+      for (var i = 0; i < 8; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      expect(rest, findsNothing);
+      expect(find.text('WORDS', skipOffstage: false), findsOneWidget);
+      expect(cards().length, cheatSheetFindable().length + basicsGroup().rows.length);
+      expect(find.byKey(const ValueKey('chip Words')), findsOneWidget);
+      expect(find.byKey(const ValueKey('chip Everything else')), findsNothing);
       await endSettings(tester);
     });
 
@@ -145,7 +195,7 @@ void main() {
       // The cross empties it.
       await tester.tap(find.bySemanticsLabel('Clear'));
       await tester.pump();
-      expect(cards().length, cheatSheetFindable().length);
+      expect(cards().length, cheatSheetFindable().length + basicsGroup().rows.length);
       expect(find.byKey(const ValueKey('chip Words')), findsOneWidget);
       expect(marksFound('  ').length, markGroups.length);
       await endSettings(tester);
@@ -180,7 +230,13 @@ void main() {
       expect(card('Struck through').left, closeTo(346.33, 0.75));
       // The cards of a row are one height.
       expect(card('Italic').height, card('Bold').height);
-      expect(card('Bold').top, closeTo(314.5, 0.75));
+      // The basics' row first, three across the same way, and Words' rows under it (GHST-103).
+      expect(card('basic Title').top, closeTo(314.5, 0.75));
+      expect(card('basic Title').left, closeTo(346.33, 0.75));
+      expect(card('basic Heading').left, closeTo(654.03, 0.75));
+      expect(card('basic Bold').left, closeTo(961.75, 0.75));
+      expect(card('basic Heading').height, card('basic Title').height);
+      expect(card('Bold').top, greaterThan(card('basic A dividing line').bottom));
       expect(card('A board').left, closeTo(346.33, 0.75));
       expect(card('A board').width, closeTo(907.33, 0.75));
       await endSettings(tester);

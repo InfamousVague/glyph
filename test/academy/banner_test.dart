@@ -18,6 +18,16 @@ void main() {
       expect(academyBannerDue(), isFalse);
     });
 
+    test('is offered for a week from the first time it was due, then goes by itself (GHST-103)', () {
+      final first = DateTime.utc(2026, 10, 18, 9);
+      expect(academyBannerDue(now: first), isTrue);
+      expect(stored.readText(academyBannerSinceKey), first.toIso8601String());
+      expect(academyBannerDue(now: first.add(const Duration(days: 6, hours: 23))), isTrue);
+      expect(academyBannerDue(now: first.add(const Duration(days: 7))), isFalse);
+      // The day it was first due holds: a later ask does not move it.
+      expect(stored.readText(academyBannerSinceKey), first.toIso8601String());
+    });
+
     test('goes when it is put away, and stays gone', () {
       dismissAcademyBanner();
       expect(academyBannerDue(), isFalse);

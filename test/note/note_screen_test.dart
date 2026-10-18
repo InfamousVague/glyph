@@ -1,6 +1,7 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/book/journal.dart' show defaultTemplate, entryPlaceOf, placeSentence, templateOf, templateSentence;
 import 'package:ghost_md/book/template_picker.dart' show TemplatePicker;
 import 'package:ghost_md/core/book.dart' show guideTitle, isJournalBody;
@@ -592,6 +593,37 @@ void main() {
       expect(locationHint(location(refused: LocateFailure.refused)), endsWith('Tap to ask again.'));
       expect(locationHint(location(refused: LocateFailure.refused, onPhone: false)), contains('in the browser’s settings'));
       expect(locationHint(location(refused: LocateFailure.blocked)), startsWith('Location is off for Ghost.md, so this note wasn’t tagged.'));
+    });
+
+    testWidgets('in simple mode is short, and More… opens the rest in place, Less closes it (GHST-103)', (tester) async {
+      final world = NoteWorld();
+      // Every row the sheet can have, so what simple hides is there to hide.
+      await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), seams: measuredSeams(world.asked));
+      preferences.update((now) => now.copyWith(experience: 'simple', experienceChosen: true));
+      await tester.pump();
+      await more(tester);
+      expect(find.byType(NoteSettings), findsOneWidget);
+      // What stays: the look (Find and replace is the raw look's, not the mode's), Pin and Archive, Help, the Trash.
+      expect(find.text('READING IT'), findsOneWidget);
+      expect(find.text('WHERE IT SITS'), findsOneWidget);
+      expect(find.text('Pin to the top'), findsOneWidget);
+      expect(find.text('Archive'), findsOneWidget);
+      expect(find.text('Formatting cheat sheet', skipOffstage: false), findsOneWidget);
+      expect(find.text('Move to Trash', skipOffstage: false), findsOneWidget);
+      // What is behind More…: the AI, sharing, comments, filing, the board.
+      for (final hidden in ['AI', 'SHARING', 'COMMENTS', 'LINKED TO', 'Bookmark this line', 'Workspace', 'Keep version history', 'FILING IT']) {
+        expect(find.text(hidden, skipOffstage: false), findsNothing, reason: '$hidden is behind More…');
+      }
+      await press(tester, 'More…');
+      expect(find.byType(NoteSettings), findsOneWidget, reason: 'opened in place, not a page');
+      for (final shown in ['AI', 'SHARING', 'COMMENTS', 'LINKED TO', 'Bookmark this line', 'Workspace', 'Keep version history', 'FILING IT', 'Less']) {
+        expect(find.text(shown, skipOffstage: false), findsOneWidget, reason: shown);
+      }
+      expect(find.text('More…', skipOffstage: false), findsNothing);
+      await press(tester, 'Less');
+      expect(find.text('AI', skipOffstage: false), findsNothing);
+      expect(find.text('More…', skipOffstage: false), findsOneWidget);
+      await closeNote(tester);
     });
   });
 

@@ -31,7 +31,7 @@ late PlusController plus;
 late DateTime now;
 int pictures = 0, places = 0, videos = 0;
 
-AddConfig config({bool picture = true, bool place = true, bool video = false, bool titles = true, bool localOnly = false}) => AddConfig(
+AddConfig config({bool picture = true, bool place = true, bool video = false, bool titles = true, bool localOnly = false, bool simple = false}) => AddConfig(
   onPicture: picture ? () => pictures += 1 : null,
   onPlace: place ? () => places += 1 : null,
   onVideo: video ? () => videos += 1 : null,
@@ -43,6 +43,7 @@ AddConfig config({bool picture = true, bool place = true, bool video = false, bo
   databases: true,
   tickets: true,
   blanks: true,
+  simple: simple,
 );
 
 /// The editor over `Lunch` and an empty line, its + shown, and the list opened the way `by` says.
@@ -466,6 +467,36 @@ void main() {
       await tester.pump();
       expect(find.byType(EditableText), findsOneWidget);
       expect(listOf(tester).page, 'note');
+    });
+  });
+
+  group('in simple mode (GHST-103)', () {
+    const basics = ['A picture', 'A to-do', 'A heading', 'A bulleted list', 'A numbered list', 'A quote', 'A table', 'A link', 'A divider'];
+
+    plusTest('holds the basics, each with a line under it, and More holds the rest in today’s order', (tester) async {
+      await open(tester, with_: config(simple: true));
+      expect(words(tester), [...basics, 'More']);
+      expect(find.text('A title for a section.'), findsOneWidget);
+      expect(find.text('Rows and columns.'), findsOneWidget);
+      await press(tester, 'More');
+      expect(words(tester).take(5), ['Back', 'A place', time, 'A board', 'A database']);
+      expect(words(tester), containsAll(['A note', 'A callout', 'A diagram', 'A blank for the AI']));
+      expect(words(tester), isNot(anyOf(contains('A heading'), contains('A link'))));
+    });
+
+    plusTest('the slash palette lists the basics first', (tester) async {
+      await open(tester, with_: config(simple: true), by: PlusBy.slash);
+      expect(words(tester).take(basics.length), basics);
+      expect(words(tester), containsAll(['A place', 'A board', 'A footnote']));
+      expect(words(tester), isNot(contains('More')));
+    });
+
+    plusTest('A link writes a link with its words selected', (tester) async {
+      await open(tester, with_: config(simple: true));
+      await press(tester, 'A link');
+      expect(closed, isTrue);
+      expect(view.state.doc.toString(), 'Lunch\n[text](url)');
+      expect((view.state.selection.main.from, view.state.selection.main.to), ('Lunch\n['.length, 'Lunch\n[text'.length));
     });
   });
 

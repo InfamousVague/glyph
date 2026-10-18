@@ -117,6 +117,7 @@ class AddConfig {
     this.tickets = false,
     this.blanks = false,
     this.onPerson,
+    this.simple = false,
   });
 
   /// A picture: the screen opens its picker.
@@ -157,6 +158,10 @@ class AddConfig {
   /// A person: the screen opens the contacts to pick from and writes the one picked ([writePerson]); absent where
   /// Settings › Contacts is off.
   final VoidCallback? onPerson;
+
+  /// Simple mode (`Preferences.simple`, GHST-103): the basics on the first page with a line each, the rest behind
+  /// More (add_rows.dart `simpleTopRows`). Read as the list opens, with the other gates.
+  final bool simple;
 }
 
 /// Where the card goes ([placeList]): its corner, its width, and how tall its scrolling rows may be (null for as
@@ -271,6 +276,7 @@ const Map<String, LucideIcon> _icons = <String, LucideIcon>{
   'note': Lucide.fileText,
   'person': Lucide.contactRound,
   'todo': Lucide.listTodo,
+  'link': Lucide.link,
   'more': Lucide.ellipsis,
   'heading': Lucide.heading,
   'bullets': Lucide.list,
@@ -431,6 +437,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       database: config.databases,
       blank: config.blanks,
       person: config.onPerson != null,
+      simple: config.simple,
       effects: config.effects,
     );
     // `/` on an empty line opens straight onto the filterable palette of everything.
@@ -524,7 +531,8 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
     return switch (_page) {
       _Page.top => of(topRows(_gates, _now, naming)),
       _Page.all => of(filterRows(allRows(_gates, _now, naming), _field.text)),
-      _Page.more => <_Shown>[const _Shown.back(), ...of(moreRows(_gates))],
+      // Simple's More holds the time row, which says the minute the list was opened at, as the first page's does.
+      _Page.more => <_Shown>[const _Shown.back(), ...of(moreRows(_gates, _now, naming))],
       _Page.board => <_Shown>[const _Shown.back(), ...of(boardRows())],
       _Page.database => <_Shown>[const _Shown.back(), ...of(databaseRows())],
       _Page.note || _Page.canvas => const <_Shown>[],
@@ -868,6 +876,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
         icon: _iconFor(shown.id, t),
         words: shown.words,
         why: row?.dimmed,
+        hint: row?.hint,
         label: row?.label,
         onward: shown.onward,
         lit: lit,
@@ -1082,6 +1091,7 @@ class _RowView extends StatefulWidget {
     required this.coarse,
     required this.onTap,
     this.why,
+    this.hint,
     this.label,
     this.onward = false,
     this.lit = false,
@@ -1093,6 +1103,10 @@ class _RowView extends StatefulWidget {
   final Widget icon;
   final String words;
   final String? why;
+
+  /// What the row makes, in a line under its words (simple's first page); the reason takes its place on a dimmed
+  /// row, since why it cannot be pressed matters more than what it would have made.
+  final String? hint;
   final String? label;
   final bool onward;
   final bool lit;
@@ -1132,8 +1146,12 @@ class _RowViewState extends State<_RowView> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: <Widget>[
                   Text(widget.words, style: words),
-                  // A choice the person made stands in the way: the row and its reason in the third ink.
-                  if (dimmed) Text(widget.why!, style: t.textAt(t.fontSize('sm'), color: ink3)),
+                  // A choice the person made stands in the way: the row and its reason in the third ink. Or, on
+                  // simple's first page, what the row makes, in the same ink and place.
+                  if (dimmed)
+                    Text(widget.why!, style: t.textAt(t.fontSize('sm'), color: ink3))
+                  else if (widget.hint != null)
+                    Text(widget.hint!, style: t.textAt(t.fontSize('sm'), color: ink3)),
                 ],
               ),
             ),
@@ -1152,7 +1170,7 @@ class _RowViewState extends State<_RowView> {
     return Semantics(
       button: true,
       enabled: !dimmed,
-      label: widget.label ?? (dimmed ? '${widget.words}, ${widget.why}' : widget.words),
+      label: widget.label ?? (dimmed ? '${widget.words}, ${widget.why}' : (widget.hint != null ? '${widget.words}, ${widget.hint}' : widget.words)),
       onTap: widget.onTap,
       excludeSemantics: true,
       child: MouseRegion(

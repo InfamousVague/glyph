@@ -41,6 +41,7 @@ import '../book/tickets.dart' show keyProblem;
 import '../core/geotag.dart';
 import '../core/location.dart' show LocateFailure;
 import '../core/look.dart';
+import '../core/preferences.dart';
 import '../core/versions_file.dart';
 import '../core/versions_record.dart';
 import '../core/workspaces.dart';
@@ -283,6 +284,7 @@ class NoteSettings extends StatefulWidget {
     this.say,
     this.around,
     this.startAtItem,
+    this.simple,
   });
 
   final String noteId;
@@ -358,6 +360,9 @@ class NoteSettings extends StatefulWidget {
   /// One of [around]'s pages to open at, by its id, from a button in the bar: Links.
   final String? startAtItem;
 
+  /// Simple mode (see the header); null asks the preferences.
+  final bool? simple;
+
   @override
   State<NoteSettings> createState() => _NoteSettingsState();
 }
@@ -395,10 +400,17 @@ class _NoteSettingsState extends State<NoteSettings> {
   /// The note's words as they were when the sheet opened: what an action's row is drawn from.
   late final String _body = widget.plugins?.editing.body() ?? '';
 
+  /// Simple's More… has been opened: the rest of the sheet shows in its place.
+  bool _more = false;
+
+  bool get _simple => widget.simple ?? preferences.value.simple;
+
   @override
   void initState() {
     super.initState();
     widget.workspaces.addListener(_changed);
+    // The mode can change under an open sheet (Settings on a Mac beside it).
+    if (widget.simple == null) preferences.addListener(_changed);
     if (widget.startAt == NoteSettingsPage.history && widget.history != null) _page = NoteSettingsPage.history;
     final item = widget.startAtItem;
     if (item != null) _item = widget.around?.items.where((each) => each.id == item && each.page != null).firstOrNull;
@@ -424,6 +436,7 @@ class _NoteSettingsState extends State<NoteSettings> {
   @override
   void dispose() {
     widget.workspaces.removeListener(_changed);
+    if (widget.simple == null) preferences.removeListener(_changed);
     super.dispose();
   }
 
@@ -591,244 +604,297 @@ class _NoteSettingsState extends State<NoteSettings> {
     final look = widget.look;
     final location = widget.location;
     final filed = widget.workspaces.workspaceOf(widget.noteId);
-    final reading = widget.onFind != null || widget.onMakeBoard != null || look != null || widget.onBookmark != null;
+    final simple = _simple;
+
+    // The mic, from the top bar: the first thing here, as it was the first thing a thumb reached there.
+    final speak = <Widget>[
+      if (widget.onSpeak != null)
+        SheetGroup(
+          children: [
+            SheetRow(
+              icon: _lucide(Lucide.mic),
+              label: widget.speakLabel,
+              onPress: () {
+                widget.onClose();
+                widget.onSpeak!();
+              },
+            ),
+          ],
+        ),
+    ];
+
+    final names = <Widget>[
+      if (name != null)
+        SheetGroup(
+          children: [
+            SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false),
+            // A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it.
+            if (journal != null)
+              if (journal.on)
+                SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Journal', hint: '${templateSentence(journal.template)}${journal.place ? ' $placeSentence' : ''}', onPress: _openJournal)
+              else
+                SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Keep it as a journal', hint: 'New pages start dated, from a template.', onPress: _openJournal),
+          ],
+        ),
+      // A notebook's ticket key, typed (`TicketKeyField`): written whenever what is typed is a key or nothing, which
+      // takes it off, and what is wrong with it said under it while it is neither.
+      if (name != null && widget.ticketKey != null) ...[
+        SheetGroup(
+          children: [
+            SheetField(
+              label: 'Ticket key',
+              value: _keyTyped,
+              placeholder: 'GHO',
+              autoCapitalize: TextCapitalization.characters,
+              autoCorrect: false,
+              onChange: (typed) {
+                final next = typed.toUpperCase();
+                setState(() => _keyTyped = next);
+                if (keyProblem(next) == null) widget.ticketKey!.onChange(next);
+              },
+            ),
+          ],
+        ),
+        SheetNote(
+          keyProblem(_keyTyped) ??
+              (_keyTyped.trim().isNotEmpty
+                  ? 'Its tickets are numbered ${_keyTyped.trim().toUpperCase()}-1, ${_keyTyped.trim().toUpperCase()}-2 and on. [[${_keyTyped.trim().toUpperCase()}-1]] links to the first.'
+                  : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
+        ),
+      ],
+    ];
+
+    // Reading it: the look and Find in both modes; the bookmark and the board are simple's "fancy", behind More….
+    final Widget? lookRow = look != null ? LookChoice(look: look) : null;
+    final Widget? bookmarkRow = widget.onBookmark == null
+        ? null
+        : SheetRow(
+            icon: _lucide(Lucide.bookmark, 2.2),
+            label: widget.marked ? 'Move or remove the bookmark' : 'Bookmark this line',
+            hint: widget.marked ? 'Moves it to the line the caret is on, or takes it off when it is already there.' : 'Marks the line the caret is on, to come back to.',
+            onPress: widget.onBookmark,
+          );
+    final Widget? findRow = widget.onFind == null ? null : SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind);
+    // A list laid out as columns, in the note's own words (docs/BOARDS.md).
+    final Widget? boardRow = widget.onMakeBoard == null ? null : SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard);
+    final readingFirst = <Widget>[?lookRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
+    final readingMore = <Widget>[if (simple) ?bookmarkRow, if (simple) ?boardRow];
+    final reading = <Widget>[if (readingFirst.isNotEmpty) ...[const SheetHeading('Reading it'), SheetGroup(children: readingFirst)]];
+    final readingRest = <Widget>[if (readingMore.isNotEmpty) ...[const SheetHeading('More ways to read it'), SheetGroup(children: readingMore)]];
+
+    // Another piece's rows: the links between notes, the outline, the line's link.
+    final around = <Widget>[
+      if (widget.around case final around? when around.items.isNotEmpty) ...[
+        SheetHeading(around.heading),
+        SheetGroup(
+          children: [
+            for (final each in around.items)
+              SheetRow(
+                key: ValueKey('around:${each.id}'),
+                icon: _lucide(each.icon, 2.1),
+                label: each.label,
+                hint: each.hint,
+                onPress: each.page != null
+                    ? () => setState(() => _item = each)
+                    : each.onPress == null
+                        ? null
+                        : () {
+                            widget.onClose();
+                            each.onPress!();
+                          },
+              ),
+          ],
+        ),
+      ],
+    ];
+
+    // Comment, near the top where a thumb is quick to it.
+    final comments = <Widget>[
+      if (widget.onComment != null) ...[
+        const SheetHeading('Comments'),
+        SheetGroup(
+          children: [
+            SheetRow(
+              icon: _lucide(Lucide.messageSquarePlus, 2.2),
+              label: 'Comment',
+              hint: 'On the words selected, or on the line the caret is on.',
+              onPress: () {
+                widget.onClose();
+                widget.onComment!();
+              },
+            ),
+            if (widget.commentsSummary != null)
+              SheetRow(
+                icon: _lucide(Lucide.messageSquare, 2.2),
+                label: widget.commentsSummary!,
+                hint: 'Read them, reply, or resolve them.',
+                onPress: () {
+                  widget.onClose();
+                  widget.onCommentsList?.call();
+                },
+              ),
+          ],
+        ),
+      ],
+    ];
+
+    final ai = <Widget>[
+      if (widget.onAi != null) ...[
+        const SheetHeading('AI'),
+        SheetGroup(
+          children: [
+            for (final kind in [...aiKinds, if (widget.blanks.count > 0) fillKind])
+              SheetRow(
+                key: ValueKey('ai:${kind.id}'),
+                icon: _lucide(kind.icon, 2.1),
+                label: kind.label,
+                hint: identical(kind, fillKind) ? fillHint(widget.blanks) : kind.hint,
+                // Pressed, with a dot at its end, while that run is on.
+                on: widget.running == kind.id,
+                onPress: () {
+                  widget.onClose();
+                  widget.onAi!(kind.id);
+                },
+              ),
+            AskField(
+              onAsk: (instruction) {
+                widget.onClose();
+                widget.onAi!('ask', instruction);
+              },
+            ),
+          ],
+        ),
+      ],
+    ];
+
+    // Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md).
+    final sharing = <Widget>[
+      if (widget.sharing != null) ...[const SheetHeading('Sharing'), SheetGroup(children: widget.sharing!)],
+      ?widget.sharingSection,
+    ];
+
+    // Where it sits: Pin and Archive in both modes; filing it, its versions and its place are simple's "fancy".
+    final pinRow = SheetRow(icon: _drawn(AppIcons.pin), label: widget.pinned ? 'Unpin' : 'Pin to the top', onPress: widget.onPin);
+    final archiveRow = SheetRow(icon: _drawn(AppIcons.archiveBox), label: 'Archive', onPress: widget.onArchive);
+    final filing = <Widget>[
+      SheetRow(
+        icon: _drawn(AppIcons.workspace),
+        label: 'Workspace',
+        hint: filed != null ? filed.name : (widget.workspaces.value.list.isNotEmpty ? 'Not in one' : 'None yet. Make one to sort your notes.'),
+        onPress: () => setState(() => _page = NoteSettingsPage.workspace),
+      ),
+      // Every version kept, to go back to (Matt: "allow versioning on personal notes by enabling it under the more menu").
+      if (history != null)
+        if (history.keeps)
+          SheetRow(
+            icon: _lucide(Lucide.history),
+            label: 'Version history',
+            hint: history.record.versionsByDefault(widget.noteId) ? 'Kept for an organization’s notes. Go back to any version.' : 'Every version kept. Go back to any of them.',
+            onPress: () => setState(() => _page = NoteSettingsPage.history),
+          )
+        else
+          SheetRow(
+            icon: _lucide(Lucide.history),
+            label: 'Keep version history',
+            hint: 'Saves a version as you write, to go back to like git. Kept beside the note as a .versions file.',
+            onPress: () {
+              history.record.setKeepsVersions(widget.noteId, true);
+              setState(() => _page = NoteSettingsPage.history);
+            },
+          ),
+      // Where it was written, last of where it sits: the tag added or taken off, and why it can't be here.
+      if (location != null)
+        if (location.tag != null)
+          SheetRow(icon: _drawn(AppIcons.locate), label: 'Remove location', hint: tagLabel(location.tag!), onPress: location.onRemove)
+        else
+          SheetRow(icon: _drawn(AppIcons.locate), label: 'Add my location', hint: locationHint(location), onPress: location.cannot == null ? location.onAdd : null),
+    ];
+    final sits = <Widget>[
+      const SheetHeading('Where it sits'),
+      SheetGroup(children: [pinRow, archiveRow, if (!simple) ...filing]),
+    ];
+    final filingRest = <Widget>[if (simple) ...[const SheetHeading('Filing it'), SheetGroup(children: filing)]];
+
+    final linkedTo = <Widget>[
+      if (widget.linked != null && widget.linked!.isNotEmpty) ...[const SheetHeading('Linked to'), SheetGroup(children: widget.linked!)],
+      if (plugins != null && (plugins.links.isNotEmpty || plugins.actionsFor(widget.noteId, _body).isNotEmpty)) ...[
+        const SheetHeading('Linked to'),
+        SheetGroup(
+          children: [
+            for (final each in plugins.links)
+              SheetRow(
+                key: ValueKey('link:${each.id}'),
+                icon: Builder(builder: (context) => each.icon(context, 18)),
+                label: each.label,
+                hint: _unavailable[each.id] ?? each.hint(widget.noteId),
+                onPress: () => setState(() => _link = each),
+                disabled: _unavailable[each.id] != null,
+              ),
+            for (final action in plugins.actionsFor(widget.noteId, _body))
+              SheetRow(
+                key: ValueKey('action:${action.id}'),
+                icon: Builder(builder: (context) => action.icon(context, 18)),
+                label: action.label,
+                hint: action.hint(widget.noteId, _body),
+                onPress: () => _runAction(action),
+                disabled: !action.enabled(widget.noteId, _body),
+              ),
+          ],
+        ),
+      ],
+    ];
+
+    final help = <Widget>[
+      if (widget.cheatSheet != null) ...[
+        const SheetHeading('Help'),
+        SheetGroup(
+          children: [
+            SheetRow(
+              icon: _lucide(Lucide.listChecks, 2.2),
+              label: 'Formatting cheat sheet',
+              hint: 'Every mark you can type, and what it looks like, on one page.',
+              onPress: () => setState(() => _page = NoteSettingsPage.cheatsheet),
+            ),
+          ],
+        ),
+      ],
+    ];
+
+    // Into the trash, from where it is brought back or deleted for good (core/trash.ts).
+    final trash = SheetGroup(
+      children: [SheetRow(icon: _drawn(AppIcons.bin), label: 'Move to Trash', onPress: widget.onDelete, danger: true)],
+    );
+
+    final List<Widget> body;
+    if (!simple) {
+      body = [...speak, ...names, ...reading, ...around, ...comments, ...ai, ...sharing, ...sits, ...linkedTo, ...help, trash];
+    } else {
+      // Simple (GHST-103): the short sheet, and the rest behind one row, opened in place and closed the same way,
+      // so the sheet never leaves the note to show what it hid. Nothing hidden, no row.
+      final rest = <Widget>[...names, ...readingRest, ...around, ...comments, ...ai, ...sharing, ...filingRest, ...linkedTo];
+      final more = <Widget>[
+        if (rest.isNotEmpty)
+          SheetGroup(
+            key: const ValueKey('note-more'),
+            children: [
+              SheetRow(
+                icon: _lucide(_more ? Lucide.chevronUp : Lucide.ellipsis, 2.2),
+                label: _more ? 'Less' : 'More…',
+                hint: _more ? 'Back to the short list.' : 'Its name, bookmarks, links, comments, the AI, sharing and filing.',
+                onPress: () => setState(() => _more = !_more),
+              ),
+            ],
+          ),
+        if (_more) ...rest,
+      ];
+      body = [...speak, ...reading, ...sits, ...more, ...help, trash];
+    }
+
     return Sheet(
       label: 'Settings for ${widget.title.isEmpty ? 'this note' : widget.title}',
       onClose: widget.onClose,
       onBack: _back,
-      children: [
-        SheetTitle.text(widget.title.isEmpty ? 'Untitled' : widget.title),
-        // The mic, from the top bar: the first thing here, as it was the first thing a thumb reached there.
-        if (widget.onSpeak != null)
-          SheetGroup(
-            children: [
-              SheetRow(
-                icon: _lucide(Lucide.mic),
-                label: widget.speakLabel,
-                onPress: () {
-                  widget.onClose();
-                  widget.onSpeak!();
-                },
-              ),
-            ],
-          ),
-        if (name != null)
-          SheetGroup(
-            children: [
-              SheetField(label: 'Name', value: name.value, onChange: name.onChange, placeholder: 'What this ${name.kind} is called', autoCorrect: false),
-              // A journal's mark, the pen an entry is written with, as the + sheet's entry row wears it.
-              if (journal != null)
-                if (journal.on)
-                  SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Journal', hint: '${templateSentence(journal.template)}${journal.place ? ' $placeSentence' : ''}', onPress: _openJournal)
-                else
-                  SheetRow(icon: _lucide(Lucide.feather, 2.2), label: 'Keep it as a journal', hint: 'New pages start dated, from a template.', onPress: _openJournal),
-            ],
-          ),
-        // A notebook's ticket key, typed (`TicketKeyField`): written whenever what is typed is a key or nothing, which
-        // takes it off, and what is wrong with it said under it while it is neither.
-        if (name != null && widget.ticketKey != null) ...[
-          SheetGroup(
-            children: [
-              SheetField(
-                label: 'Ticket key',
-                value: _keyTyped,
-                placeholder: 'GHO',
-                autoCapitalize: TextCapitalization.characters,
-                autoCorrect: false,
-                onChange: (typed) {
-                  final next = typed.toUpperCase();
-                  setState(() => _keyTyped = next);
-                  if (keyProblem(next) == null) widget.ticketKey!.onChange(next);
-                },
-              ),
-            ],
-          ),
-          SheetNote(
-            keyProblem(_keyTyped) ??
-                (_keyTyped.trim().isNotEmpty
-                    ? 'Its tickets are numbered ${_keyTyped.trim().toUpperCase()}-1, ${_keyTyped.trim().toUpperCase()}-2 and on. [[${_keyTyped.trim().toUpperCase()}-1]] links to the first.'
-                    : 'Give it a key, and New ticket numbers its tickets, like a Jira project.'),
-          ),
-        ],
-        if (reading) ...[
-          const SheetHeading('Reading it'),
-          SheetGroup(
-            children: [
-              if (look != null) LookChoice(look: look),
-              if (widget.onBookmark != null)
-                SheetRow(
-                  icon: _lucide(Lucide.bookmark, 2.2),
-                  label: widget.marked ? 'Move or remove the bookmark' : 'Bookmark this line',
-                  hint: widget.marked ? 'Moves it to the line the caret is on, or takes it off when it is already there.' : 'Marks the line the caret is on, to come back to.',
-                  onPress: widget.onBookmark,
-                ),
-              if (widget.onFind != null) SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind),
-              // A list laid out as columns, in the note's own words (docs/BOARDS.md).
-              if (widget.onMakeBoard != null) SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard),
-            ],
-          ),
-        ],
-        // Another piece's rows: the links between notes, the outline, the line's link.
-        if (widget.around case final around? when around.items.isNotEmpty) ...[
-          SheetHeading(around.heading),
-          SheetGroup(
-            children: [
-              for (final each in around.items)
-                SheetRow(
-                  key: ValueKey('around:${each.id}'),
-                  icon: _lucide(each.icon, 2.1),
-                  label: each.label,
-                  hint: each.hint,
-                  onPress: each.page != null
-                      ? () => setState(() => _item = each)
-                      : each.onPress == null
-                          ? null
-                          : () {
-                              widget.onClose();
-                              each.onPress!();
-                            },
-                ),
-            ],
-          ),
-        ],
-        // Comment, near the top where a thumb is quick to it.
-        if (widget.onComment != null) ...[
-          const SheetHeading('Comments'),
-          SheetGroup(
-            children: [
-              SheetRow(
-                icon: _lucide(Lucide.messageSquarePlus, 2.2),
-                label: 'Comment',
-                hint: 'On the words selected, or on the line the caret is on.',
-                onPress: () {
-                  widget.onClose();
-                  widget.onComment!();
-                },
-              ),
-              if (widget.commentsSummary != null)
-                SheetRow(
-                  icon: _lucide(Lucide.messageSquare, 2.2),
-                  label: widget.commentsSummary!,
-                  hint: 'Read them, reply, or resolve them.',
-                  onPress: () {
-                    widget.onClose();
-                    widget.onCommentsList?.call();
-                  },
-                ),
-            ],
-          ),
-        ],
-        if (widget.onAi != null) ...[
-          const SheetHeading('AI'),
-          SheetGroup(
-            children: [
-              for (final kind in [...aiKinds, if (widget.blanks.count > 0) fillKind])
-                SheetRow(
-                  key: ValueKey('ai:${kind.id}'),
-                  icon: _lucide(kind.icon, 2.1),
-                  label: kind.label,
-                  hint: identical(kind, fillKind) ? fillHint(widget.blanks) : kind.hint,
-                  // Pressed, with a dot at its end, while that run is on.
-                  on: widget.running == kind.id,
-                  onPress: () {
-                    widget.onClose();
-                    widget.onAi!(kind.id);
-                  },
-                ),
-              AskField(
-                onAsk: (instruction) {
-                  widget.onClose();
-                  widget.onAi!('ask', instruction);
-                },
-              ),
-            ],
-          ),
-        ],
-        // Read by anyone with its link, and nobody else (share/share.ts, docs/SHARING.md).
-        if (widget.sharing != null) ...[const SheetHeading('Sharing'), SheetGroup(children: widget.sharing!)],
-        ?widget.sharingSection,
-        const SheetHeading('Where it sits'),
-        SheetGroup(
-          children: [
-            SheetRow(icon: _drawn(AppIcons.pin), label: widget.pinned ? 'Unpin' : 'Pin to the top', onPress: widget.onPin),
-            SheetRow(icon: _drawn(AppIcons.archiveBox), label: 'Archive', onPress: widget.onArchive),
-            SheetRow(
-              icon: _drawn(AppIcons.workspace),
-              label: 'Workspace',
-              hint: filed != null ? filed.name : (widget.workspaces.value.list.isNotEmpty ? 'Not in one' : 'None yet. Make one to sort your notes.'),
-              onPress: () => setState(() => _page = NoteSettingsPage.workspace),
-            ),
-            // Every version kept, to go back to (Matt: "allow versioning on personal notes by enabling it under the more menu").
-            if (history != null)
-              if (history.keeps)
-                SheetRow(
-                  icon: _lucide(Lucide.history),
-                  label: 'Version history',
-                  hint: history.record.versionsByDefault(widget.noteId) ? 'Kept for an organization’s notes. Go back to any version.' : 'Every version kept. Go back to any of them.',
-                  onPress: () => setState(() => _page = NoteSettingsPage.history),
-                )
-              else
-                SheetRow(
-                  icon: _lucide(Lucide.history),
-                  label: 'Keep version history',
-                  hint: 'Saves a version as you write, to go back to like git. Kept beside the note as a .versions file.',
-                  onPress: () {
-                    history.record.setKeepsVersions(widget.noteId, true);
-                    setState(() => _page = NoteSettingsPage.history);
-                  },
-                ),
-            // Where it was written, last of where it sits: the tag added or taken off, and why it can't be here.
-            if (location != null)
-              if (location.tag != null)
-                SheetRow(icon: _drawn(AppIcons.locate), label: 'Remove location', hint: tagLabel(location.tag!), onPress: location.onRemove)
-              else
-                SheetRow(icon: _drawn(AppIcons.locate), label: 'Add my location', hint: locationHint(location), onPress: location.cannot == null ? location.onAdd : null),
-          ],
-        ),
-        if (widget.linked != null && widget.linked!.isNotEmpty) ...[const SheetHeading('Linked to'), SheetGroup(children: widget.linked!)],
-        if (plugins != null && (plugins.links.isNotEmpty || plugins.actionsFor(widget.noteId, _body).isNotEmpty)) ...[
-          const SheetHeading('Linked to'),
-          SheetGroup(
-            children: [
-              for (final each in plugins.links)
-                SheetRow(
-                  key: ValueKey('link:${each.id}'),
-                  icon: Builder(builder: (context) => each.icon(context, 18)),
-                  label: each.label,
-                  hint: _unavailable[each.id] ?? each.hint(widget.noteId),
-                  onPress: () => setState(() => _link = each),
-                  disabled: _unavailable[each.id] != null,
-                ),
-              for (final action in plugins.actionsFor(widget.noteId, _body))
-                SheetRow(
-                  key: ValueKey('action:${action.id}'),
-                  icon: Builder(builder: (context) => action.icon(context, 18)),
-                  label: action.label,
-                  hint: action.hint(widget.noteId, _body),
-                  onPress: () => _runAction(action),
-                  disabled: !action.enabled(widget.noteId, _body),
-                ),
-            ],
-          ),
-        ],
-        if (widget.cheatSheet != null) ...[
-          const SheetHeading('Help'),
-          SheetGroup(
-            children: [
-              SheetRow(
-                icon: _lucide(Lucide.listChecks, 2.2),
-                label: 'Formatting cheat sheet',
-                hint: 'Every mark you can type, and what it looks like, on one page.',
-                onPress: () => setState(() => _page = NoteSettingsPage.cheatsheet),
-              ),
-            ],
-          ),
-        ],
-        // Into the trash, from where it is brought back or deleted for good (core/trash.ts).
-        SheetGroup(
-          children: [SheetRow(icon: _drawn(AppIcons.bin), label: 'Move to Trash', onPress: widget.onDelete, danger: true)],
-        ),
-      ],
+      children: [SheetTitle.text(widget.title.isEmpty ? 'Untitled' : widget.title), ...body],
     );
   }
 }
