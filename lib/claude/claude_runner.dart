@@ -23,10 +23,9 @@ import 'messages_api.dart';
 /// the app's Claude too.
 const String claudeRulesTitle = 'Claude rules';
 
-/// A DEBUG BUILD'S AND A TEST'S ONLY: the API a run is given in place of Anthropic's, for a test that drives the
-/// root's own runner (test/root/claude_new_note_test.dart). Read only where `kDebugMode`, a constant false in a
-/// release, so a release always talks to the real API.
-@visibleForTesting
+/// A DEBUG BUILD'S ONLY: the API a run is given in place of Anthropic's, set by the iPhone simulator's tour for the
+/// store pictures (lib/shell/tour_claude.dart, a scripted stream over the invented library). Read only where
+/// `kDebugMode`, a constant false in a release, so a release always talks to the real API.
 ClaudeApi Function(String key)? debugClaudeApi;
 
 class ClaudeRunner extends ChangeNotifier {

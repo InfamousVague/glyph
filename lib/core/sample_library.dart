@@ -48,7 +48,7 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
         super(List.unmodifiable(notes));
 
   /// The store screenshots' library, at their moment ([seedNow]) unless [now] says another.
-  factory SampleLibrary.seeded({int? now, int Function()? clock}) => SampleLibrary(seedLibrary(now), clock: clock);
+  factory SampleLibrary.seeded({int? now, int Function()? clock}) => SampleLibrary([...seedLibrary(now), ...tourExtraNotes(now)], clock: clock);
 
   /// A fresh library: the examples the app makes for a new person.
   factory SampleLibrary.starter({int? now, int Function()? clock}) => SampleLibrary(starterNotes(now ?? DateTime.now().millisecondsSinceEpoch), clock: clock);
@@ -231,6 +231,13 @@ class SampleLibrary extends ValueNotifier<List<Note>> implements NoteLibrary {
 final int seedNow = DateTime(2026, 9, 28, 10).millisecondsSinceEpoch;
 
 /// The invented library the store screenshots are taken over (`library(now)`).
+/// A DEBUG BUILD'S ONLY: notes the iPhone simulator's tour adds to the invented library for one start, for the 2.2
+/// store pictures (lib/shell/phone_tour.dart, a script beginning `invented+`): a week with a calendar of to-dos and
+/// a launch timeline. None unless that tour asked, which a release never does (`kDebugMode`).
+List<Note> Function(int? now) tourExtraNotes = _noExtraNotes;
+
+List<Note> _noExtraNotes(int? now) => const [];
+
 List<Note> seedLibrary([int? now]) {
   final moment = now ?? seedNow;
   final today = DateTime.fromMillisecondsSinceEpoch(moment);

@@ -122,6 +122,17 @@ class ClaudeSettings extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// A DEBUG BUILD'S ONLY: [key] held in memory for this start and never written, for the store pictures' scripted
+  /// Claude (lib/shell/tour_claude.dart), which sends nothing anywhere. Never a real key. In a release it does
+  /// nothing: `kDebugMode` is a constant false there.
+  void debugStandIn(String key) {
+    if (!kDebugMode) return;
+    _key = key;
+    _loaded = true;
+    _loading = Future<void>.value();
+    notifyListeners();
+  }
+
   /// Keeps [key] (trimmed), or forgets it for null or blank.
   Future<void> setKey(String? key) async {
     final k = (key ?? '').trim();
