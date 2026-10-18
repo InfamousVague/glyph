@@ -55,7 +55,8 @@ class _ClaudeVoiceSheetState extends State<ClaudeVoiceSheet> {
       onBack: _voice.cancel,
       child: ListenableBuilder(
         listenable: _voice,
-        builder: (context, _) => _voice.madeWay ? _strip(context) : _sheet(context),
+        // Found by `claude-voice` either way; each its own below it, so neither is made from the other.
+        builder: (context, _) => KeyedSubtree(key: const ValueKey('claude-voice'), child: _voice.madeWay ? _strip(context) : _sheet(context)),
       ),
     );
   }
@@ -94,7 +95,7 @@ class _ClaudeVoiceSheetState extends State<ClaudeVoiceSheet> {
       ),
     );
     return Semantics(
-      key: const ValueKey('claude-voice'),
+      key: const ValueKey('claude-voice-sheet'),
       scopesRoute: true,
       explicitChildNodes: true,
       label: 'Talk to Claude',
@@ -305,8 +306,9 @@ class _ClaudeVoiceSheetState extends State<ClaudeVoiceSheet> {
       ),
     );
     return Semantics(
-      key: const ValueKey('claude-voice'),
+      key: const ValueKey('claude-voice-strip'),
       container: true,
+      explicitChildNodes: true,
       label: 'Talk to Claude',
       child: SafeArea(
         bottom: false,
