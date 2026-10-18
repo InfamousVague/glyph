@@ -41,10 +41,14 @@ const int mostRings = 9;
 const Cubic _ringEase = Cubic(0.2, 0.6, 0.35, 1);
 
 class VoiceWaves extends StatefulWidget {
-  const VoiceWaves({super.key, required this.anchor});
+  const VoiceWaves({super.key, required this.anchor, this.color});
 
   /// The mic in the recorder's top line: the rings rise from its centre.
   final GlobalKey anchor;
+
+  /// The rings' ink: the page's faintest unless given. Talking to Claude (lib/claude/claude_voice_sheet.dart) sends
+  /// them out in Claude's orange, from the mic it is heard by.
+  final Color? color;
 
   @override
   State<VoiceWaves> createState() => _VoiceWavesState();
@@ -165,7 +169,7 @@ class _VoiceWavesState extends State<VoiceWaves> with SingleTickerProviderStateM
               return CustomPaint(
                 key: const Key('voice-waves-rings'),
                 size: Size(width, height),
-                painter: VoiceRingsPainter(rings: _rings, now: _now, at: _at, reach: reach, color: t.color('app-ink-3'), still: t.reducedMotion),
+                painter: VoiceRingsPainter(rings: _rings, now: _now, at: _at, reach: reach, color: widget.color ?? t.color('app-ink-3'), still: t.reducedMotion),
               );
             },
           ),

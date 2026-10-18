@@ -186,6 +186,7 @@ class HomeScreen extends StatefulWidget {
     this.onSaveSearch,
     this.events,
     this.claude,
+    this.claudeTalk,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -218,6 +219,11 @@ class HomeScreen extends StatefulWidget {
   /// Claude at the head of the dock (lib/claude/claude_dock.dart): Ask Claude, and Claude at work or online. It
   /// hears what it shows for itself; absent, the dock has no Claude.
   final Widget? claude;
+
+  /// Talk to Claude, under Claude on the dock (lib/claude/claude_dock.dart `ClaudeTalkButton`): Claude's orange mic,
+  /// an ask said aloud. Not Speak, which records a voice note and stays the dock's one ink-filled ring. Absent where
+  /// Claude is off or nothing can hear.
+  final Widget? claudeTalk;
 
   /// Every note, as a grid of cards.
   final VoidCallback onAllNotes;
@@ -632,8 +638,8 @@ class _HomeScreenState extends State<HomeScreen> {
     // the keyboard up, the page goes down under the keys by the bar's height ([_AboveKeyboard]), so the dock rides
     // the higher of the two and never has to leap when the keyboard is gone.
     final safeBottom = t.len('app-safe-bottom');
-    // Four rings as it was, and the fifth, Settings, where it is given.
-    final rings = widget.onSettings != null ? 5 : 4;
+    // Four rings as it was, the fifth, Settings, where it is given, and Talk to Claude where it is.
+    final rings = (widget.onSettings != null ? 5 : 4) + (widget.claudeTalk != null ? 1 : 0);
     final foot = safeBottom + t.space(4) + ring * rings + t.space(2) * (rings + 1) + t.space(6);
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
 
@@ -955,6 +961,7 @@ class _HomeScreenState extends State<HomeScreen> {
         // What the home page's dock has always been called to a screen reader.
         label: 'New note',
         claude: widget.claude,
+        talk: widget.claudeTalk,
         actions: [
           // The magnifier leans in when pressed, rather than turning.
           if (widget.onSearch != null) DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),

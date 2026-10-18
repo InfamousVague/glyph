@@ -3,7 +3,8 @@
 ///
 /// It is the home page's dock made once: a floating column of rings in a pill of glass, at the bottom end corner of
 /// the page it is on, in from the edges by the page's safe areas and a step, with the smoke's halo round it where the
-/// app hands one in. Claude is always at its head (lib/claude/claude_dock.dart), what the page is for in the middle,
+/// app hands one in. Claude is always at its head (lib/claude/claude_dock.dart), with Talk to Claude under it where
+/// the build can hear (the orange mic, lib/claude/claude_voice.dart), what the page is for in the middle,
 /// and a settings-type ring always at its foot: the app's Settings on a page of notes, the note's ⋯ on a note, the
 /// organization's cog on its page.
 ///
@@ -82,10 +83,13 @@ class DockAction {
 /// The pill: Claude at the head, the page's rings, and [foot] last. A port of the home page's `.dock`, which it was
 /// written from and still draws (lib/home/home_screen.dart).
 class PageDock extends StatelessWidget {
-  const PageDock({super.key, this.claude, this.actions = const <DockAction>[], this.foot, this.label = 'Page actions', this.claudeTip = 'Ask Claude'});
+  const PageDock({super.key, this.claude, this.talk, this.actions = const <DockAction>[], this.foot, this.label = 'Page actions', this.claudeTip = 'Ask Claude'});
 
   /// Claude's ring (lib/claude/claude_dock.dart), drawn by itself: it hears what it shows.
   final Widget? claude;
+
+  /// Talk to Claude, under Claude's ring (lib/claude/claude_dock.dart `ClaudeTalkButton`).
+  final Widget? talk;
   final List<DockAction> actions;
 
   /// The settings-type ring at the foot.
@@ -98,7 +102,7 @@ class PageDock extends StatelessWidget {
   final String claudeTip;
 
   /// How many rings it draws.
-  int get count => (claude != null ? 1 : 0) + actions.length + (foot != null ? 1 : 0);
+  int get count => (claude != null ? 1 : 0) + (talk != null ? 1 : 0) + actions.length + (foot != null ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
@@ -107,6 +111,7 @@ class PageDock extends StatelessWidget {
     final radius = BorderRadius.circular(t.radius('full'));
     final rings = <Widget>[
       if (claude != null) DockTip(message: claudeTip, child: claude!),
+      if (talk != null) DockTip(message: 'Talk to Claude', child: talk!),
       for (final action in actions) DockRing(key: ValueKey('dock-${action.id}'), action: action),
       if (foot != null) DockRing(key: ValueKey('dock-${foot!.id}'), action: foot!),
     ];
@@ -335,9 +340,13 @@ typedef DockClaudeBuilder = Widget Function(String Function()? subject);
 /// What the app hands a page for its dock. Every part is optional: a page handed none draws no dock.
 @immutable
 class PageDockSeam {
-  const PageDockSeam({this.claude, this.halo, this.actions = const <DockAction>[], this.foot});
+  const PageDockSeam({this.claude, this.talk, this.halo, this.actions = const <DockAction>[], this.foot});
 
   final DockClaudeBuilder? claude;
+
+  /// Talk to Claude for a page, given what the page is about, as [claude] is; none where the Claude plugin is off or
+  /// the build cannot hear.
+  final DockClaudeBuilder? talk;
   final DockHaloBuilder? halo;
 
   /// The app's own rings for a page of notes (Search, New note, Speak), and its Settings at the foot. A page with
@@ -346,7 +355,7 @@ class PageDockSeam {
   final DockAction? foot;
 
   /// How many rings a page of notes draws from it: Claude, the app's own, the foot.
-  int get rings => (claude != null ? 1 : 0) + actions.length + (foot != null ? 1 : 0);
+  int get rings => (claude != null ? 1 : 0) + (talk != null ? 1 : 0) + actions.length + (foot != null ? 1 : 0);
 }
 
 /// What covers the window's end edge now, in pixels: the chat with Claude as a panel down the right of a wide window
@@ -447,6 +456,7 @@ class _PageDockFrameState extends State<PageDockFrame> {
     final bottom = math.max(keyboard, safe) + t.space(4);
     final dock = PageDock(
       claude: seam.claude?.call(widget.subject),
+      talk: seam.talk?.call(widget.subject),
       actions: widget.actions ?? seam.actions,
       foot: widget.foot ?? seam.foot,
       label: widget.label,
