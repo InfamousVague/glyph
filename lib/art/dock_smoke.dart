@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show ValueListenable;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -279,10 +280,14 @@ void paintDockBackdrop(Canvas canvas, {required Rect at, required Rect halo, req
 /// Nothing is drawn while [dock] is null, or smaller than a pill: until a dock is measured the page's halo keeps a
 /// plain feather, which nobody sees for longer than a frame and is not drawn here.
 class DockHalo extends StatefulWidget {
-  const DockHalo({super.key, required this.dock, required this.child});
+  const DockHalo({super.key, required this.dock, this.reach = dockSmokeReach, required this.child});
 
   /// The dock's own box, in [child]'s.
   final Rect? dock;
+
+  /// How far past the dock the smoke reaches: [dockSmokeReach], less while the dock is drawn smaller as the page
+  /// scrolls (lib/shell/page_dock.dart `DockShrink`), so the halo is the dock's at every size.
+  final double reach;
   final Widget child;
 
   @override
@@ -332,12 +337,13 @@ class _DockHaloState extends State<DockHalo> {
     if (dock != null && dock.width >= 2 && dock.height >= 2 && !WispProbe.has('nodock') && !ghostPlain) {
       final tokens = GlacierTheme.maybeOf(context);
       strips.add(DockHaloStrip(
-        rect: dock.inflate(dockSmokeReach),
+        rect: dock.inflate(widget.reach),
         ground: tokens?.color('glacier-bg') ?? const Color(0xFF000000),
         bends: dockBends() && !MediaQuery.of(context).disableAnimations,
         frequency: _frequency,
         slide: _slide,
         tile: dockSmokeTileNow(),
+        reach48: widget.reach,
       ));
     }
     return WispStrips(strips: strips, repaint: _ready, child: widget.child);
@@ -348,14 +354,19 @@ class _DockHaloState extends State<DockHalo> {
 /// over it at [alignment] inside [padding], and the halo is drawn round wherever that puts it. The home page's
 /// dock, with its scroller; and every page's (lib/shell/page_dock.dart), with the page. While [shown] is false (the
 /// dock stepped aside for the keyboard) there is no halo, and [behind] is drawn as it is.
+///
+/// Where [scale] is given, the dock is drawn that much of the box it was laid out in, held to its corner at
+/// [alignment] (smaller while the page scrolls, lib/shell/page_dock.dart `DockShrink`): the halo is drawn round the
+/// dock as it is drawn, its reach that much of its own, and it alone is built again as the scale moves.
 class DockSmoke extends StatefulWidget {
-  const DockSmoke({super.key, required this.behind, required this.dock, this.alignment = Alignment.bottomCenter, this.padding = EdgeInsets.zero, this.shown = true});
+  const DockSmoke({super.key, required this.behind, required this.dock, this.alignment = Alignment.bottomCenter, this.padding = EdgeInsets.zero, this.shown = true, this.scale});
 
   final Widget behind;
   final Widget dock;
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry padding;
   final bool shown;
+  final ValueListenable<double>? scale;
 
   @override
   State<DockSmoke> createState() => _DockSmokeState();
@@ -364,6 +375,40 @@ class DockSmoke extends StatefulWidget {
 class _DockSmokeState extends State<DockSmoke> {
   final GlobalKey _dock = GlobalKey();
   Rect? _rect;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.scale?.addListener(_scaled);
+  }
+
+  @override
+  void didUpdateWidget(DockSmoke old) {
+    super.didUpdateWidget(old);
+    if (!identical(old.scale, widget.scale)) {
+      old.scale?.removeListener(_scaled);
+      widget.scale?.addListener(_scaled);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.scale?.removeListener(_scaled);
+    super.dispose();
+  }
+
+  void _scaled() {
+    if (mounted) setState(() {});
+  }
+
+  /// The dock's box as it is drawn: [_rect], scaled about its corner at the alignment.
+  Rect? _drawn(double scale) {
+    final rect = _rect;
+    if (rect == null || scale == 1) return rect;
+    final corner = widget.alignment.resolve(Directionality.maybeOf(context) ?? TextDirection.ltr).withinRect(rect);
+    Offset at(Offset p) => corner + (p - corner) * scale;
+    return Rect.fromPoints(at(rect.topLeft), at(rect.bottomRight));
+  }
 
   /// Where the dock was laid, read once the frame that laid it is done: its size is the dock's own (two buttons or
   /// four, a phone or the Fold), so it is measured, as the page measures the halo.
@@ -381,10 +426,11 @@ class _DockSmokeState extends State<DockSmoke> {
   @override
   Widget build(BuildContext context) {
     _measure();
+    final scale = widget.scale?.value ?? 1;
     return Stack(
       fit: StackFit.expand,
       children: [
-        DockHalo(dock: widget.shown ? _rect : null, child: widget.behind),
+        DockHalo(dock: widget.shown ? _drawn(scale) : null, reach: dockSmokeReach * scale, child: widget.behind),
         Padding(
           padding: widget.padding,
           child: Align(

@@ -22,6 +22,17 @@ Flutter app only; the web app and the Tauri app have the home page's dock alone 
   where the page has one: Settings on a page of notes, the ⋯ on a note, the cog on an organization's page.
 - **How it moves.** Search's magnifier leans in when pressed, a + gives a quarter turn, Speak's ink pill dips, the rest
   are still. Under reduced motion nothing turns and the dock comes and goes at once.
+- **While the page scrolls.** Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller". While
+  the person scrolls the page up or down (a thumb, a trackpad, a wheel) the whole dock, its rings, their gaps, the
+  pill and the halo round it, grows smaller to two thirds of itself (`dockScrolledScale`), held to its bottom end
+  corner, in `--glacier-duration-fast`; once the page has been still for a third of a second (`dockSettle`, so it
+  does not pulse between one fling and the next) it grows back in `--glacier-duration-normal`, both
+  `--glacier-ease-out`, and at once under reduced motion. Only the page's own scroll: a carousel across the page, a
+  code block's or a table's own scroller and a search's field leave it as it is, and so does the page moved by the
+  app rather than the person (a glide back to the top, a jump to where it was left). It is a transform, so a ring is
+  pressed where it is drawn, small or not, and Claude's turning and the rings' own motions go on inside it; the room
+  each page keeps at its foot is the room for the dock at rest, and the keyboard's step aside and ride are as they
+  were (`DockShrink`).
 - **The keyboard.** On a note (any kind: words, a canvas, a notebook, a journal) the dock steps aside while the
   keyboard is up, so it never stands over the caret: it fades out, takes no presses and is not read, and the halo goes
   with it; it comes back as the keyboard goes. On the other pages it rides over the keyboard, as the home page's
@@ -70,9 +81,10 @@ the home page does, with the field empty: an organization and Settings have no `
 | Add at the caret's line | lib/root/note_desk.dart (`_openAdd`, `NoteSeams.onAdd`) |
 | What a canvas, a notebook and a journal offer | lib/canvas/canvas_view.dart, lib/book/book_view.dart, lib/book/journal_view.dart (`DockOffer`) |
 | The halo while the dock is aside | lib/art/dock_smoke.dart (`DockSmoke.shown`) |
+| The dock smaller while the page scrolls, and its halo with it | lib/shell/page_dock.dart (`DockShrink`, `dockHearsScroll`), lib/art/dock_smoke.dart (`DockSmoke.scale`, `DockHalo.reach`), lib/home/home_screen.dart (`_screen`) |
 | The root's seams: Claude about a page, the halo, a page of notes' rings | lib/root/root_parts.dart (`_notesDock`, `_pageDock`), lib/root/root_claude.dart (`_claudeDockAbout`) |
 | The chat's field and its cover of the window's end | lib/claude/claude_chat.dart (`initial`, `windowEndCover`) |
-| Tests | test/shell/page_dock_test.dart (the pill, the tip, the offers, home, All notes, the collections, Settings), test/note/note_dock_test.dart (a note's words, a canvas, a notebook, a journal, the keyboard), test/orgs_ui/organization_dock_test.dart, test/root/wiring_test.dart ("puts the dock on every page") |
+| Tests | test/shell/page_dock_test.dart (the pill, the tip, the offers, home, All notes, the collections, Settings), test/note/note_dock_test.dart (a note's words, a canvas, a notebook, a journal, the keyboard), test/orgs_ui/organization_dock_test.dart, test/root/wiring_test.dart ("puts the dock on every page"), test/shell/dock_scroll_test.dart (smaller while the page scrolls) |
 
 A page is handed a `PageDockSeam` (Claude, the halo, and for a page of notes its rings and Settings) and draws its dock
 with a `PageDockFrame` round what scrolls. A view inside a note offers its rings with a `DockOffer`, which the note's

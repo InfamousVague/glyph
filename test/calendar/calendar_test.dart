@@ -178,6 +178,50 @@ void main() {
       calendar.dispose();
     });
 
+    test('to-dos follow the notes within moments: one added, moved, ticked; nothing asked of Google when nothing changed', () async {
+      // Matt, 2026-10-17: "so all of these events show up on my personal calendar in real time and are removed when
+      // removed". The wait is [todosSoon] in the app.
+      final calendar = CalendarService(fetch: fetch, prefs: prefs, kept: () => kept, googleBase: () => fakeBase, clock: () => now, open: (url) async => opened.add(url), todosWait: const Duration(milliseconds: 10));
+      await calendar.connectGoogle();
+      await calendar.collectGoogle();
+      await calendar.collectGoogle();
+      var body = '- [ ] Buy milk 📅 2026-10-20\n';
+      final changed = ValueNotifier(0);
+      calendar.start(notes: () => [QueryNote(id: 'plans', body: body, createdAt: 0, updatedAt: 0)], notesChanged: changed);
+      await calendar.syncGoogle();
+      calendar.setTodos(true);
+      await calendar.syncGoogle();
+      // The switch is a settings change, which reads Google whole 300 ms on: let that pass be the one before the
+      // edits (a timer due later fires later), so what is counted below is the to-dos' own.
+      await Future<void>.delayed(const Duration(milliseconds: 350));
+      await calendar.syncGoogle();
+      List<String> live() => [
+            for (final event in google.events['me@example.com']!.values)
+              if (event['status'] != 'cancelled') '${event['summary']} ${(event['start'] as Map)['date']}',
+          ];
+      Future<void> edit(String next) async {
+        body = next;
+        changed.value++;
+        await Future<void>.delayed(const Duration(milliseconds: 60));
+        await calendar.exportTodosNow();
+      }
+
+      expect(live(), ['Buy milk 2026-10-20']);
+      await edit('- [ ] Buy milk 📅 2026-10-20\n- [ ] Pack the hospital bag 📅 2026-11-02\n');
+      expect(live(), unorderedEquals(['Buy milk 2026-10-20', 'Pack the hospital bag 2026-11-02']));
+      await edit('- [ ] Buy milk 📅 2026-10-22\n- [ ] Pack the hospital bag 📅 2026-11-02\n');
+      expect(live(), unorderedEquals(['Buy milk 2026-10-22', 'Pack the hospital bag 2026-11-02']));
+      await edit('- [ ] Buy milk 📅 2026-10-22\n- [x] Pack the hospital bag 📅 2026-11-02\n');
+      expect(live(), ['Buy milk 2026-10-22']);
+      await edit('');
+      expect(live(), isEmpty, reason: 'a to-do taken out of the note is taken off the calendar');
+      final asked = google.calls.length;
+      await edit('');
+      expect(google.calls.length, asked, reason: 'the same to-dos are not put there again');
+      calendar.dispose();
+      changed.dispose();
+    });
+
     test('a ticked calendar is read, and one unticked forgotten', () async {
       google.events['team@group.calendar.google.com']!['t'] = {'id': 't', 'summary': 'Offsite', 'start': {'date': '2026-10-22'}, 'end': {'date': '2026-10-23'}};
       final calendar = await connected();

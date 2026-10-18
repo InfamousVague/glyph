@@ -25,7 +25,7 @@
 /// - The smoke is not drawn here. The wisp under the header and at the foot (`art/wispEdge.ts`) and the halo round
 ///   the dock (`art/dockSmoke.ts`) are two seams, [headerEdge] and [dockHalo], shaped for `lib/art`'s widgets:
 ///   `headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller)` and
-///   `dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding)`.
+///   `dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, scale: it.scale)`.
 /// - The ghosts of the empty pages (`art/Ghost.tsx`) are a third seam, [ghost]; without it the words stand alone.
 /// - Another workspace, filter or layout glides the page back to its top, as on the web, but from wherever the new,
 ///   shorter page left it: the web first gives the page room at its foot to hold its place (`core/glideToTop.ts`).
@@ -106,7 +106,7 @@ typedef HomeEdgeBuilder = Widget Function(BuildContext context, HomeEdge edge, W
 /// dock, so it is handed both, with where the dock stands.
 @immutable
 class HomeDock {
-  const HomeDock({required this.behind, required this.dock, required this.alignment, required this.padding});
+  const HomeDock({required this.behind, required this.dock, required this.alignment, required this.padding, this.scale});
 
   /// What scrolls behind the dock: the page's scroller, the whole of the screen's box.
   final Widget behind;
@@ -117,6 +117,10 @@ class HomeDock {
   /// Where the dock stands in the screen's box: its bottom end corner, in from the edges by [padding].
   final AlignmentGeometry alignment;
   final EdgeInsetsGeometry padding;
+
+  /// How large the dock is drawn now, of its own size, held to its corner at [alignment]: two thirds while the page
+  /// scrolls (lib/shell/page_dock.dart `DockShrink`), for the halo to be drawn round it as it is.
+  final ValueListenable<double>? scale;
 }
 
 /// The halo round the dock: given the dock and what is behind it, answers the two laid together with the halo
@@ -982,12 +986,19 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Stack(
           children: [
             Positioned.fill(
-              child: halo != null
-                  ? halo(context, dock)
-                  : Stack(
-                      fit: StackFit.expand,
-                      children: [dock.behind, Padding(padding: dock.padding, child: Align(alignment: dock.alignment, child: dock.dock))],
-                    ),
+              // The dock two thirds of itself while the page scrolls, as every page's (lib/shell/page_dock.dart
+              // `DockShrink`): built with the page, once, and only its scale (and the halo) moves after.
+              child: DockShrink(
+                builder: (context, shrink) {
+                  final it = HomeDock(behind: shrink.page(dock.behind), dock: shrink.dock(dock.dock, alignment: dock.alignment), alignment: dock.alignment, padding: dock.padding, scale: shrink.scale);
+                  return halo != null
+                      ? halo(context, it)
+                      : Stack(
+                          fit: StackFit.expand,
+                          children: [it.behind, Padding(padding: it.padding, child: Align(alignment: it.alignment, child: it.dock))],
+                        );
+                },
+              ),
             ),
             // The top bar: no word at all, only the pane the app's tab bar sits on, at exactly the bar's height.
             const HeaderPane(child: _SaidOnly('Home')),
