@@ -598,3 +598,104 @@ and Today opened the palette and today's entry; the tile opened a new note. Inex
   share sheet kept under `<data>/attachments/` before are moved in at the next start (`FilesKit.takeInSharedFiles`).
 - A shared page (a share's reader) carries no files: a file's card there says it is not on this device.
 - The PDF viewer shows one page at a time (swiped), not a continuous scroll; text selection in a PDF is not offered.
+
+## simple-mode: simple or advanced, for a new person (GHST-103, branch `feat/simple-mode`, 2026-10-18)
+
+Matt, 2026-10-17: "right now the app can be quite intense and cumbersome to new users during onboarding allow
+selecting between simple and advanced mode where simple mode has a much more approachable UI with fancy features
+hidden behind more and work on making formatting and stuff easier to understand". His decisions (2026-10-18): new
+installs choose on a walkthrough page, installs from before see a one-time card on home; Simple gets a small Format
+bar in the editor (a deliberate exception to STAGE4's "no toolbar"); a simple install starts with the sample note
+alone; the mode syncs across devices.
+
+### The choice
+
+**Where:** `lib/core/preferences.dart` (`experience`: `simple` | `advanced`, `experienceChosen`, `simple`,
+`choosing(mode)`; `experienceIds`); `lib/sync/prefs.dart` (both keys travel); `lib/guide/pages/mode.dart` and
+`lib/guide/pages.dart` (the walkthrough's "How much of it?" page after the theme, Simple lit before anything is
+tapped; `walkthroughPagesFor` drops the model page for Simple as it does for an iPhone); `lib/notes/notices.dart`
+`ExperienceCard` and `lib/root/root_parts.dart` `_asksExperience` (home's one-time card: the guide was seen, nothing
+chosen, here or on another device); `lib/settings/panes/experience_pane.dart` and `settings_sections.dart`
+(Settings › Simple or advanced, its own card above Account, two choice cards and "Nothing is lost: switch back any
+time."). Choosing Simple also sets `noteView: 'formatted'`: the marks are what a new person finds hard to read, and
+the note's view switch brings them back.
+
+- Unchosen reads as advanced, so every install from before the choice is the whole app, as it was; a stored mode this
+  build does not know reads as advanced too.
+- Starters (`lib/core/sample_library.dart` `starterNotes(now, examples:)`, `starterExamples`; `ghost_root.dart`
+  `_settleStarterExamples`, flag `glyph-starter-examples`): a fresh library gets the sample note; the three tickets,
+  their notebook, the board and the journal arrive once when Advanced is chosen, and only into a library that still
+  holds nothing but the sample. An install from before had them all and is marked as such at its next start.
+
+### What Simple shows
+
+**Where:** `lib/root/root_parts.dart` is the one place that reads `preferences.value.simple` for the shell and hands
+each surface what to show (a null callback leaves a control out, the files' own convention); the parts' seams include
+it, so switching rebuilds them on the next frame. Settings reads `SettingsFacts.simple`; the band, the More sheet,
+the cheat sheet and the template cards read the store themselves when not told.
+
+- **Docks** (`lib/home/home_screen.dart`, `_notesDock`; docs/DOCK.md "Simple mode"): Search, Write a note, Speak
+  (where recording exists), Settings. No Claude, no Talk to Claude.
+- **Top bar** (`lib/shell/app_shell.dart` `AppShell.simple`, `lib/notes/note_tabs.dart`): Home, sidebar, Back, the
+  screen's tools, Settings. No People, Bell, Forward or side panel. **Tabs** (`tabs/tab_parts.dart`): no group
+  actions; a group made in Advanced keeps Rename, Ungroup and Close group.
+- **Sidebar** (`lib/notes/note_tree.dart`, `notes_drawer.dart`): New note, Search and commands, Open/Fold every
+  folder (with folders), Close; no New workspace, names-only, Browse files, Tags row, Smart notebooks or Graph. Folders
+  the person already has, Archive and Trash stay.
+- **The + sheet** (`lib/notes/new_sheet.dart`): Note, then "More…" which opens in place to Today, Entry, Canvas,
+  Notebook, Meeting, From a shared link.
+- **Palette** (`lib/commands/palette.dart` `PaletteWorld.simple`): keeps New note, Speak, Home, All notes, Today's
+  note, tabs, Back, Open {note}, Theme, Settings, Cheat sheet, Academy, the walkthrough and the note's own basics;
+  drops notebooks/journals/entries, the graph, links, Ask Claude, Tags, smart notebooks, workspaces, tab groups,
+  Notifications, Organizations.
+- **Home filters and All notes** (`lib/home/home_filters.dart`, `home_screen.dart`, `all_notes_screen.dart`): the
+  Show radios only; no workspace radios, operator chips, Save as a smart notebook, organization cards, today's events
+  or workspace pills. The home page's Academy card (`AcademyCard`, `lib/academy/banner.dart` `academyBannerDue`,
+  stamped under `glyph-academy-banner-since`, seven days) invites the Academy for the first week.
+- **Settings** (`settings_sections.dart` `simpleSections`): Simple or advanced, Account, Notifications, Appearance,
+  About (with the cheat sheet), plus Developer and Test results when developer mode is on. Organizations,
+  Workspaces, Daily notes, Library folder, Backup, Export, Import, Recording, AI, Plugins and every plugin's page,
+  Specification and Examples wait behind Advanced (`_advanced` on `where`), and search finds nothing of them.
+  Appearance (`appearance_pane.dart`) is Page and Text size with "More looks are in Advanced." linking to the choice.
+- **The note's +** (`lib/editor/plus/add_rows.dart`, `add_list.dart`): A picture, A to-do, A heading, A bulleted
+  list, A numbered list, A quote, A table, A link (new, `[text](url)` with "text" selected), A divider, each with a
+  plain hint under it, then More with everything else in today's order; the slash list is basics first.
+- **The More sheet** (`lib/note/note_settings.dart` `NoteSettings.simple`): Speak; Reading it (Look, Find and
+  replace); Where it sits (Pin, Archive); "More…" which opens in place to the name, bookmarks, Make a board, links,
+  comments, the AI, sharing and filing; Help; Move to Trash.
+- **A blank note** (`lib/notes/template_cards.dart`): the placeholder and the name chips; no template cards.
+
+### Formatting, easier to understand
+
+**Where:** `lib/note/format_bar.dart` (`FormatBar`: Bold, Italic, Heading, List, To-do, Link, sharing the Style
+page's `toggleMark`/`toggleBlock`/`insertLink` through `formatBarTools()` in `lib/editor/band/style_items.dart`);
+`lib/note/note_screen.dart` (mounted: on Android a 44pt strip on the keyboard's top, the page a column above it; on
+an iPhone the six at the start of the Done bar, `lib/app/iphone_page.dart` `KeyboardBarOffers`; on a wide window
+with the keyboard down a glass pill in the dock's hand, beside the dock, with hover tips); `lib/editor/band/
+context_band.dart` (`ContextBand.simple`: Style first in the press-and-hold row, before Cut and Copy);
+`style_items.dart` and `menu_band.dart` (a hint under every Style item in Simple, "Strong words", "A slant", "A
+title for a section", "Bullets", "Steps in order", "A box to tick"…; in Advanced the same words go to screen readers
+and desktop hover tips, since `band_reference_test.dart` holds the page to the web's measured geometry; the
+decorative plugin marks sit behind a More item in Simple); `lib/settings/panes/cheat_sheet.dart` ("The basics"
+first in both modes, a dozen marks with a plain line each from `basicsPlain`; in Simple the rest behind an
+"Everything else" disclosure the search looks past). docs/STAGE4.md "Simple mode's Format bar (2026-10-18)".
+
+### Tests
+
+`test/core/preferences_test.dart`, `test/core/sample_library_test.dart`, `test/guide/pages_test.dart` (and the
+guide's goldens taken again for the fifth dot; `measure_test.dart` holds the web's four dots where they still agree),
+`test/settings/experience_pane_test.dart`, `test/root/simple_test.dart` (switching live, both ways),
+`test/shell/simple_bar_test.dart`, `test/sidebar/simple_tree_test.dart`, `test/allnotes/new_sheet_simple_test.dart`,
+`test/home/simple_home_test.dart`, `test/commands/palette_simple_test.dart`, `test/editor/band/format_bar_test.dart`,
+`test/note/note_format_bar_test.dart`, `test/editor/band/context_band_test.dart`, `test/editor/plus/*`,
+`test/settings/panes/pages_test.dart`, `test/allnotes/template_cards_test.dart`, `test/academy/banner_test.dart`.
+
+### Not done
+
+- The Settings' deep links into a gated section while Simple (home's "Get a model" → `ai`) open nothing; the card
+  that offers them is not shown in Simple, so nothing reaches it today.
+- Dragging a tab onto an existing group's tabs still joins it in Simple (no new groups can be made).
+- The desktop Format pill does not shrink with the dock on scroll.
+- The note's, an organization's and Settings' own docks keep Claude in Simple (`_pageDock`); home's and All notes'
+  do not.
+- The Academy's "I know Markdown already" switch and the mode are not tied together.
