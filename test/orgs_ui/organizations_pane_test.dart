@@ -182,11 +182,12 @@ void main() {
       await device.pump(tester, SettingsSheet(open: true, onClose: () {}, split: false), scroll: false);
       await settle(tester, 12);
       final summaries = [for (final text in tester.widgetList<Text>(find.byKey(const ValueKey('settings-row-summary')))) text.data];
-      expect(summaries.take(2), ['matt', '1 joined']);
+      // Past the first row, Simple or advanced's (2026-10-18): Account's and Organizations' lines.
+      expect(summaries.skip(1).take(2), ['matt', '1 joined']);
       await device.services.signOut();
       await settle(tester, 12);
       final after = [for (final text in tester.widgetList<Text>(find.byKey(const ValueKey('settings-row-summary')))) text.data];
-      expect(after.take(2), ['Not signed in', 'Signed out']);
+      expect(after.skip(1).take(2), ['Not signed in', 'Signed out']);
       await endSettings(tester);
     });
 
@@ -194,7 +195,7 @@ void main() {
       await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}, split: false));
       await settle(tester, 12);
       final summaries = [for (final text in tester.widgetList<Text>(find.byKey(const ValueKey('settings-row-summary')))) text.data];
-      expect(summaries.take(2), ['Not signed in', 'Signed out']);
+      expect(summaries.skip(1).take(2), ['Not signed in', 'Signed out']);
       await endSettings(tester);
     });
 

@@ -6,6 +6,7 @@ import 'accent_swatch.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
+import 'panes/settings_host.dart' show SettingsHost;
 import 'scale_cards.dart';
 import 'settings_screen.dart' show settingsSplitFits;
 import 'settings_search.dart';
@@ -20,9 +21,19 @@ import '../core/iphone_app.dart' show recordsVoice;
 /// page's words are its card's now, so looking for "type" or "animations" still lands.
 ///
 /// Two rows are drawn only where they do something, and listed only there: the sidebar's choice on a window wide
-/// enough for the sidebar, and the haptics where there is a motor.
-List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics}) => [
+/// enough for the sidebar, and the haptics where there is a motor. In Simple ([Preferences.simple]) the page is the
+/// theme and the text size and nothing else, so that is all the search finds on it: "accent" typed in Simple finds
+/// nothing, rather than a card that is not there.
+List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics, bool simple = false}) => [
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
+      if (simple) ...[
+        const SettingsFindable('Type', 'text font'),
+        const SettingsFindable('Text size', 'font bigger smaller larger'),
+      ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
+    ];
+
+/// What Advanced's page has after the theme: everything.
+List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required bool haptics}) => [
       const SettingsFindable('Home page', 'dashboard layout home cards list timeline spotlight grid'),
       const SettingsFindable('Top bar', 'header toolbar tabs bar ledger strip masthead islands thumb classic capsules'),
       const SettingsFindable('Accent', 'colour color highlight'),
@@ -56,6 +67,10 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// Every control writes the app's preferences ([store], the app's own unless a test brings one), and the app's theme
 /// is built from them, so each choice is seen at once. The sidebar's choice is drawn only on a window wide enough
 /// for the sidebar, and Touch only where there is a motor.
+///
+/// In Simple (GHST-103; Matt, 2026-10-18) the page is the theme cards and the text size alone, with one line under
+/// them saying where the rest is: a new person asked for less, and twelve cards of looks are the most of Settings
+/// there is. The rest comes back the moment Advanced is chosen, with whatever was set on it before.
 ///
 /// What differs from the web original:
 /// - Controls whose feature has no Flutter port yet still write their preference and change nothing more: the home
@@ -104,16 +119,58 @@ class AppearancePane extends StatelessWidget {
         final sampleSize = t.len('app-h1');
         final noteFonts = t.families('app-note-font');
 
+        final page = PaneSection(
+          title: 'Page',
+          description: const Text('Ink on paper, paper on ink, or one of three tinted themes. System follows the phone.'),
+          children: [
+            // The kit's theme cards: each is the page painted small in that theme, System split light and dark.
+            SettingRowBox(child: ThemeCards(value: prefs.theme, onValueChange: (value) => set((now) => themeChoice(value, now)))),
+          ],
+        );
+        // The size shown rather than described, in the note's own face, so it changes with the choice under it.
+        final sample = ExcludeSemantics(
+          child: Text(
+            'Aa',
+            key: const ValueKey('settings-sample'),
+            style: pageText(t, sampleSize, weight: 'bold', height: 1, tracking: t.len('app-tracking-display', em: sampleSize), color: t.color('app-ink-3'), mono: true).copyWith(
+                  fontFamily: noteFonts.isEmpty ? null : noteFonts.first,
+                  fontFamilyFallback: [...noteFonts.skip(1), for (final family in noteFonts) ...?t.typography.fallbacks[family]],
+                ),
+          ),
+        );
+        final textSize = SettingRow(
+          label: 'Text size',
+          hint: const Text('The note, the list and the headings.'),
+          layout: SettingRowLayout.stacked,
+          control: segments('Text size', sizeWords, prefs.textSize, (value) => set((now) => now.copyWith(textSize: value))),
+        );
+
+        if (prefs.simple) {
+          // The way to the rest, said once and quietly, under the two cards: the word lands on Simple or advanced.
+          final host = SettingsHost.maybeOf(context);
+          return PaneBody(
+            children: [
+              page,
+              PaneSection(title: 'Type', description: sample, children: [textSize]),
+              SettingsFootnote(
+                key: const ValueKey('appearance-more-looks'),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      const TextSpan(text: 'More looks are in '),
+                      WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Advanced', onPress: host == null ? null : () => host.go('experience'))),
+                      const TextSpan(text: '.'),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        }
+
         return PaneBody(
           children: [
-            PaneSection(
-              title: 'Page',
-              description: const Text('Ink on paper, paper on ink, or one of three tinted themes. System follows the phone.'),
-              children: [
-                // The kit's theme cards: each is the page painted small in that theme, System split light and dark.
-                SettingRowBox(child: ThemeCards(value: prefs.theme, onValueChange: (value) => set((now) => themeChoice(value, now)))),
-              ],
-            ),
+            page,
             // The home page's four layouts, each a card that is the page drawn small.
             PaneSection(
               title: 'Home page',
@@ -137,17 +194,7 @@ class AppearancePane extends StatelessWidget {
             ),
             PaneSection(
               title: 'Type',
-              // The size shown rather than described, in the note's own face, so it changes with the choice under it.
-              description: ExcludeSemantics(
-                child: Text(
-                  'Aa',
-                  key: const ValueKey('settings-sample'),
-                  style: pageText(t, sampleSize, weight: 'bold', height: 1, tracking: t.len('app-tracking-display', em: sampleSize), color: t.color('app-ink-3'), mono: true).copyWith(
-                        fontFamily: noteFonts.isEmpty ? null : noteFonts.first,
-                        fontFamilyFallback: [...noteFonts.skip(1), for (final family in noteFonts) ...?t.typography.fallbacks[family]],
-                      ),
-                ),
-              ),
+              description: sample,
               children: [
                 // Two faces: the note's, and the interface's.
                 SettingRow(
@@ -162,12 +209,7 @@ class AppearancePane extends StatelessWidget {
                   layout: SettingRowLayout.stacked,
                   control: TypefaceCards(label: 'Interface font', kind: TypefaceKind.interface, faces: interfaceFaces, value: faces.ui, onValueChange: (typeface) => set((now) => now.copyWith(typeface: typeface))),
                 ),
-                SettingRow(
-                  label: 'Text size',
-                  hint: const Text('The note, the list and the headings.'),
-                  layout: SettingRowLayout.stacked,
-                  control: segments('Text size', sizeWords, prefs.textSize, (value) => set((now) => now.copyWith(textSize: value))),
-                ),
+                textSize,
                 // A card per step, each the same row of the app drawn at that size.
                 SettingRow(
                   label: 'Scale',

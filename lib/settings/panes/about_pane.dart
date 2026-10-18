@@ -115,7 +115,7 @@ int countKnock([int? now]) {
 ///   row is drawn and cannot be pressed. The three that open another page of Settings always can.
 /// - The releases are handed in already read (`SettingsUpdates.releases`), where the page fetched them itself.
 class AboutPane extends StatelessWidget {
-  const AboutPane({super.key, this.updates, this.onGuide, this.onGuideBook, this.onAcademy, this.onOpen, this.developer});
+  const AboutPane({super.key, this.updates, this.onGuide, this.onGuideBook, this.onAcademy, this.onOpen, this.developer, this.simple = false});
 
   final SettingsUpdates? updates;
 
@@ -132,9 +132,15 @@ class AboutPane extends StatelessWidget {
   /// The developer switch the seventh press turns on; the app's own when null.
   final DeviceFlag? developer;
 
+  /// Simple mode (GHST-103): Help keeps the cheat sheet and leaves out the Specification and the Examples, whose
+  /// pages are not among Settings' sections then (settings_sections.dart `simpleSections`), so a row for either
+  /// would open nothing.
+  final bool simple;
+
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
-    return AboutPane(updates: host?.updates, onGuide: host?.onGuide, onGuideBook: host?.onGuideBook, onAcademy: host?.onAcademy, onOpen: host == null ? null : (id) => host.go(id));
+    // The sheet builds its pages again at every change of the preferences, so the mode is read, not listened to.
+    return AboutPane(updates: host?.updates, onGuide: host?.onGuide, onGuideBook: host?.onGuideBook, onAcademy: host?.onAcademy, onOpen: host == null ? null : (id) => host.go(id), simple: preferences.value.simple);
   }
 
   void _knock(BuildContext context) {
@@ -171,9 +177,9 @@ class AboutPane extends StatelessWidget {
             // What guide/pages.ts shows: four pages, the last of which offers the Academy.
             help(Lucide.bookOpen, 'The welcome walkthrough', recordsVoice ? 'The pages from the first launch: the theme, the model, and where the rest is taught.' : 'The pages from the first launch: the theme, and where the rest is taught.', onGuide),
             help(Lucide.listChecks, 'Cheat sheet', 'Every mark you can type, and what it looks like, on one page.', open == null ? null : () => open('cheatsheet')),
-            help(Lucide.fileCode, 'Specification', 'Exactly how every extension and AI fill is written, and the standard Markdown under them.', open == null ? null : () => open('spec')),
+            if (!simple) help(Lucide.fileCode, 'Specification', 'Exactly how every extension and AI fill is written, and the standard Markdown under them.', open == null ? null : () => open('spec')),
             if (offersGuideBook) help(Lucide.bookOpenText, guideTitle, 'The whole app in $guideChapters short chapters. Added to your notes the first time, and opened after that.', onGuideBook),
-            help(Lucide.shapes, 'Examples', 'A sample note, a board and two canvases, to add to your notes.', open == null ? null : () => open('examples')),
+            if (!simple) help(Lucide.shapes, 'Examples', 'A sample note, a board and two canvases, to add to your notes.', open == null ? null : () => open('examples')),
           ],
         ),
         // The releases are over-the-air builds, which an iPhone never runs: the App Store says what's new there.

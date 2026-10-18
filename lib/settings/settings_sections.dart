@@ -20,6 +20,7 @@ import 'panes/cheat_sheet.dart';
 import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
 import 'panes/examples_pane.dart';
+import 'panes/experience_pane.dart';
 import 'panes/export_pane.dart';
 import 'panes/import_pane.dart';
 import 'panes/notifications_pane.dart';
@@ -83,7 +84,7 @@ class SettingsFacts {
   /// Whether developer mode is on (settings/developerMode.ts).
   final bool developer;
 
-  /// Simple mode (GHST-103): the sections a new person needs; the rest wait behind "Show everything".
+  /// Simple mode (GHST-103): the sections a new person needs; the rest wait behind Advanced ([simpleSections]).
   bool get simple => prefs.simple;
 }
 
@@ -177,6 +178,10 @@ String _static(String line, SettingsFacts _) => line;
 ///   time it is asked for, where the web built its list on every draw, and the sheet draws it again whenever a
 ///   plugin's switch moves.
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
+/// - Simple or advanced heads the list, on a card of its own (GHST-103, the port's own): the choice the walkthrough
+///   asks, for later. In Simple ([SettingsFacts.simple]) the list is [simpleSections] and no more: the rest of the
+///   rows, and every plugin's page, pass out of `where` until Advanced is chosen again, and what is not among the
+///   sections is not found by the search either, since the sheet lists a section's settings only once it is in.
 List<SettingsSectionSpec> get settingsSections => [
       for (final spec in _sections) ...[
         spec,
@@ -186,6 +191,18 @@ List<SettingsSectionSpec> get settingsSections => [
 
 /// The card Plugins and the plugins' own pages share on the list, between AI's and About's.
 const int pluginsGroup = 5;
+
+/// The card Simple or advanced has to itself, over Account's.
+const int experienceGroup = 6;
+
+/// The sections Simple keeps (Matt, 2026-10-18): the choice itself, who you are and what reaches you, how it looks,
+/// and the app itself with its cheat sheet. Everything else, Organizations, Workspaces, Library folder, Backup,
+/// Export, Recording, AI, Plugins, the Specification and the Examples, waits behind Advanced; Developer and Test
+/// results answer to their own switch alone. The ids, so a test can hold the table to the list.
+const Set<String> simpleSections = {'experience', 'account', 'notifications', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+
+/// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
+bool _advanced(SettingsFacts facts) => !facts.simple;
 
 /// Each added plugin's own page, a row of Settings' list on the Plugins card (Matt, 2026-10-18: "move plugin
 /// settings to their own page under settings"): in the plugin's own icon and colour, read by its own summary, and
@@ -210,6 +227,8 @@ List<SettingsSectionSpec> pluginPageSections() => [
             webFile: 'plugins/PluginsPane.tsx',
             summary: (facts) => own.summary(),
             settings: (facts) => own.settings,
+            // Plugins are what Simple hides, each one's page with the catalogue.
+            where: _advanced,
             hue: own.hue,
             pane: (context) => PluginSettingsPage(plugin: plugin),
           ),
@@ -230,6 +249,7 @@ List<SettingsSectionSpec> pluginInfoSections() => [
           webFile: 'plugins/PluginsPane.tsx',
           summary: (facts) => plugin.manifest.line,
           settings: (facts) => pluginInfoFindable(plugin),
+          where: _advanced,
           hue: 'green',
           pane: (context) => PluginInfoPane.hosted(context, plugin),
           listed: false,
@@ -239,7 +259,21 @@ List<SettingsSectionSpec> pluginInfoSections() => [
     ];
 
 final List<SettingsSectionSpec> _sections = [
-  // Who you are, first and on its own card: it is what a person opens Settings for on a new phone.
+  // How much of the app there is, before anything else and on a card of its own (GHST-103): in Simple it is the way
+  // to the rest, so it cannot itself be among what is put away, and it stands where the person who chose less will
+  // look first for more. Nothing of the web app's: its file is the sheet that lists it.
+  SettingsSectionSpec(
+    id: 'experience',
+    label: 'Simple or advanced',
+    words: 'mode simple advanced beginner approachable everything more fewer hide show',
+    glyph: SettingsGlyph.slidersHorizontal,
+    group: experienceGroup,
+    webFile: 'settings/SettingsSheet.tsx',
+    summary: (facts) => experienceSummary(facts.prefs),
+    settings: (facts) => experienceFindable,
+    pane: (context) => const ExperiencePane(),
+  ),
+  // Who you are, next and on its own card: it is what a person opens Settings for on a new phone.
   SettingsSectionSpec(
     id: 'account',
     label: 'Account',
@@ -260,6 +294,8 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.userGroup,
     group: 0,
     webFile: 'settings/OrganizationsPane.tsx',
+    // Teams are Advanced's ("boards, databases, canvases, AI, teams").
+    where: _advanced,
     summary: (facts) => organizationsSummary(facts.services),
     settings: (facts) => organizationsFindable(signedIn: facts.services?.signedIn ?? false),
     pane: OrganizationsPane.hosted,
@@ -272,6 +308,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.folder,
     group: 0,
     webFile: 'settings/WorkspacesPane.tsx',
+    where: _advanced,
     // The count from the store the page edits, so the row can never disagree with it.
     summary: (facts) => workspaceSummary(facts.workspaces ?? facts.prefs.workspaces.list.length),
     settings: (facts) => workspacesFindable,
@@ -287,6 +324,8 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.calendarDays,
     group: 0,
     webFile: 'settings/WorkspacesPane.tsx',
+    // With its parent.
+    where: _advanced,
     summary: (facts) => dailyNotesSummary(facts.prefs, [for (final w in facts.prefs.workspaces.list) Workspace(id: w.id, name: w.name)]),
     settings: (facts) => dailyNotesFindable,
     pane: DailyNotesPane.hosted,
@@ -314,7 +353,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.folderOpen,
     group: 1,
     webFile: 'settings/LibraryFolderPane.tsx',
-    where: (facts) => !facts.ios,
+    where: (facts) => !facts.ios && _advanced(facts),
     summary: (facts) => _static('Where your notes are kept', facts),
     settings: (facts) => libraryFolderFindable,
     pane: LibraryFolderPane.hosted,
@@ -330,7 +369,7 @@ final List<SettingsSectionSpec> _sections = [
     // Not in the Mac App Store's build ([macAppStore]): a sandboxed app cannot ask the Mac which disks are
     // removable (the core asks `diskutil`) nor write a drive by its path, so the page is left out rather than
     // shown empty. Export is the way to a copy there.
-    where: (facts) => backupOffered(ios: facts.ios),
+    where: (facts) => backupOffered(ios: facts.ios) && _advanced(facts),
     summary: (facts) => _static('To a USB drive or SD card', facts),
     settings: (facts) => backupFindable,
     pane: BackupPane.hosted,
@@ -343,6 +382,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.hardDriveDownload,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
+    where: _advanced,
     // An iPhone exports nothing yet, and its page says so (export_pane.dart): the row does not promise a zip.
     summary: (facts) => _static(facts.ios ? 'Not on iPhone yet' : 'Everything as one zip', facts),
     settings: (facts) => exportFindable,
@@ -358,7 +398,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.folderInput,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
-    where: (facts) => !facts.ios,
+    where: (facts) => !facts.ios && _advanced(facts),
     summary: (facts) => importSummary(importKinds()),
     settings: (facts) => importFindableOf(importKinds()),
     pane: (context) => ImportPane.hosted(context, kinds: importKinds()),
@@ -374,7 +414,8 @@ final List<SettingsSectionSpec> _sections = [
     group: 2,
     webFile: 'settings/AppearancePane.tsx',
     summary: (facts) => appearanceSummary(facts.prefs),
-    settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics),
+    // In Simple the page is the theme and the text size alone, and so is what the search finds on it.
+    settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
     pane: (context) => const AppearancePane(),
   ),
   // Where a recorder runs: Android, and the desktop app.
@@ -385,7 +426,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.mic,
     group: 2,
     webFile: 'settings/RecordingPane.tsx',
-    where: (facts) => !facts.ios,
+    where: (facts) => !facts.ios && _advanced(facts),
     // What a take becomes: better words, or the words as heard.
     summary: (facts) => recordingSummary(facts.prefs),
     settings: (facts) => recordingFindable(android: facts.android),
@@ -399,7 +440,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.sparkles,
     group: 2,
     webFile: 'settings/AiPane.tsx',
-    where: (facts) => !facts.ios,
+    where: (facts) => !facts.ios && _advanced(facts),
     summary: (facts) => aiSummary(facts.prefs, facts.features.models),
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
@@ -412,6 +453,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.puzzle,
     group: pluginsGroup,
     webFile: 'plugins/PluginsPane.tsx',
+    where: _advanced,
     summary: (facts) => pluginsSummary(plugins),
     settings: (facts) => pluginsFindable(plugins),
     // A card lands on that plugin's page in the catalogue, and "Local only" on Account's Privacy card.
@@ -452,6 +494,8 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.fileCode,
     group: 3,
     webFile: 'settings/SpecPane.tsx',
+    // The specification and the examples are the whole app's: About's Help keeps the cheat sheet alone in Simple.
+    where: _advanced,
     summary: (facts) => _static('Every extension and fill, defined', facts),
     settings: (facts) => specFindable(),
     pane: SpecPane.hosted,
@@ -465,6 +509,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.shapes,
     group: 3,
     webFile: 'settings/ExamplesPane.tsx',
+    where: _advanced,
     // As About's row says it.
     summary: (facts) => _static('A sample note, a board and two canvases', facts),
     settings: (facts) => examplesFindable,
