@@ -3,17 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <title>Ghost.md · Organize everything. Work on it with AI.</title>
-    <meta name="description" content="Notes, journals, boards and canvases, kept as plain Markdown on your own devices, with AI that works in them beside you: on your phone, and through Claude." />
+    <title>Ghost.md · Your notes, with Claude in them</title>
+    <meta name="description" content="Plain Markdown notes on your own devices. Claude writes in them while you watch, your Google Calendar sits beside them, and Notion, GitHub and Slack are plugins a switch away." />
     <link rel="icon" type="image/png" href="favicon.png" />
     <link rel="apple-touch-icon" href="apple-touch-icon.png" />
-    <meta property="og:title" content="Ghost.md · Organize everything. Work on it with AI." />
-    <meta property="og:description" content="Notes, journals, boards and canvases in plain Markdown, with AI that works in them beside you." />
+    <meta property="og:title" content="Ghost.md · Your notes, with Claude in them" />
+    <meta property="og:description" content="Plain Markdown notes that Claude writes in while you watch, beside your calendar, with Notion, GitHub and Slack as plugins." />
     <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
     <meta name="theme-color" content="#0b0b0b" />
     <!--
-      ghostmarkdown.com (docs/LANDING.md, docs/DESIGN.md §153, §154): what Ghost.md does for a life's notes, and how it
-      works with AI, then the ways to get it. Everything that shows the app is the app: its screens (shots/,
+      ghostmarkdown.com (tauri/docs/LANDING.md, docs/DESIGN.md §153, §154). Since 2026-10-18 (Matt: "highlight more important
+      features that set us apart like the claude integrations and calendar integrations as well as notion etc") it leads
+      with what sets Ghost.md apart: Claude (in the app and through the connector), the calendar, and the plugins with
+      Notion first; then the core (plain Markdown, voice, planning marks, files, teams, versions), privacy and the ways
+      to get it. Everything that shows the app is the app: its screens (shots/,
       scripts/landing-shots.mjs) and its cassette (parts/, src/landing/parts.tsx). What it says is
       what the app does: the Guide and the code are the sources.
 
@@ -31,17 +34,22 @@
     <script type="module" src="parts/parts.js"></script>
   </head>
   <body>
+    <!-- Claude's and Notion's own marks (Simple Icons, landing/brands/), each standing for the product it names: drawn once, used by <use>. -->
+    <svg class="unseen" aria-hidden="true" focusable="false">
+      <symbol id="claude-mark" viewBox="0 0 24 24"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z" /></symbol>
+      <symbol id="notion-mark" viewBox="0 0 24 24"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" /></symbol>
+    </svg>
     <a class="skip" href="#main">Skip to the page</a>
 
     <header class="bar">
       <nav class="bar-in" aria-label="Ghost.md">
         <a class="brand" href="#top"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
         <ul class="bar-links">
-          <li><a href="#organize">Organize</a></li>
-          <li><a href="#plan">Plan</a></li>
+          <li><a href="#claude">Claude</a></li>
+          <li><a href="#calendar">Calendar</a></li>
+          <li><a href="#plugins">Plugins</a></li>
+          <li><a href="#organize">Markdown</a></li>
           <li><a href="#teams">Teams</a></li>
-          <li><a href="#ai">AI</a></li>
-          <li><a href="reference.html">Formatting</a></li>
           <li><a href="#private">Privacy</a></li>
         </ul>
         <a class="pill pill-ink bar-cta" href="#download"><svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg><span>Download</span></a>
@@ -52,8 +60,8 @@
       <!-- The opening: what it is, the way in, and the app itself. -->
       <section class="hero" id="top" aria-labelledby="hero-title">
         <div class="wrap hero-words">
-          <h1 id="hero-title">Organize everything.<br />Work on it with AI.</h1>
-          <p class="lead">Notes, journals, boards and canvases, kept as plain Markdown on your own devices. The AI on your phone and Claude work in them beside you, and every change is yours to keep.</p>
+          <h1 id="hero-title">Your notes,<br />with Claude in&nbsp;them.</h1>
+          <p class="lead">Plain Markdown notes on your own devices. Claude writes in them while you watch, your calendar sits beside them, and Notion, GitHub and Slack are a switch away.</p>
           <div class="ctas">
             <a class="pill pill-ink pill-lg" id="hero-get" href="#download">
               <svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg>
@@ -61,7 +69,16 @@
             </a>
             <a class="pill pill-lg" href="https://attack.fm/glyph/"><svg class="i" aria-hidden="true"><use href="icons.svg#i-globe"/></svg><span>Open in your browser</span></a>
           </div>
-          <p class="fine">No account needed. Android, iPhone, Mac and the web.</p>
+          <p class="fine">No account needed. Android, iPhone, Mac, Windows and the web.</p>
+          <!-- What sets it apart, in one row: each a link to its section below. -->
+          <ul class="with-row" aria-label="Works with">
+            <li><a href="#claude"><svg class="brand-mark brand-claude" viewBox="0 0 24 24" aria-hidden="true"><use href="#claude-mark"/></svg>Claude</a></li>
+            <li><a href="#calendar"><svg class="i" aria-hidden="true"><use href="icons.svg#i-calendar-days"/></svg>Google Calendar</a></li>
+            <li><a href="#plugins"><svg class="brand-mark brand-notion" viewBox="0 0 24 24" aria-hidden="true"><use href="#notion-mark"/></svg>Notion</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="icons.svg#i-git-branch"/></svg>GitHub</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="icons.svg#i-hash"/></svg>Slack</a></li>
+            <li><a href="#plugins"><svg class="i" aria-hidden="true"><use href="icons.svg#i-webhook"/></svg>Webhooks</a></li>
+          </ul>
         </div>
         <figure class="wrap laptop-wrap">
           <div class="laptop">
@@ -70,13 +87,142 @@
         </figure>
       </section>
 
-      <!-- Organize. -->
+      <!-- Claude (2026-10-18; Matt: "highlight more important features that set us apart like the claude integrations"):
+           both ways in. The app's own Claude with the person's key (docs/CLAUDE_APP.md, the Flutter app on Android, the
+           iPhone and the Mac), and Claude's own apps through the connector (tauri/docs/MCP.md, docs/CLAUDE_LIVE.md). -->
+      <section class="band" id="claude" aria-labelledby="claude-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-sparkles"/></svg>Claude</p>
+            <h2 id="claude-title">Claude, built in and connected.</h2>
+            <p>Ask Claude inside Ghost.md and watch it write into your notes as it thinks. Or let Claude's own apps read and write them, and see it working, live.</p>
+          </header>
+          <div class="split split-claude">
+            <!-- Placeholders until the new iPhone screens land: claude.webp becomes the chat (claude-chat), ai.webp
+                 Claude typing into a note (claude-typing). -->
+            <div class="pair">
+              <figure class="phone"><img src="shots/claude.webp" width="390" height="844" loading="lazy" alt="A note Claude wrote from three research notes, signed by Matt and Claude." /></figure>
+              <figure class="phone phone-low"><img src="shots/ai.webp" width="390" height="844" loading="lazy" alt="A note with three changes marked: words struck and added, each with Keep and Revert." /></figure>
+            </div>
+            <div>
+              <h3 class="sub with-i"><svg class="i" aria-hidden="true"><use href="icons.svg#i-message-square-text"/></svg><span>In the app, with your own key</span></h3>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye"/></svg>Watch it type.</b> Ask in the chat and the note opens as Claude starts writing. Its words arrive at its own caret, word by word, and the page follows them.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-brain"/></svg>Its thinking, shown.</b> What Claude is weighing streams in as it goes, with a line for every note it reads or changes.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-mouse-pointer-2"/></svg>Follow along, or take over.</b> Claude moves from note to note and you go with it. Type anywhere and the following stops; Claude's words keep landing where it was.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-audio-lines"/></svg>Talk to it.</b> Press Claude's microphone on the dock and say what you want. The words are heard on the device, and no audio is kept. On Android and the Mac.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-key-round"/></svg>Your key, your device.</b> Your Anthropic key is kept in the device's secure storage and never synced. What you ask goes from the device to Anthropic, and nowhere else.</li>
+              </ul>
+            </div>
+          </div>
+
+          <article class="brand-card brand-card-wide">
+            <header class="brand-head">
+              <svg class="brand-mark brand-claude" viewBox="0 0 24 24" role="img" aria-label="Claude"><use href="#claude-mark"/></svg>
+              <h3>From claude.ai, Claude Desktop and Claude Code.</h3>
+            </header>
+            <p>Add Ghost.md as a connector and Claude reads, searches and writes your notes, tickets and comments included. While it works it shows as online, and you can open the note it is in and see its caret move.</p>
+            <div class="brand-cols">
+              <ul class="asks">
+                <li><q>Make a ticket for the login loop, highest priority, for Sam.</q><span>A ticket note, its fields in front matter, in the notebook you name.</span></li>
+                <li><q>What is due this week, and who has it?</q><span>It searches your tickets and to-dos and tells you.</span></li>
+                <li><q>Tidy my meeting note, as suggestions.</q><span>Each change is marked for you to Keep or Revert.</span></li>
+              </ul>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-radio"/></svg>Online, by name.</b> Claude shows as online, saying what it is reading or editing, and Follow takes you to it.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-message-square"/></svg>In the comments.</b> It reads a note's threads, replies and resolves them, as a person would.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-signature"/></svg>Signed, and careful.</b> Claude joins the authors of what it writes. It never writes over an edit from your other devices, and what it deletes waits in the Trash for you.</li>
+              </ul>
+            </div>
+            <div class="connect">
+              <p>Connect Claude</p>
+              <code id="mcp">https://ghostmarkdown.com/api/mcp</code>
+              <button type="button" class="pill" data-copy="#mcp"><svg class="i" aria-hidden="true"><use href="icons.svg#i-copy"/></svg><span>Copy</span></button>
+            </div>
+            <p class="fine">In claude.ai and Claude Desktop: Settings › Connectors › Add custom connector. In Claude Code: <code>claude mcp add --transport http glyph https://ghostmarkdown.com/api/mcp</code></p>
+          </article>
+          <p class="fine center">Claude in the app is on Android, iPhone and the Mac, and Anthropic bills your key. The connector works with every version of Ghost.md.</p>
+        </div>
+      </section>
+
+      <!-- Calendar (docs/CALENDAR.md): the Calendar plugin, Google sign-in and any iCal address. -->
+      <section class="band band-tint" id="calendar" aria-labelledby="calendar-title">
+        <div class="wrap split split-flip">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-calendar-days"/></svg>Calendar</p>
+              <h2 id="calendar-title">Your calendar, in your notes.</h2>
+              <p>Connect Google Calendar and your day is one page: today's events at the head of home, above your notes, and your dated to-dos on your calendar.</p>
+            </header>
+            <ul class="points points-stack">
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-calendar-sync"/></svg>To-dos on your calendar, within seconds.</b> A to-do with a due day is an all-day event a few seconds after you write it. Change the day and it moves; tick it off and it is gone.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-database"/></svg>Events you can query.</b> Ask for events like any note, and draw them as a list, a table, a month or a timeline.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-calendar-check"/></svg>Any calendar.</b> Paste the iCal address of an iCloud, Outlook or Fastmail calendar and its events are in too. Nothing to sign in to.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Kept to itself.</b> Only the events Ghost.md made are ever changed. The addresses and the sign-in stay on your devices and in your sealed settings.</li>
+            </ul>
+            <pre class="mark-code"><code>```query
+from: events
+where: start >= today
+show: calendar
+```</code></pre>
+            <p class="fine">In the app on Android, iPhone and the Mac.</p>
+          </div>
+          <!-- Placeholder until the new iPhone screen lands: fields.webp (to-dos with due days) becomes calendar.webp,
+               Today with its events above the notes. -->
+          <figure class="phone"><img src="shots/fields.webp" width="390" height="844" loading="lazy" alt="To-dos with a person, a priority, a tag and a due day drawn as chips, a choice, and a sum worked out." /></figure>
+        </div>
+      </section>
+
+      <!-- Plugins (tauri/docs/PLUGINS.md "In the Flutter app", lib/plugins/catalogue.dart): the marketplace in Settings,
+           Notion first since Matt named it, then every plugin the Flutter app builds in. Per platform as the code says:
+           Notion and Slack are not on the iPhone yet (lib/core/iphone_app.dart notOnIPhone), place reminders are
+           Android's (docs/INTEGRATIONS.md §3). -->
+      <section class="band" id="plugins" aria-labelledby="plugins-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-puzzle"/></svg>Plugins</p>
+            <h2 id="plugins-title">Notion and the rest, as plugins.</h2>
+            <p>Settings › Plugins is a catalog to browse. Every plugin ships inside the app: switch one on and it is there, switch it off and it offers nothing, keeping what it had.</p>
+          </header>
+          <div class="split">
+            <article class="brand-card">
+              <header class="brand-head">
+                <svg class="brand-mark brand-notion" viewBox="0 0 24 24" role="img" aria-label="Notion"><use href="#notion-mark"/></svg>
+                <h3>Your to-dos, as Notion tasks.</h3>
+              </header>
+              <p>Sign in with Notion and pick a board. Then a to-do in any note can become a task there.</p>
+              <ul class="points points-stack">
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-list-checks"/></svg>One at a time, or a whole list.</b> Swipe an item, tap the quiet Notion after it, or send the note's list from its More sheet.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-refresh-cw"/></svg>In step both ways.</b> Tick the item and the task moves; change the task in Notion and its status shows on the item.</li>
+                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-panel-bottom-open"/></svg>Open it in place.</b> Tap a linked item to see the task in a drawer, without leaving the note.</li>
+              </ul>
+              <p class="fine">Not on the iPhone yet.</p>
+            </article>
+            <!-- Placeholder until the new iPhone screens land: board.webp becomes the plugins catalogue (plugins.webp),
+                 or Notion's page (notion.webp). -->
+            <figure class="phone"><img src="shots/board.webp" width="390" height="844" loading="lazy" alt="A board: to-dos in a note, and the same items as cards in columns." /></figure>
+          </div>
+          <ul class="tiles">
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-git-branch"/></svg><h3>GitHub</h3><p>A note linked to a repo sends its items as issues, ticked both ways.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-hash"/></svg><h3>Slack</h3><p>Post a note, a meeting's summary or your team's news to a channel. Not on the iPhone yet.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-webhook"/></svg><h3>Webhooks</h3><p>Out: tell a URL when notes change or a to-do is done. In: a URL that adds to a note, from Zapier, Make, IFTTT or curl.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-import"/></svg><h3>Todoist and Things</h3><p>Bring your projects in: tasks, due days, priorities, labels and sub-tasks, as notes and to-dos.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-contact"/></svg><h3>Contacts</h3><p>The people on your to-dos with their pictures, and a card to call, text or email them. Nothing about them leaves the device.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-map-pin-check"/></svg><h3>Place reminders</h3><p>A to-do with a place reminds you when you get there. On Android.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-film"/></svg><h3>Rich embeds</h3><p>A YouTube, Spotify or Figma link alone on a line is a card that plays or shows it.</p></li>
+            <li><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-sticker"/></svg><h3>Marks</h3><p>Ghost.md's own marks on top of Markdown: a spoiler in smoke, highlights, asides, redactions and effects.</p></li>
+          </ul>
+          <p class="fine center">Claude and Calendar are plugins too. The catalog is in the app on Android, iPhone and the Mac.</p>
+        </div>
+      </section>
+
+      <!-- Organize: the core under the integrations. -->
       <section class="band" id="organize" aria-labelledby="organize-title">
         <div class="wrap">
           <header class="band-head">
-            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-library"/></svg>Organize</p>
-            <h2 id="organize-title">A place for everything, in plain Markdown.</h2>
-            <p>Every note is a <code>.md</code> file you own. Gather them as your life needs.</p>
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-library"/></svg>Plain Markdown</p>
+            <h2 id="organize-title">A place for everything, in files you own.</h2>
+            <p>Under it all, every note is a <code>.md</code> file. Journals, boards, canvases, notebooks and tickets are Markdown too, so any app can open them.</p>
           </header>
           <ul class="shelf">
             <li>
@@ -103,8 +249,27 @@
           <ul class="points">
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-search"/></svg>Find anything.</b> Search every word, and filter by notebook, pinned or workspace.</li>
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-layers"/></svg>Keep work apart.</b> Workspaces hold their own notes, each in its color.</li>
-            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-pointer"/></svg>Tidy by feel.</b> Swipe to pin or archive, further to delete. Pull down to sync.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-book-open"/></svg>Notebooks.</b> Notes in order, read straight through, with timelines and diagrams drawn from their own lines.</li>
           </ul>
+        </div>
+      </section>
+
+      <!-- Document. -->
+      <section class="band" id="document" aria-labelledby="document-title">
+        <div class="wrap split split-flip">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-mic"/></svg>Voice</p>
+              <h2 id="document-title">Speak a note. Record a meeting.</h2>
+            </header>
+            <p class="body">Say what you want written and it arrives as Markdown, its to-dos as to-dos. Record a meeting, even with the phone locked, and afterwards the device transcribes it and writes a summary under the title: what was decided, and the to-dos. The tape stays with the note, on the device.</p>
+            <p class="fine">On Android and the Mac. The words are heard on the device, and the microphone is on only while you record.</p>
+          </div>
+          <!-- The app's own cassette (src/landing/parts.tsx): it plays as the page shows it; a tap pauses it. -->
+          <figure class="tape-fig">
+            <div class="tape-host" data-part="tape" data-title="Standup" data-length="40000"></div>
+            <figcaption class="fine">A meeting's tape, as it sits at the top of its note, playing. Tap it to pause.</figcaption>
+          </figure>
         </div>
       </section>
 
@@ -163,9 +328,9 @@ Done: pick-date
             </li>
           </ul>
           <ul class="points">
-            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-circle-dot"/></svg>Choices.</b> <code>( )</code> and <code>(x)</code> on a list: tap one to pick it and clear the rest.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-chart-gantt"/></svg>Timelines.</b> <code>show: gantt</code> draws a query's tickets as bars across their days.</li>
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-calculator"/></svg>Sums.</b> A line starting <code>=</code> shows its answer: <code>= $45 + $18 * 2</code> → $81.</li>
-            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-square-dashed"/></svg>Blanks for the AI.</b> <code>{?what time does it open?}</code> is a question the phone's AI answers in place, when you ask it to.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-workflow"/></svg>Diagrams.</b> A <code>```mermaid</code> block is drawn as its diagram, and stays text in the file.</li>
           </ul>
           <p class="fine center">Every mark, with an example to copy, is on <a href="reference.html">the formatting reference</a>. The app's Academy teaches them one at a time, by typing each.</p>
         </div>
@@ -412,91 +577,6 @@ v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
         </div>
       </section>
 
-      <!-- Work with AI. -->
-      <section class="band" id="ai" aria-labelledby="ai-title">
-        <div class="wrap split">
-          <div>
-            <header class="band-head band-head-start">
-              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-sparkles"/></svg>Work with AI</p>
-              <h2 id="ai-title">AI that works in your notes, not instead of them.</h2>
-            </header>
-            <ul class="points points-stack">
-              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-smartphone"/></svg>On your phone.</b> Format, Summarize or Enhance a note with a model that runs on the device. Nothing leaves it.</li>
-              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-highlighter"/></svg>Every change marked.</b> What the AI adds is tinted and what it removes is struck through, each with Keep and Revert.</li>
-              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-signature"/></svg>Claude, by name.</b> Claude's connector reads, searches, writes and adds to your notes, and signs what it wrote. It never deletes, and never writes over an edit from your other devices.</li>
-              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-plug-zap"/></svg>Your tools.</b> List items become Notion tasks or GitHub issues, and a tick stays in step both ways.</li>
-            </ul>
-          </div>
-          <div class="pair">
-            <figure class="phone"><img src="shots/ai.webp" width="390" height="844" loading="lazy" alt="A note the AI worked on: three changes marked, words struck and added, with Keep and Revert, by Matt and Ghost." /></figure>
-            <figure class="phone phone-low"><img src="shots/claude.webp" width="390" height="844" loading="lazy" alt="A note Claude wrote from three research notes, by Matt and Claude." /></figure>
-          </div>
-        </div>
-      </section>
-
-      <!-- Connected: Claude through Ghost.md's connector (docs/MCP.md), and the Notion plugin (docs/PLUGINS.md). The two logos are
-           Notion's and Claude's own (Simple Icons, landing/brands/), each standing for the product it names. -->
-      <section class="band band-tint" id="connected" aria-labelledby="connected-title">
-        <div class="wrap">
-          <header class="band-head">
-            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-plug"/></svg>Connected</p>
-            <h2 id="connected-title">Claude and Notion, working in the same notes.</h2>
-          </header>
-          <div class="duo">
-            <article class="brand-card">
-              <header class="brand-head">
-                <svg class="brand-mark brand-claude" viewBox="0 0 24 24" role="img" aria-label="Claude"><path d="m4.7144 15.9555 4.7174-2.6471.079-.2307-.079-.1275h-.2307l-.7893-.0486-2.6956-.0729-2.3375-.0971-2.2646-.1214-.5707-.1215-.5343-.7042.0546-.3522.4797-.3218.686.0608 1.5179.1032 2.2767.1578 1.6514.0972 2.4468.255h.3886l.0546-.1579-.1336-.0971-.1032-.0972L6.973 9.8356l-2.55-1.6879-1.3356-.9714-.7225-.4918-.3643-.4614-.1578-1.0078.6557-.7225.8803.0607.2246.0607.8925.686 1.9064 1.4754 2.4893 1.8336.3643.3035.1457-.1032.0182-.0728-.164-.2733-1.3539-2.4467-1.445-2.4893-.6435-1.032-.17-.6194c-.0607-.255-.1032-.4674-.1032-.7285L6.287.1335 6.6997 0l.9957.1336.419.3642.6192 1.4147 1.0018 2.2282 1.5543 3.0296.4553.8985.2429.8318.091.255h.1579v-.1457l.1275-1.706.2368-2.0947.2307-2.6957.0789-.7589.3764-.9107.7468-.4918.5828.2793.4797.686-.0668.4433-.2853 1.8517-.5586 2.9021-.3643 1.9429h.2125l.2429-.2429.9835-1.3053 1.6514-2.0643.7286-.8196.85-.9046.5464-.4311h1.0321l.759 1.1293-.34 1.1657-1.0625 1.3478-.8804 1.1414-1.2628 1.7-.7893 1.36.0729.1093.1882-.0183 2.8535-.607 1.5421-.2794 1.8396-.3157.8318.3886.091.3946-.3278.8075-1.967.4857-2.3072.4614-3.4364.8136-.0425.0304.0486.0607 1.5482.1457.6618.0364h1.621l3.0175.2247.7892.522.4736.6376-.079.4857-1.2142.6193-1.6393-.3886-3.825-.9107-1.3113-.3279h-.1822v.1093l1.0929 1.0686 2.0035 1.8092 2.5075 2.3314.1275.5768-.3218.4554-.34-.0486-2.2039-1.6575-.85-.7468-1.9246-1.621h-.1275v.17l.4432.6496 2.3436 3.5214.1214 1.0807-.17.3521-.6071.2125-.6679-.1214-1.3721-1.9246L14.38 17.959l-1.1414-1.9428-.1397.079-.674 7.2552-.3156.3703-.7286.2793-.6071-.4614-.3218-.7468.3218-1.4753.3886-1.9246.3157-1.53.2853-1.9004.17-.6314-.0121-.0425-.1397.0182-1.4328 1.9672-2.1796 2.9446-1.7243 1.8456-.4128.164-.7164-.3704.0667-.6618.4008-.5889 2.386-3.0357 1.4389-1.882.929-1.0868-.0062-.1579h-.0546l-6.3385 4.1164-1.1293.1457-.4857-.4554.0608-.7467.2307-.2429 1.9064-1.3114Z" /></svg>
-                <h3>Ask Claude to run the board.</h3>
-              </header>
-              <p>Connect Claude to Ghost.md and it reads, searches and writes your notes, tickets included. Ask it in words:</p>
-              <ul class="asks">
-                <li><q>Make a ticket for the login loop, highest priority, for Sam.</q><span>A ticket note, its fields in front matter, in the notebook you name.</span></li>
-                <li><q>Move PRD-11 to In review and give it a due day.</q><span>It finds the ticket by its key and changes its fields.</span></li>
-                <li><q>What is due this week, and who has it?</q><span>It searches your tickets and to-dos and tells you.</span></li>
-                <li><q>Add a board of the sprint to my planning note.</q><span>It writes the query, and the app draws the board.</span></li>
-              </ul>
-              <p class="fine">Claude signs what it writes, and joins the note's authors. It never deletes a note, and never writes over a change made on your other devices.</p>
-              <div class="connect">
-                <p>Connect Claude</p>
-                <code id="mcp">https://ghostmarkdown.com/api/mcp</code>
-                <button type="button" class="pill" data-copy="#mcp"><svg class="i" aria-hidden="true"><use href="icons.svg#i-copy"/></svg><span>Copy</span></button>
-              </div>
-            </article>
-            <article class="brand-card">
-              <header class="brand-head">
-                <svg class="brand-mark brand-notion" viewBox="0 0 24 24" role="img" aria-label="Notion"><path d="M4.459 4.208c.746.606 1.026.56 2.428.466l13.215-.793c.28 0 .047-.28-.046-.326L17.86 1.968c-.42-.326-.981-.7-2.055-.607L3.01 2.295c-.466.046-.56.28-.374.466zm.793 3.08v13.904c0 .747.373 1.027 1.214.98l14.523-.84c.841-.046.935-.56.935-1.167V6.354c0-.606-.233-.933-.748-.887l-15.177.887c-.56.047-.747.327-.747.933zm14.337.745c.093.42 0 .84-.42.888l-.7.14v10.264c-.608.327-1.168.514-1.635.514-.748 0-.935-.234-1.495-.933l-4.577-7.186v6.952L12.21 19s0 .84-1.168.84l-3.222.186c-.093-.186 0-.653.327-.746l.84-.233V9.854L7.822 9.76c-.094-.42.14-1.026.793-1.073l3.456-.233 4.764 7.279v-6.44l-1.215-.139c-.093-.514.28-.887.747-.933zM1.936 1.035l13.31-.98c1.634-.14 2.055-.047 3.082.7l4.249 2.986c.7.513.934.653.934 1.213v16.378c0 1.026-.373 1.634-1.68 1.726l-15.458.934c-.98.047-1.448-.093-1.962-.747l-3.129-4.06c-.56-.747-.793-1.306-.793-1.96V2.667c0-.839.374-1.54 1.447-1.632z" /></svg>
-                <h3>Your to-dos, as Notion tasks.</h3>
-              </header>
-              <p>Sign in with Notion and pick a board. Then a to-do in any note can become a task there:</p>
-              <ul class="points points-stack">
-                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-list-checks"/></svg>One at a time, or a whole list.</b> Swipe an item, tap the quiet Notion after it, or send the note's list from its More sheet.</li>
-                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-refresh-cw"/></svg>In step both ways.</b> Tick the item and the task moves; change the task in Notion and its status shows on the item.</li>
-                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-panel-bottom-open"/></svg>Open it in place.</b> Tap a linked item to see the task in a drawer, without leaving the note.</li>
-                <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-git-branch"/></svg>GitHub too.</b> A note linked to a repo sends its items as issues, ticked both ways the same.</li>
-              </ul>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <!-- Document. -->
-      <section class="band" id="document" aria-labelledby="document-title">
-        <div class="wrap split split-flip">
-          <div>
-            <header class="band-head band-head-start">
-              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-mic"/></svg>Document</p>
-              <h2 id="document-title">Meetings, written up for you.</h2>
-            </header>
-            <p class="body">Record with the screen off. Afterwards the phone transcribes it and writes a summary under the title: what was decided, and the to-dos. The tape stays with the note, and on the phone.</p>
-          </div>
-          <!-- The app's own cassette (src/landing/parts.tsx): it plays as the page shows it; a tap pauses it. -->
-          <figure class="tape-fig">
-            <div class="tape-host" data-part="tape" data-title="Standup" data-length="40000"></div>
-            <figcaption class="fine">A meeting's tape, as it sits at the top of its note, playing. Tap it to pause.</figcaption>
-          </figure>
-        </div>
-      </section>
-
       <!-- Private. -->
       <section class="band" id="private" aria-labelledby="private-title">
         <div class="wrap">
@@ -506,8 +586,11 @@ v3 2026-10-01T09:41:30.000Z matt 8bf4ec9b
           </header>
           <ul class="facts">
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-user-round-x"/></svg>No account needed.</b> Without one, nothing of yours is on a server.</li>
-            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Sealed before it syncs.</b> Notes, tapes and pictures are encrypted on the device.</li>
-            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye-off"/></svg>No ads, no analytics.</b> The microphone is on only while you record.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Sealed before it syncs.</b> Notes, tapes and pictures are encrypted on the device, end to end. The service can't read them.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye-off"/></svg>No ads, no analytics.</b> No trackers, in the app or on this site.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-key-round"/></svg>Teams, sealed too.</b> An organization's notes are encrypted with a key only its members hold.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-file-archive"/></svg>Take it all with you.</b> Export everything as one <code>.ghostex</code> file: every note as Markdown, its pictures and files, password protected if you like.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-plug"/></svg>Integrations you choose.</b> Each plugin has its own switch in Settings › Plugins, and Local only holds back every one that uses the internet.</li>
           </ul>
           <p class="fine center">Connecting Claude through our hosted connector lets it read your notes while connected; run the connector on your own computer to keep your key there. <a href="privacy.html">The privacy policy</a></p>
         </div>
