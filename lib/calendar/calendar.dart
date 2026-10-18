@@ -14,7 +14,7 @@
 /// [CalendarService.events] holds none, so no query and no Today shows one; what was read stays kept, and is shown
 /// again the moment it is switched on, with a read soon after. A service started with no switch is always on.
 ///
-/// Google's sign-in is collected by polling `claim` every 2 seconds for up to 10 minutes after Connect, and again
+/// Google's sign-in is collected by polling `claim` every 3 seconds for up to 10 minutes after Connect, and again
 /// when the app comes back to the front, as docs/CALENDAR.md has it. Connect is offered only where glyph-api's
 /// `start` does not answer 503 ([CalendarService.checkOffered]), in a build that has a service at all.
 library;
@@ -45,8 +45,10 @@ const Duration googleEvery = Duration(minutes: 15);
 /// goes on the calendar is not what was put there last.
 const Duration todosSoon = Duration(seconds: 4);
 
-/// How a Google sign-in is waited for: a claim every 2 seconds, for 10 minutes.
-const Duration claimEvery = Duration(seconds: 2);
+/// How a Google sign-in is waited for: a claim every 3 seconds, for 10 minutes. glyph-api lets a phone 30 calls a
+/// minute across its Google routes, and every 2 seconds was all 30 of them before the sign-in's own (Matt, 2026-10-17:
+/// the page said Connected and the phone said Connect again, a claim having been refused as rate limited).
+const Duration claimEvery = Duration(seconds: 3);
 const Duration claimFor = Duration(minutes: 10);
 
 /// The source key of Google's status line, beside each calendar's own.
@@ -472,6 +474,9 @@ class CalendarService extends ChangeNotifier {
       _changed();
       unawaited(syncGoogle());
     } on GoogleFailure catch (failure) {
+      // Turned away for now (rate limited, the service restarting or unreachable): asked again on the next beat,
+      // the sign-in still in flight. Only a sign-in refused, expired or not this phone's ends it.
+      if (failure.status == 0 || failure.status == 429 || failure.status >= 500) return;
       _kept.flight = null;
       _stopClaim();
       _problem = failure.message;

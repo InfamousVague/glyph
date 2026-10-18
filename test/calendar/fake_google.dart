@@ -19,6 +19,9 @@ class FakeGoogle {
   int refreshes = 0;
   bool refreshRefused = false;
 
+  /// How many claims are turned away as glyph-api's rate limit does (429) before the next is answered.
+  int limitedClaims = 0;
+
   final List<String> calls = [];
 
   final List<Map<String, Object?>> calendars = [
@@ -46,6 +49,10 @@ class FakeGoogle {
         case 'claim':
           final body = jsonDecode(request.text) as Map;
           if (body['state'] == 'gone') return _json(404, {'error': 'no sign-in with that state, or it expired'});
+          if (limitedClaims > 0) {
+            limitedClaims -= 1;
+            return _json(429, {'error': 'rate limited'});
+          }
           if (pendingClaims > 0) {
             pendingClaims -= 1;
             return FetchResponse(202);

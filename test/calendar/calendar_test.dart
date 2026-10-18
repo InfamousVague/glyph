@@ -154,6 +154,24 @@ void main() {
       calendar.dispose();
     });
 
+    test('a claim turned away as rate limited is asked again, the sign-in still in flight', () async {
+      // Matt, 2026-10-17: the page said Connected, the phone said Connect again. glyph-api lets a phone 30 calls a
+      // minute across its Google routes; a claim refused with 429 ended the sign-in.
+      final calendar = service();
+      await calendar.connectGoogle();
+      google.limitedClaims = 2;
+      await calendar.collectGoogle();
+      await calendar.collectGoogle();
+      expect(calendar.connecting, isTrue, reason: 'still waiting on the sign-in');
+      expect(calendarSetupOf(prefs.value).google, isNull);
+      await calendar.collectGoogle();
+      await calendar.collectGoogle();
+      expect(calendarSetupOf(prefs.value).google?.refreshToken, 'refresh-1');
+      expect(calendar.connecting, isFalse);
+      await calendar.syncGoogle();
+      calendar.dispose();
+    });
+
     test('a ticked calendar’s iCal address is not read twice', () async {
       calendars['https://calendar.google.com/calendar/ical/me%40example.com/private-x/basic.ics'] = icsOf('Me', ['UID:x', 'DTSTART;VALUE=DATE:20261019', 'SUMMARY:From iCal']);
       final calendar = await connected();

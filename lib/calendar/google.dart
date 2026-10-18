@@ -184,7 +184,7 @@ class GoogleCalendarApi {
     if (response.status == 404) throw const GoogleFailure('That sign-in ran out of time. Connect Google Calendar again.', 404);
     if (!response.ok) throw GoogleFailure(_said(body) ?? 'Google sign-in did not finish.', response.status);
     final tokens = GoogleTokens.fromAnswer(body, now());
-    if (tokens == null) throw const GoogleFailure("Google didn't give Ghost.md an access token.");
+    if (tokens == null) throw const GoogleFailure("Google didn't give Ghost.md an access token.", 422);
     return GoogleSignedIn(tokens);
   }
 

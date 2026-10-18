@@ -37,7 +37,7 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
 ### The app
 
 - Settings › Plugins › Calendar › Connect Google Calendar (shown when `start` does not answer 503): opens `start` in the
-  browser with a fresh state and PKCE challenge, then claims (polling `claim` every 2 seconds for up to 10 minutes,
+  browser with a fresh state and PKCE challenge, then claims (polling `claim` every 3 seconds for up to 10 minutes, a refusal for now (429, 5xx, no answer) asked again,
   and again when the app comes back to the front). The refresh token is kept as the iCal addresses are.
 - Then it reads the account's calendars (calendarList) and the events of the ones ticked (events.list with
   singleEvents=true over the same window), every 15 minutes while open and on opening, replacing any iCal address
