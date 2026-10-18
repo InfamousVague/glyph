@@ -149,6 +149,29 @@ void main() {
       expect(made['extendedProperties'], {'private': {'ghostmd': '1'}});
     });
 
+    test('a to-do with a reminder is an hour at its time, on the phone’s clock; a changed time moves it', () async {
+      // Matt, 2026-10-18: "make them suggested dates during business hours during the week".
+      final todos = todoEvents(library('- [ ] Book the NT scan ⏰ 2026-10-27 10:30 📅 2026-11-01\n- [ ] Reminder only ⏰ 2026-10-28 14:00\n'));
+      expect([for (final t in todos) '${t.title} ${t.day} ${t.time}'], ['Book the NT scan 2026-10-27 10:30', 'Reminder only 2026-10-28 14:00']);
+      // As the notes write it: the reminder after the words, before a priority, the due day and an anchor.
+      final written = todoEvents(library('- [ ] Book NT scan ⏰ 2026-10-26 10:00 ⏫ 📅 2026-10-26 ^nt\n'));
+      expect([for (final t in written) '${t.title} ${t.day} ${t.time}'], ['Book NT scan 2026-10-26 10:00']);
+      expect(written.single.id, todoEventId('plans', anchor: 'nt', words: 'Book NT scan'));
+      expect(await exportTodos(session(), 'me@example.com', todos), (added: 2, moved: 0, removed: 0));
+      final scan = google.events['me@example.com']![todos.first.id]!;
+      final start = DateTime.parse((scan['start'] as Map)['dateTime'] as String);
+      final end = DateTime.parse((scan['end'] as Map)['dateTime'] as String);
+      expect(start.isAtSameMomentAs(DateTime(2026, 10, 27, 10, 30)), isTrue, reason: '${scan['start']}');
+      expect(end.difference(start), const Duration(hours: 1));
+      expect((scan['start'] as Map).containsKey('date'), isFalse);
+      google.calls.clear();
+      expect(await exportTodos(session(), 'me@example.com', todos), (added: 0, moved: 0, removed: 0), reason: 'the same moment stays put');
+      final later = todoEvents(library('- [ ] Book the NT scan ⏰ 2026-10-27 15:00 📅 2026-11-01\n- [ ] Reminder only ⏰ 2026-10-28 14:00\n'));
+      expect(await exportTodos(session(), 'me@example.com', later), (added: 0, moved: 1, removed: 0));
+      final moved = DateTime.parse(((google.events['me@example.com']![todos.first.id]!['start']) as Map)['dateTime'] as String);
+      expect(moved.isAtSameMomentAs(DateTime(2026, 10, 27, 15)), isTrue);
+    });
+
     test('a changed date moves it, the same to-do stays put, and a ticked one is deleted', () async {
       final first = todoEvents(library('- [ ] Buy milk 📅 2026-10-20\n- [ ] Call Sam 📅 2026-10-21\n'));
       await exportTodos(session(), 'me@example.com', first);

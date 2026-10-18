@@ -23,9 +23,10 @@ import 'dart:typed_data';
 
 import '../account/api.dart' show FetchRequest, FetchResponse, Fetcher;
 import '../core/bytes.dart' show toBase64Url;
-import '../core/days.dart' show isoDay, isoDayAfter;
+import '../core/days.dart' show dateOfDay, isoDay, isoDayAfter;
 import '../core/query/records.dart' show QueryLibrary, RecordKind;
 import '../plugins/notion/sha256.dart';
+import '../reminders/reminder_syntax.dart' show reminderOn;
 import 'event.dart';
 
 /// Google's Calendar API.
@@ -396,24 +397,64 @@ String todoEventId(String noteId, {String? anchor, required String words}) {
 
 /// A to-do as the calendar has it: an all-day event on its due day.
 class TodoEvent {
-  const TodoEvent({required this.id, required this.title, required this.day, required this.noteId});
+  const TodoEvent({required this.id, required this.title, required this.day, required this.noteId, this.time});
   final String id;
   final String title;
 
-  /// Its due day, `YYYY-MM-DD`.
+  /// Its day, `YYYY-MM-DD`: the reminder's where it has one, else its due day.
   final String day;
   final String noteId;
 
+  /// Its reminder's time on the clock, `HH:mm`, where the line has a `⏰`: the event is an hour from then, on the
+  /// phone's own clock. Null for an all-day event on its due day (Matt, 2026-10-18: "make them suggested dates during
+  /// business hours during the week").
+  final String? time;
+
+  /// How long a to-do with a time is on the calendar.
+  static const Duration timedLength = Duration(hours: 1);
+
   /// A link back to its note, the event's description.
   String get description => 'ghostmd://note/$noteId';
+
+  /// When it starts, on this phone's clock, for one with a [time].
+  DateTime? get startsAt {
+    final at = time;
+    final date = dateOfDay(day);
+    if (at == null || date == null) return null;
+    final parts = at.split(':');
+    return DateTime(date.year, date.month, date.day, int.parse(parts[0]), int.parse(parts[1]));
+  }
+
+  /// [at] as Google takes a moment: RFC 3339 with the clock's own offset that day, so a summer time is kept.
+  static String _moment(DateTime at) {
+    String two(int n) => n.toString().padLeft(2, '0');
+    final offset = at.timeZoneOffset;
+    final sign = offset.isNegative ? '-' : '+';
+    final minutes = offset.inMinutes.abs();
+    return '${at.year.toString().padLeft(4, '0')}-${two(at.month)}-${two(at.day)}T${two(at.hour)}:${two(at.minute)}:00$sign${two(minutes ~/ 60)}:${two(minutes % 60)}';
+  }
+
+  /// Whether Google's [start] is where this one starts.
+  bool startsWhere(Object? start) {
+    if (start is! Map) return false;
+    final at = startsAt;
+    if (at == null) return start['date'] == day;
+    final there = start['dateTime'];
+    return there is String && (DateTime.tryParse(there)?.isAtSameMomentAs(at) ?? false);
+  }
 
   /// The event as Google is sent it.
   Map<String, Object?> body({bool withId = true}) => {
         if (withId) 'id': id,
         'summary': title,
         'description': description,
-        'start': {'date': day},
-        'end': {'date': isoDayAfter(day, 1)},
+        if (startsAt case final at?) ...{
+          'start': {'dateTime': _moment(at)},
+          'end': {'dateTime': _moment(at.add(timedLength))},
+        } else ...{
+          'start': {'date': day},
+          'end': {'date': isoDayAfter(day, 1)},
+        },
         'transparency': 'transparent',
         'status': 'confirmed',
         'extendedProperties': {
@@ -422,16 +463,20 @@ class TodoEvent {
       };
 }
 
-/// Every open to-do with a due date in [library], as its event: one per id, the first written where two are the
-/// same to-do.
+/// Every open to-do with a due date or a reminder in [library], as its event: at its reminder (`⏰`) for an hour
+/// where it has one, else all day on its due day; one per id, the first written where two are the same to-do.
 List<TodoEvent> todoEvents(QueryLibrary library) {
   final out = <String, TodoEvent>{};
   for (final record in library.records) {
-    if (record.kind != RecordKind.task || record.done != false) continue;
+    if (record.kind != RecordKind.task || record.done != false || record.text.trim().isEmpty) continue;
     final due = record.fields?.date('due');
-    if (due == null || due.isEmpty || record.text.trim().isEmpty) continue;
+    final remind = reminderOn(record.source);
+    if ((due == null || due.isEmpty) && remind == null) continue;
     final id = todoEventId(record.noteId, anchor: record.anchor, words: record.text);
-    out.putIfAbsent(id, () => TodoEvent(id: id, title: record.text.trim(), day: due, noteId: record.noteId));
+    out.putIfAbsent(
+      id,
+      () => TodoEvent(id: id, title: record.text.trim(), day: remind?.day ?? due!, time: remind?.clock, noteId: record.noteId),
+    );
   }
   return out.values.toList();
 }
@@ -450,8 +495,7 @@ Future<TodoExport> exportTodos(GoogleSession session, String calendarId, List<To
   for (final todo in wanted) {
     final there = made.remove(todo.id);
     if (there != null) {
-      final start = there['start'];
-      final same = start is Map && start['date'] == todo.day && there['summary'] == todo.title && there['description'] == todo.description;
+      final same = todo.startsWhere(there['start']) && there['summary'] == todo.title && there['description'] == todo.description;
       if (!same) {
         await session.ask('PATCH', '$path/${todo.id}', body: todo.body(withId: false));
         moved += 1;
