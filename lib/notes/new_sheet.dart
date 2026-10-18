@@ -10,6 +10,10 @@
 /// and saves it into this library as your own copy. And, with a journal, a new entry, right after Note: the row asks
 /// what the entry starts with before it makes one, the journal's usual template first.
 ///
+/// In simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more") the sheet opens on Note and one
+/// row, "More…", which opens in place to the rest - Today, the entry, Canvas, Notebook, Meeting, the shared link -
+/// so a + is one choice until someone asks for more. Advanced has the whole list as before.
+///
 /// The sheet is lib/sheet/sheet.dart and its rows lib/sheet/kit.dart, already ported and measured; this file is
 /// which rows, in what order, saying what.
 ///
@@ -92,7 +96,7 @@ class NewSheetSound {
 /// What the + makes (`src/app/notes/NewSheet.tsx`). The rows whose features are not ported take their callbacks and
 /// are left out without them; the library doc says which, and what else differs.
 class NewSheet extends StatefulWidget {
-  const NewSheet({super.key, required this.open, required this.onClose, required this.onNote, this.onCanvas, this.onBook, this.entry, this.onMeeting, this.sound, this.onFromLink, this.clock, this.onToday});
+  const NewSheet({super.key, required this.open, required this.onClose, required this.onNote, this.onCanvas, this.onBook, this.entry, this.onMeeting, this.sound, this.onFromLink, this.clock, this.onToday, this.simple = false});
 
   final bool open;
   final VoidCallback onClose;
@@ -120,6 +124,9 @@ class NewSheet extends StatefulWidget {
   /// Today's note, opened or made (lib/notes/daily_notes.dart): the port's own, after Note; left out, no row.
   final VoidCallback? onToday;
 
+  /// Simple mode: Note, then "More…" for the rest, opened in place (the library doc says why).
+  final bool simple;
+
   @override
   State<NewSheet> createState() => _NewSheetState();
 }
@@ -133,6 +140,9 @@ class _NewSheetState extends State<NewSheet> {
   /// The entry row pressed: the sheet shows what the entry can start with.
   bool _starting = false;
 
+  /// Simple mode's "More…" pressed: the rest of the rows are out.
+  bool _more = false;
+
   @override
   void didUpdateWidget(NewSheet oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -142,6 +152,7 @@ class _NewSheetState extends State<NewSheet> {
       _link = null;
       _problem = null;
       _starting = false;
+      _more = false;
     }
   }
 
@@ -226,6 +237,17 @@ class _NewSheetState extends State<NewSheet> {
     }
     final canvas = widget.onCanvas, book = widget.onBook, meeting = widget.onMeeting, sound = widget.sound, fromLink = widget.onFromLink;
     final link = _link;
+    // Simple mode: the rest of the rows wait behind More… until it is pressed. What More holds is said on its row,
+    // so nothing is a surprise, and only what this build offers is named.
+    final rest = widget.simple && !_more;
+    final behindMore = [
+      if (widget.onToday != null) 'Today',
+      if (entry != null) 'an entry in ${entry.journal}',
+      if (canvas != null) 'a canvas',
+      if (book != null) 'a notebook',
+      if (meeting != null) 'a meeting',
+      if (fromLink != null) 'a shared link',
+    ];
     return Sheet(
       key: const ValueKey('new'),
       label: 'New',
@@ -235,7 +257,16 @@ class _NewSheetState extends State<NewSheet> {
         SheetGroup(
           children: [
             SheetRow(key: const ValueKey('new-note'), icon: const AppIcon(Lucide.squarePen, size: 18), label: 'Note', hint: 'A page of markdown, typed or said.', onPress: _pick(widget.onNote)),
-            if (widget.onToday != null)
+            if (rest && behindMore.isNotEmpty)
+              // A row that opens, not one that makes something: the sheet stays, and the rows come out under it.
+              SheetRow(
+                key: const ValueKey('new-more'),
+                icon: const AppIcon(Lucide.ellipsis, size: 18),
+                label: 'More…',
+                hint: '${behindMore.first[0].toUpperCase()}${behindMore.first.substring(1)}${behindMore.length > 1 ? ', ${behindMore.sublist(1).join(', ')}' : ''}.',
+                onPress: () => setState(() => _more = true),
+              ),
+            if (!rest && widget.onToday != null)
               SheetRow(
                 key: const ValueKey('new-today'),
                 icon: const AppIcon(Lucide.calendarDays, size: 18),
@@ -243,14 +274,14 @@ class _NewSheetState extends State<NewSheet> {
                 hint: 'The note for ${dailyTitle(widget.clock?.call() ?? DateTime.now())}, opened, or made the first time.',
                 onPress: _pick(widget.onToday!),
               ),
-            if (entry != null) SheetRow(key: const ValueKey('new-entry'), icon: const AppIcon(Lucide.feather, size: 18), label: 'Entry in ${entry.journal}', hint: entry.hint, onPress: () => setState(() => _starting = true)),
-            if (canvas != null) SheetRow(key: const ValueKey('new-canvas'), icon: const AppIcon(Lucide.workflow, size: 18), label: 'Canvas', hint: 'Cards on a page with lines between them.', onPress: _pick(canvas)),
-            if (book != null) SheetRow(key: const ValueKey('new-book'), icon: const AppIcon(Lucide.book, size: 18), label: 'Notebook', hint: 'Notes in an order with an index, or a journal of dated entries.', onPress: _pick(book)),
-            if (meeting != null) SheetRow(key: const ValueKey('new-meeting'), icon: const DrawnIconView(AppIcons.cassette), label: 'Meeting', hint: 'Record a meeting. The screen can go off. It is written up afterwards.', onPress: _pick(meeting)),
-            if (meeting != null && sound != null)
+            if (!rest && entry != null) SheetRow(key: const ValueKey('new-entry'), icon: const AppIcon(Lucide.feather, size: 18), label: 'Entry in ${entry.journal}', hint: entry.hint, onPress: () => setState(() => _starting = true)),
+            if (!rest && canvas != null) SheetRow(key: const ValueKey('new-canvas'), icon: const AppIcon(Lucide.workflow, size: 18), label: 'Canvas', hint: 'Cards on a page with lines between them.', onPress: _pick(canvas)),
+            if (!rest && book != null) SheetRow(key: const ValueKey('new-book'), icon: const AppIcon(Lucide.book, size: 18), label: 'Notebook', hint: 'Notes in an order with an index, or a journal of dated entries.', onPress: _pick(book)),
+            if (!rest && meeting != null) SheetRow(key: const ValueKey('new-meeting'), icon: const DrawnIconView(AppIcons.cassette), label: 'Meeting', hint: 'Record a meeting. The screen can go off. It is written up afterwards.', onPress: _pick(meeting)),
+            if (!rest && meeting != null && sound != null)
               // A switch, not a choice that makes something: the sheet stays open for Meeting.
               SheetRow(key: const ValueKey('new-sound'), icon: const AppIcon(Lucide.volume2, size: 18), label: sound.label, hint: sound.hint, chosen: sound.on, onPress: sound.onToggle),
-            if (fromLink != null && link == null)
+            if (!rest && fromLink != null && link == null)
               SheetRow(key: const ValueKey('new-link'), icon: const AppIcon(Lucide.link2, size: 18), label: 'From a shared link', hint: 'A copy of a note or notebook someone shared with you.', onPress: () => setState(() => _link = '')),
           ],
         ),

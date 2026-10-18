@@ -90,6 +90,7 @@ class NoteTree extends StatefulWidget {
     this.onSmart,
     this.onManageSmart,
     this.onTags,
+    this.simple = false,
   });
 
   final List<Note> notes;
@@ -141,6 +142,13 @@ class NoteTree extends StatefulWidget {
 
   /// The Tags page; the row is there only with this.
   final VoidCallback? onTags;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the tools over the notes are
+  /// New note, Search and commands, Open or Fold every folder where there are folders, and Close; no New workspace
+  /// and no names-only switch (the list stays as it was last set). The rest of simple mode's sidebar is what the
+  /// root leaves out: Browse files, the Tags row, the smart notebooks and the graph. The folders a person already
+  /// has still show, with Archive and Trash: nothing that holds their notes is hidden.
+  final bool simple;
 
   @override
   State<NoteTree> createState() => _NoteTreeState();
@@ -788,9 +796,9 @@ class _NoteTreeState extends State<NoteTree> {
                   spacing: t.space(1),
                   children: [
                     _Tool(label: 'New note', icon: Lucide.squarePen, onPressed: widget.onNew),
-                    _Tool(label: 'New workspace', icon: Lucide.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
+                    if (!widget.simple) _Tool(label: 'New workspace', icon: Lucide.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
                     if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
-                    _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
+                    if (!widget.simple) _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
                     if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
                     if (every.isNotEmpty)
                       _Tool(

@@ -133,6 +133,7 @@ class AppShell extends StatefulWidget {
     this.banner,
     this.backStack,
     this.leavesAtRoot = false,
+    this.simple = false,
     this.mobile,
     this.finePointer,
   });
@@ -246,6 +247,12 @@ class AppShell extends StatefulWidget {
 
   /// Whether a back gesture with nothing to close puts the app behind the home screen. The web app's never does.
   final bool leavesAtRoot;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "simple mode has a much more approachable UI with fancy features
+  /// hidden behind more"). The bar keeps Home, the sidebar, Back, the screen's own tools and the cog, and leaves out
+  /// the people icon, the bell, Forward and the aside with its toggle; the tabs keep a new tab, Close tab and Delete
+  /// note and leave out their groups. The root reads the preference and says.
+  final bool simple;
 
   /// A phone or a tablet, whatever its window's width; the device's answer unless a test says.
   final bool? mobile;
@@ -673,8 +680,9 @@ class AppShellState extends State<AppShell> {
             notifier: _barTools,
             child: Builder(
               builder: (context) {
-                // The aside follows the sidebar's shell: a column beside a docked sidebar, else a card.
-                final aside = tabBar ? widget.asideBuilder?.call(context, this) : null;
+                // The aside follows the sidebar's shell: a column beside a docked sidebar, else a card. Simple
+                // mode has none: the note's screen keeps its history and links in More.
+                final aside = tabBar && !widget.simple ? widget.asideBuilder?.call(context, this) : null;
                 final asideHolds = aside != null;
                 final asideDocked = docked && _asideShown && asideHolds;
                 return Stack(
@@ -785,6 +793,8 @@ class AppShellState extends State<AppShell> {
   /// The app's own tab row, one bar of one height on every screen that has it.
   Widget _bar(BuildContext context, {required bool docked, required bool sidebarShown, required bool quietBar, required bool asideHolds}) {
     final chip = widget.barChip;
+    // Simple mode's bar: no people icon, no bell, no Forward, no aside, and tabs with no groups.
+    final simple = widget.simple;
     return ListenableBuilder(
       listenable: chip == null ? _barTools : Listenable.merge([_barTools, chip.changes]),
       builder: (context, _) => AppTabBar(
@@ -819,17 +829,18 @@ class AppShellState extends State<AppShell> {
           },
           onCloseTabs: closeTabs,
           onGoBack: goBack,
-          onGoOn: goOn,
+          onGoOn: simple ? null : goOn,
           canGoBack: _walk.canBack,
           canGoOn: _walk.canOn,
-          onNotifications: quietBar
+          grouping: !simple,
+          onNotifications: quietBar || simple
               ? null
               : () => _change(() {
                     _drawer = false;
                     _notificationsOpen = !_notificationsOpen;
                   }),
           onSettings: quietBar ? null : openSettings,
-          onOrganizations: quietBar ? null : openOrganizations,
+          onOrganizations: quietBar || simple ? null : openOrganizations,
           // The people icon's picker: the ones you belong to, a pick straight to its dashboard.
           organizations: widget.organizations,
           onOrganization: openOrganization,

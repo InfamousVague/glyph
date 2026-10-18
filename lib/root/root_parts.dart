@@ -47,7 +47,7 @@ extension _RootParts on _GhostRootState {
         // sheet closes first.
         _part(
           'newSheet',
-          () => _newSheet ? (_newInto, _shown, _shell.currentState?.shown, _capture != null, _voiceAt, preferences.value.meetingSound) : null,
+          () => _newSheet ? (_newInto, _shown, _shell.currentState?.shown, _capture != null, _voiceAt, preferences.value.meetingSound, preferences.value.simple) : null,
           _newSheetPart,
         ),
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
@@ -105,6 +105,8 @@ extension _RootParts on _GhostRootState {
       _drafts,
       prefs.topBar,
       prefs.sidebarStyle,
+      // Simple or advanced (GHST-103): the bar's icons and the tabs' groups.
+      prefs.simple,
       _workspaces.value,
       // Who is signed in and the organizations joined.
       _accountAt,
@@ -135,6 +137,7 @@ extension _RootParts on _GhostRootState {
 
   Widget _shellPart(BuildContext context) {
     final prefs = preferences.value;
+    final simple = prefs.simple;
     final services = _services;
     final signedIn = services?.signedIn ?? false;
     final voice = _voice;
@@ -149,6 +152,9 @@ extension _RootParts on _GhostRootState {
       drafts: _drafts,
       topBar: TopBarStyle.parse(prefs.topBar),
       sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
+      // Simple mode (GHST-103): the bar keeps Home, the sidebar, Back, the screen's own tools and the cog; the shell
+      // leaves out the people icon, the bell, Forward, the aside and the tabs' groups.
+      simple: prefs.simple,
       workspaces: _workspaces.value,
       organizations: signedIn ? services!.joined : const [],
       organizationBuilder: services == null ? null : _organizationPage,
@@ -227,7 +233,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn, _canTalk),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn, _canTalk, preferences.value.simple),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -247,14 +253,16 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : shell.openOrganization,
           onOrganizationSettings: _services == null ? null : _openOrganizationSettings,
           wisp: preferences.value.wispEdge,
-          onSaveSearch: _organize.saveSearch,
+          // Simple mode: no workspace pills, no Save as a smart notebook, and the dock without Claude.
+          onSaveSearch: preferences.value.simple ? null : _organize.saveSearch,
+          simple: preferences.value.simple,
           dock: _notesDock(),
         ),
       ),
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
       collectionBuilder: (context, shell, screen) => _part(
         'collection',
-        () => (screen, shell.notes, _workspaces.value, _claudeOn, _canTalk),
+        () => (screen, shell.notes, _workspaces.value, _claudeOn, _canTalk, preferences.value.simple),
         (context) => CollectionScreen(
           kind: screen.kind,
           name: screen.key,
@@ -291,11 +299,13 @@ extension _RootParts on _GhostRootState {
           },
           onClose: close,
           onCommands: _search,
-          onBrowseFiles: _browseFiles,
-          onGraph: () {
-            close();
-            _showGraph();
-          },
+          onBrowseFiles: simple ? null : _browseFiles,
+          onGraph: simple
+              ? null
+              : () {
+                  close();
+                  _showGraph();
+                },
           // `notices={split ? notices : undefined}`: a phone has its home page for them.
           notices: splitFits(MediaQuery.sizeOf(context), mouse: mousePointer) ? _sidebarNotices() : const [],
           onSpeak: _capture == null
@@ -317,16 +327,22 @@ extension _RootParts on _GhostRootState {
           onOrganization: _services == null ? null : _openOrganizationSettings,
           onNoteMenu: _menu.open,
           emptyArt: const Ghost(scene: GhostScene.noNotes),
-          smart: _organize.smart,
-          onSmart: (id) {
-            close();
-            _organize.showSmart(id);
-          },
-          onManageSmart: _organize.editSmart,
-          onTags: () {
-            close();
-            _organize.showTags();
-          },
+          // Simple mode's sidebar (GHST-103): no smart notebooks, no Tags row, and the tree's own tools trimmed.
+          smart: simple ? null : _organize.smart,
+          onSmart: simple
+              ? null
+              : (id) {
+                  close();
+                  _organize.showSmart(id);
+                },
+          onManageSmart: simple ? null : _organize.editSmart,
+          onTags: simple
+              ? null
+              : () {
+                  close();
+                  _organize.showTags();
+                },
+          simple: simple,
         ),
       ),
       dockedSidebarBuilder: (context, shell) => _part('tree', () => _sidebarReads(shell), (context) => _tree(shell)),
@@ -395,7 +411,7 @@ extension _RootParts on _GhostRootState {
 
   /// What either sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there is a
   /// folder to browse and a recorder to speak to, and the update a wide window's sidebar carries.
-  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt);
+  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, preferences.value.simple);
 
   /// The home page, while it is the screen (the shell takes it down under a note, the grid and an organization's
   /// page, and makes it anew on the way back, as the page's is: lib/shell/app_shell.dart). It is built again for
@@ -416,6 +432,8 @@ extension _RootParts on _GhostRootState {
           _presenceAt,
           // Claude on the dock, or not (the Claude plugin's switch).
           _claudeOn,
+          // Simple or advanced (GHST-103).
+          preferences.value.simple,
         ),
         (context) => _homePage(context, shell),
       );
@@ -423,6 +441,10 @@ extension _RootParts on _GhostRootState {
   Widget _homePage(BuildContext context, AppShellState shell) {
     final services = _services;
     final signedIn = services?.signedIn ?? false;
+    // Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the dock is Search, Write,
+    // Speak and Settings with no Claude; no organization cards, no New organization, no events of the day, no Save
+    // as a smart notebook; the filters and the search are the page's own to trim (HomeScreen.simple).
+    final simple = preferences.value.simple;
     // The organization the home page is filtered to, for its news.
     final chosen = _workspaces.value.current?.id;
     String? chosenOrg;
@@ -448,9 +470,9 @@ extension _RootParts on _GhostRootState {
       onSearch: _search,
       // Claude at the head of the dock: Ask Claude, and Claude at work or online (docs/CLAUDE_APP.md); Settings at
       // its foot (docs/DOCK.md).
-      claude: _claudeDock(),
+      claude: simple ? null : _claudeDock(),
       // Talk to Claude under it, where Claude is on and the build can hear.
-      claudeTalk: _claudeTalkDock(),
+      claudeTalk: simple ? null : _claudeTalkDock(),
       onSettings: _openSettings,
       // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
       onSwipe: (note, action) {
@@ -460,20 +482,21 @@ extension _RootParts on _GhostRootState {
       onRefresh: _pullRefresh,
       onNoteMenu: _menu.open,
       onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace)),
-      organizations: homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
-      orgNews: homeOrgNews(services, chosenOrg),
+      organizations: simple ? const [] : homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
+      orgNews: simple ? const [] : homeOrgNews(services, chosenOrg),
       onOrganization: services == null ? null : shell.openOrganization,
       // Edit on an organization's workspace, from the filters: its settings, opened from nowhere they go back to
       // (`openOrganizationSettings` with no `from`).
       onOrganizationSettings: services == null ? null : _openOrganizationSettings,
-      onNewOrganization: signedIn ? () => _told(() => _newOrganization = true) : null,
+      onNewOrganization: signedIn && !simple ? () => _told(() => _newOrganization = true) : null,
       headerEdge: _headerEdge,
       dockHalo: _dockHalo,
       ghost: _homeGhost,
-      onSaveSearch: _organize.saveSearch,
+      onSaveSearch: simple ? null : _organize.saveSearch,
       // Today's events at the head of the page (docs/CALENDAR.md).
       // None while the Calendar plugin is off (lib/plugins/calendar): the service holds none then.
-      events: calendar.events,
+      events: simple ? null : calendar.events,
+      simple: simple,
     );
   }
 
@@ -487,10 +510,10 @@ extension _RootParts on _GhostRootState {
   static Widget _pageDockHalo(BuildContext context, DockPlace it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown, scale: it.scale);
 
   /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
-  /// build records, and Settings at its foot.
+  /// build records, and Settings at its foot. In simple mode (GHST-103) the same less Claude, as home's.
   PageDockSeam _notesDock() => PageDockSeam(
-        claude: _claudeForDock,
-        talk: _claudeTalkForDock,
+        claude: preferences.value.simple ? null : _claudeForDock,
+        talk: preferences.value.simple ? null : _claudeTalkForDock,
         halo: _pageDockHalo,
         actions: [
           DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
@@ -675,6 +698,8 @@ extension _RootParts on _GhostRootState {
     final into = _newInto;
     return NewSheet(
       open: _newSheet,
+      // Simple mode (GHST-103): Note, then More… for the rest.
+      simple: preferences.value.simple,
       onClose: () => _told(() {
         _newSheet = false;
         _newInto = null;
@@ -796,6 +821,9 @@ extension _RootParts on _GhostRootState {
     );
   }
   Widget _tree(AppShellState shell, {VoidCallback? onClose}) {
+    // Simple mode's sidebar (GHST-103): no Browse files, no graph, no smart notebooks, no Tags row, and the tree's
+    // own tools trimmed (NoteTree.simple).
+    final simple = preferences.value.simple;
     return NoteTree(
       notes: shell.notes,
       activeId: shell.shown,
@@ -811,11 +839,13 @@ extension _RootParts on _GhostRootState {
       },
       onClose: onClose,
       onCommands: _search,
-      onBrowseFiles: _browseFiles,
-      onGraph: () {
-        onClose?.call();
-        _showGraph();
-      },
+      onBrowseFiles: simple ? null : _browseFiles,
+      onGraph: simple
+          ? null
+          : () {
+              onClose?.call();
+              _showGraph();
+            },
       notices: _sidebarNotices(),
       onSpeak: _capture == null
           ? null
@@ -838,16 +868,21 @@ extension _RootParts on _GhostRootState {
       // A mouse's right-click on a row: the note's menu, where the pointer is.
       onNoteMenu: _menu.open,
       emptyArt: const Ghost(scene: GhostScene.noNotes),
-      smart: _organize.smart,
-      onSmart: (id) {
-        onClose?.call();
-        _organize.showSmart(id);
-      },
-      onManageSmart: _organize.editSmart,
-      onTags: () {
-        onClose?.call();
-        _organize.showTags();
-      },
+      smart: simple ? null : _organize.smart,
+      onSmart: simple
+          ? null
+          : (id) {
+              onClose?.call();
+              _organize.showSmart(id);
+            },
+      onManageSmart: simple ? null : _organize.editSmart,
+      onTags: simple
+          ? null
+          : () {
+              onClose?.call();
+              _organize.showTags();
+            },
+      simple: simple,
     );
   }
 

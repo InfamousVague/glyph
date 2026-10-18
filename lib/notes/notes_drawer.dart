@@ -51,6 +51,7 @@ class NotesDrawer extends StatelessWidget {
     this.onSmart,
     this.onManageSmart,
     this.onTags,
+    this.simple = false,
   });
 
   final bool open;
@@ -95,6 +96,9 @@ class NotesDrawer extends StatelessWidget {
   final void Function(SmartNotebook notebook)? onManageSmart;
   final VoidCallback? onTags;
 
+  /// Simple mode (GHST-103), passed through to the tree.
+  final bool simple;
+
   @override
   Widget build(BuildContext context) {
     // Draws nothing while it is shut.
@@ -137,6 +141,7 @@ class NotesDrawer extends StatelessWidget {
         onSmart: onSmart,
         onManageSmart: onManageSmart,
         onTags: onTags,
+        simple: simple,
       ),
     );
   }

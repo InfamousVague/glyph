@@ -191,6 +191,7 @@ class HomeScreen extends StatefulWidget {
     this.events,
     this.claude,
     this.claudeTalk,
+    this.simple = false,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -292,6 +293,11 @@ class HomeScreen extends StatefulWidget {
   /// The calendars' events (lib/calendar/calendar.dart): today's are at the head of the page, under Today, when
   /// there are any (docs/CALENDAR.md). None where it is left out.
   final ValueListenable<List<CalendarEvent>>? events;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the filters are the Show radios
+  /// alone and the search offers no operators ([HomeFilters.simple]), and the page draws no organization cards and
+  /// no events of the day. The dock is the root's to trim (no Claude; lib/root/root_parts.dart).
+  final bool simple;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -587,7 +593,14 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.headerEdge != null ? 256 : 0) |
           (widget.dockHalo != null ? 512 : 0) |
           (widget.ghost != null ? 1024 : 0) |
-          (widget.onSettings != null ? 2048 : 0),
+          (widget.onSettings != null ? 2048 : 0) |
+          // Claude's rings, the events and Save are seams too: simple chosen while the page is up (the card, Settings;
+          // GHST-103) takes them off a page already drawn.
+          (widget.claude != null ? 4096 : 0) |
+          (widget.claudeTalk != null ? 8192 : 0) |
+          (widget.events != null ? 16384 : 0) |
+          (widget.onSaveSearch != null ? 32768 : 0) |
+          (widget.simple ? 65536 : 0),
       cover: windowEndCover.value,
     );
     // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
@@ -854,19 +867,20 @@ class _HomeScreenState extends State<HomeScreen> {
           onNewOrganization: widget.onNewOrganization == null ? null : _newOrganization,
           onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
           onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
+          simple: widget.simple,
         ),
       ValueListenableBuilder<List<Widget>>(
         valueListenable: _notices,
         builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : _Gapped(gap: gap, children: notices),
       ),
-      // Today's events, when there are any; not while searching (docs/CALENDAR.md).
-      if (!searched && widget.events != null)
+      // Today's events, when there are any; not while searching (docs/CALENDAR.md), and not in simple mode.
+      if (!searched && !widget.simple && widget.events != null)
         ValueListenableBuilder<List<CalendarEvent>>(
           valueListenable: widget.events!,
           builder: (context, events, _) => HomeTodayEvents(events: eventsOn(events, isoDay(DateTime.fromMillisecondsSinceEpoch(_now)))),
         ),
-      // The organizations joined, a card each; not while searching, nor inside one workspace.
-      if (hasOrganization && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
+      // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
+      if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
     ];
 
     /// The page's slivers in a window [viewport] wide, made once for a width: the pull that lowers the page builds

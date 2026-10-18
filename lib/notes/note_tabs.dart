@@ -104,6 +104,7 @@ class NoteTabs extends StatefulWidget {
     this.tail,
     this.presence,
     this.finePointer,
+    this.grouping = true,
   });
 
   /// How the bar is laid out; Classic unless Settings says otherwise.
@@ -146,7 +147,8 @@ class NoteTabs extends StatefulWidget {
   /// is in; without it - a move by the keys - the row works that out from where it lands.
   final void Function(String id, int to, {bool grouped})? onMove;
 
-  /// Back and forward through where he has been, beside the sidebar's button.
+  /// Back and forward through where he has been, beside the sidebar's button. Each arrow is drawn for its own
+  /// callback: simple mode (GHST-103) has Back and no Forward.
   final VoidCallback? onGoBack;
   final VoidCallback? onGoOn;
   final bool canGoBack;
@@ -194,6 +196,11 @@ class NoteTabs extends StatefulWidget {
   /// Whether the pointer is a mouse (`(hover: hover) and (pointer: fine)`): a longer fade at the row's ends, flyouts
   /// in the menus where they fit. The device's answer unless a test says.
   final bool? finePointer;
+
+  /// Whether tabs can be put in groups from here: a tab's menu's group rows and a chip's Colour. Off in simple mode
+  /// (GHST-103; Matt: "fancy features hidden behind more"), which keeps the tabs, a new tab, Close tab and Delete
+  /// note; a group made in advanced still draws its chip, with Rename, Ungroup and Close group to take it apart.
+  final bool grouping;
 
   /// How tall the row of tabs draws for [tabs], before the bar has shrunk it: a tab's height, or a pixel more where
   /// a tab wears a workspace's pill under its border.
@@ -280,20 +287,16 @@ class _NoteTabsState extends State<NoteTabs> {
             );
 
   /// Where he has been: the same two arrows a browser has, in the same place, beside the sidebar's button.
-  List<Widget> _arrows() => widget.onGoBack == null || widget.onGoOn == null
-      ? const []
-      : [
-          BarRing(glyph: BarGlyph.arrowLeft, iconSize: 19, label: 'Back to where you were', onPressed: widget.canGoBack ? widget.onGoBack : null),
-          BarRing(glyph: BarGlyph.arrowRight, iconSize: 19, label: 'Forward again', onPressed: widget.canGoOn ? widget.onGoOn : null),
-        ];
+  List<Widget> _arrows() => [
+        if (widget.onGoBack != null) BarRing(glyph: BarGlyph.arrowLeft, iconSize: 19, label: 'Back to where you were', onPressed: widget.canGoBack ? widget.onGoBack : null),
+        if (widget.onGoOn != null) BarRing(glyph: BarGlyph.arrowRight, iconSize: 19, label: 'Forward again', onPressed: widget.canGoOn ? widget.onGoOn : null),
+      ];
 
   /// The Masthead's: Back as a word, and Forward only when there is somewhere forward to go, since it seldom is.
-  List<Widget> _arrowWords() => widget.onGoBack == null || widget.onGoOn == null
-      ? const []
-      : [
-          BarWord(word: 'Back', label: 'Back to where you were', leading: BarGlyph.arrowLeft, onPressed: widget.canGoBack ? widget.onGoBack : null),
-          if (widget.canGoOn) BarWord(word: 'Forward', label: 'Forward again', trailing: BarGlyph.arrowRight, onPressed: widget.onGoOn),
-        ];
+  List<Widget> _arrowWords() => [
+        if (widget.onGoBack != null) BarWord(word: 'Back', label: 'Back to where you were', leading: BarGlyph.arrowLeft, onPressed: widget.canGoBack ? widget.onGoBack : null),
+        if (widget.onGoOn != null && widget.canGoOn) BarWord(word: 'Forward', label: 'Forward again', trailing: BarGlyph.arrowRight, onPressed: widget.onGoOn),
+      ];
 
   /// Organizations: with a picker, the icon opens it and a second press closes it again; without, it goes to Settings.
   Widget? _orgs({required bool asWord}) {
@@ -428,6 +431,7 @@ class _NoteTabsState extends State<NoteTabs> {
                       onRename: () => setState(() => _renaming = group.id),
                       onGroups: _change,
                       onCloseTabs: widget.onCloseTabs,
+                      colours: widget.grouping,
                     ),
             ),
           ),
@@ -472,8 +476,8 @@ class _NoteTabsState extends State<NoteTabs> {
                     coarse: !_fine,
                     onDismiss: () => setState(() => _menu = null),
                     onRename: renames ? () => setState(() => _naming = note.id) : null,
-                    onNewGroup: () => _startGroup(note.id),
-                    onGroups: _change,
+                    onNewGroup: widget.grouping ? () => _startGroup(note.id) : null,
+                    onGroups: widget.grouping ? _change : null,
                     onCloseTab: () => widget.onClose(note.id),
                     onDeleteNote: widget.onDelete == null ? null : () => widget.onDelete!(note.id),
                   ),

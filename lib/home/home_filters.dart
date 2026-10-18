@@ -46,6 +46,7 @@ class HomeFilters extends StatefulWidget {
     this.onOrganization,
     this.onSearching,
     this.onSaveSearch,
+    this.simple = false,
   });
 
   final String query;
@@ -73,6 +74,12 @@ class HomeFilters extends StatefulWidget {
   /// Keeps what is typed as a smart notebook (lib/core/smart_notebooks.dart); left out, the row under the search
   /// offers no Save.
   final VoidCallback? onSaveSearch;
+
+  /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the panel is the Show radios
+  /// alone, with no Workspace radios and no New workspace, New organization or Edit under them, and the search
+  /// offers no operator chips and no Save as a smart notebook. Plain words still search as they always have, and an
+  /// operator typed by hand is still read and still said back as a chip.
+  final bool simple;
 
   @override
   State<HomeFilters> createState() => HomeFiltersState();
@@ -219,6 +226,7 @@ class HomeFiltersState extends State<HomeFilters> {
             onFilter: widget.onFilter,
             counts: widget.counts,
             store: widget.workspaces,
+            simple: widget.simple,
             onNew: () => _manage(null),
             onNewOrganization: widget.onNewOrganization == null
                 ? null
@@ -235,8 +243,10 @@ class HomeFiltersState extends State<HomeFilters> {
     );
     // The operators a search reads, offered while the field is empty and has the keyboard, and what it understood
     // of what is typed (lib/home/search_hints.dart): the port's own.
+    // Simple mode offers no operators and no Save: the row is there only to say back what was typed.
     final typed = widget.query.trim().isNotEmpty;
-    final hinted = typed ? (parseSearch(widget.query).parts.isNotEmpty || widget.onSaveSearch != null) : _field.hasFocus;
+    final onSave = widget.simple ? null : widget.onSaveSearch;
+    final hinted = typed ? (parseSearch(widget.query).parts.isNotEmpty || onSave != null) : _field.hasFocus && !widget.simple;
     final hints = hinted
         ? SearchHints(
             query: widget.query,
@@ -245,7 +255,7 @@ class HomeFiltersState extends State<HomeFilters> {
               widget.onQuery(next);
               _field.requestFocus();
             },
-            onSave: widget.onSaveSearch,
+            onSave: onSave,
           )
         : null;
     if (chosen.isEmpty && hints == null) return row;
@@ -519,6 +529,7 @@ class _PanelBody extends StatefulWidget {
     required this.onEdit,
     required this.onLeave,
     required this.trigger,
+    this.simple = false,
   });
 
   final double? room;
@@ -526,6 +537,9 @@ class _PanelBody extends StatefulWidget {
   final ValueChanged<HomeFilter> onFilter;
   final Map<HomeFilter, int> counts;
   final WorkspaceStore store;
+
+  /// Simple mode: the Show radios alone ([HomeFilters.simple]).
+  final bool simple;
   final VoidCallback onNew;
   final VoidCallback? onNewOrganization;
   final ValueChanged<Workspace> onEdit;
@@ -646,59 +660,62 @@ class _PanelBodyState extends State<_PanelBody> {
           ],
         ),
       ),
-      heading('Workspace'),
-      if (spaces.list.isNotEmpty)
-        Semantics(
-          container: true,
-          label: 'Workspace',
-          role: SemanticsRole.radioGroup,
-          explicitChildNodes: true,
+      // Simple mode's panel ends with Show: no workspaces to choose, none to make, nothing to edit.
+      if (!widget.simple) ...[
+        heading('Workspace'),
+        if (spaces.list.isNotEmpty)
+          Semantics(
+            container: true,
+            label: 'Workspace',
+            role: SemanticsRole.radioGroup,
+            explicitChildNodes: true,
+            child: _Gapped(
+              children: [
+                for (final (at, place) in places.indexed)
+                  GlacierScope(
+                    attrs: place == null ? const {} : {'hue': place.hue ?? 'ink'},
+                    child: _Choice(
+                      focusNode: _placeNode(place?.id ?? ''),
+                      checked: current?.id == place?.id,
+                      label: place?.name ?? 'Every workspace',
+                      onPressed: () => widget.store.chooseWorkspace(place?.id),
+                      onKey: (event) => _step(event, at, places.length, (to) {
+                        widget.store.chooseWorkspace(places[to]?.id);
+                        _placeNode(places[to]?.id ?? '').requestFocus();
+                      }),
+                      mark: place == null ? HomeIcon(HomeGlyph.workspace, size: md, color: t.color('app-ink-2')) : _HueDot(em: md),
+                      org: place?.org != null,
+                    ),
+                  ),
+              ],
+            ),
+          )
+        else
+          Padding(
+            padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(1)),
+            child: Text(
+              'Notes filed in a workspace show together. A note made while one is chosen goes there.',
+              style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
+            ),
+          ),
+        Container(
+          margin: EdgeInsets.only(top: t.space(1)),
+          padding: EdgeInsets.only(top: t.space(1)),
+          decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule'), width: t.len('glacier-hairline')))),
           child: _Gapped(
             children: [
-              for (final (at, place) in places.indexed)
+              _PanelAction(label: 'New workspace', onPressed: widget.onNew, mark: HomeIcon(HomeGlyph.plus, size: md, color: t.color('app-ink-2'))),
+              if (widget.onNewOrganization != null)
+                _PanelAction(label: 'New organization', onPressed: widget.onNewOrganization!, mark: HomeIcon(HomeGlyph.organization, size: md, strokeWidth: 2.2, color: t.color('app-ink-2'))),
+              if (current != null)
                 GlacierScope(
-                  attrs: place == null ? const {} : {'hue': place.hue ?? 'ink'},
-                  child: _Choice(
-                    focusNode: _placeNode(place?.id ?? ''),
-                    checked: current?.id == place?.id,
-                    label: place?.name ?? 'Every workspace',
-                    onPressed: () => widget.store.chooseWorkspace(place?.id),
-                    onKey: (event) => _step(event, at, places.length, (to) {
-                      widget.store.chooseWorkspace(places[to]?.id);
-                      _placeNode(places[to]?.id ?? '').requestFocus();
-                    }),
-                    mark: place == null ? HomeIcon(HomeGlyph.workspace, size: md, color: t.color('app-ink-2')) : _HueDot(em: md),
-                    org: place?.org != null,
-                  ),
+                  attrs: {'hue': current.hue ?? 'ink'},
+                  child: _PanelAction(label: 'Edit ${current.name}', onPressed: () => widget.onEdit(current), mark: _HueDot(em: md)),
                 ),
             ],
           ),
-        )
-      else
-        Padding(
-          padding: EdgeInsetsDirectional.fromSTEB(t.space(2), 0, t.space(2), t.space(1)),
-          child: Text(
-            'Notes filed in a workspace show together. A note made while one is chosen goes there.',
-            style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3')),
-          ),
         ),
-      Container(
-        margin: EdgeInsets.only(top: t.space(1)),
-        padding: EdgeInsets.only(top: t.space(1)),
-        decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule'), width: t.len('glacier-hairline')))),
-        child: _Gapped(
-          children: [
-            _PanelAction(label: 'New workspace', onPressed: widget.onNew, mark: HomeIcon(HomeGlyph.plus, size: md, color: t.color('app-ink-2'))),
-            if (widget.onNewOrganization != null)
-              _PanelAction(label: 'New organization', onPressed: widget.onNewOrganization!, mark: HomeIcon(HomeGlyph.organization, size: md, strokeWidth: 2.2, color: t.color('app-ink-2'))),
-            if (current != null)
-              GlacierScope(
-                attrs: {'hue': current.hue ?? 'ink'},
-                child: _PanelAction(label: 'Edit ${current.name}', onPressed: () => widget.onEdit(current), mark: _HueDot(em: md)),
-              ),
-          ],
-        ),
-      ),
+      ],
     ];
 
     return FocusScope(

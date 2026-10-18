@@ -44,10 +44,14 @@ class Home extends StatefulWidget {
     this.dockHalo,
     this.notices = const [],
     this.events,
+    this.simple = false,
   });
 
   /// The calendars' events, as the root hands them.
   final ValueListenable<List<CalendarEvent>>? events;
+
+  /// Simple mode (GHST-103), as the root says it.
+  final bool simple;
 
   /// The notices above the notes, as the root hands them.
   final List<Widget> notices;
@@ -120,6 +124,7 @@ class _HomeState extends State<Home> {
         headerEdge: widget.headerEdge,
         dockHalo: widget.dockHalo,
         events: widget.events,
+        simple: widget.simple,
       ),
     );
   }
