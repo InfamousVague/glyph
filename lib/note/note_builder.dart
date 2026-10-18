@@ -75,6 +75,7 @@ ShellNoteBuilder noteScreenBuilder({
   ValueChanged<JournalWriter?>? onJournal,
   PlaceTags? tags,
   PageDockSeam? dock,
+  bool back = false,
 }) {
   return (context, shell, screen) {
     final note = screen.note;
@@ -117,6 +118,8 @@ ShellNoteBuilder noteScreenBuilder({
       seams: seams,
       say: say == null ? null : (message) => say(context, message),
       dock: dock,
+      // Simple mode's plain shell on a phone (GHST-105): the note's own Back, since there is no bar with Home.
+      back: back,
     );
   };
 }

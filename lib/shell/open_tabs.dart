@@ -135,6 +135,15 @@ class OpenTabsController extends ChangeNotifier {
     _changed(groups: pruned);
   }
 
+  /// The row cut to [id] alone, or to nothing: simple mode's (GHST-105; Matt, 2026-10-18: "it still is a bit
+  /// complex with the tabs and such"), which draws no row and keeps no note open but the one on screen. Nothing
+  /// changes where the row is that already.
+  void trimTo(String? id) {
+    if (!_setOpen([?id])) return;
+    final pruned = _prune(tell: false);
+    _changed(open: true, groups: pruned);
+  }
+
   /// The row as another device left it.
   void openFromElsewhere(List<String> theirs) {
     if (!_setOpen(theirs)) return;
