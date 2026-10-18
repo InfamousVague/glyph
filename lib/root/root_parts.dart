@@ -416,6 +416,8 @@ extension _RootParts on _GhostRootState {
           _presenceAt,
           // Claude on the dock, or not (the Claude plugin's switch).
           _claudeOn,
+          // Simple mode's Academy card (GHST-103): whether it is due now.
+          _academyCardDue,
         ),
         (context) => _homePage(context, shell),
       );
@@ -968,6 +970,12 @@ extension _RootParts on _GhostRootState {
     return [
       if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
       if (_asksExperience) notices.ExperienceCard(onPick: _pickExperience),
+      // Simple mode's way into the Academy (GHST-103): for the first week, until a lesson is passed or the cross.
+      if (_academyCardDue)
+        notices.AcademyCard(
+          onOpen: () => _shell.currentState?.show(const Screen.academy()),
+          onHide: () => setState(dismissAcademyBanner),
+        ),
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
       if (model != null && _voiceModelLine != null)
         ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
@@ -978,6 +986,13 @@ extension _RootParts on _GhostRootState {
   /// skipped before its page) and the choice was never made, here or on another device. Matt, 2026-10-18: new
   /// installs choose in the walkthrough, "existing users see it on the card one time".
   bool get _asksExperience => !preferences.value.experienceChosen && _guide?.open != true && _stored.flag(guideSeenKey, value: '1', unreadable: true).isMarked;
+
+  /// Whether home offers the Academy's card (lib/academy/banner.dart): in simple mode, where the marks are hidden
+  /// and the Academy is how they are learnt (Matt: "the academy page should show up on the home screen kinda like
+  /// the update banner for new users"); advanced has the cheat sheet and the + list's More in reach already. On
+  /// the root's clock, where a test sets one.
+  bool get _academyCardDue =>
+      preferences.value.simple && academyBannerDue(now: widget.clock == null ? null : DateTime.fromMillisecondsSinceEpoch(widget.clock!(), isUtc: true));
 
   /// The card's answer: the choice, made for every device, and the card goes with it.
   void _pickExperience(String mode) => preferences.update((now) => now.choosing(mode));

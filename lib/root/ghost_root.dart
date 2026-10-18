@@ -43,6 +43,7 @@ import '../book/journal_view.dart' show JournalPages;
 import '../book/new_book_sheet.dart';
 import '../book/tickets.dart';
 import '../academy/academy_screen.dart';
+import '../academy/banner.dart';
 import '../canvas/how_canvas.dart' show howCanvasBody;
 import '../canvas/json_canvas.dart' show Canvas, canvasNoteBody;
 import '../canvas/sample_canvas.dart' show sampleCanvasBody;

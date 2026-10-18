@@ -8,18 +8,21 @@
 // scrolled, searched and with nothing arriving, which the page never does.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/academy/banner.dart';
 import 'package:ghost_md/aside/aside.dart' show asideContent;
 import 'package:ghost_md/book/chapter_number.dart' show chapterOf;
 import 'package:ghost_md/canvas/json_canvas.dart' show isCanvasBody;
 import 'package:ghost_md/core/note_text.dart' show noteTitle;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
+import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_parts.dart' show Arrive;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/note_menu.dart' show NoteMenuHost;
+import 'package:ghost_md/notes/notices.dart' show AcademyCard;
 import 'package:ghost_md/root/note_desk.dart' show NoteDesk;
 import 'package:ghost_md/shell/screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -131,11 +134,11 @@ void main() {
       }
     }
 
-    Future<SampleLibrary> open(WidgetTester tester) async {
+    Future<SampleLibrary> open(WidgetTester tester, {Preferences prefs = const Preferences(theme: 'light')}) async {
       final library = SampleLibrary.seeded();
       await pumpApp(
         tester,
-        prefs: const Preferences(theme: 'light'),
+        prefs: prefs,
         home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow),
       );
       await tester.pump(const Duration(milliseconds: 100));
@@ -149,6 +152,25 @@ void main() {
     }
 
     HomeScreen home(WidgetTester tester) => tester.widget<HomeScreen>(find.byType(HomeScreen, skipOffstage: false));
+
+    testWidgets('lists the Academy card among home\'s notices in simple mode while it is due, and its cross puts it away (GHST-103)', (tester) async {
+      useStored(MemoryStored());
+      await open(tester, prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true));
+      expect(home(tester).notices.whereType<AcademyCard>(), hasLength(1));
+      expect(find.byKey(const ValueKey('academy-card')), findsOneWidget);
+      await tester.tap(find.bySemanticsLabel('Not now'));
+      await tester.pump();
+      expect(academyBannerDue(), isFalse);
+      expect(home(tester).notices.whereType<AcademyCard>(), isEmpty);
+      await close(tester);
+    });
+
+    testWidgets('lists no Academy card in advanced mode', (tester) async {
+      useStored(MemoryStored());
+      await open(tester, prefs: const Preferences(theme: 'light', experience: 'advanced', experienceChosen: true));
+      expect(home(tester).notices.whereType<AcademyCard>(), isEmpty);
+      await close(tester);
+    });
 
     testWidgets('builds the home page for what the home page shows, and not for a preference it does not read', (tester) async {
       final library = await open(tester);
