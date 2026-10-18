@@ -11,6 +11,8 @@ import 'package:ghost_md/notes/new_sheet.dart';
 import 'package:ghost_md/notes/note_tabs.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
+import 'package:ghost_md/notes/notices.dart' show ExperienceCard;
+import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 
@@ -151,6 +153,40 @@ void main() {
     expect(shellWidget(tester).simple, isFalse);
     expect(bar('Organizations'), findsOneWidget);
     expect(dockOrder(tester, within: find.byType(HomeScreen)).first, 'claude');
+    await close(tester);
+  });
+  testWidgets('asks an install from before the choice once, on home, and the answer is the preference (Matt, 2026-10-18: "existing users see it on the card one time")', (tester) async {
+    // The walkthrough was seen on this device long ago, and no mode was ever chosen, here or elsewhere.
+    final kept = MemoryStored({guideSeenKey: '1'});
+    final library = SampleLibrary.seeded();
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: kept),
+    );
+    await settle(tester);
+    expect(preferences.value.experienceChosen, isFalse);
+    expect(find.byType(ExperienceCard), findsOneWidget);
+    // The whole app meanwhile: unchosen reads as advanced.
+    expect(shellWidget(tester).simple, isFalse);
+
+    await tester.tap(find.descendant(of: find.byType(ExperienceCard), matching: find.bySemanticsLabel('Simple')));
+    await settle(tester);
+    expect((preferences.value.experience, preferences.value.experienceChosen, preferences.value.noteView), ('simple', true, 'formatted'));
+    expect(find.byType(ExperienceCard), findsNothing);
+    expect(shellWidget(tester).simple, isTrue);
+    await close(tester);
+  });
+
+  testWidgets('does not ask an install that never saw the walkthrough: that one is asked by the walkthrough itself', (tester) async {
+    final library = SampleLibrary.seeded();
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostRoot(launch: false, library: library, workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: MemoryStored()),
+    );
+    await settle(tester);
+    expect(find.byType(ExperienceCard), findsNothing);
     await close(tester);
   });
 }
