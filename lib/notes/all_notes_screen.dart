@@ -28,6 +28,14 @@
 ///   page's hook also measured the bar, where here its height is worked out from the same rules that lay it out.
 /// - **The dock** (lib/shell/page_dock.dart, [AllNotesScreen.dock]) floats at the bottom end corner as the home
 ///   page's does: Claude, Search, +, Speak and Settings. The page has none; the cards' foot leaves it room.
+/// - **Folders, and the icon view** (GHST-107, 2026-10-19) are the port's own: with a pill chosen, the folders inside
+///   that workspace stand between the order words and the cards (lib/notes/folder_strip.dart), a chip each that
+///   chooses the folder as a pill does, and where the workspace is above them; the line of words offers Cards or
+///   Icons at its end (lib/notes/icon_browser.dart), the words the tally's line tall so the line stands where the
+///   page measured it, kept on the device for every page that offers it; the icon view draws the folders as its
+///   first tiles, then the notes in the page's order, and at All the workspaces at the top as the folders, then
+///   every note (All still means every note; the folders are the way in). No folders while a search is typed, whose
+///   cards are what was found; none of it in simple mode.
 library;
 
 import 'dart:math' as math;
@@ -60,6 +68,8 @@ import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import '../shell/wide_screen.dart' show mousePointer;
 import 'all_notes.dart';
+import 'folder_strip.dart';
+import 'icon_browser.dart';
 import 'pull_to_refresh.dart';
 import 'workspace_bar.dart';
 import 'workspace_sheet.dart';
@@ -97,6 +107,7 @@ class AllNotesScreen extends StatefulWidget {
     this.onSaveSearch,
     this.dock,
     this.simple = false,
+    this.onNewFolder,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -159,6 +170,10 @@ class AllNotesScreen extends StatefulWidget {
   /// stay. The dock is the root's to trim (no Claude).
   final bool simple;
 
+  /// New folder on the folders' strip (GHST-107): a folder inside the workspace given, by id, through the root's
+  /// workspace sheet. Absent, the strip offers none.
+  final ValueChanged<String>? onNewFolder;
+
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
 }
@@ -175,6 +190,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   final FocusNode _focus = FocusNode(debugLabel: 'Search your notes');
   late final GlideToTop _glide = GlideToTop(_scroller, onRoom: _redraw);
   late AllNotesSort _sort = readSort(widget.stored);
+
+  /// Cards or icons (lib/notes/icon_browser.dart), the device's one choice.
+  late BrowseView _view = readBrowseView(widget.stored);
   late bool _tapes = widget.tapes;
   bool _archived = false;
   String _query = '';
@@ -485,6 +503,12 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     setState(() => _sort = sort);
   }
 
+  void _setView(BrowseView view) {
+    // As the order is: one choice for the device, and the dashboard reads the same.
+    writeBrowseView(view, widget.stored);
+    setState(() => _view = view);
+  }
+
   @override
   Widget build(BuildContext context) {
     if (ghostPerf) Perf.count('allnotes.build');
@@ -501,6 +525,13 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final outOf = _tapes ? withTape : live + (_archived ? inArchive : 0);
     final now = widget.clock?.call();
     if (widget.gists case final given?) _takeGists(given);
+    // Whether the page draws icons, and the folders: inside a workspace, the folders in it, for the strip and the
+    // icon view's first tiles; at All, the workspaces at the top as the icon view's first tiles alone (the pills are
+    // the strip's part there). None in simple mode, and none while a search is typed (the cards are what it found).
+    final icons = !widget.simple && _view == BrowseView.icons;
+    final browsing = !widget.simple && !searched && (workspace != null || icons);
+    final folders = browsing ? folderTiles(spaces.list, spaces.of, widget.notes, workspace) : const <FolderCount>[];
+    final crumbs = browsing && folderPath(spaces.list, workspace).length > 1;
 
     // The bar: `padding-block: calc(var(--app-safe-top) + var(--glacier-space-2)) var(--glacier-space-2)` round a
     // search as tall as its field (`min-block-size: var(--glacier-space-8)`) and its hairlines.
@@ -513,7 +544,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // `padding-block-start: calc(max(var(--wisp-under, 0px), var(--app-safe-top)) + var(--glacier-space-4))`
     final top = math.max(under, safeTop) + t.space(4);
     // Another workspace, order, archive or tapes chosen: the page glides back to its top rather than jumping there.
-    final room = _glide.keyed('${workspace ?? 'all'}|${_sort.id}|${_archived ? 'archive' : ''}|${_tapes ? 'tapes' : ''}', still: t.reducedMotion);
+    final room = _glide.keyed('${workspace ?? 'all'}|${_sort.id}|${_archived ? 'archive' : ''}|${_tapes ? 'tapes' : ''}|${icons ? 'icons' : ''}', still: t.reducedMotion);
     // `padding-block-end: calc(var(--app-safe-bottom) + var(--glacier-space-10))`
     // And at least the room the dock stands in, so the last cards scroll clear of it.
     final dock = widget.dock;
@@ -531,7 +562,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
         child: LayoutBuilder(
           builder: (context, box) {
             // What a desktop's scrollbar will take a frame from now, left for it now.
-            final ahead = _scrollbarAhead(box, shown.length, math.max(0.0, box.maxWidth - desktopScrollbarWidth - gutterStart - gutterEnd), window, t, under);
+            final ahead = _scrollbarAhead(box, icons ? 0 : shown.length, math.max(0.0, box.maxWidth - desktopScrollbarWidth - gutterStart - gutterEnd), window, t, under);
             // The page's own column, inside its gutters.
             final inner = math.max(0.0, box.maxWidth - ahead - gutterStart - gutterEnd);
             // `@container all-notes (min-width: 44rem)`.
@@ -609,12 +640,32 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                             style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ),
                         ),
-                        if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
+                        // Cards or icons (GHST-107), in the order words' shape but the tally's line tall, at the line's
+                        // end with the archive's word: the one place on the line that moves nothing the page is held
+                        // to (test/allnotes, where things stand). Simple mode keeps the cards.
+                        if (!widget.simple || inArchive > 0)
+                          Row(
+                            mainAxisSize: MainAxisSize.min,
+                            spacing: t.space(3),
+                            children: [
+                              if (!widget.simple) BrowseViewWords(key: const ValueKey('all-notes-view'), view: _view, onView: _setView, compact: true),
+                              if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
+                            ],
+                          ),
                       ],
                     ),
                   ],
                 ),
                 SizedBox(height: t.space(3)),
+                // The folders inside the chosen workspace, with where it is above them (GHST-107); in the icon view
+                // they are the first tiles, and only the line above is drawn here.
+                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs))) ...[
+                  if (icons)
+                    FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace)
+                  else
+                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder),
+                  SizedBox(height: t.space(4)),
+                ],
                 if (!widget.loading && !searched && live == 0 && !_archived)
                   _Empty(
                     scene: spaces.current != null ? GhostScene.emptyWorkspace : GhostScene.noNotes,
@@ -637,8 +688,16 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
               pull: pull,
               slivers: [
                 SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd + ahead, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
-                // The cards: only the rows of them near the screen are built.
-                if (shown.isNotEmpty) SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot), sliver: _grid(read, inner, window, t, now)),
+                // The cards: only the rows of them near the screen are built. Or the tiles, the folders first.
+                if (icons && (shown.isNotEmpty || folders.isNotEmpty))
+                  SliverPadding(
+                    padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
+                    sliver: SliverToBoxAdapter(
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now),
+                    ),
+                  )
+                else if (!icons && shown.isNotEmpty)
+                  SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot), sliver: _grid(read, inner, window, t, now)),
               ],
             );
           },

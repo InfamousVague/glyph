@@ -64,6 +64,7 @@ import '../core/search_hits.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
+import '../notes/folder_strip.dart';
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
@@ -192,6 +193,7 @@ class HomeScreen extends StatefulWidget {
     this.claude,
     this.claudeTalk,
     this.simple = false,
+    this.onNewFolder,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -241,6 +243,10 @@ class HomeScreen extends StatefulWidget {
 
   /// A workspace to rename, colour or remove, or null for a new one: the workspace's sheet.
   final ValueChanged<Workspace?>? onManageWorkspace;
+
+  /// New folder on the folders' strip (GHST-107): the workspace's sheet for a folder inside the workspace given, by
+  /// id. Absent, the strip offers none.
+  final ValueChanged<String>? onNewFolder;
 
   /// A new organization, from the filters' panel; absent signed out.
   final VoidCallback? onNewOrganization;
@@ -600,7 +606,8 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.claudeTalk != null ? 8192 : 0) |
           (widget.events != null ? 16384 : 0) |
           (widget.onSaveSearch != null ? 32768 : 0) |
-          (widget.simple ? 65536 : 0),
+          (widget.simple ? 65536 : 0) |
+          (widget.onNewFolder != null ? 131072 : 0),
       cover: windowEndCover.value,
     );
     // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
@@ -868,6 +875,18 @@ class _HomeScreenState extends State<HomeScreen> {
           onOrganization: widget.onOrganizationSettings != null || hasOrganization ? _organizationSettings : null,
           onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
           simple: widget.simple,
+        ),
+      // The folders inside the chosen workspace, and where it is (GHST-107): not while searching, not in simple
+      // mode, and nothing for a workspace at the top with no folders inside it.
+      if (workspace != null && !widget.simple && !searched && FolderStrip.shows(spaces.list, workspace))
+        FolderStrip(
+          key: const ValueKey('home-folders'),
+          list: spaces.list,
+          of: spaces.of,
+          notes: notes,
+          chosen: workspace,
+          onChoose: widget.workspaces.chooseWorkspace,
+          onNewFolder: widget.onNewFolder,
         ),
       ValueListenableBuilder<List<Widget>>(
         valueListenable: _notices,

@@ -36,7 +36,7 @@ Widget dashboard(Device device, String id) => OrganizationScreen(
       onBack: () {},
       onOpenNote: (_) {},
       onNew: () {},
-      onAllNotes: () {},
+      onAllNotes: (_) {},
       onSettings: () {},
       onOpenOrganization: (_) {},
       onLog: () {},

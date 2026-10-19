@@ -32,6 +32,11 @@
 /// - The rows do not rise as they arrive (`animation: rise`), and the cards do not carry the AI corner mark; the
 ///   pull's ring and the smoke are All notes' own.
 /// - The phone's back gesture is the shell's (lib/shell/app_shell.dart wraps the screen in `OnBack`).
+/// - **Folders, and the icon view** (GHST-107, 2026-10-19) are the port's own: the folders inside the organization's
+///   workspace stand above its Notes as chips (lib/notes/folder_strip.dart), a tap on one going to All notes with
+///   that folder chosen ([OrganizationScreen.onAllNotes] with its id); and the Notes heading offers Cards or Icons
+///   (lib/notes/icon_browser.dart), the device's one choice, All notes' too. Nothing of the folders is drawn until
+///   the organization's workspace holds one.
 library;
 
 import 'dart:async';
@@ -47,9 +52,13 @@ import '../../art/art.dart';
 import '../../core/note.dart';
 import '../../core/notifications.dart';
 import '../../core/preferences.dart';
+import '../../core/stored.dart' show stored;
+import '../../core/workspaces.dart' show Workspace;
 import '../../home/home_organizations.dart' show OrgPresence;
 import '../../live/presence.dart' show aiDoingWords;
 import '../../home/note_card.dart';
+import '../../notes/folder_strip.dart';
+import '../../notes/icon_browser.dart';
 import '../../notes/pull_to_refresh.dart';
 import '../../notes/when.dart';
 import '../../notes/workspace_swatch.dart';
@@ -92,6 +101,7 @@ class OrganizationScreen extends StatefulWidget {
     this.onSendLink,
     this.now,
     this.dock,
+    this.onNewFolder,
   });
 
   final AccountServices? services;
@@ -107,8 +117,13 @@ class OrganizationScreen extends StatefulWidget {
   /// A new note, filed in the organization's workspace, opened ready to type.
   final VoidCallback onNew;
 
-  /// Every note filed in the organization's workspace: the home page with that workspace chosen.
-  final VoidCallback onAllNotes;
+  /// Every note filed in the organization's workspace: the home page with that workspace chosen; or, from a
+  /// folder's chip, with that folder chosen, by its id (GHST-107).
+  final ValueChanged<String?> onAllNotes;
+
+  /// New folder on the folders' strip (GHST-107): a folder inside the workspace given, by id, through the root's
+  /// workspace sheet. Absent, the strip offers none.
+  final ValueChanged<String>? onNewFolder;
 
   /// The organization's settings (lib/settings/organization_sheet.dart), from the cog.
   final VoidCallback onSettings;
@@ -158,6 +173,14 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
 
   AccountServices? get _services => widget.services;
   PreferencesStore get _prefs => _services?.prefs ?? preferences;
+
+  /// Cards or icons for the notes (lib/notes/icon_browser.dart): the device's one choice, All notes' too.
+  late BrowseView _view = readBrowseView(_services?.kept ?? stored);
+
+  void _setView(BrowseView view) {
+    writeBrowseView(view, _services?.kept ?? stored);
+    setState(() => _view = view);
+  }
 
   bool get _signedIn => _services?.signedIn ?? false;
   bool get _held => !_signedIn || _prefs.value.localOnly;
@@ -303,14 +326,15 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               SizedBox(width: t.space(2)),
               Text('$count', style: pageText(t, sm, color: t.color('app-ink-3')).copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
             ],
-            const Spacer(),
-            if (more != null) ...[SizedBox(width: t.space(3)), more],
+            // What stands at the end takes the rest of the line, and gives way (Cards · Icons and "In its workspace"
+            // together are a phone's width, GHST-107).
+            if (more != null) Expanded(child: Padding(padding: EdgeInsetsDirectional.only(start: t.space(3)), child: Align(alignment: AlignmentDirectional.centerEnd, child: more))) else const Spacer(),
           ],
         );
 
     Widget more(String words, VoidCallback onPressed, {Key? key}) => DefaultTextStyle(
           style: pageText(t, sm),
-          child: SettingsWord(key: key, onPressed: onPressed, color: t.color('app-ink-2'), child: Text(words, softWrap: false)),
+          child: SettingsWord(key: key, onPressed: onPressed, color: t.color('app-ink-2'), child: Text(words, softWrap: false, overflow: TextOverflow.ellipsis)),
         );
 
     Widget none(String words) => Text(words, style: pageText(t, sm, height: t.len('glacier-leading-sm'), color: t.color('app-ink-3')));
@@ -377,16 +401,46 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
         );
       }
 
+      // The folders inside the organization's workspace (GHST-107), each with its count: chips above the cards, or
+      // the first tiles of the icon view.
+      final spaces = services?.workspaces?.value.list ?? const <Workspace>[];
+      final folders = folderTiles(spaces, filed, widget.notes, workspaceId);
+      final icons = _view == BrowseView.icons;
+      final all = filedHere.length > organizationNotesShown
+          ? more('All ${filedHere.length}', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes'))
+          : (filedHere.isNotEmpty ? more('In its workspace', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes')) : null);
+      // Cards or icons while there is anything to view, then the way to all of them: a step apart, so "In its
+      // workspace" keeps its place on a phone (test/account_ui/reference_test.dart holds it to the page's). With
+      // nothing filed and no folder the heading is as it was, its words alone, level with Members on a wide page.
+      final viewed = filedHere.isNotEmpty || folders.isNotEmpty;
       final notes = section([
         heading(
           Lucide.filePlus,
           'Notes',
           count: filedHere.isEmpty ? null : filedHere.length,
-          more: filedHere.length > organizationNotesShown
-              ? more('All ${filedHere.length}', widget.onAllNotes, key: const ValueKey('org-all-notes'))
-              : (filedHere.isNotEmpty ? more('In its workspace', widget.onAllNotes, key: const ValueKey('org-all-notes')) : null),
+          more: viewed
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  spacing: t.space(2),
+                  children: [
+                    BrowseViewWords(key: const ValueKey('org-notes-view'), view: _view, onView: _setView),
+                    if (all != null) Flexible(child: all),
+                  ],
+                )
+              : null,
         ),
-        if (filedHere.isNotEmpty)
+        if (!icons && folders.isNotEmpty)
+          FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder),
+        if (icons && (filedHere.isNotEmpty || folders.isNotEmpty))
+          IconBrowser(
+            key: const ValueKey('org-notes-icons'),
+            folders: folders,
+            notes: filedHere.take(organizationNotesShown).toList(growable: false),
+            onFolder: widget.onAllNotes,
+            onOpen: widget.onOpenNote,
+            now: now,
+          )
+        else if (filedHere.isNotEmpty)
           Semantics(
             container: true,
             label: 'Notes in this organization',
@@ -395,7 +449,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now),
             ),
           )
-        else
+        else if (folders.isEmpty)
           none('Nothing is filed here yet. Start one with New, or file a note here from its More, under Workspace.'),
       ]);
 
