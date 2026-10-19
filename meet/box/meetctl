@@ -5,7 +5,7 @@
 #
 #   meetctl status         the five units, and whether a meeting is under way
 #   meetctl check          is Ghost's profile signed in to Google?  SIGNED_IN yes | no | busy
-#   meetctl signin         the sign-in browser and the VNC view on :99 (stops the bot until signin-done)
+#   meetctl signin         the sign-in browser and the VNC view on :71 (stops the bot until signin-done)
 #   meetctl signin-done    stops both, checks the sign-in, starts the bot again (when it has its token)
 #   meetctl restart        restarts the bot, unless a meeting is under way (then says so and does nothing)
 #
@@ -20,7 +20,7 @@ UNITS="glyph-meet-xvfb glyph-meet-pulse glyph-meet glyph-meet-vnc glyph-meet-sig
 # The bot's own environment, as its unit gives it, for a command run by hand as glyph-meet (two minutes at most).
 as_bot() {
   timeout 120 runuser -u glyph-meet -- env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/var/lib/glyph-meet TMPDIR=/var/lib/glyph-meet/tmp \
-    GLYPH_MEET_DATA=/var/lib/glyph-meet DISPLAY=:99 PULSE_SERVER=unix:/run/glyph-meet-pulse/native "$@"
+    GLYPH_MEET_DATA=/var/lib/glyph-meet DISPLAY=:71 PULSE_SERVER=unix:/run/glyph-meet-pulse/native "$@"
 }
 
 # A meeting is under way when the bot is running and has a Chrome open.
@@ -79,7 +79,7 @@ PY
     # Conflicts= stops the bot.
     systemctl start glyph-meet-signin
     systemctl start glyph-meet-vnc
-    echo "SIGNIN started: Chrome at accounts.google.com on :99, VNC on 127.0.0.1:5901"
+    echo "SIGNIN started: Chrome at accounts.google.com on :71, VNC on 127.0.0.1:5901"
     ;;
   signin-done)
     systemctl stop glyph-meet-vnc glyph-meet-signin || true

@@ -1,4 +1,4 @@
-# glyph-meet-xvfb: the Meet bot's screen, display :99 (docs/MEET.md, "The bot and the box").
+# glyph-meet-xvfb: the Meet bot's screen, display :71 (docs/MEET.md, "The bot and the box").
 #
 # Installed by scripts/setup-meet-box.mjs, which rewrites this file on every run - edit it here, not on the box.
 #
@@ -7,7 +7,7 @@
 # x11vnc. Run as the bot's own user, so nobody else's X client is let in by default.
 
 [Unit]
-Description=Ghost.md Meet bot: virtual screen (Xvfb :99)
+Description=Ghost.md Meet bot: virtual screen (Xvfb :71)
 After=network.target
 
 [Service]
@@ -15,13 +15,15 @@ User=glyph-meet
 Group=glyph-meet
 # /tmp/.X11-unix is made by Ubuntu's tmpfiles at boot; made here too (as root, the +) in case it is not there.
 ExecStartPre=+/usr/bin/install -d -m 1777 /tmp/.X11-unix
-ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -noreset
+# Display :71, not :99: AttackFM's own Xvfb holds :99 on this box (/tmp/.X11-unix/X99, since 2026-08-27), and the
+# first setup's Xvfb crash-looped on it for half an hour (2026-10-19).
+ExecStart=/usr/bin/Xvfb :71 -screen 0 1280x800x24 -nolisten tcp -noreset
 Restart=on-failure
 RestartSec=2
 
 NoNewPrivileges=true
 ProtectSystem=strict
-# Its socket and lock live in the real /tmp (/tmp/.X11-unix/X99, /tmp/.X99-lock), where the bot can find them: no
+# Its socket and lock live in the real /tmp (/tmp/.X11-unix/X71, /tmp/.X71-lock), where the bot can find them: no
 # PrivateTmp, and /tmp the one place it writes.
 PrivateTmp=false
 ReadWritePaths=/tmp

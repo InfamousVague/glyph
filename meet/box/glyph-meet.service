@@ -28,7 +28,7 @@ EnvironmentFile=/opt/glyph-meet/glyph-meet.env
 Environment=GLYPH_MEET_API=http://127.0.0.1:8796
 Environment=GLYPH_MEET_DATA=/var/lib/glyph-meet
 Environment=HOME=/var/lib/glyph-meet
-Environment=DISPLAY=:99
+Environment=DISPLAY=:71
 Environment=PULSE_SERVER=unix:/run/glyph-meet-pulse/native
 # Chrome's temporary files in the state directory, not /tmp: the bot shares the real /tmp with Xvfb (for the X socket)
 # and so has no PrivateTmp, and its temporary files are its own all the same.

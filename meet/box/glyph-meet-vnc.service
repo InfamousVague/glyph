@@ -16,7 +16,7 @@ Requires=glyph-meet-xvfb.service
 User=glyph-meet
 Group=glyph-meet
 Environment=HOME=/var/lib/glyph-meet
-ExecStart=/usr/bin/x11vnc -display :99 -localhost -allow 127.0.0.1 -rfbport 5901 -nopw -forever -shared -noxdamage -quiet
+ExecStart=/usr/bin/x11vnc -display :71 -localhost -allow 127.0.0.1 -rfbport 5901 -nopw -forever -shared -noxdamage -quiet
 Restart=no
 
 NoNewPrivileges=true

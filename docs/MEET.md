@@ -193,17 +193,17 @@ keep-or-delete, Chrome's switches and the log's filter. Joining a real Meet is t
 
 | Unit | Runs | |
 |---|---|---|
-| `glyph-meet-xvfb` | `Xvfb :99 -screen 0 1280x800x24 -nolisten tcp` as `glyph-meet` | enabled; Chrome needs a window, Meet turns headless browsers away |
+| `glyph-meet-xvfb` | `Xvfb :71 -screen 0 1280x800x24 -nolisten tcp` as `glyph-meet` | enabled; Chrome needs a window, Meet turns headless browsers away |
 | `glyph-meet-pulse` | `pulseaudio -n` as `glyph-meet`, one null sink, socket `/run/glyph-meet-pulse/native` | enabled; Chrome plays the meeting to it, the tab capture takes it from there |
 | `glyph-meet` | `node /opt/glyph-meet/bot/bot.mjs` as `glyph-meet` | enabled when the token is there; `MemoryMax=3G`, `CPUQuota=200%`, `Nice=5` |
 | `glyph-meet-signin` | `node bot.mjs --signin`: a plain Chrome at accounts.google.com | on demand; `Conflicts=glyph-meet` (one Chrome on the profile) |
-| `glyph-meet-vnc` | `x11vnc -display :99 -localhost -rfbport 5901`, no password | on demand; loopback only, reached through an SSH tunnel |
+| `glyph-meet-vnc` | `x11vnc -display :71 -localhost -rfbport 5901`, no password | on demand; loopback only, reached through an SSH tunnel |
 
 PulseAudio is a system unit run as the bot's user rather than PulseAudio's own user unit: a user unit needs a user
 manager for a system account (`loginctl enable-linger`) and cannot be ordered against a system unit, and `pulseaudio
 --system` is the mode its authors warn against. A server install of Ubuntu has no PipeWire to compete with it.
 
-The bot shares the real `/tmp` with Xvfb (the X socket is `/tmp/.X11-unix/X99`), so it has no `PrivateTmp`; Chrome's
+The bot shares the real `/tmp` with Xvfb (the X socket is `/tmp/.X11-unix/X71`), so it has no `PrivateTmp`; Chrome's
 temporary files go to `TMPDIR=/var/lib/glyph-meet/tmp` instead. Chrome keeps its sandbox, which on Ubuntu is built on
 unprivileged user namespaces: so no `RestrictNamespaces`, `PrivateUsers` or `SystemCallFilter`, and no
 `MemoryDenyWriteExecute` (V8 is a JIT). `NoNewPrivileges` stays: it would break only the setuid fallback.
