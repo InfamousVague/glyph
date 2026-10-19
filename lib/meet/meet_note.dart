@@ -113,13 +113,18 @@ String meetNoteBody(OpenedTake take, {required int now, required bool writeUp, C
 /// The words the first line says while the write-up is to come, taken off once it has.
 const String _writingUp = ' It is being written up on your device.';
 
+/// Whether [body]'s first line still says its write-up is to come (taken off by [withSpeakers] once it has).
+bool awaitsWriteUp(String body) => body.contains(_writingUp);
+
 /// [body] with each part of Whisper's transcript given its speaker from the note's captions, and the captions
 /// dropped (see the header); null while there is nothing to do yet (no transcript from the write-up, or no words
-/// heard in it) or nothing to do at all (no captions kept).
+/// heard in it). With no captions kept there is no one to name: once the transcript has come, only the first line's
+/// "being written up" is taken off (2026-10-19: it stayed under a finished write-up), and a note without it comes back
+/// as it is.
 String? withSpeakers(String body, List<Segment> segments) {
-  final turns = turnsOf(body);
-  if (sectionOf(body, captionsHeading) == null) return null;
   if (transcriptOf(body) == null || (sectionOf(body, '## Transcript') ?? '').isEmpty) return null;
+  if (sectionOf(body, captionsHeading) == null) return body.replaceFirst(_writingUp, '');
+  final turns = turnsOf(body);
   var out = withoutSection(body, captionsHeading).replaceFirst(_writingUp, '');
   if (segments.isEmpty || turns.isEmpty) return out;
   final paragraphs = speakerParagraphs(segments, alignSpeakers(segments, turns));

@@ -103,8 +103,8 @@ Future<int> nameSpeakers(MeetPassContext ctx) async {
     if (note == null) continue;
     final next = withSpeakers(note.body, note.segments ?? const <Segment>[]);
     if (next == null) {
-      // The write-up is still to come; or there is nothing to name (no captions kept), which ends the wait.
-      if (note.body.contains('\n## Captions')) still.add(id);
+      // The write-up is still to come: wait for it, captions or not (its line is taken off when it has come).
+      if (note.body.contains('\n## Captions') || awaitsWriteUp(note.body)) still.add(id);
       continue;
     }
     if (next != note.body) {

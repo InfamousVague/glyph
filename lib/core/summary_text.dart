@@ -56,6 +56,14 @@ final RegExp _tightBox = RegExp(r'^(\s*)-\[([ xX])\]');
 /// A decision written without its dash: made an item, as the prompt asked.
 final RegExp _bareDecided = RegExp(r'^(\s*)(decided:)', caseSensitive: false);
 
+/// An item that says there is nothing, which the prompt never asks for and a small model writes anyway: "- [ ] None.",
+/// "- Decided: Nothing was decided.", "- No action items.", "- Nothing else was said." Dropped, since a box lands in To do (2026-10-19, a meeting
+/// of a few words summarised on the Fold put "- [ ] None." on Matt's list).
+final RegExp _saysNothing = RegExp(
+  r'^\s*-\s+(?:\[[ xX]\]\s+)?(?:decided:\s*)?(?:none|nothing|n/a|no(?: one)? (?:further |other )?(?:tasks?|action items?|actions?|decisions?|to-?dos?|items?)(?: (?:were |was )?(?:made|said|given|decided|agreed|mentioned|noted))?|nothing (?:else )?(?:was |were )?(?:decided|agreed|said|to do|assigned|mentioned))\s*[.!]?\s*$',
+  caseSensitive: false,
+);
+
 /// A label the model puts on the prose line, which the heading already says.
 final RegExp _label = RegExp(r'^(?:\*\*summary:?\*\*:?|summary:)\s*', caseSensitive: false);
 
@@ -136,6 +144,7 @@ ShapedSummary shapeSummary(String modelText) {
     if (_fence.hasMatch(bare) || _underPen.hasMatch(bare)) continue;
     if (_item.hasMatch(line)) {
       proseOpen = false;
+      if (_saysNothing.hasMatch(bare)) continue;
       items.add(bare);
       seenItem = true;
       continue;

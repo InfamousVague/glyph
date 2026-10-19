@@ -37,6 +37,25 @@ void main() {
       expect(shapeSummary(model), ShapedSummary(title: 'Planning call with Sam', section: section));
     });
 
+    test('drops an item that says there is nothing, so no "None." lands in To do (2026-10-19, test 4 on the Fold)', () {
+      final model = [
+        '# Ghost end-to-end test 4',
+        'This recording is a brief exchange of thanks.',
+        '',
+        '- Nothing else was said.',
+        '',
+        '- Decided: Nothing was decided.',
+        '',
+        '- [ ] None.',
+        '- [ ] No action items.',
+        '- No decisions were made.',
+      ].join('\n');
+      expect(shapeSummary(model).section, '## Summary\nThis recording is a brief exchange of thanks.');
+      // A real item that starts with one of those words stays.
+      final kept = shapeSummary('One line.\n\n- [ ] None of the slides yet: draft them Friday.\n- Decided: nothing ships before the beta.').section;
+      expect(kept, '## Summary\nOne line.\n\n- [ ] None of the slides yet: draft them Friday.\n- Decided: nothing ships before the beta.');
+    });
+
     test('never writes the model’s echoed heading, a rule or a code fence into the section', () {
       expect(shapeSummary('```markdown\n## Summary\nTwo errands.\n---\n- [ ] Milk.\n```'), const ShapedSummary(title: null, section: '## Summary\nTwo errands.\n\n- [ ] Milk.'));
       expect(shapeSummary(''), const ShapedSummary(title: null, section: ''));

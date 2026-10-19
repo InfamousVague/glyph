@@ -119,6 +119,15 @@ void main() {
     expect(withSpeakers(summarised, segments), startsWith('# Launch sync\n## Summary\nA call.\n\nGhost was in this meeting'));
     // No phrases with times kept: the words stay as Whisper wrote them, and the captions still go.
     expect(withSpeakers(written, const []), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\nGood morning everyone. Launch checklist first. The pricing page is drafted.\n');
-    expect(withSpeakers('# A note\n\n## Transcript\n\nWords.\n', segments), isNull, reason: 'no captions kept: nothing to do');
+    expect(withSpeakers('# A note\n\n## Transcript\n\nWords.\n', segments), '# A note\n\n## Transcript\n\nWords.\n', reason: 'no captions kept: nothing to do');
+  });
+  test('a meeting with no captions waits for its write-up, then loses the "being written up" line (2026-10-19, test 4)', () {
+    final filed = meetNoteBody(take(captions: const []), now: 0, writeUp: true);
+    expect(awaitsWriteUp(filed), isTrue);
+    expect(withSpeakers(filed, const []), isNull, reason: 'no transcript yet: keep waiting');
+    final written = '${filed.trimRight()}\n\n## Transcript\n\nGood morning everyone.\n';
+    final done = withSpeakers(written, const [Segment(startMs: 0, endMs: 2000, text: 'Good morning everyone.')])!;
+    expect(done, '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\nGood morning everyone.\n');
+    expect(awaitsWriteUp(done), isFalse);
   });
 }
