@@ -1,3 +1,4 @@
+import '../claude/store_neutral.dart';
 import '../core/preferences.dart';
 
 // Port of the web app's src/app/settings/words.ts: what Settings calls each value of a preference, in one place for
@@ -62,7 +63,8 @@ String appearanceSummary(Preferences prefs) {
   final faces = prefs.faces;
   return [
     themeWords[prefs.theme],
-    faceWords[faces.note],
+    // A store-neutral picture names no typeface's maker (lib/claude/store_neutral.dart).
+    storeNeutral ? 'Monospace' : faceWords[faces.note],
     // The size as it is kept when it has no word: the preferences settle the faces on reading, not the size.
     prefs.textSize == d.textSize ? null : (sizeWords[prefs.textSize] ?? prefs.textSize),
     faces.ui == d.typeface ? null : faceWords[faces.ui],
