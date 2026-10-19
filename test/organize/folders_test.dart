@@ -330,5 +330,53 @@ void main() {
       expect(opened, ['n2']);
       await endSettings(tester);
     });
+
+    testWidgets('draws the folders inside its workspace once there are any (slice 1), a tap going to All notes with the folder chosen', (tester) async {
+      final device = await Device.make();
+      final id = await ghost(device);
+      final launch = device.workspaces.addWorkspace('Launch', 'moss', orgWorkspaceId(id))!;
+      final notes = [device.keep('n1', '# Launch plan', at: 3000), device.keep('n2', '# Press list', at: 2000)];
+      device.workspaces.fileNote('n1', launch.id);
+      device.workspaces.fileNote('n2', orgWorkspaceId(id));
+      final made = <String>[];
+      String? allNotesWith;
+      await device.pump(
+        tester,
+        OrganizationScreen(
+          services: device.services,
+          orgId: id,
+          notes: notes,
+          wisp: false,
+          onBack: () {},
+          onOpenNote: (_) {},
+          onNew: () {},
+          onAllNotes: (folder) => allNotesWith = folder,
+          onSettings: () {},
+          onOpenOrganization: (_) {},
+          onLog: () {},
+          onAccount: () {},
+          onNewFolder: made.add,
+        ),
+        scroll: false,
+      );
+      await settle(tester);
+      expect(find.byKey(const ValueKey('org-folders')), findsOneWidget);
+      expect(chip(tester, launch.id), 'Launch, 1 note');
+      // The organization's workspace is the root: no line above.
+      expect(find.byKey(const ValueKey('folder-crumbs')), findsNothing);
+      // Both notes are the organization's, the folder's with them.
+      expect(find.byKey(const ValueKey('card-n1')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('folder-new')));
+      expect(made, [orgWorkspaceId(id)]);
+      await tester.tap(find.byKey(ValueKey('folder-chip-${launch.id}')));
+      expect(allNotesWith, launch.id);
+      // In icons, the folder is the first tile.
+      await tester.tap(find.byKey(const ValueKey('view-icons')));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('org-folders')), findsNothing);
+      final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
+      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-${launch.id}', 'tile-note-n1', 'tile-note-n2']);
+      await endSettings(tester);
+    });
   });
 }

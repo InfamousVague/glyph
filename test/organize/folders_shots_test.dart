@@ -99,43 +99,46 @@ void main() {
         await snap(tester, 'folders-allnotes-icons-all-$sized-$theme');
       });
 
-      testWidgets('an organization’s dashboard as icons, $sized $theme', (tester) async {
-        final device = await Device.make();
-        final id = await ghost(device);
-        final notes = [
-          device.keep('launch', '# Launch plan\n\nThe week of the 2nd.', at: organizeNow - 3600000),
-          device.keep('press', '# Press list\n\n- [ ] The Verge', at: organizeNow - 7200000),
-          device.keep('retro', '# Retro notes\n\nWhat went well.', at: organizeNow - 86400000),
-        ];
-        for (final note in notes) {
-          device.workspaces.fileNote(note.id, orgWorkspaceId(id));
-        }
-        device.kept.writeText(browseViewKey, 'icons');
-        await device.pump(
-          tester,
-          OrganizationScreen(
-            services: device.services,
-            orgId: id,
-            notes: notes,
-            wisp: false,
-            now: () => organizeNow,
-            onBack: () {},
-            onOpenNote: (_) {},
-            onNew: () {},
-            onAllNotes: (_) {},
-            onSettings: () {},
-            onOpenOrganization: (_) {},
-            onLog: () {},
-            onAccount: () {},
-            onNewFolder: (_) {},
-          ),
-          size: size,
-          scroll: false,
-          dark: theme == 'dark',
-        );
-        expect(find.byKey(const ValueKey('org-notes-icons')), findsOneWidget);
-        await snap(tester, 'folders-dashboard-$sized-$theme');
-      });
+      for (final view in BrowseView.values) {
+        testWidgets('an organization’s dashboard with a folder in its workspace, as ${view.id}, $sized $theme', (tester) async {
+          final device = await Device.make();
+          final id = await ghost(device);
+          final launch = device.workspaces.addWorkspace('Launch', 'moss', orgWorkspaceId(id))!;
+          final notes = [
+            device.keep('launch', '# Launch plan\n\nThe week of the 2nd.', at: organizeNow - 3600000),
+            device.keep('press', '# Press list\n\n- [ ] The Verge', at: organizeNow - 7200000),
+            device.keep('retro', '# Retro notes\n\nWhat went well.', at: organizeNow - 86400000),
+          ];
+          for (final note in notes) {
+            device.workspaces.fileNote(note.id, note.id == 'launch' ? launch.id : orgWorkspaceId(id));
+          }
+          device.kept.writeText(browseViewKey, view.id);
+          await device.pump(
+            tester,
+            OrganizationScreen(
+              services: device.services,
+              orgId: id,
+              notes: notes,
+              wisp: false,
+              now: () => organizeNow,
+              onBack: () {},
+              onOpenNote: (_) {},
+              onNew: () {},
+              onAllNotes: (_) {},
+              onSettings: () {},
+              onOpenOrganization: (_) {},
+              onLog: () {},
+              onAccount: () {},
+              onNewFolder: (_) {},
+            ),
+            size: size,
+            scroll: false,
+            dark: theme == 'dark',
+          );
+          expect(find.byKey(ValueKey(view == BrowseView.icons ? 'org-notes-icons' : 'org-folders')), findsOneWidget);
+          await snap(tester, 'folders-dashboard-${view.id}-$sized-$theme');
+        });
+      }
     }
   }
 }
