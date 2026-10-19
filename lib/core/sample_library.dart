@@ -25,6 +25,8 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 
+import '../claude/store_neutral.dart' show storeNeutral;
+
 import 'command_mutations.dart';
 import 'library.dart';
 import 'locale_dates.dart';
@@ -354,7 +356,10 @@ List<Note> seedLibrary([int? now]) {
   final coast = ['# The coast', '', 'Train to Cascais, then the bikes along the front to Guincho if the wind lets us.', '', '- [ ] Book the bikes the night before'].join('\n');
   final reading = ['# Reading list', '', '1. Piranesi', '2. The Peregrine', '3. The lamp book Ana mentioned'].join('\n');
   final flat = ['# Flat', '', '- [ ] Send the deposit', '- Keys on Tuesday', "- The landlord is Ana's cousin, which explains the price"].join('\n');
-  final cabinCanvas = '---\ntitle: "Cabin weekend, laid out"\n---\n$_cabinCanvasJson\n';
+  // A store-neutral build (debug only, the store pictures) draws the coral (Ember, "2") card and line in violet, so
+  // no store picture carries an orange that reads as Claude's.
+  final cabinJson = storeNeutral ? _cabinCanvasJson.replaceAll('"color": "2"', '"color": "6"') : _cabinCanvasJson;
+  final cabinCanvas = '---\ntitle: "Cabin weekend, laid out"\n---\n$cabinJson\n';
 
   // Tickets and queries: a Product notebook of tickets, a ticket with its fields, and two notes whose ```query fences
   // draw the open tickets. Due days sit a few days past the seed's moment.
