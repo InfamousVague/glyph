@@ -86,7 +86,7 @@ final GlyphPlugin claudePlugin = GlyphPlugin(
   settings: PluginSettings(
     pane: (context) => ClaudePane(handle: claudeHandle?.call(), inApp: const ClaudeInApp()),
     summary: claudeSummary,
-    hue: 'coral',
+    hue: storeNeutral ? 'graphite' : 'coral',
     // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles, the app's first.
     settings: const [
       ...claudeInAppFindable,
