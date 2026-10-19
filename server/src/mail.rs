@@ -36,7 +36,8 @@ use crate::store::{MailWrite, SealedMail};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::body::Bytes;
 use axum::extract::{DefaultBodyLimit, Path, State};
-use axum::http::StatusCode;
+use axum::http::header::CONTENT_TYPE;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -198,11 +199,12 @@ fn refused(message: &str) -> Response {
 }
 
 /// `POST v1/mail/inbound/mime`: a mail from the provider. See the header for what happens to it, and in what order.
-async fn inbound(State(mail): State<Arc<Mail>>, body: Bytes) -> Response {
+async fn inbound(State(mail): State<Arc<Mail>>, headers: HeaderMap, body: Bytes) -> Response {
     let Some(key) = mail.config.signing_key.as_deref() else {
         return error(StatusCode::SERVICE_UNAVAILABLE, "This service takes no mail.");
     };
-    let Some(mut post) = mailgun::Inbound::parse(&body) else {
+    let content_type = headers.get(CONTENT_TYPE).and_then(|v| v.to_str().ok());
+    let Some(mut post) = mailgun::Inbound::parse_any(&body, content_type) else {
         return refused("That post is not a mail.");
     };
     let now = now_secs();
