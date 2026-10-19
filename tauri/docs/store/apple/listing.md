@@ -499,3 +499,51 @@ A Plugins page: the AI assistant, Calendar, Contacts, Webhooks, team boards, tea
 Diagrams and gantt timelines drawn from text in the note, and queries shown as a calendar or a timeline.
 Simple or advanced: choose how much of the app is shown.
 ```
+
+## macOS 2.3.2 (the Mac App Store, 2026-10-19)
+
+Matt: "Also resubmit the mac app with the latest version". The same version record as macOS 2.2.1 above
+(`525d24c4-…`), renumbered; `ghost-md-app-store-pack/tools/mac-2.3.2.mjs` (`check | poll | cancel | renumber | attach |
+words | scan | submit | state`).
+
+- Build 2.3.2 (2003002) made by `tool/cutover-build-mac-store.sh 2.3.2` from 8eaeb52c (main; fdcd1b18, which Android
+  and the website's Mac 2.3.2 were released from, plus this file only; a5090e18 and bffe4964 are in it; the "+" in its
+  commit is a peer's uncommitted tauri/ test report, nothing the Mac app builds), universal, macOS 13.1 and later,
+  validated and uploaded with `xcrun altool -t macos` and the API key (delivery 06539be5-4cb8-4455-9da8-ce9e5110bf2b;
+  the one warning, 90889, is TestFlight's want of a provisioning profile, as before), processed `VALID`,
+  `usesNonExemptEncryption` false. The package was `build/mac-store/Ghost.md-2.3.2-2003002.pkg`.
+- Review submission eff0e251-… cancelled at 21:14 UTC (`COMPLETE`, the version `DEVELOPER_REJECTED`).
+- `PATCH appStoreVersions/525d24c4-…` with versionString 2.3.2 accepted (`PREPARE_FOR_SUBMISSION` once the build
+  was attached); build 2003002 attached in 2002001's place. No Mac version named 2.2.1 is left.
+- What's New below set and read back. Promotional text, keywords, description, review notes and the subtitle left as
+  they were (the brand-free set above) and scanned with What's New for
+  `claude|anthropic|notion|slack|github|google|gemini|gemma|openai|chatgpt|qwen|mcp|youtube|spotify|figma`: no hit.
+- **The pictures kept**: the nine neutral v2 `APP_DESKTOP` pictures, all `COMPLETE`. Against 2.3.2 in advanced mode,
+  which they show: simple mode's shell, home, To-dos and note header are drawn only where `prefs.simple`; the dock's
+  assistant now waits for an API key (a5090e18), and the pictures show a person who has entered one; the Meet card is
+  in Settings › Account, which no picture shows; home's Today marking a meeting's notes (6bd3691a) is not pictured.
+  The one visible difference is the chat bubble's ink (white on the orange since bfeadba6), which the store-neutral
+  pictures draw grey with dark ink by design.
+- **Submitted in a new review submission, 1dd7c481-34f9-4d82-a3d5-53ca364040d2** (`MAC_OS`, this version only),
+  `WAITING_FOR_REVIEW` at 21:15:50 UTC. iOS (2.3.1 in ae7df6d4-…, 1.10.0 in 97437960-…), price, availability and age
+  rating not touched.
+
+**What 2.3.2's What's New claims, checked in the code at 8eaeb52c:** Ghost in meetings is offered on every Mac build,
+the store's included (`publishingOffered()` is false only on iOS, so lib/root/account_wiring.dart makes a MeetIn and
+Settings › Account shows its card once there is a mail-to-note address); the Mac decodes the take, transcribes and
+writes it up (docs/MEET.md, "On the device"), through the assistant where it is switched on with a key (bffe4964).
+The bot joins Google Meet only, so the line says "a supported video service". Simple mode has no platform gate and
+the Mac can hear, so its home has the microphone. The assistant's dock buttons wait for the key (a5090e18). Since the
+Mac's live version is 2.0.5, it keeps 2.2.1's lines too.
+
+What's New, macOS 2.3.2:
+
+```
+An AI assistant, in the app: ask with your own API key, typed or spoken, choose the model and the effort, and watch it type into your notes with its thinking shown. Its buttons join the dock once your key is entered.
+Your AI assistant's own app, connected through Ghost.md's connector, is seen at work on the note it is writing.
+Calendars: sign in to your calendar or add a calendar's subscription address. Events show on Today and in queries, and dated to-dos can go onto your calendar. A meeting on Today that has notes opens them.
+Ghost in meetings: with an account, invite Ghost to a meeting on a supported video service, or give it the meeting's link, and it joins the call, records it and writes it up in a note. With the AI assistant set up, the assistant writes the meeting's summary.
+A Plugins page: the AI assistant, Calendar, Contacts, Webhooks, team boards, team chat, code repositories and a to-do import, each switched on or off in one place.
+Diagrams and gantt timelines drawn from text in the note, and queries shown as a calendar or a timeline.
+Simple or advanced: choose how much of the app is shown. Simple mode is a plain home page with a search, your notes grouped by when you last wrote in them, a + and a microphone, and a To-dos page with every open to-do across your notes under Overdue, Today, Later and Someday.
+```
