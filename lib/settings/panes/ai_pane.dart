@@ -7,6 +7,7 @@ import 'package:glacier/glacier.dart';
 import '../../art/art.dart';
 import '../../core/preferences.dart';
 import '../kit/settings_kit.dart';
+import '../../claude/store_neutral.dart';
 import '../settings_search.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
@@ -48,7 +49,8 @@ String modelName(String id) => models.where((m) => m.id == id).firstOrNull?.name
 String aiSummary(Preferences prefs, SettingsModelsState? state) {
   final here = state?.present.contains(prefs.formatModel) ?? false;
   final bytes = models.where((m) => m.id == prefs.formatModel).firstOrNull?.bytes ?? 0;
-  return '${modelName(prefs.formatModel)}${here ? '' : ', ${gb(bytes)} to get'}';
+  // A store-neutral picture names no model maker (lib/claude/store_neutral.dart).
+  return '${storeNeutral ? 'On-device model' : modelName(prefs.formatModel)}${here ? '' : ', ${gb(bytes)} to get'}';
 }
 
 /// Port of `AiPane` (src/app/settings/AiPane.tsx), which is `ModelCard` (ModelCard.tsx): which language model writes

@@ -10,17 +10,18 @@
 /// internet.
 library;
 
+import '../../claude/store_neutral.dart';
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 
 const PluginManifest richEmbedsManifest = PluginManifest(
   id: 'rich-embeds',
   name: 'Rich embeds',
-  description: 'Plays a YouTube video or a Spotify song in its link’s card, and shows a Figma file, where the link is alone on its line.',
+  description: storeNeutral ? 'Plays a video or a song in its link’s card, and shows a design file, where the link is alone on its line.' : 'Plays a YouTube video or a Spotify song in its link’s card, and shows a Figma file, where the link is alone on its line.',
   version: '1.0.0',
   author: 'Ghost.md',
   category: PluginCategory.editor,
-  tagline: 'YouTube, Spotify and Figma in their cards',
+  tagline: storeNeutral ? 'Videos, music and designs in their cards' : 'YouTube, Spotify and Figma in their cards',
   adds: [
     'A YouTube video or a Spotify song played in its link’s card',
     'A Figma file shown, where its link is alone on its line',
