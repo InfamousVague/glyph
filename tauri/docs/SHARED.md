@@ -62,6 +62,11 @@ counter of its own, as an account does, so a member's feed cursor is per organiz
 nobody else reaches them; the service checks membership, sizes and shapes, never content, and records who wrote
 (`by`), which the audit log does not need but a removal does.
 
+**A folder inside the organization's workspace** (GHST-107, 2026-10-19; docs/FEATURES_2_1.md) is shared the same
+way and the service knows nothing of it: a note's folder is its file's path, `orgs/Ghost.md/Clients/Acme/Plan.md`,
+which rides inside the sealed row's note (`path` is among the particulars that put a row again), and a member's
+device files a note that lands by its path, making the folders it names (lib/team/folders.dart).
+
 **S5. The document of record is the CRDT.** A team note is a Yjs document (LIVE.md): its text in a `Y.Text` - a
 canvas's nodes and edges in a `Y.Map` and a `Y.Array` (S9) - held on the device as the document's state
 (IndexedDB, `ydoc:<note id>`, beside the account's keys) and on the service as the note row's blob (the state, sealed,

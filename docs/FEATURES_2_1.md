@@ -281,6 +281,36 @@ changed.
   `lib/team/folders.dart`, `lib/team/sync.dart`, `lib/sync/engine.dart` (`TeamPass.folders`), the call sites
   above. Tests: `test/organize/org_folders_test.dart`, `test/team_sync/folders_test.dart`.
 
+### Folders above the lists, and the icon view (GHST-107, slices 2 and 3)
+
+Matt, 2026-10-19: "sort notes into folders and display them above the flat lists and support showing a icon file
+browser based view in addition to the list views". The folders are the workspaces' own (nested, personal or an
+organization's since slice 1); these are the two ways of seeing them.
+
+- **The folder strip** (`lib/notes/folder_strip.dart`, `FolderStrip` and `FolderCrumbs`): with a workspace chosen,
+  the folders directly inside it as chips that scroll sideways, under a "Folders" heading with the count: the folder
+  glyph, the name, how many notes are in it and under it (`WorkspaceStore.notesUnder`), in its hue where it wears
+  one; **New folder** at the end (the workspace sheet with that parent, `folders: true`). Above it, where the
+  workspace is: "Work › Clients", each part but the last a way up. Nothing at all for a workspace at the top with no
+  folders, so a list that never uses them looks as it did. On home under the filters, on All notes under the order
+  words, on an organization's dashboard above its Notes (`onAllNotes` carries the folder's id). A tap chooses the
+  folder as its pill would. Not while a search is typed (the cards are what was found), and not in simple mode.
+- **The icon view** (`lib/notes/icon_browser.dart`, `IconBrowser`): **Cards · Icons** as words on All notes' line
+  (at the counts' end beside Archived, sized to the 16px the line was measured at) and on the dashboard's Notes
+  heading, one choice for the device in `Stored` under `glyph-browse-view`. A grid of large tiles laid out like the
+  cards' grid: the folders first, then the notes in the page's order; a folder's glyph or a note's kind on a faint
+  square, the name on two lines, the count or when it was touched; a tap enters a folder or opens a note, a right-
+  click is the note's menu, tiles take a focus ring. At **All**, the root: the workspaces at the top as the first
+  tiles (an organization's with its mark), then every note, so All still means every note; the crumbs show nothing.
+  In the icon view the strip is not drawn: the folders are the first tiles.
+- Files: the two above, `lib/home/home_screen.dart`, `lib/notes/all_notes_screen.dart`,
+  `lib/orgs/ui/organization_screen.dart`, `lib/root/ghost_root.dart` and `root_parts.dart` (the sheet record carries
+  a parent; `_newFolder`). Tests: `test/organize/folders_test.dart`; pictures by `folders_shots_test.dart` into
+  `build/feature-shots/organize/folders-*.png` (24: home, All notes cards and icons, icons at All, the dashboard in
+  both views; phone and wide, light and dark). The All notes and dashboard goldens were taken again for the words.
+- **Not done:** the words line keeps its measured pixels, so the view words at All are compact; a tile's long press
+  on a phone opens no menu; home keeps its four layouts (the icon view is a browsing page's).
+
 ### Today's note
 
 **Where:** the **+** sheet's **Today** row (after Note), the palette's **Today's note**, and on a Mac
