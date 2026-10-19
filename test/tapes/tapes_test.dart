@@ -243,6 +243,11 @@ void main() {
       expect(said('Needs a model.'), findsOneWidget);
       await strip(tester, summary: summary(), queue: const TapeQueue(failed: true));
       expect(said('The summary didn’t come.'), findsOneWidget);
+      // A meeting Claude writes up: held by Local only, and failed in Claude's words (lib/ai/summary_claude.dart).
+      await strip(tester, summary: summary(), queue: const TapeQueue(pending: true, claudeHeld: true));
+      expect(said('The summary waits for Claude: Local only is on.'), findsOneWidget);
+      await strip(tester, summary: summary(), queue: const TapeQueue(failed: true, failedWhy: 'The API key was refused. Check it in Settings › Claude.'));
+      expect(said('The summary didn’t come. The API key was refused. Check it in Settings › Claude.'), findsOneWidget);
       await away(tester);
     });
 

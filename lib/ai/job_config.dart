@@ -11,6 +11,11 @@
 /// the write-up runs, and only to a binary that has it; the model list is not read for a preference that has nothing
 /// to do with it.
 ///
+/// CLAUDE, FOR MEETINGS (2026-10-19, ai/summary_claude.dart): where the app's Claude is chosen for meetings, the
+/// config says summaries `off` whatever the preference says, so the phone makes the transcript and no summary, and the
+/// summary queue has Claude write it up (ai/summaries.dart). It is sent again when that changes (the plugin's switch,
+/// the key, Local only, which holds Claude but leaves it chosen). The port's own; the page has no Claude.
+///
 /// What differs:
 /// - `isTauri()` is the engine being there ([aiBackend]); `isAndroid` (`core/platform.ts`) is this build's platform,
 ///   which a test says with Flutter's `debugDefaultTargetPlatformOverride`.
@@ -33,8 +38,9 @@ import 'available.dart' show modelFor, presentIds;
 import 'backend.dart' show JobConfig, JobPrompts, ModelInfo, aiBackend, hasNativeGeneration, keepJobConfig, listModels, onModelsChanged;
 import 'summary_text.dart' show onePassChars, pieceChars;
 
-/// The config for `models` on this phone and `prefs` as they stand.
-JobConfig jobConfigFor(List<ModelInfo> models, Preferences prefs) {
+/// The config for `models` on this phone and `prefs` as they stand; with [claude], meetings are Claude's to write
+/// up and the phone writes no summary.
+JobConfig jobConfigFor(List<ModelInfo> models, Preferences prefs, {bool claude = false}) {
   return JobConfig(
     model: modelFor(presentIds(models), prefs.formatModel) ?? prefs.formatModel,
     prompts: const JobPrompts(summary: recordingSummaryPrompt, notes: recordingNotesPrompt, piece: pieceContext, parts: notesContext),
@@ -42,7 +48,7 @@ JobConfig jobConfigFor(List<ModelInfo> models, Preferences prefs) {
     pieceChars: pieceChars,
     temperature: temperature,
     writeUp: prefs.writeUp,
-    summaries: prefs.summaries,
+    summaries: claude ? 'off' : prefs.summaries,
   );
 }
 
@@ -58,8 +64,9 @@ Future<bool> _writesUp() async {
 
 String _lastSent = '';
 
-/// The config sent to the phone, unless it is what was sent last. Completes once it is kept.
-Future<void> sendJobConfig() async {
+/// The config sent to the phone, unless it is what was sent last. Completes once it is kept. [claude] as
+/// [jobConfigFor] takes it.
+Future<void> sendJobConfig({bool claude = false}) async {
   if (!(await _writesUp())) return;
   List<ModelInfo> models;
   try {
@@ -67,7 +74,7 @@ Future<void> sendJobConfig() async {
   } catch (_) {
     models = const [];
   }
-  final config = jobConfigFor(models, preferences.value);
+  final config = jobConfigFor(models, preferences.value, claude: claude);
   final text = jsonEncode(config.toJson());
   if (text == _lastSent) return;
   await keepJobConfig(config);
@@ -79,9 +86,17 @@ void forgetSentJobConfig() {
   _lastSent = '';
 }
 
-/// Keeps the config current for the life of the app (shell/useHousekeeping.ts); answers the way to stop.
-VoidCallback keepJobConfigCurrent() {
-  void send() => unawaited(sendJobConfig().then((_) {}, onError: (Object failure) => debugPrint('[glyph] the write-up’s configuration was not kept: $failure')));
+/// Keeps the config current for the life of the app (shell/useHousekeeping.ts); answers the way to stop. [claude]
+/// answers whether meetings are Claude's (none is never), asked at each send, and [claudeChanged] is heard for a
+/// change of it.
+VoidCallback keepJobConfigCurrent({Future<bool> Function()? claude, Listenable? claudeChanged}) {
+  bool? wasClaude;
+  Future<void> sendNow() async {
+    final now = wasClaude = claude != null && await claude();
+    await sendJobConfig(claude: now);
+  }
+
+  void send() => unawaited(sendNow().then((_) {}, onError: (Object failure) => debugPrint('[glyph] the write-up’s configuration was not kept: $failure')));
   var key = jobConfigKey(preferences.value);
   send();
   void changed() {
@@ -92,9 +107,16 @@ VoidCallback keepJobConfigCurrent() {
   }
 
   preferences.addListener(changed);
+  // Sent when whether meetings are Claude's has changed, and not for any other change of what it is read from.
+  void claudeMoved() => unawaited(() async {
+        final now = claude != null && await claude();
+        if (now != wasClaude) send();
+      }().then((_) {}, onError: (Object _) {}));
+  claudeChanged?.addListener(claudeMoved);
   final unModels = onModelsChanged(send);
   return () {
     preferences.removeListener(changed);
+    claudeChanged?.removeListener(claudeMoved);
     unModels();
   };
 }

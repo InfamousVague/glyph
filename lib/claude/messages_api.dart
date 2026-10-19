@@ -86,15 +86,20 @@ class ClaudeApi {
   final String key;
   final HttpClient Function() _client;
 
-  void _headers(HttpClientRequest request) {
+  void _headers(HttpClientRequest request, [List<String> betas = const []]) {
     request.headers.set('x-api-key', key);
+    if (betas.isNotEmpty) request.headers.set('anthropic-beta', betas.join(','));
     request.headers.set('anthropic-version', claudeApiVersion);
     request.headers.set(HttpHeaders.contentTypeHeader, 'application/json');
     request.headers.set(HttpHeaders.acceptHeader, 'text/event-stream');
   }
 
   /// Streams one Messages request ([body] is the request as the API takes it; `stream` is set here).
-  ClaudeCall stream(Map<String, Object?> body) {
+  ClaudeCall stream(Map<String, Object?> body) => streamWith(body);
+
+  /// [stream], with the betas the request opts into in its `anthropic-beta` header (a meeting's write-up asks for
+  /// the server-side fallback, lib/ai/summary_claude.dart).
+  ClaudeCall streamWith(Map<String, Object?> body, {List<String> betas = const []}) {
     final client = _client();
     HttpClientRequest? sent;
     var cancelled = false;
@@ -105,7 +110,7 @@ class ClaudeApi {
     Future<void> run() async {
       try {
         final request = sent = await client.postUrl(Uri.parse('$claudeApiBase/messages'));
-        _headers(request);
+        _headers(request, betas);
         request.add(utf8.encode(jsonEncode({...body, 'stream': true})));
         final answer = await request.close();
         if (answer.statusCode != 200) {

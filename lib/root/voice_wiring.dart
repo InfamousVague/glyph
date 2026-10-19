@@ -40,6 +40,7 @@ import '../ai/job_config.dart' show keepJobConfigCurrent, sendJobConfig;
 import '../ai/native_backend.dart';
 import '../ai/review.dart' show reviewAvailable;
 import '../ai/summaries.dart';
+import '../ai/summary_claude.dart' show MeetingClaude;
 import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
 import '../capture/audio.dart';
 import '../capture/device_mic.dart';
@@ -66,6 +67,8 @@ import '../core/stored.dart';
 import '../editor/media/clip_refs.dart' show TapeIds;
 import '../meet/meet_in.dart' show meetDevice;
 import '../meet/tape.dart';
+import '../claude/claude_settings.dart' show claudeSettings;
+import '../plugins/claude/claude.dart' show claudeManifest;
 import '../plugins/registry.dart' show plugins;
 import '../tapes/player.dart' show markAudioRemoved;
 
@@ -318,7 +321,18 @@ class Voice {
     recorder.start(notesChanged: notesChanged);
     // The summary queue, wired to the notes, and the write-up's configuration kept current for the phone's service.
     _stopSummaries = summaries?.startSummaries(notesChanged ?? () {}, summarized ?? (_) {});
-    if (summaries != null) _stopJobConfig = keepJobConfigCurrent();
+    final claude = summaries?.claude;
+    if (summaries != null) {
+      _stopJobConfig = keepJobConfigCurrent(
+        claude: claude == null
+            ? null
+            : () async {
+                await claude.load();
+                return claude.chosen;
+              },
+        claudeChanged: claude?.changes,
+      );
+    }
     unawaited(models?.refresh());
     final service = this.service;
     if (service == null) {
@@ -408,7 +422,25 @@ class Voice {
         : null;
     final writesUp = host.hasMeetings || writeUps != null;
 
+    // The app's own Claude, which writes meetings up where it is chosen (lib/ai/summary_claude.dart): its plugin's
+    // switch whatever Local only says (Local only holds it, and the write-up waits), and the key on this device.
+    final claude = MeetingClaude(
+      settings: claudeSettings,
+      switchedOn: () => plugins.all().isEmpty ? claudeManifest.standard : plugins.switchedOn(claudeManifest.id),
+      localOnly: () => preferences.value.localOnly,
+      changes: Listenable.merge([claudeSettings, plugins, preferences]),
+    );
+    Future<void> sendConfig() async {
+      try {
+        await claude.load();
+      } catch (_) {
+        // A store that cannot be read is a device with no key.
+      }
+      await sendJobConfig(claude: claude.chosen);
+    }
+
     final summaries = Summaries(
+      claude: claude,
       isTauri: () => ai.aiBackend.available,
       preferences: () => preferences.value,
       stored: kept,
@@ -464,7 +496,7 @@ class Voice {
         voice._notesListeners.add(listener);
         return () => voice._notesListeners.remove(listener);
       },
-      sendJobConfig: sendJobConfig,
+      sendJobConfig: sendConfig,
     );
 
     // A meeting Ghost was in (docs/MEET.md, "On the device"): its sound kept as the note's recording, and its write-up

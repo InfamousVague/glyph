@@ -28,6 +28,11 @@ late FakeAiBackend engine;
 /// The platform the page's `isAndroid` answered for.
 set android(bool on) => debugDefaultTargetPlatformOverride = on ? TargetPlatform.android : TargetPlatform.macOS;
 
+/// What Claude is read from, changing when the case says.
+class _Heard extends ChangeNotifier {
+  void tell() => notifyListeners();
+}
+
 ModelInfo model(String id, bool present) => ModelInfo(id: id, file: '$id.gguf', bytes: 0, present: present, path: '');
 
 Future<void> settle() async {
@@ -102,6 +107,32 @@ void main() {
       await settle();
       expect([for (final config in kept) config['model']], ['qwen3.5-4b', 'qwen3.5-2b']);
       stop();
+    });
+  });
+
+  // Not in the web's file: meetings Claude writes up (lib/ai/summary_claude.dart), for which the phone writes none.
+  group('with Claude chosen for meetings', () {
+    test('says summaries off, is sent again when Claude is chosen or let go, and not for anything else Claude hears', () async {
+      var chosen = false;
+      final changed = _Heard();
+      final stop = keepJobConfigCurrent(claude: () async => chosen, claudeChanged: changed);
+      await settle();
+      expect([for (final config in kept) config['summaries']], ['meetings']);
+      engine.invoked.clear();
+      // Heard, and nothing of it changed: nothing is read or sent.
+      changed.tell();
+      await settle();
+      expect(engine.calls('ai_models'), isEmpty);
+      chosen = true;
+      changed.tell();
+      await settle();
+      expect([for (final config in kept) config['summaries']], ['meetings', 'off']);
+      chosen = false;
+      changed.tell();
+      await settle();
+      expect([for (final config in kept) config['summaries']], ['meetings', 'off', 'meetings']);
+      stop();
+      changed.dispose();
     });
   });
 

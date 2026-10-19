@@ -50,6 +50,27 @@
 ///
 /// Only in Tauri: a browser has no summariser, and shows what synced.
 ///
+/// CLAUDE, FOR MEETINGS (Matt, 2026-10-19: "when claude is enabled the meeting summary should go through claude
+/// instead of gemma"; ai/summary_claude.dart, docs/CLAUDE_APP.md "Meetings"). Where Claude is chosen (the Claude
+/// plugin's switch on, an API key kept on this device), a meeting's job is written up by Claude, not by a model on the
+/// phone: the same pieces, the same prompts, the same two writers and rules for the section, and no "Needs a model"
+/// (none is looked for). PRIVACY: the meeting's transcript then goes to Anthropic, with the person's own key, and to
+/// nobody else; nothing of a long voice note's does, whose summary stays the phone's. Held by Local only, the job
+/// waits for Claude (`claudeHeld`, "The summary waits for Claude") and is asked once Local only is off; it does not go
+/// to the phone's model instead, since a summary is never remade on its own. A Claude failure is said in Claude's
+/// words beside the job (`reasons`): a refused key or request, or a decline, fails it at once for Try again; no
+/// connection, too many requests or Claude overloaded counts as a try, as a model's failure does. A Claude job may run
+/// with the app off the screen (no cores are taken); every other job waits for the screen as before.
+///
+/// The phone's service still makes a meeting's transcript with the app closed (Whisper is the phone's). With Claude
+/// chosen it is sent a config with summaries off (ai/job_config.dart), so it writes no summary; the result it leaves,
+/// summary or not, makes the job a page job here (`native` false) for Claude to write up. So with the app closed, a
+/// meeting's transcript arrives as before and its write-up waits until the app runs again: the service's
+/// notification ("The transcript is in the note") opens the app, which takes the result and starts Claude at once,
+/// as does any return to the front or a `recordingDone` while the app is alive behind another. A result whose
+/// summary the phone or the Mac's core wrote anyway (a config sent before Claude was chosen; the Mac, which is sent
+/// none) is put aside for Claude's.
+///
 /// What differs:
 /// - The web's module is one queue for the page, with its state in module variables. Here it is a [Summaries], made
 ///   once by whoever wires the app, with the module's exported functions as its methods under the web's names.
@@ -88,6 +109,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../capture/markdown.dart' show renderNote;
+import '../claude/messages_api.dart' show ClaudeCancelled, ClaudeError;
 import '../capture/meeting_live.dart' show ExternalStore;
 import '../core/item_syntax.dart' show jsTrim;
 import '../core/note.dart' show Note, Segment;
@@ -99,6 +121,7 @@ import 'available.dart' show modelFor, presentIds;
 import 'backend.dart' show AiFailure, ModelInfo, Run, RunOptions, generate, listModels, unloadModel;
 import 'runs.dart' show RunHandle, RunPhase, anyRunning;
 import 'summary_ask.dart';
+import 'summary_claude.dart' show ClaudeWriting, MeetingClaude, claudeLasting;
 import 'summary_keep.dart' show KeptSummary, keepSummary, readSummary;
 import 'summary_text.dart' show carryTicked, shapeSummary, summaryHeading, summarySection, transcriptPieces, withSummary;
 import 'support/failure.dart' show failureText;
@@ -213,7 +236,7 @@ class SummaryJob {
 /// What the shelf and the strip see of the queue (`SummariesState`).
 @immutable
 class SummariesState {
-  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel});
+  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel, this.claudeHeld = const <String>{}, this.reasons = const <String, String>{}});
 
   /// Notes whose page summary is queued or running.
   final Set<String> pending;
@@ -229,6 +252,12 @@ class SummariesState {
 
   /// Notes whose job waits for a language model that is not on the phone.
   final Set<String> needsModel;
+
+  /// Notes whose meeting is Claude's to write up, and waits for it: Local only is on.
+  final Set<String> claudeHeld;
+
+  /// Why a failed job's last try failed, in Claude's words, for the caption beside Try again.
+  final Map<String, String> reasons;
 }
 
 /// What the service says when a write-up ends (`window.__glyph.recordingDone`) (`RecordingOutcome`); [name] is the
@@ -359,6 +388,7 @@ class Summaries {
     required this.onNotesChanged,
     required this.sendJobConfig,
     void Function(String message)? warn,
+    this.claude,
   }) : warn = warn ?? debugPrint {
     onRefineHold(pauseSummaries);
   }
@@ -432,6 +462,9 @@ class Summaries {
   /// Where a summary that failed is written down (`console.warn`).
   final void Function(String message) warn;
 
+  /// The app's own Claude, which writes meetings up where it is chosen (ai/summary_claude.dart); none is never.
+  final MeetingClaude? claude;
+
   // ---- the queue ---------------------------------------------------------------------------------------------------
 
   List<SummaryJob> _readQueue() => stored.read<List<SummaryJob>>(
@@ -453,6 +486,12 @@ class Summaries {
 
   /// Notes whose job is waiting for a model, said by the last look.
   final Set<String> _needsModel = <String>{};
+
+  /// Notes whose meeting waits for Claude while Local only is on, said by the last look.
+  final Set<String> _claudeHeld = <String>{};
+
+  /// Why each job's last try failed, where Claude said (kept for this run of the app).
+  final Map<String, String> _reasons = <String, String>{};
 
   /// The phone's own write-ups, as last read (core/recordings.ts): what a native job's caption is made of.
   List<RecordingJobState> _jobStates = const [];
@@ -476,8 +515,7 @@ class Summaries {
       queue = queue.where((j) => !cancelled.contains(j.id)).toList();
       _writeQueue(queue);
       for (final id in cancelled) {
-        _needsModel.remove(id);
-        _askedAfterModel.remove(id);
+        _forgetWaits(id);
       }
     }
     final nativeJobs = queue.where((j) => j.native == true && j.failed != true).toList();
@@ -510,6 +548,14 @@ class Summaries {
         for (final j in nativeJobs)
           if (phaseOf(j.id) == RecordingJobPhase.needsModel) j.id,
       },
+      claudeHeld: {
+        for (final j in queue)
+          if (j.failed != true && j.native != true && _claudeHeld.contains(j.id)) j.id,
+      },
+      reasons: {
+        for (final j in queue)
+          if (j.failed == true && _reasons.containsKey(j.id)) j.id: _reasons[j.id]!,
+      },
     ));
   }
 
@@ -535,6 +581,7 @@ class Summaries {
   /// The generation or run in flight, so the recorder can cancel it.
   Run? _activeRun;
   RunHandle? _activeHandle;
+  ClaudeWriting? _activeClaude;
 
   /// The run in flight was cut by the queue itself, for the recorder. A stop from anywhere else is the person's.
   bool _cut = false;
@@ -558,6 +605,7 @@ class Summaries {
     // A state kept for an earlier write-up of this note - cancelled, say - is not this job's: the phone is asked again.
     _jobStates = _jobStates.where((s) => s.id != id).toList();
     _askedAfterModel.remove(id);
+    _reasons.remove(id);
     _publish();
     _kick();
   }
@@ -575,6 +623,7 @@ class Summaries {
     }
     if (job == null) return;
     _writeQueue([for (final j in queue) j.id == id ? j.copyWith(tries: 0, failed: false, started: false) : j]);
+    _reasons.remove(id);
     if (job.native == true) {
       writeUpOnHost(id, true);
       _jobStates = _jobStates.where((s) => s.id != id).toList();
@@ -595,8 +644,7 @@ class Summaries {
   /// A note deleted for good: its job goes with it. Trashed, the job waits.
   void dropSummary(String id) {
     final queue = _readQueue();
-    _needsModel.remove(id);
-    _askedAfterModel.remove(id);
+    _forgetWaits(id);
     if (!queue.any((j) => j.id == id)) return;
     _writeQueue(queue.where((j) => j.id != id).toList());
     _publish();
@@ -614,9 +662,10 @@ class Summaries {
     if (_paused == on) return;
     _paused = on;
     if (on) {
-      if (_activeRun != null || _activeHandle != null) _cut = true;
+      if (_activeRun != null || _activeHandle != null || _activeClaude != null) _cut = true;
       _activeRun?.cancel();
       _activeHandle?.cancel();
+      _activeClaude?.cancel();
     } else {
       _kick(1500);
     }
@@ -665,15 +714,59 @@ class Summaries {
     });
     // The service says a write-up ended: its result taken now, or its state read, and the note screen told.
     final unanswer = answerHost('recordingDone', (json) => unawaited(_recordingDone(json)));
+    // Claude chosen, switched off, held or let go: the queue looks again.
+    final heard = claude?.changes;
+    heard?.addListener(_claudeChanged);
     _kick(4000);
     return () {
       offVisible();
       offNotesChanged();
       unanswer();
+      heard?.removeListener(_claudeChanged);
       _timer?.cancel();
       _onChanged = null;
       _onSummarized = null;
     };
+  }
+
+  /// What Claude is read from changed. A write-up asked of it that may no longer be (Local only on, the plugin off,
+  /// the key forgotten) is stopped and its job left queued, uncounted, as the recorder's cut leaves one; and the queue
+  /// looks again, for a job that waited for Claude.
+  void _claudeChanged() {
+    final claude = this.claude;
+    if (claude == null) return;
+    final now = (chosen: claude.chosen, enabled: claude.enabled);
+    if (now == _claudeWas) return;
+    _claudeWas = now;
+    final writing = _activeClaude;
+    if (writing != null && !now.enabled) {
+      _cut = true;
+      writing.cancel();
+    }
+    if (!_running && _owed()) _kick(500);
+  }
+
+  /// What Claude was when [_claudeChanged] last looked, so a change of something else it hears is let by.
+  ({bool chosen, bool enabled})? _claudeWas;
+
+  /// A job gone or done: nothing it waited for, and no reason, is kept for it.
+  void _forgetWaits(String id) {
+    _needsModel.remove(id);
+    _claudeHeld.remove(id);
+    _askedAfterModel.remove(id);
+    _reasons.remove(id);
+  }
+
+  /// Whether a job is Claude's to write up: a meeting, with Claude chosen.
+  Future<bool> _forClaude(SummaryJob job) async {
+    final claude = this.claude;
+    if (claude == null || job.kind != SummaryKind.meeting) return false;
+    try {
+      await claude.load();
+    } catch (_) {
+      return false;
+    }
+    return claude.chosen;
   }
 
   void _kick([int delay = 0]) {
@@ -705,6 +798,8 @@ class Summaries {
     await _refreshJobStates();
     if (said['outcome'] == RecordingOutcome.done.name) await landNativeResult(id);
     _publish();
+    // A result made into a job for Claude is written up now, the app on the screen or not.
+    if (!_running && _owed()) _kick(0);
     _onChanged?.call();
     for (final listener in _recordingListeners.toList()) {
       listener(id);
@@ -762,9 +857,30 @@ class Summaries {
   /// how it went: the next job half a second after one that finished, and this one again after a wait when the model
   /// was not there, the phone was busy, or the run failed. The native jobs are looked at first, every time: a result
   /// that is there is landed, and their states are read for the shelf.
+  ///
+  /// One look at a time: a kick that comes while one is under way (a `recordingDone`, a change of Claude's) looks
+  /// again a moment after it, rather than beside it, where both could take the same job.
   Future<void> _runNext() async {
-    if (_running || _paused || !isTauri() || !visible()) return;
-    if (_anyNative()) {
+    if (_looking) {
+      _kick(500);
+      return;
+    }
+    _looking = true;
+    try {
+      await _lookOnce();
+    } finally {
+      _looking = false;
+    }
+  }
+
+  bool _looking = false;
+
+  Future<void> _lookOnce() async {
+    if (_running || _paused || !isTauri()) return;
+    // Off the screen, only Claude's jobs: they take no cores. The rest wait for the app to come back.
+    final away = !visible();
+    if (away && !(claude?.enabled ?? false)) return;
+    if (!away && _anyNative()) {
       await _refreshJobStates();
       // A write-up that needed a model is asked of the service again once one is on the phone.
       if (_jobStates.any((s) => s.phase == RecordingJobPhase.needsModel)) await _afterModelArrived(presentIds(await _models()));
@@ -779,12 +895,13 @@ class Summaries {
     // The first that is not failed, not native, not in the trash and not waiting for its better words.
     SummaryJob? found;
     for (final j in queue) {
-      if (j.failed != true && j.native != true && !isTrashed(j.id) && !refinePending(j.id)) {
+      if (j.failed != true && j.native != true && !isTrashed(j.id) && !refinePending(j.id) && (!away || j.kind == SummaryKind.meeting)) {
         found = j;
         break;
       }
     }
     if (found == null) {
+      if (away) return;
       // A job held only by its better words looks again once they have come; a native one is looked at again in a
       // while.
       if (queue.any((j) => j.failed != true && j.native != true && !isTrashed(j.id))) {
@@ -803,19 +920,36 @@ class Summaries {
     var next = 500;
     try {
       await syncSettled();
-      final present = presentIds(await _models());
-      await _afterModelArrived(present);
-      final model = modelFor(present, preferences().formatModel);
-      if (model == null) {
-        _needsModel.add(job.id);
-        _publish();
-        next = _noModelMs;
-        return;
+      final viaClaude = await _forClaude(job);
+      final String model;
+      if (viaClaude) {
+        // No model is looked for: Claude's, or waiting for Claude while Local only holds it.
+        final claude = this.claude!;
+        if (!claude.enabled) {
+          if (_claudeHeld.add(job.id) | _needsModel.remove(job.id)) _publish();
+          next = _noModelMs;
+          return;
+        }
+        if (_claudeHeld.remove(job.id) | _needsModel.remove(job.id)) _publish();
+        model = claude.model;
+      } else {
+        if (away) return;
+        if (_claudeHeld.remove(job.id)) _publish();
+        final present = presentIds(await _models());
+        await _afterModelArrived(present);
+        final local = modelFor(present, preferences().formatModel);
+        if (local == null) {
+          _needsModel.add(job.id);
+          _publish();
+          next = _noModelMs;
+          return;
+        }
+        if (_needsModel.remove(job.id)) _publish();
+        model = local;
       }
-      if (_needsModel.remove(job.id)) _publish();
       _patch(job.id, (j) => j.copyWith(started: true));
       _cut = false;
-      final outcome = await _summarize(job, model);
+      final outcome = await _summarize(job, model, viaClaude: viaClaude);
       if (outcome == _Outcome.written) {
         _finish(job);
         _onChanged?.call();
@@ -830,7 +964,9 @@ class Summaries {
         next = _retryMs;
       } else {
         warn('[glyph] the summary did not come: $message');
-        final tries = job.tries + 1;
+        // Claude's own words are kept for the caption; what asking again cannot mend fails the job at once.
+        if (error is ClaudeError) _reasons[job.id] = message;
+        final tries = claudeLasting(error) ? _maxTries : job.tries + 1;
         _patch(job.id, (j) => j.copyWith(tries: tries, failed: tries >= _maxTries ? true : null));
       }
     } finally {
@@ -838,6 +974,7 @@ class Summaries {
       _running = false;
       _activeRun = null;
       _activeHandle = null;
+      _activeClaude = null;
       _publish();
       if (_owed()) {
         _kick(next);
@@ -901,7 +1038,15 @@ class Summaries {
         _writeQueue(queue);
       }
       final summary = result.summary;
-      if (summary == null || jsTrim(summary).isEmpty) {
+      final none = summary == null || jsTrim(summary).isEmpty;
+      if (await _forClaudeNative(id, result, none: none)) {
+        // Claude's to write up: the transcript is in the note, and the job is the page's now (see the header).
+        _patch(id, (j) => SummaryJob(id: j.id, kind: SummaryKind.meeting, native: false, replace: j.replace));
+        _jobStates = _jobStates.where((s) => s.id != id).toList();
+        _askedAfterModel.remove(id);
+        return;
+      }
+      if (none) {
         final job = _jobOf(id);
         if (job != null) _finish(job);
         return;
@@ -916,6 +1061,15 @@ class Summaries {
       _running = false;
       _publish();
     }
+  }
+
+  /// Whether a native result makes its job a page job for Claude: a meeting with words heard and summaries on, and
+  /// either Claude chosen (whatever summary came is put aside) or no summary written, as the config says while Claude
+  /// is chosen (should Claude have stopped being chosen since, that job is the phone's model's, from here).
+  Future<bool> _forClaudeNative(String id, RecordingResult result, {required bool none}) async {
+    if (claude == null || preferences().summaries == 'off' || result.transcriptChars <= 0) return false;
+    if (none) return true;
+    return _forClaude(SummaryJob(id: id, kind: SummaryKind.meeting));
   }
 
   /// The note's job as the queue has it now, or null; with [native], only a native one.
@@ -948,7 +1102,7 @@ class Summaries {
   /// its editor when the note is open, plain when it is closed. 'left' is a section the person edited that an
   /// automatic job must not touch, a note with nothing to summarise, or a run the person stopped; 'wait' is a write
   /// that did not go through this pass, or a run the recorder cut.
-  Future<_Outcome> _summarize(SummaryJob job, String model) async {
+  Future<_Outcome> _summarize(SummaryJob job, String model, {bool viaClaude = false}) async {
     final note = await getNote(job.id);
     if (note == null) return _Outcome.left;
     final plain = renderNote(note.segments ?? const <Segment>[]).plain;
@@ -966,6 +1120,7 @@ class Summaries {
           system: recordingNotesPrompt,
           prompt: '${fill(pieceContext, {'n': n + 1, 'm': pieces.length})}\n\n$piece',
           maxTokens: recordingNotesBudget(piece.length),
+          viaClaude: viaClaude,
         );
         notes.add(jsTrim(output));
         // Each finished piece is checkpointed, so a kill after four of five starts at the fifth.
@@ -977,18 +1132,35 @@ class Summaries {
     }
     final ask = SummaryAsk(words: words, context: context, model: model, maxTokens: budget, replace: job.replace == true);
     final starter = _starters[job.id];
-    if (starter != null) return _throughEditor(job, starter, job.text == null ? ask : ask.withText(job.text!));
-    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget));
+    // An open note's run is the phone's model's, in its editor. Claude's answer is asked here and handed to the
+    // editor whole, which lands it at once as a run's lines land, with Keep and Revert.
+    if (starter != null && !viaClaude) return _throughEditor(job, starter, job.text == null ? ask : ask.withText(job.text!));
+    final text = job.text ?? (await _run(model: model, system: recordingSummaryPrompt, prompt: context != null && context.isNotEmpty ? '$context\n\n$words' : words, maxTokens: budget, viaClaude: viaClaude));
     _patch(job.id, (j) => j.copyWith(text: text));
     // A long tape's context is the largest the page asks for: the engine may let it go now rather than in five
     // minutes.
-    if (pieces.length > 1) unawaited(unloadModel());
+    if (pieces.length > 1 && !viaClaude) unawaited(unloadModel());
+    final open = _starters[job.id];
+    if (open != null) return _throughEditor(job, open, ask.withText(text));
     return _write(job, text, ask, note.recordingMs ?? 0);
   }
 
-  /// One generation, cancellable by the recorder, and not started once it is up.
-  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens}) async {
+  /// One generation, cancellable by the recorder, and not started once it is up: the phone's model's, or with
+  /// [viaClaude] Claude's (whose room is its own, not [maxTokens]: ai/summary_claude.dart).
+  Future<String> _run({required String model, required String system, required String prompt, required int maxTokens, bool viaClaude = false}) async {
     if (_paused) throw const AiFailure('cancelled');
+    if (viaClaude) {
+      final claude = this.claude!;
+      if (!claude.enabled) throw const AiFailure('cancelled');
+      final writing = _activeClaude = claude.write(system: system, prompt: prompt);
+      try {
+        return await writing.done;
+      } on ClaudeCancelled {
+        throw const AiFailure('cancelled');
+      } finally {
+        _activeClaude = null;
+      }
+    }
     final run = generate(RunOptions(model: model, system: system, prompt: prompt, maxTokens: maxTokens, temperature: temperature, onProgress: (_) {}));
     _activeRun = run;
     try {
@@ -1099,8 +1271,7 @@ class Summaries {
   }
 
   void _finish(SummaryJob job) {
-    _needsModel.remove(job.id);
-    _askedAfterModel.remove(job.id);
+    _forgetWaits(job.id);
     _writeQueue(_readQueue().where((j) => j.id != job.id).toList());
     _publish();
   }

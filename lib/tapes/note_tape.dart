@@ -55,7 +55,7 @@ class TapeSummary {
 /// asked about the one note).
 @immutable
 class TapeQueue {
-  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false});
+  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false, this.claudeHeld = false, this.failedWhy});
 
   /// A summary of this note is queued or being written (`summaries.pending.has(id)`).
   final bool pending;
@@ -65,6 +65,13 @@ class TapeQueue {
 
   /// The summary was given up on (`summaries.failed.has(id)`).
   final bool failed;
+
+  /// The meeting is Claude's to write up and waits while Local only is on (ai/summaries.dart `claudeHeld`). The
+  /// port's own.
+  final bool claudeHeld;
+
+  /// Why the summary was given up on, in Claude's words, where it said (ai/summaries.dart `reasons`). The port's own.
+  final String? failedWhy;
 
   /// The note's better words are still to come (`refining.pending.has(id)`).
   final bool refining;
@@ -144,8 +151,10 @@ class _NoteTapeState extends State<NoteTape> {
     final held = queue.held;
     final summaryLine = queue.needsModel
         ? 'Needs a model.'
+        : queue.claudeHeld
+            ? 'The summary waits for Claude: Local only is on.'
         : queue.failed
-            ? 'The summary didn’t come.'
+            ? (queue.failedWhy != null ? 'The summary didn’t come. ${queue.failedWhy}' : 'The summary didn’t come.')
             : held
                 ? 'The summary comes after the better words.'
                 : summarizing

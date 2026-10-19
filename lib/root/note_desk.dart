@@ -993,6 +993,8 @@ class NoteDeskState extends State<NoteDesk> {
       pending: summaries?.pending.contains(id) ?? false,
       needsModel: summaries?.needsModel.contains(id) ?? false,
       failed: summaries?.failed.contains(id) ?? false,
+      claudeHeld: summaries?.claudeHeld.contains(id) ?? false,
+      failedWhy: summaries?.reasons[id],
       refining: _heardRefining?.value.pending.contains(id) ?? false,
       running: run != null && run.kind == RunKind.summarize && !ended(run),
     );

@@ -28,6 +28,7 @@ import 'package:ghost_md/ai/land.dart' show Lander, LanderOptions;
 import 'package:ghost_md/ai/runs.dart';
 import 'package:ghost_md/ai/start.dart' show startRecordingRun;
 import 'package:ghost_md/ai/summaries.dart';
+import 'package:ghost_md/ai/summary_claude.dart' show MeetingClaude;
 import 'package:ghost_md/ai/summary_keep.dart';
 import 'package:ghost_md/ai/summary_text.dart' show onePassChars, summarySection;
 import 'package:ghost_md/capture/markdown.dart' show renderNote;
@@ -152,6 +153,9 @@ const answer = '# March launch settled\nWhat the call settled.\n\n- Launch is in
 const section = '## Summary\nWhat the call settled.\n\n- Launch is in March.\n- Sam: the press list.\n\n- [ ] Book the venue before the tenth.';
 
 late Summaries summaries;
+
+/// The app's Claude the queue is made with: none here, and summaries_claude_test.dart's own there.
+MeetingClaude? claudeSeam;
 void Function()? stop;
 int changed = 0;
 final List<({String id, String title})> summarized = [];
@@ -212,6 +216,7 @@ Summaries make() => Summaries(
       },
       sendJobConfig: () async => sentConfig += 1,
       warn: warned.add,
+      claude: claudeSeam,
     );
 
 /// The web's `beforeEach`, inside the tester's fake time.

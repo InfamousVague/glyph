@@ -84,7 +84,44 @@ by default, Opus 5.5, Haiku 5.5); the inbox switch. The key is kept in the devic
 (lib/account/device_keys.dart: the Android Keystore, the Keychain on a Mac and an iPhone), never in the preferences,
 never synced, never in the library folder a backup copies; each device is given its own. Off a phone and a Mac it is
 memory only. What is asked, and the notes Claude reads to answer, go from the device to `api.anthropic.com` and
-nowhere else; Anthropic bills the key.
+nowhere else; Anthropic bills the key. So do meetings' transcripts, while Claude writes meetings up (Meetings,
+below).
+
+## Meetings
+
+Matt, 2026-10-19: "when claude is enabled the meeting summary should go through claude instead of gemma". A meeting's
+write-up (one recorded on the phone or the Mac, and one Ghost was in, docs/MEET.md) is Claude's where Claude is
+**chosen**: the Claude plugin's switch is on and a key is kept on this device. Without either, meetings are written up
+on the device as they always were; a long voice note's summary always is. lib/ai/summary_claude.dart is Claude's half,
+lib/ai/summaries.dart (its header, "CLAUDE, FOR MEETINGS") the queue's.
+
+- **The same write-up.** The summary queue reads the tape's words as for the phone's model, in the same pieces when it
+  is long (ai/summary_text.dart `transcriptPieces`), with the same prompts (format/prompt.dart), and the answer is
+  placed and shaped by the same rules, written plain into a closed note or handed whole to an open note's editor,
+  which lands it as tracked changes with Keep and Revert. Kept as made by the model chosen (`claude-sonnet-5-5`, ...).
+- **The request.** One streamed `POST /v1/messages` a generation, read whole: the summary prompt as `system`, the
+  words as the one user message, the model chosen, the effort chosen where one is (none sent otherwise), no
+  `thinking` (the three models think adaptively by default), `max_tokens` 16000 (room for the thinking; the prompt
+  sets the length). Opus 5.5 and Sonnet 5.5 are asked with the server-side fallback (`fallbacks: "default"`, beta
+  `server-side-fallback-2026-07-01`), so a request a safety classifier declines is answered by the model Anthropic
+  routes it to; Haiku 5.5 has none.
+- **Privacy.** With Claude chosen, a meeting's transcript goes from the device to `api.anthropic.com` with the
+  person's own key, and nowhere else; with Local only on, nothing goes.
+- **Local only.** It holds Claude off but leaves it chosen: a meeting's write-up waits for Claude (the strip: "The
+  summary waits for Claude: Local only is on.") and is asked once Local only is off, rather than being written by the
+  phone's model, since a summary is never remade on its own. A request in flight when Local only comes on is stopped
+  and its job waits, uncounted.
+- **Failures** are said in Claude's words beside Try again ("The summary didn't come. The API key was refused.
+  Check it in Settings › Claude."). A refused key or request, or a decline, fails the job at once; no connection, too
+  many requests or Claude overloaded counts as one of the queue's three tries, 20 seconds apart. No "Needs a model":
+  none is looked for.
+- **With the app closed.** On Android the meeting service still makes the transcript with the app closed (Whisper
+  is the phone's); while Claude is chosen its config says summaries off (ai/job_config.dart), so it writes none, and
+  its notification says the transcript is in the note. The write-up then waits for the app: tapping the notification,
+  or any return to the app, takes the service's result, makes the meeting the queue's own job, and asks Claude at
+  once; while the app is alive behind another, the service's `recordingDone` does the same, since a Claude job runs
+  with the app off the screen (the phone's model's never do). A summary the phone or the Mac's core wrote anyway (a
+  config from before Claude was chosen; the Mac, whose core is sent none) is put aside for Claude's.
 
 ## The stream
 
@@ -153,6 +190,7 @@ observer of the person's presses and keys.
 | The chat, the bar, the dock's Claude, the mark | lib/claude/claude_chat.dart, claude_bar.dart, claude_dock.dart, claude_mark.dart |
 | Talking to Claude: the ask said aloud, its ear, its card and strip | lib/claude/claude_voice.dart, claude_ear.dart, claude_voice_sheet.dart; the root's `_startTalk` in lib/root/root_claude.dart |
 | The phone's assistant: its switch and its launch | lib/core/wip.dart, lib/plugins/claude/claude_in_app.dart, lib/root/capture_route.dart, android/…/MeetingBridge.kt |
+| Meetings written up by Claude | lib/ai/summary_claude.dart; lib/ai/summaries.dart, lib/ai/job_config.dart; lib/root/voice_wiring.dart wires them |
 | The key's page, and the plugin | lib/plugins/claude/ (claude.dart's manifest and `claudeInApp`, claude_in_app.dart, claude_pane.dart) |
 | The library and the screen as Claude reaches them, the chat's part, the inbox's note | lib/root/root_claude.dart, ghost_root.dart, root_parts.dart |
 | The dock's slot | lib/home/home_screen.dart (`HomeScreen.claude`); every other page's, lib/shell/page_dock.dart (docs/DOCK.md) |
