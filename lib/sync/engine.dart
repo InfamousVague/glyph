@@ -53,6 +53,7 @@ import '../core/stored.dart';
 import '../core/workspaces.dart';
 import '../integrations/webhooks/incoming.dart' show HookPass, HookPassContext;
 import '../mail/mail_in.dart' show MailPass, MailPassContext;
+import '../meet/meet_in.dart' show MeetPass, MeetPassContext;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import 'arrived.dart';
@@ -284,6 +285,7 @@ class SyncEngine {
     this.forgetTeams,
     this.tellChanged,
     this.mailIn,
+    this.meetIn,
     this.hooksIn,
     NotesPass? notesPass,
     PrefsPass? prefsPass,
@@ -321,6 +323,11 @@ class SyncEngine {
   /// Email to a note (lib/mail/mail_in.dart `syncMail`): what was mailed to the account's address, filed as notes
   /// just before the notes step, which then sends them on. Null where the feature is not offered.
   final MailPass? mailIn;
+
+  /// Ghost in a Google Meet (lib/meet/meet_in.dart `syncMeet`): each meeting Ghost recorded, filed as a note and
+  /// handed to this device's write-up, just before the notes step, which then sends the notes on. Null where it is
+  /// not offered.
+  final MeetPass? meetIn;
 
   /// Incoming webhooks (lib/integrations/webhooks/incoming.dart `syncHooks`): what was posted to the account's hooks,
   /// put into its notes just before the notes step, which then sends them on. Null where it is not offered.
@@ -662,6 +669,25 @@ class SyncEngine {
             pair: () async => (await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto))).pair,
             notes: notes,
             files: files,
+            now: _now,
+          )),
+        );
+        if ((filed ?? 0) > 0) await _changed();
+      }
+
+      // Each meeting Ghost was in, filed as a note for this device to write up (docs/MEET.md, "On the device").
+      final meet = meetIn;
+      if (meet != null) {
+        final filed = await step(
+          'Meetings',
+          () => meet(MeetPassContext(
+            token: token,
+            api: api,
+            crypto: crypto,
+            pair: () async => (await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto))).pair,
+            notes: notes,
+            prefs: prefs,
+            kept: _device,
             now: _now,
           )),
         );
