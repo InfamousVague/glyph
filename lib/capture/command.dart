@@ -160,6 +160,9 @@ class Placement {
   /// The items already told apart ("a list with…"), so a comma inside one ("Parkersburg, West Virginia") stays in it.
   final List<String>? items;
 
+  /// This placement with how many it places, or which, changed.
+  Placement copyWith({bool? many, List<String>? items}) => Placement(how: how, task: task, many: many ?? this.many, near: near, items: items ?? this.items);
+
   @override
   bool operator ==(Object other) =>
       other is Placement &&
@@ -315,6 +318,28 @@ final class PlanCreateList<N extends Candidate> extends FinalPlan<N> {
   String toString() => '{kind: create-list, title: $title${items == null ? '' : ', items: $items'}}';
 }
 
+/// A new note with words in it, by name ("make a note called directions and put go north"), from a finished
+/// recording (`create-note`; on the web `FinalPlan` has it beside `Plan`'s). [body] is the words as sentences, or ''
+/// for a note with a title alone.
+final class PlanCreateNote<N extends Candidate> extends FinalPlan<N> {
+  const PlanCreateNote({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  String get kind => 'create-note';
+
+  @override
+  bool operator ==(Object other) => other is PlanCreateNote && other.title == title && other.body == body;
+
+  @override
+  int get hashCode => Object.hash(kind, title, body);
+
+  @override
+  String toString() => '{kind: create-note, title: $title, body: $body}';
+}
+
 /// A table asked for, in a named note or this one: read so the reader at Done can turn it down, since a recording
 /// makes none.
 final class PlanTable<N extends Candidate> extends Plan<N> {
@@ -431,7 +456,11 @@ final RegExp _table = RegExp(
   caseSensitive: false,
 );
 final RegExp _createList = RegExp(
-  r'^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)\s+(.+)$',
+  r'^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?list|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+list)\s+(?:called|named|titled)[?.,:]*\s+(.+)$',
+  caseSensitive: false,
+);
+final RegExp _createNote = RegExp(
+  r'^(?:(?:please\s+)?(?:make|create|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?note|(?:i\s+(?:need|want|would\s+like))\s+(?:a\s+)?new\s+note)\s+(?:called|named|titled|label(?:ed|led)(?:\s+of)?)[?.,:]*\s+(.+)$',
   caseSensitive: false,
 );
 final RegExp _addToList = RegExp(
@@ -439,7 +468,7 @@ final RegExp _addToList = RegExp(
   caseSensitive: false,
 );
 final RegExp _directAppend = RegExp(
-  r"^(?:please\s+)?(?:add|put|append)\s+(?:(?:this|these|the\s+following)\s+)?to\s+(?:(?:the|my|our)\s+)?(?:(?:note|list|page)\s+(?:that(?:'s|\s+is)\s+)?(?:label(?:ed|led)|called|named|titled)\s+|note\s+)?(.+)$",
+  r"^(?:please\s+)?(?:add|put|append)\s+(?:(?:this|these|the\s+following)\s+)?to\s+(?:(?:the|my|our)\s+)?(?:(?:note|list|page)\s+(?:that(?:'s|\s+is)\s+)?(?:label(?:ed|led)|called|named|titled|of)\s+|note\s+)?(.+)$",
   caseSensitive: false,
 );
 
@@ -451,36 +480,94 @@ final RegExp _listIntro = RegExp(
 );
 
 /// "…and add to the list", "…then put", ", add these": where a new list's title ends and its items begin.
-final RegExp _thenAdd = RegExp(r'(?:\s*[,.;:]\s*|\s+)(?:(?:and|then|and\s+then)\s+)?(?:add|put)\s+', caseSensitive: false);
+final RegExp _thenAdd = RegExp(
+  r'(?:\s*[,.;:?!]\s*|\s+)(?:(?:and|then|and\s+then)\s+)?(?:(?:on|to|in)\s+(?:the|that|this|my)\s+(?:new\s+)?(?:list|note)\s*[,.;:]?\s*)?(?:add|put)\b[\s,.;:]*',
+  caseSensitive: false,
+);
 
 /// "…with", "…containing", "…:": the same, when what follows is plainly several items.
 final RegExp _withItems = RegExp(r'\s+(?:with|containing|including|that\s+has|of)\s+|\s*:\s*', caseSensitive: false);
 const String _theList = r'(?:(?:the|that|this|my)\s+)?(?:new\s+)?(?:list|note|it)';
 final RegExp _intoListFirst = RegExp('^(?:to|in|on|into|onto)\\s+$_theList\\b\\s*[,:]?\\s*', caseSensitive: false);
-final RegExp _intoListLast = RegExp('\\s+(?:to|in|on|into|onto)\\s+$_theList\\s*\$', caseSensitive: false);
+
+/// "…peanut butter. Add to list.": a closing "add to the list" is a repeated request, not another item.
+final RegExp _intoListLast = RegExp(
+  r'[\s,.;:?!]+(?:(?:and|then)\s+)?(?:(?:add|put)(?:\s+(?:it|them|these|those))?\s+)?(?:to|in|on|into|onto)\s+' + _theList + r'[\s.!?]*$',
+  caseSensitive: false,
+);
+
+/// "…and in the note, make a list called. Can you make the list have prep, cook": a list made inside the note just
+/// named.
+final RegExp _inTheNote = RegExp(
+  r'^(.*?)[\s,.;:]+(?:(?:and|then)\s+)*(?:in|inside|into)\s+(?:the|that|this)\s+(?:new\s+)?note[\s,.;:]+(?:(?:and|then|can\s+you|please)[\s,]+)*(?:make|create|put|add|start)\s+(?:(?:me\s+)?(?:a|another)\s+)?(?:new\s+)?(?:list|checklist)\b[\s,.;:?]*(?:(?:called|named|titled)[\s?.,:]*)?(?:(?:(?:and|then|can\s+you|please)[\s,]+)*(?:make|have)\s+(?:the|that|it|this)\s+(?:list\s+)?(?:have|with|contain|include)\s+)?(.*)$',
+  caseSensitive: false,
+  dotAll: true,
+);
 final RegExp _these = RegExp(r'^(?:(?:these|the\s+following)(?:\s+(?:items?|things))?|items?)\s*[,:]?\s+', caseSensitive: false);
 
 /// "Comic books and add to the list Spider-Man, Batman and Superman": the new list's title, and its items when some
 /// were said. A title that merely contains "with" ("Books with pictures") stays a title: only several items split it.
-({String title, List<String> items}) _titleAndItems(String said) {
+({String title, List<String> items, String? rest}) _titleAndItems(String said) {
   final added = _thenAdd.firstMatch(said);
   if (added != null && added.start > 0) {
+    final title = _cleanTitle(said.substring(0, added.start));
+    // "Add to the games list. Zelda…": the list is named again, and the name is not an item.
+    final named = RegExp(
+      r'^(?:to|in|on|into|onto)\s+(?:(?:the|that|this|my)\s+)?(?:new\s+)?(?:(?:' +
+          title.split(_spaces).map(escapeRegExp).join(r'\s+') +
+          r')\b\s*(?:(?:list|note|it)\b)?|(?:list|note|it)\b)[\s,.;:?!]*',
+      caseSensitive: false,
+    );
     final rest = said
         .substring(added.end)
+        .replaceFirst(named, '')
         .replaceFirst(_intoListFirst, '')
         .replaceFirst(_intoListLast, '')
         .replaceFirst(_these, '')
         .trim();
     final items = spokenListItems(rest);
-    if (items.isNotEmpty) return (title: said.substring(0, added.start).trim(), items: items);
+    if (title.isNotEmpty && items.isNotEmpty) return (title: title, items: items, rest: rest);
   }
   final listed = _withItems.firstMatch(said);
   if (listed != null && listed.start > 0) {
     final items = spokenListItems(said.substring(listed.end).replaceFirst(_these, ''));
-    if (items.length > 1) return (title: said.substring(0, listed.start).trim(), items: items);
+    if (items.length > 1) return (title: _cleanTitle(said.substring(0, listed.start)), items: items, rest: null);
   }
-  return (title: said, items: const []);
+  // Whisper ends a name said before the note's words with a question mark or a full stop ("called stream ideas? I want
+  // to stream…"): the name is the sentence it ends, and the rest is the note's. A full stop only counts after a word
+  // of four letters or more, so "Mr. Smith's trip" stays whole.
+  final named = _nameThenWords.firstMatch(said);
+  if (named != null) {
+    final title = _cleanTitle(named.group(1)!);
+    final rest = named.group(2)!.trim();
+    if (title.isNotEmpty && title.split(_spaces).length <= 6 && rest.isNotEmpty) return (title: title, items: const [], rest: rest);
+  }
+  return (title: _cleanTitle(said), items: const [], rest: null);
 }
+
+final RegExp _nameThenWords = RegExp(r'^(.+?(?:[?!]|(?<=\p{L}{4})\.))\s+(\S.*)$', unicode: true, dotAll: true);
+final RegExp _pauses = RegExp(r'(?:\s*[.!?]+){2,}');
+final RegExp _runOfSpaces = RegExp(r'\s+');
+final RegExp _leadingJunk = RegExp(r'^[\s,.;:]+');
+final RegExp _trailingJunk = RegExp(r'[\s,;:]+$');
+final RegExp _endsSentence = RegExp(r'[.!?]$');
+
+/// "We go north. . Then east" as the words of a note: pauses are not sentence ends.
+String _sentences(String text) {
+  final clean = text.replaceAll(_pauses, '.').replaceAll(_runOfSpaces, ' ').replaceFirst(_leadingJunk, '').replaceFirst(_trailingJunk, '');
+  return clean.isEmpty ? '' : '${clean[0].toUpperCase()}${clean.substring(1)}${_endsSentence.hasMatch(clean) ? '' : '.'}';
+}
+
+/// "We should…", "it was…": a piece that starts like a sentence is not an item.
+final RegExp sentenceStart = RegExp(
+  r"^(?:i|i'm|we|we're|you|he|she|it|it's|they|this|that|there|so|if|when|because|after|before|with)\b",
+  caseSensitive: false,
+);
+
+final RegExp _titleTail = RegExp(r'[\s.,;:!?]+$');
+
+/// Whisper's punctuation is not part of a name: "games?" is Games.
+String _cleanTitle(String title) => title.trim().replaceFirst(_titleTail, '').trim();
 
 bool _truthy(String? group) => group != null && group.isNotEmpty;
 
@@ -498,6 +585,9 @@ final RegExp _stopCue = RegExp(r'(?:[.!?]\s*)?\b(?:end|stop)\s*[.!?]*\s*$', case
 
 /// [text] without an "end" or "stop" said last: a stop cue is the recording's control, never the command's words.
 String _stripStopCue(String text) => text.replaceFirst(_stopCue, '').trim();
+
+/// [_stripStopCue], for the scan of a whole recording for a command (command_scan.dart).
+String stripStopCue(String text) => _stripStopCue(text);
 
 final RegExp _leadingMarks = RegExp(r'^[\s.,;:!?…"“]+');
 
@@ -695,6 +785,40 @@ PlanAwait<N> _await<N extends Candidate>(N note, Placement placement) => PlanAwa
 final RegExp _quoteCue = RegExp(r'\bquote\s+(.+?)\s+quote\b', caseSensitive: false);
 final RegExp _trailingMarks = RegExp(r'[\s.,;:!?]+$');
 
+final RegExp _itemEnd = RegExp(r'\s*(?:[.!?;,]+|\band\b)\s*', caseSensitive: false);
+final RegExp _addLead = RegExp(r'^(?:(?:and|then|also)\s+)?(?:add|put)\s+', caseSensitive: false);
+final RegExp _separatedRest = RegExp(r'[,;.]|\band\b', caseSensitive: false);
+final RegExp _restEnd = RegExp(r'[\s.!?]+$');
+
+/// What a finished recording asks for: [planCommand], and a new note made with its text ("make a note called
+/// directions and put go north") (`planFinalCommand`). A [PlanCreateNote] is the one plan this answers that
+/// [planCommand] never does.
+Plan<N>? planFinalCommand<N extends Candidate>(String words, {required List<N> notes}) {
+  final said = _createNote.firstMatch(_stripStopCue(words.replaceFirst(_lead, '').trim()))?.group(1);
+  if (said != null && said.isNotEmpty) {
+    final inside = _inTheNote.firstMatch(said.replaceFirst(_stopsAtEnd, '').trim());
+    if (inside != null) {
+      // Said slowly, the items arrive as sentences ("Prep the vegetables, cook the meat. Sauté. Add cheese"): every
+      // pause and comma is an item end.
+      final items = [
+        for (final item in (inside.group(2) ?? '').replaceFirst(_intoListLast, '').split(_itemEnd)) item.replaceFirst(_addLead, '').trim(),
+      ].where((item) => item.isNotEmpty).toList();
+      final title = _cleanTitle(inside.group(1) ?? '');
+      if (title.isNotEmpty) return items.isNotEmpty ? PlanCreateList<N>(title: title, items: items) : PlanCreateNote<N>(title: title, body: '');
+    }
+    final made = _titleAndItems(said.replaceFirst(_stopsAtEnd, '').trim());
+    if (made.title.isEmpty) return null;
+    final rest = made.rest;
+    // Several short things, said with commas, "and" or pauses ("add magnesium, aluminum and copper"), are a list; a
+    // sentence or a run of words is the note's text.
+    final separated = rest != null && _separatedRest.hasMatch(rest.replaceFirst(_restEnd, ''));
+    final short = separated && made.items.length > 1 && made.items.every((item) => item.split(_spaces).length <= 4 && !sentenceStart.hasMatch(item));
+    if (short) return PlanCreateList<N>(title: made.title, items: made.items);
+    return PlanCreateNote<N>(title: made.title, body: rest != null && rest.isNotEmpty ? _sentences(rest) : '');
+  }
+  return planCommand<N>(words, notes: notes);
+}
+
 /// What the words after the keyword ask for, or null when they don't say yet. [notes] are the notes that can be
 /// named.
 Plan<N>? planCommand<N extends Candidate>(String words, {required List<N> notes}) {
@@ -780,7 +904,8 @@ Plan<N>? _readCommand<N extends Candidate>(String words, List<N> notes) {
 }
 
 final RegExp _quotedName = RegExp(r'^["“]([^"”]+)["”]\s*(.*)$');
-final RegExp _leadingJoins = RegExp(r'^[\s,:;-]+');
+final RegExp _listWordAfterTitle = RegExp(r'^(?:[\s\p{P}]*\b(?:note|notes|list|page)\b(?=[\s\p{P}]|$))?[\s\p{P}]+', unicode: true);
+final RegExp _leadingMarkJoins = RegExp(r'^[\s,:;.?!-]+');
 final RegExp _bookNameLead = RegExp(r'^(?:called|named|titled|for|about|on)\s+', caseSensitive: false);
 final RegExp _pagesEnd = RegExp(r'[\s.!?]+$');
 final RegExp _endsInStop = RegExp(r'[.!?]\s*$');
@@ -826,7 +951,9 @@ Plan<N>? _readWords<N extends Candidate>(String words, List<N> notes) {
     final tail = named != null ? '${named.group(1)} ${named.group(2)}' : direct;
     final found = _titledPrefix(tail, notes) ?? _namedPrefix(tail, notes);
     if (found != null) {
-      final payload = _directPayload(found.text.replaceFirst(_leadingJoins, ''));
+      // "…my groceries list? Cauliflower…": the "list" or "note" after the title, and whatever mark Whisper put after
+      // it, name the note; they are not the first thing added.
+      final payload = _directPayload(found.text.replaceFirst(_listWordAfterTitle, '').replaceFirst(_leadingMarkJoins, ''));
       return PlanPlace<N>(note: found.note, text: payload.text, how: payload.how, task: payload.task, many: payload.many, items: payload.items);
     }
     // "Add this to the field guide": a whole title with nothing after it is this recording going there, which the

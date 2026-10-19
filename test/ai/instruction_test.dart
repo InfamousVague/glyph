@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/instruction.dart';
 import 'package:ghost_md/ai/kinds.dart';
-import 'package:ghost_md/capture/command.dart' show PlanCreateList, PlanPlace;
+import 'package:ghost_md/capture/final_instruction.dart' show VoiceAppend, VoiceCreate;
 import 'package:ghost_md/capture/run_of.dart' as recorder;
 import 'package:ghost_md/capture/take_types.dart';
 import 'package:ghost_md/capture/ui/read_instruction.dart' as screen;
@@ -39,7 +39,9 @@ Future<Read<N>> read(String said, [List<N>? library]) => readInstruction<N>(said
 Matcher wordsWith([String? notice]) => isA<ReadWords<N>>().having((r) => r.notice, 'notice', notice);
 Matcher runOfKind(RunKind kind) => isA<ReadRun<N>>().having((r) => r.run, 'run', kind).having((r) => r.instruction, 'instruction', isNull);
 Matcher askOf(String instruction) => isA<ReadAsk<N>>().having((r) => r.instruction, 'instruction', instruction);
-Matcher placedIn(String id) => isA<ReadCommand<N>>().having((r) => r.plan, 'plan', isA<PlanPlace<N>>().having((p) => p.note.id, 'note', id));
+Matcher placedIn(String id) => isA<ReadCommand<N>>().having((r) => r.actions, 'actions', [isA<VoiceAppend<N>>().having((a) => a.note.id, 'note', id)]);
+
+VoiceAppend<N> theAppend(Read<N> read) => (read as ReadCommand<N>).actions.single as VoiceAppend<N>;
 
 void main() {
   group('the words themselves', () {
@@ -90,11 +92,11 @@ void main() {
     test('is a command, to be confirmed, when a note is named', () async {
       final placed = await read('add eggs to groceries');
       expect(placed.kind, 'command');
-      final plan = (placed as ReadCommand<N>).plan as PlanPlace<N>;
+      final plan = theAppend(placed);
       expect(plan.note.id, 'g');
       expect(plan.text, 'eggs');
       final made = await read('make a new list called comic books and add Batman and Superman');
-      expect(made, isA<ReadCommand<N>>().having((r) => r.plan, 'plan', isA<PlanCreateList<N>>().having((p) => p.title, 'title', 'comic books').having((p) => p.items, 'items', ['Batman', 'Superman'])));
+      expect(made, isA<ReadCommand<N>>().having((r) => r.actions, 'actions', [isA<VoiceCreate<N>>().having((p) => p.title, 'title', 'comic books').having((p) => p.items, 'items', ['Batman', 'Superman'])]));
     });
 
     test('refuses a command that named a note there is no note for after the keyword, and without it saves the words with the reason', () async {
@@ -165,7 +167,7 @@ void main() {
       // "Go" starts with a verb, so the live reader has no bare reading of it to turn down: the card is the second
       // chance.
       expect(await read('add to the note labeled Go pack sunscreen', library), placedIn('go'));
-      expect(await read('Make a list called Comic books.', library), isA<ReadCommand<N>>().having((r) => r.plan, 'plan', isA<PlanCreateList<N>>().having((p) => p.title, 'title', 'Comic books')));
+      expect(await read('Make a list called Comic books.', library), isA<ReadCommand<N>>().having((r) => r.actions, 'actions', [isA<VoiceCreate<N>>().having((p) => p.title, 'title', 'Comic books')]));
     });
   });
 
@@ -211,7 +213,7 @@ void main() {
       test('is Matt’s command on House TODOs, however it opened: $said', () async {
         final got = await read(said, house);
         expect(got, placedIn('h'));
-        expect(((got as ReadCommand<N>).plan as PlanPlace<N>).text, matches(RegExp(r'^call an electrician to fix the light sockets$', caseSensitive: false)));
+        expect(theAppend(got).text, matches(RegExp(r'^call an electrician to fix the light sockets$', caseSensitive: false)));
       });
     }
   });
@@ -234,8 +236,9 @@ void main() {
         switch ((ours, theirs)) {
           case (ReadRun<N>(:final run), screen.ReadRun<N>(run: final word)):
             expect(word, run.id);
-          case (ReadCommand<N>(:final plan), screen.ReadCommand<N>(plan: final same)):
-            expect(same, plan);
+          case (ReadCommand<N>(:final actions, :final note), screen.ReadCommand<N>(actions: final same, note: final sameNote)):
+            expect(same, actions);
+            expect(sameNote, note);
           case (ReadReject<N>(:final reason), screen.ReadReject<N>(reason: final same)):
             expect(same, reason);
           case (ReadAsk<N>(:final instruction), screen.ReadAsk<N>(instruction: final same)):

@@ -77,7 +77,7 @@ import '../../shell/header_pane.dart';
 import '../candidates.dart';
 import '../capture_session.dart';
 import '../chip.dart';
-import '../command.dart' show Placement, PlanCreateList, PlanPlace, findKeyword, findMisheard;
+import '../command.dart' show Placement, PlacementHow, findKeyword, findMisheard;
 import '../diagnostics.dart';
 import '../engine.dart';
 import '../final_words.dart';
@@ -104,6 +104,9 @@ import '../take_writer.dart';
 import '../tape.dart' show counter;
 import '../timeline.dart';
 import '../tips.dart';
+import '../trailing_echo.dart' show segmentsWithoutTrailingEcho;
+import '../voice_log.dart' show settleRecording, traceRecording;
+import '../voice_plan.dart' show VoiceAction, VoiceAppend, VoiceCreate;
 import '../voice_level.dart';
 import 'capture_cards.dart';
 import 'computer_sound.dart';
@@ -149,12 +152,28 @@ class _Insert {
 
 /// A stopped command awaiting its explicit confirmation; its words never become a note.
 class _FinalCommand {
-  const _FinalCommand({required this.note, this.create, required this.locked, required this.temporaryId, required this.recordedMs, required this.ownTape});
+  const _FinalCommand({
+    required this.actions,
+    this.rest,
+    this.trace,
+    this.keep,
+    required this.locked,
+    required this.temporaryId,
+    required this.recordedMs,
+    required this.ownTape,
+  });
 
-  final Note? note;
+  /// The changes the recording asked for, checked (final_instruction.dart), carried out on confirmation.
+  final List<VoiceAction<TakeCandidate<Note>>> actions;
 
-  /// "Make a new list called … and add …": the note to create on confirmation, instead of one to add to.
-  final ({String title, List<String> items})? create;
+  /// The rest of what was said, kept as its own note on confirmation; null for none.
+  final String? rest;
+
+  /// Its entry in the voice log (voice_log.dart), for what the person chose.
+  final int? trace;
+
+  /// A command found inside dictation: declined, the recording is saved as a note instead of let go.
+  final Future<void> Function()? keep;
   final bool locked;
   final String temporaryId;
   final int? recordedMs;
@@ -329,7 +348,6 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
   String _pendingAskSaid = '';
 
   /// The lines a confirmed card after Done put in its note, for the note's Undo.
-  List<String> _confirmedLines = const [];
 
   /// While an item for another note is being said, its words show in the chip, not in this note.
   String _itemWords = '';
@@ -569,7 +587,6 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       // delete wins instead of being overwritten by the voice command.
       final placed = placeWords(note.body, spoken, placingOf(placement));
       if (placed.added.isEmpty) return;
-      _confirmedLines = placed.added;
       final result = await _r.store.applyCommandMutation(CommandMutationRequest(
         mutationId: _r.store.newNoteId(),
         noteId: note.id,
@@ -834,14 +851,11 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final command = _finalCommand;
     if (command == null) return;
     _finalCommand = null;
+    final trace = command.trace;
+    if (trace != null) settleRecording(trace, 'confirmed');
     unawaited(_writer.settled().then((_) async {
-      final create = command.create;
-      final named = command.note;
-      Note? saved = create != null
-          ? await _createFinalList(create.title, create.items)
-          : named != null
-              ? await _fresh(named)
-              : null;
+      final done = await _runFinalActions(command.actions, command.rest);
+      var saved = done.keeper;
       final ownTape = command.ownTape;
       final recordedMs = command.recordedMs;
       if (ownTape != null) {
@@ -865,19 +879,105 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         unawaited(_r.engine.discardRecording(command.temporaryId).catchError((Object _) {}));
       }
       _r.host.endCapture(command.locked);
-      // The note the card wrote to opens, with an Undo for the lines it put in.
-      final lines = create != null ? const <String>[] : _confirmedLines;
+      // The note the card wrote to opens, with an Undo for the lines it put in and for the other notes it changed.
       if (saved != null && !command.locked) {
-        widget.onFinish(saved, command.locked, landing: CaptureLanding(noteId: saved.id, title: noteTitle(saved.body), blocks: lines, others: const [], made: create != null ? [saved.id] : const []));
+        widget.onFinish(
+          saved,
+          command.locked,
+          landing: CaptureLanding(noteId: saved.id, title: noteTitle(saved.body), blocks: done.blocks, others: done.others, into: done.into, made: done.made),
+        );
         return;
       }
       widget.onFinish(saved, command.locked);
     }));
   }
 
-  /// The confirmed new list of a finished recording: its title, then its items as a list.
-  Future<Note?> _createFinalList(String title, List<String> items) async {
+  /// A confirmed recording's changes, one after another, each a guarded write against the note as it is now. The note
+  /// that opens is the rest-of-what-was-said note when there is one, else the first note changed (`runFinalActions`).
+  Future<({Note? keeper, List<String> blocks, List<String> others, List<String> into, List<String> made})> _runFinalActions(
+    List<VoiceAction<TakeCandidate<Note>>> actions,
+    String? rest,
+  ) async {
+    Note? first;
+    var firstAdded = const <String>[];
+    final appended = <({Note note, String mutation, List<String> added})>[];
+    final made = <String>[];
+    for (final action in actions) {
+      switch (action) {
+        case VoiceCreate<TakeCandidate<Note>>():
+          final created = await _createFinal(action.title, action.items, action.tasks, action.body);
+          if (created != null) {
+            made.add(created.id);
+            if (first == null) {
+              first = created;
+              firstAdded = const [];
+            }
+          }
+        case VoiceAppend<TakeCandidate<Note>>():
+          final fresh = await _fresh(action.note.note) ?? action.note.note;
+          final placed = placeWords(fresh.body, action.text, placingOf(action.placement));
+          if (placed.added.isEmpty) continue;
+          final mutation = _r.store.newNoteId();
+          CommandMutationResult? result;
+          try {
+            result = await _r.store.applyCommandMutation(CommandMutationRequest(
+              mutationId: mutation,
+              noteId: fresh.id,
+              kind: 'append',
+              beforeRevision: fresh.revision,
+              beforeBody: fresh.body,
+              afterBody: placed.body,
+              source: fresh.source,
+            ));
+          } catch (_) {
+            result = null;
+          }
+          if (result is CommandMutationResultApplied) {
+            _writer.remember(result.note);
+            _writer.rebase(result.note);
+            appended.add((note: result.note, mutation: mutation, added: placed.added));
+            if (first == null) {
+              first = result.note;
+              firstAdded = placed.added;
+            }
+          } else {
+            route(RouteViewSaid(text: '${action.note.title} changed after the preview, so nothing was added to it.'));
+          }
+      }
+    }
+    var keeper = first;
+    var blocks = firstAdded;
+    if (rest != null && rest.isNotEmpty) {
+      final kept = await _createFinalNote(rest);
+      if (kept != null) {
+        made.add(kept.id);
+        keeper = kept;
+        blocks = const [];
+      }
+    }
+    // Every other note the recording wrote to is the landing's "other": its Undo reverses that write by its id.
+    final others = <String>[];
+    final into = <String>[];
+    var keeperSkipped = false;
+    for (final one in appended) {
+      if (!keeperSkipped && keeper != null && one.note.id == keeper.id && blocks.isNotEmpty) {
+        keeperSkipped = true;
+        continue;
+      }
+      others.add(one.mutation);
+      into.add(noteTitle(one.note.body));
+    }
+    return (keeper: keeper, blocks: blocks, others: others, into: into, made: made);
+  }
+
+  /// The confirmed new list or note of a finished recording: its title, then its items as a list, or its words.
+  Future<Note?> _createFinal(String title, List<String> items, bool tasks, String? body) {
     final named = listTitle(title);
+    if (body != null && body.isNotEmpty) return _createFinalNote('$named\n\n$body');
+    return _createFinalNote(items.isNotEmpty ? appendToList(named, items, asTasks: tasks).body : named);
+  }
+
+  Future<Note?> _createFinalNote(String body) async {
     CommandMutationResult? result;
     try {
       result = await _r.store.applyCommandMutation(CommandMutationRequest(
@@ -886,28 +986,56 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
         kind: 'create',
         beforeRevision: null,
         beforeBody: null,
-        afterBody: items.isNotEmpty ? appendToList(named, items).body : named,
+        afterBody: body,
         source: NoteSource.capture,
       ));
     } catch (_) {
       result = null;
     }
     if (result is! CommandMutationResultApplied) {
-      route(const RouteViewSaid(text: 'That list could not be created safely.'));
+      route(const RouteViewSaid(text: 'That note could not be created safely.'));
       return null;
     }
     return result.note;
   }
 
-  /// Cancel tapped on the card: nothing is written, and the take's sound goes as the command's words do.
-  void _cancelPending() {
+  /// Cancel tapped on the card: nothing is written. A command found inside dictation ([_FinalCommand.keep]) leaves
+  /// the recording as the note it may have been; Discard ([keep] false) lets all of it go, and the take's sound goes
+  /// as the command's words do.
+  void _cancelPending({bool keep = true}) {
     _take.cancel();
     final command = _finalCommand;
     if (command == null) return;
     _finalCommand = null;
+    final trace = command.trace;
+    final kept = keep ? command.keep : null;
+    if (trace != null) settleRecording(trace, kept != null ? 'cancelled, kept as a note' : 'cancelled');
+    if (kept != null) {
+      unawaited(_keptAfterCancel(kept));
+      return;
+    }
     unawaited(_letGo(command.temporaryId, command.recordedMs, command.ownTape));
     _r.host.endCapture(command.locked);
     widget.onFinish(null, command.locked);
+  }
+
+  /// What Done does for a failure on the way, for the recording a declined card leaves as a note: the words are not
+  /// lost ([finish]).
+  Future<void> _keptAfterCancel(Future<void> Function() keep) async {
+    try {
+      await keep();
+    } catch (failure) {
+      _r.warn?.call('[glyph] done failed: $failure');
+      try {
+        await _keepWords();
+      } catch (again) {
+        _r.warn?.call('[glyph] the words were not kept: $again');
+        _doneFailed = true;
+        _finished = false;
+        _session.setError('The note could not be saved. Tap Done to try again.');
+        _session.setPhase(Phase.failed);
+      }
+    }
   }
 
   /// The sound of a take that is not being kept: an instruction, a refused command, a command sent elsewhere or
@@ -1087,11 +1215,15 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final recordedAs = _writer.noteId;
     final session = _session.session;
     var stopped = const Stopped(recordedMs: null, transcript: null);
+    final stopAt = _r.now();
+    String? stopFailure;
     try {
       stopped = await session?.stop(StopOptions(recordAs: recordedAs, append: append)) ?? stopped;
     } catch (failure) {
-      _session.setError(_failureText(failure));
+      stopFailure = _failureText(failure);
+      _session.setError(stopFailure);
     }
+    final stopMs = (_r.now() - stopAt).round();
     _soundAtDone = (recordedAs: recordedAs, recordedMs: (session?.keepsAudio ?? false) ? stopped.recordedMs : null, ownTape: ownTape);
 
     // The stop's own result includes words whose phrase event was still in flight when `stop()` stopped listening:
@@ -1109,6 +1241,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       _heard.add(segment.text);
       _applySteps(_live.final_(segment, _liveContext(), _now()));
     }
+    // Whisper's echo of the last words on the quiet after them ("…to Go. Go. Go.") is not speech (trailing_echo.dart).
+    _take.segments = segmentsWithoutTrailingEcho(_take.segments);
     await _writer.refreshed();
     final locked = _locked;
 
@@ -1157,6 +1291,9 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     // The reader at Done, when the live reader did nothing: a command said without the keyword, a run or an ask, a
     // new list by name (read_instruction.dart), read once from the whole transcript; after "New note", from what was
     // said after it, which is the take being finished.
+    // The rest of Done: this recording's words saved as a note of their own, and whatever else it left. A declined card
+    // for a command found inside dictation comes back to it (`_FinalCommand.keep`).
+    late final Future<void> Function() keepAsNote;
     if (!_live.engaged) {
       final since = heardAll.sublist(_forkedAt);
       // Something was taken back: the phrases as the take kept them, by the rule the better words use (a dropped
@@ -1170,15 +1307,41 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       } else {
         transcript = since.map((segment) => segment.text).join(' ').trim();
       }
-      final read = await readInstruction<TakeCandidate<Note>>(transcript, [for (final c in _candidates) TakeCandidate<Note>(id: c.id, title: c.title, note: c.note)], _r.startInference);
+      // What happened to this recording, step by step, for Settings › Recording › Voice log.
+      final voiceTrace = traceRecording(transcript);
+      voiceTrace.step(
+        stopFailure != null
+            ? 'stop failed after $stopMs ms: $stopFailure'
+            : 'stopped in $stopMs ms: ${stopped.recordedMs == null ? 'no audio kept' : '${(stopped.recordedMs! / 1000).toStringAsFixed(1)} s of audio'}, ${transcript.length} characters from ${stopped.transcript == null ? 'the live phrases (no final transcript)' : 'the final transcript'}',
+      );
+      final read = await readInstruction<TakeCandidate<Note>>(
+        transcript,
+        [for (final c in _candidates) TakeCandidate<Note>(id: c.id, title: c.title, note: c.note)],
+        _r.voiceStep,
+        voiceTrace,
+        _r.diagnostics,
+      );
       switch (read) {
-        case ReadCommand<TakeCandidate<Note>>(:final plan):
-          // The stopped audio is already kept under this capture's id. The change stays pending until this card is
+        case ReadCommand<TakeCandidate<Note>>(:final actions, note: final rest, :final conversational, :final trace):
+          // The stopped audio is already kept under this capture's id. The changes stay pending until this card is
           // explicitly confirmed.
-          _take.offerFinal(plan);
+          final said = [..._take.segments];
+          final card = _changesCard(actions, rest);
+          _take.offerChanges(heading: card.heading, action: card.action, lines: card.lines, detail: card.detail);
+          // Found inside dictation: declined, the recording is kept as the note it may have been.
+          final Future<void> Function()? keep = conversational
+              ? () async {
+                  for (final segment in said) {
+                    _take.listen(segment);
+                  }
+                  await keepAsNote();
+                }
+              : null;
           _finalCommand = _FinalCommand(
-            note: plan is PlanPlace<TakeCandidate<Note>> ? plan.note.note : null,
-            create: plan is PlanCreateList<TakeCandidate<Note>> ? (title: plan.title, items: plan.items ?? const <String>[]) : null,
+            actions: actions,
+            rest: rest,
+            trace: trace,
+            keep: keep,
             locked: locked,
             temporaryId: recordedAs,
             recordedMs: stopped.recordedMs,
@@ -1225,224 +1388,228 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       }
     }
 
-    // The one-shots: "add call Sam to House TODOs" said mid-take.
-    for (final insert in _inserts.values) {
-      final markdown = renderNote(insert.segments, '', const RenderOptions(titled: false)).markdown;
-      if (markdown.trim().isEmpty) continue;
-      final written = await _writer.writeInto(insert.note.id, markdown, insert.placing, () => renderNote(insert.segments).markdown);
-      if (written.own) {
-        made.add(written.saved.id);
-        changedMeanwhile(insert.title);
-        continue;
+    keepAsNote = () async {
+      // The one-shots: "add call Sam to House TODOs" said mid-take.
+      for (final insert in _inserts.values) {
+        final markdown = renderNote(insert.segments, '', const RenderOptions(titled: false)).markdown;
+        if (markdown.trim().isEmpty) continue;
+        final written = await _writer.writeInto(insert.note.id, markdown, insert.placing, () => renderNote(insert.segments).markdown);
+        if (written.own) {
+          made.add(written.saved.id);
+          changedMeanwhile(insert.title);
+          continue;
+        }
+        if (written.mutationId != null) {
+          others.add(written.mutationId!);
+          intoTitles.add(insert.title);
+        }
+        lastInsert = (note: written.saved, blocks: written.blocks);
+        _take.touched.add(written.saved.id);
+        _commandLog.add('Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot != null ? ', ${written.spot}' : ''}');
       }
-      if (written.mutationId != null) {
-        others.add(written.mutationId!);
-        intoTitles.add(insert.title);
-      }
-      lastInsert = (note: written.saved, blocks: written.blocks);
-      _take.touched.add(written.saved.id);
-      _commandLog.add('Added “${written.blocks.map(withoutLead).join('”, “')}” to ${insert.title}${written.spot != null ? ', ${written.spot}' : ''}');
-    }
 
-    // Nothing that lays out as anything leaves nothing behind for the take's own note. Asked of the laid-out words
-    // (take.hasContent), not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its prompt on
-    // silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
-    if (!_take.hasContent) {
-      // The stop has already kept the take's sound. On the end of a note's tape it stays, and the tape's new length
-      // is kept with the note's phrases as they were, so the next take's words still line up with their sound; a new
-      // note's goes with the note that is not made. A note's own file is never removed here: it is the whole of that
-      // note's tape.
-      final recordedMs = stopped.recordedMs;
-      if (recordedMs != null) {
-        if (continued != null && append) {
+      // Nothing that lays out as anything leaves nothing behind for the take's own note. Asked of the laid-out words
+      // (take.hasContent), not the transcript: a cue said alone ("Bullet point.", or Whisper echoing its prompt on
+      // silence) is held for a sentence that never comes, and saved from the transcript it made an empty note.
+      if (!_take.hasContent) {
+        // The stop has already kept the take's sound. On the end of a note's tape it stays, and the tape's new length
+        // is kept with the note's phrases as they were, so the next take's words still line up with their sound; a new
+        // note's goes with the note that is not made. A note's own file is never removed here: it is the whole of that
+        // note's tape.
+        final recordedMs = stopped.recordedMs;
+        if (recordedMs != null) {
+          if (continued != null && append) {
+            try {
+              await _r.store.setNoteRecording(continued.id, recordedMs, continued.segments ?? const []);
+            } catch (failure) {
+              _r.warn?.call('[glyph] recording not kept: $failure');
+            }
+          } else if (continued == null || _writer.routed) {
+            try {
+              await _r.engine.discardRecording(recordedAs);
+            } catch (_) {}
+          }
+        }
+        final opened = lastInsert?.note;
+        // Why nothing was kept, where the recorder would otherwise leave before it could be read: a note named with
+        // nothing said for it, or an ask said mid-take with no words of this note to run on.
+        final String? why = _writer.routed && aimed != null && lastInsert == null && made.isEmpty
+            ? 'Nothing was said for ${locked ? 'the note you named' : titleOr(aimed.body, 'that note')}, so nothing was added.'
+            : _pendingAsk != null
+                ? "Nothing was said for “${capitalise(_pendingAskSaid)}” to run on, so it didn't run."
+                : null;
+        if (why != null) route(RouteViewSaid(text: why));
+        await _writer.undoDraft();
+        _r.host.endCapture(locked);
+        if (why != null && !(opened != null && !locked)) await Future<void>.delayed(saidFor);
+        if (opened != null && !locked) {
+          widget.onFinish(
+            opened,
+            locked,
+            landing: CaptureLanding(
+              noteId: opened.id,
+              title: noteTitle(opened.body),
+              blocks: lastInsert!.blocks,
+              others: others.sublist(0, others.length - 1),
+              into: intoTitles.sublist(0, intoTitles.isEmpty ? 0 : intoTitles.length - 1),
+              made: made,
+            ),
+          );
+        } else if (made.isNotEmpty) {
+          Note? last;
           try {
-            await _r.store.setNoteRecording(continued.id, recordedMs, continued.segments ?? const []);
+            last = await _r.store.getNote(made.last);
+          } catch (_) {
+            last = null;
+          }
+          widget.onFinish(last, locked);
+        } else {
+          widget.onFinish(null, locked);
+        }
+        return;
+      }
+
+      final markdown = _take.markdown(titled: aimed == null && named == null);
+      Note saved;
+
+      /// The note's text the words were composed onto, for the better words: '' for a new note.
+      var base = '';
+      var blocks = <String>[];
+
+      /// The take went into a note that already existed, switched to by a command: it opens, with no review.
+      var into = false;
+      if (_writer.routed && aimed != null) {
+        final written = await _writer.writeInto(aimed.id, markdown, _writer.placing, () => _take.markdown(titled: true));
+        saved = written.saved;
+        if (written.own) {
+          made.add(saved.id);
+          changedMeanwhile(titleOr(aimed.body, 'That note'));
+        } else {
+          into = true;
+          base = written.before ?? aimed.body;
+          blocks = written.blocks;
+          _commandLog.add('Wrote to ${noteTitle(saved.body)}${written.spot != null ? ', ${written.spot}' : ''}');
+        }
+      } else if (named != null) {
+        // "New note “House chores”", chosen on a card: made now, titled, with the words where its title says.
+        final body = placeTake(listTitle(named), markdown, _writer.placing).body;
+        CommandMutationResult? result;
+        try {
+          result = await _r.store.applyCommandMutation(CommandMutationRequest(mutationId: _r.store.newNoteId(), noteId: _writer.noteId, kind: 'create', beforeRevision: null, beforeBody: null, afterBody: body, source: NoteSource.capture));
+        } catch (_) {
+          result = null;
+        }
+        saved = result is CommandMutationResultApplied ? result.note : await _r.store.createNote(_r.store.newNoteId(), body, NoteSource.capture);
+        made.add(saved.id);
+        // The better words go under its title, where the words were written.
+        base = listTitle(named);
+      } else {
+        saved = await _writer.queue(() async => _writer.persist(_writer.noteId, await _writer.compose(markdown), NoteSource.capture));
+        base = aimed != null ? (await _writer.baseBody ?? aimed.body) : '';
+      }
+      // From here the words are in the library: whatever fails after this opens that note ([_keepWords]).
+      _keptAtDone = saved;
+
+      RefineJob? refineJob;
+      final keptMs = stopped.recordedMs;
+      if (keptMs != null && (session?.keepsAudio ?? false)) {
+        /// The note whose tape the take's sound goes on the end of, as it was before this take; null for a tape of its
+        /// own.
+        Note? tapeOf = into || saved.id == aimed?.id ? aimed : null;
+        int? recordedMs = keptMs;
+        if (saved.id != recordedAs) {
+          // The take ended up in another note than the one its sound was kept under: a command only the stop heard, or
+          // a note that changed too much to write into. Sound on the end of a note's own tape stays on it (`_letGo`).
+          if (ownTape != null) {
+            await _letGo(recordedAs, keptMs, ownTape);
+            recordedMs = null;
+          } else {
+            if (!into) tapeOf = null;
+            try {
+              recordedMs = await _r.engine.reassignRecording(recordedAs, saved.id, appendsTo(tapeOf == null ? null : TapedNote.ofNote(tapeOf)));
+            } catch (_) {
+              recordedMs = null;
+            }
+          }
+        }
+        if (recordedMs != null) {
+          // New phrases sit after the continued tape's, shifted by its length.
+          final tape = onTape(tapeOf == null ? null : TapedNote.ofNote(tapeOf), TakeSpans(commandSpans: _take.commandSpans, keywordSpans: _take.keywordSpans), _take.segments);
+          try {
+            saved = await _r.store.setNoteRecording(saved.id, recordedMs, tape.segments) ?? saved;
           } catch (failure) {
             _r.warn?.call('[glyph] recording not kept: $failure');
           }
-        } else if (continued == null || _writer.routed) {
-          try {
-            await _r.engine.discardRecording(recordedAs);
-          } catch (_) {}
+          // The tape this take wrote to, so the voice memos already in the note know it again when it is opened.
+          _r.tapes?.setTapeId(saved.id, _tapeOfTake());
+          // The better words: the larger model over this take's recording, later, or now in the review after a
+          // recording when that runs.
+          final placing = _writer.placing;
+          final plainEnd = placing is PlacingEnd && (placing.lead == null || placing.lead!.isEmpty);
+          refineJob = RefineJob(
+            id: saved.id,
+            fromMs: tape.fromMs,
+            recordingMs: recordedMs,
+            baseBody: base,
+            savedBody: saved.body,
+            titled: tapeOf == null && !into && named == null && aimed == null,
+            priorSegments: tape.prior,
+            promptTail: _tail(renderNote(tape.prior).plain),
+            skip: tape.skip,
+            keywordAt: tape.keywordAt,
+            // Not the end, or the end with a line the words go on from: the better words are placed the same way.
+            placing: plainEnd ? null : placing,
+            // The take's own phrases whenever they are not the transcript's: a command carried out, or a take-back.
+            live: _live.changedWords ? shifted(_take.segments, tape.fromMs) : null,
+          );
         }
       }
-      final opened = lastInsert?.note;
-      // Why nothing was kept, where the recorder would otherwise leave before it could be read: a note named with
-      // nothing said for it, or an ask said mid-take with no words of this note to run on.
-      final String? why = _writer.routed && aimed != null && lastInsert == null && made.isEmpty
-          ? 'Nothing was said for ${locked ? 'the note you named' : titleOr(aimed.body, 'that note')}, so nothing was added.'
-          : _pendingAsk != null
-              ? "Nothing was said for “${capitalise(_pendingAskSaid)}” to run on, so it didn't run."
-              : null;
-      if (why != null) route(RouteViewSaid(text: why));
-      await _writer.undoDraft();
+      _r.host.haptic('success');
       _r.host.endCapture(locked);
-      if (why != null && !(opened != null && !locked)) await Future<void>.delayed(saidFor);
-      if (opened != null && !locked) {
-        widget.onFinish(
-          opened,
-          locked,
-          landing: CaptureLanding(
-            noteId: opened.id,
-            title: noteTitle(opened.body),
-            blocks: lastInsert!.blocks,
-            others: others.sublist(0, others.length - 1),
-            into: intoTitles.sublist(0, intoTitles.isEmpty ? 0 : intoTitles.length - 1),
-            made: made,
-          ),
-        );
-      } else if (made.isNotEmpty) {
-        Note? last;
-        try {
-          last = await _r.store.getNote(made.last);
-        } catch (_) {
-          last = null;
-        }
-        widget.onFinish(last, locked);
-      } else {
-        widget.onFinish(null, locked);
+      // A long take: the review's prompt would not fit the model's window, and its job is dictation's.
+      final long = refineJob != null && refineJob.recordingMs - refineJob.fromMs > longNoteMs;
+      final ask = _pendingAsk;
+      // What the recording left in notes that were there already, and the notes it made, for the note that opens. Its
+      // Undo drops the better words only for words it takes out of the note that opens: a take written into it.
+      final tookBack = _live.tookBackAtDone;
+      final CaptureLanding? landing = into || others.isNotEmpty || made.isNotEmpty
+          ? CaptureLanding(
+              noteId: saved.id,
+              title: noteTitle(saved.body),
+              blocks: blocks,
+              others: others,
+              into: intoTitles,
+              made: made,
+              fromMs: refineJob != null && into ? refineJob.fromMs : null,
+              tookBack: tookBack.isNotEmpty ? [...tookBack] : null,
+            )
+          : null;
+      // A take written into a note that already existed opens it with its Undo, and no review: the words are in it as
+      // they were said. The better words land after the note is left (refine.dart `holdNote`).
+      if (into) {
+        if (refineJob != null) _r.enqueueRefine(refineJob);
+        widget.onFinish(saved, locked, ask: ask, landing: landing);
+        return;
       }
-      return;
-    }
-
-    final markdown = _take.markdown(titled: aimed == null && named == null);
-    Note saved;
-
-    /// The note's text the words were composed onto, for the better words: '' for a new note.
-    var base = '';
-    var blocks = <String>[];
-
-    /// The take went into a note that already existed, switched to by a command: it opens, with no review.
-    var into = false;
-    if (_writer.routed && aimed != null) {
-      final written = await _writer.writeInto(aimed.id, markdown, _writer.placing, () => _take.markdown(titled: true));
-      saved = written.saved;
-      if (written.own) {
-        made.add(saved.id);
-        changedMeanwhile(titleOr(aimed.body, 'That note'));
-      } else {
-        into = true;
-        base = written.before ?? aimed.body;
-        blocks = written.blocks;
-        _commandLog.add('Wrote to ${noteTitle(saved.body)}${written.spot != null ? ', ${written.spot}' : ''}');
+      // The review after a recording: it runs the better words and the formatting when it is done. Not over a locked
+      // phone, whose note is not shown to whoever is holding it, and not for a long take.
+      if (!locked && !long && await _r.reviewAvailable()) {
+        widget.onFinish(saved, locked, review: ReviewHandoff(noteId: saved.id, job: refineJob, heard: _heard.join(' '), commands: [..._commandLog], touched: [..._take.touched]), ask: ask, landing: landing);
+        return;
       }
-    } else if (named != null) {
-      // "New note “House chores”", chosen on a card: made now, titled, with the words where its title says.
-      final body = placeTake(listTitle(named), markdown, _writer.placing).body;
-      CommandMutationResult? result;
-      try {
-        result = await _r.store.applyCommandMutation(CommandMutationRequest(mutationId: _r.store.newNoteId(), noteId: _writer.noteId, kind: 'create', beforeRevision: null, beforeBody: null, afterBody: body, source: NoteSource.capture));
-      } catch (_) {
-        result = null;
-      }
-      saved = result is CommandMutationResultApplied ? result.note : await _r.store.createNote(_r.store.newNoteId(), body, NoteSource.capture);
-      made.add(saved.id);
-      // The better words go under its title, where the words were written.
-      base = listTitle(named);
-    } else {
-      saved = await _writer.queue(() async => _writer.persist(_writer.noteId, await _writer.compose(markdown), NoteSource.capture));
-      base = aimed != null ? (await _writer.baseBody ?? aimed.body) : '';
-    }
-    // From here the words are in the library: whatever fails after this opens that note ([_keepWords]).
-    _keptAtDone = saved;
-
-    RefineJob? refineJob;
-    final keptMs = stopped.recordedMs;
-    if (keptMs != null && (session?.keepsAudio ?? false)) {
-      /// The note whose tape the take's sound goes on the end of, as it was before this take; null for a tape of its
-      /// own.
-      Note? tapeOf = into || saved.id == aimed?.id ? aimed : null;
-      int? recordedMs = keptMs;
-      if (saved.id != recordedAs) {
-        // The take ended up in another note than the one its sound was kept under: a command only the stop heard, or
-        // a note that changed too much to write into. Sound on the end of a note's own tape stays on it (`_letGo`).
-        if (ownTape != null) {
-          await _letGo(recordedAs, keptMs, ownTape);
-          recordedMs = null;
-        } else {
-          if (!into) tapeOf = null;
-          try {
-            recordedMs = await _r.engine.reassignRecording(recordedAs, saved.id, appendsTo(tapeOf == null ? null : TapedNote.ofNote(tapeOf)));
-          } catch (_) {
-            recordedMs = null;
-          }
-        }
-      }
-      if (recordedMs != null) {
-        // New phrases sit after the continued tape's, shifted by its length.
-        final tape = onTape(tapeOf == null ? null : TapedNote.ofNote(tapeOf), TakeSpans(commandSpans: _take.commandSpans, keywordSpans: _take.keywordSpans), _take.segments);
-        try {
-          saved = await _r.store.setNoteRecording(saved.id, recordedMs, tape.segments) ?? saved;
-        } catch (failure) {
-          _r.warn?.call('[glyph] recording not kept: $failure');
-        }
-        // The tape this take wrote to, so the voice memos already in the note know it again when it is opened.
-        _r.tapes?.setTapeId(saved.id, _tapeOfTake());
-        // The better words: the larger model over this take's recording, later, or now in the review after a
-        // recording when that runs.
-        final placing = _writer.placing;
-        final plainEnd = placing is PlacingEnd && (placing.lead == null || placing.lead!.isEmpty);
-        refineJob = RefineJob(
-          id: saved.id,
-          fromMs: tape.fromMs,
-          recordingMs: recordedMs,
-          baseBody: base,
-          savedBody: saved.body,
-          titled: tapeOf == null && !into && named == null && aimed == null,
-          priorSegments: tape.prior,
-          promptTail: _tail(renderNote(tape.prior).plain),
-          skip: tape.skip,
-          keywordAt: tape.keywordAt,
-          // Not the end, or the end with a line the words go on from: the better words are placed the same way.
-          placing: plainEnd ? null : placing,
-          // The take's own phrases whenever they are not the transcript's: a command carried out, or a take-back.
-          live: _live.changedWords ? shifted(_take.segments, tape.fromMs) : null,
-        );
-      }
-    }
-    _r.host.haptic('success');
-    _r.host.endCapture(locked);
-    // A long take: the review's prompt would not fit the model's window, and its job is dictation's.
-    final long = refineJob != null && refineJob.recordingMs - refineJob.fromMs > longNoteMs;
-    final ask = _pendingAsk;
-    // What the recording left in notes that were there already, and the notes it made, for the note that opens. Its
-    // Undo drops the better words only for words it takes out of the note that opens: a take written into it.
-    final tookBack = _live.tookBackAtDone;
-    final CaptureLanding? landing = into || others.isNotEmpty || made.isNotEmpty
-        ? CaptureLanding(
-            noteId: saved.id,
-            title: noteTitle(saved.body),
-            blocks: blocks,
-            others: others,
-            into: intoTitles,
-            made: made,
-            fromMs: refineJob != null && into ? refineJob.fromMs : null,
-            tookBack: tookBack.isNotEmpty ? [...tookBack] : null,
-          )
-        : null;
-    // A take written into a note that already existed opens it with its Undo, and no review: the words are in it as
-    // they were said. The better words land after the note is left (refine.dart `holdNote`).
-    if (into) {
       if (refineJob != null) _r.enqueueRefine(refineJob);
+      // A long voice note's summary, when Settings says so: the recorder's own new note, behind its better words.
+      // Never for a take into a note that was there, whose tape is not the note.
+      final summarized = long && aimed == null && saved.source == NoteSource.capture && _r.preferences().summaries == 'long';
+      if (summarized) _r.enqueueSummary(saved.id, 'recording');
+      if (long && !locked) {
+        // The Done line says why the note is not opened for a review, and stays long enough to be read.
+        await _said(summarized ? 'Long recording. The better words come later. The summary comes later.' : 'Long recording. The better words come later.');
+      }
       widget.onFinish(saved, locked, ask: ask, landing: landing);
-      return;
-    }
-    // The review after a recording: it runs the better words and the formatting when it is done. Not over a locked
-    // phone, whose note is not shown to whoever is holding it, and not for a long take.
-    if (!locked && !long && await _r.reviewAvailable()) {
-      widget.onFinish(saved, locked, review: ReviewHandoff(noteId: saved.id, job: refineJob, heard: _heard.join(' '), commands: [..._commandLog], touched: [..._take.touched]), ask: ask, landing: landing);
-      return;
-    }
-    if (refineJob != null) _r.enqueueRefine(refineJob);
-    // A long voice note's summary, when Settings says so: the recorder's own new note, behind its better words.
-    // Never for a take into a note that was there, whose tape is not the note.
-    final summarized = long && aimed == null && saved.source == NoteSource.capture && _r.preferences().summaries == 'long';
-    if (summarized) _r.enqueueSummary(saved.id, 'recording');
-    if (long && !locked) {
-      // The Done line says why the note is not opened for a review, and stays long enough to be read.
-      await _said(summarized ? 'Long recording. The better words come later. The summary comes later.' : 'Long recording. The better words come later.');
-    }
-    widget.onFinish(saved, locked, ask: ask, landing: landing);
+  
+    };
+    return keepAsNote();
   }
 
   static String _tail(String text) => text.length > 200 ? text.substring(text.length - 200) : text;
@@ -1474,7 +1641,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     // With the card after Done up, Discard is its Cancel: the take was finished, and its sound goes as a Cancel's
     // does.
     if (_finished) {
-      if (_finalCommand != null) _cancelPending();
+      if (_finalCommand != null) _cancelPending(keep: false);
       return;
     }
     // Nothing was stored mid-take, so there is nothing to take back: the holds and cards are settled and dropped.
@@ -1893,5 +2060,46 @@ class _LevelRipples implements RippleSource {
     void told() => listener(level.value.clamp(0.0, 1.0));
     level.addListener(told);
     return () => level.removeListener(told);
+  }
+}
+
+final RegExp _escaped = RegExp(r'\\(.)');
+
+/// What the card says a finished recording's changes are: the lines as they will land (`changesCard`).
+({String heading, String action, List<String> lines, String? detail}) _changesCard(List<VoiceAction<TakeCandidate<Note>>> actions, String? rest) {
+  String show(String line) => withoutLead(line).replaceAllMapped(_escaped, (m) => m[1]!);
+  final one = actions.length == 1 && (rest == null || rest.isEmpty) ? actions.first : null;
+  final lines = <String>[];
+  for (final action in actions) {
+    final added = switch (action) {
+      VoiceCreate<TakeCandidate<Note>>() => (action.body != null && action.body!.isNotEmpty) ? [action.body!] : action.items,
+      VoiceAppend<TakeCandidate<Note>>() => placeWords(action.note.note.body, action.text, placingOf(action.placement)).added,
+    };
+    if (one == null) {
+      lines.add(switch (action) {
+        VoiceCreate<TakeCandidate<Note>>() => 'New ${action.body != null && action.body!.isNotEmpty ? 'note' : 'list'}: ${listTitle(action.title)}',
+        VoiceAppend<TakeCandidate<Note>>() => 'Add to ${action.note.title}:',
+      });
+    }
+    for (final line in added) {
+      lines.add('${one != null ? '' : '  '}${show(line)}');
+    }
+  }
+  if (rest != null && rest.isNotEmpty) {
+    final shown = show(rest);
+    lines.add('Keep as a note: “${shown.length > 120 ? shown.substring(0, 120) : shown}${rest.length > 120 ? '…' : ''}”');
+  }
+  switch (one) {
+    case VoiceCreate<TakeCandidate<Note>>():
+      return (
+        heading: 'Create ${listTitle(one.title).replaceAllMapped(_escaped, (m) => m[1]!)}',
+        action: 'Create',
+        lines: lines,
+        detail: (one.body != null && one.body!.isNotEmpty) ? 'As a new note' : (one.items.isNotEmpty ? 'As a new list' : null),
+      );
+    case VoiceAppend<TakeCandidate<Note>>():
+      return (heading: 'Add to ${one.note.title}', action: 'Add', lines: lines, detail: one.placement.how == PlacementHow.item ? 'In its list' : 'Where it fits');
+    case null:
+      return (heading: actions.length > 1 ? '${actions.length} changes' : 'This change', action: 'Do it', lines: lines, detail: null);
   }
 }

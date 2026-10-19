@@ -42,9 +42,10 @@
 // rest of the module is unused there by design, not by accident.
 #![cfg_attr(target_os = "ios", allow(dead_code))]
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State};
@@ -120,6 +121,10 @@ impl From<GenerateRequest> for Request {
 pub struct CommandInferenceRequest {
     pub id: String,
     pub utterance: String,
+    /// The titles of the person's notes, so the model can tell which one was
+    /// meant. Titles only: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
     pub preferred_model: String,
 }
 
@@ -134,26 +139,33 @@ pub enum CommandInferenceResult {
 /// prefix snapshot after it stays valid across commands; the worked examples
 /// are the phrasings people actually say ("my note labeled Go", "a list
 /// with…"), which a 2B model follows far better than a rule alone.
-const COMMAND_SYSTEM: &str = r#"Translate one spoken note command to JSON. Allowed actions: append to an existing note, create a new note, or none.
+const COMMAND_SYSTEM: &str = r#"Read what someone said into a notes app and work out whether they asked for a change to their notes, and if so what they want in the end. They talk naturally: the request can come after other talk ("so I was thinking… can you make me a list"), and a request someone else was given, or talk about adding things later, is not one. Answer with JSON. Allowed actions: append to an existing note, create a new note, or none.
+- Their notes are listed first. For append, "target" should be one of those titles, allowing for misheard words.
 - append: "target" is only the note's title as spoken, without words like "my", "the", "note", "list", "labeled", "called" or "named". "content" is only what to add, in the speaker's words, without the command or the title. "placement" is "list" when they ask for a list, items, bullets or points; "tasks" for tasks, to-dos or check boxes; "bugs" for bugs or issues; "notes" for a paragraph or a note; otherwise null.
 - When they name several things to add (movies, places, groceries), placement is "list" even if they did not say "list".
 - For "list" and "tasks", separate the items in "content" with "; " and keep each item whole: "Paris, Texas; Austin, Texas".
 - create: "target" is the new note's title and "content" is its body, or null.
-- none: destructive (delete, remove, clear), compound (several different actions), unsupported, or unclear requests.
+- "Make a list called X and add A and B" is one request: create X with content "A; B".
+- none: destructive (delete, remove, clear) or unsupported requests; "unclear" when it is ordinary talk, not a request.
 Never invent content or a title. Output exactly one object in the required schema.
 
 Examples:
-Command: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
+Notes: Go, Work
+Said: add to my note labeled Go a list with Parkersburg West Virginia Marietta Ohio and Detroit Michigan
 {"action":"append","target":"Go","content":"Parkersburg, West Virginia; Marietta, Ohio; Detroit, Michigan","placement":"list"}
-Command: put call Sam and book the flights on my work to-do list
+Said: put call Sam and book the flights on my work to-do list
 {"action":"append","target":"Work","content":"call Sam; book the flights","placement":"tasks"}
-Command: add to the note called Weekend trip that we should book the ferry early
+Said: add to the note called Weekend trip that we should book the ferry early
 {"action":"append","target":"Weekend trip","content":"we should book the ferry early","placement":null}
-Command: add eggs milk and bread to groceries
+Said: add eggs milk and bread to groceries
 {"action":"append","target":"groceries","content":"eggs; milk; bread","placement":"list"}
-Command: make a new note called Packing
+Said: make a new note called Packing
 {"action":"create","target":"Packing","content":null}
-Command: delete everything in my Go note
+Said: ok so I was watching stuff last night, can you make me a list called movies with Jaws, Alien and Heat
+{"action":"create","target":"Movies","content":"Jaws; Alien; Heat"}
+Said: I told Sam I would add the photos to the album later
+{"action":"none","reason":"unclear"}
+Said: delete everything in my Go note
 {"action":"none","reason":"destructive"}"#;
 
 /// One model of the catalogue, with whether this phone has it.
@@ -167,10 +179,71 @@ pub struct ModelInfo {
     pub path: String,
 }
 
+/// How long a voice step waits for the model, queueing and loading included,
+/// before it gives up and lets the recording be saved as a note.
+const STEP_WAIT: Duration = Duration::from_secs(120);
+/// The polish is only an improvement on a draft that already works: it gets less time.
+const POLISH_WAIT: Duration = Duration::from_secs(60);
+/// Lines the diagnostics keep.
+const EVENTS_KEPT: usize = 200;
+
+/// One generation in flight.
+struct Run {
+    cancel: Arc<AtomicBool>,
+    what: &'static str,
+    started: Instant,
+}
+
+/// What `ai_diagnostics` says about one run in flight.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RunInfo {
+    id: String,
+    what: String,
+    age_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct Event {
+    /// Unix milliseconds.
+    at: u64,
+    line: String,
+}
+
+/// The engine as the page can see it, for the voice log: is a model in memory,
+/// what is running or waiting, and the last things that happened.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Diagnostics {
+    pub engine_started: bool,
+    pub model_loaded: bool,
+    pub runs: Vec<RunInfo>,
+    pub events: Vec<Event>,
+}
+
+/// A run's entry in `AiState::runs`, removed when this drops: on success, on
+/// an error, on a panic and when the command's future is dropped. Nothing else
+/// removes it, so one failed request can never leave the engine looking busy.
+struct RunGuard<'a> {
+    state: &'a AiState,
+    id: String,
+    what: &'static str,
+    started: Instant,
+}
+
+impl Drop for RunGuard<'_> {
+    fn drop(&mut self) {
+        lock(&self.state.runs).remove(&self.id);
+        self.state.log(format!("{} {} finished after {} ms", self.what, self.id, self.started.elapsed().as_millis()));
+    }
+}
+
 #[derive(Default)]
 pub struct AiState {
     /// The cancel flag of every run in flight, by the page's id.
-    runs: Mutex<HashMap<String, Arc<AtomicBool>>>,
+    runs: Mutex<HashMap<String, Run>>,
+    /// The last [`EVENTS_KEPT`] things the engine did, for `ai_diagnostics`.
+    events: Mutex<VecDeque<Event>>,
     /// One download at a time: two would write the same `.part` at once.
     #[cfg(not(target_os = "ios"))]
     fetching: tauri::async_runtime::Mutex<()>,
@@ -186,9 +259,31 @@ impl AiState {
 
     /// Raises every run's cancel flag.
     fn cancel_all(&self) {
-        for flag in lock(&self.runs).values() {
-            flag.store(true, Ordering::Relaxed);
+        for run in lock(&self.runs).values() {
+            run.cancel.store(true, Ordering::Relaxed);
         }
+    }
+
+    fn log(&self, line: impl Into<String>) {
+        let at = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_millis() as u64).unwrap_or(0);
+        let mut events = lock(&self.events);
+        if events.len() >= EVENTS_KEPT {
+            events.pop_front();
+        }
+        events.push_back(Event { at, line: line.into() });
+    }
+
+    /// Records a run and says what it is queued behind.
+    fn begin(&self, id: &str, what: &'static str, cancel: &Arc<AtomicBool>) -> RunGuard<'_> {
+        let started = Instant::now();
+        let ahead = {
+            let mut runs = lock(&self.runs);
+            let ahead = runs.len();
+            runs.insert(id.to_string(), Run { cancel: Arc::clone(cancel), what, started });
+            ahead
+        };
+        self.log(if ahead == 0 { format!("{what} {id} started") } else { format!("{what} {id} queued behind {ahead} run(s)") });
+        RunGuard { state: self, id: id.to_string(), what, started }
     }
 }
 
@@ -329,8 +424,7 @@ pub async fn ai_generate(
             return Err(format!("The model {} is not on this phone yet.", spec.id));
         }
         let cancel = Arc::new(AtomicBool::new(false));
-        let run = request.id.clone();
-        lock(&state.runs).insert(run.clone(), Arc::clone(&cancel));
+        let _run = state.begin(&request.id, "format", &cancel);
         let emitter = app.clone();
         let answer = state.llm().generate(std::path::Path::new(&status.path), Request::from(request), cancel, move |progress| {
             let _ = emitter.emit("ai://progress", progress);
@@ -338,12 +432,13 @@ pub async fn ai_generate(
         // The reply comes on a std channel from the worker thread; waiting on
         // it belongs on the blocking pool, not the async runtime.
         let joined = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
-        // The run is over however it ended, so its cancel flag goes before an
-        // error is answered: `ai_cancel` must not find a run that is gone.
-        lock(&state.runs).remove(&run);
+        // The run's guard (`_run`) removes it from the table when this returns, however it ends.
         let result = joined
             .map_err(|e| format!("the formatting run did not finish: {e}"))?
             .map_err(|_| "the formatting engine went away".to_string())?;
+        if let Err(failure) = &result {
+            state.log(format!("format {} failed: {failure}", request.id));
+        }
         result.map_err(|failure| failure.to_string())
     }
 }
@@ -365,12 +460,28 @@ pub fn ai_unload() -> Result<(), String> {
 #[tauri::command]
 pub fn ai_cancel(state: State<'_, AiState>, id: String) -> bool {
     match lock(&state.runs).get(&id) {
-        Some(flag) => {
-            flag.store(true, Ordering::Relaxed);
+        Some(run) => {
+            run.cancel.store(true, Ordering::Relaxed);
             true
         }
         None => false,
     }
+}
+
+/// The engine's state and last events, for the voice log. Reads only.
+#[tauri::command]
+pub fn ai_diagnostics(state: State<'_, AiState>) -> Diagnostics {
+    #[cfg(not(target_os = "ios"))]
+    let (engine_started, model_loaded) = (state.llm.get().is_some(), state.llm.get().is_some_and(|llm| llm.loaded()));
+    #[cfg(target_os = "ios")]
+    let (engine_started, model_loaded) = (false, false);
+    let mut runs: Vec<RunInfo> = lock(&state.runs)
+        .iter()
+        .map(|(id, run)| RunInfo { id: id.clone(), what: run.what.to_string(), age_ms: run.started.elapsed().as_millis() as u64 })
+        .collect();
+    runs.sort_by(|a, b| b.age_ms.cmp(&a.age_ms));
+    let events = lock(&state.events).iter().cloned().collect();
+    Diagnostics { engine_started, model_loaded, runs, events }
 }
 
 /// Interprets one wake-word-qualified utterance using only an already installed
@@ -409,18 +520,12 @@ pub async fn ai_infer_command(
         };
         let status = crate::model_files::status(&dir, &spec.spec);
         let cancel = Arc::new(AtomicBool::new(false));
-        {
-            let mut runs = lock(&state.runs);
-            if !runs.is_empty() {
-                return Ok(CommandInferenceResult::Unavailable { reason: "The on-device model is already working.".into() });
-            }
-            runs.insert(request.id.clone(), Arc::clone(&cancel));
-        }
+        let _run = state.begin(&request.id, "command", &cancel);
         let engine_request = Request {
             id: request.id.clone(),
             system: COMMAND_SYSTEM.into(),
             context: None,
-            prompt: format!("Command: {utterance}"),
+            prompt: command::user_prompt(utterance, &request.titles),
             // Room for a spoken list of a dozen places; a truncated answer fails closed.
             max_tokens: 384,
             temperature: 0.0,
@@ -430,12 +535,12 @@ pub async fn ai_infer_command(
             // A voice command is the person waiting: it goes before, and preempts, a write-up's piece.
             background: false,
         };
-        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, cancel, |_| {});
-        let received = tauri::async_runtime::spawn_blocking(move || answer.recv()).await;
-        lock(&state.runs).remove(&request.id);
-        let result = received
-            .map_err(|e| format!("the command inference did not finish: {e}"))?
-            .map_err(|_| "the command inference engine went away".to_string())?;
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, Arc::clone(&cancel), |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv_timeout(STEP_WAIT)).await;
+        let result = match received.map_err(|e| format!("the command inference did not finish: {e}"))? {
+            Ok(result) => result,
+            Err(why) => return Ok(CommandInferenceResult::Unavailable { reason: waited_in_vain(&state, &request.id, &cancel, why, STEP_WAIT) }),
+        };
         match result {
             Ok(output) => match command::parse(&output.text, output.truncated) {
                 Ok(intent) => Ok(CommandInferenceResult::Intent { intent, model: spec.id.into() }),
@@ -444,6 +549,130 @@ pub async fn ai_infer_command(
             Err(failure) => Ok(CommandInferenceResult::Unavailable { reason: failure.to_string() }),
         }
     }
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct VoiceStepRequest {
+    pub id: String,
+    /// The whole finished recording.
+    pub transcript: String,
+    /// The titles of the person's notes: never a body or an id.
+    #[serde(default)]
+    pub titles: Vec<String>,
+    /// "sort", "plan" with the `kind` sorting found, or "polish" with a `draft`.
+    pub stage: String,
+    #[serde(default)]
+    pub kind: Option<String>,
+    /// For "polish": the app's draft, as the plan's JSON.
+    #[serde(default)]
+    pub draft: Option<String>,
+    pub preferred_model: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "status", rename_all = "kebab-case")]
+pub enum VoiceStepResult {
+    /// The model's JSON, checked to be one whole object, and its raw text for the voice log.
+    Answer { answer: serde_json::Value, raw: String, model: String },
+    /// A destructive request: not given to the model at all.
+    Refused { reason: String },
+    Unavailable { reason: String },
+}
+
+/// One step of reading a finished recording (llm/command.rs): "sort" says what
+/// kind of thing it is, "plan" turns it into actions with real item lists.
+/// Only an installed model, a native fixed prompt and a native fixed grammar.
+#[tauri::command]
+pub async fn ai_voice_step(
+    app: AppHandle,
+    state: State<'_, AiState>,
+    request: VoiceStepRequest,
+) -> Result<VoiceStepResult, String> {
+    let transcript = request.transcript.trim();
+    if request.id.is_empty() || transcript.is_empty() || transcript.chars().count() > 4_000 {
+        return Ok(VoiceStepResult::Unavailable { reason: "The recording was empty or too long.".into() });
+    }
+    let draft = request.draft.as_deref().map(str::trim).filter(|draft| !draft.is_empty() && draft.chars().count() <= 6_000);
+    let (system, grammar, kind, max_tokens, what, wait): (&str, &'static str, Option<&str>, u32, &'static str, Duration) = match (request.stage.as_str(), request.kind.as_deref()) {
+        ("sort", _) => (command::SORT_SYSTEM, command::SORT_GRAMMAR, None, 16, "voice sort", STEP_WAIT),
+        ("plan", Some(kind @ ("add" | "new" | "mixed"))) => (command::PLAN_SYSTEM, command::PLAN_GRAMMAR, Some(kind), 640, "voice plan", STEP_WAIT),
+        ("polish", _) if draft.is_some() => (command::POLISH_SYSTEM, command::PLAN_GRAMMAR, None, 640, "voice polish", POLISH_WAIT),
+        _ => return Ok(VoiceStepResult::Unavailable { reason: "Unknown voice step.".into() }),
+    };
+    if command::refusal(transcript).is_some() {
+        return Ok(VoiceStepResult::Refused { reason: "Deleting, clearing or sending notes by voice is not supported.".into() });
+    }
+    #[cfg(target_os = "ios")]
+    {
+        let _ = (app, state, system, grammar, kind, max_tokens, what, wait, draft);
+        return Ok(VoiceStepResult::Unavailable { reason: "The on-device model is not available on iOS yet.".into() });
+    }
+    #[cfg(not(target_os = "ios"))]
+    {
+        let dir = crate::capture_commands::models_dir(&app)?;
+        let preferred = model::find(&request.preferred_model)
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let fallback = model::find("qwen3.5-2b")
+            .filter(|spec| crate::whisper::model::status(&dir, &spec.spec).present);
+        let Some(spec) = preferred.or(fallback) else {
+            return Ok(VoiceStepResult::Unavailable {
+                reason: "No compatible installed model is available for voice commands.".into(),
+            });
+        };
+        let status = crate::whisper::model::status(&dir, &spec.spec);
+        let cancel = Arc::new(AtomicBool::new(false));
+        let _run = state.begin(&request.id, what, &cancel);
+        let engine_request = Request {
+            id: request.id.clone(),
+            system: system.into(),
+            context: None,
+            prompt: match draft {
+                Some(draft) if request.stage == "polish" => command::polish_prompt(transcript, draft),
+                _ => command::voice_prompt(transcript, &request.titles, kind),
+            },
+            max_tokens,
+            temperature: 0.0,
+            think: false,
+            think_budget: 0,
+            grammar: Some(grammar),
+        };
+        let answer = state.llm().generate(std::path::Path::new(&status.path), engine_request, Arc::clone(&cancel), |_| {});
+        let received = tauri::async_runtime::spawn_blocking(move || answer.recv_timeout(wait)).await;
+        let result = match received.map_err(|e| format!("the voice step did not finish: {e}"))? {
+            Ok(result) => result,
+            Err(why) => return Ok(VoiceStepResult::Unavailable { reason: waited_in_vain(&state, &request.id, &cancel, why, wait) }),
+        };
+        match result {
+            Ok(output) => {
+                state.log(format!(
+                    "voice step {} ran: load {} ms, prefill {} ms ({} cached), {} tokens at {:.1}/s, {} ms in all",
+                    request.id, output.load_ms, output.prefill_ms, output.cached_tokens, output.output_tokens, output.tokens_per_second, output.ms
+                ));
+                match command::check_answer(&output.text, output.truncated) {
+                    Ok(answer) => Ok(VoiceStepResult::Answer { answer, raw: output.text, model: spec.id.into() }),
+                    Err(reason) => Ok(VoiceStepResult::Unavailable { reason: format!("{reason}: {}", output.text.chars().take(300).collect::<String>()) }),
+                }
+            }
+            Err(failure) => {
+                state.log(format!("voice step {} failed: {failure}", request.id));
+                Ok(VoiceStepResult::Unavailable { reason: failure.to_string() })
+            }
+        }
+    }
+}
+
+/// A step whose answer did not come: cancels it so a queued job does not run
+/// later for nobody, and says why in words for the log.
+#[cfg(not(target_os = "ios"))]
+fn waited_in_vain(state: &AiState, id: &str, cancel: &AtomicBool, why: std::sync::mpsc::RecvTimeoutError, wait: Duration) -> String {
+    cancel.store(true, Ordering::Relaxed);
+    let reason = match why {
+        std::sync::mpsc::RecvTimeoutError::Timeout => format!("The on-device model did not answer within {} seconds.", wait.as_secs()),
+        std::sync::mpsc::RecvTimeoutError::Disconnected => "The on-device model engine went away.".to_string(),
+    };
+    state.log(format!("step {id}: {reason}"));
+    reason
 }
 
 #[cfg(not(target_os = "ios"))]
@@ -481,6 +710,30 @@ mod tests {
         assert_eq!((request.id.as_str(), request.context.as_deref(), request.max_tokens, request.think_budget), ("r1", Some("c"), 200, 64));
         assert!(request.think && (request.temperature - 0.3).abs() < f32::EPSILON);
         assert!(!request.background, "the page's requests are foreground ones");
+    }
+
+    #[test]
+    fn a_run_leaves_the_map_when_its_guard_drops_however_it_ends() {
+        let state = AiState::default();
+        let cancel = Arc::new(AtomicBool::new(false));
+        {
+            let _first = state.begin("a", "format", &cancel);
+            let _second = state.begin("b", "voice sort", &cancel);
+            assert_eq!(lock(&state.runs).len(), 2);
+        }
+        assert!(lock(&state.runs).is_empty(), "a finished or failed run must never leave the engine looking busy");
+        assert!(lock(&state.events).iter().any(|event| event.line.contains("b queued behind 1 run(s)")));
+    }
+
+    #[test]
+    fn the_event_log_keeps_only_the_latest_lines() {
+        let state = AiState::default();
+        for n in 0..EVENTS_KEPT + 10 {
+            state.log(format!("line {n}"));
+        }
+        let events = lock(&state.events);
+        assert_eq!(events.len(), EVENTS_KEPT);
+        assert_eq!(events.back().map(|e| e.line.clone()), Some(format!("line {}", EVENTS_KEPT + 9)));
     }
 
     #[test]

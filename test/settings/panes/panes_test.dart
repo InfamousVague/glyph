@@ -369,7 +369,7 @@ void main() {
   group('Recording', () {
     testWidgets('keeps each switch and the summaries’ pick as a preference, live at once', (tester) async {
       await openPane(tester, 'recording', size: const Size(390, 1400));
-      expect(cardTitles(tester), ['While recording', 'After recording', 'Summaries', 'Tapes']);
+      expect(cardTitles(tester), ['While recording', 'After recording', 'Summaries', 'Tapes', 'Voice log']);
       for (final (row, read) in <(String, bool Function(Preferences))>[('Stop when I go quiet', (p) => p.quietStop), ('Review after recording', (p) => p.review), ('Better words', (p) => p.refine)]) {
         final was = read(preferences.value);
         expect(switchIn(tester, row).checked, was);

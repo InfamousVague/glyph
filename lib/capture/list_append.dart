@@ -23,6 +23,7 @@ import 'append_body.dart';
 import 'note_find.dart' show TitleKind, titleKind;
 import 'spoken/fields.dart';
 import 'spoken/lists.dart';
+import 'spoken_list.dart' show spokenSentenceItems;
 
 /// How a run's last top-level item is marked: its bullet or its next number, and whether it is a to-do. A `* [ ]`
 /// list grows by `* [ ]` lines and a `1. [ ]` list by numbered to-dos, as every reader of the grammar
@@ -362,6 +363,14 @@ final RegExp _endsInStop = RegExp(r'[.!?…]$');
   final lines = body.split('\n');
   // A short thing, on a note of lists, is an item; asked for as a paragraph (`placeWords`' "paragraph"), it is one,
   // list or no list.
+  if (!asParagraph && runsOf(lines).isNotEmpty) {
+    // Short sentences one after another are a list said slowly: each is an item, not one item with full stops in it.
+    final said = spokenSentenceItems(words);
+    if (said != null) {
+      final placed = appendToList(body, said, near: said.first);
+      return (body: placed.body, added: placed.added, into: PlacedInto.list);
+    }
+  }
   if (!asParagraph && runsOf(lines).isNotEmpty && _itemShaped(words)) {
     final placed = appendToList(body, [words], near: words);
     return (body: placed.body, added: placed.added, into: PlacedInto.list);
@@ -407,7 +416,7 @@ final RegExp _commaSplit = RegExp(r'\s*,\s*');
   // Several said one after another arrive joined with commas: each is an item, two as much as five.
   final explicit = many && spoken.contains(',') ? spoken.split(_commaSplit).where((item) => item.isNotEmpty).toList() : null;
   final found = explicit ?? (many || spoken.contains(',') ? enumeration('Items: $spoken')?.items : null);
-  return listed(found != null && found.isNotEmpty ? found : [spoken]);
+  return listed(found != null && found.isNotEmpty ? found : (spokenSentenceItems(spoken) ?? [spoken]));
 }
 
 /// The section an instruction named for its words (`InstructionArea`; null is the web's `null`).

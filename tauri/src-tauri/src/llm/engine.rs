@@ -73,6 +73,7 @@ enum Message {
 /// The engine: a handle to the worker thread.
 pub struct Llm {
     jobs: Sender<Message>,
+    loaded: Arc<AtomicBool>,
     thread: Mutex<Option<JoinHandle<()>>>,
 }
 
@@ -109,12 +110,15 @@ impl Llm {
     /// Starts the worker. Nothing is loaded until the first job.
     pub fn start() -> Llm {
         let (jobs, inbox) = mpsc::channel();
+        let loaded = Arc::new(AtomicBool::new(false));
+        let flag = Arc::clone(&loaded);
         let thread = std::thread::Builder::new()
             .name("glyph-llm".into())
-            .spawn(move || serve(inbox))
+            .spawn(move || serve(inbox, flag))
             .expect("the OS starts a thread");
         Llm {
             jobs,
+            loaded,
             thread: Mutex::new(Some(thread)),
         }
     }
@@ -157,6 +161,11 @@ impl Llm {
             let _ = job.reply.send(Err(Failure::Error("the formatting engine has stopped".into())));
         }
         answer
+    }
+
+    /// Whether a model is in memory right now.
+    pub fn loaded(&self) -> bool {
+        self.loaded.load(Ordering::Relaxed)
     }
 
     /// Drops the loaded model after the job it is on (cancel that first).
@@ -220,7 +229,7 @@ fn next_message(inbox: &Receiver<Message>, queue: &mut VecDeque<Message>, wait: 
 /// The worker's loop: a model loaded for the job in hand, then kept for every
 /// job that names the same file until another file, [`IDLE`], an unload or a
 /// shutdown lets it go - the module header's two loops.
-fn serve(inbox: Receiver<Message>) {
+fn serve(inbox: Receiver<Message>, loaded: Arc<AtomicBool>) {
     let mut queue: VecDeque<Message> = VecDeque::new();
     let mut next: Option<Box<Job>> = None;
     loop {
@@ -256,6 +265,7 @@ fn serve(inbox: Receiver<Message>) {
             }
         };
         let load_ms = started.elapsed().as_millis() as u64;
+        loaded.store(true, Ordering::Relaxed);
 
         let model_path = job.model.clone();
         // The context, made for the first job and remade when one needs more.
@@ -276,12 +286,24 @@ fn serve(inbox: Receiver<Message>) {
                         (job, report, started, 0)
                     }
                     Ok(Message::Unload) | Err(RecvTimeoutError::Timeout) => break,
-                    Ok(Message::Shutdown) | Err(RecvTimeoutError::Disconnected) => return,
+                    Ok(Message::Shutdown) | Err(RecvTimeoutError::Disconnected) => {
+                        loaded.store(false, Ordering::Relaxed);
+                        return;
+                    }
                 },
             };
             let mut counts = Counts::default();
             BACKGROUND_RUNNING.store(job.request.background, Ordering::SeqCst);
-            let result = generate(backend, &model, &mut ctx, &mut snapshot, &mut job, &mut report, &mut counts, started, load_ms);
+            // A panic in one job fails that job; it must not end the worker, which
+            // would leave every later request waiting on a thread that is gone.
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                generate(backend, &model, &mut ctx, &mut snapshot, &mut job, &mut report, &mut counts, started, load_ms)
+            }))
+            .unwrap_or_else(|_| {
+                ctx = None;
+                snapshot = None;
+                Err(Failure::Error("the model engine hit an internal error; the next request starts it fresh".into()))
+            });
             BACKGROUND_RUNNING.store(false, Ordering::SeqCst);
             match result {
                 Ok(output) => {
@@ -291,6 +313,7 @@ fn serve(inbox: Receiver<Message>) {
                 Err(failure) => fail(*job, &mut report, failure, counts),
             }
         }
+        loaded.store(false, Ordering::Relaxed);
         // `ctx` and then `model` drop here, in reverse order of declaration.
     }
 }
