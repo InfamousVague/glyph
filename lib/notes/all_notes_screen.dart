@@ -640,7 +640,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                             style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ),
                         ),
-                        // Cards or icons (GHST-107), in the order words' shape but the tally's line tall, at the line's
+                        // Cards or icons (GHST-107) as a segmented toggle with a glyph each, at the line's
                         // end with the archive's word: the one place on the line that moves nothing the page is held
                         // to (test/allnotes, where things stand). Simple mode keeps the cards.
                         if (!widget.simple || inArchive > 0)
@@ -648,7 +648,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                             mainAxisSize: MainAxisSize.min,
                             spacing: t.space(3),
                             children: [
-                              if (!widget.simple) BrowseViewWords(key: const ValueKey('all-notes-view'), view: _view, onView: _setView, compact: true),
+                              if (!widget.simple) BrowseViewToggle(key: const ValueKey('all-notes-view'), view: _view, onView: _setView),
                               if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
                             ],
                           ),

@@ -423,7 +423,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                   mainAxisSize: MainAxisSize.min,
                   spacing: t.space(2),
                   children: [
-                    BrowseViewWords(key: const ValueKey('org-notes-view'), view: _view, onView: _setView),
+                    BrowseViewToggle(key: const ValueKey('org-notes-view'), view: _view, onView: _setView),
                     if (all != null) Flexible(child: all),
                   ],
                 )

@@ -295,9 +295,12 @@ organization's since slice 1); these are the two ways of seeing them.
   folders, so a list that never uses them looks as it did. On home under the filters, on All notes under the order
   words, on an organization's dashboard above its Notes (`onAllNotes` carries the folder's id). A tap chooses the
   folder as its pill would. Not while a search is typed (the cards are what was found), and not in simple mode.
-- **The icon view** (`lib/notes/icon_browser.dart`, `IconBrowser`): **Cards · Icons** as words on All notes' line
-  (at the counts' end beside Archived, sized to the 16px the line was measured at) and on the dashboard's Notes
-  heading, one choice for the device in `Stored` under `glyph-browse-view`. A grid of large tiles laid out like the
+- **The icon view** (`lib/notes/icon_browser.dart`, `IconBrowser`): a **segmented toggle** (`BrowseViewToggle`, the
+  kit's `GlacierSegmentedControl` at its small size; Matt, 2026-10-19: "use a segmented toggle with iconography for
+  the different modes") with a list glyph for Cards and a grid glyph for Icons, each named for a screen reader, on
+  All notes' line at the counts' end beside Archived and on the dashboard's Notes heading; one choice for the device
+  in `Stored` under `glyph-browse-view`. The toggle makes All notes' line of words 18.15px taller than the web page
+  measured it (the words on it sit 9.15 lower, centred), and test/allnotes holds the new numbers. A grid of large tiles laid out like the
   cards' grid: the folders first, then the notes in the page's order; a folder's glyph or a note's kind on a faint
   square, the name on two lines, the count or when it was touched; a tap enters a folder or opens a note, a right-
   click is the note's menu, tiles take a focus ring. At **All**, the root: the workspaces at the top as the first
@@ -308,7 +311,7 @@ organization's since slice 1); these are the two ways of seeing them.
   a parent; `_newFolder`). Tests: `test/organize/folders_test.dart`; pictures by `folders_shots_test.dart` into
   `build/feature-shots/organize/folders-*.png` (24: home, All notes cards and icons, icons at All, the dashboard in
   both views; phone and wide, light and dark). The All notes and dashboard goldens were taken again for the words.
-- **Not done:** the words line keeps its measured pixels, so the view words at All are compact; a tile's long press
+- **Not done:** a tile's long press
   on a phone opens no menu; home keeps its four layouts (the icon view is a browsing page's).
 
 ### Today's note

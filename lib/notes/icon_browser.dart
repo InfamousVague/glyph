@@ -12,7 +12,7 @@
 /// opens it; a mouse's right-click on a note asks for its menu, as the cards do. The keyboard's focus rings a tile.
 ///
 /// Cards or icons is one choice for the device ([BrowseView], kept in [Stored] under [browseViewKey]), made on All
-/// notes' line of order words and on an organization's dashboard, and read by both ([BrowseViewWords]). Cards
+/// notes' line of order words and on an organization's dashboard, and read by both ([BrowseViewToggle], a segmented toggle with a glyph each). Cards
 /// unless chosen, so a page looks as it always did. The empty page's words stay the page's own.
 library;
 
@@ -58,72 +58,41 @@ BrowseView readBrowseView([Stored? from]) => (from ?? stored).readText(browseVie
 /// Storage that cannot be written: the choice holds for this page, and is asked again next time.
 void writeBrowseView(BrowseView view, [Stored? to]) => (to ?? stored).writeText(browseViewKey, view.id);
 
-/// "Cards · Icons": the two views as words, the chosen one inked, in the shape of All notes' order words. [compact]
-/// is All notes' own: a box the tally's line tall ([compactHeight], sixteen pixels), the words a step smaller and no
-/// room above or below, so the line of words stays the height the page measured it (test/allnotes, where things
-/// stand) with the words at its end.
-class BrowseViewWords extends StatelessWidget {
-  const BrowseViewWords({super.key, required this.view, required this.onView, this.compact = false});
+/// Cards or icons, as a segmented toggle with a glyph each (Matt, 2026-10-19: "use a segmented toggle with iconography
+/// for the different modes"): the kit's [GlacierSegmentedControl] at its small size, its thumb springing between the
+/// two, a list of cards' glyph for Cards and a grid's for Icons, each named for a screen reader. The glyph takes the
+/// label's own colour, so the chosen one is ink and the other muted. Each label keeps the key the words had (`view-cards`,
+/// `view-icons`). One control a page: All notes' line of order words, and an organization's Notes heading.
+class BrowseViewToggle extends StatelessWidget {
+  const BrowseViewToggle({super.key, required this.view, required this.onView});
 
   final BrowseView view;
   final ValueChanged<BrowseView> onView;
-  final bool compact;
 
-  /// The compact words' height: the tally's line, `font-size: sm` on `line-height: normal`.
-  static const double compactHeight = 16;
+  static LucideIcon _glyph(BrowseView view) => view == BrowseView.icons ? Lucide.layoutGrid : Lucide.layoutList;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Semantics(
-      container: true,
-      label: 'View',
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: t.space(1),
-        children: [
-          for (final each in BrowseView.values) _ViewWord(key: ValueKey('view-${each.id}'), label: each.label, on: view == each, compact: compact, onPressed: () => onView(each)),
-        ],
-      ),
-    );
-  }
-}
-
-/// One of the view's words: AllNotesScreen.module.css `.word`, a radio.
-class _ViewWord extends StatelessWidget {
-  const _ViewWord({super.key, required this.label, required this.on, required this.compact, required this.onPressed});
-
-  final String label;
-  final bool on;
-  final bool compact;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = context.tokens;
-    final size = compact ? t.fontSize('xs') : t.fontSize('sm');
-    final color = on ? t.color('app-ink') : t.color('app-ink-2');
-    return GlacierPressable(
-      onPressed: onPressed,
-      selected: on,
-      haptic: HapticKind.selection,
-      builder: (context, state) => GlacierFocusRing(
-        visible: state.focused,
-        child: Container(
-          // The order words' `padding-inline: var(--glacier-space-3)` a step narrower, and a button's own pixel above
-          // and below: beside the tally on a phone the two words then hold their line (measured: 134.6 wide at the
-          // words' own padding, 184 the room). Compact, the box is the tally's line and the word sits in its middle.
-          height: compact ? BrowseViewWords.compactHeight : null,
-          alignment: compact ? Alignment.center : null,
-          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: compact ? 0 : 1),
-          decoration: BoxDecoration(
-            color: on ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)') : null,
-            border: Border.all(color: on ? t.color('glacier-border-subtle') : const Color(0x00000000), width: t.len('glacier-hairline')),
-            borderRadius: BorderRadius.circular(t.radius('full')),
+    return GlacierSegmentedControl(
+      ariaLabel: 'View',
+      size: GlacierSegmentedSize.sm,
+      value: view.id,
+      onValueChange: (id) => onView(BrowseView.values.firstWhere((each) => each.id == id)),
+      options: [
+        for (final each in BrowseView.values)
+          GlacierSegmentedOption(
+            value: each.id,
+            // The glyph alone, named for a screen reader: with the words beside them the line of order words ran
+            // over a phone's width (21px, the tally and Archived beside it).
+            label: Builder(
+              key: ValueKey('view-${each.id}'),
+              builder: (context) => Semantics(
+                label: each.label,
+                child: AppIcon(_glyph(each), size: 16, color: DefaultTextStyle.of(context).style.color),
+              ),
+            ),
           ),
-          child: Text(label, maxLines: 1, softWrap: false, style: pageText(t, size, weight: 'medium', color: color, height: compact ? 1 : null)),
-        ),
-      ),
+      ],
     );
   }
 }
