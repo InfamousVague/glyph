@@ -211,7 +211,7 @@ if [ "\${DO_SIGNIN:-0}" = 1 ]; then
   if [ "\${DO_WAIT:-0}" = 1 ]; then
     # Waits, up to 45 minutes, for the profile to hold Google's sign-in cookies (names only, read-only, never values),
     # then finishes the sign-in in this same session.
-    signed_cookies() { $SUDO python3 -c "import sqlite3,sys;c=sqlite3.connect('file:$DATA/profile/Default/Cookies?mode=ro&immutable=1',uri=True);print(c.execute(\"select count(*) from cookies where host_key like '%google.com' and name in ('SID','__Secure-1PSID')\").fetchone()[0])" 2>/dev/null || echo 0; }
+    signed_cookies() { $SUDO $REMOTE/meetctl cookies 2>/dev/null || echo 0; }
     waited=0
     until [ "$(signed_cookies)" -gt 0 ] 2>/dev/null; do
       sleep 15; waited=$((waited + 15))

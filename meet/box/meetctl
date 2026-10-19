@@ -61,6 +61,18 @@ case "${1:-status}" in
   check)
     check
     ;;
+  cookies)
+    # How many of Google's sign-in cookies the profile holds: names only, read-only, never a value. The setup's
+    # --signin --wait polls this to know the sign-in has landed.
+    python3 - /var/lib/glyph-meet/profile/Default/Cookies <<'PY'
+import sqlite3, sys
+try:
+    db = sqlite3.connect('file:' + sys.argv[1] + '?mode=ro&immutable=1', uri=True)
+    print(db.execute("select count(*) from cookies where host_key like '%google.com' and name in ('SID', '__Secure-1PSID')").fetchone()[0])
+except Exception:
+    print(0)
+PY
+    ;;
   signin)
     if in_meeting; then echo "A meeting is under way; sign in after it."; exit 1; fi
     systemctl start glyph-meet-xvfb glyph-meet-pulse
@@ -82,7 +94,7 @@ case "${1:-status}" in
     if has_token; then systemctl restart glyph-meet; else start_bot; fi
     ;;
   *)
-    echo "usage: meetctl status | check | signin | signin-done | restart" >&2
+    echo "usage: meetctl status | check | cookies | signin | signin-done | restart" >&2
     exit 2
     ;;
 esac
