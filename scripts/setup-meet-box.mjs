@@ -38,6 +38,7 @@
  * The token travels as deploy-server's does: on ssh's stdin, never in an argument list or a file on this Mac, shape-
  * checked first because it is written out by printf on the box. The box's password reaches sshpass through SSHPASS.
  */
+import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readdirSync, rmSync, cpSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -134,9 +135,14 @@ $SUDO install -d -o root -g root -m 755 $REMOTE
 $SUDO rm -rf $REMOTE/bot.new
 $SUDO cp -a "$STAGE/bot" $REMOTE/bot.new
 $SUDO chown -R glyph-meet:glyph-meet $REMOTE/bot.new
-command -v npm >/dev/null || { echo "NPM_MISSING install npm beside /usr/bin/node"; exit 4; }
-$SUDO runuser -u glyph-meet -- env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=$DATA npm_config_cache=$DATA/.npm \\
-  sh -c "cd $REMOTE/bot.new && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error"
+# The one dependency (playwright-core, plain JavaScript) comes in the stage already installed: Ubuntu 24.04's nodejs
+# has no npm, and installing it would bring hundreds of packages onto a box AttackFM shares (2026-10-19).
+if [ ! -d $REMOTE/bot.new/node_modules/playwright-core ]; then
+  command -v npm >/dev/null || { echo "NPM_MISSING install npm beside /usr/bin/node"; exit 4; }
+  $SUDO runuser -u glyph-meet -- env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=$DATA npm_config_cache=$DATA/.npm \\
+    sh -c "cd $REMOTE/bot.new && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --loglevel=error"
+fi
+echo "PLAYWRIGHT $(/usr/bin/node -e "console.log(require('$REMOTE/bot.new/node_modules/playwright-core/package.json').version)" 2>/dev/null || echo missing)"
 $SUDO chown -R root:root $REMOTE/bot.new
 $SUDO chmod -R u+rwX,go+rX,go-w $REMOTE/bot.new
 /usr/bin/node --check $REMOTE/bot.new/bot.mjs && echo "NODE_CHECK ok"
@@ -209,13 +215,16 @@ if $SUDO test -S /run/glyph-meet-pulse/native; then echo "PULSE socket"; else ec
 rm -rf "$STAGE"
 `;
 
-/** The stage: the bot without node_modules, the units, meetctl and the install script. */
+/** The stage: the bot with its one dependency installed here (`npm ci --omit=dev`, no install scripts), the units,
+ * meetctl and the install script. */
 function stage() {
   const dir = mkdtempSync(join(tmpdir(), 'glyph-meet-'));
   cpSync(BOT, join(dir, 'bot'), {
     recursive: true,
     filter: (src) => !/[/\\](node_modules|\.DS_Store)([/\\]|$)/.test(src),
   });
+  const npm = spawnSync('npm', ['ci', '--omit=dev', '--ignore-scripts', '--no-audit', '--no-fund', '--loglevel=error'], { cwd: join(dir, 'bot'), stdio: 'inherit' });
+  if (npm.status !== 0) fail('npm ci for the bot failed.');
   cpSync(join(BOX, 'meetctl'), join(dir, 'meetctl'));
   for (const unit of UNITS) cpSync(join(BOX, unit), join(dir, 'units', unit));
   writeFileSync(join(dir, 'install.sh'), INSTALL);
