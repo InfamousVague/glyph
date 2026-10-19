@@ -623,7 +623,9 @@ void main() {
     Future<void> key(WidgetTester tester, String? key) => tester.runAsync(() => claudeSettings.setKey(key));
     Finder talk() => find.byKey(const ValueKey('dock-claude-talk'));
 
-    testWidgets('is under Claude on every dock while Claude is on, the one microphone there, and nowhere while Claude is off or nothing can hear', (tester) async {
+    testWidgets('is under Claude on every dock while Claude is on with a key, the one microphone there, and nowhere while Claude is off, has no key, or nothing can hear', (tester) async {
+      await key(tester, 'sk-ant-test-0000000000');
+      addTearDown(() => claudeSettings.setKey(null));
       await open(tester);
       final home = find.descendant(of: find.byType(HomeScreen), matching: talk());
       expect(home, findsOneWidget);
@@ -652,12 +654,22 @@ void main() {
       expect(find.byKey(const ValueKey('dock-claude')), findsOneWidget);
       expect(talk(), findsNothing);
       await close(tester);
-    });
 
-    testWidgets('listens with the ripples and the words as they come, a tap sends them, and without a key they go to the Ask Claude note', (tester) async {
+      // No API key (Matt, 2026-10-19: "the claude icon should only show up if the user has entered the antrhopic api
+      // key"): neither Claude nor Talk to Claude, and Speak is the microphone again.
       await key(tester, null);
       await open(tester);
-      final before = library.value.length;
+      expect(find.byKey(const ValueKey('dock-claude')), findsNothing);
+      expect(talk(), findsNothing);
+      expect(find.byKey(const ValueKey('dock-speak')), findsOneWidget);
+      await close(tester);
+    });
+
+    testWidgets('listens with the ripples and the words as they come', (tester) async {
+      // Only with a key is there a Talk to Claude to press (2026-10-19); the words' sending is the next tests'.
+      await key(tester, 'sk-ant-test-0000000000');
+      addTearDown(() => claudeSettings.setKey(null));
+      await open(tester);
       await tester.tap(talk());
       await settle(tester, 3);
       expect(find.byKey(const ValueKey('claude-voice-listening')), findsOneWidget);
@@ -670,17 +682,10 @@ void main() {
       handlers!.onSegment(const Segment(startMs: 0, endMs: 900, text: 'Add milk to the groceries.'));
       await tester.pump();
       expect(find.text('Add milk to the groceries.'), findsOneWidget);
-      stopSays = 'Add milk to the groceries.';
-      await tester.tap(find.byKey(const ValueKey('claude-voice-mic')));
-      await until(tester, () => find.byKey(const ValueKey('claude-voice-sent')).evaluate().isNotEmpty, 'the words were not sent');
-      final inbox = library.value.where((note) => noteTitle(note.body) == 'Ask Claude').single;
-      expect(inbox.body, contains('- [ ] Add milk to the groceries.'));
-      expect(library.value.length, before + 1, reason: 'the inbox, and nothing else');
-      // It goes by itself.
-      await tester.pump(claudeLinger + const Duration(seconds: 1));
-      await tester.pump(const Duration(milliseconds: 100));
-      expect(find.byKey(const ValueKey('claude-voice')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('claude-voice-close')));
+      await settle(tester, 2);
       await close(tester);
+      await key(tester, null);
     });
 
     // Matt, 2026-10-18: a note Claude made was never opened. Asked aloud, the sheet makes way, down to its strip, and
@@ -724,7 +729,8 @@ void main() {
     });
 
     testWidgets('closes on its close while it listens, and the microphone goes with it', (tester) async {
-      await key(tester, null);
+      await key(tester, 'sk-ant-test-0000000000');
+      addTearDown(() => claudeSettings.setKey(null));
       await open(tester);
       await tester.tap(talk());
       await settle(tester, 3);

@@ -895,6 +895,22 @@ class _GhostRootState extends State<GhostRoot> {
   /// Whether the app's own Claude is on, as the parts last read it (the Claude plugin's switch).
   bool get _claudeOn => claudeInApp();
 
+  /// Whether Claude is shown: on, and an Anthropic API key entered on this device (Matt, 2026-10-19: "the claude icon
+  /// should only show up if the user has entered the antrhopic api key"). The dock's Claude and Talk to Claude rings
+  /// and Claude's bar wait for the key; Settings › Claude is where it is entered.
+  bool get _claudeShown => _claudeOn && claudeSettings.hasKey;
+
+  /// Whether a key was there when the parts last read it, so a key entered or removed draws them again.
+  bool _claudeKeyed = false;
+
+  void _claudeKeyMoved() {
+    if (!mounted || claudeSettings.hasKey == _claudeKeyed) return;
+    _claudeKeyed = claudeSettings.hasKey;
+    _pluginsMoved();
+    // The parts read again only when the tick says so (lib/root/selected.dart).
+    _tick.tell();
+  }
+
   /// A plugin was switched on or off, or Local only held some off: the parts that draw Claude (every dock, the chat,
   /// the bar) read again, and the app's Claude switched off closes its chat and stops what it was doing.
   void _pluginsMoved() {
@@ -1486,6 +1502,7 @@ class _GhostRootState extends State<GhostRoot> {
     _localOnly.removeListener(plugins.preferencesChanged);
     _localOnly.removeListener(_localOnlyMoved);
     _pluginsHeard.removeListener(_pluginsMoved);
+    claudeSettings.removeListener(_claudeKeyMoved);
     _guide?.removeListener(_changed);
     // The updates are the process's, as the core is: let go of, never disposed.
     widget.updates?.removeListener(_updatesChanged);
@@ -1571,6 +1588,8 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
     _pluginsHeard.addListener(_pluginsMoved);
+    _claudeKeyed = claudeSettings.hasKey;
+    claudeSettings.addListener(_claudeKeyMoved);
     _guide?.addListener(_changed);
     _libraryChanges.addListener(_reads.changed);
     // The app's own Claude: its settings read, and the "Ask Claude" note heard (docs/CLAUDE_APP.md).
