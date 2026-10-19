@@ -28,6 +28,7 @@ import '../registry.dart' show pluginOn;
 import '../types.dart';
 import 'claude_in_app.dart';
 import 'claude_pane.dart';
+import '../../claude/store_neutral.dart';
 
 export 'claude_guide.dart' show ClaudeGuide, cssLine, wrapCode;
 export 'claude_in_app.dart' show ClaudeInApp, PhoneAssistantSeam, claudeInAppFindable, claudeSummary;
@@ -36,20 +37,34 @@ export 'steps.dart';
 
 const PluginManifest claudeManifest = PluginManifest(
   id: 'claude',
-  name: 'Claude',
-  description: 'Ask Claude in the app with your own API key, and read, add to and change your notes from Claude, through Ghost.md’s MCP server.',
+  name: storeNeutral ? 'AI assistant' : 'Claude',
+  description: storeNeutral
+      ? 'Ask an AI assistant in the app with your own API key, and read, add to and change your notes from your AI assistant’s own app, through Ghost.md’s connector.'
+      : 'Ask Claude in the app with your own API key, and read, add to and change your notes from Claude, through Ghost.md’s MCP server.',
   version: '1.1.0',
   author: 'Ghost.md',
   category: PluginCategory.ai,
-  tagline: 'Ask Claude, here and from Claude’s own app',
-  adds: [
-    'Claude in the dock at the head of every page, and Ask Claude in the command bar',
-    'The chat, where Claude writes into the note as you watch',
-    'The “Ask Claude” note, done as requests are written in it',
-    'Ghost.md’s MCP server, for Claude’s own app to read and write your notes',
-  ],
+  tagline: storeNeutral ? 'Ask AI, here and from its own app' : 'Ask Claude, here and from Claude’s own app',
+  adds: storeNeutral
+      ? [
+          'The assistant in the dock at the head of every page, and Ask AI in the command bar',
+          'The chat, where the assistant writes into the note as you watch',
+          'The “Ask AI” note, done as requests are written in it',
+          'Ghost.md’s connector, for your AI assistant’s own app to read and write your notes',
+        ]
+      : [
+          'Claude in the dock at the head of every page, and Ask Claude in the command bar',
+          'The chat, where Claude writes into the note as you watch',
+          'The “Ask Claude” note, done as requests are written in it',
+          'Ghost.md’s MCP server, for Claude’s own app to read and write your notes',
+        ],
   standard: true,
-  permissions: [
+  permissions: storeNeutral
+      ? [
+          PluginPermission(Permission.notes, 'Asked here, the assistant reads, makes and changes your notes on this device as you watch. From its own app it reads and writes them through the sync service once you sign it in.'),
+          PluginPermission(Permission.network, 'What you ask here, and the notes the assistant reads to answer, go to your AI provider with your key. Its own app talks to Ghost.md’s sync service and nothing else.'),
+        ]
+      : [
     PluginPermission(Permission.notes, 'Asked here, Claude reads, makes and changes your notes on this device as you watch. From Claude’s own app it reads and writes them through the sync service once you sign it in.'),
     PluginPermission(Permission.network, 'What you ask here, and the notes Claude reads to answer, go to Anthropic with your key. Claude’s own app talks to Ghost.md’s sync service and nothing else.'),
   ],

@@ -22,6 +22,7 @@ import 'package:flutter/scheduler.dart';
 import '../editor/editor.dart';
 import '../editor/marks/wisp_motion.dart' show WispKind, wisp;
 import '../live/editor_binding.dart' show RemoteCaretWidget;
+import 'store_neutral.dart';
 import 'typing_pacer.dart';
 
 /// The hue Claude's caret is drawn in, the presence's own for an AI (docs/CLAUDE_LIVE.md, "Who Claude is").
@@ -59,7 +60,7 @@ final StateField<_Caret> _caret = StateField.define<_Caret>(
     final at = state.field(field).at;
     if (at == null) return Decoration.none;
     final place = at.clamp(0, state.doc.length);
-    return Decoration.set(<Range<Decoration>>[Decoration.widget(widget: const RemoteCaretWidget('Claude', claudeHue), side: 1).range(place)], true);
+    return Decoration.set(<Range<Decoration>>[Decoration.widget(widget: const RemoteCaretWidget(storeNeutral ? 'Assistant' : 'Claude', claudeHue), side: 1).range(place)], true);
   }),
 );
 
