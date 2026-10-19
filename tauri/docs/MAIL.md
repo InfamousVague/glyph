@@ -98,6 +98,8 @@ Its id is a UUID made from the mail's id (`lib/mail/mail_note.dart` `mailNoteId`
 | `DELETE /api/v1/mail/{id}` | taken |
 | `POST /api/v1/mail/inbound/mime` | Mailgun's post |
 
+**A calendar invite to the address also books Ghost into its meeting.** Added as a guest on a Google Calendar event, the address gets Google's invitation like any guest; the mail becomes a note as above, and in the same request the service reads the invite's calendar part and books Ghost to join its Google Meet, moves it when the event moves and calls it off when it is cancelled (`server/src/meet.rs`, `docs/MEET.md`).
+
 The device's step runs in every sync pass, before the notes (`lib/sync/engine.dart` `mailIn`), and is quiet against a service with no mail routes. It is not offered on the iPhone yet (`publishingOffered`).
 
 ## To go live (Matt)

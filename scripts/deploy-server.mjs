@@ -113,6 +113,12 @@ function loadServerEnv() {
   if (env.GLYPH_MAILGUN_SIGNING_KEY && !/^[A-Za-z0-9_-]{16,200}$/.test(env.GLYPH_MAILGUN_SIGNING_KEY)) {
     fail("GLYPH_MAILGUN_SIGNING_KEY in .env has characters a Mailgun signing key doesn't.");
   }
+  // The Meet bot's key to glyph-api's internal routes (server/src/meet.rs, docs/MEET.md). Optional: without it those
+  // routes are not mounted and nothing joins a meeting. The service refuses one under 32 characters; the shape is
+  // checked here so a stray quote or newline cannot reach the env file.
+  if (env.GLYPH_MEET_TOKEN && !/^[A-Za-z0-9_-]{32,200}$/.test(env.GLYPH_MEET_TOKEN)) {
+    fail('GLYPH_MEET_TOKEN in .env must be 32 to 200 letters, digits, - or _.');
+  }
   return env;
 }
 
@@ -198,6 +204,9 @@ if [ "$MCP_ONLY" != 1 ]; then
   if [ -n "$MAILGUN_SIGNING_KEY_NEW" ]; then
     printf 'GLYPH_MAILGUN_SIGNING_KEY=%s\\n' "$MAILGUN_SIGNING_KEY_NEW"
   fi
+  if [ -n "$MEET_TOKEN_NEW" ]; then
+    printf 'GLYPH_MEET_TOKEN=%s\\n' "$MEET_TOKEN_NEW"
+  fi
 } | $SUDO tee ${REMOTE}/glyph-api.env.new >/dev/null
 $SUDO chown root:root ${REMOTE}/glyph-api.env.new
 $SUDO chmod 600 ${REMOTE}/glyph-api.env.new
@@ -217,7 +226,7 @@ $SUDO install -o root -g root -m 755 "$STAGE/glyph-api" ${REMOTE}/bin/glyph-api.
 $SUDO mv -f ${REMOTE}/bin/glyph-api.new ${REMOTE}/bin/glyph-api
 $SUDO install -o root -g root -m 644 "$STAGE/glyph-api.service" /etc/systemd/system/${SERVICE}.service
 fi
-unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW
+unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW
 
 # Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
 # when either changed: a restart signs nobody out (its sessions are kept, sealed), but an unchanged server is left running all the same. The previous file is
@@ -305,13 +314,14 @@ function ship(env) {
     const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
       `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
-      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW; ` +
+      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
         Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n` +
-            `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n`,
+            `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n` +
+            `${env.GLYPH_MEET_TOKEN ?? ''}\n`,
         ),
         bundle,
       ]),
