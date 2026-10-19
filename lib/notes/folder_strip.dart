@@ -35,8 +35,9 @@ import '../home/home_text.dart';
 typedef FolderCount = ({Workspace folder, int count});
 
 /// The folders directly inside workspace [id], in the order they were made (`WorkspaceStore.childrenOf`, read from
-/// a list rather than the store).
-List<Workspace> foldersIn(List<Workspace> list, String id) => [for (final w in list) if (w.parent == id) w];
+/// a list rather than the store); the workspaces at the top for null, which the icon view draws as the folders of
+/// All.
+List<Workspace> foldersIn(List<Workspace> list, String? id) => [for (final w in list) if (w.parent == id) w];
 
 /// How many of [notes] are filed in workspace [id] or in a folder under it, the archive left out: what a folder's
 /// chip counts.
@@ -50,11 +51,13 @@ int notesUnder(List<Workspace> list, Map<String, String> of, Iterable<Note> note
 }
 
 /// The folders inside [chosen], each with its count: what the strip's chips and the icon view's first tiles draw.
-List<FolderCount> folderTiles(List<Workspace> list, Map<String, String> of, Iterable<Note> notes, String chosen) =>
+/// For null, the workspaces at the top, each counting its notes and its folders' (the icon view of All).
+List<FolderCount> folderTiles(List<Workspace> list, Map<String, String> of, Iterable<Note> notes, String? chosen) =>
     [for (final folder in foldersIn(list, chosen)) (folder: folder, count: notesUnder(list, of, notes, folder.id))];
 
-/// "Work › Clients": the parts of where [chosen] is, itself last; one part alone for a workspace at the top.
-List<Workspace> folderPath(List<Workspace> list, String chosen) => workspacePath(list, chosen);
+/// "Work › Clients": the parts of where [chosen] is, itself last; one part alone for a workspace at the top, and
+/// none for null, All.
+List<Workspace> folderPath(List<Workspace> list, String? chosen) => chosen == null ? const [] : workspacePath(list, chosen);
 
 /// A chip's height, the pills' own: `min-block-size: 2rem`, or the word's line and the ring round it where that is
 /// more (lib/notes/workspace_bar.dart `pillHeight`).

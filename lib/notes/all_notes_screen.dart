@@ -31,11 +31,11 @@
 /// - **Folders, and the icon view** (GHST-107, 2026-10-19) are the port's own: with a pill chosen, the folders inside
 ///   that workspace stand between the order words and the cards (lib/notes/folder_strip.dart), a chip each that
 ///   chooses the folder as a pill does, and where the workspace is above them; the line of words offers Cards or
-///   Icons at its end (lib/notes/icon_browser.dart), kept on the device for every page that offers it, and the icon
-///   view draws the folders as its first tiles, then the notes in the page's order. A workspace's view, as a file
-///   browser's is: with every note shown the page is the cards it always was, and the line of words stands where
-///   the page measured it. No folders while a search is typed, whose cards are what was found; none of it in simple
-///   mode.
+///   Icons at its end (lib/notes/icon_browser.dart), the words the tally's line tall so the line stands where the
+///   page measured it, kept on the device for every page that offers it; the icon view draws the folders as its
+///   first tiles, then the notes in the page's order, and at All the workspaces at the top as the folders, then
+///   every note (All still means every note; the folders are the way in). No folders while a search is typed, whose
+///   cards are what was found; none of it in simple mode.
 library;
 
 import 'dart:math' as math;
@@ -525,11 +525,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final outOf = _tapes ? withTape : live + (_archived ? inArchive : 0);
     final now = widget.clock?.call();
     if (widget.gists case final given?) _takeGists(given);
-    // The folders inside the chosen workspace, and whether the page draws icons (a workspace's view, as a file
-    // browser's is): neither in simple mode, neither with every note shown, and no folders while a search is typed
-    // (the cards are what it found).
-    final icons = workspace != null && !widget.simple && _view == BrowseView.icons;
-    final browsing = workspace != null && !widget.simple && !searched;
+    // Whether the page draws icons, and the folders: inside a workspace, the folders in it, for the strip and the
+    // icon view's first tiles; at All, the workspaces at the top as the icon view's first tiles alone (the pills are
+    // the strip's part there). None in simple mode, and none while a search is typed (the cards are what it found).
+    final icons = !widget.simple && _view == BrowseView.icons;
+    final browsing = !widget.simple && !searched && (workspace != null || icons);
     final folders = browsing ? folderTiles(spaces.list, spaces.of, widget.notes, workspace) : const <FolderCount>[];
     final crumbs = browsing && folderPath(spaces.list, workspace).length > 1;
 
@@ -640,15 +640,15 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                             style: tabular(pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
                           ),
                         ),
-                        // Cards or icons (GHST-107) while a pill is chosen, in the order words' shape, at the line's end
-                        // with the archive's word: the one place on the line that moves nothing the page is held to
-                        // (test/allnotes, where things stand). Simple mode keeps the cards.
-                        if (workspace != null && !widget.simple || inArchive > 0)
+                        // Cards or icons (GHST-107), in the order words' shape but the tally's line tall, at the line's
+                        // end with the archive's word: the one place on the line that moves nothing the page is held
+                        // to (test/allnotes, where things stand). Simple mode keeps the cards.
+                        if (!widget.simple || inArchive > 0)
                           Row(
                             mainAxisSize: MainAxisSize.min,
                             spacing: t.space(3),
                             children: [
-                              if (workspace != null && !widget.simple) BrowseViewWords(key: const ValueKey('all-notes-view'), view: _view, onView: _setView),
+                              if (!widget.simple) BrowseViewWords(key: const ValueKey('all-notes-view'), view: _view, onView: _setView, compact: true),
                               if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
                             ],
                           ),
@@ -659,11 +659,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 SizedBox(height: t.space(3)),
                 // The folders inside the chosen workspace, with where it is above them (GHST-107); in the icon view
                 // they are the first tiles, and only the line above is drawn here.
-                if (icons ? crumbs : (folders.isNotEmpty || crumbs)) ...[
+                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs))) ...[
                   if (icons)
                     FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace)
                   else
-                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace!, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder),
+                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder),
                   SizedBox(height: t.space(4)),
                 ],
                 if (!widget.loading && !searched && live == 0 && !_archived)

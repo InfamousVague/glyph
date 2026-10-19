@@ -2,7 +2,9 @@
 /// "support showing a icon file browser based view in addition to the list views"). The port's own.
 ///
 /// A grid of tiles about a hundred pixels wide, more across a wide window, laid out as the cards' grid is: the
-/// folders first (lib/notes/folder_strip.dart `folderTiles`), then the notes in the page's own order. A folder's tile
+/// folders first (lib/notes/folder_strip.dart `folderTiles`), then the notes in the page's own order. At All the
+/// folders are the workspaces at the top, an organization's with its mark, and the notes are every note as All lists
+/// them: All still means every note, and the folders are the way in. A folder's tile
 /// is the folder glyph, large, on a faint rounded square, in the folder's hue where it wears one, its name under it
 /// on up to two lines and its count small under that; a note's is its kind's glyph the same way - a notebook, a
 /// canvas, a cassette, a page of words, as the rows mark them (lib/home/home_rows.dart `KindMark`) - its title on up
@@ -24,11 +26,13 @@ import '../art/lucide.g.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/stored.dart';
+import '../core/workspaces.dart' show isOrgWorkspace;
 import '../home/home_icons.dart';
 import '../home/home_layout.dart' show HomeKind, kindOf;
 import '../home/home_text.dart';
 import 'folder_strip.dart' show FolderCount;
 import 'note_menu.dart' show NoteMenuArea;
+import 'org_mark.dart';
 import 'when.dart';
 
 /// How a page draws its notes: as the cards it always has, or as icons.
@@ -54,12 +58,19 @@ BrowseView readBrowseView([Stored? from]) => (from ?? stored).readText(browseVie
 /// Storage that cannot be written: the choice holds for this page, and is asked again next time.
 void writeBrowseView(BrowseView view, [Stored? to]) => (to ?? stored).writeText(browseViewKey, view.id);
 
-/// "Cards · Icons": the two views as words, the chosen one inked, in the shape of All notes' order words.
+/// "Cards · Icons": the two views as words, the chosen one inked, in the shape of All notes' order words. [compact]
+/// is All notes' own: a box the tally's line tall ([compactHeight], sixteen pixels), the words a step smaller and no
+/// room above or below, so the line of words stays the height the page measured it (test/allnotes, where things
+/// stand) with the words at its end.
 class BrowseViewWords extends StatelessWidget {
-  const BrowseViewWords({super.key, required this.view, required this.onView});
+  const BrowseViewWords({super.key, required this.view, required this.onView, this.compact = false});
 
   final BrowseView view;
   final ValueChanged<BrowseView> onView;
+  final bool compact;
+
+  /// The compact words' height: the tally's line, `font-size: sm` on `line-height: normal`.
+  static const double compactHeight = 16;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +82,7 @@ class BrowseViewWords extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         spacing: t.space(1),
         children: [
-          for (final each in BrowseView.values) _ViewWord(key: ValueKey('view-${each.id}'), label: each.label, on: view == each, onPressed: () => onView(each)),
+          for (final each in BrowseView.values) _ViewWord(key: ValueKey('view-${each.id}'), label: each.label, on: view == each, compact: compact, onPressed: () => onView(each)),
         ],
       ),
     );
@@ -80,16 +91,17 @@ class BrowseViewWords extends StatelessWidget {
 
 /// One of the view's words: AllNotesScreen.module.css `.word`, a radio.
 class _ViewWord extends StatelessWidget {
-  const _ViewWord({super.key, required this.label, required this.on, required this.onPressed});
+  const _ViewWord({super.key, required this.label, required this.on, required this.compact, required this.onPressed});
 
   final String label;
   final bool on;
+  final bool compact;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final sm = t.fontSize('sm');
+    final size = compact ? t.fontSize('xs') : t.fontSize('sm');
     final color = on ? t.color('app-ink') : t.color('app-ink-2');
     return GlacierPressable(
       onPressed: onPressed,
@@ -100,14 +112,16 @@ class _ViewWord extends StatelessWidget {
         child: Container(
           // The order words' `padding-inline: var(--glacier-space-3)` a step narrower, and a button's own pixel above
           // and below: beside the tally on a phone the two words then hold their line (measured: 134.6 wide at the
-          // words' own padding, 184 the room; test/allnotes holds the line's height to the page's).
-          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: 1),
+          // words' own padding, 184 the room). Compact, the box is the tally's line and the word sits in its middle.
+          height: compact ? BrowseViewWords.compactHeight : null,
+          alignment: compact ? Alignment.center : null,
+          padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: compact ? 0 : 1),
           decoration: BoxDecoration(
             color: on ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)') : null,
             border: Border.all(color: on ? t.color('glacier-border-subtle') : const Color(0x00000000), width: t.len('glacier-hairline')),
             borderRadius: BorderRadius.circular(t.radius('full')),
           ),
-          child: Text(label, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: color)),
+          child: Text(label, maxLines: 1, softWrap: false, style: pageText(t, size, weight: 'medium', color: color, height: compact ? 1 : null)),
         ),
       ),
     );
@@ -202,12 +216,15 @@ class _FolderTile extends StatelessWidget {
       builder: (context) {
         final t = context.tokens;
         final ink = hue == null ? t.color('app-ink-2') : t.color('app-space');
+        final org = isOrgWorkspace(folder.folder.id);
         return _Tile(
           glyph: AppIcon(Lucide.folder, size: _Tile.glyphSize(t), strokeWidth: 1.75, color: ink),
           wash: t.colorOf('color-mix(in oklch, ${hue == null ? 'var(--app-ink)' : 'var(--app-space)'} 7%, transparent)'),
           name: folder.folder.name,
+          // An organization's workspace wears the small mark before its name, as its pill does.
+          org: org,
           meta: meta,
-          said: '${folder.folder.name}, folder, $meta',
+          said: '${folder.folder.name}, ${org ? 'organization' : 'folder'}, $meta',
           onPressed: onPressed,
         );
       },
@@ -255,11 +272,14 @@ class _NoteTile extends StatelessWidget {
 
 /// One tile: the glyph on its square, the name under it, the small line under that.
 class _Tile extends StatelessWidget {
-  const _Tile({required this.glyph, required this.wash, required this.name, required this.meta, required this.said, required this.onPressed});
+  const _Tile({required this.glyph, required this.wash, required this.name, this.org = false, required this.meta, required this.said, required this.onPressed});
 
   final Widget glyph;
   final Color wash;
   final String name;
+
+  /// An organization's workspace: its mark before the name.
+  final bool org;
   final String meta;
   final String said;
   final VoidCallback onPressed;
@@ -291,7 +311,13 @@ class _Tile extends StatelessWidget {
               children: [
                 Container(width: square, height: square, alignment: Alignment.center, decoration: BoxDecoration(color: wash, borderRadius: BorderRadius.circular(t.radius('md'))), child: glyph),
                 SizedBox(height: t.space(2)),
-                Text(name, maxLines: 2, textAlign: TextAlign.center, overflow: TextOverflow.ellipsis, style: pageText(t, sm, weight: 'medium', color: t.color('app-ink'))),
+                Text.rich(
+                  TextSpan(children: [if (org) OrgMark.span(em: sm, color: t.color('app-ink-2')), TextSpan(text: name)]),
+                  maxLines: 2,
+                  textAlign: TextAlign.center,
+                  overflow: TextOverflow.ellipsis,
+                  style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')),
+                ),
                 const SizedBox(height: 2),
                 Text(meta, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center, style: tabular(pageText(t, xs, color: t.color('app-ink-3')))),
               ],

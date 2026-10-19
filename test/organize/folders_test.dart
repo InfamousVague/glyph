@@ -220,14 +220,9 @@ void main() {
       expect(find.byKey(const ValueKey('tile-folder-kiln')), findsOneWidget);
       await down(tester);
 
-      // Opened again on another workspace, the page is in icons: the choice was the device's. With every note shown
-      // it is the cards it always was, and offers no choice: the icons are a workspace's view.
-      final again = spaces();
+      // Opened again, the page is in icons: the choice was the device's.
+      final again = spaces()..chooseWorkspace('home');
       await page(tester, allNotes(again, stored: kept));
-      await settle(tester);
-      expect(find.byKey(const ValueKey('all-notes-view')), findsNothing);
-      expect(find.byKey(const ValueKey('card-seeds')), findsOneWidget);
-      again.chooseWorkspace('home');
       await settle(tester);
       expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
       expect(find.byKey(const ValueKey('tile-note-seeds')), findsOneWidget);
@@ -235,6 +230,40 @@ void main() {
       await settle(tester);
       expect(kept.readText(browseViewKey), 'cards');
       expect(find.byKey(const ValueKey('card-seeds')), findsOneWidget);
+      await down(tester);
+    });
+
+    testWidgets('Icons at All: the workspaces at the top first, each with its count, then every note; a tap on one chooses its pill', (tester) async {
+      final store = spaces()..ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+      store.fileNote('trip', 'org-acme');
+      final kept = MemoryStored()..writeText(browseViewKey, 'icons');
+      final opened = <String>[];
+      await page(tester, allNotes(store, stored: kept, opened: opened));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('all-notes-view')), findsOneWidget);
+      expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
+      // No line above at All, and no strip: the pills are the way across.
+      expect(find.byKey(const ValueKey('folder-crumbs')), findsNothing);
+      expect(find.byKey(const ValueKey('folder-strip')), findsNothing);
+      final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
+      final keys = [for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value];
+      // The workspaces at the top, in the order they were made (Clients, Kiln and Garden are inside others), then
+      // every note but the archive, the last touched first: All still means every note.
+      expect(keys.take(4), ['tile-folder-work', 'tile-folder-home', 'tile-folder-reading', 'tile-folder-org-acme']);
+      expect(keys.skip(4), ['tile-note-kickoff', 'tile-note-seeds', 'tile-note-invoice', 'tile-note-roadmap', 'tile-note-boiler', 'tile-note-beds', 'tile-note-trip', 'tile-note-packing', 'tile-note-novel']);
+      // Work counts the roadmap, the invoice and the kickoff; the archived plan is left out.
+      expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-work'))).label, 'Work, folder, 3 notes');
+      expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-reading'))).label, 'Reading, folder, 1 note');
+      expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-org-acme'))).label, 'Acme, organization, 1 note');
+      // A tap on a workspace chooses its pill, and the page is that workspace's.
+      await tester.tap(find.byKey(const ValueKey('tile-folder-work')));
+      await settle(tester);
+      expect(store.value.current?.id, 'work');
+      expect(find.byKey(const ValueKey('tile-folder-clients')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-folder-home')), findsNothing);
+      // And a note's tile still opens it.
+      await tester.tap(find.byKey(const ValueKey('tile-note-roadmap')));
+      expect(opened, ['roadmap']);
       await down(tester);
     });
 

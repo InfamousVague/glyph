@@ -77,6 +77,28 @@ void main() {
         await snap(tester, 'folders-allnotes-icons-$sized-$theme');
       });
 
+      testWidgets('All notes as icons at All: the workspaces at the top first, then every note, $sized $theme', (tester) async {
+        final store = WorkspaceStore(storage: MemoryWorkspaceStorage(organizeSpaces()))..ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
+        store.fileNote('trip', 'org-acme');
+        await page(
+          tester,
+          AllNotesScreen(
+            notes: organizeNotes(),
+            workspaces: store,
+            onOpen: (_) {},
+            onBack: () {},
+            stored: MemoryStored()..writeText(browseViewKey, 'icons'),
+            clock: () => organizeNow,
+            wisp: false,
+            onNewFolder: (_) {},
+          ),
+          size: size,
+          theme: theme,
+        );
+        expect(find.byKey(const ValueKey('tile-folder-org-acme')), findsOneWidget);
+        await snap(tester, 'folders-allnotes-icons-all-$sized-$theme');
+      });
+
       testWidgets('an organization’s dashboard as icons, $sized $theme', (tester) async {
         final device = await Device.make();
         final id = await ghost(device);
