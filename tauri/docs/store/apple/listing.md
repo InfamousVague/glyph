@@ -32,6 +32,17 @@ maker on Rich embeds' card, the AI row's model or Appearance's typeface. It is `
 compiles none of it. On the plugins picture GitHub, Notion and Slack are switched off, so the cards in view are the
 assistant, Calendar, Webhooks and Marks (and Rich embeds on the Mac).
 
+**Apple refused iOS 2.3.1 too** (2026-10-19, submission d0c82f81-…, the same 4.1(a) words), while the shared subtitle
+still read "Markdown notes with Claude". Matt: "also make sure the colors and everything doesn't look like Claude".
+**The colour rule, for every store picture (screenshots, header, search, iPhone and Mac):** nothing in Claude's look.
+No coral or terracotta orange (#D97757 and its neighbours #C6613F, #CC785C, #DA7756: hue about 8 to 32 degrees,
+saturation over 0.35, value over 0.45), no radiating spark or asterisk, no ivory or cream page (#F5F4ED, #FAF9F5)
+with that orange, no orange chat bubbles, avatars, send or stop buttons, pills, rings or caret labels. The assistant is
+drawn in the app's own greys (a plain four-pointed sparkle in grey, grey bubbles and buttons). Check a set with
+`ghost-md-app-store-pack/tools/orange-audit.py --grid <png>...`, which counts the pixels in that window and says where
+they are; every final should read 0. The other hues the app draws (a red today line, a salmon-red due date, amber and
+green chips, the violet "Assistant" caret label, a canvas's blue, green and violet cards) are not Claude's and stay.
+
 **What the iPhone build does, and so what the listing may claim** (checked in the code on 2026-10-18, build 2.2.1):
 the app's own AI assistant, Claude (own key, model and effort, live typing, thinking shown, the Ask Claude note); the
 connector (the MCP server) for the assistant's own app (with an account); the Calendar plugin (iCal addresses, Google
@@ -57,11 +68,12 @@ The name the app record was made with. The name under the icon is Ghost.md (`CFB
 Markdown notes with AI
 ```
 
-The subtitle is the app's, not the version's (`appInfoLocalizations`), and the Mac's too. **Not yet set** (2026-10-19):
-while macOS 2.2.1 is in review its app info is `IN_REVIEW` and App Store Connect refuses the change (409, "The field
-'subtitle' can not be modified in the current state"), so it still reads "Markdown notes with Claude". Set it with
-`node tools/ios-2.2.1-neutral.mjs words` once the Mac review ends, before iOS 2.3.1 (the same version, renumbered) is
-submitted. That script also writes 2.2.1's What's New over 2.3.1's: run `node tools/ios-2.3.1.mjs words` after it.
+The subtitle is the app's, not the version's (`appInfoLocalizations` 8854f86d-…), and the Mac's too. **Set on
+2026-10-19 at about 20:53 UTC** and read back, once the Mac review was cancelled (while a version is in review its app
+info refuses it: 409, "The field 'subtitle' can not be modified in the current state"). It read "Markdown notes with
+Claude" until then, which is what both 4.1(a) refusals saw. It was set alone with a PATCH of that localization, not
+with `ios-2.2.1-neutral.mjs words` (which would also write 2.2.1's What's New over 2.3.1's and could add the old
+review sentence that named Claude), so 2.3.1's What's New was not touched.
 
 ## Promotional text (170)
 
@@ -261,8 +273,27 @@ Matt: "push a new version since we're at 2.3.1 now anyways", and "also remove th
   new tail is drawn only where `prefs.simple`). One thing is visible: the assistant's chat bubbles set their words in
   white rather than near-black (bfeadba6), so picture 1 ("Ask your AI assistant. Watch it think.", 6.9" and Duo) shows
   the old dark ink on the grey bubbles. No other picture shows a bubble.
-- **Not submitted.** Before it is: the subtitle (above, waiting on the Mac's review), then `tools/ios-2.3.1.mjs words`
-  again if `ios-2.2.1-neutral.mjs words` was run, and Matt's choice whether to reshoot picture 1.
+- **Refused** on 2026-10-19 (submission d0c82f81-fd11-4813-abcf-4f9ea7743c19, `UNRESOLVED_ISSUES`), 4.1(a) again:
+  "the metadata includes content that resembles Claude". The subtitle still named Claude (above).
+
+### After the second 4.1(a) refusal (2026-10-19)
+
+- The subtitle set to "Markdown notes with AI" (above). The review notes already named no third party.
+- The colour audit (the rule above) over all 29 pictures and the header and search: everything was grey but the cabin
+  canvas's Ember card ("Ask Sam about the dog") and its "who brings what" line, drawn in the app's coral (#FF9782, hue
+  10) in picture 10 of the iPhone and the Duo and picture 9 of the Mac (1143, 1223 and 1914 pixels in the window). The
+  store-neutral build now draws those two in violet (`lib/core/sample_library.dart`, on `store-pictures-2.2.1` 6139adc7
+  and `store-pictures-mac-2.2.1` 65de13be, debug only); the three canvas pictures were shot again with the same steps
+  and composed by `tools/compose-ios-neutral-v2.mjs`, `compose-ios-neutral-v2-duo.mjs` and `compose-mac-neutral-v2.mjs`
+  into `screenshots/2026-10-19-flutter-neutral-v2/` (the other pictures there are the neutral set's, byte for byte).
+  Every final there reads 0 in the window; the header and search pictures read 0 and were not made again; the app
+  icon (the dotwork ghost on paper) reads 0. The iPhone build used main's GhostCore.xcframework (the core changed only
+  in its on-device AI between 37dfa47e and main, which no picture shows).
+- Both sets on 2.3.1 replaced with the v2 ten of each (`tools/upload-ios-neutral-v2.mjs`), all twenty `COMPLETE`; the
+  header (4c000019-…) and search (bec00019-…) placements kept, `ACTIVE`.
+- Resubmitting d0c82f81 was refused (409, "Version is not ready to be submitted yet"), so it was cancelled
+  (`COMPLETE`) and **2.3.1 submitted in a new review submission, ae7df6d4-ff43-44f4-8a84-e3d0f23957ff** (`IOS`, this
+  version only), `WAITING_FOR_REVIEW` at 21:01 UTC. Picture 1 still shows the bubbles' older dark ink (above).
 
 
 ## macOS 2.2.1 (the Mac App Store)
@@ -386,10 +417,20 @@ On the plugins page Place reminders and Things are off.
   (`MAC_OS`, holding only this version): `WAITING_FOR_REVIEW`. The iOS versions and submissions were not touched;
   no price, availability or age rating was changed.
 
-### Ready if Apple refuses the Mac version too (2026-10-19, not sent)
+### Cancelled, made brand-free and sent again (2026-10-19)
 
-macOS 2.2.1 went into review with the same kind of words and pictures (Claude in the copy, notion and slack in its
-keywords, Claude in its nine pictures). Brand-free replacements are ready and **not uploaded**:
+Matt: "also cancel the mac app and resubmit, both". Review submission ee10b934-… cancelled at 20:48 UTC while
+`IN_REVIEW` (now `COMPLETE`, the version `DEVELOPER_REJECTED`). Then: the subtitle (above); the brand-free words below
+set and read back (`tools/mac-neutral-v2.mjs words`); the nine pictures replaced on this version only with
+`screenshots/2026-10-19-flutter-neutral-v2/mac/` (`tools/mac-neutral-v2.mjs shots`), all `COMPLETE`; the review notes'
+"Talk to Claude" and their paragraph on Claude and Anthropic rewritten without a name ("The app's optional AI assistant
+is a plugin that works only with an API key the person enters themselves (Settings, Plugins)", and the same 4.1(a)
+sentence as the iPhone's). **Submitted in a new review submission, eff0e251-2f6b-4da1-9a95-de5ac1147f08** (`MAC_OS`,
+this version only), `WAITING_FOR_REVIEW` at 21:00 UTC. A read of every field of both versions (description, keywords,
+promotional text, What's New, subtitle, review notes) found no match for
+`claude|anthropic|notion|slack|github|google|gemini|openai|qwen|mcp|youtube|spotify|figma`.
+
+How the brand-free set was made (it was held ready before the cancel):
 `ghost-md-app-store-pack/tools/mac-2.2.1-neutral.mjs` holds the words (`check` measures them; `words` would set them,
 `shots` would replace the nine pictures) and the nine pictures are in
 `screenshots/2026-10-19-flutter-2.2.1-neutral/mac/` (raws in `mac-raw/`), shot from the store-neutral tour
