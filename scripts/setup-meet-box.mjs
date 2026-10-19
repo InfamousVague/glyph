@@ -205,6 +205,8 @@ else
 fi
 fi
 
+# The override made by hand on 2026-10-19 for the first sign-in (the password now lives in the unit).
+$SUDO rm -rf /etc/systemd/system/glyph-meet-vnc.service.d && $SUDO systemctl daemon-reload
 if [ "\${DO_SIGNIN:-0}" = 1 ]; then
   [ -x $REMOTE/meetctl ] || { echo "NOT_SET_UP run the setup first"; exit 5; }
   $SUDO $REMOTE/meetctl signin
@@ -258,7 +260,7 @@ for (const path of [join(BOT, 'bot.mjs'), join(BOT, 'package-lock.json'), join(B
 
 const parts = `DO_SETUP=${SETUP ? 1 : 0} DO_SIGNIN=${SIGNIN ? 1 : 0} DO_SIGNIN_DONE=${SIGNIN_DONE ? 1 : 0} DO_WAIT=${WAIT ? 1 : 0}`;
 const remote =
-  `set -e; IFS= read -r GLYPH_MEET_TOKEN_NEW; export GLYPH_MEET_TOKEN_NEW; ` +
+  `set -e; IFS= read -r GLYPH_MEET_TOKEN_NEW; export GLYPH_MEET_TOKEN_NEW; IFS= read -r VNC_PASSWORD; export VNC_PASSWORD; ` +
   `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; ${parts} bash "$HOME/${STAGE}/install.sh"`;
 
 if (PRINT) {
@@ -289,6 +291,14 @@ step(
   [SETUP && 'Setting up the Meet bot', SIGNIN && 'starting the sign-in', SIGNIN_DONE && 'finishing the sign-in'].filter(Boolean).join(', ') +
     ' (one ssh session)',
 );
+// The screen view's one-time password: made here and shown before the session starts, since a --wait session says
+// nothing until it ends (macOS's Screen Sharing needs one).
+const vncPassword = SIGNIN ? Array.from({ length: 8 }, () => 'abcdefghijkmnopqrstuvwxyz23456789'[Math.floor(Math.random() * 33)]).join('') : '';
+if (SIGNIN && WAIT) {
+  step('Sign Ghost in, while this runs');
+  console.log(`  Open vnc://localhost:${VNC_PORT} in Screen Sharing on this Mac in a minute or two; the password is ${vncPassword}.`);
+  console.log('  Sign in to Ghost\'s Google account in the Chrome there; this notices and finishes by itself (up to 45 minutes).');
+}
 const dir = stage();
 let out = '';
 try {
@@ -297,7 +307,7 @@ try {
     ...(WAIT ? ['-L', `${VNC_PORT}:localhost:${VNC_PORT}`, '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30'] : []),
   ]);
   const result = box.exec(remote, {
-    input: Buffer.concat([Buffer.from(`${token}\n`), tarball(dir, 64 * 1024 * 1024)]),
+    input: Buffer.concat([Buffer.from(`${token}\n${vncPassword}\n`), tarball(dir, 64 * 1024 * 1024)]),
     stdio: ['pipe', 'pipe', 'inherit'],
     maxBuffer: 16 * 1024 * 1024,
   });

@@ -78,11 +78,17 @@ PY
     systemctl start glyph-meet-xvfb glyph-meet-pulse
     # Conflicts= stops the bot.
     systemctl start glyph-meet-signin
+    install -d -o glyph-meet -g glyph-meet -m 700 /run/glyph-meet-vnc
+    pw="${VNC_PASSWORD:-$(LC_ALL=C tr -dc 'a-km-z2-9' </dev/urandom | head -c 8)}"
+    runuser -u glyph-meet -- x11vnc -storepasswd "$pw" /run/glyph-meet-vnc/pass >/dev/null 2>&1
+    chmod 600 /run/glyph-meet-vnc/pass
+    [ -n "${VNC_PASSWORD:-}" ] || echo "VNC_PASSWORD $pw"
     systemctl start glyph-meet-vnc
     echo "SIGNIN started: Chrome at accounts.google.com on :71, VNC on 127.0.0.1:5901"
     ;;
   signin-done)
     systemctl stop glyph-meet-vnc glyph-meet-signin || true
+    rm -rf /run/glyph-meet-vnc
     # Chrome writes the profile's cookies as it closes; a moment for it.
     sleep 2
     check

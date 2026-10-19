@@ -16,7 +16,9 @@ Requires=glyph-meet-xvfb.service
 User=glyph-meet
 Group=glyph-meet
 Environment=HOME=/var/lib/glyph-meet
-ExecStart=/usr/bin/x11vnc -display :71 -localhost -allow 127.0.0.1 -rfbport 5901 -nopw -forever -shared -noxdamage -quiet
+# A one-time password (meetctl signin makes it, signin-done removes it): macOS's Screen Sharing will not connect to a
+# VNC server that asks for none (2026-10-19). The view still answers only on loopback, through the setup's tunnel.
+ExecStart=/usr/bin/x11vnc -display :71 -localhost -allow 127.0.0.1 -rfbport 5901 -rfbauth /run/glyph-meet-vnc/pass -forever -shared -noxdamage -quiet
 Restart=no
 
 NoNewPrivileges=true
