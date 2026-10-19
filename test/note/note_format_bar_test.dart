@@ -1,7 +1,7 @@
 // Where the note's screen stands simple mode's Format bar (lib/note/note_screen.dart, lib/note/format_bar.dart,
 // GHST-103): nowhere in advanced; on a phone a strip above the soft keyboard the page ends above; on a wide window
 // with the keyboard down a pill at the foot to the dock's start; on an iPhone the keyboard bar's own row, beside
-// Done.
+// Done. And its tail (GHST-105): after the six, a picture, the + and the mic, each the screen's own.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +10,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/editor/band/style_items.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/note/format_bar.dart';
+import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/shell/page_dock.dart';
 import 'package:glacier/glacier.dart';
 
@@ -141,7 +142,7 @@ void main() {
     world.prefs.value = world.prefs.value.choosing('simple');
     // The screen alone under the app (which puts the iPhone's page over everything, lib/app/ghost_app.dart): the
     // shell's own doings on iOS are not what is asked here.
-    await pumpNote(tester, world, await seeded(tester, world, 'buy milk'), size: const Size(402, 874), bar: false, dock: PageDockSeam(claude: fakeClaude([])));
+    await pumpNote(tester, world, await seeded(tester, world, 'buy milk'), size: const Size(402, 874), bar: false, speak: true, dock: PageDockSeam(claude: fakeClaude([])));
     await settle(tester);
     expect(find.byType(IPhoneKeyboardBar), findsNothing);
 
@@ -160,6 +161,13 @@ void main() {
     expect(doneButton.right, closeTo(row.right, 0.01));
     expect(bold.top, greaterThanOrEqualTo(row.top));
     expect(bold.bottom, lessThanOrEqualTo(row.bottom + 0.01));
+    // The tail is on the row too, before Done, which keeps the end (GHST-105): the row is longer than the phone is
+    // wide and scrolls sideways under Done, as Apple Notes' own bar does, so the mic is brought into view first.
+    expect(find.descendant(of: bar, matching: find.byKey(FormatBar.micKey)), findsOneWidget);
+    await tester.ensureVisible(find.byKey(FormatBar.micKey));
+    await tester.pump();
+    expect(tester.getRect(find.byKey(FormatBar.micKey)).right, lessThanOrEqualTo(doneButton.left + 0.01));
+    expect(tester.getRect(find.byKey(IPhoneKeyboardBar.doneKey)).right, closeTo(row.right, 0.01), reason: 'Done does not move');
 
     // The keyboard gone, the bar and the six go with it.
     tester.view.resetViewInsets();
@@ -169,6 +177,75 @@ void main() {
     await closeNote(tester);
     await done(tester);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('the tail (GHST-105): after Link a picture, the + and the mic, each calling the screen’s own; none of the three without its seam', (tester) async {
+    final world = NoteWorld();
+    world.prefs.value = world.prefs.value.choosing('simple');
+    final asked = <String>[];
+    final seams = NoteSeams(onAdd: (view) => asked.add('add at ${view.state.selection.main.head}'), onAddImage: () => asked.add('picture'));
+    await pumpNote(tester, world, await seeded(tester, world, 'buy milk'), seams: seams, speak: true, dock: PageDockSeam(claude: fakeClaude(asked)));
+    keyboard(tester, 300);
+    await settle(tester);
+    expectSix(tester, shown: true);
+    final link = tester.getRect(find.byKey(FormatBar.keyOf(formatBarTools().last)));
+    final picture = tester.getRect(find.byKey(FormatBar.pictureKey));
+    final add = tester.getRect(find.byKey(FormatBar.addKey));
+    final mic = tester.getRect(find.byKey(FormatBar.micKey));
+    // In that order after the six, on the strip's row.
+    expect(link.right, lessThanOrEqualTo(picture.left));
+    expect(picture.right, lessThanOrEqualTo(add.left));
+    expect(add.right, lessThanOrEqualTo(mic.left));
+    expect(find.byKey(FormatBar.talkKey), findsNothing);
+    await tester.tap(find.bySemanticsLabel('Add image'));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Add to this line'));
+    await tester.pump();
+    // The strip is longer than the phone is wide: the mic is past its edge until the strip is scrolled to it.
+    await tester.ensureVisible(find.byKey(FormatBar.micKey));
+    await tester.pump();
+    await tester.tap(find.bySemanticsLabel('Talk into this note'));
+    await tester.pump();
+    expect(asked, ['picture', 'add at 0']);
+    expect(world.asked, contains(startsWith('speak ')));
+    tester.view.resetViewInsets();
+    await settle(tester);
+    await closeNote(tester);
+    await done(tester);
+
+    // Without the seams and the mic: the six alone, and no divider's room after Link.
+    await pumpNote(tester, world, await seeded(tester, world, 'buy milk'), dock: PageDockSeam(claude: fakeClaude(asked)));
+    keyboard(tester, 300);
+    await settle(tester);
+    expectSix(tester, shown: true);
+    for (final key in [FormatBar.pictureKey, FormatBar.addKey, FormatBar.micKey, FormatBar.talkKey]) {
+      expect(find.byKey(key), findsNothing);
+    }
+    tester.view.resetViewInsets();
+    await settle(tester);
+    await closeNote(tester);
+    await done(tester);
+  });
+
+  testWidgets('one microphone (GHST-104): with Talk to Claude on the dock the tail carries Claude’s ring and no mic of the note’s; the pill has the same tail', (tester) async {
+    final world = NoteWorld();
+    world.prefs.value = world.prefs.value.choosing('simple');
+    final asked = <String>[];
+    final seams = NoteSeams(onAdd: (view) => asked.add('add'), onAddImage: () => asked.add('picture'));
+    await pumpNote(tester, world, await seeded(tester, world, '# Plan\n\nWords.'), size: const Size(1200, 800), seams: seams, speak: true, dock: PageDockSeam(claude: fakeClaude(asked), talk: fakeClaude(asked)));
+    await settle(tester);
+    final pill = find.byKey(FormatBar.pillKey);
+    expect(pill, findsOneWidget);
+    for (final key in [FormatBar.pictureKey, FormatBar.addKey, FormatBar.talkKey]) {
+      expect(find.descendant(of: pill, matching: find.byKey(key)), findsOneWidget, reason: '$key');
+    }
+    expect(find.byKey(FormatBar.micKey), findsNothing);
+    expect(find.bySemanticsLabel('Talk into this note'), findsNothing);
+    await tester.tap(find.descendant(of: pill, matching: find.byKey(FormatBar.talkKey)));
+    await tester.pump();
+    expect(asked, ['claude Plan']);
+    await closeNote(tester);
+    await done(tester);
   });
 
   testWidgets('switching to simple while a note is open brings the bar, and back to advanced takes it', (tester) async {

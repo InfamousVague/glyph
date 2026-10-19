@@ -152,9 +152,10 @@ extension _RootParts on _GhostRootState {
       drafts: _drafts,
       topBar: TopBarStyle.parse(prefs.topBar),
       sidebarStyle: prefs.sidebarStyle == 'docked' ? SidebarStyle.docked : SidebarStyle.popover,
-      // Simple mode (GHST-103): the bar keeps Home, the sidebar, Back, the screen's own tools and the cog; the shell
-      // leaves out the people icon, the bell, Forward, the aside and the tabs' groups.
+      // Simple mode (GHST-103, then GHST-105): the shell draws the places plain, with no bar, no sidebar and no
+      // aside, and on a wide window the list beside the note with this pane while none is open.
       simple: prefs.simple,
+      emptyPaneBuilder: (context, shell) => const SimpleEmptyPane(ghost: Ghost(scene: GhostScene.noNotes, size: GhostSize.small)),
       workspaces: _workspaces.value,
       organizations: signedIn ? services!.joined : const [],
       organizationBuilder: services == null ? null : _organizationPage,
@@ -417,7 +418,11 @@ extension _RootParts on _GhostRootState {
   /// page, and makes it anew on the way back, as the page's is: lib/shell/app_shell.dart). It is built again for
   /// the notes it shows, its layout, the workspace looked at, a recording, its notices, and the organizations with
   /// who is in them. The lines under its cards are its own to ask for and each card's to hear.
-  Widget _home(BuildContext context, AppShellState shell) => _part(
+  Widget _home(BuildContext context, AppShellState shell) {
+    // Simple mode's page as a column beside the note, or the whole window (GHST-105): asked of the window here,
+    // where the shell's build has the size, so a window resized builds the page again for its new shape.
+    final listPane = shell.listPane(context);
+    return _part(
         'home',
         () => (
           shell.notes,
@@ -436,8 +441,54 @@ extension _RootParts on _GhostRootState {
           preferences.value.simple,
           // Simple mode's Academy card (GHST-103): whether it is due now.
           _academyCardDue,
+          // Simple mode's page (GHST-105): which list it is on, whether it is a column, and whose microphone.
+          _simpleTab,
+          listPane,
+          _canTalk,
         ),
-        (context) => _homePage(context, shell),
+        (context) => preferences.value.simple ? _simpleHome(context, shell, pane: listPane) : _homePage(context, shell),
+      );
+  }
+
+  /// The home page in simple mode (GHST-105; Matt, 2026-10-18: "The simple mode in the app is not quite right, it
+  /// still is a bit complex with the tabs and such"): lib/simple/simple_home.dart in place of the advanced page. The
+  /// + makes a note straight away, and held opens the + sheet; the microphone is Talk to Claude where Claude can
+  /// hear and the recorder otherwise, one microphone only (GHST-104); the To-dos tab is kept to this device.
+  Widget _simpleHome(BuildContext context, AppShellState shell, {required bool pane}) => SimpleHome(
+        notes: shell.notes,
+        loading: !_read,
+        onOpen: (id) => _openFromHome(shell, id),
+        onNew: _new,
+        onNewLong: _plus,
+        onSpeak: _canTalk
+            ? () => _startTalk()
+            : _capture == null
+                ? null
+                : _speak,
+        onSettings: _openSettings,
+        // `tabs.drop(note.id)` before a delete, as the advanced page's swipe does: the note's one tab goes too.
+        onSwipe: (note, action) {
+          if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
+          _actions.swipe(note, action);
+        },
+        onNoteMenu: _menu.open,
+        onRefresh: _pullRefresh,
+        notices: _notices(),
+        clock: widget.clock,
+        tab: _simpleTab,
+        onTab: (tab) => _told(() => _simpleTab = tab),
+        // The To-dos tab: every open to-do across the notes (lib/simple/simple_todos.dart). A tick is written as
+        // the query lists write theirs (tickedBody); a tap opens the note at the line.
+        todos: SimpleTodos(
+          notes: _library,
+          trash: _trash,
+          clock: () => widget.clock == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(widget.clock!()),
+          onTick: (id, line, done) => unawaited(_writeNote(id, (body) => tickedBody(body, line, body.split('\n')[line], done))),
+          onOpen: (id, line) => shell.openNote(id, at: 'line:${line + 1}'),
+          onAdd: _new,
+        ),
+        pane: pane,
+        ghost: const Ghost(scene: GhostScene.noNotes, size: GhostSize.lead, heightShare: 0.38),
       );
 
   Widget _homePage(BuildContext context, AppShellState shell) {
@@ -446,6 +497,8 @@ extension _RootParts on _GhostRootState {
     // Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the dock is Search, Write,
     // Speak and Settings with no Claude; no organization cards, no New organization, no events of the day, no Save
     // as a smart notebook; the filters and the search are the page's own to trim (HomeScreen.simple).
+    // Since GHST-105 the root builds lib/simple/simple_home.dart in simple mode instead ([_simpleHome]); the page
+    // keeps its own trim for whoever still asks for it with `simple`.
     final simple = preferences.value.simple;
     // The organization the home page is filtered to, for its news.
     final chosen = _workspaces.value.current?.id;
@@ -901,14 +954,18 @@ extension _RootParts on _GhostRootState {
   /// save**, of which the screen it is handed here shows nothing: it is built from the note as it was opened
   /// (`screen.note`, as the page's is), every other note's title, and its notebook's index, and what its editor
   /// holds, its saving and its pin are its own to follow (`_notesBut`).
-  Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) => Selected(
-        listenable: _tick,
-        name: 'note',
-        select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt, _claudeOn),
-        builder: (context, _) => _desked(context, shell, screen),
-      );
+  Widget _note(BuildContext context, AppShellState shell, ScreenNote screen) {
+    // Simple mode's note on a phone has its own Back (GHST-105): not beside the list pane, where the list stays.
+    final back = preferences.value.simple && !shell.listPane(context);
+    return Selected(
+      listenable: _tick,
+      name: 'note',
+      select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt, _claudeOn, back),
+      builder: (context, _) => _desked(context, shell, screen, back: back),
+    );
+  }
 
-  Widget _desked(BuildContext context, AppShellState shell, ScreenNote screen) => NoteDesk(
+  Widget _desked(BuildContext context, AppShellState shell, ScreenNote screen, {required bool back}) => NoteDesk(
         key: ValueKey('desk:${screen.note.id}'),
         noteId: screen.note.id,
         title: noteTitle(screen.note.body),
@@ -941,6 +998,8 @@ extension _RootParts on _GhostRootState {
           tags: _places,
           // Claude, about this note, at the head of its dock; the note's own rings under it (docs/DOCK.md).
           dock: _pageDock(),
+          back: back,
+          backLabel: _simpleTab == SimpleTab.todos ? 'To-dos' : 'Notes',
         )(context, shell, screen),
       );
   /// An organization's dashboard or its log: built again with the notes, the account and its sync, who is in its

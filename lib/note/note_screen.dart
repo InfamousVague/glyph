@@ -53,6 +53,14 @@
 ///   is at the window's top behind the glass, where it cannot be read, and the page drops a line while it is said.
 ///   Neither is carried: the sentence is where the page's own comment says it is, under the header.
 /// - The arrival (`noteRise`: the body rising 8px as it fades in) is drawn for the page as a whole.
+/// - **Simple mode's chrome** (GHST-105; Matt: "it still is a bit complex with the tabs and such… build out a clean
+///   simple UI", and for the note "‹ Notes, ⋯ and Done; the title in the page"). Where the app draws no bar over the
+///   note, the header is [NoteSimpleHeader]: the way back as a word ([NoteScreen.backLabel]), ⋯ for the More sheet
+///   and Done while the keyboard is up or the editor has the focus; no tools at all in it. The view switch, Pin and
+///   Archive are rows of the sheet ([NoteSettings.viewSwitch]); the mic, the + and a picture are the Format bar's
+///   tail ([FormatBar.onPicture], [FormatBar.onAdd], [FormatBar.onSpeak]); Find in note is the sheet's row. The
+///   note hands the dock nothing of its own, so with the root's halo-only seam there is no dock. Advanced mode is
+///   as it was, to the pixel.
 /// - **The dock** (lib/shell/page_dock.dart, [NoteScreen.dock]), which the page has only on its home page: at the
 ///   bottom end corner, Claude (the chat with the note's `[[Title]]` in its field), and the note's own actions for
 ///   what is up. A note's words: Find in note, Speak into it, Add (the +'s list at the caret's line), and its ⋯ at
@@ -69,7 +77,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
-import '../app/iphone_page.dart' show KeyboardBarOffer, KeyboardBarScope;
+import '../app/iphone_page.dart' show IPhoneKeyboardBar, KeyboardBarOffer, KeyboardBarScope;
 import '../art/art.dart';
 import '../core/book.dart';
 import '../core/boards/make.dart';
@@ -146,6 +154,7 @@ class NoteSeams {
   const NoteSeams({
     this.onFind,
     this.onAdd,
+    this.onAddImage,
     this.onShare,
     this.sharing,
     this.sharingSection,
@@ -186,6 +195,10 @@ class NoteSeams {
 
   /// The +'s list opened for the caret's line (lib/editor/plus), from the dock's Add.
   final void Function(EditorView view)? onAdd;
+
+  /// A picture put in the note, from the phone's own picker: the press-and-hold band's Add image
+  /// (lib/editor/band/context_band.dart `onAddImage`), which simple mode's Format bar presses from its tail too.
+  final FutureOr<void> Function()? onAddImage;
 
   /// The note's share link in a window of its own (share/ShareRows.tsx).
   final VoidCallback? onShare;
@@ -338,12 +351,19 @@ class NoteScreen extends StatefulWidget {
     this.lifecycle = true,
     this.clock,
     this.dock,
+    this.backLabel = 'Notes',
+    this.back = false,
   });
 
   final Note note;
   final NoteLibrary library;
   final WorkspaceStore workspaces;
   final VoidCallback onBack;
+
+  /// A Back of its own at the start of its header, where the app's bar is not there to hold Home: simple mode's
+  /// plain shell on a phone (GHST-105, lib/shell/app_shell.dart `_plain`). Nothing while the tools are in the bar's
+  /// slot, and nothing beside a list pane, where the note is never the only thing on screen.
+  final bool back;
   final ValueChanged<String> onDelete;
 
   /// Pin or unpin, given the note as it stands now (`onPin({...note, starred: pinned})`).
@@ -418,6 +438,10 @@ class NoteScreen extends StatefulWidget {
   /// Claude and the halo for the page's dock (docs/DOCK.md); no dock where it is left out.
   final PageDockSeam? dock;
 
+  /// The word on simple mode's way back ([NoteSimpleHeader]): where the note was opened from. "Notes" unless the
+  /// root says otherwise ("To-dos" for a to-do opened from the list).
+  final String backLabel;
+
   @override
   State<NoteScreen> createState() => NoteScreenState();
 }
@@ -446,6 +470,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   /// kept: the bar hears a new offer at every change of what it is handed.
   Widget? _formatRow;
   EditorView? _formatRowFor;
+  String? _formatRowTail;
   NotePlaceKeeper? _keeper;
   LandAt? _landing;
   Timer? _checking;
@@ -560,6 +585,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   bool get _raw => !_listening;
   NoteKind get _kind => _isCanvas ? NoteKind.canvas : (_isBook ? NoteKind.book : NoteKind.words);
   bool get _onPage => _typed ? !_source : _prefs.value.noteView == 'formatted';
+
+  /// Simple mode (GHST-103, GHST-105): the plain chrome, with the tools in the sheet and the Format bar.
+  bool get _simple => _prefs.value.simple;
 
   /// Whether a + may show beside an empty line, which is also when a blank page offers its names
   /// (`plusAllowed`): the note is words being written.
@@ -1054,6 +1082,14 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     widget.onBack();
   }
 
+  /// Simple mode's Done (GHST-105): the keyboard put away and the editor's focus given up, what is typed saved
+  /// first; the note stays open. The same as the iPhone keyboard bar's Done does, on every platform.
+  void _done() {
+    flush();
+    IPhoneKeyboardBar.lowerKeyboard();
+    if (_focused) setState(() => _focused = false);
+  }
+
   /// The phone's way back from the note, for whoever holds the back gesture: what is typed is saved first.
   void leave() => _back();
 
@@ -1387,9 +1423,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final mark = _bookmark();
     final history = widget.versions != null && !_isCanvas && !widget.readOnly;
     final speak = _speakWords;
-    // Simple mode (GHST-103): the bar keeps Pin, Archive and Speak; sharing, versions, links, comments and the
-    // bookmark are behind the sheet's More, with the rest of the "fancy features".
-    final simple = _prefs.value.simple;
+    // Simple mode (GHST-103, GHST-105): nothing comes out of More. Pin and Archive are the sheet's rows, the mic is
+    // the Format bar's tail, and sharing, versions, links, comments and the bookmark are behind the sheet's More
+    // with the rest of the "fancy features" (Matt: "pin/archive/view switch move into ⋯").
+    final simple = _simple;
+    if (simple) return const [];
     return [
       if (seams.onShare != null && !simple) ToolAction(id: 'share', label: 'Share', icon: Lucide.share2, onPress: seams.onShare!),
       if (history && _raw && !simple) ToolAction(id: 'history', label: 'Version history', icon: Lucide.history, onPress: () => widget.onHistory != null ? widget.onHistory!() : _openSettings(NoteSettingsPage.history)),
@@ -1526,11 +1564,33 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     setState(() => _typedBody = next);
   }
 
-  /// The Format bar's row for the iPhone's keyboard bar, the same widget for as long as the view is.
+  /// The Format bar for [look], with its tail (GHST-105): the band's Add image, the +'s list for the caret's line,
+  /// and the note's mic, or Claude's Talk in the mic's place where the dock has it (one microphone, GHST-104).
+  FormatBar _formatBar(EditorView view, FormatBarLook look) {
+    final seams = widget.seams;
+    final speak = _speakWords;
+    final talk = widget.dock?.talk;
+    return FormatBar(
+      view: view,
+      look: look,
+      onPicture: seams.onAddImage == null ? null : () => unawaited(Future<void>.sync(() => seams.onAddImage!())),
+      onAdd: seams.onAdd == null || !plusAllowed ? null : () => seams.onAdd!(view),
+      onSpeak: speak == null || widget.readOnly || talk != null ? null : _speak,
+      speakLabel: speak ?? 'Talk into this note',
+      talk: talk == null || widget.readOnly ? null : talk(() => _saving.title),
+    );
+  }
+
+  /// What the tail is made of, for the row to be made again only when that changes.
+  String get _formatTailKey => '${widget.seams.onAddImage != null}|${widget.seams.onAdd != null && plusAllowed}|${_speakWords ?? ''}|${widget.dock?.talk != null}|${widget.readOnly}';
+
+  /// The Format bar's row for the iPhone's keyboard bar, the same widget for as long as the view and its tail are.
   Widget _formatTools(EditorView view) {
-    if (!identical(_formatRowFor, view) || _formatRow == null) {
+    final tail = _formatTailKey;
+    if (!identical(_formatRowFor, view) || _formatRow == null || _formatRowTail != tail) {
       _formatRowFor = view;
-      _formatRow = FormatBar(view: view, look: FormatBarLook.row);
+      _formatRowTail = tail;
+      _formatRow = _formatBar(view, FormatBarLook.row);
     }
     return _formatRow!;
   }
@@ -1544,6 +1604,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   List<DockAction> _dockRings() {
     final seams = widget.seams;
     final view = _view;
+    // Simple mode (GHST-105) hands the dock nothing of the note's: Find is the sheet's row, the + and the mic are
+    // the Format bar's, and ⋯ is the header's.
+    if (_simple) return const [];
     if (!_words) return _dockOffers.actions;
     final speak = _speakWords;
     return [
@@ -1557,15 +1620,27 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   DockAction get _dockFoot => DockAction(id: 'note-options', label: '$_dockKind options', icon: Lucide.ellipsis, onPressed: _openMore);
 
+  /// The dock's seam as this note takes it: in simple mode a seam with nothing of its own to draw (the root's
+  /// halo-only seam) is no dock at all, since the note adds no rings to it; an empty pill is not drawn.
+  PageDockSeam? get _dock {
+    final dock = widget.dock;
+    return dock == null || (_simple && dock.claude == null && dock.talk == null) ? null : dock;
+  }
+
   /// How many rings the dock has now, for the room the page keeps at its foot.
-  int get _dockCount => widget.dock == null ? 0 : (widget.dock!.claude != null ? 1 : 0) + _dockRings().length + 1;
+  int get _dockCount {
+    final dock = _dock;
+    if (dock == null) return 0;
+    if (_simple) return (dock.claude != null ? 1 : 0) + (dock.talk != null ? 1 : 0);
+    return (dock.claude != null ? 1 : 0) + _dockRings().length + 1;
+  }
 
   /// The page under its dock, stepping aside while the keyboard is up.
   Widget _docked(PageDockSeam dock, Widget page) => PageDockFrame(
         seam: dock,
         subject: () => _saving.title,
         actions: _dockRings(),
-        foot: _dockFoot,
+        foot: _simple ? null : _dockFoot,
         stepAside: true,
         label: '$_dockKind actions',
         child: page,
@@ -1608,8 +1683,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     // wide window with the keyboard down a pill at the foot beside the dock. Advanced mode has none.
     final formatting = prefs.simple && view != null && _words && _raw && !widget.readOnly;
     final keyboardBar = KeyboardBarScope.maybeOf(context);
-    final wide = MediaQuery.sizeOf(context).width >= 600;
-    final Widget? formatStrip = formatting && keyboardUp && keyboardBar == null ? FormatBar(view: view, look: FormatBarLook.strip) : null;
+    // Wide is the page's own room, not the window's: beside simple mode's list column (GHST-105) a Fold opened out
+    // leaves the note 404 wide, where the pill stood past the dock's room and over the edge.
+    final wide = pageWidth >= 600;
+    final Widget? formatStrip = formatting && keyboardUp && keyboardBar == null ? _formatBar(view, FormatBarLook.strip) : null;
     final formatPill = formatting && !keyboardUp && wide;
     _watchMinute(offering);
 
@@ -1748,7 +1825,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             child: scroller,
           );
 
-    final dock = widget.dock;
+    final dock = _dock;
     final layers = <Widget>[
       TopBarFill(
         tools: inBar ? _tools : null,
@@ -1803,21 +1880,46 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
             final end = room == null ? t.len('app-safe-right') + t.space(4) : room.end + t.space(2);
             return Padding(
               padding: EdgeInsetsDirectional.only(end: end, bottom: t.len('app-safe-bottom') + t.space(4)),
-              child: Align(alignment: AlignmentDirectional.bottomEnd, child: FormatBar(view: view, look: FormatBarLook.pill)),
+              child: Align(alignment: AlignmentDirectional.bottomEnd, child: _formatBar(view, FormatBarLook.pill)),
             );
           },
         ),
       // On an iPhone the keyboard's bar draws the six beside its Done, so nothing stands over the page for them.
       if (keyboardBar != null) Positioned(width: 0, height: 0, child: KeyboardBarOffer(tools: formatting ? _formatTools(view) : null)),
-      // The header: glass over the page, holding the note's own controls where the app's bar is not there to.
+      // The header: glass over the page, holding the note's own controls where the app's bar is not there to. In
+      // simple mode (GHST-105) those are the way back, ⋯ and Done, and no tool: the title is the page's own first
+      // heading, as Matt asked ("‹ Notes, ⋯ and Done; the title in the page").
       HeaderPane(
         child: inBar
             ? null
             : Padding(
                 // `.header { padding-inline: gutters; padding-block: safe-top + space-1, space-2 }`
                 padding: EdgeInsets.fromLTRB(t.len('app-gutter-start'), t.space(1), t.len('app-gutter-end'), t.space(2)),
-                child: LayoutBuilder(
-                  builder: (context, box) => Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
+                child: prefs.simple
+                    // Simple mode's own header (GHST-105): ‹ Notes, ⋯ and Done; the shell's plain path draws no bar.
+                    // Back only where the shell asks for it (a phone, one window): beside the list there is none.
+                    ? NoteSimpleHeader(backLabel: widget.back ? widget.backLabel : null, onBack: _back, onMore: _openMore, onDone: keyboardUp || _focused ? _done : null)
+                    : LayoutBuilder(
+                  builder: (context, box) => widget.back
+                      // Simple mode's plain shell (GHST-105) has no bar and so no Home: the note's own Back at the
+                      // row's start, and the tools in what room is left past it.
+                      ? Row(
+                          children: [
+                            NoteToolButton(key: const ValueKey('note-back'), icon: Lucide.arrowLeft, label: 'Back to your notes', onPressed: _back, turns: false),
+                            const Spacer(),
+                            // The tools count what fits a frame after they are laid out: on the frame a window
+                            // narrows (a phone folded shut) they are drawn for the room they had, scaled down to
+                            // the room there is rather than past the edge.
+                            Flexible(
+                              child: FittedBox(
+                                fit: BoxFit.scaleDown,
+                                alignment: AlignmentDirectional.centerEnd,
+                                child: NoteTools(model: _toolsModel, room: (box.maxWidth - t.len('app-bar-ring') - t.space(2)).clamp(0.0, double.infinity)),
+                              ),
+                            ),
+                          ],
+                        )
+                      : Row(mainAxisAlignment: MainAxisAlignment.end, children: [NoteTools(model: _toolsModel, room: box.maxWidth)]),
                 ),
               ),
       ),
@@ -1919,6 +2021,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           ? NoteHistory(record: versions, keeps: _versioning?.keeps ?? versions.keepsVersions(_id), current: () => _view?.state.doc.toString() ?? _saving.body, onRestore: restoreVersion, onShareFile: seams.shareVersionsFile)
           : null,
       startAt: _settingsAt,
+      // The sheet reads the mode from the store this screen reads, which is the app's own unless a test hands in
+      // another: a sheet asking the app's store under a screen on a test's would be in the other mode.
+      simple: _simple,
+      // Simple mode's view switch, a row where advanced has the header's ring (GHST-105).
+      viewSwitch: _raw ? NoteViewSwitch(kind: _kind, page: _onPage, onSwitch: _switchView) : null,
       cheatSheet: seams.cheatSheet,
       say: widget.say,
       around: _typed ? null : seams.links?.section(context, view, _scroll.hasClients ? _scroll.position : null),

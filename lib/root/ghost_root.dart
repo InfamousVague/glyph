@@ -187,6 +187,10 @@ import '../shell/page_dock.dart';
 import '../shell/screen.dart';
 import '../shell/top_bar.dart';
 import '../shell/wide_screen.dart' show mobileDevice, mousePointer, splitFits;
+import '../simple/simple_home.dart';
+import '../simple/simple_todos.dart';
+import '../core/query/tick.dart' show tickedBody;
+import '../simple/simple_pane.dart';
 import '../tapes/player.dart' show TapePlayer;
 import 'account_wiring.dart';
 import 'capture_route.dart';
@@ -1397,6 +1401,10 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Settings asked for at a page, by when it was asked (settings/settings_sheet.dart `toPage`).
   SettingsTarget? _settingsPage;
+
+  /// Which list simple mode's home page is on, Notes or To-dos (GHST-105, lib/simple/simple_home.dart): this
+  /// device's own, never synced, and not kept across a launch.
+  SimpleTab _simpleTab = SimpleTab.notes;
 
   void _search() => _commands.currentState?.show();
 

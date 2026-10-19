@@ -29,6 +29,7 @@ import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/selected.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/simple/simple_home.dart';
 
 import '../support/render.dart';
 
@@ -156,12 +157,15 @@ void main() {
     testWidgets('lists the Academy card among home\'s notices in simple mode while it is due, and its cross puts it away (GHST-103)', (tester) async {
       useStored(MemoryStored());
       await open(tester, prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true));
-      expect(home(tester).notices.whereType<AcademyCard>(), hasLength(1));
+      // Simple mode's home page is lib/simple/simple_home.dart since GHST-105; the notices are the same list.
+      SimpleHome simple() => tester.widget<SimpleHome>(find.byType(SimpleHome, skipOffstage: false));
+      expect(find.byType(HomeScreen), findsNothing);
+      expect(simple().notices.whereType<AcademyCard>(), hasLength(1));
       expect(find.byKey(const ValueKey('academy-card')), findsOneWidget);
       await tester.tap(find.bySemanticsLabel('Not now'));
       await tester.pump();
       expect(academyBannerDue(), isFalse);
-      expect(home(tester).notices.whereType<AcademyCard>(), isEmpty);
+      expect(simple().notices.whereType<AcademyCard>(), isEmpty);
       await close(tester);
     });
 

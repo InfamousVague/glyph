@@ -21,6 +21,14 @@
 /// the editor is given its focus back after, so the keyboard stays up and typing goes on. What is lit is read from
 /// the editor's state on every draw, as the Style page's rows are, and the bar is drawn again whenever the view
 /// has something new (a move of the caret into a heading lights Heading).
+///
+/// After the six, a tail (GHST-105; Matt: "build out a clean simple UI", the Format bar "gets a picture and a mic
+/// at its end"): a divider, then a picture ([FormatBar.onPicture], the press-and-hold band's Add image), the +
+/// ([FormatBar.onAdd], the +'s list for the caret's line, which the dock carried in advanced mode) and a mic
+/// ([FormatBar.onSpeak], Talk into this note). Where Claude's Talk is on the page's dock, that ring stands in the
+/// mic's place instead ([FormatBar.talk]): one microphone only (GHST-104). Each of the three is drawn only where it
+/// is given, and the divider only before something. On the iPhone's row the six stay first and the row scrolls
+/// sideways past Done where it is too long, as Apple Notes' own bar does.
 library;
 
 import 'dart:ui' as ui;
@@ -31,7 +39,8 @@ import 'package:glacier/glacier.dart';
 
 import '../app/plain.dart';
 import '../art/app_icon.dart';
-import '../editor/band/menu_band.dart' show BandTip;
+import '../art/lucide.g.dart';
+import '../editor/band/menu_band.dart' show BandTip, MenuIcon;
 import '../editor/band/style_items.dart';
 import '../editor/view/editor_view.dart';
 
@@ -42,7 +51,7 @@ enum FormatBarLook { strip, row, pill }
 const double formatBarHeight = 44;
 
 class FormatBar extends StatefulWidget {
-  const FormatBar({super.key, required this.view, required this.look, this.felt});
+  const FormatBar({super.key, required this.view, required this.look, this.felt, this.onPicture, this.onAdd, this.onSpeak, this.speakLabel = 'Talk into this note', this.talk});
 
   final EditorView view;
   final FormatBarLook look;
@@ -50,8 +59,21 @@ class FormatBar extends StatefulWidget {
   /// Says a tick; the kit's haptics where null.
   final void Function(HapticKind kind)? felt;
 
+  /// The tail: a picture put in the note (the band's Add image), the +'s list for the caret's line, and the note's
+  /// mic with its words. Each left out, its button is not drawn.
+  final VoidCallback? onPicture;
+  final VoidCallback? onAdd;
+  final VoidCallback? onSpeak;
+  final String speakLabel;
+
+  /// Claude's Talk ring (lib/claude/claude_dock.dart), standing in the mic's place where it is given: one mic.
+  final Widget? talk;
+
   /// The bar's key for each look, for whoever looks for it.
   static const Key stripKey = ValueKey<String>('format-bar-strip'), rowKey = ValueKey<String>('format-bar-row'), pillKey = ValueKey<String>('format-bar-pill');
+
+  /// The tail's keys.
+  static const Key pictureKey = ValueKey<String>('format-picture'), addKey = ValueKey<String>('format-add'), micKey = ValueKey<String>('format-mic'), talkKey = ValueKey<String>('format-talk');
 
   /// A button's key: `format-<the Style page's key>`, `format-mark:bold`.
   static Key keyOf(StyleTool tool) => ValueKey<String>('format-${tool.key}');
@@ -105,16 +127,40 @@ class _FormatBarState extends State<FormatBar> {
     view.focus();
   }
 
+  /// One of the tail pressed: a tick, then what it does. The focus is not handed back here: a picture's picker,
+  /// the +'s list and the recorder each take the screen, and each gives the editor back when it is done.
+  VoidCallback _tail(VoidCallback what) => () {
+        (widget.felt ?? HapticsProvider.of(context))(HapticKind.selection);
+        what();
+      };
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final state = widget.view.state;
     final round = widget.look == FormatBarLook.pill;
     final gap = round ? t.space(2) : 0.0;
+    final onPicture = widget.onPicture, onAdd = widget.onAdd, onSpeak = widget.onSpeak, talk = widget.talk;
+    final tail = <Widget>[
+      if (onPicture != null) _FormatButton(key: FormatBar.pictureKey, icon: Lucide.imagePlus, label: 'Add image', hint: 'A picture in the note', lit: false, round: round, onPress: _tail(onPicture)),
+      if (onAdd != null) _FormatButton(key: FormatBar.addKey, icon: Lucide.plus, label: 'Add to this line', hint: 'A list, a table, a date and more', lit: false, round: round, onPress: _tail(onAdd)),
+      // One microphone (GHST-104): Claude's Talk where it is on the page, else the note's own.
+      if (talk != null)
+        _tailSlot(round, talk, FormatBar.talkKey)
+      else if (onSpeak != null)
+        _FormatButton(key: FormatBar.micKey, icon: Lucide.mic, label: widget.speakLabel, hint: 'Say it, and it is written', lit: false, round: round, onPress: _tail(onSpeak)),
+    ];
     final buttons = <Widget>[
       for (final (i, tool) in _tools.indexed) ...<Widget>[
         if (i > 0 && gap > 0) SizedBox(width: gap),
-        _FormatButton(key: FormatBar.keyOf(tool), tool: tool, lit: tool.lit(state), round: round, onPress: () => _press(tool)),
+        _FormatButton(key: FormatBar.keyOf(tool), icon: tool.icon, label: tool.label, hint: tool.hint, lit: tool.lit(state), round: round, onPress: () => _press(tool)),
+      ],
+      if (tail.isNotEmpty) ...<Widget>[
+        // The divider: a hairline the ring's height, a step in from each side, between the six and the tail.
+        SizedBox(width: gap),
+        _Divider(round: round),
+        SizedBox(width: gap),
+        for (final (i, one) in tail.indexed) ...<Widget>[if (i > 0 && gap > 0) SizedBox(width: gap), one],
       ],
     ];
     switch (widget.look) {
@@ -183,13 +229,38 @@ class _FormatBarState extends State<FormatBar> {
   }
 }
 
-/// One of the six: its icon, lit (printed in reverse, as a Style row is) while it applies. [round], a ring of the
-/// dock's size and line; otherwise a square the bar's height, a finger's width. Its words are said to a screen
-/// reader with its hint after them, and the hint comes up over it on a desktop.
-class _FormatButton extends StatelessWidget {
-  const _FormatButton({super.key, required this.tool, required this.lit, required this.round, required this.onPress});
+/// A ring of the dock's own ([talk], Claude's Talk) in the tail: in the pill it is a ring among rings; on the strip
+/// and the row it stands in the middle of a square the bar's height, as the other buttons do.
+Widget _tailSlot(bool round, Widget ring, Key key) => round ? KeyedSubtree(key: key, child: ring) : SizedBox(key: key, width: formatBarHeight, height: formatBarHeight, child: Center(child: ring));
 
-  final StyleTool tool;
+/// The hairline between the six and the tail, the icon's own height, in the page's rule.
+class _Divider extends StatelessWidget {
+  const _Divider({required this.round});
+
+  final bool round;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ExcludeSemantics(
+      child: SizedBox(
+        width: round ? t.len('glacier-hairline') : t.space(2) + t.len('glacier-hairline'),
+        height: round ? t.len('app-ring') : formatBarHeight,
+        child: Center(child: Container(width: t.len('glacier-hairline'), height: round ? t.len('app-ring') - t.space(3) : formatBarHeight - t.space(5), color: t.color('app-rule'))),
+      ),
+    );
+  }
+}
+
+/// One of the six, or of the tail: its icon, lit (printed in reverse, as a Style row is) while it applies. [round],
+/// a ring of the dock's size and line; otherwise a square the bar's height, a finger's width. Its words are said to
+/// a screen reader with its hint after them, and the hint comes up over it on a desktop.
+class _FormatButton extends StatelessWidget {
+  const _FormatButton({super.key, required this.icon, required this.label, required this.hint, required this.lit, required this.round, required this.onPress});
+
+  final MenuIcon icon;
+  final String label;
+  final String hint;
   final bool lit;
   final bool round;
   final VoidCallback onPress;
@@ -200,10 +271,10 @@ class _FormatButton extends StatelessWidget {
     final ink = t.color(lit ? 'app-paper' : 'app-ink');
     final Widget button = MergeSemantics(
       child: Semantics(
-        hint: tool.hint,
+        hint: hint,
         child: GlacierPressable(
           onPressed: onPress,
-          semanticLabel: tool.label,
+          semanticLabel: label,
           toggled: lit,
           // The press must not take the focus from the words it is about: the keyboard would go and come back,
           // and the selection with it.
@@ -222,7 +293,7 @@ class _FormatButton extends StatelessWidget {
                     shape: BoxShape.circle,
                     border: Border.all(color: lit ? t.color('app-ink') : t.color('glacier-border-strong'), width: t.len('app-line')),
                   ),
-                  child: AppIcon(tool.icon, size: t.lenOf('1.15rem'), strokeWidth: 2, color: ink),
+                  child: AppIcon(icon, size: t.lenOf('1.15rem'), strokeWidth: 2, color: ink),
                 ),
               );
             }
@@ -240,7 +311,7 @@ class _FormatButton extends StatelessWidget {
                     color: lit ? t.color('app-ink') : (state.pressed ? t.color('app-paper-3') : null),
                     borderRadius: BorderRadius.circular(t.radius('sm')),
                   ),
-                  child: AppIcon(tool.icon, size: 20, strokeWidth: 2.1, color: ink),
+                  child: AppIcon(icon, size: 20, strokeWidth: 2.1, color: ink),
                 ),
               ),
             );
@@ -248,6 +319,6 @@ class _FormatButton extends StatelessWidget {
         ),
       ),
     );
-    return BandTip(message: tool.hint, child: button);
+    return BandTip(message: hint, child: button);
   }
 }
