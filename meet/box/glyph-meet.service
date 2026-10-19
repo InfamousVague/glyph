@@ -1,0 +1,69 @@
+# glyph-meet: Ghost.md's Google Meet notetaker (meet/bot, docs/MEET.md "The bot and the box").
+#
+# Installed by scripts/setup-meet-box.mjs, which rewrites this file on every run - edit it here, not on the box.
+#
+# A Node service that asks glyph-api on loopback what is due every 20 s and, one meeting at a time, opens the
+# installed Google Chrome on Ghost's signed-in profile, on the virtual screen (glyph-meet-xvfb), with its sound going
+# to the null sink (glyph-meet-pulse); records the tab and reads the captions; and hands the take back to glyph-api.
+# Its only files: /var/lib/glyph-meet (the profile, and a call's recording until it is uploaded).
+#
+# Hardening, as far as Chrome allows: Chrome keeps its own sandbox (no --no-sandbox), which on Ubuntu is built on
+# unprivileged user namespaces, so no RestrictNamespaces=, no PrivateUsers= and no SystemCallFilter= here; and V8 is a
+# JIT, so no MemoryDenyWriteExecute=. NoNewPrivileges is fine for the namespace sandbox (it would break only the
+# setuid fallback, chrome-sandbox, which the namespace sandbox makes unnecessary; setup-meet-box.mjs prints whether
+# the box allows unprivileged user namespaces).
+
+[Unit]
+Description=Ghost.md Meet bot (joins Google Meet calls Ghost is invited to)
+After=network-online.target glyph-api.service glyph-meet-xvfb.service glyph-meet-pulse.service
+Wants=network-online.target
+Requires=glyph-meet-xvfb.service glyph-meet-pulse.service
+
+[Service]
+User=glyph-meet
+Group=glyph-meet
+# GLYPH_MEET_TOKEN, the bot's key to glyph-api's internal routes: root-owned, 0640, group glyph-meet. systemd reads
+# it as root before dropping to the user.
+EnvironmentFile=/opt/glyph-meet/glyph-meet.env
+Environment=GLYPH_MEET_API=http://127.0.0.1:8796
+Environment=GLYPH_MEET_DATA=/var/lib/glyph-meet
+Environment=HOME=/var/lib/glyph-meet
+Environment=DISPLAY=:99
+Environment=PULSE_SERVER=unix:/run/glyph-meet-pulse/native
+# Chrome's temporary files in the state directory, not /tmp: the bot shares the real /tmp with Xvfb (for the X socket)
+# and so has no PrivateTmp, and its temporary files are its own all the same.
+Environment=TMPDIR=/var/lib/glyph-meet/tmp
+Environment=NODE_ENV=production
+StateDirectory=glyph-meet
+StateDirectoryMode=0700
+WorkingDirectory=/opt/glyph-meet/bot
+ExecStart=/usr/bin/node /opt/glyph-meet/bot/bot.mjs
+Restart=on-failure
+RestartSec=10
+# A stop in a call leaves it, stops the recorder and tries the upload once: give it two minutes. SIGTERM to Node
+# alone (mixed), which closes Chrome itself; whatever is left after that is killed with the rest.
+KillMode=mixed
+TimeoutStopSec=120
+
+Nice=5
+CPUQuota=200%
+MemoryMax=3G
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_NETLINK
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

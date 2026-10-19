@@ -1,0 +1,88 @@
+#!/bin/bash
+# meetctl: the Meet bot's controls on the box (docs/MEET.md, "The bot and the box").
+#
+# Installed at /opt/glyph-meet/meetctl by scripts/setup-meet-box.mjs, which rewrites it on every run.
+#
+#   meetctl status         the five units, and whether a meeting is under way
+#   meetctl check          is Ghost's profile signed in to Google?  SIGNED_IN yes | no | busy
+#   meetctl signin         the sign-in browser and the VNC view on :99 (stops the bot until signin-done)
+#   meetctl signin-done    stops both, checks the sign-in, starts the bot again (when it has its token)
+#   meetctl restart        restarts the bot, unless a meeting is under way (then says so and does nothing)
+#
+# Run it as root, or it asks sudo for itself.
+set -euo pipefail
+[ "$(id -u)" -eq 0 ] || exec sudo "$0" "$@"
+
+BOT=/opt/glyph-meet/bot/bot.mjs
+ENV_FILE=/opt/glyph-meet/glyph-meet.env
+UNITS="glyph-meet-xvfb glyph-meet-pulse glyph-meet glyph-meet-vnc glyph-meet-signin"
+
+# The bot's own environment, as its unit gives it, for a command run by hand as glyph-meet (two minutes at most).
+as_bot() {
+  timeout 120 runuser -u glyph-meet -- env -i PATH=/usr/local/bin:/usr/bin:/bin HOME=/var/lib/glyph-meet TMPDIR=/var/lib/glyph-meet/tmp \
+    GLYPH_MEET_DATA=/var/lib/glyph-meet DISPLAY=:99 PULSE_SERVER=unix:/run/glyph-meet-pulse/native "$@"
+}
+
+# A meeting is under way when the bot is running and has a Chrome open.
+in_meeting() {
+  systemctl is-active --quiet glyph-meet && pgrep -u glyph-meet -f '/opt/google/chrome/chrome' >/dev/null
+}
+
+has_token() {
+  [ -s "$ENV_FILE" ] && grep -q '^GLYPH_MEET_TOKEN=..' "$ENV_FILE"
+}
+
+check() {
+  if in_meeting; then echo "SIGNED_IN busy"; return 0; fi
+  local was
+  was=$(systemctl is-active glyph-meet || true)
+  [ "$was" = active ] && systemctl stop glyph-meet
+  systemctl start glyph-meet-xvfb glyph-meet-pulse
+  # The bot prints the SIGNED_IN line itself; exit 3 is "no", not a failure of this command.
+  as_bot /usr/bin/node "$BOT" --check || true
+  [ "$was" = active ] && systemctl start glyph-meet
+  return 0
+}
+
+start_bot() {
+  if has_token; then
+    systemctl enable glyph-meet >/dev/null 2>&1
+    systemctl start glyph-meet
+  else
+    echo "NO_TOKEN: $ENV_FILE has no GLYPH_MEET_TOKEN; the bot is not started"
+  fi
+}
+
+case "${1:-status}" in
+  status)
+    for unit in $UNITS; do echo "UNIT $unit $(systemctl is-active "$unit" || true)"; done
+    if in_meeting; then echo "MEETING yes"; else echo "MEETING no"; fi
+    ;;
+  check)
+    check
+    ;;
+  signin)
+    if in_meeting; then echo "A meeting is under way; sign in after it."; exit 1; fi
+    systemctl start glyph-meet-xvfb glyph-meet-pulse
+    # Conflicts= stops the bot.
+    systemctl start glyph-meet-signin
+    systemctl start glyph-meet-vnc
+    echo "SIGNIN started: Chrome at accounts.google.com on :99, VNC on 127.0.0.1:5901"
+    ;;
+  signin-done)
+    systemctl stop glyph-meet-vnc glyph-meet-signin || true
+    # Chrome writes the profile's cookies as it closes; a moment for it.
+    sleep 2
+    check
+    start_bot
+    ;;
+  restart)
+    if in_meeting; then echo "A meeting is under way; not restarting. Run this again after it."; exit 1; fi
+    systemctl restart glyph-meet-xvfb glyph-meet-pulse
+    if has_token; then systemctl restart glyph-meet; else start_bot; fi
+    ;;
+  *)
+    echo "usage: meetctl status | check | signin | signin-done | restart" >&2
+    exit 2
+    ;;
+esac

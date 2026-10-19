@@ -1,0 +1,36 @@
+# glyph-meet-xvfb: the Meet bot's screen, display :99 (docs/MEET.md, "The bot and the box").
+#
+# Installed by scripts/setup-meet-box.mjs, which rewrites this file on every run - edit it here, not on the box.
+#
+# Chrome is run with a window (Meet turns a headless browser away), so it needs an X server; this is a virtual one,
+# with no TCP listener: it is reached only through its socket in /tmp/.X11-unix, by the bot and, during a sign-in, by
+# x11vnc. Run as the bot's own user, so nobody else's X client is let in by default.
+
+[Unit]
+Description=Ghost.md Meet bot: virtual screen (Xvfb :99)
+After=network.target
+
+[Service]
+User=glyph-meet
+Group=glyph-meet
+# /tmp/.X11-unix is made by Ubuntu's tmpfiles at boot; made here too (as root, the +) in case it is not there.
+ExecStartPre=+/usr/bin/install -d -m 1777 /tmp/.X11-unix
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -noreset
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=true
+ProtectSystem=strict
+# Its socket and lock live in the real /tmp (/tmp/.X11-unix/X99, /tmp/.X99-lock), where the bot can find them: no
+# PrivateTmp, and /tmp the one place it writes.
+PrivateTmp=false
+ReadWritePaths=/tmp
+ProtectHome=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+MemoryMax=512M
+
+[Install]
+WantedBy=multi-user.target

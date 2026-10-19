@@ -1,0 +1,30 @@
+# glyph-meet-vnc: a view of the bot's screen for the ONE-TIME sign-in (docs/MEET.md, "Signing Ghost in").
+#
+# Installed by scripts/setup-meet-box.mjs; never enabled (no [Install]), started on demand by `meetctl signin` and
+# stopped by `meetctl signin-done`.
+#
+# No password, so it listens on loopback ONLY (-localhost, and -allow 127.0.0.1 besides): it is reached through an
+# SSH tunnel and from nowhere else. Anyone already logged in to the box could reach it while it runs; it runs for the
+# few minutes of a sign-in.
+
+[Unit]
+Description=Ghost.md Meet bot: VNC view of the screen, loopback only (on demand)
+After=glyph-meet-xvfb.service
+Requires=glyph-meet-xvfb.service
+
+[Service]
+User=glyph-meet
+Group=glyph-meet
+Environment=HOME=/var/lib/glyph-meet
+ExecStart=/usr/bin/x11vnc -display :99 -localhost -allow 127.0.0.1 -rfbport 5901 -nopw -forever -shared -noxdamage -quiet
+Restart=no
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=false
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+MemoryMax=256M

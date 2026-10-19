@@ -1,0 +1,42 @@
+# glyph-meet-signin: the ONE-TIME sign-in of Ghost's Google account (docs/MEET.md, "Signing Ghost in").
+#
+# Installed by scripts/setup-meet-box.mjs; never enabled, started on demand (`/opt/glyph-meet/meetctl signin`).
+#
+# A plain Google Chrome - no Playwright, no automation switches, Google refuses a sign-in in an automated browser -
+# on the bot's profile, at accounts.google.com, on the bot's screen, for Matt to sign in through VNC
+# (glyph-meet-vnc). The bot and this cannot both have the profile open, so starting this stops the bot (Conflicts=),
+# and `meetctl signin-done` stops this and starts the bot again.
+
+[Unit]
+Description=Ghost.md Meet bot: sign-in browser (on demand)
+After=glyph-meet-xvfb.service glyph-meet-pulse.service
+Requires=glyph-meet-xvfb.service glyph-meet-pulse.service
+Conflicts=glyph-meet.service
+
+[Service]
+User=glyph-meet
+Group=glyph-meet
+Environment=GLYPH_MEET_DATA=/var/lib/glyph-meet
+Environment=HOME=/var/lib/glyph-meet
+Environment=DISPLAY=:99
+Environment=PULSE_SERVER=unix:/run/glyph-meet-pulse/native
+Environment=TMPDIR=/var/lib/glyph-meet/tmp
+StateDirectory=glyph-meet
+StateDirectoryMode=0700
+WorkingDirectory=/opt/glyph-meet/bot
+ExecStart=/usr/bin/node /opt/glyph-meet/bot/bot.mjs --signin
+# Not restarted: when Chrome is closed, the sign-in is over.
+Restart=no
+TimeoutStopSec=20
+
+MemoryMax=3G
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=false
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+LockPersonality=true
+RestrictRealtime=true
+UMask=0077

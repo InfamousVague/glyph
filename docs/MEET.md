@@ -141,3 +141,101 @@ and nothing joins them.
 
 Caddy needs no change: `/api/internal/*` reaches the service like any `/api/*` path and is answered 404 because the
 request came through Caddy. Refusing `/api/internal/*` in Caddy as well would be a second lock on the same door.
+
+## The bot and the box
+
+`meet/bot/` is the bot: a Node service (ESM, Node 18 or newer, one dependency, `playwright-core` 1.59.1) that drives
+the box's installed Google Chrome. `meet/box/` holds its units and `meetctl`; `scripts/setup-meet-box.mjs` installs
+all of it. Everything the spike found (`meet/spike/README.md`) is kept: a signed-in profile, never an anonymous guest;
+no automation markers; Chrome's own sandbox; no microphone, camera or fake devices; the meeting heard by capturing the
+bot's own tab.
+
+### What it does
+
+- **The loop** (`bot.mjs`, `lib/decide.mjs`): `GET due` every 20 s. One meeting at a time, the earliest first; the
+  others wait, and one that would be joined more than 10 minutes late is posted `failed: busy`. A meeting whose end
+  has passed is posted `skipped: time_up`. A meeting is joined again after a restart if it is still `joining` or
+  `in_call`; a 409 to `joining` or `in_call` means it is not Ghost's any more, and it is never tried again. Only
+  `https://meet.google.com/<code>` links are opened.
+- **The lobby** (`lib/meet.mjs`): `joining`; the link; a "Your name" box or a Sign in button is `failed: signed_out`
+  and the end of it; "Continue without microphone and camera", microphone and camera off; then the first of "Join
+  now", "Ask to join" or "Switch here" (a seat of its own left behind). "You can't join this video call" is
+  `failed: refused`; denied, or 10 minutes without being let in, is `failed: not_admitted`; a meeting already over is
+  `skipped: meeting_ended`. In the call when the Leave button is attached (Meet hides its tray until the pointer
+  moves). A stop during the lobby leaves the meeting `joining`, for the next run.
+- **The call**: `in_call`; the `announce` line in the chat (opened, typed, Enter, closed; a meeting with chat off is
+  let be); captions on ("Turn on captions", else "c", asked again if they go away); the tab captured into a
+  MediaRecorder, Opus/WebM, a 5-second slice appended to `/var/lib/glyph-meet/work/<id>.webm` as it comes, so a crash
+  loses at most one.
+- **The captions** (`lib/captions.mjs`): the region `[role=region][aria-label*=aption]`, read twice a second as blocks
+  of `name\ntext`, become NDJSON lines `{ at, speaker, text }` (`at` in ms since the recording began) in
+  `<id>.captions.ndjson`. A block is matched to itself across reads by speaker and words in common (it grows, gets
+  revised, scrolls off the top, loses its head in a long turn); its words are written once it has been still for 2 s
+  or a newer block appears under it; growth after that gives only the new words; a repeat of the same line by the
+  same speaker within 30 s is dropped.
+- **Leaving**, on the first of: the page says the call is over (the Leave button gone, with "You left the meeting",
+  "The meeting has ended", removed, or three reads with no button at all); `due` says `leave`; alone (a people count
+  of 1, from the People button or the tiles) for 2 minutes, counted from the booked start at the earliest and, when
+  nobody else has come at all, not before 10 minutes past it; 10 minutes past the booked end; 3 hours in; the service
+  stopping. The recorder is stopped and its last slice flushed, Leave pressed, Chrome closed.
+- **The take**: `PUT take` with `audio`, `captions`, `startedAt` and `endedAt`, tried 5 times (2, 6, 18, 54 s apart;
+  once when the service is stopping). Taken: both files deleted, then `done` posted again with why the call ended
+  (`alone`, `time_up`, ...). Refused with 409 (called off, skipped): deleted all the same. Anything else: both moved to
+  `work/failed/` and `failed: upload` posted. Files a killed run left behind are moved to `work/failed/` at start.
+- **The log** (journald): ids, states, details, byte counts, sound levels and people counts; never a title, a link, or
+  a word of the captions or the chat (`lib/log.mjs` drops any other field).
+
+`node --test` in `meet/bot` tests the captions diff, the decisions (alone, time up, busy, which meeting), the API
+client against a stand-in server (the multipart body, the token, no proxy headers, 409, the retries), the upload's
+keep-or-delete, Chrome's switches and the log's filter. Joining a real Meet is tested only by hand.
+
+### The units
+
+| Unit | Runs | |
+|---|---|---|
+| `glyph-meet-xvfb` | `Xvfb :99 -screen 0 1280x800x24 -nolisten tcp` as `glyph-meet` | enabled; Chrome needs a window, Meet turns headless browsers away |
+| `glyph-meet-pulse` | `pulseaudio -n` as `glyph-meet`, one null sink, socket `/run/glyph-meet-pulse/native` | enabled; Chrome plays the meeting to it, the tab capture takes it from there |
+| `glyph-meet` | `node /opt/glyph-meet/bot/bot.mjs` as `glyph-meet` | enabled when the token is there; `MemoryMax=3G`, `CPUQuota=200%`, `Nice=5` |
+| `glyph-meet-signin` | `node bot.mjs --signin`: a plain Chrome at accounts.google.com | on demand; `Conflicts=glyph-meet` (one Chrome on the profile) |
+| `glyph-meet-vnc` | `x11vnc -display :99 -localhost -rfbport 5901`, no password | on demand; loopback only, reached through an SSH tunnel |
+
+PulseAudio is a system unit run as the bot's user rather than PulseAudio's own user unit: a user unit needs a user
+manager for a system account (`loginctl enable-linger`) and cannot be ordered against a system unit, and `pulseaudio
+--system` is the mode its authors warn against. A server install of Ubuntu has no PipeWire to compete with it.
+
+The bot shares the real `/tmp` with Xvfb (the X socket is `/tmp/.X11-unix/X99`), so it has no `PrivateTmp`; Chrome's
+temporary files go to `TMPDIR=/var/lib/glyph-meet/tmp` instead. Chrome keeps its sandbox, which on Ubuntu is built on
+unprivileged user namespaces: so no `RestrictNamespaces`, `PrivateUsers` or `SystemCallFilter`, and no
+`MemoryDenyWriteExecute` (V8 is a JIT). `NoNewPrivileges` stays: it would break only the setuid fallback.
+
+On Linux both Chromes, the sign-in one and the bot's, run with `--password-store=basic`: a system account has no
+keyring, and the profile's cookies must be sealed and opened the same way, or Chrome throws them away. The Mac (the
+spike) uses the real keychain instead. Meet's buttons are found by their English names, so Chrome runs with
+`--lang=en-US` and Ghost's Google account must be set to English.
+
+The files: `/opt/glyph-meet/bot` (root's; the previous one kept as `bot.prev`), `/opt/glyph-meet/meetctl`,
+`/opt/glyph-meet/glyph-meet.env` (`GLYPH_MEET_TOKEN`, root:glyph-meet 0640), `/var/lib/glyph-meet` (0700: `profile/`,
+`work/`, `work/failed/`, `tmp/`).
+
+### Setting it up, signing Ghost in, deploying
+
+`GLYPH_MEET_TOKEN` goes in `tauri/.env` first (see "The environment"), and `node scripts/deploy-server.mjs` gives it to
+glyph-api. Then, from this Mac (each run is one login on the box; mind the box's limit of three an hour, ten minutes
+apart):
+
+1. `node scripts/setup-meet-box.mjs --setup --signin`: packages, Chrome (held), the user, the code, the token, the
+   units; and the sign-in browser and VNC started. It prints the OS, glibc, the user-namespace setting and Node, and
+   stops if `/usr/bin/node` is older than 18.
+2. `ssh -L 5901:localhost:5901 <AFM_DEPLOY_USER>@<AFM_DEPLOY_HOST>` (the script prints it filled in), then
+   `vnc://localhost:5901` in Screen Sharing; sign in to Ghost's account in the Chrome there.
+3. In that same ssh session: `/opt/glyph-meet/meetctl signin-done`. It closes the browser and VNC, prints
+   `SIGNED_IN yes`, and starts the bot. (`node scripts/setup-meet-box.mjs --signin-done` does the same from the Mac,
+   for one more login.)
+
+A later deploy of the bot is `node scripts/setup-meet-box.mjs` again: it ships the code, keeps the previous as
+`bot.prev`, checks the sign-in and restarts the bot, but restarts nothing while a meeting is under way (then
+`/opt/glyph-meet/meetctl restart` after it). `--print` shows what would run without logging in. On the box,
+`/opt/glyph-meet/meetctl status | check | restart` and `journalctl -u glyph-meet`. Chrome is held: to move it on,
+`sudo apt-mark unhold google-chrome-stable && sudo apt-get install --only-upgrade google-chrome-stable && sudo
+apt-mark hold google-chrome-stable`, then a test call. Rollback: `sudo rm -rf /opt/glyph-meet/bot && sudo mv
+/opt/glyph-meet/bot.prev /opt/glyph-meet/bot && /opt/glyph-meet/meetctl restart`.

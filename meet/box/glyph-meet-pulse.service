@@ -1,0 +1,47 @@
+# glyph-meet-pulse: the Meet bot's sound server, a PulseAudio with one null sink (docs/MEET.md).
+#
+# Installed by scripts/setup-meet-box.mjs, which rewrites this file on every run - edit it here, not on the box.
+#
+# Chrome plays the meeting to an output device; the bot records the tab's sound, which Chrome takes from that output,
+# so there must be one. A null sink is an output that goes nowhere: the box plays nothing out loud, it has nothing to
+# play it on.
+#
+# Why a system unit run as the bot's user, and not PulseAudio's own per-user unit: a user unit needs a user manager
+# for a system account (loginctl enable-linger) and cannot be ordered against the bot's system unit; and
+# `pulseaudio --system` is the mode its authors warn against. This is an ordinary per-user daemon, started by systemd,
+# with no config files read (-n) and everything it does on its command line: the null sink as the only (so the
+# default) sink, and its socket at /run/glyph-meet-pulse/native, in a directory only glyph-meet can open. The bot
+# finds it through PULSE_SERVER. Ubuntu 22.04's server install has no PipeWire to compete with it.
+
+[Unit]
+Description=Ghost.md Meet bot: sound (PulseAudio, a null sink)
+After=network.target
+
+[Service]
+User=glyph-meet
+Group=glyph-meet
+RuntimeDirectory=glyph-meet-pulse
+RuntimeDirectoryMode=0700
+Environment=HOME=/var/lib/glyph-meet
+Environment=XDG_RUNTIME_DIR=/run/glyph-meet-pulse
+ExecStart=/usr/bin/pulseaudio --daemonize=no --exit-idle-time=-1 --disallow-exit --disallow-module-loading \
+  --realtime=no --high-priority=no --use-pid-file=no --log-target=stderr -n \
+  --load="module-native-protocol-unix socket=/run/glyph-meet-pulse/native auth-anonymous=1" \
+  --load="module-null-sink sink_name=ghost sink_properties=device.description=Ghost"
+Restart=on-failure
+RestartSec=2
+
+NoNewPrivileges=true
+ProtectSystem=strict
+# Its cookie and state under HOME; its socket under the runtime directory.
+ReadWritePaths=/var/lib/glyph-meet
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+MemoryMax=256M
+
+[Install]
+WantedBy=multi-user.target
