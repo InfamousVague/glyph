@@ -5,7 +5,7 @@
  */
 const ALLOWED = new Set([
   'id', 'state', 'detail', 'reason', 'bytes', 'lines', 'count', 'seconds', 'attempt', 'wait', 'status', 'error',
-  'button', 'level', 'people', 'tracks', 'signed_in', 'mode', 'version', 'waiting',
+  'button', 'level', 'people', 'tracks', 'signed_in', 'mode', 'version', 'waiting', 'host',
 ]);
 
 export function log(event, fields = {}) {

@@ -40,3 +40,16 @@ test('the log keeps only ids, states and sizes', (t) => {
   log('uploaded', { id: 'm1', bytes: 123, error: 'a\nb c' });
   assert.deepEqual(lines, ['state id=m1 state=in_call', 'uploaded id=m1 bytes=123 error=a_b_c']);
 });
+
+test('a lapsed sign-in is seen on Google sign-in page, not mistaken for a lobby without a join button', async () => {
+  const { isSignInPage } = await import('../lib/meet.mjs');
+  assert.equal(isSignInPage('https://accounts.google.com/v3/signin/identifier?continue=https%3A%2F%2Fmeet.google.com%2Fabc'), true);
+  assert.equal(isSignInPage('https://meet.google.com/abc-defg-hij'), false);
+  assert.equal(isSignInPage('not a url'), false);
+});
+
+test('the join button is found with Meet warning badge in its name, and Other ways to join is not taken for it', async () => {
+  const { JOIN_BUTTON } = await import('../lib/meet.mjs');
+  for (const name of ['Join now', 'Join now warning', 'error Join now', 'Ask to join', 'Switch here']) assert.match(name, JOIN_BUTTON);
+  for (const name of ['Other ways to join', 'Join here too', 'Leave call']) assert.doesNotMatch(name, JOIN_BUTTON);
+});

@@ -24,7 +24,12 @@ const ENDED = [
   [/you left the meeting|the meeting has ended|this call has ended|everyone has left|returning to home screen/i, 'meeting_ended'],
 ];
 
-const JOIN_BUTTON = /^(join now|ask to join|switch here)$/i;
+/**
+ * The lobby's way in. Not anchored: on the box (no microphone, no camera) Meet badges "Join now" with a warning, and the
+ * badge is part of the button's accessible name, so an exact "Join now" found nothing (2026-10-19, no_join_button).
+ * "Other ways to join" holds none of these phrases.
+ */
+export const JOIN_BUTTON = /\b(join now|ask to join|switch here)\b/i;
 const LEAVE_BUTTON = /leave call/i;
 
 /** Runs in the page before Meet does: no navigator.webdriver, and the recorder (tab capture into a MediaRecorder). */
@@ -131,11 +136,31 @@ async function clickIf(page, name) {
   return true;
 }
 
+async function lobbyButtons(page) {
+  return page
+    .evaluate(() =>
+      [...document.querySelectorAll('button,[role=button]')]
+        .filter((b) => b.offsetParent !== null)
+        .length,
+    )
+    .catch(() => null);
+}
+
 async function bodyText(page) {
   return page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
 }
 
+/** Google's sign-in pages: Meet sends a profile there when its sign-in has lapsed (no name box, no Sign in button). */
+export function isSignInPage(url) {
+  try {
+    return new URL(url).hostname === 'accounts.google.com';
+  } catch {
+    return false;
+  }
+}
+
 async function signedOut(page) {
+  if (isSignInPage(page.url())) return true;
   if (await page.getByRole('textbox', { name: /your name/i }).first().isVisible().catch(() => false)) return true;
   for (const role of ['button', 'link']) {
     if (await page.getByRole(role, { name: /^sign in$/i }).first().isVisible().catch(() => false)) return true;
@@ -154,7 +179,12 @@ export async function join(page, url, { admitMs, shouldStop = () => false, log =
   let pressed = null;
   while (!pressed) {
     if (shouldStop()) return { ok: false, detail: 'shutdown' };
-    if (Date.now() > previewBy) return { ok: false, detail: 'no_join_button' };
+    if (Date.now() > previewBy) {
+      // Where the lobby was instead, for the log: the page's host and how many buttons it showed (no names: a button
+      // can carry a person's).
+      log('lobby', { host: (() => { try { return new URL(page.url()).hostname; } catch { return ''; } })(), count: await lobbyButtons(page) });
+      return { ok: false, detail: 'no_join_button' };
+    }
     if (await signedOut(page)) return { ok: false, detail: 'signed_out' };
     const text = await bodyText(page);
     for (const [pattern, detail] of PREVIEW_OUTCOMES) if (pattern.test(text)) return { ok: false, detail };
