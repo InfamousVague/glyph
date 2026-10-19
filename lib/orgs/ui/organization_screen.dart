@@ -280,10 +280,12 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
     final news = _news;
     final now = _now();
 
-    // The notes filed in its workspace, newest change first.
+    // The notes filed in its workspace, or in any folder under it (GHST-107), newest change first.
     final workspaceId = orgWorkspaceId(widget.orgId);
-    final filed = services?.workspaces?.value.of ?? const <String, String>{};
-    final filedHere = [for (final note in widget.notes) if (filed[note.id] == workspaceId && note.archivedAt == null) note]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    final spaces = services?.workspaces?.value;
+    final filed = spaces?.of ?? const <String, String>{};
+    final here = workspaceFamily(spaces?.list ?? const [], workspaceId).toSet();
+    final filedHere = [for (final note in widget.notes) if (here.contains(filed[note.id]) && note.archivedAt == null) note]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
     final others = [for (final each in (_signedIn ? services!.orgState.list : const <OrgRow>[])) if (each.id != widget.orgId) each];
     final canInvite = member && (row!.role == 'owner' || row.role == 'admin');

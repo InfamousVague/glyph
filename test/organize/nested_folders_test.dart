@@ -35,10 +35,12 @@ void main() {
     // Without the list, or with a parent whose name is no folder, the folder is at the top.
     expect(folderFor(acme), 'workspaces/Acme');
     expect(workspacePathName(it.store.value.list, acme.id), 'Work › Clients › Acme');
-    // An organization's workspace holds no folder.
+    // An organization's workspace holds folders too (GHST-107), under its own folder on disk.
     final team = it.store.ensureOrgWorkspace(const OrgLike(id: 'abc', name: 'Team'));
-    expect(it.store.addWorkspace('Inside', 'ink', team.id)!.parent, isNull);
+    final inside = it.store.addWorkspace('Inside', 'ink', team.id)!;
+    expect(inside.parent, team.id);
     expect(folderFor(team, it.store.value.list), 'orgs/Team');
+    expect(folderFor(inside, it.store.value.list), 'orgs/Team/Inside');
   });
 
   test('a workspace shows the notes of the folders inside it', () {
@@ -110,15 +112,16 @@ void main() {
     ]);
   });
 
-  test('a parent that is gone, an organization’s, or a loop is read as none', () {
+  test('a parent that is gone, one on an organization’s workspace, or a loop is read as none; an organization’s as a parent stands', () {
     final it = storeOf(const WorkspaceSheet(list: [
       Workspace(id: 'a', name: 'A', parent: 'b'),
       Workspace(id: 'b', name: 'B', parent: 'a'),
       Workspace(id: 'c', name: 'C', parent: 'gone'),
       Workspace(id: 'org-x', name: 'X'),
       Workspace(id: 'd', name: 'D', parent: 'org-x'),
+      Workspace(id: 'org-y', name: 'Y', parent: 'a'),
     ]));
-    expect({for (final w in it.store.value.list) w.id: w.parent}, {'a': null, 'b': null, 'c': null, 'org-x': null, 'd': null});
+    expect({for (final w in it.store.value.list) w.id: w.parent}, {'a': null, 'b': null, 'c': null, 'org-x': null, 'd': 'org-x', 'org-y': null});
   });
 
   test('the parent travels in the preferences, and a store from before it reads every folder at the top', () {

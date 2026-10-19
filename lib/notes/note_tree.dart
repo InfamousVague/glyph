@@ -14,7 +14,7 @@ import '../core/search_query.dart' show parseSearch;
 import '../core/smart_notebooks.dart';
 import '../core/stored.dart';
 import '../core/tag_index.dart' show tagIndex;
-import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces, isOrgWorkspace;
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, Workspaces, orgOfWorkspace;
 import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
@@ -242,16 +242,21 @@ class _NoteTreeState extends State<NoteTree> {
         : LongPressDraggable<_Dragged>(data: data, feedback: feedback, childWhenDragging: dimmed, hapticFeedbackOnStart: true, child: child);
   }
 
-  /// What a drop on a folder would do: file a note there, or move a folder inside it. Null where it cannot.
+  /// Whether a drop on a folder would do anything: file a note there, or move a folder inside it. A note stays in
+  /// the organization it is in, or out of every one (GHST-107): an organization's workspace or a folder under it
+  /// takes a note already in that organization, from another of its folders, and refuses one from outside, as a
+  /// personal folder refuses an organization's note. A folder moves only where [WorkspaceStore.canMove] lets it,
+  /// never into or out of an organization.
   bool _takes(_Dragged dragged, String folder) {
-    if (isOrgWorkspace(folder)) return false;
+    final spaces = widget.workspaces.value;
+    final org = orgOfWorkspace(spaces.list, folder);
     final note = dragged.note;
     if (note != null) {
-      final filed = widget.workspaces.value.of[note];
-      return filed != folder && (filed == null || !isOrgWorkspace(filed));
+      final filed = spaces.of[note];
+      return filed != folder && (filed == null ? org == null : orgOfWorkspace(spaces.list, filed) == org);
     }
     final moving = dragged.folder;
-    return moving != null && widget.workspaces.canMove(moving, folder) && widget.workspaces.value.list.where((w) => w.id == moving).firstOrNull?.parent != folder;
+    return moving != null && widget.workspaces.canMove(moving, folder) && spaces.list.where((w) => w.id == moving).firstOrNull?.parent != folder;
   }
 
   void _drop(_Dragged dragged, String folder) {
@@ -325,9 +330,10 @@ class _NoteTreeState extends State<NoteTree> {
         softWrap: !compact,
         overflow: TextOverflow.ellipsis,
       );
+      // An organization's note is dragged too, to another folder of the same organization ([_takes]).
       return _draggable(
         context,
-        drawn.drags && !isOrgWorkspace(spaces.of[note.id] ?? ''),
+        drawn.drags,
         _Dragged(note: note.id, label: title.isEmpty ? 'Untitled' : title),
         look,
         CssFlow.block(
@@ -453,7 +459,10 @@ class _NoteTreeState extends State<NoteTree> {
     /// not collapse with its neighbours'; a top folder's are worked out as the page collapses them ([over]).
     Widget folderOf(String id, String name, int count, List<Note> children, {String? hue, Workspace? space, LucideIcon? icon, List<TreeFolder> inside = const [], bool inner = false}) {
       final open = !_closed.contains(id);
+      // The organization whose own workspace this is, for its menu; and whether it is in one at all, for its mark
+      // (a folder under an organization's workspace is the team's too, GHST-107).
       final org = space?.org;
+      final shared = space != null && orgOfWorkspace(spaces.list, space.id) != null;
       // `.folder { margin-block: 1px }`
       final gap = inner ? 1.0 : over(1);
       final folderRow = _FolderRow(
@@ -461,7 +470,7 @@ class _NoteTreeState extends State<NoteTree> {
         open: open,
         onToggle: () => _toggle(id),
         lead: icon != null ? lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')) : _Hue(hue: hue ?? 'ink', em: look.folderSize),
-        org: org != null,
+        org: shared,
         name: name,
         count: count,
         // A workspace's menu: its sheet, or for an organization's workspace the organization's own screen.
@@ -485,11 +494,13 @@ class _NoteTreeState extends State<NoteTree> {
                 ),
       );
       // A workspace's folder takes a note or another folder dropped on it, and is itself dragged, on a wide window.
-      final Widget head = space == null || !drawn.drags || org != null
+      // An organization's own workspace is not dragged (it is always at the top), but takes a note back from one of
+      // its folders ([_takes]).
+      final Widget head = space == null || !drawn.drags
           ? folderRow
           : _draggable(
               context,
-              true,
+              org == null,
               _Dragged(folder: id, label: name),
               look,
               DragTarget<_Dragged>(

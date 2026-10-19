@@ -14,7 +14,7 @@ import 'package:flutter/foundation.dart';
 
 import '../core/workspaces.dart' show OrgLike;
 
-export '../core/workspaces.dart' show isOrgWorkspace, orgIdOf, orgWorkspaceId;
+export '../core/workspaces.dart' show isOrgWorkspace, orgIdOf, orgOfWorkspace, orgWorkspaceId, workspaceFamily;
 
 /// `owner`, `admin` or `member` (`Role`).
 const List<String> roles = ['owner', 'admin', 'member'];

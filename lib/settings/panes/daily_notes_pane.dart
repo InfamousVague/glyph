@@ -70,7 +70,8 @@ class DailyNotesPane extends StatelessWidget {
             if ((note.archivedAt ?? 0) == 0 && NoteFacts.of(note).isBook && !NoteFacts.of(note).isJournal && !isTemplatesBook(note.body)) note,
         ]..sort((a, b) => NoteFacts.of(a).title.toLowerCase().compareTo(NoteFacts.of(b).title.toLowerCase()));
         final list = workspaces.value.list;
-        final personal = [for (final w in list) if (w.org == null) w];
+        // Not an organization's, nor a folder under one's: a day's notes are the person's own (GHST-107).
+        final personal = [for (final w in list) if (orgOfWorkspace(list, w.id) == null) w];
         // The Daily notes folder, once it is made, is the first row's, not a row of its own.
         final made = personal.where((w) => w.name.toLowerCase() == dailyFolderName.toLowerCase() && w.parent == null).firstOrNull;
         final folder = setup.folder;

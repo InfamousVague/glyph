@@ -634,8 +634,8 @@ class _HomeScreenState extends State<HomeScreen> {
     final read = drawn.read;
     final spaces = read.spaces;
     final workspace = spaces.current?.id;
-    // The organization the page is filtered to, when the chosen workspace is one's.
-    final orgSpace = workspace == null ? null : orgIdOf(workspace);
+    // The organization the page is filtered to, when the chosen workspace is one's or a folder under it (GHST-107).
+    final orgSpace = workspace == null ? null : orgOfWorkspace(spaces.list, workspace);
     final notes = read.notes;
     final counts = read.counts;
     final inBooks = read.inBooks;

@@ -21,8 +21,16 @@
 ///   kept beside its name as `parent` in the preferences, and its folder on disk is inside its parent's
 ///   (`workspaces/Work/Clients/`, lib/core/note_folders.dart). Choosing a workspace shows the notes of the folders
 ///   inside it too ([WorkspaceStore.inWorkspace]); renaming or moving one moves the files of every folder under it;
-///   removing one keeps the folders inside it, a level up. An organization's workspace is never inside another and
-///   never holds one. A build without this reads `parent` as nothing and shows every folder at the top.
+///   removing one keeps the folders inside it, a level up. A build without this reads `parent` as nothing and shows
+///   every folder at the top.
+/// - **Folders inside an organization's workspace** (GHST-107, 2026-10-19): an organization's workspace may be a
+///   parent, never a child, and the folders under it, to any depth, are ordinary workspaces with `parent` set, their
+///   ids random and kept per account as any folder's. They are the team's: a note's folder is its file's path
+///   (`orgs/<the organization>/Clients/Acme/`), which rides inside the sealed team note, so every member's device
+///   files it the same (lib/team/folders.dart). Whether a workspace is in an organization is read by walking its
+///   parents ([orgOfWorkspace]); the id's prefix ([isOrgWorkspace]) says only whether it is the organization's own.
+///   Nothing is moved into or out of an organization: [canMove] keeps a folder in the organization it is in, or out
+///   of every one. The organization's workspace gone ([dropOrgWorkspace]) takes its folders with it.
 library;
 
 import 'dart:math';
@@ -48,8 +56,24 @@ String orgWorkspaceId(String orgId) => '$_orgWorkspace$orgId';
 String? orgIdOf(String workspaceId) =>
     workspaceId.startsWith(_orgWorkspace) && workspaceId.length > _orgWorkspace.length ? workspaceId.substring(_orgWorkspace.length) : null;
 
-/// Whether a workspace is an organization's: the id's prefix, which is the truth.
+/// Whether a workspace is an organization's own: the id's prefix, which is the truth. A folder inside one is not
+/// (its id is any folder's); [orgOfWorkspace] says whether a workspace is in an organization at all.
 bool isOrgWorkspace(String workspaceId) => orgIdOf(workspaceId) != null;
+
+/// The organization a workspace is in, by id, walking its parents up to an organization's own workspace: the
+/// organization's for its own workspace, the same for a folder under it however deep, and null for a personal
+/// workspace or an id [all] does not have.
+String? orgOfWorkspace(List<Workspace> all, String id) {
+  final byId = {for (final w in all) w.id: w};
+  final seen = <String>{};
+  var at = byId[id];
+  while (at != null && seen.add(at.id)) {
+    final org = orgIdOf(at.id);
+    if (org != null) return org;
+    at = at.parent == null ? null : byId[at.parent];
+  }
+  return null;
+}
 
 /// A workspace (`Workspace`).
 @immutable
@@ -67,11 +91,12 @@ class Workspace {
   final String? hue;
 
   /// The workspace this one is a folder inside, by id; null at the top (docs/FEATURES_2_1.md, organize). Its
-  /// folder on disk is inside its parent's: `workspaces/Work/Clients/`. Only a personal workspace has one, and only
-  /// a personal one is a parent.
+  /// folder on disk is inside its parent's: `workspaces/Work/Clients/`, or `orgs/Ghost.md/Clients/` under an
+  /// organization's. An organization's own workspace has none.
   final String? parent;
 
-  /// The organization it stands for, by id; null for a personal one. Read from the id, never kept.
+  /// The organization it stands for, by id; null for a personal one, and for a folder inside an organization's,
+  /// which stands for none ([orgOfWorkspace] says which it is in). Read from the id, never kept.
   String? get org => orgIdOf(id);
 
   /// The same workspace with another name, hue or parent; [parent] is a function so null can be said.
@@ -205,10 +230,11 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     final held = _storage.read();
     final kept = [for (final w in held.list) Workspace.kept(id: w.id, name: w.name, hue: w.hue, parent: w.parent)];
     final ids = {for (final w in kept) w.id};
-    // A parent that is gone, an organization's, or a loop back to itself is no parent: the folder is at the top.
+    // A parent that is gone, one on an organization's own workspace, or a loop back to itself is no parent: the
+    // folder is at the top. An organization's workspace as a parent is a folder of the team's (GHST-107).
     final list = [
       for (final w in kept)
-        w.parent != null && (!ids.contains(w.parent) || isOrgWorkspace(w.id) || isOrgWorkspace(w.parent!) || _loops(kept, w)) ? w.copyWith(parent: () => null) : w,
+        w.parent != null && (!ids.contains(w.parent) || isOrgWorkspace(w.id) || _loops(kept, w)) ? w.copyWith(parent: () => null) : w,
     ];
     // The filings that point at one of the list's workspaces.
     final notes = {
@@ -278,17 +304,20 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     }
   }
 
-  /// A new workspace called [name], in [hue], or the personal one already called that; null for an empty name. An
-  /// organization's workspace of that name is not the one. With [parent], a folder inside that workspace (a
-  /// personal one; an organization's has none inside it).
+  /// A new workspace called [name], in [hue], or the one already called that; null for an empty name. With
+  /// [parent], a folder inside that workspace, a personal one or an organization's (GHST-107), and the one already
+  /// called that inside the same parent is the one. Without, the personal one already called that, wherever it is,
+  /// as before folders were nested; an organization's workspace of that name, or a folder inside one, is never the
+  /// one, since those are the team's. A parent the list does not have is no parent.
   Workspace? addWorkspace(String name, [String hue = 'ink', String? parent]) {
     final clean = _tidy(name);
     if (clean.isEmpty) return null;
     final sheet = _current;
+    final inside = parent != null && sheet.list.any((w) => w.id == parent) ? parent : null;
     for (final w in sheet.list) {
-      if (!isOrgWorkspace(w.id) && w.name.toLowerCase() == clean.toLowerCase()) return w;
+      if (w.name.toLowerCase() != clean.toLowerCase()) continue;
+      if (inside != null ? w.parent == inside : orgOfWorkspace(sheet.list, w.id) == null) return w;
     }
-    final inside = parent != null && !isOrgWorkspace(parent) && sheet.list.any((w) => w.id == parent) ? parent : null;
     final made = Workspace(id: _freshId(sheet.list), name: clean, hue: _wornHue(hue), parent: inside);
     _write(WorkspaceSheet(list: [...sheet.list, made], notes: sheet.notes, current: sheet.current));
     return made;
@@ -344,20 +373,24 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   /// The workspaces inside [id], one level down, in the order they were made; the ones at the top for null.
   List<Workspace> childrenOf(String? id) => [for (final w in _current.list) if (w.parent == id) w];
 
-  /// Whether [id] may be put inside [parent] (null, the top): both personal, and [parent] not [id] itself nor any
-  /// folder inside it.
+  /// Whether [id] may be put inside [parent] (null, the top): not an organization's own workspace, which is always
+  /// at the top; [parent] not [id] itself nor any folder inside it; and in the same organization as [id] is now, or
+  /// in none, so a folder is never dragged into an organization or out of one (GHST-107: its notes would change
+  /// hands). A folder of an organization's may go to any folder of the same, or to the organization's workspace,
+  /// never to the top.
   bool canMove(String id, String? parent) {
     if (isOrgWorkspace(id)) return false;
     final list = _current.list;
     if (!list.any((w) => w.id == id)) return false;
-    if (parent == null) return true;
-    if (isOrgWorkspace(parent) || !list.any((w) => w.id == parent)) return false;
+    final org = orgOfWorkspace(list, id);
+    if (parent == null) return org == null;
+    if (!list.any((w) => w.id == parent) || orgOfWorkspace(list, parent) != org) return false;
     return !workspaceFamily(list, id).contains(parent);
   }
 
   /// Puts workspace [id] inside [parent], or at the top with null: its folder, and every folder inside it, move with
-  /// it on disk, and their notes with them. Not an organization's, and never into one; never into itself or a
-  /// folder inside it.
+  /// it on disk, and their notes with them. Not an organization's own; never into itself or a folder inside it;
+  /// never into or out of an organization ([canMove]).
   void moveWorkspace(String id, String? parent) {
     if (!canMove(id, parent)) return;
     final sheet = _current;
@@ -386,6 +419,22 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
         if (!held.containsKey(note)) note,
     ];
   }
+
+  /// The notes filed in workspace [id] or in any folder under it, however deep, that are not in the trash: what a
+  /// folder holds, as its count says (GHST-107).
+  List<String> notesUnder(String id) {
+    final sheet = _current;
+    final family = workspaceFamily(sheet.list, id).toSet();
+    final held = trash?.value ?? const <String, int>{};
+    return [
+      for (final entry in sheet.notes.entries)
+        if (family.contains(entry.value) && !held.containsKey(entry.key)) entry.key,
+    ];
+  }
+
+  /// The organization workspace [workspaceId] is in, walking its parents ([orgOfWorkspace]); null for a personal
+  /// one. Not the note's: [workspaceOf] finds a note's workspace first.
+  String? orgOf(String workspaceId) => orgOfWorkspace(_current.list, workspaceId);
 
   /// Deletes the workspace, asked each time what becomes of its notes: kept, and only unfiled, as [removeWorkspace]
   /// leaves them, or put in the trash with it, where they wait to be restored or emptied like any deleted note
@@ -468,8 +517,23 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     if (clean.isNotEmpty && clean != was.name) _rename(id, clean);
   }
 
-  /// The organization's workspace gone, as when the person leaves it: its notes are unfiled, never deleted.
-  void dropOrgWorkspace(String orgId) => _remove(orgWorkspaceId(orgId));
+  /// The organization's workspace gone, as when the person leaves it, and every folder under it with it (GHST-107:
+  /// a folder of a team the person has left is nobody's): their notes are unfiled, never deleted, and the list shows
+  /// all notes if one of them was chosen.
+  void dropOrgWorkspace(String orgId) {
+    final sheet = _current;
+    final gone = workspaceFamily(sheet.list, orgWorkspaceId(orgId)).toSet();
+    if (!sheet.list.any((w) => gone.contains(w.id))) return;
+    onFiled?.call([for (final entry in sheet.notes.entries) if (gone.contains(entry.value)) entry.key], null);
+    _write(WorkspaceSheet(
+      list: [for (final w in sheet.list) if (!gone.contains(w.id)) w],
+      notes: {
+        for (final entry in sheet.notes.entries)
+          if (!gone.contains(entry.value)) entry.key: entry.value,
+      },
+      current: gone.contains(sheet.current) ? null : sheet.current,
+    ));
+  }
 
   /// Files [noteId] in a workspace, or in none with null. The note's file follows its filing: into
   /// `workspaces/<the workspace>/`, or back to `Inbox/` ([onFiled]).

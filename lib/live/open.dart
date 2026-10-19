@@ -76,7 +76,7 @@ class NoteLive {
   /// The organization a note is filed in, or null for a note that is not a team's (`isTeamNote`).
   String? orgOf(String noteId) {
     final space = workspaces.workspaceOf(noteId);
-    return space == null ? null : orgIdOf(space.id);
+    return space == null ? null : workspaces.orgOf(space.id);
   }
 
   /// The note in [view] made live, for as long as the answer is not closed. [jump] is a member's caret to open at

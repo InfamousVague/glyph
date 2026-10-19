@@ -229,15 +229,17 @@ the Rust library already reads subfolders and moves files into nested paths (`li
 
 - A personal workspace may have a **`parent`** (kept beside its name in the synced `workspaces` preference:
   `{"id": "w-…", "name": "Clients", "parent": "w-work"}`). Its folder on disk is inside its parent's:
-  `workspaces/Work/Clients/<note>.md`. An organization's workspace is never inside another and never holds one. A
-  parent that is gone, an organization's, or a loop reads as none.
+  `workspaces/Work/Clients/<note>.md`. An organization's workspace is never inside another; since GHST-107
+  (2026-10-19) it holds folders, which are the team's (the next section). A parent that is gone, one on an
+  organization's own workspace, or a loop reads as none.
 - Choosing a workspace (the home filter, All notes' pills) shows the notes of the folders inside it too.
 - Renaming or moving a folder moves the files of every folder under it; removing one keeps the folders inside it, a
   level up (their files move with them).
 - **Sidebar:** folders inside folders, each folding on its own, its count its notes and those of the folders inside;
   on a wide window (600 wide and up) a note or a folder dragged onto a folder is filed or moved there (a mouse drags
-  at once, a finger holds first). An organization's folder takes no drop and gives none: a team note is moved through
-  the note's Workspace picker, which asks twice.
+  at once, a finger holds first). An organization's folder takes a note from another folder of the same
+  organization and nothing from outside it (GHST-107); a team note leaves the organization through the note's
+  Workspace picker, which asks twice.
 - **Making and moving:** a folder's More (the sidebar and Settings › Workspaces) has **New folder inside** and
   **Move** (at the top, or into any folder that is not it or inside it). A note's Workspace picker (More sheet) and
   the palette's "File it in …" name nested folders with their path ("Work › Clients"), and are the Move for a note
@@ -246,6 +248,38 @@ the Rust library already reads subfolders and moves files into nested paths (`li
   `lib/core/kept_workspaces.dart`, `lib/settings/panes/settings_host.dart`, `lib/notes/tree.dart`,
   `lib/notes/note_tree.dart`, `lib/notes/workspace_sheet.dart` (rows behind `folders: true`, so the sheet the tests
   hold to the web page is unchanged), `lib/note/workspace_picker.dart`, `lib/commands/app_commands.dart`.
+
+### Folders inside an organization's workspace (GHST-107, slice 1)
+
+**Found:** an organization's workspace could neither hold a folder nor be one (`WorkspaceStore` cleared any
+`parent` on or under one), and a note's folder already travels: a team note's row carries the note whole, `path`
+included, `particulars()` counts the path, and the library writes the file at the row's path when it lands
+(`apply_note`). So `orgs/Ghost.md/Clients/Acme/Plan.md` lands at that path on every member's device, and no server
+changed.
+
+**What changed:**
+
+- An organization's workspace may be a **parent**, never a child: the folders under it, to any depth, are ordinary
+  workspaces with `parent` set, random ids, kept per account in the preferences as any folder's. Their folders on
+  disk are under the organization's: `orgs/Ghost.md/Clients/Acme/`.
+- **In an organization** is read by walking parents (`orgOfWorkspace(list, id)`, `WorkspaceStore.orgOf(id)`); the
+  id's prefix (`isOrgWorkspace`) says only whether a workspace is the organization's own. Everything that asked
+  "is this note the team's" walks: the team channel's `isTeamNote`, the account sync's `teamNote`, the version
+  history's default, live editing, comment colours, the export, the picker's notice and its asked-twice move (a
+  move within the organization is not asked), the pills' and the sidebar's organization mark, the home page's
+  "who is here". A folder's pill or row filters; only the organization's own opens the organization.
+- **Nothing moves into or out of an organization:** `canMove` keeps a folder in the organization it is in (or out
+  of every one), the Move sheet offers no "At the top" for one, and the sidebar's drop rule takes a note from
+  another folder of the same organization only. Leaving the organization drops its folders with its workspace.
+- **Sync** (`lib/team/folders.dart`): a note from the team is filed by its path: the folders between
+  `orgs/<the organization>/` and the file name are found by name under the organization's workspace, then under
+  each in turn, or made, and the note is filed in the deepest. A rename or a move of a folder on one device moves
+  its files, which puts their rows again, and every other device files them the same way. A folder a pass
+  emptied, named by no team note's path, is dropped at the pass's end; a folder empty before the pass (one just
+  made, one landed through the preferences, one emptied on purpose) is left alone.
+- Files: `lib/core/workspaces.dart`, `lib/core/note_folders.dart` (`folderFor`, `orgFolderNames`),
+  `lib/team/folders.dart`, `lib/team/sync.dart`, `lib/sync/engine.dart` (`TeamPass.folders`), the call sites
+  above. Tests: `test/organize/org_folders_test.dart`, `test/team_sync/folders_test.dart`.
 
 ### Today's note
 
