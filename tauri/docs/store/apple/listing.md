@@ -1,7 +1,7 @@
 # The App Store listing
 
 What App Store Connect holds for the iPhone app (Ghost Markdown, app 6818598896, `com.mattssoftware.glyph`). Since
-2026-10-18 it is version 2.2.1's (Matt: "redo the website and the app store listing to highlight more important
+2026-10-18 it is version 2.2.1's (renumbered 2.3.1 with a new build on 2026-10-19, below) (Matt: "redo the website and the app store listing to highlight more important
 features that set us apart like the claude integrations and calendar integrations as well as notion etc"), written
 there through the App Store Connect API (`ghost-md-app-store-pack/tools/asc.mjs`), and since 2026-10-19 without a
 third party's name (below). The pictures are not in the repository: they are in
@@ -60,7 +60,8 @@ Markdown notes with AI
 The subtitle is the app's, not the version's (`appInfoLocalizations`), and the Mac's too. **Not yet set** (2026-10-19):
 while macOS 2.2.1 is in review its app info is `IN_REVIEW` and App Store Connect refuses the change (409, "The field
 'subtitle' can not be modified in the current state"), so it still reads "Markdown notes with Claude". Set it with
-`node tools/ios-2.2.1-neutral.mjs words` once the Mac review ends, before iOS 2.2.1 is resubmitted.
+`node tools/ios-2.2.1-neutral.mjs words` once the Mac review ends, before iOS 2.3.1 (the same version, renumbered) is
+submitted. That script also writes 2.2.1's What's New over 2.3.1's: run `node tools/ios-2.3.1.mjs words` after it.
 
 ## Promotional text (170)
 
@@ -110,7 +111,25 @@ SYNC AND PRIVACY
 No account is needed. Without one, your notes stay on your iPhone and nothing of yours is on any server. Sign in and your notes are the same on your iPhone, on a Mac and in a browser, sealed on the device before they leave. The server cannot read them, and your password never leaves the device. The AI assistant sees only what you ask it and the notes it reads to answer, sent to your AI provider with your own key. Delete the account in Settings and everything it kept goes with it. No ads, no analytics, no tracking.
 ```
 
+## What's New, 2.3.1 (4,000)
+
+Set by `ghost-md-app-store-pack/tools/ios-2.3.1.mjs words` (2026-10-19). The live iPhone version is 2.0.5 (2.2.1 never
+shipped), so it says what is new since 2.0.5: 2.2.1's lines, then 2.3.1's. Checked in the code at 3f17f313: simple
+mode's home, To-dos and note header have no platform gate (lib/simple, lib/note/note_screen.dart), and draw no
+microphone on an iPhone; "Ghost in meetings" is not offered there (`publishingOffered()` is false on iOS, so
+lib/root/account_wiring.dart makes no MeetIn and Settings shows no card), so it is not named.
+
+```
+An AI assistant, in the app: ask with your own API key, choose the model and the effort, and watch it type into your notes with its thinking shown. When it makes a new note, the note opens and the words are typed in as you watch.
+Your AI assistant's own app, connected through Ghost.md's connector, is seen at work on the note it is writing.
+Calendars: sign in to your calendar or add a calendar's subscription address. Events show on Today and in queries, and dated to-dos can go onto your calendar.
+A Plugins page: the AI assistant, Calendar, Contacts, Webhooks and code repositories, each switched on or off in one place.
+Simple or advanced: choose how much of the app is shown. Simple mode is a plain home page with a search and your notes grouped by when you last wrote in them, and a To-dos page with every open to-do across your notes under Overdue, Today, Later and Someday. In simple mode a note has just Notes, More and Done at its head, and the formatting bar adds a picture, a list, a table or a date.
+```
+
 ## What's New, 2.2.1 (4,000)
+
+Never shipped: replaced by 2.3.1's above.
 
 ```
 An AI assistant, in the app: ask with your own API key, choose the model and the effort, and watch it type into your notes with its thinking shown.
@@ -221,6 +240,29 @@ status cluster (the time and Wi-Fi at its right edge) shows in each picture. Sho
 - A sentence added to the review notes: the listing names no third party; in the app the assistant is Claude, used
   only with the person's own Anthropic API key, and Ghost.md is not made by or affiliated with Anthropic.
 - Build 2002001 still attached. **Not resubmitted**: Matt resubmits, after the subtitle is set.
+
+## Version 2.3.1 in App Store Connect (2026-10-19)
+
+Matt: "push a new version since we're at 2.3.1 now anyways", and "also remove the rejected 2.2.1 version for iOS".
+
+- Build 2.3.1 (2003001) made by `tool/cutover-build-ios.sh 2.3.1` from 3f17f313 (the "+" in its commit is a peer's
+  uncommitted tauri/ test report, nothing the iPhone app builds), validated and uploaded with `xcrun altool` (delivery
+  70c98c77-7bcf-4146-b367-72e76f5fcfbe), processed `VALID`, `usesNonExemptEncryption` false.
+- The refused version renumbered rather than replaced: `PATCH appStoreVersions/ed771246-…` with versionString 2.3.1
+  was accepted, and the version went from `REJECTED` to `PREPARE_FOR_SUBMISSION`; build 2003001 attached in 2002001's
+  place (`tools/ios-2.3.1.mjs renumber`). No version named 2.2.1 is left on iOS.
+- The refused review submission cf04e1e6-870a-4c90-a672-a5784f358b04 cancelled (`canceled: true`), now `COMPLETE`, so
+  nothing named 2.2.1 is pending. A new submission is made when 2.3.1 is sent.
+- What's New above set; promotional text, keywords and description read back equal to the brand-free words above; the
+  ten `APP_IPHONE_67` and ten `APP_IPHONE_DUO` pictures `COMPLETE`, the header (4c000019-…) and search (bec00019-…)
+  placements `ACTIVE`, all carried with the version.
+- **The pictures against 2.3.1** (advanced mode, which they show): the shell, home, note, plugins and settings code
+  paths between 37dfa47e and 3f17f313 change nothing in advanced mode (the simple shell is `_plain`, the Format bar's
+  new tail is drawn only where `prefs.simple`). One thing is visible: the assistant's chat bubbles set their words in
+  white rather than near-black (bfeadba6), so picture 1 ("Ask your AI assistant. Watch it think.", 6.9" and Duo) shows
+  the old dark ink on the grey bubbles. No other picture shows a bubble.
+- **Not submitted.** Before it is: the subtitle (above, waiting on the Mac's review), then `tools/ios-2.3.1.mjs words`
+  again if `ios-2.2.1-neutral.mjs words` was run, and Matt's choice whether to reshoot picture 1.
 
 
 ## macOS 2.2.1 (the Mac App Store)
