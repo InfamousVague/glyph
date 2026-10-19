@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../art/icons.dart';
-import '../core/workspaces.dart' show Workspace, WorkspaceStore, workspacePathName;
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, orgOfWorkspace, workspacePathName;
 import '../sheet/kit.dart';
 import '../sheet/sheet.dart';
 import 'org_mark.dart';
@@ -113,29 +113,32 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
     widget.onClose();
   }
 
-  /// Where a folder can go: the top, and every personal workspace that is not it nor inside it.
+  /// Where a folder can go: the top, and every personal workspace that is not it nor inside it; for a folder of an
+  /// organization's, the organization's workspace and every folder of it (GHST-107), and never the top.
   Widget _moveSheet(Workspace editing) {
     final list = widget.store.value.list;
-    final places = [for (final w in list) if (w.org == null && w.id != editing.id && widget.store.canMove(editing.id, w.id)) w];
+    final shared = orgOfWorkspace(list, editing.id) != null;
+    final places = [for (final w in list) if (w.id != editing.id && widget.store.canMove(editing.id, w.id)) w];
     return Sheet(
       label: 'Move ${editing.name}',
       onBack: () => setState(() => _moving = false),
       onClose: widget.onClose,
       children: [
         SheetTitle.text('Move ${editing.name}'),
-        const SheetNote('Its notes and the folders inside it go with it, on disk too.'),
+        SheetNote(shared ? 'Its notes and the folders inside it go with it, on disk too, and stay the organization’s.' : 'Its notes and the folders inside it go with it, on disk too.'),
         SheetGroup(
           children: [
-            SheetRow(
-              key: const ValueKey('move-top'),
-              icon: const DrawnIconView(AppIcons.workspace, size: 18),
-              label: 'At the top',
-              chosen: editing.parent == null,
-              onPress: () {
-                widget.store.moveWorkspace(editing.id, null);
-                widget.onClose();
-              },
-            ),
+            if (!shared)
+              SheetRow(
+                key: const ValueKey('move-top'),
+                icon: const DrawnIconView(AppIcons.workspace, size: 18),
+                label: 'At the top',
+                chosen: editing.parent == null,
+                onPress: () {
+                  widget.store.moveWorkspace(editing.id, null);
+                  widget.onClose();
+                },
+              ),
             for (final w in places)
               SheetRow(
                 key: ValueKey('move-${w.id}'),

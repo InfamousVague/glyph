@@ -86,8 +86,9 @@ class _WorkspacesPaneState extends State<WorkspacesPane> {
         listenable: widget.store,
         builder: (context, _) {
           final list = widget.store.value.list;
-          final personal = [for (final space in list) if (space.org == null) space];
-          final teams = [for (final space in list) if (space.org != null) space];
+          // A folder under an organization's workspace is the team's, listed with it (GHST-107).
+          final personal = [for (final space in list) if (orgOfWorkspace(list, space.id) == null) space];
+          final teams = [for (final space in list) if (orgOfWorkspace(list, space.id) != null) space];
           final manage = _manage;
           // The sheet edits the workspace as it is now, not as it was when its row was pressed.
           final editing = manage?.editing == null ? null : list.where((space) => space.id == manage!.editing!.id).firstOrNull;
@@ -111,12 +112,15 @@ class _WorkspacesPaneState extends State<WorkspacesPane> {
                   description: const Text('Named and coloured after the organization. One goes when you leave its organization.'),
                   children: [
                     for (final space in teams)
+                      // The organization's own row opens the organization; a folder's, "Ghost.md › Clients", its sheet.
                       SettingRow(
                         key: ValueKey(space.id),
                         icon: HueMark(hue: space.hue),
-                        label: space.name,
+                        label: space.org != null ? space.name : workspacePathName(list, space.id),
                         hint: Text(_notes(space)),
-                        onPress: widget.onOrganization == null ? null : () => widget.onOrganization!(space.org!),
+                        onPress: space.org != null
+                            ? (widget.onOrganization == null ? null : () => widget.onOrganization!(space.org!))
+                            : () => setState(() => _manage = _Manage(space)),
                       ),
                   ],
                 ),

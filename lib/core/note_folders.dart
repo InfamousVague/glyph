@@ -48,8 +48,11 @@ String folderName(String name) {
 /// organization's note under `workspaces/`.
 ///
 /// A workspace inside another ([Workspace.parent]) is a folder inside its parent's, as deep as they go:
-/// `workspaces/Work/Clients/`. [all] is every workspace, for the parents' names; without it, or where a parent's
-/// name cleans away to nothing, the workspace's folder is at the top, as before folders were nested.
+/// `workspaces/Work/Clients/`, or under an organization's, `orgs/Ghost.md/Clients/` (GHST-107: the same on every
+/// member's device, since the organization's folder is named after it and a folder after its workspace, so the
+/// path a team note's row carries files it the same everywhere). [all] is every workspace, for the parents' names;
+/// without it, or where a parent's name cleans away to nothing, the workspace's folder is at the top, as before
+/// folders were nested.
 String? folderFor(Workspace? workspace, [List<Workspace> all = const []]) {
   if (workspace == null) return inboxFolder;
   final folder = folderName(workspace.name);
@@ -58,7 +61,18 @@ String? folderFor(Workspace? workspace, [List<Workspace> all = const []]) {
   final path = all.isEmpty || workspace.parent == null ? [workspace] : workspacePath(all, workspace.id);
   final names = [for (final each in path.isEmpty ? [workspace] : path) folderName(each.name)];
   if (names.any((name) => name.isEmpty)) return '$workspacesFolder/$folder';
-  return '$workspacesFolder/${names.join('/')}';
+  final top = path.isEmpty ? workspace : path.first;
+  return '${isOrgWorkspace(top.id) ? orgsFolder : workspacesFolder}/${names.join('/')}';
+}
+
+/// The folders a team note's path names inside its organization's, in order, as the folder workspaces to file it
+/// under (GHST-107): `orgs/Ghost.md/Clients/Acme/Plan.md` is `['Clients', 'Acme']`. Empty for a note at the
+/// organization's own folder, for one whose path is not under `orgs/` at all, and for no path.
+List<String> orgFolderNames(String? path) {
+  if (path == null) return const [];
+  final parts = path.split('/');
+  if (parts.length < 4 || parts.first != orgsFolder) return const [];
+  return [for (final part in parts.sublist(2, parts.length - 1)) if (part.isNotEmpty) part];
 }
 
 /// The file's own name, without the folders: `workspaces/Home/Weekend trip.md` is `Weekend trip.md`.
@@ -86,24 +100,39 @@ class NoteFolders {
   /// Quiet about everything it cannot do: a note with no file yet (a draft), a name that cleans away to nothing, or
   /// a library that refuses the move. The note's words are never touched, only where the file sits.
   Future<void> fileNoteInFolder(String noteId, Workspace? workspace) async {
-    final folder = folderFor(workspace, workspaces?.call() ?? const []);
-    if (folder != null) await _fileNoteAt(noteId, folder);
+    final all = workspaces?.call() ?? const <Workspace>[];
+    final folder = folderFor(workspace, all);
+    if (folder != null) await _fileNoteAt(noteId, folder, all);
   }
 
-  Future<void> _fileNoteAt(String noteId, String folder) async {
+  Future<void> _fileNoteAt(String noteId, String folder, List<Workspace> all) async {
     try {
       final note = await library.get(noteId);
       final from = note?.path;
       if (note == null || from == null || from.isEmpty) return;
-      // Already under that folder, at any depth, stays where it is: an import keeps a vault's own folders inside
-      // its workspace's (lib/importer/import_paths.dart), and filing its notes must not flatten them.
-      if (from.startsWith('$folder/')) return;
+      final dir = from.contains('/') ? from.substring(0, from.lastIndexOf('/')) : '';
+      if (dir == folder) return;
+      // Under that folder in a folder of the vault's own stays where it is: an import keeps a vault's folders inside
+      // its workspace's (lib/importer/import_paths.dart), and filing its notes must not flatten them. Under it in
+      // another workspace's folder, it moves: a note filed up out of a folder inside its workspace's (2026-10-19,
+      // GHST-107: left there, the other members would still see it in the folder, since its path is its folder).
+      if (dir.startsWith('$folder/') && !_inAnotherWorkspaceFolder(dir, folder, all)) return;
       final path = '$folder/${_fileName(from)}';
       if (path == from) return;
       await library.apply(note.copyWith(path: () => path));
     } catch (failure) {
       _log('[glyph] the note stayed where it was: $failure');
     }
+  }
+
+  /// Whether [dir] is, or is inside, the folder of a workspace other than the one whose folder is [folder].
+  static bool _inAnotherWorkspaceFolder(String dir, String folder, List<Workspace> all) {
+    for (final w in all) {
+      final each = folderFor(w, all);
+      if (each == null || each == folder) continue;
+      if (dir == each || dir.startsWith('$each/')) return true;
+    }
+    return false;
   }
 
   /// The same for several notes at once: a workspace renamed, or taken away. What a [WorkspaceStore] is given as its

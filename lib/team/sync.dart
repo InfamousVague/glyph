@@ -10,13 +10,16 @@
 ///    into the document held here (merged, never doubled), its words written to the note, the note filed in the
 ///    organization's workspace, and its files - the versions file merged, the pictures - fetched where this device
 ///    lacks them. A note this device had of its own before the team did keeps its words: they are reconciled into
-///    the document as a change, so the team gets them.
+///    the document as a change, so the team gets them. Filed, that is, by the path its row carries: in the folder
+///    of the organization's it names, found or made here (lib/team/folders.dart; GHST-107), or in the
+///    organization's workspace itself for a note at its own folder.
 /// 2. **Updates** since each document's seq, applied, and the words written to the note when they changed.
 /// 3. **Push**: words that reached a note without the editor are reconciled into its document; the updates made
 ///    here are posted to the log; a note new to the team, or one whose particulars changed, or one whose document
 ///    has gone [snapshotEvery] updates past its last snapshot, is put as a row - with its versions file and
 ///    pictures sent first - and a row that lost the race is merged and put again. A note no longer here, or no
-///    longer filed in the organization's workspace, is deleted from the team.
+///    longer filed in the organization's workspace or a folder under it, is deleted from the team. A folder
+///    the pass emptied, named by no team note's path any more, is dropped at the end ([TeamFolders.prune]).
 ///
 /// Two members who edited apart merge by the CRDT: nothing here keeps a copy. A note's send that fails is counted
 /// and the pass goes on, as the account's sync does; a lapsed session ends it, and so does the key turning under
@@ -51,10 +54,12 @@ import '../account/crypto_api.dart';
 import '../core/attachment_refs.dart' show attachmentNames;
 import '../core/bytes.dart';
 import '../core/note.dart';
+import '../core/note_folders.dart' show orgFolderNames;
 import '../core/note_json.dart';
 import '../sync/engine.dart' show TeamNotesPass, TeamOutcome, TeamPass;
 import '../sync/notes.dart';
 import 'doc.dart';
+import 'folders.dart';
 
 export '../sync/notes.dart' show KeyTurned;
 
@@ -164,6 +169,7 @@ class TeamSyncContext {
     required this.crypto,
     required this.isTeamNote,
     required this.file,
+    this.folders,
     this.now,
     this.pulled,
     this.generation,
@@ -184,11 +190,16 @@ class TeamSyncContext {
   final AccountCrypto crypto;
   final int Function()? now;
 
-  /// Whether a note on this device is filed in this organization's workspace.
+  /// Whether a note on this device is filed in this organization's workspace, or in a folder under it.
   final bool Function(String id) isTeamNote;
 
-  /// A note from the team, filed in the organization's workspace on this device.
+  /// A note from the team, filed in the organization's workspace on this device: one at the organization's own
+  /// folder, or any, where this device has no [folders].
   final void Function(String id) file;
+
+  /// The organization's folders on this device (GHST-107): a note from the team filed by the path its row
+  /// carries, and the folders the pass emptied dropped at its end. None, and every note is filed by [file].
+  final TeamFolders? folders;
 
   /// The team's notes are on this device as far as the feed goes, their files still to come: the list can be drawn.
   final void Function()? pulled;
@@ -405,7 +416,13 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
     await ctx.notes.apply(theirs);
     tally.changed += 1;
   }
-  ctx.file(item.id);
+  // Filed where its path says: the file is already there, so the folders only catch up with it.
+  final folders = ctx.folders, inFolders = orgFolderNames(theirs.path);
+  if (folders != null && inFolders.isNotEmpty) {
+    folders.fileAt(item.id, inFolders);
+  } else {
+    ctx.file(item.id);
+  }
   ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs));
   // Read under a generation before the turn: put again under the one in force, so every member can read it.
   if (older) await _putRow(ctx, await ctx.notes.get(item.id) ?? theirs, doc, tally);
@@ -676,6 +693,9 @@ Future<TeamOutcome> resealTeamNotes(TeamSyncContext ctx) async {
 Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
   final tally = _Tally();
   ctx._later.clear();
+  // The folders holding a note as the pass begins: one of them empty at the end was emptied by the team.
+  final folders = ctx.folders;
+  final filled = folders == null ? const <String>{} : folders.filled(await ctx.notes.list());
   await _pull(ctx, tally);
   if (tally.changed > 0) ctx.pulled?.call();
   final later = ctx._later.toList();
@@ -701,6 +721,7 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
   }
   await _push(ctx, tally);
   ctx.save(ctx.state);
+  if (folders != null && filled.isNotEmpty) folders.prune(filled, await ctx.notes.list());
   return tally.outcome;
 }
 
@@ -720,6 +741,7 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       now: now,
       isTeamNote: pass.isTeamNote,
       file: pass.file,
+      folders: pass.folders,
       pulled: pass.pulled,
       generation: pass.generation,
       olderKey: pass.olderKey,

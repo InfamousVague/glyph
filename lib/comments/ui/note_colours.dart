@@ -13,7 +13,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 
 import '../../account/ui_state.dart';
-import '../../core/workspaces.dart' show orgIdOf;
+import '../../core/workspaces.dart' show orgOfWorkspace;
 import '../colours.dart';
 
 final Expando<MemberColours> _read = Expando<MemberColours>('member colours');
@@ -36,8 +36,9 @@ MemberColours memberColoursOf(AccountServices services) => _read[services] ??= (
 
 /// The organization a note is filed in, or null for a note that is not a team's.
 String? orgOfNote(AccountServices? services, String noteId) {
-  final space = services?.workspaces?.workspaceOf(noteId);
-  return space == null ? null : orgIdOf(space.id);
+  final spaces = services?.workspaces;
+  final space = spaces?.workspaceOf(noteId);
+  return space == null ? null : orgOfWorkspace(spaces!.value.list, space.id);
 }
 
 /// The colours for the comments in one note, followed as it is filed, the list changes and the members are read.
