@@ -6,8 +6,8 @@ publish = false
 
 [dependencies]
 # `ws` for live sync's relay (src/live.rs, docs/LIVE.md): a WebSocket per device, passing sealed edits between an
-# account's own devices.
-axum = { version = "0.8", features = ["ws"] }
+# account's own devices. `multipart` for the Meet bot's upload of a recording and its captions (src/meet.rs, docs/MEET.md).
+axum = { version = "0.8", features = ["ws", "multipart"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "time", "sync", "signal"] }
 tower-http = { version = "0.6", features = ["cors"] }

@@ -288,7 +288,8 @@ fn wipe(value: &mut Value) {
 }
 
 /// Posts thirty days old, of every account, swept every hour from now on (the first at once). A post past its time is
-/// never listed in any case (`inbox`); the sweep is so it is not kept either.
+/// never listed in any case (`inbox`); the sweep is so it is not kept either. The same hour sweeps Ghost's Meet bookings
+/// (src/meet.rs): a meeting's title and link are blanked an hour after it ended, and the booking goes after thirty days.
 #[cfg_attr(test, allow(dead_code))]
 pub fn sweep_every_hour(accounts: Arc<Accounts>) {
     tokio::spawn(async move {
@@ -298,6 +299,10 @@ pub fn sweep_every_hour(accounts: Arc<Accounts>) {
             let swept = accounts.store.sweep_hook_inbox(now_secs() - KEPT_FOR);
             if swept > 0 {
                 eprintln!("glyph-api swept {swept} hook posts past thirty days");
+            }
+            let (blanked, gone) = crate::meet::sweep(&accounts.store, now_secs() * 1000);
+            if blanked + gone > 0 {
+                eprintln!("glyph-api blanked {blanked} Meet bookings over for an hour and deleted {gone} past thirty days");
             }
         }
     });

@@ -99,6 +99,46 @@ pub fn seal_for(public: &str, id: &str, payload: &[u8]) -> Result<(String, Strin
     Ok((wrapped, blob))
 }
 
+/// `payload` sealed for the account whose encryption public key is `public` as `seal_for` seals a mail, in the two
+/// contexts given, for a blob too large to keep as a column: a Meet take (src/meet.rs), tens of megabytes. The key is
+/// wrapped as `seal_for` wraps one (`wrap_context`), and the payload is encrypted IN PLACE (`seal_context` as associated
+/// data), so the clear bytes are never copied: on return `payload` holds the ciphertext and its tag, and the sealed
+/// blob is the version byte and IV answered here followed by `payload`, exactly `sealBytes`'s layout. On a failure
+/// `payload` is wiped.
+pub fn seal_in_place(public: &str, wrap_context: &str, seal_context: &str, payload: &mut Vec<u8>) -> Result<(String, [u8; 1 + IV_BYTES]), String> {
+    use aes_gcm::aead::AeadInPlace;
+    use zeroize::Zeroize;
+    let key = Zeroizing::new(random::<32>());
+    let wrapped = match wrap_for(public, key.as_slice(), wrap_context) {
+        Ok(wrapped) => wrapped,
+        Err(e) => {
+            payload.zeroize();
+            return Err(e);
+        }
+    };
+    let iv: [u8; IV_BYTES] = random();
+    if Aes256Gcm::new(key.as_slice().into()).encrypt_in_place(Nonce::from_slice(&iv), seal_context.as_bytes(), payload).is_err() {
+        payload.zeroize();
+        return Err("That recording could not be sealed.".into());
+    }
+    let mut head = [0u8; 1 + IV_BYTES];
+    head[0] = VERSION;
+    head[1..].copy_from_slice(&iv);
+    Ok((wrapped, head))
+}
+
+/// What a device does with a blob `seal_in_place` sealed, for the tests: the key out of its wrap, then the bytes.
+#[cfg(test)]
+pub fn open_sealed_with(secret: &p256::SecretKey, wrapped: &str, wrap_context: &str, sealed: &[u8], seal_context: &str) -> Result<Vec<u8>, String> {
+    let key = unwrap_with(secret, wrapped, wrap_context)?;
+    let key: [u8; 32] = key.try_into().map_err(|_| "not a key".to_string())?;
+    if sealed.first() != Some(&VERSION) || sealed.len() < 1 + IV_BYTES + 16 {
+        return Err("not sealed".into());
+    }
+    let (iv, rest) = sealed[1..].split_at(IV_BYTES);
+    Aes256Gcm::new((&key).into()).decrypt(Nonce::from_slice(iv), Payload { msg: rest, aad: seal_context.as_bytes() }).map_err(|_| "not this blob".to_string())
+}
+
 /// What `unwrapWith` does, for the tests: the bytes out of a wrap, with the account's private key, in `context`.
 #[cfg(test)]
 pub fn unwrap_with(secret: &p256::SecretKey, wrapped: &str, context: &str) -> Result<Vec<u8>, String> {
@@ -148,6 +188,23 @@ pub mod tests {
         let sealed = URL_SAFE_NO_PAD.decode(&blob).unwrap();
         assert_eq!((sealed[0], sealed.len()), (1, 1 + 12 + 8 + 16));
         assert!(!blob.contains("Dear") && !String::from_utf8_lossy(&sealed).contains("Dear"));
+    }
+
+    #[test]
+    fn a_blob_sealed_in_place_opens_with_the_account_s_key_in_its_own_contexts_only() {
+        let (secret, public) = account_pair();
+        let mut payload = b"GMT1 the whole meeting".to_vec();
+        let (wrapped, head) = seal_in_place(&public, "meet-take:t1", "meet:t1", &mut payload).unwrap();
+        assert!(!String::from_utf8_lossy(&payload).contains("meeting"), "encrypted where it lay");
+        let sealed = [head.as_slice(), payload.as_slice()].concat();
+        assert_eq!(open_sealed_with(&secret, &wrapped, "meet-take:t1", &sealed, "meet:t1").unwrap(), b"GMT1 the whole meeting");
+        assert!(open_sealed_with(&secret, &wrapped, "inbound-mail:t1", &sealed, "meet:t1").is_err(), "a take's wrap is not a mail's");
+        assert!(open_sealed_with(&secret, &wrapped, "meet-take:t1", &sealed, "mail:t1").is_err());
+        let (stranger, _) = account_pair();
+        assert!(open_sealed_with(&stranger, &wrapped, "meet-take:t1", &sealed, "meet:t1").is_err());
+        let mut refused = b"clear".to_vec();
+        assert!(seal_in_place("not a point", "a", "b", &mut refused).is_err());
+        assert!(refused.iter().all(|b| *b == 0) || refused.is_empty(), "wiped when it could not be sealed");
     }
 
     #[test]

@@ -38,16 +38,16 @@ fn post_with(recipient: &str, mime: &[u8], token: &str, timestamp: i64, key: &st
     Request::builder().method(Method::POST).uri("/api/v1/mail/inbound/mime").header(header::CONTENT_TYPE, "application/x-www-form-urlencoded").body(Body::from(body)).unwrap()
 }
 
-fn post(recipient: &str, mime: &[u8], token: &str) -> Request<Body> {
+pub(crate) fn post(recipient: &str, mime: &[u8], token: &str) -> Request<Body> {
     post_with(recipient, mime, token, now(), TEST_SIGNING_KEY)
 }
 
-fn token(n: u32) -> String {
+pub(crate) fn token(n: u32) -> String {
     format!("mailgun-token-{n:012}")
 }
 
 /// An account with its encryption key registered, as a device registers one; its token and its private key.
-async fn with_key(h: &Harness, handle: &str) -> (String, p256::SecretKey) {
+pub(crate) async fn with_key(h: &Harness, handle: &str) -> (String, p256::SecretKey) {
     let token = h.signup(handle, &device()).await;
     let secret = p256::SecretKey::random(&mut rand::rngs::OsRng);
     let public = URL_SAFE_NO_PAD.encode(secret.public_key().to_encoded_point(false).as_bytes());
@@ -57,7 +57,7 @@ async fn with_key(h: &Harness, handle: &str) -> (String, p256::SecretKey) {
 }
 
 /// The account's address turned on: the whole address.
-async fn turned_on(h: &Harness, token: &str) -> String {
+pub(crate) async fn turned_on(h: &Harness, token: &str) -> String {
     let (status, body) = h.call(Method::POST, "/api/v1/mail/address", Some(token), None).await;
     assert_eq!(status, StatusCode::OK, "{body}");
     body["address"].as_str().unwrap().to_string()

@@ -237,6 +237,9 @@ async fn inbound(State(mail): State<Arc<Mail>>, body: Bytes) -> Response {
     let mut full = 0;
     for (local, account) in &to {
         let Some(public) = mail.accounts.store.account_key(*account).map(|k| k.pub_key) else { continue };
+        // A calendar invite in the mail books Ghost into its Google Meet (src/meet.rs, docs/MEET.md); the mail is a
+        // note all the same. Only for an account with a key, as Ghost's recording is sealed to it.
+        crate::meet::book_from_mail(&mail.accounts.store, *account, &post.mime, now * 1000);
         let Ok(mut payload) = message::payload(&post.mime, &mail.full(local), now * 1000) else {
             post.mime.zeroize();
             mail.remember(&post.token, now);

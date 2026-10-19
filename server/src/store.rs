@@ -12,7 +12,8 @@
 //! file named for what they keep - `store/accounts.rs` (accounts, their devices and recovery codes), `store/notes.rs`,
 //! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
 //! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
-//! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note) and `store/hooks.rs` (incoming hooks) - each an `impl Store` of its own, so a caller still holds one `Store`.
+//! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks) and `store/meet.rs` (Ghost
+//! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) - each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
 //! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
 //! the next start (shares did), and a new column on a table that is already there does not. The first column added
@@ -23,6 +24,7 @@ mod accounts;
 mod hooks;
 mod keys;
 mod mail;
+mod meet;
 mod notes;
 mod org_notes;
 mod notifications;
@@ -46,6 +48,7 @@ pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use mail::{MailWrite, SealedMail};
+pub use meet::MeetBooking;
 pub use shares::ShareWrite;
 pub use sites::SiteWrite;
 
@@ -330,6 +333,38 @@ CREATE TABLE IF NOT EXISTS hook_inbox (
 );
 CREATE INDEX IF NOT EXISTS hook_inbox_by_account ON hook_inbox(account_id, seq);
 CREATE INDEX IF NOT EXISTS hook_inbox_by_age ON hook_inbox(received_at);
+-- Ghost in a Google Meet (server/src/meet.rs, docs/MEET.md; store/meet.rs). A booking: an invite mailed to the
+-- account's mail address, or "join now" from a device. Its link, title and times are in the CLEAR, because the bot that
+-- joins has no key, and only until the meeting is over: the hourly sweep blanks `title` and `url` an hour after
+-- `ends_at` and deletes the row thirty days after. `starts_at` and `ends_at` are ms. A take: a recording and its
+-- captions ONLY sealed to the account's encryption public key - the key `wrapped` here, the sealed bytes a file under
+-- recordings/<account>/meet/ - until a device of the account takes it. Both go with the account.
+CREATE TABLE IF NOT EXISTS meet_bookings (
+    id         TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    uid        TEXT NOT NULL,
+    url        TEXT NOT NULL,
+    title      TEXT,
+    starts_at  INTEGER NOT NULL,
+    ends_at    INTEGER NOT NULL,
+    state      TEXT NOT NULL,
+    detail     TEXT,
+    sequence   INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    UNIQUE (account_id, uid)
+);
+CREATE INDEX IF NOT EXISTS meet_bookings_by_start ON meet_bookings(starts_at);
+CREATE INDEX IF NOT EXISTS meet_bookings_by_end ON meet_bookings(ends_at);
+CREATE TABLE IF NOT EXISTS meet_takes (
+    id         TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+    meeting    TEXT NOT NULL,
+    wrapped    TEXT NOT NULL,
+    size       INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS meet_takes_by_account ON meet_takes(account_id, created_at);
 "#;
 
 /// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the
