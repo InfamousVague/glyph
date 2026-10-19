@@ -1,0 +1,5 @@
+A|Samantha|Good morning everyone. This is Alice. Let's start with the launch checklist for the pricing page.
+B|Daniel|Thanks Alice. Bob here. The pricing page is drafted, and I will send the deck to Sam by Thursday.
+A|Samantha|Great. Can you also book the venue before the tenth of November?
+B|Daniel|Yes, I will book the venue, and I will ask Ali about the sign up form.
+A|Samantha|Perfect. Let's meet again next Monday at ten to review the beta list.
