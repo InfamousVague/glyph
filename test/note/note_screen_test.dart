@@ -1,7 +1,6 @@
 import 'package:flutter/gestures.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/book/journal.dart' show defaultTemplate, entryPlaceOf, placeSentence, templateOf, templateSentence;
 import 'package:ghost_md/book/template_picker.dart' show TemplatePicker;
 import 'package:ghost_md/core/book.dart' show guideTitle, isJournalBody;
@@ -204,11 +203,13 @@ void main() {
       await closeNote(tester);
     });
 
-    testWidgets('in simple mode keep Pin, Archive, the view switch and More: versions, links, comments and the bookmark wait behind More (GHST-103)', (tester) async {
+    testWidgets('in simple mode are the view switch and More alone where a bar takes them: Pin and Archive are the sheet’s rows, and the rest waits behind its More (GHST-103, GHST-105)', (tester) async {
       final world = NoteWorld();
       world.prefs.value = world.prefs.value.choosing('simple');
       await pumpNote(tester, world, await seeded(tester, world, '# Day\n'));
-      expect(labels(tester), ['Pin to the top', 'Archive', 'Showing the formatted note. Show the marks.', 'More for this note']);
+      // Nothing comes out of More in simple (GHST-105: "pin/archive/view switch move into ⋯"); the bar, where there is
+      // one, keeps only the switch and More.
+      expect(labels(tester), ['Showing the formatted note. Show the marks.', 'More for this note']);
       // Back to advanced while the note is open, with the marks showing again: the bar grows back.
       world.prefs.value = world.prefs.value.choosing('advanced').copyWith(noteView: 'mixed');
       // The tools are handed their new model after the frame that redraws the screen.
@@ -614,7 +615,8 @@ void main() {
       final world = NoteWorld();
       // Every row the sheet can have, so what simple hides is there to hide.
       await pumpNote(tester, world, await seeded(tester, world, '# Day\n'), seams: measuredSeams(world.asked));
-      preferences.update((now) => now.copyWith(experience: 'simple', experienceChosen: true));
+      // The screen's own store, which its sheet reads too (GHST-105).
+      world.prefs.value = world.prefs.value.copyWith(experience: 'simple', experienceChosen: true);
       await tester.pump();
       await more(tester);
       expect(find.byType(NoteSettings), findsOneWidget);

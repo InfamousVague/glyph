@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/note/note_tools.dart' show NoteSimpleHeader;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/stored.dart';
@@ -8,6 +9,7 @@ import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/new_sheet.dart';
+import 'package:ghost_md/note/note_screen.dart' show NoteScreen;
 import 'package:ghost_md/notes/note_tabs.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
@@ -15,6 +17,9 @@ import 'package:ghost_md/notes/notices.dart' show ExperienceCard;
 import 'package:ghost_md/guide/guide_state.dart' show guideSeenKey;
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/shell/page_dock.dart' show PageDock;
+import 'package:ghost_md/simple/simple_todos.dart' show SimpleTodos;
+import 'package:ghost_md/simple/simple_home.dart';
 
 import '../shell/dock_support.dart' show dockOrder;
 import '../support/render.dart';
@@ -24,6 +29,10 @@ import 'part_of.dart';
 /// where simple mode has a much more approachable UI with fancy features hidden behind more"): the root reads the
 /// experience preference and hands each surface its answer, and a change of the preference reaches every one of
 /// them at once. Each surface's own trimming is its own test; here is that the root says so to each.
+///
+/// Since GHST-105 (Matt, 2026-10-18: "it still is a bit complex with the tabs and such") simple mode's home page is
+/// lib/simple/simple_home.dart in place of HomeScreen, and the shell draws no bar over it: the cases that held the
+/// bar to a trim, and the advanced page to its simple dock, are the new truth's now.
 void main() {
   setUpAll(() async {
     await loadAppFonts();
@@ -65,28 +74,25 @@ void main() {
     await settle(tester);
     expect(preferences.value.simple, isTrue);
 
-    // The shell: the bar without the people icon, the bell and Forward.
+    // The shell: no bar at all over the home page (GHST-105), and the simple page in HomeScreen's place.
     expect(shellWidget(tester).simple, isTrue);
-    expect(bar('Home'), findsOneWidget);
-    expect(bar('Settings'), findsOneWidget);
-    expect(bar('Organizations'), findsNothing);
-    expect(bar('Notifications'), findsNothing);
-    expect(bar('Forward again'), findsNothing);
+    expect(find.byType(NoteTabs), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+    final home = tester.widget<SimpleHome>(find.byType(SimpleHome));
+    expect(home.pane, isFalse, reason: 'a phone: the page is the whole window');
+    expect(home.onSettings, isNotNull);
+    expect(home.onNewLong, isNotNull);
+    expect(home.onSpeak, isNull, reason: 'this build records nothing and Claude is off: no microphone');
+    expect(find.byKey(const ValueKey('simple-settings')), findsOneWidget);
+    expect(find.byKey(const ValueKey('simple-new')), findsOneWidget);
+    expect(find.byKey(const ValueKey('simple-speak')), findsNothing);
+    expect(find.byType(PageDock), findsNothing, reason: 'no dock of rings on the simple page');
 
-    // Home: no Claude at the head of the dock, no Save, no events, no organizations.
-    final home = tester.widget<HomeScreen>(find.byType(HomeScreen));
-    expect(home.simple, isTrue);
-    expect(home.claude, isNull);
-    expect(home.claudeTalk, isNull);
-    expect(home.onSaveSearch, isNull);
-    expect(home.events, isNull);
-    expect(home.onNewOrganization, isNull);
-    final dock = dockOrder(tester, within: find.byType(HomeScreen));
-    expect(dock, isNot(contains('claude')));
-    expect(dock, containsAllInOrder(['search', 'add', 'settings']));
-
-    // Both sidebars: no Browse files, graph, Tags or smart notebooks, and the tree's own tools trimmed.
+    // Both sidebars, though the plain shell draws neither: no Browse files, graph, Tags or smart notebooks, and the
+    // tree's own tools trimmed, for whoever asks the builders.
     final shell = shellOf(tester);
+    expect(find.byType(NoteTree), findsNothing);
+    expect(find.byType(NotesDrawer), findsNothing);
     final docked = partOf<NoteTree>(shell.context, shellWidget(tester).dockedSidebarBuilder!(shell.context, shell));
     expect(docked.simple, isTrue);
     expect(docked.onTags, isNull);
@@ -103,13 +109,34 @@ void main() {
     // The +: Note, then More.
     expect(tester.widget<NewSheet>(find.byType(NewSheet)).simple, isTrue);
 
-    // All notes: no pills, no Save, and the dock as home's.
+    // All notes: no pills, no Save, and its dock Search, +, Settings with no Claude.
     shell.showAllNotes();
     await settle(tester);
     final all = tester.widget<AllNotesScreen>(find.byType(AllNotesScreen));
     expect(all.simple, isTrue);
     expect(all.onSaveSearch, isNull);
-    expect(dockOrder(tester, within: find.byType(AllNotesScreen)), dock);
+    final dock = dockOrder(tester, within: find.byType(AllNotesScreen));
+    expect(dock, isNot(contains('claude')));
+    expect(dock, containsAllInOrder(['search', 'add', 'settings']));
+    expect(find.byType(NoteTabs), findsNothing, reason: 'no bar over All notes either');
+    await close(tester);
+  });
+
+  testWidgets('opens a note from the simple page in the one tab there is, with its own Back, and leaves it on the way home', (tester) async {
+    final library = await open(tester, experience: 'simple');
+    await settle(tester);
+    final standup = library.value.firstWhere((note) => note.body.startsWith('# Monday standup'));
+    await tester.tap(find.byKey(ValueKey('simple-row-${standup.id}')));
+    await settle(tester);
+    expect(shellOf(tester).shown, standup.id);
+    expect(preferences.value.openNotes, [standup.id]);
+    expect(find.byType(NoteTabs), findsNothing);
+    final screen = tester.widget<NoteScreen>(find.byType(NoteScreen));
+    expect(screen.back, isTrue, reason: 'no bar with Home: the note draws its own Back');
+    await tester.tap(find.byKey(NoteSimpleHeader.backKey));
+    await settle(tester);
+    expect(find.byType(SimpleHome), findsOneWidget);
+    expect(preferences.value.openNotes, isEmpty);
     await close(tester);
   });
 
@@ -133,11 +160,12 @@ void main() {
     preferences.update((now) => now.choosing('simple'));
     await settle(tester);
     expect(shellWidget(tester).simple, isTrue);
-    expect(bar('Organizations'), findsNothing);
-    expect(tester.widget<HomeScreen>(find.byType(HomeScreen)).simple, isTrue);
-    expect(dockOrder(tester, within: find.byType(HomeScreen)), isNot(contains('claude')));
-    // The + sheet is built as it opens (its part sleeps while it is shut), and opens on Note and More.
-    tester.widget<HomeScreen>(find.byType(HomeScreen)).onNew();
+    expect(find.byType(NoteTabs), findsNothing);
+    expect(find.byType(HomeScreen), findsNothing);
+    expect(find.byType(SimpleHome), findsOneWidget);
+    // The + sheet is built as it opens (its part sleeps while it is shut), and opens on Note and More: from the +
+    // held, since a press makes a note straight away.
+    tester.widget<SimpleHome>(find.byType(SimpleHome)).onNewLong!();
     await settle(tester);
     expect(tester.widget<NewSheet>(find.byType(NewSheet)).simple, isTrue);
     expect(find.text('More…'), findsOneWidget);
@@ -152,6 +180,7 @@ void main() {
     await settle(tester);
     expect(shellWidget(tester).simple, isFalse);
     expect(bar('Organizations'), findsOneWidget);
+    expect(find.byType(SimpleHome), findsNothing);
     expect(dockOrder(tester, within: find.byType(HomeScreen)).first, 'claude');
     await close(tester);
   });
@@ -187,6 +216,19 @@ void main() {
     );
     await settle(tester);
     expect(find.byType(ExperienceCard), findsNothing);
+    await close(tester);
+  });
+  testWidgets('the To-dos tab lists every open to-do across the notes, and a tick is written into its note (GHST-105)', (tester) async {
+    final library = await open(tester, experience: 'simple');
+    await settle(tester);
+    await tester.tap(find.byKey(const ValueKey('simple-tab-todos')));
+    await settle(tester);
+    expect(find.byType(SimpleTodos), findsOneWidget);
+    expect(find.bySemanticsLabel('Tick Send the deposit'), findsOneWidget);
+    await tester.tap(find.bySemanticsLabel('Tick Send the deposit'));
+    await settle(tester, 8);
+    final flat = library.value.firstWhere((note) => note.body.contains('Send the deposit'));
+    expect(flat.body, contains('- [x] Send the deposit'));
     await close(tester);
   });
 }

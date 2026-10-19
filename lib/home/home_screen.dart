@@ -871,7 +871,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ValueListenableBuilder<List<Widget>>(
         valueListenable: _notices,
-        builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : _Gapped(gap: gap, children: notices),
+        builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : GappedColumn(gap: gap, children: notices),
       ),
       // Today's events, when there are any; not while searching (docs/CALENDAR.md), and not in simple mode.
       if (!searched && !widget.simple && widget.events != null)
@@ -952,7 +952,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return made = [
         // Blocks one under another with a gap between them; the head's own gap is under it only while it draws
         // anything, and something follows.
-        padded(SliverToBoxAdapter(child: _Gapped(gap: gap, after: follows ? gap : 0, children: head)), above: top, below: blocks.isEmpty ? foot : 0),
+        padded(SliverToBoxAdapter(child: GappedColumn(gap: gap, after: follows ? gap : 0, children: head)), above: top, below: blocks.isEmpty ? foot : 0),
         for (final (i, block) in blocks.indexed) padded(block.sliver, above: block.above, below: i == blocks.length - 1 ? foot : 0),
       ];
     }
@@ -1075,7 +1075,8 @@ class _HomeWidth extends InheritedWidget {
   bool updateShouldNotify(_HomeWidth old) => old.wide != wide;
 }
 
-/// `display: grid; gap: <gap>`: its children one under another.
+/// `display: grid; gap: <gap>`: its children one under another. Public for simple mode's page (lib/simple), which
+/// stacks the same notices.
 /// Blocks one under another with [gap] between them, as the page's `display: grid; gap` lays its sections out, with
 /// one thing the grid does by itself and a Column of boxes does not: **a block with nothing in it takes no room, and
 /// no gap either.** On the page a notice with nothing to say is not in the tree at all (`Notices.tsx` renders null),
@@ -1086,26 +1087,26 @@ class _HomeWidth extends InheritedWidget {
 /// [after] is room under the last block that takes any: the gap to whatever follows these blocks on the page, where
 /// that is laid out apart from them (the page's sections are slivers of their own). None under blocks that all
 /// take no room.
-class _Gapped extends MultiChildRenderObjectWidget {
-  const _Gapped({required this.gap, this.after = 0, required super.children});
+class GappedColumn extends MultiChildRenderObjectWidget {
+  const GappedColumn({super.key, required this.gap, this.after = 0, required super.children});
   final double gap;
   final double after;
 
   @override
-  RenderObject createRenderObject(BuildContext context) => _RenderGapped(gap, after);
+  RenderObject createRenderObject(BuildContext context) => RenderGappedColumn(gap, after);
 
   @override
-  void updateRenderObject(BuildContext context, covariant _RenderGapped renderObject) {
+  void updateRenderObject(BuildContext context, covariant RenderGappedColumn renderObject) {
     renderObject
       ..gap = gap
       ..after = after;
   }
 }
 
-class _GappedParentData extends ContainerBoxParentData<RenderBox> {}
+class _GappedColumnParentData extends ContainerBoxParentData<RenderBox> {}
 
-class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox, _GappedParentData>, RenderBoxContainerDefaultsMixin<RenderBox, _GappedParentData> {
-  _RenderGapped(this._gap, this._after);
+class RenderGappedColumn extends RenderBox with ContainerRenderObjectMixin<RenderBox, _GappedColumnParentData>, RenderBoxContainerDefaultsMixin<RenderBox, _GappedColumnParentData> {
+  RenderGappedColumn(this._gap, this._after);
 
   double _gap;
   set gap(double value) {
@@ -1123,7 +1124,7 @@ class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox,
 
   @override
   void setupParentData(RenderBox child) {
-    if (child.parentData is! _GappedParentData) child.parentData = _GappedParentData();
+    if (child.parentData is! _GappedColumnParentData) child.parentData = _GappedColumnParentData();
   }
 
   double _run(BoxConstraints constraints, {required bool place}) {
@@ -1138,11 +1139,11 @@ class _RenderGapped extends RenderBox with ContainerRenderObjectMixin<RenderBox,
         size = child.getDryLayout(inner);
       }
       if (size.height <= 0) {
-        if (place) (child.parentData! as _GappedParentData).offset = Offset(0, y);
+        if (place) (child.parentData! as _GappedColumnParentData).offset = Offset(0, y);
         continue;
       }
       if (any) y += _gap;
-      if (place) (child.parentData! as _GappedParentData).offset = Offset(0, y);
+      if (place) (child.parentData! as _GappedColumnParentData).offset = Offset(0, y);
       y += size.height;
       any = true;
     }

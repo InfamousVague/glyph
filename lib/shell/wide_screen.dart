@@ -54,4 +54,8 @@ bool sidebarShownByDefault({required bool mouse}) => mouse;
 /// The split window's columns (app.css `.app-split`): the sidebar `clamp(300px, 30vw, 380px)`, the aside
 /// `clamp(240px, 22vw, 320px)`, the note the rest.
 double sidebarColumn(double window) => (window * 0.30).clamp(300.0, 380.0);
+
+/// Simple mode's list column beside the note (GHST-105): about 360px, a little narrower on a window where the note
+/// would otherwise be a strip (the Fold opened out is 704 wide).
+double simpleListColumn(double window) => (window * 0.42).clamp(300.0, 360.0);
 double asideColumn(double window) => (window * 0.22).clamp(240.0, 320.0);

@@ -5,6 +5,11 @@
 /// The note's screen draws them in its own header or, wherever the app's top bar is there to take them, hands them
 /// to the bar (shell/top_bar_tools.dart `TopBarFill`). This is only the drawing: what each one does is the screen's.
 ///
+/// Simple mode's header ([NoteSimpleHeader], GHST-105) is the other way of heading a note: no tools at all. Matt,
+/// 2026-10-18: "it still is a bit complex with the tabs and such… build out a clean simple UI", and for the note
+/// "‹ Notes, ⋯ and Done; the title in the page". A Back word with its chevron at the start, and at the end ⋯ (the
+/// More sheet, where the view switch, Pin and Archive now live, [viewSwitchRow]) and Done while the keyboard is up.
+///
 /// What differs:
 /// - The page's portal kept the buttons the screen's own elements; a widget handed to the bar is built there, so
 ///   [NoteTools] listens to a [NoteToolsModel] the screen changes, and is itself handed over once.
@@ -48,6 +53,14 @@ enum NoteKind { canvas, book, words }
       NoteKind.canvas => page ? (label: 'Showing the canvas. Show its JSON.', title: 'Canvas') : (label: 'Showing the canvas as JSON. Show the canvas.', title: 'JSON'),
       NoteKind.book => page ? (label: 'Showing the index. Show its Markdown.', title: 'Index') : (label: 'Showing the index as Markdown. Show the index.', title: 'Markdown'),
       NoteKind.words => page ? (label: 'Showing the formatted note. Show the marks.', title: 'Formatted') : (label: 'Showing the marks. Show the formatted note.', title: 'Markdown'),
+    };
+
+/// The switch as a row of the More sheet, for simple mode (GHST-105: the view switch moved into ⋯): the row's words
+/// say what a press does, its hint what is showing now, in the plainest words.
+({String label, String hint}) viewSwitchRow(NoteKind kind, {required bool page}) => switch (kind) {
+      NoteKind.canvas => page ? (label: 'Show its JSON', hint: 'Showing the canvas.') : (label: 'Show the canvas', hint: 'Showing the canvas as JSON.'),
+      NoteKind.book => page ? (label: 'Show its Markdown', hint: 'Showing the index.') : (label: 'Show the index', hint: 'Showing the index as Markdown.'),
+      NoteKind.words => page ? (label: 'Show the marks', hint: 'Showing the formatted note.') : (label: 'Show the formatted note', hint: 'Showing the marks.'),
     };
 
 /// `NoteTools`'s props.
@@ -261,6 +274,104 @@ class _NoteToolsState extends State<NoteTools> {
         NoteToolButton(key: const ValueKey('tool-switch'), icon: model.page ? Lucide.bookOpen : Lucide.code, label: words.label, onPressed: model.switchable ? model.onSwitch : null),
         if (model.more) NoteMore(onMore: model.onMore),
       ],
+    );
+  }
+}
+
+/// Simple mode's header for a note, where the app draws no bar of its own (GHST-105; Matt: "‹ Notes, ⋯ and Done;
+/// the title in the page"): the way back at the start, a word with a chevron before it, and at the end ⋯ for the
+/// More sheet and, while [onDone] is given (the keyboard up or the editor focused), Done, which puts the keyboard
+/// away. Nothing else: no view switch, no Pin, no Archive, no mic, which are the sheet's and the Format bar's now.
+/// The row is the bar's ring high, as the advanced header's row of tools is, so the header's glass is the same
+/// height in both modes and the page starts under it where it did.
+class NoteSimpleHeader extends StatelessWidget {
+  const NoteSimpleHeader({super.key, required this.backLabel, required this.onBack, required this.onMore, this.onDone});
+
+  /// The word the way back wears: where the note was opened from. "Notes", or "To-dos" for the to-do list. Null
+  /// draws no Back: on a wide window the list stays beside the note, so there is nowhere to go back to.
+  final String? backLabel;
+  final VoidCallback onBack;
+  final VoidCallback onMore;
+
+  /// Done pressed; null draws no Done.
+  final VoidCallback? onDone;
+
+  static const Key backKey = ValueKey<String>('note-simple-back'), doneKey = ValueKey<String>('note-simple-done');
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final onDone = this.onDone;
+    return Row(
+      key: const ValueKey<String>('note-simple-header'),
+      children: [
+        if (backLabel case final back?) NoteHeaderWord(key: backKey, label: back, semanticLabel: 'Back to $back', chevron: true, onPressed: onBack),
+        const Spacer(),
+        NoteMore(onMore: onMore),
+        if (onDone != null) ...[
+          SizedBox(width: t.space(2)),
+          // Done is the one word that is not muted: it is the thing to press to be done with the keyboard.
+          NoteHeaderWord(key: doneKey, label: 'Done', semanticLabel: 'Done', weight: 'semibold', onPressed: onDone),
+        ],
+      ],
+    );
+  }
+}
+
+/// A word in the header that is a button, in `.app-word`'s inks (app/widgets.dart `AppWord`: muted until pressed),
+/// the bar's ring high so the row stays the ring's height. [chevron] draws ‹ before the word, for the way back.
+/// The press does not take the focus: Done gives it up, and the way back leaves, and neither should bring the
+/// keyboard down and up again on its way.
+class NoteHeaderWord extends StatelessWidget {
+  const NoteHeaderWord({super.key, required this.label, required this.onPressed, this.semanticLabel, this.chevron = false, this.weight = 'medium'});
+
+  final String label;
+  final VoidCallback? onPressed;
+  final String? semanticLabel;
+  final bool chevron;
+  final String weight;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-bar-ring');
+    return GlacierPressable(
+      onPressed: onPressed,
+      semanticLabel: semanticLabel ?? label,
+      canRequestFocus: false,
+      pressScale: null,
+      builder: (context, state) {
+        final color = state.disabled
+            ? t.color('glacier-text-subtle')
+            : state.pressed
+                ? t.color('glacier-text')
+                : t.color(weight == 'semibold' ? 'glacier-text' : 'glacier-text-muted');
+        return GlacierFocusRing(
+          visible: state.focused,
+          radius: t.radius('sm'),
+          child: SizedBox(
+            height: ring,
+            child: Padding(
+              // A breath either side of the word for the finger; the chevron hangs in the gutter's own room, as a
+              // phone's own Back does, so the word starts where the page's words do.
+              padding: EdgeInsetsDirectional.only(start: chevron ? 0 : t.space(1), end: t.space(1)),
+              // The button's own label is the whole of what is read out: the word is not said twice.
+              child: ExcludeSemantics(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (chevron) ...[
+                      AppIcon(Lucide.chevronLeft, size: 22, strokeWidth: 2.2, color: color),
+                      SizedBox(width: t.space(1) / 2),
+                    ],
+                    Text(label, style: t.text('md', weight: weight, color: color)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }

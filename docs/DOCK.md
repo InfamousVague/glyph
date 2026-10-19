@@ -119,3 +119,29 @@ screen hears (`DockOffers`), so the canvas's own Add and Fit, and the index's ow
 
 - The recorder, a meeting, the Academy and an organization's audit log have no dock: each takes the whole window for
   one thing, and has its way out at its top.
+
+### Simple shell (GHST-105, 2026-10-18)
+
+Matt, 2026-10-18: "The simple mode in the app is not quite right, it still is a bit complex with the tabs and such,
+spend a significant amount of time looking into simple apps like todoist and others to build out a clean simple UI."
+Since then simple mode's places have no bar over them at all: the shell draws them plain (lib/shell/app_shell.dart
+`_plain`): no control row, no tab row, no drawer, no docked sidebar, no aside, and the row of open notes is only ever
+the note on screen (`OpenTabsController.trimTo`). The home page in simple mode is lib/simple/simple_home.dart
+(`SimpleHome`) in place of HomeScreen, and it has **no dock of rings**: its two controls are drawn as themselves
+(lib/simple/simple_bar.dart), a filled round + (a note straight away; held, the + sheet) and a plain round microphone
+(Talk to Claude where Claude can hear, the recorder otherwise, one microphone only as GHST-104 has it), over a bar
+along the foot with two destinations, Notes and To-dos. The gear is in the page's header. A note opened from it on a
+phone draws its own Back at the start of its header (`NoteScreen.back`), since there is no bar with Home; its dock
+is the note's as above. On a wide window the shell draws the list as a column beside the note, the switch under the
+title and the + and the microphone at the column's foot, and the note's Format pill measures its room by the pane,
+not the window. All notes, the collections, an organization's page and Settings keep the docks the table above
+gives them.
+
+| Page, in simple mode (GHST-105) | Controls |
+| --- | --- |
+| Home | The gear in the header; the + and the microphone over the bar's end; Notes and To-dos along the foot (lib/simple/simple_bar.dart `SimpleActions`, `SimpleBar`) |
+| A note | Its own Back at the header's start on a phone; the dock as above |
+
+Tests: test/simple/simple_home_test.dart (the page), test/shell/simple_shell_test.dart (the plain shell, the one
+tab, the wide window; in place of simple_bar_test.dart, which held simple mode to a trimmed bar), test/root/simple_test.dart
+and test/root/simple_wide_test.dart (the root wiring on a phone and on the Fold opened out).
