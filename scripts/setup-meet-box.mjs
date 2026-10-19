@@ -57,11 +57,16 @@ const VNC_PORT = 5901;
 
 const args = process.argv.slice(2);
 for (const arg of args) {
-  if (!['--setup', '--signin', '--signin-done', '--print'].includes(arg)) fail(`Unknown flag ${arg}.`);
+  if (!['--setup', '--signin', '--signin-done', '--wait', '--print'].includes(arg)) fail(`Unknown flag ${arg}.`);
 }
 const PRINT = args.includes('--print');
 const SIGNIN = args.includes('--signin');
 const SIGNIN_DONE = args.includes('--signin-done');
+// --signin --wait: this session carries the VNC view to this Mac (-L) and waits on the box until Ghost's profile has a
+// Google sign-in, then finishes it: one login for the whole sign-in, where the tunnel by hand was a second (the box
+// allows three an hour).
+const WAIT = args.includes('--wait');
+if (WAIT && !SIGNIN) fail('--wait goes with --signin.');
 const SETUP = args.includes('--setup') || (!SIGNIN && !SIGNIN_DONE);
 if (SIGNIN && SIGNIN_DONE) fail('--signin and --signin-done are two separate moments.');
 
@@ -100,9 +105,11 @@ if [ "\${DO_SETUP:-0}" = 1 ]; then
 # ---- packages ------------------------------------------------------------------
 need=()
 for p in xvfb x11vnc pulseaudio fonts-liberation fonts-noto-color-emoji ca-certificates curl gnupg; do
-  dpkg-query -W -f='\${Status}' "$p" 2>/dev/null | grep -q 'install ok installed' || need+=("$p")
+  dpkg-query -W -f='\${Status}' "$p" 2>/dev/null | grep -q 'ok installed' || need+=("$p")
 done
-if ! dpkg-query -W -f='\${Status}' google-chrome-stable 2>/dev/null | grep -q 'install ok installed'; then
+# "ok installed", not "install ok installed": once held (below), dpkg says "hold ok installed" (the second setup tried to
+# upgrade the held package and apt refused).
+if ! dpkg-query -W -f='\${Status}' google-chrome-stable 2>/dev/null | grep -q 'ok installed'; then
   # Chrome's package installs a daily cron job that rewrites its apt list; told not to, so the list stays ours.
   printf 'repo_add_once="false"\\nrepo_reenable_on_distupgrade="false"\\n' | $SUDO tee /etc/default/google-chrome >/dev/null
   $SUDO install -d -m 0755 /etc/apt/keyrings
@@ -201,6 +208,20 @@ fi
 if [ "\${DO_SIGNIN:-0}" = 1 ]; then
   [ -x $REMOTE/meetctl ] || { echo "NOT_SET_UP run the setup first"; exit 5; }
   $SUDO $REMOTE/meetctl signin
+  if [ "\${DO_WAIT:-0}" = 1 ]; then
+    # Waits, up to 45 minutes, for the profile to hold Google's sign-in cookies (names only, read-only, never values),
+    # then finishes the sign-in in this same session.
+    signed_cookies() { $SUDO python3 -c "import sqlite3,sys;c=sqlite3.connect('file:$DATA/profile/Default/Cookies?mode=ro&immutable=1',uri=True);print(c.execute(\"select count(*) from cookies where host_key like '%google.com' and name in ('SID','__Secure-1PSID')\").fetchone()[0])" 2>/dev/null || echo 0; }
+    waited=0
+    until [ "$(signed_cookies)" -gt 0 ] 2>/dev/null; do
+      sleep 15; waited=$((waited + 15))
+      if [ $waited -ge 2700 ]; then echo "SIGNIN_TIMEOUT"; $SUDO systemctl stop glyph-meet-vnc glyph-meet-signin || true; exit 6; fi
+    done
+    echo "SIGNIN_SEEN after \${waited}s"
+    # Google sets the cookies as the sign-in lands; a moment more for the redirects and the profile to settle.
+    sleep 30
+    $SUDO $REMOTE/meetctl signin-done
+  fi
 fi
 if [ "\${DO_SIGNIN_DONE:-0}" = 1 ]; then
   [ -x $REMOTE/meetctl ] || { echo "NOT_SET_UP run the setup first"; exit 5; }
@@ -235,7 +256,7 @@ for (const path of [join(BOT, 'bot.mjs'), join(BOT, 'package-lock.json'), join(B
   if (!existsSync(path)) fail(`Missing ${path}.`);
 }
 
-const parts = `DO_SETUP=${SETUP ? 1 : 0} DO_SIGNIN=${SIGNIN ? 1 : 0} DO_SIGNIN_DONE=${SIGNIN_DONE ? 1 : 0}`;
+const parts = `DO_SETUP=${SETUP ? 1 : 0} DO_SIGNIN=${SIGNIN ? 1 : 0} DO_SIGNIN_DONE=${SIGNIN_DONE ? 1 : 0} DO_WAIT=${WAIT ? 1 : 0}`;
 const remote =
   `set -e; IFS= read -r GLYPH_MEET_TOKEN_NEW; export GLYPH_MEET_TOKEN_NEW; ` +
   `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; ${parts} bash "$HOME/${STAGE}/install.sh"`;
@@ -271,7 +292,10 @@ step(
 const dir = stage();
 let out = '';
 try {
-  const box = openBox(env, boxSshOptions({ connectTimeout: 20 }));
+  const box = openBox(env, [
+    ...boxSshOptions({ connectTimeout: 20 }),
+    ...(WAIT ? ['-L', `${VNC_PORT}:localhost:${VNC_PORT}`, '-o', 'ExitOnForwardFailure=yes', '-o', 'ServerAliveInterval=30'] : []),
+  ]);
   const result = box.exec(remote, {
     input: Buffer.concat([Buffer.from(`${token}\n`), tarball(dir, 64 * 1024 * 1024)]),
     stdio: ['pipe', 'pipe', 'inherit'],
@@ -310,7 +334,10 @@ const signed = field('SIGNED_IN');
 if (signed) console.log(`  signed in: ${signed}`);
 if (/^MEETING yes/m.test(out)) console.log(dim('  a meeting was under way: the new code waits for /opt/glyph-meet/meetctl restart'));
 
-if (SIGNIN) {
+if (SIGNIN && WAIT) {
+  if (/^SIGNIN_TIMEOUT/m.test(out)) fail('No sign-in within 45 minutes; the sign-in browser is stopped. Run it again with --signin --wait.');
+  ok(`Ghost signed in on the box (${field('SIGNIN_SEEN')}); the sign-in browser and the VNC view are stopped.`);
+} else if (SIGNIN) {
   if (unit('glyph-meet-signin') !== 'active' || unit('glyph-meet-vnc') !== 'active') fail('The sign-in browser or the VNC view did not start (output above).');
   step('Sign Ghost in');
   console.log(`  1. In a terminal here (it asks for the box's password; it is a login, so not within ten minutes of this one):`);
@@ -322,5 +349,5 @@ if (SIGNIN) {
 } else if (signed === 'no') {
   console.log(dim('  Ghost is not signed in: node scripts/setup-meet-box.mjs --signin'));
 }
-if (!SIGNIN && unit('glyph-meet') !== 'active' && token) fail(`glyph-meet is ${unit('glyph-meet')}: journalctl -u glyph-meet on the box.`);
+if ((!SIGNIN || WAIT) && unit('glyph-meet') !== 'active' && token) fail(`glyph-meet is ${unit('glyph-meet')}: journalctl -u glyph-meet on the box.`);
 ok('done');
