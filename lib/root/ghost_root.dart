@@ -1483,8 +1483,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// Stops answering the desktop's keys and menu (lib/root/desktop_wiring.dart).
   VoidCallback? _stopDesktop;
 
-  /// The workspace sheet: shut, a new one, or one to change.
-  ({Workspace? editing})? _workspace;
+  /// The workspace sheet: shut, a new one (inside [parent] from a folders' strip's New folder, GHST-107), or one
+  /// to change.
+  ({Workspace? editing, String? parent})? _workspace;
 
   /// The smoke at the edges is the art's own switch (lib/art/wisp_settings.dart), which follows the preference.
   late final ValueListenable<bool> _wispEdge = preferences.select((prefs) => prefs.wispEdge);

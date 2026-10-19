@@ -26,7 +26,7 @@ void main() {
         onBack: () {},
         onOpenNote: (_) {},
         onNew: () => asked.add('new'),
-        onAllNotes: () {},
+        onAllNotes: (_) {},
         onSettings: () => asked.add('settings'),
         onOpenOrganization: (_) {},
         onLog: () {},

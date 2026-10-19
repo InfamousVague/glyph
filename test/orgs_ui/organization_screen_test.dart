@@ -37,7 +37,7 @@ Future<Asked> page(WidgetTester tester, Device device, String id, {List<Note> no
         onBack: () => asked.back += 1,
         onOpenNote: asked.opened.add,
         onNew: () => asked.fresh += 1,
-        onAllNotes: () => asked.allNotes += 1,
+        onAllNotes: (_) => asked.allNotes += 1,
         onSettings: () => asked.settings += 1,
         onOpenOrganization: asked.organizations.add,
         onLog: () => asked.log += 1,

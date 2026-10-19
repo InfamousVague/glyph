@@ -258,6 +258,7 @@ extension _RootParts on _GhostRootState {
           onSaveSearch: preferences.value.simple ? null : _organize.saveSearch,
           simple: preferences.value.simple,
           dock: _notesDock(),
+          onNewFolder: _newFolder,
         ),
       ),
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
@@ -536,7 +537,9 @@ extension _RootParts on _GhostRootState {
       },
       onRefresh: _pullRefresh,
       onNoteMenu: _menu.open,
-      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace)),
+      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null)),
+      // New folder on the folders' strip (GHST-107): the sheet for a folder inside the chosen workspace.
+      onNewFolder: _newFolder,
       organizations: simple ? const [] : homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
       orgNews: simple ? const [] : homeOrgNews(services, chosenOrg),
       onOrganization: services == null ? null : shell.openOrganization,
@@ -803,12 +806,18 @@ extension _RootParts on _GhostRootState {
             : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),
       );
 
+  /// The workspace sheet for a new folder inside [parent] (the folders' strips' New folder, GHST-107).
+  void _newFolder(String parent) => _told(() => _workspace = (editing: null, parent: parent));
+
   Widget _workspacePart(BuildContext context) {
     final sheet = _workspace;
     if (sheet == null) return _nothing;
     return WorkspaceManageSheet(
       store: _workspaces,
       editing: sheet.editing,
+      // A folder inside another, from a strip's New folder: the sheet says where it goes.
+      parent: sheet.parent,
+      folders: sheet.parent != null,
       onClose: () => _told(() => _workspace = null),
       onOrganization: _services == null ? null : _openOrganizationSettings,
       notesIn: _notesIn,
@@ -1024,10 +1033,12 @@ extension _RootParts on _GhostRootState {
       onBack: shell.backToList,
       onOpenNote: (note) => _openWhereLeft(shell, note),
       onNew: () => _plus(orgWorkspaceId(id)),
-      onAllNotes: () {
-        _workspaces.chooseWorkspace(orgWorkspaceId(id));
+      // All of its notes, or a folder's (GHST-107): the home page with that workspace chosen.
+      onAllNotes: (folder) {
+        _workspaces.chooseWorkspace(folder ?? orgWorkspaceId(id));
         shell.backToList();
       },
+      onNewFolder: _newFolder,
       onSettings: () => _openOrganizationSettings(id, OrganizationFrom.dashboard),
       onOpenOrganization: shell.openOrganization,
       seen: _seenIn(id),
