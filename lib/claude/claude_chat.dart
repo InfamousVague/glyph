@@ -37,6 +37,7 @@ import '../live/presence.dart' show AiOnline;
 import '../sheet/css.dart';
 import '../shell/page_dock.dart' show windowEndCover;
 import 'claude_mark.dart';
+import 'store_neutral.dart';
 import 'claude_run.dart';
 import 'claude_runner.dart';
 import 'claude_settings.dart';
@@ -339,7 +340,7 @@ class _Head extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(chat.agent ?? 'Claude', maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)),
+                Text(neutral(chat.agent ?? 'Claude'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: ink)),
                 if (!choosable)
                   Text(line, key: const ValueKey('claude-chat-line'), maxLines: 1, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('xs'), color: t.color('glacier-text-subtle')))
                 else
@@ -697,7 +698,7 @@ class _Composer extends StatelessWidget {
               child: Wrap(spacing: t.space(2), children: [
                 _Pill(
                   key: const ValueKey('claude-watch'),
-                  words: run.following ? 'Watch Claude in ${run.at!.title.isEmpty ? 'the note' : run.at!.title}' : 'Watch again',
+                  words: run.following ? neutral('Watch Claude in ${run.at!.title.isEmpty ? 'the note' : run.at!.title}') : 'Watch again',
                   // The note opened (the chat makes way), Claude's caret shown where it last typed, scrolled to.
                   onPressed: run.follow,
                 ),
@@ -715,8 +716,8 @@ class _Composer extends StatelessWidget {
             placeholder: !hasKey
                 ? 'A request for the Ask Claude note…'
                 : runner.conversation.isEmpty
-                    ? 'Message Claude'
-                    : 'Reply to Claude',
+                    ? neutral('Message Claude')
+                    : neutral('Reply to Claude'),
             autoFocus: runner.conversation.isEmpty,
             enterKeyHint: TextInputAction.send,
             onSubmitted: (_) => state._send(),

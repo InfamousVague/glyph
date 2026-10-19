@@ -8,6 +8,7 @@ import 'package:glacier/glacier.dart';
 
 import '../sheet/css.dart';
 import 'claude_mark.dart';
+import 'store_neutral.dart';
 import 'claude_run.dart';
 import 'claude_runner.dart';
 
@@ -45,9 +46,9 @@ class _ClaudeBarState extends State<ClaudeBar> {
           if (saying.isNotEmpty) {
             words = saying.length > 140 ? '…${saying.substring(saying.length - 139)}' : saying;
           } else if (at != null) {
-            words = 'Claude is ${at.doing} ${at.title.isEmpty ? 'a note' : at.title}';
+            words = neutral('Claude is ${at.doing} ${at.title.isEmpty ? 'a note' : at.title}');
           } else {
-            words = 'Claude is thinking';
+            words = neutral('Claude is thinking');
           }
         } else {
           words = switch (run.state) {
