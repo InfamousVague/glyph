@@ -25,7 +25,7 @@ extension _RootClaude on _GhostRootState {
   void _closeAskClaude() => _told(() => _askClaude = false);
 
   /// Whether Claude can be talked to here: its plugin on, and a recorder to hear with (lib/root/root_voice.dart).
-  bool get _canTalk => _claudeOn && _voice != null;
+  bool get _canTalk => _claudeShown && _voice != null;
 
   /// Talk to Claude on the home page's dock; none where Claude cannot be talked to.
   Widget? _claudeTalkDock() => _canTalk ? ClaudeTalkButton(onPressed: () => _startTalk()) : null;
@@ -126,12 +126,12 @@ extension _RootClaude on _GhostRootState {
     );
   }
 
-  /// Claude on the home page's dock; none while the Claude plugin is off.
-  Widget? _claudeDock() => _claudeOn ? ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude) : null;
+  /// Claude on the home page's dock; none while the Claude plugin is off or no API key is entered.
+  Widget? _claudeDock() => _claudeShown ? ClaudeDockButton(runner: _claude, follow: _follow, onPressed: _openAskClaude) : null;
 
-  /// Claude for a page's dock (see [_claudeDockAbout]); none while the Claude plugin is off, so the dock has a ring
-  /// fewer.
-  DockClaudeBuilder? get _claudeForDock => _claudeOn ? _claudeDockAbout : null;
+  /// Claude for a page's dock (see [_claudeDockAbout]); none while the Claude plugin is off or no API key is entered,
+  /// so the dock has a ring fewer.
+  DockClaudeBuilder? get _claudeForDock => _claudeShown ? _claudeDockAbout : null;
 
   /// Claude at the head of a page's dock (docs/DOCK.md): the chat, about what the page is about where it says. The
   /// chat holds no subject, so a note's `[[Title]]` is put in its field, ready to ask about.
@@ -150,7 +150,7 @@ extension _RootClaude on _GhostRootState {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           if (_follow != null) FollowBar(follow: _follow!),
-          if (_claudeOn) ClaudeBar(runner: _claude, onReply: _openAskClaude, onOpenNote: _openForClaude),
+          if (_claudeShown) ClaudeBar(runner: _claude, onReply: _openAskClaude, onOpenNote: _openForClaude),
         ],
       );
 

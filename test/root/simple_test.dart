@@ -1,5 +1,6 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/claude/claude_settings.dart' show claudeSettings;
 import 'package:ghost_md/note/note_tools.dart' show NoteSimpleHeader;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
@@ -141,6 +142,9 @@ void main() {
   });
 
   testWidgets('is the whole app in advanced, and follows the preference as it changes', (tester) async {
+    // Claude heads the advanced dock once an API key is entered (2026-10-19); with none it is not there at all.
+    await tester.runAsync(() => claudeSettings.setKey('sk-ant-test-0000000000'));
+    addTearDown(() => claudeSettings.setKey(null));
     await open(tester, experience: 'advanced');
     await settle(tester);
     expect(shellWidget(tester).simple, isFalse);

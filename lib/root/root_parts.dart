@@ -118,8 +118,8 @@ extension _RootParts on _GhostRootState {
       readSidebarShown(_stored),
       readAsideShown(_stored),
       _unread,
-      // The app's Claude's bar under the top bar (the Claude plugin's switch).
-      _claudeOn,
+      // The app's Claude's bar under the top bar and the docks' Claude (the Claude plugin's switch, and a key).
+      _claudeShown,
     );
   }
 
@@ -234,7 +234,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeOn, _canTalk, preferences.value.simple),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -263,7 +263,7 @@ extension _RootParts on _GhostRootState {
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
       collectionBuilder: (context, shell, screen) => _part(
         'collection',
-        () => (screen, shell.notes, _workspaces.value, _claudeOn, _canTalk, preferences.value.simple),
+        () => (screen, shell.notes, _workspaces.value, _claudeShown, _canTalk, preferences.value.simple),
         (context) => CollectionScreen(
           kind: screen.kind,
           name: screen.key,
@@ -435,8 +435,8 @@ extension _RootParts on _GhostRootState {
           _voiceModelLine,
           _accountAt,
           _presenceAt,
-          // Claude on the dock, or not (the Claude plugin's switch).
-          _claudeOn,
+          // Claude on the dock, or not (the Claude plugin's switch, and an API key entered).
+          _claudeShown,
           // Simple or advanced (GHST-103).
           preferences.value.simple,
           // Simple mode's Academy card (GHST-103): whether it is due now.
@@ -960,7 +960,7 @@ extension _RootParts on _GhostRootState {
     return Selected(
       listenable: _tick,
       name: 'note',
-      select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt, _claudeOn, back),
+      select: () => (screen, _notesBut(screen.note.id), _trash.value, _made?.hidden, _workspaces.value, _prefsAt, _capture != null, _accountAt, _claudeShown, back),
       builder: (context, _) => _desked(context, shell, screen, back: back),
     );
   }
@@ -1007,7 +1007,7 @@ extension _RootParts on _GhostRootState {
   Widget _organizationPage(BuildContext context, AppShellState shell, ScreenOrganization screen) => Selected(
         listenable: _tick,
         name: 'organization',
-        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeOn, _canTalk),
+        select: () => (screen.orgId, screen.page, shell.notes, _workspaces.value, _accountAt, _syncAt, _presenceAt, preferences.value.wispEdge, _claudeShown, _canTalk),
         builder: (context, _) => _organizationPageOf(context, shell, screen),
       );
 

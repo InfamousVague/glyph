@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/claude/claude_chat.dart';
+import 'package:ghost_md/claude/claude_settings.dart' show claudeSettings;
 import 'package:ghost_md/account/crypto.dart';
 import 'package:ghost_md/account/device_keys.dart';
 import 'package:ghost_md/account/ui_state.dart';
@@ -690,6 +691,9 @@ void main() {
     // it while an AI is online, its sheet with what the AI is doing, Follow and Open, Follow's bar and the notice
     // with Watch.
     testWidgets('marks Claude on the dock while an AI is online, follows it into its note from the chat with a bar to stop, and gives the notice with Watch', (tester) async {
+      // Claude is on the docks only with an API key entered (2026-10-19).
+      await tester.runAsync(() => claudeSettings.setKey('sk-ant-test-0000000000'));
+      addTearDown(() => claudeSettings.setKey(null));
       final device = await Device.make();
       final online = ValueNotifier<List<AiOnline>>(const []);
       final follow = FollowAi(online: () => online.value, changes: online, bound: BoundEditors())..start();
@@ -754,6 +758,9 @@ void main() {
     // docs/DOCK.md: the dock on every page, Claude at its head and a settings-type ring at its foot, each ring the
     // page's own action.
     testWidgets('puts the dock on every page: home with Settings at its foot, Settings with Claude alone, a note with its own rings and Claude about it, All notes as home', (tester) async {
+      // Claude is on the docks only with an API key entered (2026-10-19).
+      await tester.runAsync(() => claudeSettings.setKey('sk-ant-test-0000000000'));
+      addTearDown(() => claudeSettings.setKey(null));
       final library = await open(tester);
       final groceries = library.create('# Groceries\n\n- milk');
       await tester.pump(const Duration(milliseconds: 200));
@@ -797,6 +804,9 @@ void main() {
     // The app's own Claude is the Claude plugin's (lib/plugins/claude): switched off, no dock has Claude, the chat
     // does not open, and the command bar has no Ask Claude; switched on again, it is back on every dock at once.
     testWidgets('takes Claude off every dock while the Claude plugin is off, and puts it back when it is on', (tester) async {
+      // Claude is on the docks only with an API key entered (2026-10-19).
+      await tester.runAsync(() => claudeSettings.setKey('sk-ant-test-0000000000'));
+      addTearDown(() => claudeSettings.setKey(null));
       final before = plugins;
       addTearDown(() => usePlugins(before));
       final registry = createRegistry(builtIn, store: MemorySwitches({'claude': false}));
