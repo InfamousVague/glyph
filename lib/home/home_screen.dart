@@ -53,8 +53,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../calendar/event.dart' show CalendarEvent, eventsOn;
-import '../core/days.dart' show isoDay;
 import '../core/page_scroll.dart';
 import '../core/book.dart';
 import '../core/note.dart';
@@ -70,7 +68,6 @@ import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
-import 'home_events.dart';
 import 'home_filters.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
@@ -189,7 +186,6 @@ class HomeScreen extends StatefulWidget {
     this.dockHalo,
     this.ghost,
     this.onSaveSearch,
-    this.events,
     this.claude,
     this.claudeTalk,
     this.simple = false,
@@ -296,9 +292,6 @@ class HomeScreen extends StatefulWidget {
   /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
   final ValueChanged<String>? onSaveSearch;
 
-  /// The calendars' events (lib/calendar/calendar.dart): today's are at the head of the page, under Today, when
-  /// there are any (docs/CALENDAR.md). None where it is left out.
-  final ValueListenable<List<CalendarEvent>>? events;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the filters are the Show radios
   /// alone and the search offers no operators ([HomeFilters.simple]), and the page draws no organization cards and
@@ -604,7 +597,6 @@ class _HomeScreenState extends State<HomeScreen> {
           // GHST-103) takes them off a page already drawn.
           (widget.claude != null ? 4096 : 0) |
           (widget.claudeTalk != null ? 8192 : 0) |
-          (widget.events != null ? 16384 : 0) |
           (widget.onSaveSearch != null ? 32768 : 0) |
           (widget.simple ? 65536 : 0) |
           (widget.onNewFolder != null ? 131072 : 0),
@@ -892,12 +884,6 @@ class _HomeScreenState extends State<HomeScreen> {
         valueListenable: _notices,
         builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : GappedColumn(gap: gap, children: notices),
       ),
-      // Today's events, when there are any; not while searching (docs/CALENDAR.md), and not in simple mode.
-      if (!searched && !widget.simple && widget.events != null)
-        ValueListenableBuilder<List<CalendarEvent>>(
-          valueListenable: widget.events!,
-          builder: (context, events, _) => HomeTodayEvents(events: eventsOn(events, isoDay(DateTime.fromMillisecondsSinceEpoch(_now))), notes: widget.notes, onOpen: _open),
-        ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
       if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
     ];

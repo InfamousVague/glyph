@@ -58,7 +58,6 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
 - A query's new kind, `from: events` (QUERIES.md): records with `title`, `start`, `end`, `allDay`, `location`,
   `calendar`; `show: list | table | calendar | gantt | count`; `where:` on any of them (`start >= today`).
 - A tasks calendar (`from: tasks` with `show: calendar`) shows the day's events too, quieter than the to-dos.
-- The home page's Today: today's events above the to-dos.
 
 ## Ownership
 
@@ -79,5 +78,6 @@ that publishes an iCal address works: iCloud's public link, Outlook's, Fastmail'
   Off, nothing is read, no to-do goes to Google's, and no query, calendar of to-dos or Today shows an event
   (`CalendarService.start(on:, switched:)`); what was read and the calendars chosen stay, and come back with the
   switch. A device that had a calendar added before it was a plugin finds it on, once (`Registry.adopt`).
-- The home page has no to-dos of its own any more (the dashboard went, docs/DESIGN.md §147), so today's events are
-  at the head of the page, under Today, above the notes.
+- The home page shows no events (Matt, 2026-10-19: "Remove this top section that renders above the organizations"):
+  the Today block that headed it, with a meeting's line opening its notes, went; events show in queries and the
+  tasks calendar.

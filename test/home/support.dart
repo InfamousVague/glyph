@@ -127,7 +127,6 @@ class _HomeState extends State<Home> {
         ghost: widget.ghost,
         headerEdge: widget.headerEdge,
         dockHalo: widget.dockHalo,
-        events: widget.events,
         simple: widget.simple,
         claudeTalk: widget.talk ? const SizedBox(key: ValueKey('fake-talk'), width: 44, height: 44) : null,
       ),

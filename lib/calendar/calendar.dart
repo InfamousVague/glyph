@@ -2,7 +2,7 @@
 /// fetched when the app opens and every 30 minutes while it is open, Google's ticked calendars every 15, and the
 /// to-dos with a due date put on Google's when that is switched on. What was read is kept on this device
 /// (store.dart) and handed to whatever shows it: a query's `from: events` and a calendar of to-dos
-/// (lib/editor/queries), and the home page's Today (lib/home/home_events.dart).
+/// (lib/editor/queries).
 ///
 /// The schedule is the account's sync engine's shape (lib/sync/engine.dart): [CalendarService.start] once from the
 /// app's root, a pass straight away and on a beat while the app is open, one when it comes back to the front
@@ -11,7 +11,7 @@
 ///
 /// The app's calendars are the Calendar plugin's (lib/plugins/calendar, off until switched on): the root hands
 /// [CalendarService.start] the plugin's switch. While it is off nothing is read, no to-do goes to Google's, and
-/// [CalendarService.events] holds none, so no query and no Today shows one; what was read stays kept, and is shown
+/// [CalendarService.events] holds none, so no query shows one; what was read stays kept, and is shown
 /// again the moment it is switched on, with a read soon after. A service started with no switch is always on.
 ///
 /// Google's sign-in is collected by polling `claim` every 3 seconds for up to 10 minutes after Connect, and again

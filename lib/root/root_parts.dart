@@ -553,7 +553,6 @@ extension _RootParts on _GhostRootState {
       onSaveSearch: simple ? null : _organize.saveSearch,
       // Today's events at the head of the page (docs/CALENDAR.md).
       // None while the Calendar plugin is off (lib/plugins/calendar): the service holds none then.
-      events: simple ? null : calendar.events,
       simple: simple,
     );
   }
