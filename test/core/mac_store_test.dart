@@ -112,7 +112,7 @@ void main() {
     final entitlements = bare(read('macos/Runner/Store.entitlements'));
     final script = read('tool/cutover-build-mac-store.sh');
 
-    test('is sandboxed with five entitlements and nothing that loosens the hardened runtime', () {
+    test('is sandboxed with six entitlements and nothing that loosens the hardened runtime', () {
       final keys = RegExp(r'<key>([^<]+)</key>\s*<true/>').allMatches(entitlements).map((m) => m.group(1)).toList();
       expect(keys, [
         'com.apple.security.app-sandbox',
@@ -120,6 +120,8 @@ void main() {
         'com.apple.security.device.audio-input',
         'com.apple.security.files.user-selected.read-write',
         'com.apple.security.files.bookmarks.app-scope',
+        // Settings › Contacts: the people named on to-dos matched to the Mac's address book (lib/integrations/contacts).
+        'com.apple.security.personal-information.addressbook',
       ]);
       for (final loose in ['cs.allow-jit', 'cs.disable-library-validation', 'cs.allow-unsigned-executable-memory', 'temporary-exception', 'network.server', 'automation.apple-events']) {
         expect(entitlements, isNot(contains(loose)));
