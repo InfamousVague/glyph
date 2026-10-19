@@ -124,6 +124,24 @@ final class GhostChannels: NSObject {
       }
     }
 
+    // A meeting Ghost was in: its Opus packets made the note's 16 kHz WAV (MeetAudio.swift, lib/meet/tape.dart), off
+    // the main thread, since an hour's meeting takes a while.
+    listen("ghost_md/meet_audio", messenger) { call, result in
+      guard call.method == "opusToWav" else { return result(FlutterMethodNotImplemented) }
+      let args = call.arguments as? [String: Any]
+      guard let packets = args?["packets"] as? String, let wav = args?["wav"] as? String else {
+        return result(FlutterError(code: "meet_audio", message: "Where are the packets, and where does the sound go?", details: nil))
+      }
+      DispatchQueue.global(qos: .utility).async {
+        do {
+          let ms = try MeetAudio.opusToWav(packets: URL(fileURLWithPath: packets), wav: URL(fileURLWithPath: wav))
+          DispatchQueue.main.async { result(["ms": ms]) }
+        } catch {
+          DispatchQueue.main.async { result(FlutterError(code: "meet_audio", message: "\(error)", details: nil)) }
+        }
+      }
+    }
+
     // A dot where the others have an underscore (`resetChannelName`, lib/core/reset.dart).
     listen("ghost.md/reset", messenger) { call, result in
       switch call.method {

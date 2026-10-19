@@ -34,6 +34,7 @@
 		6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A2 /* PictureKeep.swift */; };
 		6E05C0DE00000000000000B3 /* DiagramRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A3 /* DiagramRenderer.swift */; };
 		7A10000000000000000000B4 /* MicChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A4 /* MicChannel.swift */; };
+		7A10000000000000000000B5 /* MeetAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A5 /* MeetAudio.swift */; };
 		78A318202AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage in Frameworks */ = {isa = PBXBuildFile; productRef = 78A3181F2AECB46A00862997 /* FlutterGeneratedPluginSwiftPackage */; };
 /* End PBXBuildFile section */
 
@@ -85,6 +86,7 @@
 		6E05C0DE00000000000000A2 /* PictureKeep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PictureKeep.swift; path = ../apple/PictureKeep.swift; sourceTree = SOURCE_ROOT; };
 		6E05C0DE00000000000000A3 /* DiagramRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DiagramRenderer.swift; path = ../apple/DiagramRenderer.swift; sourceTree = SOURCE_ROOT; };
 		7A10000000000000000000A4 /* MicChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MicChannel.swift; sourceTree = "<group>"; };
+		7A10000000000000000000A5 /* MeetAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetAudio.swift; sourceTree = "<group>"; };
 		33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Debug.xcconfig"; sourceTree = "<group>"; };
 		33CEB47422A05771004F2AC0 /* Flutter-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Release.xcconfig"; sourceTree = "<group>"; };
 		33CEB47722A0578A004F2AC0 /* Flutter-Generated.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; name = "Flutter-Generated.xcconfig"; path = "ephemeral/Flutter-Generated.xcconfig"; sourceTree = "<group>"; };
@@ -189,6 +191,7 @@
 				6E05C0DE00000000000000A2 /* PictureKeep.swift */,
 				6E05C0DE00000000000000A3 /* DiagramRenderer.swift */,
 				7A10000000000000000000A4 /* MicChannel.swift */,
+				7A10000000000000000000A5 /* MeetAudio.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
 				33CC11242044D66E0003C045 /* Resources */,
@@ -403,6 +406,7 @@
 				6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */,
 				6E05C0DE00000000000000B3 /* DiagramRenderer.swift in Sources */,
 				7A10000000000000000000B4 /* MicChannel.swift in Sources */,
+				7A10000000000000000000B5 /* MeetAudio.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
 			);

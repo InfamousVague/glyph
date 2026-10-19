@@ -64,6 +64,8 @@ import '../core/native/ghost_core.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../editor/media/clip_refs.dart' show TapeIds;
+import '../meet/meet_in.dart' show meetDevice;
+import '../meet/tape.dart';
 import '../plugins/registry.dart' show plugins;
 import '../tapes/player.dart' show markAudioRemoved;
 
@@ -396,6 +398,16 @@ class Voice {
       onVisible: onVisible,
     );
 
+    // The Mac's write-ups, run here where Android's run in its meeting service: a meeting Ghost was in
+    // (lib/meet/tape.dart). A Mac's own meetings are written up as they are recorded, and never come here.
+    final writeUps = !host.hasMeetings && runsAsMacApp
+        ? CoreWriteUps(
+            startJob: (command, args) async => (await core.startJob(command, args)).done,
+            onDone: (_) => unawaited((syncNow ?? () async {})().then<void>((_) {}, onError: (Object _) {})),
+          )
+        : null;
+    final writesUp = host.hasMeetings || writeUps != null;
+
     final summaries = Summaries(
       isTauri: () => ai.aiBackend.available,
       preferences: () => preferences.value,
@@ -405,17 +417,21 @@ class Voice {
       onRefineHold: refining.onRefineHold,
       canNotifyNow: () => live?.canNotifyNow() ?? false,
       recordingJobState: () async {
-        if (!host.hasMeetings) return const <RecordingJobState>[];
+        if (!writesUp) return const <RecordingJobState>[];
         final states = [for (final job in await engine.recordingJobState()) RecordingJobState.fromJson(job)];
         writingUp = states.any((job) => job.phase == RecordingJobPhase.listening || job.phase == RecordingJobPhase.summarizing);
         return states;
       },
       takeRecordingResult: (id) async {
-        if (!host.hasMeetings) return null;
+        if (!writesUp) return null;
         final result = await engine.recordingResultTake(id);
         return result == null ? null : RecordingResult.fromJson(result);
       },
       writeUpOnHost: (noteId, now) {
+        if (writeUps != null) {
+          writeUps.run(noteId, now: now, fresh: true);
+          return true;
+        }
         if (!host.hasMeetings) return false;
         unawaited(host.writeUp(noteId, now: now).then<void>((_) {}, onError: (Object _) {}));
         return true;
@@ -450,6 +466,25 @@ class Voice {
       },
       sendJobConfig: sendJobConfig,
     );
+
+    // A meeting Ghost was in (docs/MEET.md, "On the device"): its sound kept as the note's recording, and its write-up
+    // asked for as a meeting recorded here asks for it, Write up straight away honoured. Nowhere that writes nothing up.
+    if (writesUp) {
+      meetDevice = DeviceMeetTapes(
+        dataDir: making.dataDir,
+        invoke: core.invoke,
+        askWriteUp: (noteId) {
+          final prefs = preferences.value;
+          final now = prefs.writeUp == 'now';
+          if (writeUps != null) {
+            writeUps.run(noteId, now: now);
+          } else {
+            unawaited(host.writeUp(noteId, now: now).then<void>((_) {}, onError: (Object _) {}));
+          }
+          if (prefs.summaries != 'off') summaries.enqueueSummary(noteId, SummaryKind.meeting, native: true);
+        },
+      );
+    }
 
     // The scripted WAV in place of the device, in a debug build that asked for it and has the file.
     final fixture = kDebugMode && ghostMicFixtureDefine ? File('${making.dataDir}/fixture.wav') : null;
@@ -566,6 +601,8 @@ class Voice {
       },
       cancelWriteUp: host.hasMeetings ? host.cancelWriteUp : null,
       dispose_: () {
+        if (meetDevice is DeviceMeetTapes) meetDevice = null;
+        writeUps?.dispose();
         offVisible();
         unbind?.call();
         unawaited(heard.cancel());

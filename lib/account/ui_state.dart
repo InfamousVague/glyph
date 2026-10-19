@@ -28,6 +28,7 @@ import '../core/preferences.dart';
 import '../core/stored.dart';
 import '../core/workspaces.dart';
 import '../mail/mail_in.dart';
+import '../meet/meet_in.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
@@ -74,6 +75,7 @@ class AccountServices {
     this.shares,
     this.sites,
     this.mailIn,
+    this.meetIn,
     this.listNotes,
     this.phoneNotices,
     PreferencesStore? prefs,
@@ -99,6 +101,9 @@ class AccountServices {
 
   /// Email to a note's setting (lib/mail/mail_in.dart); null where it is not offered.
   final MailIn? mailIn;
+
+  /// Ghost in meetings' setting (lib/meet/meet_in.dart); null where it is not offered.
+  final MeetIn? meetIn;
   final Future<List<Note>> Function()? listNotes;
 
   /// The bell's rows as the phone's own notifications (lib/sync/phone.dart): Settings › Notifications › On this
@@ -146,7 +151,7 @@ class AccountServices {
   List<FeedNotification> newsOf(String orgId) => [for (final n in notifications) if (n.org?.id == orgId && orgKinds.contains(n.kind)) n];
 
   /// Tells a screen whenever anything it reads here changes.
-  late final Listenable changes = Listenable.merge([account, engine?.status, orgs, orgKeys, feed, shares, sites, mailIn, liveTyping]);
+  late final Listenable changes = Listenable.merge([account, engine?.status, orgs, orgKeys, feed, shares, sites, mailIn, meetIn, liveTyping]);
 
   // --- what the screens do ------------------------------------------------------------------------------------------
 

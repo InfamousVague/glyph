@@ -47,6 +47,7 @@ import '../live/live.dart';
 import '../live/nudge.dart';
 import '../live/open.dart';
 import '../mail/mail_in.dart';
+import '../meet/meet_in.dart';
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
@@ -191,6 +192,9 @@ class WiredAccount {
     final offered = publishingOffered();
     final sites = offered ? Sites(account: account, api: api, crypto: crypto, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list) : null;
     final mailIn = offered ? MailIn(account: account, keys: keys, api: api, crypto: crypto) : null;
+    // Ghost in a Google Meet (docs/MEET.md): its setting beside the mail's, which it is booked through; its takes
+    // filed on every device, an iPhone's from the captions after a day left for one that keeps the sound.
+    final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto) : null;
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,
@@ -211,6 +215,7 @@ class WiredAccount {
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
       mailIn: offered ? syncMail : null,
+      meetIn: syncMeet,
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
       // Webhooks plugin is on.
       hooksIn: hooksWhileOn,
@@ -243,6 +248,7 @@ class WiredAccount {
       shares: shares,
       sites: sites,
       mailIn: mailIn,
+      meetIn: meetIn,
       phoneNotices: phone,
       listNotes: () async => shownNotes(),
       prefs: settings,
@@ -304,6 +310,7 @@ class WiredAccount {
     services.shares?.dispose();
     services.sites?.dispose();
     services.mailIn?.dispose();
+    services.meetIn?.dispose();
     live.dispose();
     phone.dispose();
     engine.dispose();

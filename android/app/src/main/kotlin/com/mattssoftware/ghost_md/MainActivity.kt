@@ -185,6 +185,8 @@ class MainActivity : FlutterActivity() {
         connection.register(messenger)
         // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).
         battery.register(messenger)
+        // A meeting Ghost was in: its Opus made the note's 16 kHz WAV (MeetAudio.kt; lib/meet/tape.dart).
+        MeetAudio.register(messenger)
         // Reminders, and the home screen's widgets and shortcuts (reminders/Reminders.kt, home/HomeScreen.kt;
         // lib/reminders, lib/home_screen).
         Reminders.register(applicationContext, this, messenger)

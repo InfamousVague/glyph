@@ -239,3 +239,104 @@ A later deploy of the bot is `node scripts/setup-meet-box.mjs` again: it ships t
 `sudo apt-mark unhold google-chrome-stable && sudo apt-get install --only-upgrade google-chrome-stable && sudo
 apt-mark hold google-chrome-stable`, then a test call. Rollback: `sudo rm -rf /opt/glyph-meet/bot && sudo mv
 /opt/glyph-meet/bot.prev /opt/glyph-meet/bot && /opt/glyph-meet/meetctl restart`.
+
+## On the device
+
+The app's half (lib/meet). The device opens each take and writes the meeting up itself, as it writes up a meeting
+recorded on it: summaries on the device, never on the server.
+
+### The step of a sync pass
+
+`syncMeet` (lib/meet/meet_in.dart) is a step of every pass (lib/sync/engine.dart `meetIn`), after the mail's and before
+the notes, so the notes step sends the new note on. It runs on every device; it is quiet against a service with no
+meeting routes. For each take in `GET meet/takes`:
+
+1. The note's id is made from the take's (`meetNoteId`, as a mail's from the mail's). A note already there was filed
+   before, here or on another device: the take only goes from the service.
+2. `GET meet/takes/{id}` (raw), opened with the list's `wrapped` and the account's pair (`openSealedTake`), read as
+   `GMT1` (lib/meet/gmt.dart). One that will not open is left for a newer app.
+3. The sound is kept as the note's recording (`MeetDevice.keepTape`, below). A device that cannot keep it (an iPhone,
+   which records nothing; a sound it cannot read) leaves the take on the service for a day for one that can, then files
+   it from the captions alone. A take with no sound is filed from its captions at once.
+4. The note is written through the door a note from another device comes in by (`LocalNotes.apply`), with the
+   recording's length; marked a meeting in `prefs.meetings` ({noteId: startedAt}), so Sync meeting recordings governs
+   its audio as it does a recorded meeting's; and its write-up asked for (`MeetDevice.writeUp`).
+5. Only then `DELETE meet/takes/{id}`.
+
+Every pass also names the speakers of a meeting whose write-up has come (the list `glyph-meet-pending` in the
+device's storage), below.
+
+### The note
+
+Filed on a device that will write it up:
+
+```markdown
+# Roadmap review, Q4
+
+Ghost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.
+
+## Captions
+
+**Sam Lee (0:04):** Good morning everyone. Let's start with the launch checklist.
+
+**Daniel (0:15):** Thanks. The pricing page is drafted.
+```
+
+The title is the invite's, or `Meeting, 18 Oct 14:00` (lib/capture/meeting.dart `meetingTitle`) with none. The
+captions wait under `## Captions` rather than `## Transcript` because the write-up takes words already under
+`## Transcript` as a transcript the person corrected (write_up.rs `kept_transcript`) and would summarise them instead of
+listening. The write-up then appends `## Transcript` with Whisper's words and keeps its timed phrases beside the note;
+the next pass gives each phrase the speaker whose caption turn overlaps it longest (lib/meet/speakers.dart: a turn runs
+from a speaker's first caption to the next speaker's, moved a second earlier for the captions' lag; a phrase no turn
+overlaps takes the nearest turn's speaker within four seconds, or none), writes the transcript as `**Name:** words`
+paragraphs, drops `## Captions` and the "being written up" words, and the summary lands above as any meeting's does
+(lib/ai/summaries.dart, a native job). The turns are read back from the note itself, so whichever of the account's
+devices wrote it up can name them.
+
+Filed from the captions alone, the captions are the transcript at once, `**Name:** words`, and the first line says why
+("This is from Meet's captions: the recording could not be kept on this device.", or "No sound came with it").
+
+### The sound: transcribing a file
+
+The core's write-up (tauri/src-tauri/src/write_up.rs, compiled into the Flutter core with the `voice` feature)
+already transcribes a FILE: `recordings/<note id>.wav`, 16 kHz mono 16-bit PCM, its speech spans found and each read
+from disk and put through Whisper (small.en, or base.en where only that is here). It never needed the microphone. So
+a take's sound only has to become that file:
+
+1. Dart reads the WebM (lib/meet/webm.dart: EBML entered rather than skipped, so a live recording's Segment and
+   Clusters of unknown size read as known ones; the first `A_OPUS` track; all three lacings) off the UI isolate, and
+   writes its Opus packets to a file, `GOP1`: the magic, the head's length (u32 BE), the head as JSON `{v, channels,
+   preSkip, codecDelayNs, seekPreRollNs, packets, samples, headBytes}`, the `OpusHead`, then each packet as its length
+   (u32 BE), its samples at 48 kHz (u32 BE) and its bytes.
+2. `ghost_md/meet_audio` `opusToWav {packets, wav}` -> `{ms}` decodes them with the platform's own Opus decoder, mixes
+   to mono, takes 48 kHz to 16 kHz and writes the WAV a chunk at a time (an hour is never held whole):
+   - **macOS**: macos/Runner/MeetAudio.swift, `AVAudioConverter` from `kAudioFormatOpus`, then a second converter
+     for the rate at its best quality. Checked against ffmpeg on test/meet/fixtures/two_tones.webm: correlation
+     0.9996, 2.5 ms apart, 11 ms longer (ffmpeg trims the last packet's padding). To check it again, outside the app:
+     write the fixture's packets with `packedForDecoder(readWebmOpus(bytes))`, then
+     `swiftc -O -o decode macos/Runner/MeetAudio.swift main.swift` with a `main.swift` that calls
+     `MeetAudio.opusToWav(packets:wav:)`.
+   - **Android**: android/…/ghost_md/MeetAudio.kt, MediaCodec's Opus decoder given the `OpusHead`, the codec delay and
+     the seek pre-roll as `csd-0`, `csd-1`, `csd-2` (so it drops the pre-skip itself), then a windowed-sinc low-pass
+     at 7.2 kHz and every third sample. Compiled against android-36; not yet run on a phone.
+   - **iPhone**: nothing (no model, no write-up): the captions path above.
+3. The core moves the WAV into place as the note's recording (`CoreFiles.adopt`, the rules a synced recording is kept
+   by), and it plays on the note's tape like any meeting's.
+
+The write-up is then asked for as a meeting recorded here asks for it, Write up straight away honoured: on Android
+the meeting service's `writeUp` (WorkManager, which keeps to the battery rule itself, and posts its own "written up"
+notification as for any meeting); on the Mac the core's `write_up_run`, run by the app (lib/meet/tape.dart
+`CoreWriteUps`, one at a time, a hold tried again a minute later), the Mac counting as plugged in. The summary is the
+summary queue's native job where Summaries are on; the Mac's queue now reads the core's write-up states and results as
+Android's does (lib/root/voice_wiring.dart), so Try again, Write up now and a model arriving ask the Mac's runner.
+
+### Settings › Account › Ghost in meetings
+
+lib/meet/ui/meet_card.dart, beside Email to a note and drawn only once that address exists and the service has the
+meeting routes; in Simple too (the Account page is one of its sections). It says what Ghost does; the invite address
+with Copy ("Add this address as a guest on a Google Calendar invite."); the meetings from `GET meet` with their state
+in words (Booked, Joining, In the meeting, Leaving, Written up, Couldn't join: Ghost was signed out of Google / nobody
+let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and Leave now on one Ghost
+is in (`DELETE meet/{id}`); and "Send Ghost to a meeting now", a Meet link sent to `POST meet` after the account's
+encryption key is seen to. Its footer: "The meeting's sound passes through Ghost.md's server while it records, sealed
+to your account as it arrives; it is written up on your device."
