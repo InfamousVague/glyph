@@ -212,8 +212,8 @@ class GhostexEntry {
   final int modified;
 }
 
-/// An organization's id, where the workspace [id] is one's.
-String? _orgOf(String? id) => id == null ? null : orgIdOf(id);
+/// An organization's id, where the workspace [id] is one's or a folder under one's (GHST-107).
+String? _orgOf(List<Workspace> list, String? id) => id == null ? null : orgOfWorkspace(list, id);
 
 final RegExp _pictureName = RegExp(r'^[A-Za-z0-9_-]{1,64}\.(?:jpg|jpeg|png|webp)$');
 
@@ -259,7 +259,7 @@ Future<({Map<String, Object?> manifest, List<GhostexEntry> entries, int missing}
     if (trash?.isTrashed(note.id) ?? false) continue;
     if ((note.archivedAt ?? 0) != 0 && !options.archived) continue;
     final workspace = spaces.of[note.id];
-    if (_orgOf(workspace) != null && !options.organizations) continue;
+    if (_orgOf(spaces.list, workspace) != null && !options.organizations) continue;
     chosen.add(note);
   }
   // Oldest first, so the first of two notes of one title keeps the plain name, whatever was edited last.
@@ -295,7 +295,7 @@ Future<({Map<String, Object?> manifest, List<GhostexEntry> entries, int missing}
       'archived': (note.archivedAt ?? 0) != 0,
       if ((note.archivedAt ?? 0) != 0) 'archivedAt': isoInstant(DateTime.fromMillisecondsSinceEpoch(note.archivedAt!)),
       'workspace': inWorkspace,
-      'organization': _orgOf(inWorkspace),
+      'organization': _orgOf(spaces.list, inWorkspace),
       'tags': (NoteMarks.of(note).tags.toList()..sort()),
       'source': note.sourceWord,
       if (shows.isNotEmpty) 'pictures': shows,

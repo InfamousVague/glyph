@@ -56,6 +56,7 @@ import '../mail/mail_in.dart' show MailPass, MailPassContext;
 import '../meet/meet_in.dart' show MeetPass, MeetPassContext;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
+import '../team/folders.dart';
 import 'arrived.dart';
 import 'feed.dart';
 import 'notes.dart';
@@ -200,6 +201,7 @@ class TeamPass {
     required this.saveState,
     required this.isTeamNote,
     required this.file,
+    this.folders,
     required this.pulled,
     this.reseal = false,
   });
@@ -226,11 +228,16 @@ class TeamPass {
   final Object? Function() loadState;
   final void Function(Object? state) saveState;
 
-  /// Whether a note on this device is this team's: filed in the organization's workspace.
+  /// Whether a note on this device is this team's: filed in the organization's workspace, or in a folder under it
+  /// (GHST-107).
   final bool Function(String noteId) isTeamNote;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
+
+  /// The organization's folders on this device (lib/team/folders.dart): a note that arrived is filed by the path
+  /// its row carries, and a folder the pass emptied is dropped. None, and every note is filed by [file].
+  final TeamFolders? folders;
 
   /// The rows are in, before their histories and pictures: the list may be drawn.
   final void Function() pulled;
@@ -557,8 +564,10 @@ class SyncEngine {
               crypto: crypto,
               loadState: () => _device.read<Object?>(teamKey, null),
               saveState: (state) => _device.write(teamKey, state),
-              isTeamNote: (id) => _workspaces.workspaceOf(id)?.id == workspace,
+              // Filed in the organization's workspace or a folder under it (GHST-107).
+              isTeamNote: (id) => _workspaces.orgOf(_workspaces.workspaceOf(id)?.id ?? '') == row.id,
               file: (id) => _workspaces.fileNote(id, workspace),
+              folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.
               pulled: () => unawaited(_changed()),
               reseal: reseal,
@@ -733,10 +742,11 @@ class SyncEngine {
           syncMeetingRecordings: () => prefs.value.syncMeetingRecordings,
           // A note kept twice is worth a row in the feed: the person has two copies to look at.
           onConflict: (copy) => unawaited(record?.record('sync-conflict', {'noteId': copy.noteId, 'title': copy.title})),
-          // A note filed in an organization's workspace is the team's (docs/SHARED.md, S1): the channel's below.
+          // A note filed in an organization's workspace, or a folder under it, is the team's (docs/SHARED.md, S1):
+          // the channel's below.
           teamNote: (id) {
             final space = _workspaces.workspaceOf(id);
-            return space != null && isOrgWorkspace(space.id);
+            return space != null && _workspaces.orgOf(space.id) != null;
           },
           sharedLive: sharedLive,
         )),

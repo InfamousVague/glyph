@@ -7,11 +7,14 @@ import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/account/crypto_api.dart';
 import 'package:ghost_md/core/native/ghost_core.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/note_folders.dart' show folderFor;
+import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/sync/engine.dart' show TeamOutcome;
 import 'package:ghost_md/sync/notes.dart' show LocalFiles, LocalNotes;
 import 'package:ghost_md/team/crdt.dart';
 import 'package:ghost_md/team/doc.dart';
 import 'package:ghost_md/team/docs.dart';
+import 'package:ghost_md/team/folders.dart';
 import 'package:ghost_md/team/sync.dart';
 
 import '../support/sync_device.dart';
@@ -34,9 +37,14 @@ Future<GhostCore> openCore() => GhostCore.open(libraryPath: File(coreLibrary).ab
 String saidOutcome(TeamOutcome outcome) => 'changed ${outcome.changed}, sent ${outcome.sent}, unsent ${outcome.unsent}, reason ${outcome.reason}';
 
 /// A device of a member: its notes and files in maps, which notes it has filed in the organization, and one pass.
+///
+/// Made with [folders], the device has the organization's workspace and folders in a [WorkspaceStore] instead of
+/// the set (GHST-107): a note filed there has its path moved as the app's `NoteFolders` would move its file, at
+/// once, and the pass is handed the store's [OrgFolders]. The organization is called Ghost, as the tests make it.
 class TeamDevice {
-  TeamDevice({required this.crdt, required this.api, required this.crypto, required this.token, required this.orgId, required this.orgKey, TeamDocStore? store})
-      : docs = TeamDocs(crdt: crdt, store: store ?? MemoryDocs());
+  TeamDevice({required this.crdt, required this.api, required this.crypto, required this.token, required this.orgId, required this.orgKey, TeamDocStore? store, bool folders = false})
+      : docs = TeamDocs(crdt: crdt, store: store ?? MemoryDocs()),
+        _folders = folders;
 
   final Crdt crdt;
   final Api api;
@@ -48,6 +56,13 @@ class TeamDevice {
   final DeviceNotes local = DeviceNotes();
   final DeviceFiles files = DeviceFiles();
   final Set<String> filed = {};
+  final bool _folders;
+
+  /// The organization's workspace and folders, on a device made with folders; null on one without.
+  late final WorkspaceStore? workspaces = _folders ? (WorkspaceStore(onFiled: _refile)..ensureOrgWorkspace(OrgLike(id: orgId, name: 'Ghost'))) : null;
+
+  /// The organization's own workspace's id.
+  String get root => orgWorkspaceId(orgId);
   TeamDocs docs;
   TeamSyncState state = emptyTeamState();
   int clock = 1000;
@@ -57,11 +72,51 @@ class TeamDevice {
   Map<String, String> get versions => files.versions;
   Set<String> get owed => files.owing;
 
-  /// A note on this device, filed in the organization's workspace.
-  void put(String id, String body, {bool starred = false, int? archivedAt}) {
-    notes[id] = Note(id: id, body: body, createdAt: clock, updatedAt: clock, starred: starred, archivedAt: archivedAt);
-    filed.add(id);
+  /// A note on this device, filed in the organization's workspace, or with folders in [into] (a workspace id).
+  void put(String id, String body, {bool starred = false, int? archivedAt, String? into}) {
+    final spaces = workspaces;
+    notes[id] = Note(id: id, body: body, createdAt: clock, updatedAt: clock, starred: starred, archivedAt: archivedAt, path: spaces == null ? null : 'orgs/Ghost/$id.md');
+    if (spaces == null) {
+      filed.add(id);
+    } else {
+      spaces.fileNote(id, into ?? root);
+    }
   }
+
+  /// The notes' paths moved to the folder their workspace names, as lib/core/note_folders.dart moves their files:
+  /// into `<folder>/<file name>`, unless already in that folder.
+  void _refile(List<String> ids, Workspace? workspace) {
+    final folder = folderFor(workspace, workspaces!.value.list);
+    if (folder == null) return;
+    for (final id in ids) {
+      final note = notes[id];
+      if (note == null) continue;
+      final from = note.path ?? '$id.md';
+      final path = '$folder/${from.substring(from.lastIndexOf('/') + 1)}';
+      if (path != from) notes[id] = note.copyWith(path: () => path);
+    }
+  }
+
+  /// Whether a note is the team's: filed in the organization's workspace or a folder under it.
+  bool isTeamNote(String id) {
+    final spaces = workspaces;
+    if (spaces == null) return filed.contains(id);
+    final space = spaces.workspaceOf(id);
+    return space != null && spaces.orgOf(space.id) == orgId;
+  }
+
+  /// A note from the team filed in the organization's workspace.
+  void file(String id) {
+    final spaces = workspaces;
+    if (spaces == null) {
+      filed.add(id);
+    } else {
+      spaces.fileNote(id, root);
+    }
+  }
+
+  /// The channel's folders, on a device with them.
+  TeamFolders? get folders => workspaces == null ? null : OrgFolders(workspaces!, orgId);
 
   /// The note's words changed on this device, without the editor.
   void write(String id, String body) => notes[id] = notes[id]!.copyWith(body: body);
@@ -86,8 +141,9 @@ class TeamDevice {
         api: through ?? api,
         crypto: crypto,
         now: () => clock,
-        isTeamNote: filed.contains,
-        file: filed.add,
+        isTeamNote: isTeamNote,
+        file: file,
+        folders: folders,
         generation: generation,
         olderKey: olderKey,
       );

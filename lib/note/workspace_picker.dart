@@ -2,8 +2,9 @@
 /// new one that files the note there as it is made, and a way out of the one it is in. A port of
 /// `src/app/editor/WorkspacePicker.tsx`.
 ///
-/// A note filed in an organization's workspace is the team's, so taking it out, or moving it to another workspace,
-/// takes it from everyone in the organization: that press is asked twice, armed for four seconds in between.
+/// A note filed in an organization's workspace, or in a folder under it (GHST-107), is the team's, so taking it out,
+/// or moving it to a workspace outside the organization, takes it from everyone in the organization: that press is
+/// asked twice, armed for four seconds in between. Moving it to another folder of the same organization is not.
 ///
 /// What differs: the workspaces are the [WorkspaceStore] it is given, listened to, where the page read a module.
 library;
@@ -63,9 +64,10 @@ class _WorkspacePickerState extends State<WorkspacePicker> {
 
   void _choose(String? id) {
     final filed = widget.workspaces.workspaceOf(widget.noteId);
-    final team = filed != null && isOrgWorkspace(filed.id);
+    final org = filed == null ? null : widget.workspaces.orgOf(filed.id);
     final key = id ?? 'none';
-    if (team && id != filed.id && _armed != key) return _arm(key);
+    // Out of the organization, or into another: asked twice. Another folder of the same one keeps it the team's.
+    if (org != null && id != filed!.id && (id == null || widget.workspaces.orgOf(id) != org) && _armed != key) return _arm(key);
     widget.workspaces.fileNote(widget.noteId, id);
     widget.onDone();
   }
@@ -79,11 +81,13 @@ class _WorkspacePickerState extends State<WorkspacePicker> {
   Widget build(BuildContext context) {
     final list = widget.workspaces.value.list;
     final filed = widget.workspaces.workspaceOf(widget.noteId);
-    final team = filed != null && isOrgWorkspace(filed.id);
+    final team = filed != null && widget.workspaces.orgOf(filed.id) != null;
+    // The organization's own name, for a note in one of its folders: "Ghost.md › Clients" says the team.
+    final teamName = filed == null ? null : (filed.parent == null ? filed.name : workspacePathName(list, filed.id));
     final sentence = _armed != null
-        ? 'This takes the note away from everyone in ${filed?.name ?? 'the organization'}. Press again to go on.'
+        ? 'This takes the note away from everyone in ${teamName ?? 'the organization'}. Press again to go on.'
         : team
-            ? 'Filed in ${filed.name}, this note is the team’s: everyone in it reads and edits it.'
+            ? 'Filed in $teamName, this note is the team’s: everyone in it reads and edits it.'
             : list.isNotEmpty
                 ? 'Notes in a workspace show together on the list. Filed in an organization’s, a note is the team’s.'
                 : 'A name to file notes under. The list can then show one workspace at a time.';

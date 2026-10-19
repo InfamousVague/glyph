@@ -296,7 +296,7 @@ class HomeFiltersState extends State<HomeFilters> {
                       children: [
                         const _HueDot(),
                         SizedBox(width: 0.4 * sm),
-                        if (current.org != null) OrgMark(em: sm, color: t.color('app-ink')),
+                        if (orgOfWorkspace(spaces.list, current.id) != null) OrgMark(em: sm, color: t.color('app-ink')),
                         Text(current.name),
                       ],
                     ),
@@ -684,7 +684,7 @@ class _PanelBodyState extends State<_PanelBody> {
                         _placeNode(places[to]?.id ?? '').requestFocus();
                       }),
                       mark: place == null ? HomeIcon(HomeGlyph.workspace, size: md, color: t.color('app-ink-2')) : _HueDot(em: md),
-                      org: place?.org != null,
+                      org: place != null && orgOfWorkspace(spaces.list, place.id) != null,
                     ),
                   ),
               ],

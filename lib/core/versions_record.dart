@@ -47,7 +47,7 @@ class VersionsRecord {
   /// Whether note [id] is an organization's, whose history is kept unless switched off (`versionsByDefault`).
   bool versionsByDefault(String id) {
     final space = workspaces.workspaceOf(id);
-    return space != null && isOrgWorkspace(space.id);
+    return space != null && workspaces.orgOf(space.id) != null;
   }
 
   /// Whether note [id] keeps a version history, as the preferences and its workspace say now (`keepsVersions`).

@@ -72,10 +72,12 @@ class WorkspaceBar extends StatelessWidget {
                   child: _Pill(
                     key: ValueKey('space-${workspace.id}'),
                     label: workspace.name,
-                    org: isOrgWorkspace(workspace.id),
+                    // Marked as the team's in an organization's own workspace and in every folder under it (GHST-107).
+                    org: orgOfWorkspace(spaces.list, workspace.id) != null,
                     pressed: current?.id == workspace.id,
                     onPressed: () {
                       if (current?.id != workspace.id) return store.chooseWorkspace(workspace.id);
+                      // The organization's own pill opens the organization; a folder's opens the folder's sheet.
                       final org = orgIdOf(workspace.id);
                       final toOrg = onOrganization;
                       if (org != null && toOrg != null) return toOrg(org);
