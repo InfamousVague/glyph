@@ -877,7 +877,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (!searched && !widget.simple && widget.events != null)
         ValueListenableBuilder<List<CalendarEvent>>(
           valueListenable: widget.events!,
-          builder: (context, events, _) => HomeTodayEvents(events: eventsOn(events, isoDay(DateTime.fromMillisecondsSinceEpoch(_now)))),
+          builder: (context, events, _) => HomeTodayEvents(events: eventsOn(events, isoDay(DateTime.fromMillisecondsSinceEpoch(_now))), notes: widget.notes, onOpen: _open),
         ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
       if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),

@@ -4,6 +4,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/calendar/event.dart';
+import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart' show seedNow;
 import 'package:ghost_md/home/home_events.dart';
 import 'package:ghost_md/home/home_organizations.dart';
@@ -79,5 +80,38 @@ void main() {
     expect(eventHours(events.value[0]), '09:30–09:45');
     expect(eventHours(events.value[1]), 'All day');
     expect(eventsOn(events.value, '2026-09-28').map((e) => e.title), ['Team day', 'Standup']);
+  });
+
+  group('a meeting with its notes here opens them (Matt, 2026-10-19: the meetings at the top could not be opened)', () {
+    final start = day.add(const Duration(hours: 13, minutes: 20)), end = day.add(const Duration(hours: 13, minutes: 40));
+    final meeting = event('tidepool', 'Tidepool Series A planning', start, end);
+    Note note(String id, String body, DateTime at, {int? recordingMs}) =>
+        Note(id: id, body: body, createdAt: at.millisecondsSinceEpoch, updatedAt: at.millisecondsSinceEpoch, recordingMs: recordingMs);
+
+    test('the note named as the meeting, made while it ran, is its notes; the recorded one first', () {
+      final filed = note('filed', '# Tidepool Series A planning\n\nGhost was in this meeting.\n', start.add(const Duration(minutes: 1)), recordingMs: 869000);
+      final typed = note('typed', '# Tidepool series A planning\n\n- Raise 18M\n', start.add(const Duration(minutes: 5)));
+      final invite = note('invite', '# Invitation: Tidepool Series A planning @ Mon\n', start.subtract(const Duration(minutes: 20)));
+      final lastWeek = note('old', '# Tidepool Series A planning\n', start.subtract(const Duration(days: 7)));
+      expect(meetingNoteOf(meeting, [invite, typed, filed, lastWeek])?.id, 'filed');
+      expect(meetingNoteOf(meeting, [invite, typed, lastWeek])?.id, 'typed', reason: 'no recording: the note named as it is');
+      expect(meetingNoteOf(meeting, [invite, lastWeek]), isNull, reason: 'an invitation is not its notes, nor last week\'s');
+      expect(meetingNoteOf(event('day', 'Tidepool Series A planning', day, day.add(const Duration(days: 1)), allDay: true), [filed]), isNull, reason: 'an all-day event is no meeting');
+    });
+
+    testWidgets('its line wears the notes\' mark and opens them; a meeting with none opens nothing', (tester) async {
+      final opened = <String>[];
+      final filed = note('filed', '# Tidepool Series A planning\n\nGhost was in this meeting.\n', start.add(const Duration(minutes: 1)), recordingMs: 869000);
+      await pumpApp(tester, home: HomeTodayEvents(events: [meeting, event('standup', 'Standup', day.add(const Duration(hours: 9, minutes: 30)), day.add(const Duration(hours: 9, minutes: 45)))], notes: [filed], onOpen: opened.add));
+      await tester.pump();
+      expect(find.byKey(const ValueKey('home-event-notes-filed')), findsOneWidget);
+      await tester.tap(find.byKey(const ValueKey('home-event-notes-filed')));
+      await tester.pump();
+      expect(opened, ['filed']);
+      await tester.tap(find.text('Standup'), warnIfMissed: false);
+      await tester.pump();
+      expect(opened, ['filed'], reason: 'an event with no notes here opens nothing');
+      await away(tester);
+    });
   });
 }
