@@ -33,7 +33,7 @@ class RecordComplicationService : SuspendingComplicationDataSourceService() {
         return when (type) {
             ComplicationType.SHORT_TEXT -> ShortTextComplicationData.Builder(PlainComplicationText.Builder("Note").build(), said).setMonochromaticImage(mic).setTapAction(tap).build()
             ComplicationType.MONOCHROMATIC_IMAGE -> MonochromaticImageComplicationData.Builder(mic, said).setTapAction(tap).build()
-            ComplicationType.SMALL_IMAGE -> SmallImageComplicationData.Builder(SmallImage.Builder(Icon.createWithResource(this, R.drawable.ghost_listening), SmallImageType.ICON).build(), said).setTapAction(tap).build()
+            ComplicationType.SMALL_IMAGE -> SmallImageComplicationData.Builder(SmallImage.Builder(Icon.createWithResource(this, R.drawable.ghost_ic_mic), SmallImageType.ICON).build(), said).setTapAction(tap).build()
             else -> null
         }
     }

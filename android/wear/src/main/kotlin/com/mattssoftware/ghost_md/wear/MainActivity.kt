@@ -269,11 +269,12 @@ private fun GhostButton(onClick: () -> Unit) {
             .semantics { contentDescription = "Record a note" },
         contentAlignment = Alignment.Center,
     ) {
+        // A microphone, the record button's own mark (Matt, 2026-10-20: "use a microphone icon instead").
         Image(
-            painter = painterResource(R.drawable.ghost_listening),
+            painter = painterResource(R.drawable.ghost_ic_mic),
             contentDescription = null,
             colorFilter = ColorFilter.tint(Ink),
-            modifier = Modifier.size(60.dp),
+            modifier = Modifier.size(44.dp),
         )
     }
 }
@@ -370,7 +371,7 @@ private fun Confirm(take: Take?) {
         contentAlignment = Alignment.Center,
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
-            Image(painter = painterResource(R.drawable.ghost_listening), contentDescription = null, colorFilter = ColorFilter.tint(Ink), modifier = Modifier.size(54.dp))
+            Image(painter = painterResource(R.drawable.ghost_ic_mic), contentDescription = null, colorFilter = ColorFilter.tint(Ink), modifier = Modifier.size(40.dp))
             Spacer(Modifier.height(10.dp))
             Text(words, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Ink, textAlign = TextAlign.Center)
         }

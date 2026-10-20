@@ -16,14 +16,14 @@ import androidx.wear.tiles.TileService
 import com.google.common.util.concurrent.ListenableFuture
 
 /**
- * The tile: "Record a note" at one tap (docs/WATCH.md). The whole tile is the button: the listening ghost in an ink
+ * The tile: "Record a note" at one tap (docs/WATCH.md). The whole tile is the button: a microphone in an ink
  * ring, the words under it, and a tap opens the app with a take started ([MainActivity.EXTRA_RECORD]). The tile
  * itself never opens the microphone: the screen does, at the tap.
  */
 class RecordTileService : TileService() {
     companion object {
-        private const val RESOURCES = "1"
-        private const val GHOST = "ghost"
+        private const val RESOURCES = "2"
+        private const val MIC = "mic"
         private const val INK = 0xFFF3F3F0.toInt()
         private const val INK_2 = 0xFF9A9A96.toInt()
     }
@@ -45,9 +45,9 @@ class RecordTileService : TileService() {
                 ResourceBuilders.Resources.Builder()
                     .setVersion(RESOURCES)
                     .addIdToImageMapping(
-                        GHOST,
+                        MIC,
                         ResourceBuilders.ImageResource.Builder()
-                            .setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.ghost_listening).build())
+                            .setAndroidResourceByResId(ResourceBuilders.AndroidImageResourceByResId.Builder().setResourceId(R.drawable.ghost_ic_mic).build())
                             .build(),
                     )
                     .build(),
@@ -83,9 +83,9 @@ class RecordTileService : TileService() {
             )
             .addContent(
                 LayoutElementBuilders.Image.Builder()
-                    .setResourceId(GHOST)
-                    .setWidth(dp(54f))
-                    .setHeight(dp(54f))
+                    .setResourceId(MIC)
+                    .setWidth(dp(40f))
+                    .setHeight(dp(40f))
                     .setColorFilter(LayoutElementBuilders.ColorFilter.Builder().setTint(argb(INK)).build())
                     .build(),
             )
