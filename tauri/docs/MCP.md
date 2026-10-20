@@ -13,7 +13,7 @@ It works for any Ghost.md account, and it comes two ways:
 
 ## What it can do
 
-Once it is connected, ask Claude in words. Behind them are twenty tools, and a twenty-first on the hosted server, with
+Once it is connected, ask Claude in words. Behind them are twenty-four tools, and a twenty-fifth on the hosted server, with
 the notes as resources and four prompts beside them (below):
 
 | Tool | What it does |
@@ -29,8 +29,12 @@ the notes as resources and four prompts beside them (below):
 | `set_note_flags` | Pin or archive a note, or undo either. |
 | `delete_notes` | Notes moved to the Trash, as deleting a note in the app does: a synced setting (`core/trash.ts`), the note itself whole until you empty the Trash in the app. |
 | `restore_notes` | Notes taken back out of the Trash, to where they were. |
-| `list_workspaces` | The workspaces notes are filed under, as the app lists them: id, name, whether it is an organization's (`org-<orgId>`, made by the app for each organization you are a member of, docs/TEAMS.md), and how many notes each holds. |
-| `file_notes` | Notes filed under a workspace by its name or id, as a note's Workspace setting does in the app, moving them from any other; or `unfile` to take them out. Only an existing workspace: it never makes one, so an organization's appears once the app has synced the organization. |
+| `list_workspaces` | The workspaces and folders notes are filed under, as the app lists them: id, name, `parent` (a folder's; absent at the top), `path` ("Ghost.md › Clients › Acme"), whether it is an organization's (`org-<orgId>`, made by the app for each organization you are a member of, docs/TEAMS.md) or inside one, `notes` (filed in it alone) and `notesUnder` (and in every folder under it, what `list_notes` answers for it). |
+| `file_notes` | Notes filed under a workspace or folder, as a note's Workspace setting does in the app, moving them from any other; or `unfile` to take them out. Into a folder of an organization's, the note is the team's and its path names the folder (below). Only an existing workspace: it never makes one, so an organization's appears once the app has synced the organization. |
+| `create_folder` | A folder (GHST-108), `name` at the top or inside `parent` - a workspace, a folder, an organization's workspace or a folder in one - with an optional `hue`. One of that name already in the parent (ignoring case) is answered with `existed`, and nothing is made. |
+| `rename_folder` | A personal folder, or one inside an organization's, renamed (`folder`, `name`); never an organization's own workspace. Refused when the parent has another of that name. |
+| `move_folder` | A folder put inside `parent`, or at the top with none, with everything inside it. Never into itself or a folder in it, never into or out of an organization (the app's `canMove`), never an organization's own workspace. |
+| `delete_folder` | A folder removed, never a note: its folders go a level up; a personal folder's own notes are unfiled, as the app's remove leaves them; an organization folder's go up into its parent and stay the team's. |
 | `get_rules` | The "Claude rules" note: your standing instructions for Claude on this account. Made, pinned, the first time it is wanted. |
 | `add_rule` | Records a standing or repeated request into the "Claude rules" note, so Claude keeps doing it: for when you say to always, from now on, or again do something. |
 | `account_status` | Which account this is, where its sync service is, how many notes it holds, and how many Claude connections it has. |
@@ -108,6 +112,24 @@ whole object back from the revision it read (`GlyphAccount.changePrefs`), keepin
 known to this client or not. If another device wrote its settings in between, the service refuses the write and the
 change is made again on theirs, once. Filing is per person, as in the app: an organization's workspace files your
 copy of a note, and does not share it with the organization's other members.
+
+**Folders** (GHST-108; Matt, 2026-10-19: "Make it so the AI can manage folders and sorting of files into folders and
+organize all my organizations into neat logical folders"). A folder is a workspace with a `parent`, as the app keeps
+one (lib/core/workspaces.dart, docs/FEATURES_2_1.md): every write of the settings keeps each workspace's fields as they
+came, `parent` among them, so the connector never flattens nested folders. The rules are the app's, ported in
+`mcp/folders.ts`: whether a workspace is in an organization is read by walking its parents (`orgOf`), a workspace's
+notes in `list_notes` include its folders' (`workspaceFamily`), a folder's place on disk is `workspaces/Work/Clients/`
+or `orgs/Ghost.md/Clients/` (`folderFor`), and a folder never moves into or out of an organization (`canMove`). Since
+names repeat once folders nest, every tool that takes a workspace takes its id, its path ("Ghost.md › Clients" or
+"Ghost.md/Clients") or a name only one has; two of a name are refused with each one's path. A personal folder is the
+settings alone: the person's devices move the files as they read them. A folder inside an organization's is the
+team's, and a team note's folder is its path (`orgs/Ghost.md/Clients/Acme/Plan.md`), which each member's device files
+it by (lib/team/folders.dart). So filing a team note into a folder, or renaming, moving or deleting a folder it is
+under, puts its row again with the new path and nothing else changed (`TeamNotes.repath`): its id, words, file name
+(the part after the last `/`), dates, pin and archive stay as they were, so notebook links, `from: … [[…]]` queries and
+calendar events keyed by the note go on finding it. A row another member put first is merged and put again with the
+path kept and their pin and archive standing. A rename high in an organization's tree puts one row per team note
+under it.
 
 Every tool reads the account fresh before it acts, so Claude sees what your phone last wrote. A write goes from the
 version just read: if another device changed the note in between, the service refuses the write and Claude is shown

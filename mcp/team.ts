@@ -550,7 +550,7 @@ export class TeamNotes {
    * to the seq the snapshot covers. A row another member put first is merged - their document into this one, their
    * note with the pin and the archive set here - and put again from theirs, once.
    */
-  private async putRow(held: Held, id: string, { fresh = false, retry = true }: { fresh?: boolean; retry?: boolean } = {}): Promise<void> {
+  private async putRow(held: Held, id: string, { fresh = false, retry = true, keepPath = false }: { fresh?: boolean; retry?: boolean; keepPath?: boolean } = {}): Promise<void> {
     const entry = held.notes.get(id)!;
     const key = this.keyOf(held);
     const images = imageNames(entry.note.body);
@@ -570,13 +570,16 @@ export class TeamNotes {
           throw new Error('Another member took this note out of the team first.', { cause: failure });
         }
         entry.rev = winner.rev;
-        return this.putRow(held, id, { fresh, retry: false });
+        return this.putRow(held, id, { fresh, retry: false, keepPath });
       }
       const theirs = await this.opened(held, (k) => open<TeamPayload>(k, winner.blob!, noteContext(held.row.id, id)));
       const doc = looseTeamDoc(id, { state: entry.state, seq: entry.seq, snapshotSeq: entry.seq, pending: [] });
       try {
         doc.applyRemote([fromBase64Url(theirs.state)], theirs.seq);
-        entry.note = { ...theirs.note, id, starred: entry.note.starred, archivedAt: entry.note.archivedAt, body: doc.words(), updatedAt: Math.max(entry.note.updatedAt, theirs.note.updatedAt) };
+        // A folder move made here (`repath`) changes the path alone: its path goes over theirs, and their pin and
+        // archive stand. Any other write here set the pin or the archive, which go over theirs.
+        const mine = keepPath ? { path: entry.note.path } : { starred: entry.note.starred, archivedAt: entry.note.archivedAt };
+        entry.note = { ...theirs.note, id, ...mine, body: doc.words(), updatedAt: Math.max(entry.note.updatedAt, theirs.note.updatedAt) };
         entry.state = doc.snapshot();
         entry.seq = doc.seq;
         entry.rev = winner.rev;
@@ -584,8 +587,35 @@ export class TeamNotes {
       } finally {
         await release(doc);
       }
-      return this.putRow(held, id, { fresh, retry: false });
+      return this.putRow(held, id, { fresh, retry: false, keepPath });
     }
+  }
+
+  /**
+   * A team note moved to another of the organization's folders (GHST-108): its row put with `path` and nothing else
+   * changed - its id, words, file name, dates and the rest as they were, its log untouched - so every member's device
+   * files it by the new path (lib/team/folders.dart). A row another member put first is merged and put again, the
+   * path set here kept.
+   */
+  async repath(id: string, path: string): Promise<TeamRecord> {
+    const found = this.find(id);
+    if (!found) throw new Error(`No team note ${id}.`);
+    const { held, entry } = found;
+    this.keyOf(held);
+    const was = entry.note.path;
+    if (was === path) return this.record(held, entry);
+    entry.note = { ...entry.note, path };
+    try {
+      await this.underKey(held, () => this.putRow(held, id, { keepPath: true }));
+    } catch (failure) {
+      const now = held.notes.get(id);
+      if (now) {
+        if (was === undefined) delete now.note.path;
+        else now.note = { ...now.note, path: was };
+      }
+      throw failure;
+    }
+    return this.get(id)!;
   }
 
   /**
@@ -677,16 +707,17 @@ export class TeamNotes {
   }
 
   /** A new note in an organization, the team's from its first word. */
-  create(orgId: string, body: string, { pinned = false, now = Date.now() }: { pinned?: boolean; now?: number } = {}): Promise<TeamRecord> {
-    return this.place(this.org(orgId), { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null });
+  create(orgId: string, body: string, { pinned = false, now = Date.now(), path }: { pinned?: boolean; now?: number; path?: string } = {}): Promise<TeamRecord> {
+    return this.place(this.org(orgId), { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null, ...(path ? { path } : {}) });
   }
 
   /**
    * One of the account's own notes put to an organization, as filing it there on a device does: its pictures first,
    * read from the account's files and sealed again under the organization key, then its row. A note the team holds
-   * already is left as the team has it. Answers the pictures that could not be carried.
+   * already is left as the team has it. Answers the pictures that could not be carried. With `path`, the note goes to
+   * the team at that path, a folder of the organization's (GHST-108), and nothing else of it changes.
    */
-  async adopt(orgId: string, note: Note): Promise<{ record: TeamRecord; left: string[] }> {
+  async adopt(orgId: string, note: Note, path?: string): Promise<{ record: TeamRecord; left: string[] }> {
     const held = this.org(orgId);
     const has = held.notes.get(note.id);
     if (has) return { record: this.record(held, has), left: [] };
@@ -705,7 +736,7 @@ export class TeamNotes {
         left.push(name);
       }
     }
-    return { record: await this.place(held, note), left };
+    return { record: await this.place(held, path ? { ...note, path } : note), left };
   }
 
   /**
