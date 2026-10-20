@@ -6,6 +6,7 @@ import android.os.Bundle
 import com.mattssoftware.ghost_md.home.HomeScreen
 import com.mattssoftware.ghost_md.reminders.Places
 import com.mattssoftware.ghost_md.reminders.Reminders
+import com.mattssoftware.ghost_md.watch.WatchBridge
 import com.mattssoftware.glyph.capture.DictationMic
 import com.mattssoftware.glyph.files.LibraryTree
 import io.flutter.embedding.android.FlutterActivity
@@ -98,6 +99,9 @@ class MainActivity : FlutterActivity() {
 
     /** Whether the phone has a connection, and the moment one comes back (Connection.kt). */
     private val connection by lazy { Connection(applicationContext) }
+
+    /** The watch's takes and the app's word that each is a note (watch/WatchBridge.kt). */
+    private var watch: WatchBridge? = null
 
     /** The battery, for the AI card's reading (Battery.kt). */
     private val battery by lazy { Battery(applicationContext) }
@@ -193,6 +197,9 @@ class MainActivity : FlutterActivity() {
         // Place reminders: the geofences and the location they need (reminders/Places.kt; lib/reminders/place_host.dart).
         Places.register(applicationContext, this, messenger)
         HomeScreen.register(applicationContext, messenger)
+        // Voice notes from the watch, waiting in the inbox for the app to make them notes (watch/WatchBridge.kt;
+        // lib/watch, docs/WATCH.md).
+        watch = WatchBridge(applicationContext).also { it.register(messenger) }
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -242,6 +249,8 @@ class MainActivity : FlutterActivity() {
         Reminders.released(this)
         Places.released(this)
         meeting?.onDestroy()
+        // No engine to hear the next take from the watch: it is a notification until the app is back.
+        watch?.detach()
         super.onDestroy()
     }
 

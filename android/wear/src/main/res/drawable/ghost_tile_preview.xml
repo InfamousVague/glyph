@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The tile's picture in the watch's tile picker: the microphone on black, as the tile draws it. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="#000000" />
+            <size android:width="192dp" android:height="192dp" />
+        </shape>
+    </item>
+    <item android:gravity="center" android:width="80dp" android:height="80dp" android:drawable="@drawable/ghost_ic_mic" />
+</layer-list>

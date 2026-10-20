@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  How the phone's Ghost.md finds this watch among the nodes the Data Layer connects (WatchLink.WATCH_CAPABILITY,
+  wear-shared/): Settings on the phone lists the watches that have it. The phone declares `ghost_md_phone` the same way.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>ghost_md_watch</item>
+    </string-array>
+    <string name="record_note">Record a note</string>
+    <string name="record_note_short">Record</string>
+</resources>
