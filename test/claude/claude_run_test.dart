@@ -7,6 +7,7 @@ import 'package:ghost_md/account/device_keys.dart' show MemorySecureStore;
 import 'package:ghost_md/claude/claude_run.dart';
 import 'package:ghost_md/claude/claude_runner.dart';
 import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings, defaultClaudeEffort;
+import 'package:ghost_md/claude/claude_spend.dart';
 import 'package:ghost_md/claude/claude_tools.dart';
 import 'package:ghost_md/claude/live_typing.dart';
 import 'package:ghost_md/claude/messages_api.dart';
@@ -396,6 +397,125 @@ void main() {
       expect(claudeCaretOf(view.state), isNull);
       showClaudeCaret(view, 4);
       expect(claudeCaretOf(view.state), 4);
+    });
+  });
+
+  // Matt, 2026-10-20: "Also enable setting spending limits in claude settings in the app" (lib/claude/claude_spend.dart).
+  group('the spending limit', () {
+    /// [turn] as the API reports what it used: [input] in message_start, [output] in message_delta.
+    List<SseEvent> paid(List<SseEvent> turn, {int input = 0, required int output}) => [
+          for (final event in turn)
+            if (event.event == 'message_start')
+              _e('message_start', {
+                'type': 'message_start',
+                'message': {
+                  'model': 'claude-opus-5-5',
+                  'usage': {'input_tokens': input, 'output_tokens': 1},
+                },
+              })
+            else if (event.event == 'message_delta')
+              _e('message_delta', {...jsonDecode(event.data) as Map<String, Object?>, 'usage': {'output_tokens': output}})
+            else
+              event,
+        ];
+
+    Future<ClaudeSpend> limited(double limit, {double spent = 0}) async {
+      final spend = ClaudeSpend(MemorySecureStore(), now: () => DateTime(2026, 10, 20));
+      await spend.load();
+      await spend.setOn(true);
+      await spend.setLimit(limit);
+      // Opus 5.5's output is $20 a million tokens: 50,000 of them a dollar.
+      if (spent > 0) spend.record('claude-opus-5-5', ClaudeUsage(output: (spent * 50000).round()));
+      return spend;
+    }
+
+    testWidgets('counts every request of a run, each turn of its tool loop', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk\n';
+      final api = _Api([
+        paid(_turn(words: 'Reading.', tool: ClaudeTool.read, pieces: [jsonEncode({'id': 'g'})]), input: 10000, output: 2000),
+        paid(_turn(words: 'Milk.'), input: 12000, output: 500),
+      ]);
+      final spend = await tester.runAsync(() => limited(10));
+      final run = ClaudeRun(api: api, model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'What is on the list?', spend: spend);
+      await tester.runAsync(run.run);
+      expect(run.state, ClaudeState.done);
+      expect(spend!.requests, 2);
+      expect(spend.spent, closeTo((22000 * 4 + 2500 * 20) / 1e6, 1e-12));
+    });
+
+    testWidgets('sends nothing once the month\'s limit is reached, and says so', (tester) async {
+      final notes = _Notes();
+      final api = _Api([_turn(words: 'Never.')]);
+      final spend = await tester.runAsync(() => limited(5, spent: 5));
+      final run = ClaudeRun(api: api, model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'x', spend: spend);
+      await tester.runAsync(run.run);
+      expect(api.asked, isEmpty);
+      expect(run.state, ClaudeState.failed);
+      expect(run.problem, 'Monthly spending limit reached (\$5). Change it in Settings › Claude.');
+
+      // The root's runner refuses the ask before it makes a run; the chat and the voice sheet say its words.
+      final settings = ClaudeSettings(MemorySecureStore());
+      await tester.runAsync(() async {
+        await settings.setKey('sk-ant-test-0000000000');
+        await settings.spend.setOn(true);
+        await settings.spend.setLimit(5);
+        settings.spend.record('claude-opus-5-5', ClaudeUsage(output: 250000));
+      });
+      final runner = ClaudeRunner(settings: settings, notes: notes, desk: _Desk(notes), api: (_) => api);
+      expect(runner.limited, isTrue);
+      Object? refused;
+      await tester.runAsync(() async {
+        try {
+          await runner.ask('x');
+        } catch (error) {
+          refused = error;
+        }
+      });
+      expect(refused, isA<ClaudeError>().having((e) => e.message, 'message', 'Monthly spending limit reached (\$5). Change it in Settings › Claude.').having((e) => e.type, 'type', claudeLimitType));
+      expect(api.asked, isEmpty);
+      // Raised, it is asked again.
+      await tester.runAsync(() => settings.spend.setLimit(10));
+      expect(runner.limited, isFalse);
+      runner.dispose();
+    });
+
+    testWidgets('a run that crosses the limit finishes its request, its tool answered, and starts no other', (tester) async {
+      final notes = _Notes()..bodies['g'] = '# Groceries\n\n- milk\n';
+      final api = _Api([
+        // $4.90 so far; this request costs $0.20 more.
+        paid(_turn(words: 'Reading.', tool: ClaudeTool.read, pieces: [jsonEncode({'id': 'g'})]), output: 10000),
+        _turn(words: 'Never asked.'),
+      ]);
+      final spend = await tester.runAsync(() => limited(5, spent: 4.9));
+      final run = ClaudeRun(api: api, model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'What is on the list?', spend: spend);
+      await tester.runAsync(run.run);
+      expect(api.asked, hasLength(1));
+      expect(spend!.reached, isTrue);
+      expect(run.state, ClaudeState.failed);
+      expect(run.problem, 'Monthly spending limit reached (\$5). Change it in Settings › Claude.');
+      // At 98% before it began, the run warned first.
+      expect([for (final step in run.steps) step.kind], ['asked', 'notice', 'said', 'tool']);
+      // The tool was answered in the conversation, so a follow-up once the limit is raised is whole.
+      final last = run.messages.last;
+      expect(last['role'], 'user');
+      expect(((last['content']! as List).single as Map)['type'], 'tool_result');
+    });
+
+    testWidgets('warns once a month in the chat past 80%', (tester) async {
+      final notes = _Notes();
+      final spend = await tester.runAsync(() => limited(10, spent: 7.9));
+      // This request costs $0.20: $8.10, past 80%.
+      final first = ClaudeRun(api: _Api([paid(_turn(words: 'Done.'), output: 10000)]), model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'x', spend: spend);
+      await tester.runAsync(first.run);
+      expect(first.state, ClaudeState.done);
+      expect([for (final step in first.steps) (step.kind, step.words)], [
+        ('asked', 'x'),
+        ('said', 'Done.'),
+        ('notice', 'You’ve used \$8.10 of your \$10 monthly limit for Claude (81%). Change it in Settings › Claude.'),
+      ]);
+      final second = ClaudeRun(api: _Api([paid(_turn(words: 'Again.'), output: 10000)]), model: 'claude-opus-5-5', notes: notes, desk: _Desk(notes), prompt: 'y', spend: spend);
+      await tester.runAsync(second.run);
+      expect(second.steps.where((step) => step.kind == 'notice'), isEmpty);
     });
   });
 }

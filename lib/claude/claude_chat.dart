@@ -437,6 +437,7 @@ class _Messages extends StatelessWidget {
             'asked' => _Bubble(words: step.words, mine: true),
             'said' => _Bubble(words: step.words),
             'thought' => _Thought(words: step.words),
+            'notice' => _Quiet(step.words),
             _ => _Step(step: step, onOpenNote: onOpenNote),
           },
         if (run.thinking.trim().isNotEmpty) _Thought(words: run.thinking.trim(), live: true),

@@ -60,7 +60,10 @@
 /// to the phone's model instead, since a summary is never remade on its own. A Claude failure is said in Claude's
 /// words beside the job (`reasons`): a refused key or request, or a decline, fails it at once for Try again; no
 /// connection, too many requests or Claude overloaded counts as a try, as a model's failure does. A Claude job may run
-/// with the app off the screen (no cores are taken); every other job waits for the screen as before.
+/// with the app off the screen (no cores are taken); every other job waits for the screen as before. At the month's
+/// spending limit for Claude (lib/claude/claude_spend.dart) the job is held the same way, its reason the limit's words
+/// (`reasons`), and asked once the limit is raised, the count reset, or the month turns; a piece not yet asked when
+/// the limit is crossed is left for then, the job uncounted.
 ///
 /// The phone's service still makes a meeting's transcript with the app closed (Whisper is the phone's). With Claude
 /// chosen it is sent a config with summaries off (ai/job_config.dart), so it writes no summary; the result it leaves,
@@ -109,6 +112,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../capture/markdown.dart' show renderNote;
+import '../claude/claude_spend.dart' show claudeLimitType;
 import '../claude/messages_api.dart' show ClaudeCancelled, ClaudeError;
 import '../capture/meeting_live.dart' show ExternalStore;
 import '../core/item_syntax.dart' show jsTrim;
@@ -487,8 +491,11 @@ class Summaries {
   /// Notes whose job is waiting for a model, said by the last look.
   final Set<String> _needsModel = <String>{};
 
-  /// Notes whose meeting waits for Claude while Local only is on, said by the last look.
+  /// Notes whose meeting waits for Claude while Local only is on, or at the spending limit, said by the last look.
   final Set<String> _claudeHeld = <String>{};
+
+  /// Why a meeting held for Claude waits, where it is not Local only: the spending limit's words.
+  final Map<String, String> _heldWhy = <String, String>{};
 
   /// Why each job's last try failed, where Claude said (kept for this run of the app).
   final Map<String, String> _reasons = <String, String>{};
@@ -555,6 +562,8 @@ class Summaries {
       reasons: {
         for (final j in queue)
           if (j.failed == true && _reasons.containsKey(j.id)) j.id: _reasons[j.id]!,
+        for (final j in queue)
+          if (j.failed != true && j.native != true && _claudeHeld.contains(j.id) && _heldWhy.containsKey(j.id)) j.id: _heldWhy[j.id]!,
       },
     ));
   }
@@ -735,9 +744,10 @@ class Summaries {
   void _claudeChanged() {
     final claude = this.claude;
     if (claude == null) return;
-    final now = (chosen: claude.chosen, enabled: claude.enabled);
+    final now = (chosen: claude.chosen, enabled: claude.enabled, limited: claude.limited);
     if (now == _claudeWas) return;
     _claudeWas = now;
+    // The limit reached by the write-up's own request lets that request finish: it is only no other piece that starts.
     final writing = _activeClaude;
     if (writing != null && !now.enabled) {
       _cut = true;
@@ -747,12 +757,13 @@ class Summaries {
   }
 
   /// What Claude was when [_claudeChanged] last looked, so a change of something else it hears is let by.
-  ({bool chosen, bool enabled})? _claudeWas;
+  ({bool chosen, bool enabled, bool limited})? _claudeWas;
 
   /// A job gone or done: nothing it waited for, and no reason, is kept for it.
   void _forgetWaits(String id) {
     _needsModel.remove(id);
     _claudeHeld.remove(id);
+    _heldWhy.remove(id);
     _askedAfterModel.remove(id);
     _reasons.remove(id);
   }
@@ -925,11 +936,16 @@ class Summaries {
       if (viaClaude) {
         // No model is looked for: Claude's, or waiting for Claude while Local only holds it.
         final claude = this.claude!;
-        if (!claude.enabled) {
-          if (_claudeHeld.add(job.id) | _needsModel.remove(job.id)) _publish();
+        if (!claude.enabled || claude.limited) {
+          // Local only says itself; the limit is said in its own words.
+          final why = claude.enabled ? claude.limitMessage : null;
+          final changed = why == null ? _heldWhy.remove(job.id) != null : _heldWhy[job.id] != why;
+          if (why != null) _heldWhy[job.id] = why;
+          if (_claudeHeld.add(job.id) | _needsModel.remove(job.id) | changed) _publish();
           next = _noModelMs;
           return;
         }
+        _heldWhy.remove(job.id);
         if (_claudeHeld.remove(job.id) | _needsModel.remove(job.id)) _publish();
         model = claude.model;
       } else {
@@ -960,7 +976,7 @@ class Summaries {
       }
     } catch (error) {
       final message = failureText(error);
-      if (_paused || _busy.hasMatch(message)) {
+      if (_paused || _busy.hasMatch(message) || (error is ClaudeError && error.type == claudeLimitType)) {
         next = _retryMs;
       } else {
         warn('[glyph] the summary did not come: $message');
@@ -1151,7 +1167,8 @@ class Summaries {
     if (_paused) throw const AiFailure('cancelled');
     if (viaClaude) {
       final claude = this.claude!;
-      if (!claude.enabled) throw const AiFailure('cancelled');
+      // A piece not yet asked once the limit is reached is left, the job uncounted, for the queue to hold.
+      if (!claude.enabled || claude.limited) throw const AiFailure('cancelled');
       final writing = _activeClaude = claude.write(system: system, prompt: prompt);
       try {
         return await writing.done;

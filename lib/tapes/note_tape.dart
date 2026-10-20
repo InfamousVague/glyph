@@ -66,11 +66,12 @@ class TapeQueue {
   /// The summary was given up on (`summaries.failed.has(id)`).
   final bool failed;
 
-  /// The meeting is Claude's to write up and waits while Local only is on (ai/summaries.dart `claudeHeld`). The
-  /// port's own.
+  /// The meeting is Claude's to write up and waits while Local only is on, or at Claude's spending limit
+  /// (ai/summaries.dart `claudeHeld`). The port's own.
   final bool claudeHeld;
 
-  /// Why the summary was given up on, in Claude's words, where it said (ai/summaries.dart `reasons`). The port's own.
+  /// Why the summary was given up on, in Claude's words, where it said; or, [claudeHeld], why it waits where that is
+  /// the spending limit (ai/summaries.dart `reasons`). The port's own.
   final String? failedWhy;
 
   /// The note's better words are still to come (`refining.pending.has(id)`).
@@ -152,7 +153,7 @@ class _NoteTapeState extends State<NoteTape> {
     final summaryLine = queue.needsModel
         ? 'Needs a model.'
         : queue.claudeHeld
-            ? 'The summary waits for Claude: Local only is on.'
+            ? (queue.failedWhy != null ? 'The summary waits for Claude. ${queue.failedWhy}' : 'The summary waits for Claude: Local only is on.')
         : queue.failed
             ? (queue.failedWhy != null ? 'The summary didn’t come. ${queue.failedWhy}' : 'The summary didn’t come.')
             : held

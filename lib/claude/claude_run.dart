@@ -15,6 +15,11 @@
 /// as a `thought` step once the block closes. Every thinking block, an empty one and a `redacted_thinking` one too,
 /// goes back in the conversation exactly as it came, with its signature: the API checks them, and a block changed or
 /// left out of a tool's turn is refused.
+///
+/// **The spending limit** (lib/claude/claude_spend.dart): every request is counted as it ends ([meterClaude]), and
+/// none is sent once the month's limit is reached: a run asked then fails at once with [claudeLimitMessage], and one
+/// that crosses it in the request it is in finishes that request (its tools answered) and starts no other, ending
+/// with the same words. "Warn me at 80%" is a `notice` step, once a month.
 library;
 
 import 'dart:async';
@@ -24,6 +29,7 @@ import 'package:flutter/foundation.dart';
 
 import '../editor/editor.dart' show EditorViewLike;
 import 'claude_folders.dart';
+import 'claude_spend.dart';
 import 'claude_tools.dart';
 import 'live_typing.dart';
 import 'messages_api.dart';
@@ -53,7 +59,7 @@ class ClaudeStep {
   const ClaudeStep({required this.kind, required this.words, this.noteId});
 
   /// `said` for Claude's words, `asked` for the person's, `tool` for what a tool did, `thought` for the summary of
-  /// what Claude thought before it went on.
+  /// what Claude thought before it went on, `notice` for what the app says (the spending limit's warning).
   final String kind;
   final String words;
   final String? noteId;
@@ -94,6 +100,7 @@ class ClaudeRun extends ChangeNotifier {
     required this.prompt,
     this.system,
     this.maxTokens = 16000,
+    this.spend,
     List<Map<String, Object?>>? history,
   }) : _messages = [...?history];
 
@@ -111,6 +118,9 @@ class ClaudeRun extends ChangeNotifier {
   final String prompt;
   final String? system;
   final int maxTokens;
+
+  /// Where each request is counted, and the limit that keeps one from being sent; none, and nothing is counted.
+  final ClaudeSpend? spend;
 
   final List<Map<String, Object?>> _messages;
 
@@ -241,8 +251,13 @@ class ClaudeRun extends ChangeNotifier {
     _steps.add(ClaudeStep(kind: 'asked', words: prompt));
     _set(ClaudeState.thinking);
     try {
+      _notice();
       for (var turn = 0; turn < claudeTurnLimit; turn += 1) {
+        // The limit reached, before this run or by its last request: nothing more is sent.
+        final spend = this.spend;
+        if (spend != null && spend.reached) throw claudeLimitError(spend);
         final reply = await _ask();
+        _notice();
         if (reply.content.isNotEmpty) _messages.add({'role': 'assistant', 'content': reply.content});
         // Every tool Claude called is answered in the conversation, even when stopped, so a follow-up ask is whole.
         if (reply.results.isNotEmpty) _messages.add({'role': 'user', 'content': reply.results});
@@ -267,10 +282,19 @@ class ClaudeRun extends ChangeNotifier {
     }
   }
 
+  /// "Warn me at 80%": the month's one notice, as a step of its own.
+  void _notice() {
+    final words = spend?.takeNotice();
+    if (words == null) return;
+    _steps.add(ClaudeStep(kind: 'notice', words: words));
+    notifyListeners();
+  }
+
   /// One request, streamed: Claude's words and tools as they come, each tool answered once its input is whole.
   Future<_Reply> _ask() async {
     final thinking = claudeThinkingFor(model);
-    final call = _call = api.stream({
+    final spend = this.spend;
+    final asked = api.stream({
       'model': model,
       'max_tokens': maxTokens,
       'thinking': ?thinking,
@@ -279,6 +303,7 @@ class ClaudeRun extends ChangeNotifier {
       'tools': [...claudeTools, if (folders != null) ...claudeFolderTools],
       'messages': _messages,
     });
+    final call = _call = spend == null ? asked : meterClaude(asked, model: model, spend: spend);
     final blocks = <int, _Block>{};
     final content = <Map<String, Object?>>[];
     final results = <Map<String, Object?>>[];

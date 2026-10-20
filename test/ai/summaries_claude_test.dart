@@ -19,6 +19,7 @@ import 'package:ghost_md/ai/summaries.dart';
 import 'package:ghost_md/ai/summary_claude.dart';
 import 'package:ghost_md/ai/summary_keep.dart' show readSummary;
 import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings;
+import 'package:ghost_md/claude/claude_spend.dart' show ClaudeUsage;
 import 'package:ghost_md/claude/messages_api.dart';
 import 'package:ghost_md/claude/sse.dart' show SseEvent;
 import 'package:ghost_md/core/preferences.dart' show Preferences;
@@ -193,6 +194,63 @@ void main() {
       await advance(tester, 20000);
       expect(q.summaries.summariesNow().claudeHeld, {'n1'});
       expect(q.fakes, isEmpty);
+    });
+
+    // Matt, 2026-10-20: "Also enable setting spending limits in claude settings in the app" (lib/claude/claude_spend.dart).
+    claudeTest('at the month’s spending limit a meeting waits for Claude, saying so, uncounted, and is asked once the limit is raised', (tester) async {
+      settings.spend.now = () => DateTime(2026, 10, 20);
+      await tester.runAsync(() async {
+        await settings.spend.setOn(true);
+        await settings.spend.setLimit(5);
+      });
+      // $5 of Opus 5.5's output already this month.
+      settings.spend.record('claude-opus-5-5', ClaudeUsage(output: 250000));
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      expect(api.asked, isEmpty);
+      expect(q.fakes, isEmpty);
+      final held = q.summaries.summariesNow();
+      expect(held.claudeHeld, {'n1'});
+      expect(held.reasons, {'n1': 'Monthly spending limit reached (\$5). Change it in Settings › Claude.'});
+      expect(held.failed, isEmpty);
+      // Looked at again and again, it is never counted as a try.
+      await advance(tester, 200000);
+      expect(api.asked, isEmpty);
+      expect(q.queued().single['tries'], 0);
+      expect(q.queued().single['failed'], isNull);
+      await tester.runAsync(() => settings.spend.setLimit(25));
+      changes.tell();
+      await advance(tester, 500);
+      expect(api.asked, hasLength(1));
+      expect(q.summaries.summariesNow().claudeHeld, isEmpty);
+      expect(q.summaries.summariesNow().reasons, isEmpty);
+      api.asked.single.answer(q.answer);
+      await advance(tester, 0);
+      expect(q.notes['n1']?.body, body);
+    });
+
+    claudeTest('the limit reached while Claude writes a meeting up lets that request finish, and the write-up lands', (tester) async {
+      settings.spend.now = () => DateTime(2026, 10, 20);
+      await tester.runAsync(() async {
+        await settings.spend.setOn(true);
+        await settings.spend.setLimit(5);
+      });
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      expect(api.asked, hasLength(1));
+      settings.spend.record('claude-opus-5-5', ClaudeUsage(output: 250000));
+      changes.tell();
+      await advance(tester, 0);
+      expect(api.asked.single.cancelled, isFalse);
+      api.asked.single.answer(q.answer);
+      await advance(tester, 0);
+      expect(q.notes['n1']?.body, body);
+      // The next waits.
+      q.notes['n2'] = q.note('n2', '# Second meeting\n\n$transcript', recordingMs: 4000, segments: q.phrases);
+      q.summaries.enqueueSummary('n2', SummaryKind.meeting);
+      await advance(tester, 1000);
+      expect(api.asked, hasLength(1));
+      expect(q.summaries.summariesNow().claudeHeld, {'n2'});
     });
 
     claudeTest('a meeting is written up by Claude with the app off the screen; a voice note waits for it to come back', (tester) async {

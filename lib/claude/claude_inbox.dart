@@ -166,7 +166,8 @@ class ClaudeInbox {
   }
 
   Future<void> _look() async {
-    if (_working || !(on?.call() ?? true) || !runner.ready || !runner.settings.inbox) return;
+    // At the spending limit, nothing is asked: the settings are heard, so a limit raised looks again.
+    if (_working || !(on?.call() ?? true) || !runner.ready || !runner.settings.inbox || runner.limited) return;
     final inbox = body();
     if (inbox == null) return;
     final caret = caretLine?.call(inbox.id);

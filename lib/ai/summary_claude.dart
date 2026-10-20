@@ -20,6 +20,10 @@
 /// server-side fallback (`fallbacks: "default"`), so a request a safety classifier declines is answered by the
 /// model Anthropic routes it to rather than refused; what still ends `refusal`, `max_tokens` or with no words is a
 /// [ClaudeError] in the queue's words.
+///
+/// **The spending limit** (lib/claude/claude_spend.dart): each request is counted as it ends. Once the month's limit
+/// is reached a write-up is [limited]: the queue holds its job, saying [limitMessage], and asks again next month or
+/// once the limit is raised or the count reset; it is never failed for it.
 library;
 
 import 'dart:convert';
@@ -27,6 +31,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../claude/claude_settings.dart' show ClaudeSettings;
+import '../claude/claude_spend.dart' show claudeLimitError, claudeLimitType, meterClaude;
 import '../claude/messages_api.dart';
 
 /// The room a write-up's request is given: its thinking and its words.
@@ -42,6 +47,8 @@ const Set<String> claudeFallbackModels = {'claude-opus-5-5', 'claude-sonnet-5-5'
 /// The queue fails such a job at once, for Try again once the person has put it right, rather than three times.
 bool claudeLasting(Object error) {
   if (error is! ClaudeError) return false;
+  // The limit is waited out, never failed for.
+  if (error.type == claudeLimitType) return false;
   if (error.badKey || error.type == 'refusal' || error.type == 'permission_error' || error.type == 'invalid_request_error') return true;
   final status = error.status;
   return status != null && status >= 400 && status < 500 && status != 408 && status != 409 && status != 429;
@@ -90,6 +97,12 @@ class MeetingClaude {
   /// Claude may be asked now.
   bool get enabled => chosen && !localOnly();
 
+  /// Chosen, and this month's spending limit reached: the write-up waits, as it does for Local only.
+  bool get limited => chosen && settings.spend.reached;
+
+  /// What a write-up held by the limit says.
+  String get limitMessage => settings.spend.limitMessage;
+
   /// The model the person chose, which a write-up is kept as having been made by.
   String get model => settings.model;
 
@@ -112,8 +125,10 @@ class MeetingClaude {
   ClaudeWriting write({required String system, required String prompt}) {
     final key = settings.key;
     if (key == null) return ClaudeWriting(Future<String>.error(const ClaudeError('Add your Anthropic API key in Settings › Claude.')), () {});
+    if (settings.spend.reached) return ClaudeWriting(Future<String>.error(claudeLimitError(settings.spend)), () {});
     final body = requestFor(system: system, prompt: prompt);
-    final call = _api(key).streamWith(body, betas: body.containsKey('fallbacks') ? const [claudeFallbackBeta] : const []);
+    final asked = _api(key).streamWith(body, betas: body.containsKey('fallbacks') ? const [claudeFallbackBeta] : const []);
+    final call = meterClaude(asked, model: body['model']! as String, spend: settings.spend);
     return ClaudeWriting(_read(call), call.cancel);
   }
 

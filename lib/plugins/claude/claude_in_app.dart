@@ -12,6 +12,11 @@
 /// [switchVoiceAssistant]): on, Ghost.md is offered to Android as a digital assistant, and Android's Default digital
 /// assistant app screen is opened at once, since the app cannot pick itself; a person picks it there. Its second row
 /// opens that screen again and says whether Ghost.md is the one chosen, read again each time the app comes back.
+///
+/// **Spending limit** (Matt, 2026-10-20: "Also enable setting spending limits in claude settings in the app";
+/// lib/claude/claude_spend.dart): off by default; on, a monthly amount in US dollars ($5, $10, $25, $50 or one typed),
+/// counted again from the 1st, and "Warn me at 80%". The month so far is shown under it with Reset count. The count
+/// is this device's, from what Claude reports for each request, and the card says so.
 library;
 
 import 'dart:async';
@@ -22,6 +27,7 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart' show AppIcon, Lucide;
 import '../../claude/claude_settings.dart';
+import '../../claude/claude_spend.dart';
 import '../../claude/messages_api.dart';
 import '../../core/wip.dart';
 import '../../settings/kit/settings_kit.dart';
@@ -34,6 +40,7 @@ const List<SettingsFindable> claudeInAppFindable = [
   SettingsFindable('Ask Claude', 'anthropic claude ask chat dock in the app'),
   SettingsFindable('API key', 'anthropic api key claude sk-ant console token'),
   SettingsFindable('Model', 'claude sonnet opus haiku model'),
+  SettingsFindable('Spending limit', 'spending limit budget cost money dollars monthly price usage spend cap warn'),
   SettingsFindable('Ask Claude note', 'inbox ask claude requests to-do automatic'),
   SettingsFindable('Phone assistant', 'assistant digital default side key gesture voice talk microphone bind gemini bixby'),
 ];
@@ -85,6 +92,9 @@ class ClaudeInApp extends StatefulWidget {
 
 class _ClaudeInAppState extends State<ClaudeInApp> {
   final TextEditingController _typed = TextEditingController();
+
+  /// A limit of the person's own, typed.
+  final TextEditingController _custom = TextEditingController();
   bool _checking = false;
   String? _problem;
   String? _said;
@@ -112,6 +122,7 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
   @override
   void dispose() {
     _typed.dispose();
+    _custom.dispose();
     _timer?.cancel();
     _life?.dispose();
     super.dispose();
@@ -191,6 +202,75 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
       _problem = null;
     });
     unawaited(_settings.setKey(null));
+  }
+
+  /// The limit typed: dollars, a `\$` and commas allowed.
+  void _setCustom() {
+    final typed = double.tryParse(_custom.text.replaceAll(RegExp(r'[\s$,]'), ''));
+    if (typed == null || !typed.isFinite || typed < 0.01) {
+      setState(() {
+        _said = null;
+        _problem = 'Type the monthly limit in US dollars, such as 15 or 12.50.';
+      });
+      return;
+    }
+    final cents = (typed * 100).round() / 100;
+    _custom.clear();
+    setState(() => _problem = null);
+    unawaited(_settings.spend.setLimit(cents));
+  }
+
+  Widget _spendCard(BuildContext context, ClaudeSpend spend) {
+    final spent = spend.spent, requests = spend.requests;
+    final asked = '$requests request${requests == 1 ? '' : 's'}';
+    final month = spend.on ? 'This month: ${claudeDollars(spent)} of ${claudeLimitWords(spend.limit)} · $asked' : 'This month: ${claudeDollars(spent)} · $asked';
+    final custom = !claudeLimitPresets.contains(spend.limit);
+    return PaneSection(
+      title: 'Spending limit',
+      description: const Text('A monthly limit on what Claude in the app spends with your key, in US dollars. Once it is reached, Claude isn’t asked until the 1st of next month or until you raise it; meeting write-ups wait for then.'),
+      footer: const Text('Counted on this device from what Claude reports for each request; other apps or devices using the same key aren’t included.'),
+      children: [
+        SettingRow(
+          key: const ValueKey('claude-spend-on'),
+          label: 'Spending limit',
+          hint: Text(spend.on ? 'On: ${claudeLimitWords(spend.limit)} a month, from the 1st.' : 'Off: Claude is asked whatever it costs.'),
+          control: GlacierSwitch(ariaLabel: 'Spending limit', checked: spend.on, onCheckedChange: (on) => unawaited(spend.setOn(on))),
+        ),
+        if (spend.on) ...[
+          for (final amount in claudeLimitPresets)
+            SettingRow(
+              key: ValueKey('claude-spend-limit:${amount.toStringAsFixed(0)}'),
+              label: '${claudeLimitWords(amount)} a month',
+              control: Pick(checked: spend.limit == amount, label: 'Limit to ${claudeLimitWords(amount)} a month', onPress: () => unawaited(spend.setLimit(amount))),
+            ),
+          SettingRow(
+            key: const ValueKey('claude-spend-custom'),
+            label: 'Another amount',
+            hint: Text(custom ? 'Now ${claudeLimitWords(spend.limit)} a month.' : 'In US dollars.'),
+            layout: SettingRowLayout.stacked,
+            control: Row(
+              children: [
+                Expanded(child: PlainField(label: 'Monthly limit in US dollars', controller: _custom, placeholder: '\$15', onSubmitted: _setCustom)),
+                SizedBox(width: context.tokens.space(2)),
+                RowAction(onPress: _setCustom, child: const Text('Set')),
+              ],
+            ),
+          ),
+          SettingRow(
+            key: const ValueKey('claude-spend-warn'),
+            label: 'Warn me at 80%',
+            hint: const Text('Once a month, the chat says when this month’s spending passes 80% of the limit.'),
+            control: GlacierSwitch(ariaLabel: 'Warn me at 80%', checked: spend.warn, onCheckedChange: (on) => unawaited(spend.setWarn(on))),
+          ),
+        ],
+        SettingRow(
+          key: const ValueKey('claude-spend-month'),
+          label: month,
+          hint: Text(spend.reached ? 'The limit is reached: Claude isn’t asked until the 1st, or until you raise it.' : 'Counted again from the 1st of each month.'),
+          value: RowAction(onPress: () => unawaited(spend.resetCount()), child: const Text('Reset count')),
+        ),
+      ],
+    );
   }
 
   Widget _assistantCard(BuildContext context) {
@@ -292,6 +372,7 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
                   ),
               ],
             ),
+            _spendCard(context, settings.spend),
             PaneSection(
               title: 'Ask Claude note',
               children: [

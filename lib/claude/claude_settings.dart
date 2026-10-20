@@ -10,6 +10,7 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../account/device_keys.dart' show SecureStore, deviceSecureStore;
+import 'claude_spend.dart';
 
 /// The names in the secure store.
 const String claudeKeyName = 'anthropic-api-key';
@@ -75,9 +76,16 @@ String maskKey(String key) {
 
 /// The settings, read once from the store and kept as they change.
 class ClaudeSettings extends ChangeNotifier {
-  ClaudeSettings(this._store);
+  ClaudeSettings(this._store) : spend = ClaudeSpend(_store) {
+    // Heard through the settings: the page, the runner and the write-ups' queue look again as the count changes.
+    spend.addListener(notifyListeners);
+  }
 
   final SecureStore _store;
+
+  /// What Claude has spent this month on this device, and the limit on it (lib/claude/claude_spend.dart), kept in
+  /// the same store.
+  final ClaudeSpend spend;
 
   String? _key;
   String _model = defaultClaudeModel;
@@ -118,6 +126,7 @@ class ClaudeSettings extends ChangeNotifier {
     } catch (_) {
       // A store that cannot be read is a device with no key.
     }
+    await spend.load();
     _loaded = true;
     notifyListeners();
   }

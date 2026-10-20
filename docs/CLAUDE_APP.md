@@ -87,6 +87,38 @@ memory only. What is asked, and the notes Claude reads to answer, go from the de
 nowhere else; Anthropic bills the key. So do meetings' transcripts, while Claude writes meetings up (Meetings,
 below).
 
+## Spending limit
+
+Matt, 2026-10-20: "Also enable setting spending limits in claude settings in the app". Settings › Plugins › Claude,
+In the app, the Spending limit card (lib/plugins/claude/claude_in_app.dart; the count and the limit in
+lib/claude/claude_spend.dart). Search finds it by spending, limit, budget and cost.
+
+- **The setting.** Off by default. On, a monthly amount in US dollars ($5, $10, $25, $50, or another typed), counted
+  again from the 1st of each month, local time; "Warn me at 80%" (on by default). Under it, "This month: $X.XX of $Y ·
+  N requests" with Reset count. The card says the count is "Counted on this device from what Claude reports for each
+  request; other apps or devices using the same key aren't included": the API cannot report a key's spend without an
+  Admin key, so this is the app's own count, per device, never synced, kept as one JSON string in the secure store
+  beside the key (`anthropic-spend`).
+- **What is counted.** Every request: each turn of a run's tool loop (the chat, a voice ask, the inbox, the folder
+  tools, all through lib/claude/claude_run.dart) and each request of a meeting's write-up (lib/ai/summary_claude.dart),
+  both through `meterClaude`, which reads `usage` from `message_start` and `message_delta` (input, output, cache
+  writes by TTL, cache reads, web searches) and prices it once the stream ends, stopped or broken too. A stream cut off
+  before its last count is counted with what it had reported and its output guessed at about four characters a token
+  of what had streamed. A request refused before it streamed costs nothing and is not counted.
+- **The prices.** One table, `claudePrices`, with its date (`claudePricesAsOf`, 2026-10-20, from the Claude API
+  reference's model table; Anthropic's page is platform.claude.com/docs/en/about-claude/pricing): input and output per
+  MTok, cache reads at the model's rate, cache writes 1.25 times input (5 minutes) and 2 times (1 hour), Haiku 5.5's
+  second card over 100K tokens of prompt. Priced by the model `message_start` names (a server-side fallback's), a dated
+  id by its name; a model the table does not know at the dearest price of each kind, never under the real cost.
+- **Enforcing.** Once the month's total reaches the limit, nothing is sent: an ask is refused with "Monthly spending
+  limit reached ($Y). Change it in Settings › Claude." (the chat, the voice sheet; the inbox stops looking until the
+  settings change). A run that crosses it finishes the request it is in, its tools answered so a later follow-up is
+  whole, and starts no other, ending with the same words. A meeting's write-up waits, never fails for it: the queue
+  holds the job as it does for Local only, the strip saying "The summary waits for Claude. Monthly spending limit
+  reached ...", and asks again once the limit is raised or the count reset, or the month turns; a request in flight is
+  let finish, and a piece not yet asked is left for then, the job uncounted. "Warn me at 80%" is a quiet line in the
+  chat, once a month (a `notice` step), when a run starts or a request ends past 80% and under the limit.
+
 ## Meetings
 
 Matt, 2026-10-19: "when claude is enabled the meeting summary should go through claude instead of gemma". A meeting's
@@ -222,6 +254,7 @@ observer of the person's presses and keys.
 | The chat, the bar, the dock's Claude, the mark | lib/claude/claude_chat.dart, claude_bar.dart, claude_dock.dart, claude_mark.dart |
 | Talking to Claude: the ask said aloud, its ear, its card and strip | lib/claude/claude_voice.dart, claude_ear.dart, claude_voice_sheet.dart; the root's `_startTalk` in lib/root/root_claude.dart |
 | The phone's assistant: its switch and its launch | lib/core/wip.dart, lib/plugins/claude/claude_in_app.dart, lib/root/capture_route.dart, android/…/MeetingBridge.kt |
+| The spending limit: the count, the prices, the meter | lib/claude/claude_spend.dart; its card in lib/plugins/claude/claude_in_app.dart |
 | Meetings written up by Claude | lib/ai/summary_claude.dart; lib/ai/summaries.dart, lib/ai/job_config.dart; lib/root/voice_wiring.dart wires them |
 | The key's page, and the plugin | lib/plugins/claude/ (claude.dart's manifest and `claudeInApp`, claude_in_app.dart, claude_pane.dart) |
 | The library and the screen as Claude reaches them, the chat's part, the inbox's note | lib/root/root_claude.dart, ghost_root.dart, root_parts.dart |

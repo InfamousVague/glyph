@@ -17,6 +17,7 @@ import 'package:flutter/foundation.dart';
 import 'claude_folders.dart';
 import 'claude_run.dart';
 import 'claude_settings.dart';
+import 'claude_spend.dart' show claudeLimitError;
 import 'claude_tools.dart';
 import 'messages_api.dart';
 
@@ -71,6 +72,9 @@ class ClaudeRunner extends ChangeNotifier {
   /// Whether Claude can be asked: a key is kept.
   bool get ready => settings.hasKey;
 
+  /// Whether this month's spending limit is reached, so an ask is refused (lib/claude/claude_spend.dart).
+  bool get limited => settings.spend.reached;
+
   /// Asks Claude. In the sheet's conversation unless [alone] (the inbox's requests are each their own). Answers the
   /// run once it has started, which is after any run before it has ended.
   Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem}) {
@@ -93,6 +97,10 @@ class ClaudeRunner extends ChangeNotifier {
       started.completeError(const ClaudeError('Add your Anthropic API key in Settings › Claude.'));
       return;
     }
+    if (settings.spend.reached) {
+      started.completeError(claudeLimitError(settings.spend));
+      return;
+    }
     final kept = alone || _history.isEmpty ? null : _system;
     final String system;
     if (kept != null) {
@@ -107,7 +115,7 @@ class ClaudeRunner extends ChangeNotifier {
       system = [claudeSystem(now: _now(), rules: rules, folders: folders != null), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, folders: folders, prompt: prompt, system: system, history: alone ? null : _history);
+    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, folders: folders, prompt: prompt, system: system, spend: settings.spend, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);
