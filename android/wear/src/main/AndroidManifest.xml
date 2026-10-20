@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Ghost.md on the wrist (docs/WATCH.md). The same application id as the phone's app (wear/build.gradle.kts), which the
+  Data Layer needs to let the two talk.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-feature android:name="android.hardware.type.watch" />
+    <uses-feature android:name="android.hardware.microphone" android:required="true" />
+
+    <!--
+      The microphone, asked for at the first tap on Record and never before. NO ALWAYS-ON MICROPHONE: it is open only
+      between a tap that starts a take and its stop (RecordService.kt).
+    -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!--
+      A take keeps going when the wrist drops and the screen goes off: a foreground service of type microphone, started
+      while the screen is in front, its notification the ongoing activity on the watch face. WAKE_LOCK holds the CPU for
+      the take and no longer.
+    -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:label="${ghostLabel}"
+        android:icon="@mipmap/ic_launcher_round"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:allowBackup="false"
+        android:theme="@android:style/Theme.DeviceDefault">
+
+        <uses-library android:name="com.google.android.wearable" android:required="false" />
+        <!--
+          Not standalone: the words are made on the phone, by Ghost.md's Whisper, and a take waits on the watch until
+          the phone is near. Recording itself needs no phone.
+        -->
+        <meta-data android:name="com.google.android.wearable.standalone" android:value="false" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@android:style/Theme.DeviceDefault">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <!-- A take at once: the complication's tap and the launcher shortcut (MainActivity.ACTION_RECORD). -->
+            <intent-filter>
+                <action android:name="com.mattssoftware.ghost_md.wear.RECORD" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".RecordService"
+            android:exported="false"
+            android:foregroundServiceType="microphone" />
+
+        <!-- The phone's answer for a take, and its Ghost.md coming within reach: heard with the app closed. -->
+        <service
+            android:name=".WatchListener"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.MESSAGE_RECEIVED" />
+                <data android:scheme="wear" android:host="*" android:path="/ghost/ack" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CAPABILITY_CHANGED" />
+                <data android:scheme="wear" android:host="*" android:path="/ghost_md_phone" />
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".RecordTileService"
+            android:exported="true"
+            android:icon="@drawable/ghost_ic_mic"
+            android:label="@string/record_note"
+            android:permission="com.google.android.wearable.permission.BIND_TILE_PROVIDER">
+            <intent-filter>
+                <action android:name="androidx.wear.tiles.action.BIND_TILE_PROVIDER" />
+            </intent-filter>
+            <meta-data
+                android:name="androidx.wear.tiles.PREVIEW"
+                android:resource="@drawable/ghost_tile_preview" />
+        </service>
+
+        <service
+            android:name=".RecordComplicationService"
+            android:exported="true"
+            android:icon="@drawable/ghost_ic_mic"
+            android:label="@string/record_note"
+            android:permission="com.google.android.wearable.permission.BIND_COMPLICATION_PROVIDER">
+            <intent-filter>
+                <action android:name="android.support.wearable.complications.ACTION_COMPLICATION_UPDATE_REQUEST" />
+            </intent-filter>
+            <meta-data
+                android:name="android.support.wearable.complications.SUPPORTED_TYPES"
+                android:value="SHORT_TEXT,MONOCHROMATIC_IMAGE,SMALL_IMAGE" />
+            <meta-data
+                android:name="android.support.wearable.complications.UPDATE_PERIOD_SECONDS"
+                android:value="0" />
+        </service>
+    </application>
+</manifest>
