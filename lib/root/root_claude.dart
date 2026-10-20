@@ -210,19 +210,19 @@ class _RootClaudeNotes implements ClaudeNotes {
     return line.length > 120 ? '${line.substring(0, 117)}…' : line;
   }
 
-  NoteBrief _brief(Note note) => NoteBrief(
-        id: note.id,
-        title: noteTitle(note.body),
-        updated: _at(note.updatedAt),
-        preview: _preview(note.body),
-        folder: _folderOf(note.path),
-        pinned: note.starred,
-      );
-
-  static String? _folderOf(String? path) {
-    if (path == null) return null;
-    final at = path.lastIndexOf('/');
-    return at <= 0 ? null : path.substring(0, at);
+  /// A note as list_notes shows it: its folder the workspace it is filed in, by path and id, so Claude can sort
+  /// notes into folders (GHST-108); none for a note in no folder.
+  NoteBrief _brief(Note note) {
+    final filed = _root._workspaces.workspaceOf(note.id);
+    return NoteBrief(
+      id: note.id,
+      title: noteTitle(note.body),
+      updated: _at(note.updatedAt),
+      preview: _preview(note.body),
+      folder: filed == null ? null : workspacePathName(_root._workspaces.value.list, filed.id),
+      folderId: filed?.id,
+      pinned: note.starred,
+    );
   }
 
   List<Note> get _notes => [

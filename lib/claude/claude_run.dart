@@ -23,6 +23,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../editor/editor.dart' show EditorViewLike;
+import 'claude_folders.dart';
 import 'claude_tools.dart';
 import 'live_typing.dart';
 import 'messages_api.dart';
@@ -89,6 +90,7 @@ class ClaudeRun extends ChangeNotifier {
     this.effort,
     required this.notes,
     required this.desk,
+    this.folders,
     required this.prompt,
     this.system,
     this.maxTokens = 16000,
@@ -102,6 +104,10 @@ class ClaudeRun extends ChangeNotifier {
   final String? effort;
   final ClaudeNotes notes;
   final ClaudeDesk desk;
+
+  /// The folders, where Claude may arrange them and file notes in them (lib/claude/claude_folders.dart, GHST-108);
+  /// none, and the folder tools are not offered.
+  final ClaudeFolders? folders;
   final String prompt;
   final String? system;
   final int maxTokens;
@@ -270,7 +276,7 @@ class ClaudeRun extends ChangeNotifier {
       'thinking': ?thinking,
       if (effort != null) 'output_config': {'effort': effort},
       if (system != null) 'system': system,
-      'tools': claudeTools,
+      'tools': [...claudeTools, if (folders != null) ...claudeFolderTools],
       'messages': _messages,
     });
     final blocks = <int, _Block>{};
@@ -421,8 +427,18 @@ class ClaudeRun extends ChangeNotifier {
     }
   }
 
-  /// The tools that read, and open_note.
+  /// The tools that read, open_note, and the folder tools.
   Future<String> _read(String name, Map<String, Object?> input) async {
+    final folders = this.folders;
+    if (folders != null && ClaudeFolderTool.all.contains(name)) {
+      try {
+        final done = await folders.answer(name, input, notes);
+        _tool(done.step);
+        return done.said;
+      } on ClaudeFolderProblem catch (problem) {
+        throw _ToolProblem(problem.message);
+      }
+    }
     switch (name) {
       case ClaudeTool.list:
         final query = (input['query'] as String?)?.trim();
