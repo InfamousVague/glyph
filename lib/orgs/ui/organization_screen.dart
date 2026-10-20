@@ -448,7 +448,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             key: const ValueKey('org-notes-icons'),
             folders: folders,
             onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspaceId),
-            notes: filedHere.take(organizationNotesShown).toList(growable: false),
+            // The organization's own level, beside its folders' tiles (folder_strip.dart `notesAt`).
+            notes: notesAt(filed, filedHere, workspaceId).take(organizationNotesShown).toList(growable: false),
             onFolder: widget.onAllNotes,
             onOpen: widget.onOpenNote,
             now: now,
@@ -460,7 +461,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             label: 'Notes in this organization',
             child: NoteCards(
               count: math.min(filedHere.length, organizationNotesShown),
-              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now, carry: carry(filedHere[i])),
+              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now, carry: carry(filedHere[i]), folder: folderUnder(spaces, filed, filedHere[i].id, workspaceId)?.name),
             ),
           )
         else if (folders.isEmpty)

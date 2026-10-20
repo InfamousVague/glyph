@@ -15,7 +15,7 @@ import '../core/note_facts.dart';
 import '../core/properties.dart';
 import 'home_text.dart';
 
-export '../notes/book_place_mark.dart' show BookPlaceMark;
+export '../notes/book_place_mark.dart' show BookPlaceMark, FolderPlaceMark;
 export '../notes/org_mark.dart' show OrgMark;
 
 /// The ticket a listed note is, placed in its notebook's workflow, or null for a note that is not one: what

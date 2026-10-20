@@ -56,6 +56,7 @@ class NoteCard extends StatelessWidget {
     this.now,
     this.gist,
     this.place,
+    this.folder,
     this.notebook,
     this.entries,
     this.dense = false,
@@ -88,6 +89,10 @@ class NoteCard extends StatelessWidget {
 
   /// The book this note is a page of, when it is one.
   final BookPlace? place;
+
+  /// The folder it is filed in, inside the workspace the page lists (lib/notes/folder_strip.dart `folderUnder`), by
+  /// name: said on the card ([FolderPlaceMark]). None for a note at the page's own level.
+  final String? folder;
 
   /// The body of the notebook it is a page of, whose workflow a ticket's status is placed in; absent, [place]'s.
   final String? notebook;
@@ -159,6 +164,8 @@ class NoteCard extends StatelessWidget {
             ),
           ),
         ];
+        // Where it is filed, inside the workspace the page lists.
+        if (folder case final name?) children.add(Align(alignment: AlignmentDirectional.centerStart, child: FolderPlaceMark(name: name)));
         if (book) {
           children.add(Text(count == 0 ? 'No ${part[1]} yet' : (count == 1 ? '1 ${part[0]}' : '$count ${part[1]}'), style: pageText(t, sm, color: muted)));
           if (listed.isNotEmpty) {

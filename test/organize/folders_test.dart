@@ -212,9 +212,10 @@ void main() {
       expect(find.byKey(const ValueKey('folder-strip')), findsNothing);
       expect(find.byKey(const ValueKey('card-roadmap')), findsNothing);
       final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
-      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-clients', 'tile-note-kickoff', 'tile-note-invoice', 'tile-note-roadmap']);
+      // The notes are Work's own, as a file browser's are: the invoice and the kickoff are behind Clients' tile
+      // (2026-10-20: a note carried onto a folder's tile left nothing changed when they were drawn here too).
+      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-clients', 'tile-note-roadmap']);
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-clients'))).label, 'Clients, folder, 2 notes');
-      expect(tester.getSemantics(find.byKey(const ValueKey('tile-note-kickoff'))).label, 'Kickoff with the shop, pinned, 1 hr ago');
       await tester.tap(find.byKey(const ValueKey('tile-note-roadmap')));
       expect(opened, ['roadmap']);
       // A folder's tile enters it, and the line above says where the page is.
@@ -223,6 +224,8 @@ void main() {
       expect(store.value.current?.id, 'clients');
       expect(find.bySemanticsLabel('In Work › Clients'), findsOneWidget);
       expect(find.byKey(const ValueKey('tile-folder-kiln')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-note-invoice')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-note-kickoff')), findsNothing, reason: 'Kiln’s, behind its tile');
       await down(tester);
 
       // Opened again, the page is in icons: the choice was the device's.
@@ -230,11 +233,15 @@ void main() {
       await page(tester, allNotes(again, stored: kept));
       await settle(tester);
       expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
-      expect(find.byKey(const ValueKey('tile-note-seeds')), findsOneWidget);
+      // Home's notes are all in Garden: its tile, and none of theirs beside it.
+      expect(find.byKey(const ValueKey('tile-folder-garden')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-note-seeds')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('view-cards')));
       await settle(tester);
       expect(kept.readText(browseViewKey), 'cards');
+      // The cards are every note under Home, each saying the folder it is in.
       expect(find.byKey(const ValueKey('card-seeds')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('card-seeds')), matching: find.text('Garden')), findsOneWidget);
       await down(tester);
     });
 
@@ -374,8 +381,10 @@ void main() {
       expect(chip(tester, launch.id), 'Launch, 1 note');
       // The organization's workspace is the root: no line above.
       expect(find.byKey(const ValueKey('folder-crumbs')), findsNothing);
-      // Both notes are the organization's, the folder's with them.
+      // Both notes are the organization's, the folder's with them, and its card says which folder.
       expect(find.byKey(const ValueKey('card-n1')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('card-n1')), matching: find.text('Launch')), findsOneWidget);
+      expect(find.descendant(of: find.byKey(const ValueKey('card-n2')), matching: find.byKey(const ValueKey('folder-place'))), findsNothing);
       await tester.tap(find.byKey(const ValueKey('folder-new')));
       expect(made, [orgWorkspaceId(id)]);
       await tester.tap(find.byKey(ValueKey('folder-chip-${launch.id}')));
@@ -385,7 +394,7 @@ void main() {
       await settle(tester);
       expect(find.byKey(const ValueKey('org-folders')), findsNothing);
       final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
-      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-${launch.id}', 'tile-folder-new', 'tile-note-n1', 'tile-note-n2']);
+      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-${launch.id}', 'tile-folder-new', 'tile-note-n2'], reason: 'the organization’s own level: n1 is behind Launch’s tile');
       await endSettings(tester);
     });
   });

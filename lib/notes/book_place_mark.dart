@@ -42,3 +42,34 @@ class BookPlaceMark extends StatelessWidget {
     );
   }
 }
+
+/// A note listed under a workspace that is filed in a folder inside it says which, as a page says its book: the
+/// folder's glyph and its name, one quiet line (Matt, 2026-10-20: "it says them moved with the undo but the UI
+/// doesn't update"). A workspace's cards are the notes of its folders too, so a note carried onto a folder's chip
+/// stays on the page; this is what changes on it. The port's own.
+class FolderPlaceMark extends StatelessWidget {
+  const FolderPlaceMark({super.key, required this.name});
+
+  /// The folder's name.
+  final String name;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = t.fontSize('xs');
+    final color = t.color('glacier-text-muted');
+    return Semantics(
+      label: 'In $name',
+      excludeSemantics: true,
+      child: Row(
+        key: const ValueKey('folder-place'),
+        mainAxisSize: MainAxisSize.min,
+        spacing: 0.3 * size,
+        children: [
+          lucide(Lucide.folder, size: 12, color: color),
+          Flexible(child: Text(name, style: pageText(t, size, color: color), maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+}

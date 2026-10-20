@@ -56,6 +56,23 @@ int notesUnder(List<Workspace> list, Map<String, String> of, Iterable<Note> note
 List<FolderCount> folderTiles(List<Workspace> list, Map<String, String> of, Iterable<Note> notes, String? chosen) =>
     [for (final folder in foldersIn(list, chosen)) (folder: folder, count: notesUnder(list, of, notes, folder.id))];
 
+/// Of [notes], those filed in [chosen] itself and not in a folder inside it; those filed in none for null: a level's
+/// own notes, what the icon view draws beside its folders' tiles, as a file browser does. A note carried onto a
+/// folder's tile leaves the level it was on (Matt, 2026-10-20: "it says them moved with the undo but the UI doesn't
+/// update": the tiles were every note under the level, so one moved down into a folder stayed where it was drawn).
+List<Note> notesAt(Map<String, String> of, Iterable<Note> notes, String? chosen) => [for (final note in notes) if (of[note.id] == chosen) note];
+
+/// The folder [noteId] is filed in where that is a folder inside [chosen] and not [chosen] itself: what a card, a row
+/// or a line of a workspace's list says of where its note is, since the list is the notes of the folders inside it
+/// too (`FolderPlaceMark`). Null for a note filed in [chosen] itself or in none, and with nothing chosen.
+Workspace? folderUnder(List<Workspace> list, Map<String, String> of, String noteId, String? chosen) {
+  if (chosen == null) return null;
+  final filed = of[noteId];
+  if (filed == null || filed == chosen) return null;
+  final folder = list.where((w) => w.id == filed).firstOrNull;
+  return folder != null && workspaceFamily(list, chosen).contains(filed) ? folder : null;
+}
+
 /// "Work › Clients": the parts of where [chosen] is, itself last; one part alone for a workspace at the top, and
 /// none for null, All.
 List<Workspace> folderPath(List<Workspace> list, String? chosen) => chosen == null ? const [] : workspacePath(list, chosen);

@@ -21,6 +21,7 @@ import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
 import '../perf/frame_log.dart';
+import '../sheet/css.dart' show Lucide, lucide;
 import '../tapes/tape.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
@@ -140,6 +141,7 @@ class HomeRow extends StatelessWidget {
     this.onMenu,
     this.since = Duration.zero,
     this.carry,
+    this.folder,
   });
 
   final Note note;
@@ -173,6 +175,10 @@ class HomeRow extends StatelessWidget {
   /// not carried.
   final NoteCarry? carry;
 
+  /// The folder it is filed in, inside the workspace the page lists (lib/notes/folder_strip.dart `folderUnder`), by
+  /// name: said first on its second line, as a notebook's name is. None for a note at the page's own level.
+  final String? folder;
+
   static String _counted(int n, String one, String many) => n == 1 ? '1 $one' : '$n $many';
 
   @override
@@ -202,11 +208,11 @@ class HomeRow extends StatelessWidget {
     final ink3 = t.color('app-ink-3');
     final marked = listedTicket(facts, notebook: notebook, workflow: workflow);
     final ticket = TicketMark.shows(marked);
-    final hasLead = lead.isNotEmpty || bookName != null || kind == HomeKind.tape || ticket;
+    final hasLead = lead.isNotEmpty || bookName != null || folder != null || kind == HomeKind.tape || ticket;
     // Who wrote it with the person, where anyone did: their marks at the row's end, beside when it was last
     // touched, in what room the name leaves.
     final authors = _authorsOf(note);
-    final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', ?bookName, if (lead.isNotEmpty) lead, if (authors.isNotEmpty) 'by ${spokenNames(authors)}', when(note.updatedAt, now)].join(', ');
+    final said = [title.isEmpty ? 'Untitled' : title, if (note.starred) 'pinned', if (folder != null) 'in $folder', ?bookName, if (lead.isNotEmpty) lead, if (authors.isNotEmpty) 'by ${spokenNames(authors)}', when(note.updatedAt, now)].join(', ');
     final Widget name = Text(
       title.isNotEmpty ? facts.shownTitle : 'Untitled',
       maxLines: 1,
@@ -258,6 +264,11 @@ class HomeRow extends StatelessWidget {
                               Text.rich(
                                 TextSpan(
                                   children: [
+                                    if (folder != null) ...[
+                                      WidgetSpan(alignment: PlaceholderAlignment.middle, child: Padding(padding: EdgeInsetsDirectional.only(end: 0.25 * sm), child: lucide(Lucide.folder, size: 12, color: t.color('app-ink-2')))),
+                                      TextSpan(text: '$folder ·', style: pageText(t, sm, color: t.color('app-ink-2'))),
+                                      WidgetSpan(child: SizedBox(width: 0.5 * sm)),
+                                    ],
                                     if (bookName != null) ...[
                                       TextSpan(text: '$bookName ·', style: pageText(t, sm, color: t.color('app-ink-2'))),
                                       WidgetSpan(child: SizedBox(width: 0.5 * sm)),
@@ -336,7 +347,8 @@ class HomeLine extends StatelessWidget {
   final bool live;
   final NoteSwipes? swipe;
 
-  /// The workspace the note is filed in, for its pill; null while the page is filtered to one.
+  /// The workspace the note is filed in, for its pill; while the page is filtered to one, the folder inside it the
+  /// note is in, and null for a note filed in the chosen one itself.
   final Workspace? space;
   final void Function(String id, Offset at)? onMenu;
 

@@ -33,9 +33,10 @@
 ///   chooses the folder as a pill does, and where the workspace is above them; the line of words offers Cards or
 ///   Icons at its end (lib/notes/icon_browser.dart), the words the tally's line tall so the line stands where the
 ///   page measured it, kept on the device for every page that offers it; the icon view draws the folders as its
-///   first tiles, then the notes in the page's order, and at All the workspaces at the top as the folders, then
-///   every note (All still means every note; the folders are the way in). No folders while a search is typed, whose
-///   cards are what was found; none of it in simple mode.
+///   first tiles, then the level's own notes in the page's order (a folder's are in its tile), and at All the
+///   workspaces at the top as the folders, then the notes filed in none. The cards are every note under the chosen
+///   workspace, and a card whose note is in a folder inside it says which (`FolderPlaceMark`; 2026-10-20). No
+///   folders while a search is typed, whose cards and tiles are what was found; none of it in simple mode.
 library;
 
 import 'dart:math' as math;
@@ -299,7 +300,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
   /// Whether two readings draw the same cards: the same notes shown, each in the same notebook and with the same
   /// journal's entries.
-  static bool _sameCards(_Read a, _Read b) => identical(a, b) || (identical(a.shown, b.shown) && identical(a.inBooks, b.inBooks) && identical(a.journals, b.journals));
+  static bool _sameCards(_Read a, _Read b) => identical(a, b) || (identical(a.shown, b.shown) && identical(a.spaces, b.spaces) && identical(a.inBooks, b.inBooks) && identical(a.journals, b.journals));
 
   /// When each card came to be on the page, for its entrance.
   final Arrivals _arrivals = Arrivals();
@@ -469,6 +470,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             now: now,
             gist: gist,
             place: placeOf(read.inBooks, note),
+            // The folder inside the chosen workspace it is in: the page lists the notes of its folders too.
+            folder: folderUnder(read.spaces.list, read.spaces.of, note.id, read.spaces.current?.id)?.name,
             entries: read.journals[note.id],
             dense: true,
             fill: fill,
@@ -696,7 +699,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                   SliverPadding(
                     padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
                     sliver: SliverToBoxAdapter(
-                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace), store: widget.workspaces),
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: searched ? shown : notesAt(spaces.of, shown, workspace), onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace), store: widget.workspaces),
                     ),
                   )
                 else if (!icons && shown.isNotEmpty)

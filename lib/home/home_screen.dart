@@ -686,9 +686,12 @@ class _HomeScreenState extends State<HomeScreen> {
       return (store: widget.workspaces, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title));
     }
 
-    // The workspace a line's note is filed in, for its pill. None while the page is filtered to one.
+    // The workspace a line's note is filed in, for its pill. While the page is filtered to one, the folder inside it
+    // that the note is in, and none for a note filed in the chosen one itself (folder_strip.dart `folderUnder`): the
+    // page lists the notes of its folders too, so a note carried onto a folder's chip stays, and its pill is what
+    // says it moved.
     Workspace? filedIn(Note note) {
-      if (workspace != null) return null;
+      if (workspace != null) return folderUnder(spaces.list, spaces.of, note.id, workspace);
       final id = spaces.of[note.id];
       if (id == null) return null;
       for (final space in spaces.list) {
@@ -734,6 +737,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   now: now,
                   gist: gist,
                   place: place,
+                  folder: folderUnder(spaces.list, spaces.of, note.id, workspace)?.name,
                   entries: journals[note.id],
                   fill: fill,
                   swipe: swipe(note),
@@ -770,6 +774,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         swipe: swipe(note),
                         onMenu: onMenu,
                         carry: carry(note),
+                        folder: folderUnder(spaces.list, spaces.of, note.id, workspace)?.name,
                         since: since,
                       )
                     : HomeLine(

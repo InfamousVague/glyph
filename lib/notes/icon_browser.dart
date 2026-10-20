@@ -2,9 +2,11 @@
 /// "support showing a icon file browser based view in addition to the list views"). The port's own.
 ///
 /// A grid of tiles about a hundred pixels wide, more across a wide window, laid out as the cards' grid is: the
-/// folders first (lib/notes/folder_strip.dart `folderTiles`), then the notes in the page's own order. At All the
-/// folders are the workspaces at the top, an organization's with its mark, and the notes are every note as All lists
-/// them: All still means every note, and the folders are the way in. A folder's tile
+/// folders first (lib/notes/folder_strip.dart `folderTiles`), then the notes in the page's own order. The notes are
+/// the level's own, as a file browser's are (`notesAt`): those filed in the chosen workspace itself, a folder's in
+/// its tile; at All, where the folders are the workspaces at the top, an organization's with its mark, the notes
+/// filed in none. So a note carried onto a folder's tile leaves the level (2026-10-20). A search shows every note it
+/// found. A folder's tile
 /// is the folder glyph, large, on a faint rounded square, in the folder's hue where it wears one, its name under it
 /// on up to two lines and its count small under that; a note's is its kind's glyph the same way - a notebook, a
 /// canvas, a cassette, a page of words, as the rows mark them (lib/home/home_rows.dart `KindMark`) - its title on up
