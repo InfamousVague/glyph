@@ -54,6 +54,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -219,8 +220,9 @@ private fun GhostWatch(recordAsked: androidx.compose.runtime.MutableState<Boolea
         val list = rememberScalingLazyListState(initialCenterItemIndex = 0)
         Scaffold(
             modifier = Modifier.background(Color.Black),
-            timeText = { TimeText() },
-            positionIndicator = { if (recording.id == null) PositionIndicator(scalingLazyListState = list) },
+            // The take's own clock stands where the time would while it runs.
+            timeText = { if (recording.id == null) TimeText() },
+            positionIndicator = { if (recording.id == null && confirming == null) PositionIndicator(scalingLazyListState = list) },
         ) {
             if (recording.id != null) {
                 Recorder(recording, onStop = ::toggle)
@@ -333,8 +335,8 @@ private fun TakeRow(take: Take) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text("$time · ${clock(take.durationMs)}", fontSize = 14.sp, color = Ink, maxLines = 1)
-            Text(stateWords(take.state), fontSize = 12.sp, color = Ink2, maxLines = 1)
+            Text("$time · ${clock(take.durationMs)}", fontSize = 14.sp, color = Ink, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(stateWords(take.state), fontSize = 12.sp, color = Ink2, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         Spacer(Modifier.width(8.dp))
         Box(Modifier.size(8.dp).clip(CircleShape).background(if (take.state == TakeState.ON_PHONE) Ink else Color.Transparent).border(1.5.dp, Ink, CircleShape))
@@ -360,8 +362,8 @@ private fun Confirm(take: Take?) {
     val words = when {
         take == null -> "Too short to keep"
         arrived -> "Sent to Ghost.md"
-        waited || near == false -> "Queued. It goes to your phone when it is near."
-        else -> "Sending to your phone…"
+        waited || near == false -> "Queued. Sends when your phone is near."
+        else -> "Sending to your phone"
     }
     Box(
         modifier = Modifier.fillMaxSize().background(Color.Black).clickable { Confirmation.dismiss() },
@@ -370,14 +372,14 @@ private fun Confirm(take: Take?) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(horizontal = 24.dp)) {
             Image(painter = painterResource(R.drawable.ghost_listening), contentDescription = null, colorFilter = ColorFilter.tint(Ink), modifier = Modifier.size(54.dp))
             Spacer(Modifier.height(10.dp))
-            Text(words, fontSize = 15.sp, fontWeight = FontWeight.Medium, color = Ink, textAlign = TextAlign.Center)
+            Text(words, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Ink, textAlign = TextAlign.Center)
         }
     }
 }
 
 private fun stateWords(state: TakeState): String = when (state) {
     TakeState.RECORDING -> "Recording"
-    TakeState.QUEUED -> "Waiting for your phone"
+    TakeState.QUEUED -> "Queued"
     TakeState.SENDING -> "Sending"
     TakeState.SENT -> "Sent"
     TakeState.ON_PHONE -> "On your phone"

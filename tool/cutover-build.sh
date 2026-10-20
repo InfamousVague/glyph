@@ -8,15 +8,22 @@
 #   tool/cutover-build.sh 2.0.0 --debug    # a debug one, for an emulator: no account, no updates
 #
 # It builds and publishes nothing else. tool/release_apk.mjs writes what is uploaded.
+#
+# THE WATCH APP comes out of the same Gradle run (android/wear; docs/WATCH.md): build/wear/outputs/apk/release/
+# wear-release.apk, with the phone's id and signed with the phone's key, which the Data Layer needs to pair the two.
+# It is installed on the watch by hand (docs/WATCH.md, "Installing it") and is not uploaded. GHOST_WEAR=0 leaves it out.
 set -eu
 version="${1:?the version, three numbers above 1.15.0: tool/cutover-build.sh 2.0.0}"
 shift
 mode="--release"
 [ "${1:-}" = "--debug" ] && mode="--debug" && shift
 cd "$(dirname "$0")/.."
-GHOST_CUTOVER=1 exec flutter build apk "$mode" --no-pub --target-platform android-arm64 \
+GHOST_CUTOVER=1 GHOST_WEAR="${GHOST_WEAR:-1}" flutter build apk "$mode" --no-pub --target-platform android-arm64 \
   --build-name="$version" \
   --dart-define=GHOST_CUTOVER=true \
   --dart-define=GHOST_BUILD="$(date -u +%Y%m%d%H%M%S)" \
   --dart-define=GHOST_COMMIT="$(git rev-parse --short HEAD)$(git diff --quiet HEAD -- . 2>/dev/null || echo +)" \
   "$@"
+kind="${mode#--}"
+wear="build/wear/outputs/apk/$kind/wear-$kind.apk"
+if [ "${GHOST_WEAR:-1}" = "1" ] && [ -f "$wear" ]; then echo "The watch app: $wear"; fi
