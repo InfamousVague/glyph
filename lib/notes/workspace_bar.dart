@@ -27,6 +27,7 @@ import '../art/art.dart';
 import '../core/workspaces.dart';
 import '../home/home_parts.dart';
 import '../home/marks.dart';
+import 'folder_drag.dart';
 
 /// The workspaces as a row of pills (`src/app/notes/WorkspaceBar.tsx`). The row's bottom margin is the caller's
 /// ([marginBelow]) and the workspaces are handed in; nothing else differs.
@@ -71,21 +72,30 @@ class WorkspaceBar extends StatelessWidget {
                 GlacierScope(
                   // Its hue, if it has one: the pill is drawn in it (ink.css `[data-hue]`).
                   attrs: {'hue': workspace.hue ?? 'ink'},
-                  child: _Pill(
-                    key: ValueKey('space-${workspace.id}'),
-                    label: workspace.name,
-                    // Marked as the team's in an organization's own workspace and in every folder under it (GHST-107).
-                    org: orgOfWorkspace(spaces.list, workspace.id) != null,
-                    pressed: current?.id == workspace.id,
-                    onPressed: () => store.chooseWorkspace(current?.id == workspace.id ? null : workspace.id),
-                    // Held: the organization's own pill opens the organization; any other its sheet, to rename,
-                    // recolour or remove it (a second tap did this while there was an All to go back by).
-                    onLongPress: () {
-                      final org = orgIdOf(workspace.id);
-                      final toOrg = onOrganization;
-                      if (org != null && toOrg != null) return toOrg(org);
-                      onManage(workspace);
-                    },
+                  // A note or a folder carried onto the pill goes into that workspace, as onto its folder
+                  // (lib/notes/folder_drag.dart). The pill is not carried itself: holding it opens its sheet.
+                  child: FolderDropZone(
+                    key: ValueKey('drop-space-${workspace.id}'),
+                    store: store,
+                    target: workspace.id,
+                    decorate: true,
+                    radius: t.radius('full'),
+                    builder: (context, _) => _Pill(
+                      key: ValueKey('space-${workspace.id}'),
+                      label: workspace.name,
+                      // Marked as the team's in an organization's own workspace and in every folder under it (GHST-107).
+                      org: orgOfWorkspace(spaces.list, workspace.id) != null,
+                      pressed: current?.id == workspace.id,
+                      onPressed: () => store.chooseWorkspace(current?.id == workspace.id ? null : workspace.id),
+                      // Held: the organization's own pill opens the organization; any other its sheet, to rename,
+                      // recolour or remove it (a second tap did this while there was an All to go back by).
+                      onLongPress: () {
+                        final org = orgIdOf(workspace.id);
+                        final toOrg = onOrganization;
+                        if (org != null && toOrg != null) return toOrg(org);
+                        onManage(workspace);
+                      },
+                    ),
                   ),
                 ),
               _Pill(key: const ValueKey('space-add'), add: true, said: 'New workspace', onPressed: () => onManage(null)),

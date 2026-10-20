@@ -734,6 +734,8 @@ extension _RootParts on _GhostRootState {
         onPin: _actions.pin,
         onArchive: (note, archived) => _actions.archive(note, archived: archived),
         onDelete: (note) => _delete(note.id),
+        // Move to: the folders it may go to, as a drag onto one would move it (lib/notes/folder_drag.dart).
+        workspaces: _workspaces,
       );
 
   /// The sheet of the oldest share waiting: kept or not, the person goes back to the app they shared from, and the

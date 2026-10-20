@@ -50,6 +50,7 @@ import '../../core/page_scroll.dart';
 import '../../account/ui_state.dart';
 import '../../art/art.dart';
 import '../../core/note.dart';
+import '../../core/note_facts.dart';
 import '../../core/notifications.dart';
 import '../../core/preferences.dart';
 import '../../core/stored.dart' show stored;
@@ -57,6 +58,7 @@ import '../../core/workspaces.dart' show Workspace;
 import '../../home/home_organizations.dart' show OrgPresence;
 import '../../live/presence.dart' show aiDoingWords;
 import '../../home/note_card.dart';
+import '../../notes/folder_drag.dart';
 import '../../notes/folder_strip.dart';
 import '../../notes/icon_browser.dart';
 import '../../notes/pull_to_refresh.dart';
@@ -405,6 +407,15 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
       // the first tiles of the icon view.
       final spaces = services?.workspaces?.value.list ?? const <Workspace>[];
       final folders = folderTiles(spaces, filed, widget.notes, workspaceId);
+      // The workspaces, to carry the notes and the folders onto the folders (lib/notes/folder_drag.dart): within
+      // the organization only, by the rules there.
+      final store = services?.workspaces;
+      NoteCarry? carry(Note note) {
+        if (store == null) return null;
+        final title = NoteFacts.of(note).title.trim();
+        return (store: store, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title));
+      }
+
       final all = filedHere.length > organizationNotesShown
           ? more('All ${filedHere.length}', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes'))
           : (filedHere.isNotEmpty ? more('In its workspace', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes')) : null);
@@ -431,7 +442,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
               : null,
         ),
         if (!icons && (folders.isNotEmpty || widget.onNewFolder != null))
-          FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder),
+          FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder, store: store),
         if (icons && (filedHere.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null))
           IconBrowser(
             key: const ValueKey('org-notes-icons'),
@@ -441,6 +452,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             onFolder: widget.onAllNotes,
             onOpen: widget.onOpenNote,
             now: now,
+            store: store,
           )
         else if (filedHere.isNotEmpty)
           Semantics(
@@ -448,7 +460,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             label: 'Notes in this organization',
             child: NoteCards(
               count: math.min(filedHere.length, organizationNotesShown),
-              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now),
+              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now, carry: carry(filedHere[i])),
             ),
           )
         else if (folders.isEmpty)

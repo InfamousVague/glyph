@@ -68,6 +68,7 @@ import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import '../shell/wide_screen.dart' show mousePointer;
 import 'all_notes.dart';
+import 'folder_drag.dart';
 import 'folder_strip.dart';
 import 'icon_browser.dart';
 import 'pull_to_refresh.dart';
@@ -472,6 +473,8 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
             dense: true,
             fill: fill,
             onMenu: made.menu ? (_, at) => widget.onNoteMenu?.call(note, at) : null,
+            // Carried onto a folder (lib/notes/folder_drag.dart): a mouse drags it, a finger holds it first.
+            carry: (store: widget.workspaces, carry: FolderCarry.note(note.id, NoteFacts.of(note).title.trim().isEmpty ? 'Untitled' : NoteFacts.of(note).title.trim())),
             since: _arrivals.since(fill ? '$i/${note.id}' : note.id),
             gistSince: _gistArrivals.since(note.id),
           );
@@ -661,9 +664,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 // they are the first tiles, and only the line above is drawn here.
                 if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs || widget.onNewFolder != null))) ...[
                   if (icons)
-                    FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace)
+                    FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, store: widget.workspaces)
                   else
-                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder),
+                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder, store: widget.workspaces),
                   SizedBox(height: t.space(4)),
                 ],
                 if (!widget.loading && !searched && live == 0 && !_archived)
@@ -693,7 +696,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                   SliverPadding(
                     padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
                     sliver: SliverToBoxAdapter(
-                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace)),
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace), store: widget.workspaces),
                     ),
                   )
                 else if (!icons && shown.isNotEmpty)

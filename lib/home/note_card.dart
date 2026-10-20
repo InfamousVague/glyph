@@ -29,6 +29,7 @@ import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart';
 import '../format/gist.dart' show gistWorking;
+import '../notes/folder_drag.dart' show NoteCarry, carriedNote, noteCarryActions;
 import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
@@ -65,6 +66,7 @@ class NoteCard extends StatelessWidget {
     this.onMenu,
     this.since = Duration.zero,
     this.gistSince = Duration.zero,
+    this.carry,
   });
 
   final Note note;
@@ -106,6 +108,11 @@ class NoteCard extends StatelessWidget {
   final bool? working;
   final bool? marked;
   final void Function(String id, Offset at)? onMenu;
+
+  /// The note carried onto a folder (lib/notes/folder_drag.dart): picked up inside its swipe, so a mouse's drag
+  /// carries it and a finger's sideways swipe still swipes, with Move to… among the swipes' actions. None, and it is
+  /// not carried.
+  final NoteCarry? carry;
 
   @override
   Widget build(BuildContext context) {
@@ -278,7 +285,8 @@ class NoteCard extends StatelessWidget {
     );
 
     final swipe = this.swipe;
-    if (swipe != null) card = SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, radius: t.radius('lg'), child: card);
+    card = carriedNote(carry, card, swipes: swipe != null);
+    if (swipe != null) card = SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, radius: t.radius('lg'), also: noteCarryActions(context, carry), child: card);
     if (onMenu != null) card = NoteMenuArea(onMenu: (at) => onMenu!(note.id, at), child: card);
     // Arriving one after another, a beat apart: `animation: arrive 360ms ... both; animation-delay: calc(var(--i) * 40ms)`.
     return Arrive(duration: const Duration(milliseconds: 360), delay: Duration(milliseconds: 40 * math.min(index, 8)), since: since, rise: 6, child: card);
