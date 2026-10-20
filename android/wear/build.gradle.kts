@@ -60,7 +60,8 @@ android {
     defaultConfig {
         applicationId = if (ghostCutover) "com.mattssoftware.glyph" else "com.mattssoftware.glyph.flutter"
         if (ghostPerfId) applicationIdSuffix = ".perf"
-        minSdk = 30
+        // Wear OS 2 (Android 9) too: Matt's TAG Heuer is API 28 (2026-10-20, INSTALL_FAILED_OLDER_SDK at 30).
+        minSdk = 28
         targetSdk = 36
         versionCode = wearVersionCode
         versionName = wearVersionName
@@ -93,10 +94,11 @@ android {
             signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debug")
             // Shrunk, unlike the phone's (whose core calls Kotlin by name over JNI): a watch's storage is small and
             // Compose unshrunk is most of 30 MB. Nothing here is reached by name but what the manifest names (the
-            // activity, the services), which R8 keeps by itself.
+            // activity, the services), which R8 keeps by itself,
+            // and WorkManager's database (proguard-rules.pro).
             isMinifyEnabled = true
             isShrinkResources = true
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"))
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
         }
     }
 

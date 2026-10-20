@@ -19,6 +19,7 @@ import android.os.PowerManager
 import android.os.SystemClock
 import android.util.Log
 import androidx.core.app.NotificationCompat
+import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.wear.ongoing.OngoingActivity
 import androidx.wear.ongoing.Status
@@ -100,7 +101,8 @@ class RecordService : Service() {
         val id = UUID.randomUUID().toString()
         val started = SystemClock.elapsedRealtime()
         try {
-            startForeground(NOTIFICATION, notification(started), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
+            // The type from Android 10 on; Wear OS 2 (API 28) has none and takes it plain.
+            ServiceCompat.startForeground(this, NOTIFICATION, notification(started), ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE)
         } catch (failure: Exception) {
             Log.w(TAG, "the recording could not come to the front", failure)
             state.value = Recording(problem = "The watch would not let the recording start.")
