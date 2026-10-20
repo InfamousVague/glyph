@@ -903,7 +903,7 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : GappedColumn(gap: gap, children: notices),
       ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
-      if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, onOpen: _organization),
+      if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, spaces: spaces.list, onOpen: _organization),
     ];
 
     /// The page's slivers in a window [viewport] wide, made once for a width: the pull that lowers the page builds

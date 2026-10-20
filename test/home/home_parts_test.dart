@@ -362,6 +362,26 @@ void main() {
       await away(tester);
     });
 
+    // An organization's notes in its folders count too (Matt, 2026-10-20: "properly count notes stored in folders"):
+    // the tile said only those filed in its workspace itself, so notes moved into Baby left the count.
+    testWidgets('of an organization count the notes in its folders, however deep, and not the archive', (tester) async {
+      final root = orgWorkspaceId('family');
+      final spaces = [Workspace(id: 'baby', name: 'Baby', parent: root), const Workspace(id: 'feeds', name: 'Feeds', parent: 'baby'), const Workspace(id: 'work', name: 'Work')];
+      await show(
+        tester,
+        HomeOrganizations(
+          orgs: const [HomeOrg(id: 'family', name: 'Family', members: 2)],
+          notes: [makeNote('a'), makeNote('b'), makeNote('c'), makeNote('d', archivedAt: 5), makeNote('e'), makeNote('f')],
+          filed: {'a': root, 'b': 'baby', 'c': 'feeds', 'd': 'baby', 'e': 'work'},
+          spaces: spaces,
+          onOpen: (_) {},
+        ),
+        width: 400,
+      );
+      expect(find.text('3 notes · 2 members'), findsOneWidget);
+      await away(tester);
+    });
+
     testWidgets('of a journal says its entries by when each was written; of a recording, how long it runs', (tester) async {
       final journal = exampleJournal(DateTime.fromMillisecondsSinceEpoch(seedNow));
       final notes = [makeNote('j', body: journal.journal, updatedAt: seedNow), makeNote('e', body: journal.entry, createdAt: seedNow, updatedAt: seedNow)];

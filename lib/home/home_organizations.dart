@@ -14,6 +14,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/note.dart';
 import '../core/workspaces.dart';
+import '../notes/folder_strip.dart' show notesUnder;
 import 'home_icons.dart';
 import 'home_text.dart';
 import 'marks.dart' show OrgMark;
@@ -124,13 +125,16 @@ class HomeHeading extends StatelessWidget {
 /// 2x2 grids of a smaller version of the card"): the web's cards (`src/app/home/HomeOrganizations.tsx`) were as wide
 /// as the page and said who was in the app now, which the organization's own page still says.
 class HomeOrganizations extends StatelessWidget {
-  const HomeOrganizations({super.key, required this.orgs, required this.notes, required this.filed, required this.onOpen});
+  const HomeOrganizations({super.key, required this.orgs, required this.notes, required this.filed, this.spaces = const [], required this.onOpen});
 
   final List<HomeOrg> orgs;
   final List<Note> notes;
 
   /// Which workspace each filed note is in, by note id (`Workspaces.of`).
   final Map<String, String> filed;
+
+  /// Every workspace (`Workspaces.list`), so an organization's folders count among its notes.
+  final List<Workspace> spaces;
   final ValueChanged<String> onOpen;
 
   /// Tiles in a row.
@@ -159,7 +163,7 @@ class HomeOrganizations extends StatelessWidget {
                   if (column > 0) SizedBox(width: gap),
                   Expanded(
                     child: row * columns + column < orgs.length
-                        ? OrgTile(org: orgs[row * columns + column], notes: notes, filed: filed, onOpen: onOpen)
+                        ? OrgTile(org: orgs[row * columns + column], notes: notes, filed: filed, spaces: spaces, onOpen: onOpen)
                         : const SizedBox.shrink(),
                   ),
                 ],
@@ -174,17 +178,19 @@ class HomeOrganizations extends StatelessWidget {
 
 /// One organization's tile: its mark on a wash of its hue, its name on one line, and "12 notes · 3 members" under it.
 class OrgTile extends StatelessWidget {
-  const OrgTile({super.key, required this.org, required this.notes, required this.filed, required this.onOpen});
+  const OrgTile({super.key, required this.org, required this.notes, required this.filed, this.spaces = const [], required this.onOpen});
 
   final HomeOrg org;
   final List<Note> notes;
   final Map<String, String> filed;
+  final List<Workspace> spaces;
   final ValueChanged<String> onOpen;
 
   @override
   Widget build(BuildContext context) {
     final workspace = orgWorkspaceId(org.id);
-    final count = notes.where((note) => filed[note.id] == workspace && note.archivedAt == null).length;
+    // Its notes and its folders' (Matt, 2026-10-20: "properly count notes stored in folders"), as a folder's chip counts.
+    final count = notesUnder(spaces, filed, notes, workspace);
     final meta = '${count == 1 ? '1 note' : '$count notes'} · ${org.members == 1 ? '1 member' : '${org.members} members'}';
     return GlacierScope(
       attrs: {'hue': org.hue ?? 'ink'},
