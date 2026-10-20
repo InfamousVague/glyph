@@ -1,9 +1,10 @@
 /// The workspaces, in a row under a list's bar, once there is one. A port of `src/app/notes/WorkspaceBar.tsx` with
 /// WorkspaceBar.module.css.
 ///
-/// "All", then each by name, then + for another. A tap chooses one and the list shows its notes; a tap on the one
-/// already chosen opens it to rename or remove (lib/notes/workspace_sheet.dart), where its colour is chosen too, or,
-/// for an organization's workspace, which wears a small mark before its name, opens the organization's own screen.
+/// Each by name, then + for another. A tap chooses one and the list shows its notes; a tap on the one already chosen
+/// goes back to every note (there is no All since 2026-10-19). Held, a pill opens its workspace to rename or remove
+/// (lib/notes/workspace_sheet.dart), where its colour is chosen too, or, for an organization's workspace, which wears
+/// a small mark before its name, the organization's own screen.
 /// Nothing at all while there are no workspaces, so a list that never uses them looks as it always did.
 ///
 /// Outlined words a step smaller than the rows, so the row reads as a filter and not as more notes; the chosen one is
@@ -34,10 +35,10 @@ class WorkspaceBar extends StatelessWidget {
 
   final WorkspaceStore store;
 
-  /// A tap on the workspace already chosen, to rename or remove it; null for the +, a new one.
+  /// A workspace's pill held, to rename or remove it; null for the +, a new one.
   final ValueChanged<Workspace?> onManage;
 
-  /// An organization's workspace tapped again: its own screen. Absent, its sheet, as any workspace's.
+  /// An organization's own pill held: its own screen. Absent, its sheet, as any workspace's.
   final ValueChanged<String>? onOrganization;
 
   /// `margin: 0 0 var(--glacier-space-5)`: the air under the row.
@@ -64,7 +65,8 @@ class WorkspaceBar extends StatelessWidget {
             // `align-items: center; gap: var(--glacier-space-2)`: each pill at its own height.
             spacing: t.space(2),
             children: [
-              _Pill(label: 'All', pressed: current == null, onPressed: () => store.chooseWorkspace(null)),
+              // No All (Matt, 2026-10-19: "remove the "all" option just use list or icon"): with none chosen the page is
+              // every note, and the chosen pill tapped again goes back to that.
               for (final workspace in spaces.list)
                 GlacierScope(
                   // Its hue, if it has one: the pill is drawn in it (ink.css `[data-hue]`).
@@ -75,9 +77,10 @@ class WorkspaceBar extends StatelessWidget {
                     // Marked as the team's in an organization's own workspace and in every folder under it (GHST-107).
                     org: orgOfWorkspace(spaces.list, workspace.id) != null,
                     pressed: current?.id == workspace.id,
-                    onPressed: () {
-                      if (current?.id != workspace.id) return store.chooseWorkspace(workspace.id);
-                      // The organization's own pill opens the organization; a folder's opens the folder's sheet.
+                    onPressed: () => store.chooseWorkspace(current?.id == workspace.id ? null : workspace.id),
+                    // Held: the organization's own pill opens the organization; any other its sheet, to rename,
+                    // recolour or remove it (a second tap did this while there was an All to go back by).
+                    onLongPress: () {
                       final org = orgIdOf(workspace.id);
                       final toOrg = onOrganization;
                       if (org != null && toOrg != null) return toOrg(org);
@@ -127,7 +130,7 @@ double _baselineInLine(double size) {
 
 /// `.space`: one pill, and `.spaceAdd`, the + for another.
 class _Pill extends StatelessWidget {
-  const _Pill({super.key, this.label = '', this.said, this.pressed, this.org = false, this.add = false, required this.onPressed});
+  const _Pill({super.key, this.label = '', this.said, this.pressed, this.org = false, this.add = false, required this.onPressed, this.onLongPress});
 
   final String label;
   final String? said;
@@ -137,6 +140,7 @@ class _Pill extends StatelessWidget {
   final bool org;
   final bool add;
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -146,6 +150,7 @@ class _Pill extends StatelessWidget {
     final size = add ? t.fontSize('md') : t.fontSize('sm');
     return GlacierPressable(
       onPressed: onPressed,
+      onLongPress: onLongPress,
       toggled: pressed,
       haptic: HapticKind.selection,
       semanticLabel: said,

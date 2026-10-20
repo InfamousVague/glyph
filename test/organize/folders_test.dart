@@ -233,7 +233,7 @@ void main() {
       await down(tester);
     });
 
-    testWidgets('Icons at All: the workspaces at the top first, each with its count, then every note; a tap on one chooses its pill', (tester) async {
+    testWidgets('Icons with nothing chosen: the workspaces at the top first, each with its count, then the notes in none; a tap on one chooses its pill', (tester) async {
       final store = spaces()..ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
       store.fileNote('trip', 'org-acme');
       final kept = MemoryStored()..writeText(browseViewKey, 'icons');
@@ -247,10 +247,11 @@ void main() {
       expect(find.byKey(const ValueKey('folder-strip')), findsNothing);
       final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
       final keys = [for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value];
-      // The workspaces at the top, in the order they were made (Clients, Kiln and Garden are inside others), then
-      // every note but the archive, the last touched first: All still means every note.
+      // The workspaces at the top, in the order they were made (Clients, Kiln and Garden are inside others).
       expect(keys.take(4), ['tile-folder-work', 'tile-folder-home', 'tile-folder-reading', 'tile-folder-org-acme']);
-      expect(keys.skip(4), ['tile-note-kickoff', 'tile-note-seeds', 'tile-note-invoice', 'tile-note-roadmap', 'tile-note-boiler', 'tile-note-beds', 'tile-note-trip', 'tile-note-packing', 'tile-note-novel']);
+      // Then the notes filed in no workspace, as a folder's own notes follow its folders (2026-10-19: no All, so the
+      // root is a folder like any other; the list view is still every note).
+      expect(keys.skip(4), ['tile-note-packing']);
       // Work counts the roadmap, the invoice and the kickoff; the archived plan is left out.
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-work'))).label, 'Work, folder, 3 notes');
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-reading'))).label, 'Reading, folder, 1 note');

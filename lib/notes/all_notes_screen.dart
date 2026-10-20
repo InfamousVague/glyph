@@ -693,7 +693,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                   SliverPadding(
                     padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
                     sliver: SliverToBoxAdapter(
-                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now),
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now),
                     ),
                   )
                 else if (!icons && shown.isNotEmpty)

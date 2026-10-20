@@ -235,7 +235,7 @@ void main() {
   });
 
   group('the workspaces', () {
-    testWidgets('choose which notes, a tap on the one chosen opens its sheet, and the + a new one', (tester) async {
+    testWidgets('choose which notes, a tap on the one chosen goes back to every note, held its sheet, and the + a new one', (tester) async {
       final spaces = allNotesWorkspaces();
       await pumpAllNotes(tester, AllNotes(notes: allNotesLibrary(), workspaces: spaces, asked: Asked()));
       await settle(tester);
@@ -248,8 +248,13 @@ void main() {
       // Its own archive and tapes: the launch post is filed under Work, and both tapes.
       expect(find.text('Archived · 1'), findsOneWidget);
       expect(find.text('Tapes · 2'), findsOneWidget);
-      // The one already chosen: its sheet, to rename or remove.
+      // The one already chosen, tapped: every note again (no All since 2026-10-19).
       await tester.tap(key('space-work'));
+      await settle(tester);
+      expect(spaces.value.current, isNull);
+      expect(find.text('19 notes'), findsOneWidget);
+      // Held: its sheet, to rename or remove.
+      await tester.longPress(key('space-work'));
       await settle(tester);
       expect(find.byType(Sheet), findsOneWidget);
       expect(find.text('Work'), findsWidgets);
@@ -277,7 +282,7 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('an organization’s is opened by a second tap, and wears its mark', (tester) async {
+    testWidgets('an organization’s is opened by holding its pill, and wears its mark', (tester) async {
       final asked = Asked();
       final spaces = allNotesWorkspaces()..ensureOrgWorkspace(const OrgLike(id: 'acme', name: 'Acme', hue: 'violet'));
       await pumpAllNotes(tester, AllNotes(notes: allNotesLibrary(), workspaces: spaces, asked: asked));
@@ -286,7 +291,7 @@ void main() {
       await tester.tap(find.text('Acme'));
       await settle(tester);
       expect(spaces.value.current?.name, 'Acme');
-      await tester.tap(find.text('Acme'));
+      await tester.longPress(find.text('Acme'));
       await settle(tester);
       expect(asked.said, ['organization acme']);
       expect(find.byType(Sheet), findsNothing);
@@ -363,13 +368,12 @@ void main() {
       at(tester.getRect(key('all-notes-search-mark')), 72.41, 66.19 - lift, 16, 16, reason: 'its mark');
       at(tester.getRect(key('all-notes-field')), 97.33, 56.34 - lift, 264.91, 35.7, reason: 'the field');
       expect(tester.getRect(key('all-notes-bar')).bottom, closeTo(101.97 - lift, 0.5), reason: 'the bar ends 101.97 down, less the condensed header');
-      // The pills, out to the window's edges, each an even ring round its word.
+      // The pills, out to the window's edges, each an even ring round its word; Work first (no All since 2026-10-19).
       at(tester.getRect(key('workspace-bar')), 0, 119.84 - lift, 390, 36, reason: 'the row');
-      at(tester.getRect(find.ancestor(of: find.text('All'), matching: find.byType(Container)).first), 22.31, 121.84 - lift, 34.31, 32, reason: 'All');
-      at(tester.getRect(key('space-work')), 65.55, 121.84 - lift, 51.78, 32, reason: 'Work');
-      at(tester.getRect(key('space-home')), 126.25, 121.84 - lift, 55.88, 32, reason: 'Home');
-      at(tester.getRect(key('space-spare')), 191.05, 121.84 - lift, 55.52, 32, reason: 'Spare');
-      at(tester.getRect(key('space-add')), 255.48, 121.84 - lift, 32, 32, reason: '+');
+      at(tester.getRect(key('space-work')), 22.31, 121.84 - lift, 51.78, 32, reason: 'Work');
+      at(tester.getRect(key('space-home')), 83.04, 121.84 - lift, 55.88, 32, reason: 'Home');
+      at(tester.getRect(key('space-spare')), 147.86, 121.84 - lift, 55.52, 32, reason: 'Spare');
+      at(tester.getRect(key('space-add')), 212.32, 121.84 - lift, 32, 32, reason: '+');
       // The line of words wraps on a phone: the order and Tapes, then the tally and Archived together.
       at(tester.getRect(key('all-notes-controls')), 22.31, 178.31 - lift, 345.38, 62.46, reason: 'controls');
       at(tester.getRect(key('sort-newest')), 22.31, 178.16 - lift, 77.06, 20, reason: 'Newest');
@@ -449,8 +453,8 @@ void main() {
       at(tester.getRect(key('all-notes-search')), 65.17, 72.22 - wideLift, 909.77, 42.11, reason: 'search');
       at(tester.getRect(key('all-notes-field')), 107.22, 73.22 - wideLift, 861.72, 40.11, reason: 'the field');
       at(tester.getRect(key('workspace-bar')), 0, 144.05 - wideLift, 1000, 36.63, reason: 'the row');
-      at(tester.getRect(key('space-work')), 70.66, 146.05 - wideLift, 53.75, 32.63, reason: 'Work, taller than 2rem at this size');
-      at(tester.getRect(key('space-add')), 270.08, 146.36 - wideLift, 32, 32, reason: '+, in the middle of the row');
+      at(tester.getRect(key('space-work')), 25.06, 146.05 - wideLift, 53.75, 32.63, reason: 'Work, taller than 2rem at this size');
+      at(tester.getRect(key('space-add')), 224.68, 146.36 - wideLift, 32, 32, reason: '+, in the middle of the row');
       at(tester.getRect(key('all-notes-controls')), 25.06, 205.73 - wideLift, 949.88, 38, reason: 'controls');
       at(tester.getRect(key('tapes-word')), 198.63, 214.81 - wideLift, 112.06, 20, reason: 'Tapes');
       at(tester.getRect(key('all-notes-counts')), 325.72, 205.73 - wideLift, 649.22, 38, reason: 'counts');
