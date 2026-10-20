@@ -99,7 +99,7 @@ class BrowseViewToggle extends StatelessWidget {
 
 /// The folders and the notes as tiles.
 class IconBrowser extends StatelessWidget {
-  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now});
+  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now, this.onNewFolder});
 
   /// The folders first, each with its count.
   final List<FolderCount> folders;
@@ -119,6 +119,10 @@ class IconBrowser extends StatelessWidget {
   /// The moment "20 min ago" is counted from.
   final int? now;
 
+  /// A New folder tile after the folders, where folders can be made here (Matt, 2026-10-19: "It's also not clear how
+  /// to add a folder"): inside the place shown, or a folder at the top where nothing is chosen.
+  final VoidCallback? onNewFolder;
+
   /// How many tiles go across a grid [width] wide: as many of at least [least] as fit, and never fewer than three,
   /// so a phone shows a row of three a touch narrower.
   static int columnsFor(double width, {required double gap, required double least}) => math.max(3, ((width + gap) / (least + gap)).floor());
@@ -127,7 +131,8 @@ class IconBrowser extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final gap = t.space(2);
-    final count = folders.length + notes.length;
+    final adds = onNewFolder == null ? 0 : 1;
+    final count = folders.length + adds + notes.length;
     if (count == 0) return const SizedBox.shrink();
     return Semantics(
       container: true,
@@ -140,7 +145,8 @@ class IconBrowser extends StatelessWidget {
               final each = folders[at];
               return _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id));
             }
-            final note = notes[at - folders.length];
+            if (adds == 1 && at == folders.length) return _NewFolderTile(key: const ValueKey('tile-folder-new'), onPressed: onNewFolder!);
+            final note = notes[at - folders.length - adds];
             final onMenu = onNoteMenu;
             return _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
           }
@@ -199,6 +205,26 @@ class _FolderTile extends StatelessWidget {
       },
     );
     return hue == null ? tile : GlacierScope(attrs: {'hue': hue}, child: tile);
+  }
+}
+
+/// New folder, as a tile after the folders: the folder-plus glyph on a dashed-looking faint square, no count.
+class _NewFolderTile extends StatelessWidget {
+  const _NewFolderTile({super.key, required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return _Tile(
+      glyph: AppIcon(Lucide.folderPlus, size: _Tile.glyphSize(t), strokeWidth: 1.75, color: t.color('app-ink-3')),
+      wash: t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)'),
+      name: 'New folder',
+      meta: '',
+      said: 'New folder',
+      onPressed: onPressed,
+    );
   }
 }
 

@@ -86,7 +86,7 @@ void main() {
           onAllNotes: () {},
           onSearch: () {},
           clock: () => organizeNow,
-          onNewFolder: made?.add,
+          onNewFolder: made == null ? null : (parent) => made.add(parent ?? ''),
           simple: simple,
         );
 
@@ -117,11 +117,16 @@ void main() {
       await down(tester);
     });
 
-    testWidgets('draws nothing for a workspace at the top with no folders, for every workspace, or in simple mode', (tester) async {
+    testWidgets('offers New folder alone in a workspace with none, and draws nothing for every workspace or in simple mode', (tester) async {
       final store = spaces()..chooseWorkspace('reading');
-      await page(tester, home(store, made: []));
+      final made = <String>[];
+      await page(tester, home(store, made: made));
       await settle(tester);
-      expect(find.byKey(const ValueKey('home-folders')), findsNothing);
+      // No folders in Reading yet: the strip is only its New folder, so the first one is plain to make (2026-10-19).
+      expect(find.byKey(const ValueKey('home-folders')), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('folder-chip-')), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('folder-new')));
+      expect(made, ['reading']);
       store.chooseWorkspace(null);
       await settle(tester);
       expect(find.byKey(const ValueKey('home-folders')), findsNothing);
@@ -151,7 +156,7 @@ void main() {
           stored: stored ?? MemoryStored(),
           clock: () => organizeNow,
           wisp: false,
-          onNewFolder: made?.add,
+          onNewFolder: made == null ? null : (parent) => made.add(parent ?? ''),
           simple: simple,
         );
 
@@ -238,7 +243,8 @@ void main() {
       store.fileNote('trip', 'org-acme');
       final kept = MemoryStored()..writeText(browseViewKey, 'icons');
       final opened = <String>[];
-      await page(tester, allNotes(store, stored: kept, opened: opened));
+      final made = <String>[];
+      await page(tester, allNotes(store, stored: kept, opened: opened, made: made));
       await settle(tester);
       expect(find.byKey(const ValueKey('all-notes-view')), findsOneWidget);
       expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
@@ -251,7 +257,9 @@ void main() {
       expect(keys.take(4), ['tile-folder-work', 'tile-folder-home', 'tile-folder-reading', 'tile-folder-org-acme']);
       // Then the notes filed in no workspace, as a folder's own notes follow its folders (2026-10-19: no All, so the
       // root is a folder like any other; the list view is still every note).
-      expect(keys.skip(4), ['tile-note-packing']);
+      expect(keys.skip(4), ['tile-folder-new', 'tile-note-packing'], reason: 'New folder after the folders, a top-level one here');
+      await tester.tap(find.byKey(const ValueKey('tile-folder-new')));
+      expect(made, [''], reason: 'made at the top: no parent');
       // Work counts the roadmap, the invoice and the kickoff; the archived plan is left out.
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-work'))).label, 'Work, folder, 3 notes');
       expect(tester.getSemantics(find.byKey(const ValueKey('tile-folder-reading'))).label, 'Reading, folder, 1 note');
@@ -316,8 +324,9 @@ void main() {
       await settle(tester);
       expect(find.byKey(const ValueKey('org-notes-view')), findsOneWidget);
       expect(find.byKey(const ValueKey('card-n1')), findsOneWidget);
-      // An organization's workspace holds no folder yet (slice 1 of GHST-107): no strip.
-      expect(find.byKey(const ValueKey('org-folders')), findsNothing);
+      // No folder in the organization's workspace yet: the strip is its New folder alone.
+      expect(find.byKey(const ValueKey('org-folders')), findsOneWidget);
+      expect(find.byKey(const ValueKey('folder-new')), findsOneWidget);
       // The way to all of them, as it was.
       await tester.tap(find.byKey(const ValueKey('org-all-notes')));
       expect((asked, allNotesWith), (1, null));
@@ -356,7 +365,7 @@ void main() {
           onOpenOrganization: (_) {},
           onLog: () {},
           onAccount: () {},
-          onNewFolder: made.add,
+          onNewFolder: (parent) => made.add(parent ?? ''),
         ),
         scroll: false,
       );
@@ -376,7 +385,7 @@ void main() {
       await settle(tester);
       expect(find.byKey(const ValueKey('org-folders')), findsNothing);
       final tiles = find.byWidgetPredicate((w) => w.key is ValueKey<String> && (w.key! as ValueKey<String>).value.startsWith('tile-'));
-      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-${launch.id}', 'tile-note-n1', 'tile-note-n2']);
+      expect([for (final e in tiles.evaluate()) (e.widget.key! as ValueKey<String>).value], ['tile-folder-${launch.id}', 'tile-folder-new', 'tile-note-n1', 'tile-note-n2']);
       await endSettings(tester);
     });
   });

@@ -172,7 +172,7 @@ class AllNotesScreen extends StatefulWidget {
 
   /// New folder on the folders' strip (GHST-107): a folder inside the workspace given, by id, through the root's
   /// workspace sheet. Absent, the strip offers none.
-  final ValueChanged<String>? onNewFolder;
+  final ValueChanged<String?>? onNewFolder;
 
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
@@ -659,7 +659,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 SizedBox(height: t.space(3)),
                 // The folders inside the chosen workspace, with where it is above them (GHST-107); in the icon view
                 // they are the first tiles, and only the line above is drawn here.
-                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs))) ...[
+                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs || widget.onNewFolder != null))) ...[
                   if (icons)
                     FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace)
                   else
@@ -689,11 +689,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
               slivers: [
                 SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd + ahead, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
                 // The cards: only the rows of them near the screen are built. Or the tiles, the folders first.
-                if (icons && (shown.isNotEmpty || folders.isNotEmpty))
+                if (icons && (shown.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null))
                   SliverPadding(
                     padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
                     sliver: SliverToBoxAdapter(
-                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now),
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: workspace == null ? [for (final note in shown) if (spaces.of[note.id] == null) note] : shown, onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace)),
                     ),
                   )
                 else if (!icons && shown.isNotEmpty)

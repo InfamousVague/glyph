@@ -81,13 +81,14 @@ class FolderStrip extends StatelessWidget {
   final ValueChanged<String> onChoose;
 
   /// New folder pressed: a folder inside [chosen], through the page's workspace sheet. Absent, no New folder chip.
-  final ValueChanged<String>? onNewFolder;
+  final ValueChanged<String?>? onNewFolder;
 
   /// Whether the line above is drawn here; the icon view draws [FolderCrumbs] itself.
   final bool crumbs;
 
-  /// Whether there is anything to draw for [chosen]: a folder inside it, or a workspace above it.
-  static bool shows(List<Workspace> list, String chosen) => foldersIn(list, chosen).isNotEmpty || folderPath(list, chosen).length > 1;
+  /// Whether there is anything to draw for [chosen]: a folder inside it, a workspace above it, or New folder (always
+  /// offered where folders can be made, so making the first one is plain: Matt, 2026-10-19).
+  static bool shows(List<Workspace> list, String chosen, {bool canMake = false}) => canMake || foldersIn(list, chosen).isNotEmpty || folderPath(list, chosen).length > 1;
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +96,8 @@ class FolderStrip extends StatelessWidget {
     final folders = folderTiles(list, of, notes, chosen);
     final path = folderPath(list, chosen);
     final above = crumbs && path.length > 1;
-    if (folders.isEmpty && !above) return const SizedBox.shrink();
+    final make = onNewFolder != null;
+    if (folders.isEmpty && !above && !make) return const SizedBox.shrink();
     final sm = t.fontSize('sm');
     final ink3 = t.color('app-ink-3');
     return Column(
@@ -105,21 +107,23 @@ class FolderStrip extends StatelessWidget {
       children: [
         if (above) ...[
           FolderCrumbs(list: list, chosen: chosen, onChoose: onChoose),
-          if (folders.isNotEmpty) SizedBox(height: t.space(2)),
+          if (folders.isNotEmpty || make) SizedBox(height: t.space(2)),
         ],
-        if (folders.isNotEmpty) ...[
+        if (folders.isNotEmpty || make) ...[
           // The heading the page's sections wear: a mark, the word, how many.
           Semantics(
             header: true,
-            label: 'Folders, ${folders.length}',
+            label: folders.isEmpty ? 'Folders' : 'Folders, ${folders.length}',
             excludeSemantics: true,
             child: Row(
               children: [
                 AppIcon(Lucide.folder, size: 15, color: ink3),
                 SizedBox(width: t.space(2)),
                 Text('Folders', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-                SizedBox(width: t.space(2)),
-                Text('${folders.length}', style: tabular(pageText(t, sm, color: ink3))),
+                if (folders.isNotEmpty) ...[
+                  SizedBox(width: t.space(2)),
+                  Text('${folders.length}', style: tabular(pageText(t, sm, color: ink3))),
+                ],
               ],
             ),
           ),

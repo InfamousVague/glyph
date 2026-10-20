@@ -123,7 +123,7 @@ class OrganizationScreen extends StatefulWidget {
 
   /// New folder on the folders' strip (GHST-107): a folder inside the workspace given, by id, through the root's
   /// workspace sheet. Absent, the strip offers none.
-  final ValueChanged<String>? onNewFolder;
+  final ValueChanged<String?>? onNewFolder;
 
   /// The organization's settings (lib/settings/organization_sheet.dart), from the cog.
   final VoidCallback onSettings;
@@ -405,7 +405,6 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
       // the first tiles of the icon view.
       final spaces = services?.workspaces?.value.list ?? const <Workspace>[];
       final folders = folderTiles(spaces, filed, widget.notes, workspaceId);
-      final icons = _view == BrowseView.icons;
       final all = filedHere.length > organizationNotesShown
           ? more('All ${filedHere.length}', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes'))
           : (filedHere.isNotEmpty ? more('In its workspace', () => widget.onAllNotes(null), key: const ValueKey('org-all-notes')) : null);
@@ -413,6 +412,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
       // workspace" keeps its place on a phone (test/account_ui/reference_test.dart holds it to the page's). With
       // nothing filed and no folder the heading is as it was, its words alone, level with Members on a wide page.
       final viewed = filedHere.isNotEmpty || folders.isNotEmpty;
+      // With nothing to view there is no toggle, so the page is the cards and their New folder, whatever was chosen.
+      final icons = viewed && _view == BrowseView.icons;
       final notes = section([
         heading(
           Lucide.filePlus,
@@ -429,12 +430,13 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                 )
               : null,
         ),
-        if (!icons && folders.isNotEmpty)
+        if (!icons && (folders.isNotEmpty || widget.onNewFolder != null))
           FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder),
-        if (icons && (filedHere.isNotEmpty || folders.isNotEmpty))
+        if (icons && (filedHere.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null))
           IconBrowser(
             key: const ValueKey('org-notes-icons'),
             folders: folders,
+            onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspaceId),
             notes: filedHere.take(organizationNotesShown).toList(growable: false),
             onFolder: widget.onAllNotes,
             onOpen: widget.onOpenNote,

@@ -242,7 +242,7 @@ class HomeScreen extends StatefulWidget {
 
   /// New folder on the folders' strip (GHST-107): the workspace's sheet for a folder inside the workspace given, by
   /// id. Absent, the strip offers none.
-  final ValueChanged<String>? onNewFolder;
+  final ValueChanged<String?>? onNewFolder;
 
   /// A new organization, from the filters' panel; absent signed out.
   final VoidCallback? onNewOrganization;
@@ -870,7 +870,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       // The folders inside the chosen workspace, and where it is (GHST-107): not while searching, not in simple
       // mode, and nothing for a workspace at the top with no folders inside it.
-      if (workspace != null && !widget.simple && !searched && FolderStrip.shows(spaces.list, workspace))
+      if (workspace != null && !widget.simple && !searched && FolderStrip.shows(spaces.list, workspace, canMake: widget.onNewFolder != null))
         FolderStrip(
           key: const ValueKey('home-folders'),
           list: spaces.list,

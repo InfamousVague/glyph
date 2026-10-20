@@ -805,8 +805,9 @@ extension _RootParts on _GhostRootState {
             : EntryPlaceDevice(cannot: () => _places.locations.cannotLocate, refused: _places.autoTagRefusal, allowWhere: _places.allowLocationWhere(), ask: _places.askFromPress),
       );
 
-  /// The workspace sheet for a new folder inside [parent] (the folders' strips' New folder, GHST-107).
-  void _newFolder(String parent) => _told(() => _workspace = (editing: null, parent: parent));
+  /// The workspace sheet for a new folder inside [parent] (the folders' strips' and tiles' New folder, GHST-107), or
+  /// at the top for null (the icon view with nothing chosen).
+  void _newFolder(String? parent) => _told(() => _workspace = (editing: null, parent: parent));
 
   Widget _workspacePart(BuildContext context) {
     final sheet = _workspace;
