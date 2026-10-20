@@ -51,8 +51,12 @@ class ScriptedClaudeApi extends ClaudeApi {
   final Duration beat;
   int asked = 0;
 
+  /// Each request as it was sent, as JSON reads it back: for a test that looks at what a tool answered.
+  final List<Map<String, Object?>> bodies = [];
+
   @override
   ClaudeCall stream(Map<String, Object?> body) {
+    bodies.add(jsonDecode(jsonEncode(body)) as Map<String, Object?>);
     final events = turns[asked++];
     Stream<SseEvent> paced() async* {
       for (final event in events) {

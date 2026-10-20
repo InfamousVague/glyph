@@ -148,7 +148,39 @@ while one works waits for it. The chat's conversation is kept until New chat or 
 
 `list_notes`, `search_notes`, `read_note`, `open_note`; and the four that write and stream: `create_note` (`body`),
 `append_to_note` (`id`, `text`), `replace_in_note` (`id`, `old_text` found exactly once, `new_text`), `rewrite_note`
-(`id`, `body`). Nothing deletes, trashes, moves or shares. A note made is the account's own, in no workspace.
+(`id`, `body`). Nothing deletes or trashes a note, and nothing shares or unshares one. A note made is the account's
+own, in no workspace. `list_notes` gives each note's folder as its path (`folder`, "Work › Clients") and id
+(`folder_id`).
+
+### Folders (GHST-108)
+
+Matt, 2026-10-19: "Make it so the AI can manage folders and sorting of files into folders and organize all my
+organizations into neat logical folders". Six more tools, lib/claude/claude_folders.dart over the root's
+`WorkspaceStore` (a folder is a workspace with a parent, docs/FEATURES_2_1.md), offered where the runner is handed the
+folders (the root does) and named in the system prompt then:
+
+- `list_folders`: every workspace and folder, with `id`, `name`, `path`, `parent`, `organization` (its name) and
+  `organization_root` for an organization's own workspace, `notes` (filed in it) and `notes_under` (in it and under it).
+- `create_folder` (`name`, `parent`?): made inside `parent`, or at the top; the one of that name already in that
+  place is answered instead (at the top, the store's own rule: the personal one of that name wherever it is, said so).
+- `rename_folder` (`folder`, `name`): not an organization's own workspace, nor to a name a folder beside it has.
+- `move_folder` (`folder`, `parent`?): only where `canMove` lets it: never into itself or a folder inside it, never
+  into or out of an organization (an organization's folder stays in it, never at the top).
+- `delete_folder` (`folder`): no note is deleted. The folders inside it move up into its place; the notes filed in it
+  are unfiled for a personal folder, and filed in the folder above for an organization's, so they stay the team's. Not
+  an organization's own workspace.
+- `file_notes` (`ids`, and `folder` or `unfile: true`): files the notes there, or out of every folder; their files
+  follow (lib/core/note_folders.dart, and for an organization's folder the team sync, lib/team/folders.dart). Ids it
+  cannot find come back as `missing`.
+
+A `folder` (or `parent`) is found by its id, by its path ("Ghost.md › Clients" or "Ghost.md/Clients", case and spaces
+aside), or by a bare name only one folder has; else the tool's error lists each candidate's path and id.
+
+**The organization's edge.** Filing a note into an organization from outside it shares it with every member, and
+filing one out takes it from them; the note's Workspace picker asks twice before either
+(lib/note/workspace_picker.dart). A run has no way to ask the person mid-way, so `file_notes` leaves such a note where
+it is and answers it under `refused`, with why and that the person can move it from the note's Workspace picker; the
+others in the same call are filed. Within one organization, and among personal folders, Claude files freely.
 
 ## Typing as Claude writes
 

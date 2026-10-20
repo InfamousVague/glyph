@@ -143,6 +143,7 @@ import '../orgs/ui/new_organization_sheet.dart';
 import '../orgs/ui/org_news.dart';
 import '../home/home_organizations.dart' show OrgPresence;
 import '../claude/claude_chat.dart';
+import '../claude/claude_folders.dart' show ClaudeFolders;
 import '../claude/claude_bar.dart';
 import '../claude/claude_dock.dart';
 import '../claude/claude_ear.dart' show recorderEar;
@@ -876,7 +877,7 @@ class _GhostRootState extends State<GhostRoot> {
   bool _talkFromAssistant = false;
 
   /// The app's own Claude, with the person's API key (docs/CLAUDE_APP.md): made on first use.
-  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this), allowed: claudeInApp);
+  late final ClaudeRunner _claude = ClaudeRunner(settings: claudeSettings, notes: _RootClaudeNotes(this), desk: _RootClaudeDesk(this), allowed: claudeInApp, folders: ClaudeFolders(_workspaces));
 
   /// The "Ask Claude" note, worked through as requests are written in it.
   late final ClaudeInbox _claudeInbox = ClaudeInbox(

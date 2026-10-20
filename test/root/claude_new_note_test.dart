@@ -31,6 +31,7 @@ void main() {
   });
 
   late SampleLibrary library;
+  late WorkspaceStore workspaces;
 
   Future<void> settle(WidgetTester tester, [int beats = 6]) async {
     for (var i = 0; i < beats; i++) {
@@ -59,7 +60,7 @@ void main() {
       home: GhostRoot(
         launch: false,
         library: library,
-        workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
+        workspaces: workspaces = WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())),
         clock: () => seedNow,
         stored: MemoryStored(),
         untouched: UntouchedNotes(kept: MemoryStored()),
@@ -137,6 +138,39 @@ void main() {
     expect(shellOf(tester).shown, note.id);
     expect(seen, contains(body));
     expect(seen.where((words) => words.isNotEmpty && words.length < body.length && body.startsWith(words)), isNotEmpty, reason: 'seen: $seen');
+    await close(tester);
+    await tester.runAsync(() => claudeSettings.setKey(null));
+  });
+
+  // GHST-108 (Matt, 2026-10-19: "Make it so the AI can manage folders and sorting of files into folders"): the root
+  // hands its Claude the workspaces, so a folder Claude makes and a note it files there are the app's own, and
+  // list_notes says each note's folder by its path.
+  testWidgets('Claude makes a folder, files a note in it, and list_notes says where the note is', (tester) async {
+    await tester.runAsync(() => claudeSettings.setKey('sk-test'));
+    addTearDown(() => claudeSettings.setKey(null));
+    await open(tester);
+    final api = ScriptedClaudeApi([
+      scriptedTurn(tool: 'create_folder', pieces: [jsonEncode({'name': 'Errands', 'parent': 'Home'})]),
+      scriptedTurn(tool: 'file_notes', pieces: [jsonEncode({'ids': ['groceries'], 'folder': 'Home › Errands'})]),
+      scriptedTurn(tool: ClaudeTool.list, pieces: [jsonEncode({'query': 'Groceries'})]),
+      scriptedTurn(words: 'Filed [[Groceries]] in Home › Errands.'),
+    ]);
+    debugClaudeApi = (_) => api;
+    addTearDown(() => debugClaudeApi = null);
+    await tester.tap(find.descendant(of: find.byType(HomeScreen), matching: find.byKey(const ValueKey('dock-claude'))));
+    await settle(tester, 3);
+    await tester.enterText(find.descendant(of: find.byKey(const ValueKey('claude-ask')), matching: find.byType(EditableText)), 'Sort my errands');
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('claude-send')));
+    await until(tester, () => api.asked == 4, 'Claude did not get to its last turn');
+    final errands = workspaces.value.list.singleWhere((w) => w.name == 'Errands');
+    expect(errands.parent, 'home');
+    expect(workspaces.workspaceOf('groceries')?.id, errands.id);
+    final listed = ((api.bodies.last['messages']! as List).last as Map)['content'] as List;
+    final notes = (jsonDecode((listed.single as Map)['content'] as String) as Map)['notes'] as List;
+    final groceries = notes.cast<Map>().firstWhere((n) => n['id'] == 'groceries');
+    expect((groceries['folder'], groceries['folder_id']), ('Home › Errands', errands.id));
+    await settle(tester, 3);
     await close(tester);
     await tester.runAsync(() => claudeSettings.setKey(null));
   });
