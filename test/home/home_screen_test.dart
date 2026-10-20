@@ -480,6 +480,36 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('name a folder with its organization before it, "HelloTrade › Designs", and list it under its organization', (tester) async {
+      // Matt, 2026-10-20: "when filtering, instead of showing folders as orgs show them as Org -> Folder".
+      final org = orgWorkspaceId('ht');
+      final store = WorkspaceStore(
+        storage: MemoryWorkspaceStorage(
+          WorkspaceSheet(list: [
+            Workspace(id: org, name: 'HelloTrade'),
+            const Workspace(id: 'w-work', name: 'Work'),
+            Workspace(id: 'f-designs', name: 'Designs', parent: org),
+          ]),
+        ),
+      );
+      final it = seeded();
+      await pumpHome(tester, Home(library: it.library, workspaces: store, asked: it.asked));
+      await settle(tester);
+      await open(tester);
+      const labels = ['Every workspace', 'HelloTrade', 'HelloTrade › Designs', 'Work'];
+      for (final label in labels) {
+        expect(radio(label), findsOneWidget, reason: label);
+      }
+      expect(radio('Designs'), findsNothing, reason: 'a folder is never named alone, as if it were an organization');
+      final tops = [for (final label in labels) tester.getRect(radio(label)).top];
+      expect([...tops]..sort(), tops, reason: 'the folder sits under its organization, before the next workspace');
+      await tester.tap(radio('HelloTrade › Designs'));
+      await tester.tapAt(const Offset(8, 600));
+      await settle(tester);
+      expect(find.bySemanticsLabel('HelloTrade › Designs: every workspace'), findsOneWidget, reason: 'the chip says the path too');
+      await away(tester);
+    });
+
     testWidgets('show only what is chosen, ink the button, and name each choice in a chip whose cross takes it off', (tester) async {
       final it = seeded();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked));

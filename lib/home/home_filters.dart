@@ -291,13 +291,14 @@ class HomeFiltersState extends State<HomeFilters> {
                   attrs: {'hue': current.hue ?? 'ink'},
                   child: Builder(
                     builder: (context) => _Chip(
-                      label: '${current.name}: every workspace',
+                      label: '${workspacePathName(spaces.list, current.id)}: every workspace',
                       onPressed: () => _takeOff(() => widget.workspaces.chooseWorkspace(null)),
                       children: [
                         const _HueDot(),
                         SizedBox(width: 0.4 * sm),
                         if (orgOfWorkspace(spaces.list, current.id) != null) OrgMark(em: sm, color: t.color('app-ink')),
-                        Text(current.name),
+                        // A folder says where it is: "HelloTrade › Designs", not "Designs" as if it were an organization.
+                        Text(workspacePathName(spaces.list, current.id)),
                       ],
                     ),
                   ),
@@ -612,8 +613,10 @@ class _PanelBodyState extends State<_PanelBody> {
     final spaces = widget.store.value;
     final current = spaces.current;
     final md = t.fontSize('md');
-    // A workspace's radios: every workspace, then each by name, an organization's with its mark.
-    final places = <Workspace?>[null, ...spaces.list];
+    // A workspace's radios: every workspace, then each by name, an organization's with its mark, and each folder
+    // under its parent, named with its parents before it (Matt, 2026-10-20: "when filtering, instead of showing
+    // folders as orgs show them as Org -> Folder").
+    final places = <Workspace?>[null, ..._parentsFirst(spaces.list)];
 
     Widget heading(String words, {bool first = false}) => Padding(
           padding: EdgeInsetsDirectional.fromSTEB(t.space(2), first ? t.space(1) : t.space(2), t.space(2), t.space(1)),
@@ -677,7 +680,7 @@ class _PanelBodyState extends State<_PanelBody> {
                     child: _Choice(
                       focusNode: _placeNode(place?.id ?? ''),
                       checked: current?.id == place?.id,
-                      label: place?.name ?? 'Every workspace',
+                      label: place == null ? 'Every workspace' : workspacePathName(spaces.list, place.id),
                       onPressed: () => widget.store.chooseWorkspace(place?.id),
                       onKey: (event) => _step(event, at, places.length, (to) {
                         widget.store.chooseWorkspace(places[to]?.id);
@@ -859,4 +862,27 @@ class _PanelAction extends StatelessWidget {
       ),
     );
   }
+}
+
+/// [list] with every folder straight after its parent, to any depth, the top ones in [list]'s order: a workspace
+/// whose parent is not in [list] counts as a top one.
+List<Workspace> _parentsFirst(List<Workspace> list) {
+  final ids = {for (final w in list) w.id};
+  final out = <Workspace>[];
+  void add(Workspace w) {
+    if (out.contains(w)) return;
+    out.add(w);
+    for (final child in list) {
+      if (child.parent == w.id) add(child);
+    }
+  }
+
+  for (final w in list) {
+    if (w.parent == null || !ids.contains(w.parent)) add(w);
+  }
+  // Anything a loop of parents kept out, at the end rather than lost.
+  for (final w in list) {
+    if (!out.contains(w)) out.add(w);
+  }
+  return out;
 }
