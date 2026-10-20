@@ -14,6 +14,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import 'claude_folders.dart';
 import 'claude_run.dart';
 import 'claude_settings.dart';
 import 'claude_tools.dart';
@@ -30,7 +31,7 @@ const String claudeRulesTitle = 'Claude rules';
 ClaudeApi Function(String key)? debugClaudeApi;
 
 class ClaudeRunner extends ChangeNotifier {
-  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed})
+  ClaudeRunner({required this.settings, required this.notes, required this.desk, ClaudeApi Function(String key)? api, DateTime Function()? now, this.allowed, this.folders})
       : _api = api ?? ((key) => ClaudeApi(key: key)),
         _now = now ?? DateTime.now {
     settings.addListener(notifyListeners);
@@ -43,6 +44,9 @@ class ClaudeRunner extends ChangeNotifier {
   final bool Function()? allowed;
   final ClaudeNotes notes;
   final ClaudeDesk desk;
+
+  /// The folders Claude may arrange (GHST-108); none, and it is offered no folder tools.
+  final ClaudeFolders? folders;
   final ClaudeApi Function(String key) _api;
   final DateTime Function() _now;
 
@@ -100,10 +104,10 @@ class ClaudeRunner extends ChangeNotifier {
       } catch (_) {
         rules = null;
       }
-      system = [claudeSystem(now: _now(), rules: rules), ?extraSystem].join('\n\n');
+      system = [claudeSystem(now: _now(), rules: rules, folders: folders != null), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, prompt: prompt, system: system, history: alone ? null : _history);
+    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, folders: folders, prompt: prompt, system: system, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);
