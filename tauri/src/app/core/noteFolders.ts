@@ -1,6 +1,7 @@
 import { isOrgWorkspace } from './orgs/types.ts';
 import { applyNote, getNote, announceNotesChanged } from './store.ts';
 import { isTauri } from './tauri.ts';
+import { workspacePath } from './workspaceTree.ts';
 import type { Workspace } from './workspaces.ts';
 
 /**
@@ -33,8 +34,11 @@ const WORKSPACES = 'workspaces';
 /** The folder the organizations' workspaces' folders sit in. */
 const ORGS = 'orgs';
 
-/** The workspace a note is filed in, as far as its folder cares: the id says whose it is, the name what it is called. */
-export type Filed = Pick<Workspace, 'id' | 'name'>;
+/**
+ * The workspace a note is filed in, as far as its folder cares: the id says whose it is, the name what it is called,
+ * and the parent, for a folder inside another, whose folder it sits in.
+ */
+export type Filed = Pick<Workspace, 'id' | 'name' | 'parent'>;
 
 /** A workspace's name as a folder name: what a file name may not hold is dropped, and the ends are trimmed. */
 export function folderName(name: string): string {
@@ -46,11 +50,26 @@ export function folderName(name: string): string {
     .trim();
 }
 
-/** The folder a note belongs in: its workspace's, or the inbox with no workspace. Null when the name is unusable. */
-export function folderFor(workspace: Filed | null): string | null {
+/**
+ * The folder a note belongs in: its workspace's, or the inbox with no workspace. Null when the name is unusable.
+ *
+ * A workspace inside another (`parent`) is a folder inside its parent's, as deep as they go, as the Flutter app
+ * lays them out (lib/core/note_folders.dart `folderFor`): `workspaces/Work/Clients/`, or under an organization's,
+ * `orgs/Ghost.md/Clients/`. The path matters beyond this disk: a team note's row carries it, and every member's
+ * device files the note by the folders it names, so a folder under an organization has to be written where the
+ * phone would write it. `all` is every workspace, for the parents' names; without it, or where a parent's name
+ * cleans away to nothing, the folder is at the top, as before folders were nested.
+ */
+export function folderFor(workspace: Filed | null, all: readonly Filed[] = []): string | null {
   if (workspace === null) return INBOX;
   const folder = folderName(workspace.name);
-  return folder ? `${isOrgWorkspace(workspace) ? ORGS : WORKSPACES}/${folder}` : null;
+  if (!folder) return null;
+  if (isOrgWorkspace(workspace)) return `${ORGS}/${folder}`;
+  const path = all.length === 0 || !workspace.parent ? [workspace] : workspacePath(all, workspace.id);
+  const steps = path.length ? path : [workspace];
+  const names = steps.map((each) => folderName(each.name));
+  if (names.some((name) => !name)) return `${WORKSPACES}/${folder}`;
+  return `${isOrgWorkspace(steps[0]!) ? ORGS : WORKSPACES}/${names.join('/')}`;
 }
 
 /** The file's own name, without the folders: `workspaces/Home/Weekend trip.md` is `Weekend trip.md`. */
@@ -66,8 +85,8 @@ function fileName(path: string): string {
  * nothing, or a library that refuses the move because something is already called that. The note's words are never
  * touched - only where the file sits.
  */
-export async function fileNoteInFolder(noteId: string, workspace: Filed | null): Promise<void> {
-  const folder = folderFor(workspace);
+export async function fileNoteInFolder(noteId: string, workspace: Filed | null, all: readonly Filed[] = []): Promise<void> {
+  const folder = folderFor(workspace, all);
   if (folder !== null) await fileNoteAt(noteId, folder);
 }
 
@@ -87,6 +106,6 @@ async function fileNoteAt(noteId: string, folder: string): Promise<void> {
 }
 
 /** The same for several notes at once: a workspace renamed, or taken away. */
-export async function fileNotesInFolder(noteIds: readonly string[], workspace: Filed | null): Promise<void> {
-  for (const id of noteIds) await fileNoteInFolder(id, workspace);
+export async function fileNotesInFolder(noteIds: readonly string[], workspace: Filed | null, all: readonly Filed[] = []): Promise<void> {
+  for (const id of noteIds) await fileNoteInFolder(id, workspace, all);
 }

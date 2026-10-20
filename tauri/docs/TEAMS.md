@@ -64,6 +64,17 @@ and edits them, and edits made apart merge." Taking a note out of the workspace 
 picker asks twice. Before that slice the workspace was one each member had, and the sentence was "Notes filed here
 stay yours for now; sharing them with the team comes next."
 
+**Folders under an organization's workspace are the team's too (2026-10-20, GHST-107 read here).** The Flutter app
+and the connector put folders inside an organization's workspace (a workspace with `parent` set, the organization's
+at the top), and a team note's row carries its path, `orgs/Ghost.md/Clients/Acme/Plan.md`. "The team's" on this
+page is read by walking a workspace's parents up to an `org-` workspace (core/workspaceTree.ts `orgOfWorkspace`,
+`orgOfNote` in core/workspaces.ts), never by the id's prefix of the note's own workspace alone: on 2026-10-20 the
+prefix read the connector's folders as personal, this page took every note in them "out of the team", deleted
+their rows, and 160 team notes were gone from every device (GHST-108). A note that arrives is filed where its
+row's path says, each folder found or made by name under the organization's workspace (`fileTeamNote`), its file
+written under `orgs/<the organization>/<the folders>/` as the phone writes it (core/noteFolders.ts `folderFor`),
+and an organization's pill shows the notes in its folders with its own.
+
 **Leaving and deleting.** A member removing their own handle is leaving: the row goes, every remaining member is told
 (`member-left`), and the workspace is dropped on their devices with its notes unfiled. The owner deleting the
 organization settles every pending invitation (declined, hidden), tells every member (`org-deleted`), and the rows go

@@ -1,7 +1,7 @@
 import { useEffect, useState, useSyncExternalStore } from 'react';
 import { accountState } from '../account/account.ts';
 import { onPreferences, preferences, setPreferences } from '../preferences.ts';
-import { isOrgWorkspace, onWorkspaces, workspaceOf } from '../workspaces.ts';
+import { onWorkspaces, orgOfNote } from '../workspaces.ts';
 import { readFile, withVersion, type Version } from './file.ts';
 import { readVersionsFile, VERSIONS_CHANGED, writeVersionsFile } from './store.ts';
 
@@ -25,15 +25,13 @@ export const PAUSE_MS = 2 * 60_000;
 /** Whether note `id` keeps a version history, as the preferences and its workspace say now. */
 export function keepsVersions(id: string): boolean {
   const said = preferences().versions[id];
-  const space = workspaceOf(id);
-  if (space && isOrgWorkspace(space)) return said !== false;
+  if (orgOfNote(id) !== null) return said !== false;
   return said === true;
 }
 
-/** Whether note `id` is an organization's, whose history is kept unless switched off. */
+/** Whether note `id` is an organization's (in its workspace or a folder under it), whose history is kept unless switched off. */
 export function versionsByDefault(id: string): boolean {
-  const space = workspaceOf(id);
-  return Boolean(space && isOrgWorkspace(space));
+  return orgOfNote(id) !== null;
 }
 
 function subscribe(listener: () => void): () => void {

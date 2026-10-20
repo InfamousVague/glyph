@@ -7,16 +7,21 @@ import {
   ensureOrgWorkspace,
   fileNewNote,
   fileNote,
+  fileTeamNote,
   forgetNote,
   inWorkspace,
   isOrgWorkspace,
   onWorkspaces,
+  orgOfNote,
+  orgOfWorkspace,
   reloadWorkspaces,
   removeWorkspace,
   renameOrgWorkspace,
   renameWorkspace,
   setWorkspaceHue,
+  workspaceFamily,
   workspaceOf,
+  workspacePath,
   workspaces,
 } from './workspaces.ts';
 
@@ -296,5 +301,86 @@ describe('a workspace nested by the Flutter app', () => {
     setWorkspaceHue('w-bbbbbb', 'ink');
     const kept = (preferences().workspaces as { list: { id: string; parent?: string; name: string }[] }).list.find((w) => w.id === 'w-bbbbbb');
     expect(kept).toMatchObject({ name: 'Customers', parent: 'w-aaaaaa' });
+  });
+});
+
+describe('folders under an organization’s workspace (GHST-107, read as the phone reads them)', () => {
+  const GHOST = { id: 'org-abc', name: 'Ghost' };
+  const CLIENTS = { id: 'w-cl', name: 'Clients', parent: 'org-abc' };
+  const ACME = { id: 'w-acme', name: 'Acme', parent: 'w-cl' };
+  const HOME = { id: 'w-home', name: 'Home' };
+
+  beforeEach(() => {
+    localStorage.clear();
+    reloadPreferences();
+    reloadWorkspaces();
+    // Folders made on the phone or by the connector arrive through the preferences, parents and all.
+    setPreferences({ workspaces: { list: [GHOST, CLIENTS, ACME, HOME], notes: { deep: ACME.id, top: GHOST.id, mine: HOME.id } } });
+  });
+
+  it('keeps a folder’s parent as it was read, an organization’s workspace included', () => {
+    // An organization's workspace reads its organization from its id (`org`); the folders keep their parents.
+    expect(workspaces().list).toEqual([{ ...GHOST, org: 'abc' }, CLIENTS, ACME, HOME]);
+    expect(workspacePath(workspaces().list, ACME.id).map((w) => w.id)).toEqual([GHOST.id, CLIENTS.id, ACME.id]);
+    expect(workspaceFamily(workspaces().list, GHOST.id)).toEqual([GHOST.id, CLIENTS.id, ACME.id]);
+  });
+
+  it('reads a note filed in a folder under an organization as the team’s, however deep', () => {
+    // 2026-10-20: the id's prefix alone read such folders as personal and took 160 team notes out of three
+    // organizations; walking the parents is what the phone does (lib/core/workspaces.dart orgOfWorkspace).
+    expect(orgOfNote('deep')).toBe('abc');
+    expect(orgOfNote('top')).toBe('abc');
+    expect(orgOfNote('mine')).toBeNull();
+    expect(orgOfNote('unfiled')).toBeNull();
+    expect(orgOfWorkspace(workspaces().list, CLIENTS.id)).toBe('abc');
+    expect(orgOfWorkspace(workspaces().list, HOME.id)).toBeNull();
+    expect(orgOfWorkspace(workspaces().list, 'w-gone')).toBeNull();
+  });
+
+  it('reads a parent chain that loops back as no organization, and does not spin', () => {
+    setPreferences({ workspaces: { list: [{ id: 'w-a', name: 'A', parent: 'w-b' }, { id: 'w-b', name: 'B', parent: 'w-a' }], notes: { n: 'w-a' } } });
+    expect(orgOfNote('n')).toBeNull();
+    expect(workspacePath(workspaces().list, 'w-a').map((w) => w.id)).toEqual(['w-b', 'w-a']);
+  });
+
+  it('shows an organization’s notes with those in its folders', () => {
+    const notes = [{ id: 'deep' }, { id: 'top' }, { id: 'mine' }, { id: 'unfiled' }];
+    expect(inWorkspace(notes, GHOST.id).map((n) => n.id)).toEqual(['deep', 'top']);
+    expect(inWorkspace(notes, CLIENTS.id).map((n) => n.id)).toEqual(['deep']);
+    expect(inWorkspace(notes, HOME.id).map((n) => n.id)).toEqual(['mine']);
+  });
+
+  it('makes a folder inside a parent once per name there, and a personal one apart from the team’s', () => {
+    expect(addWorkspace('clients', 'ink', GHOST.id)).toEqual(CLIENTS);
+    const plans = addWorkspace('Plans', 'ink', GHOST.id)!;
+    expect(plans).toEqual({ id: expect.stringMatching(/^w-/), name: 'Plans', parent: GHOST.id });
+    // The same name at the top is a personal folder, not the team's one.
+    const mine = addWorkspace('Clients')!;
+    expect(mine).not.toBe(CLIENTS);
+    expect(mine.parent).toBeUndefined();
+    expect(addWorkspace('Clients')).toBe(mine);
+    // A parent the list does not have is no parent.
+    expect(addWorkspace('Loose', 'ink', 'w-gone')!.parent).toBeUndefined();
+  });
+
+  it('files a note from the team where its row’s path says, finding or making the folders by name', () => {
+    fileTeamNote('n1', 'abc', 'orgs/Ghost/Clients/Acme/Plan.md');
+    expect(workspaceOf('n1')).toEqual(ACME);
+    // A folder the path names that is not here yet is made under the one before it, as on the phone.
+    fileTeamNote('n2', 'abc', 'orgs/Ghost/Clients/Initech/Plan.md');
+    const initech = workspaces().list.find((w) => w.name === 'Initech')!;
+    expect(initech.parent).toBe(CLIENTS.id);
+    expect(workspaceOf('n2')).toEqual(initech);
+    // Found ignoring case, as the file system would.
+    fileTeamNote('n3', 'abc', 'orgs/Ghost/clients/Note.md');
+    expect(workspaceOf('n3')).toEqual(CLIENTS);
+    // No folders in the path, or no path: the organization's own workspace, as before.
+    fileTeamNote('n4', 'abc', 'orgs/Ghost/Plan.md');
+    expect(workspaceOf('n4')).toMatchObject(GHOST);
+    fileTeamNote('n5', 'abc', undefined);
+    expect(workspaceOf('n5')).toMatchObject(GHOST);
+    // Without the organization's workspace here, nothing is filed.
+    fileTeamNote('n6', 'nope', 'orgs/Nope/Clients/Plan.md');
+    expect(workspaceOf('n6')).toBeNull();
   });
 });

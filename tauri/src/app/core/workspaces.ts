@@ -1,9 +1,12 @@
 import { useSyncExternalStore } from 'react';
 import { externalStore } from './externalStore.ts';
 import { onPreferences, preferences, setPreferences } from './preferences.ts';
-import { fileNoteInFolder, fileNotesInFolder } from './noteFolders.ts';
+import { fileNoteInFolder, fileNotesInFolder, folderName } from './noteFolders.ts';
 import { isOrgWorkspace, orgIdOf, orgWorkspaceId } from './orgs/types.ts';
 import { readStored, readStoredText, writeStoredText } from './stored.ts';
+import { orgFolderNames, orgOfWorkspace, workspaceFamily } from './workspaceTree.ts';
+
+export { orgOfWorkspace, workspaceFamily, workspacePath } from './workspaceTree.ts';
 
 export { isOrgWorkspace, orgIdOf, orgWorkspaceId };
 
@@ -229,13 +232,19 @@ function freshId(taken: readonly Workspace[]): string {
  * A new workspace called `name`, in `hue`, or the personal one already called that; null for an empty name. An
  * organization's workspace of that name is not the one: a person's "Ghost" and the team's "Ghost" are two places.
  */
-export function addWorkspace(name: string, hue: WorkspaceHue = 'ink'): Workspace | null {
+export function addWorkspace(name: string, hue: WorkspaceHue = 'ink', parent: string | null = null): Workspace | null {
   const clean = tidy(name);
   if (!clean) return null;
   const { list, notes, current: chosen } = current();
-  const had = list.find((w) => !isOrgWorkspace(w) && w.name.toLowerCase() === clean.toLowerCase());
+  // Inside `parent` (a personal workspace, a folder, or an organization's workspace, GHST-107), the one already
+  // called that in the same parent is the one. At the top, the personal one already called that, wherever it is;
+  // never one of an organization's, since those are the team's. A parent the list does not have is no parent.
+  const inside = parent !== null && list.some((w) => w.id === parent) ? parent : null;
+  const had = list.find(
+    (w) => w.name.toLowerCase() === clean.toLowerCase() && (inside !== null ? w.parent === inside : orgOfWorkspace(list, w.id) === null),
+  );
   if (had) return had;
-  const made: Workspace = hue === 'ink' ? { id: freshId(list), name: clean } : { id: freshId(list), name: clean, hue };
+  const made: Workspace = { id: freshId(list), name: clean, ...(hue === 'ink' ? {} : { hue }), ...(inside ? { parent: inside } : {}) };
   write({ list: [...list, made], notes, current: chosen });
   return made;
 }
@@ -275,7 +284,7 @@ function rename(id: string, name: string): void {
   const renamed: Workspace = { ...was, name: clean };
   write({ list: list.map((w) => (w.id === id ? renamed : w)), notes, current: chosen });
   // The folder is named after the workspace, so renaming one moves its notes into a folder of the new name.
-  void fileNotesInFolder(filedIn(notes, id), renamed);
+  void fileNotesInFolder(filedIn(notes, id), renamed, list);
 }
 
 /**
@@ -385,7 +394,40 @@ export function fileNote(noteId: string, id: string | null): void {
   if (id === null) delete next[noteId];
   else next[noteId] = id;
   write({ list, notes: next, current: chosen });
-  void fileNoteInFolder(noteId, id === null ? null : (list.find((w) => w.id === id) ?? null));
+  void fileNoteInFolder(noteId, id === null ? null : (list.find((w) => w.id === id) ?? null), list);
+}
+
+/**
+ * The organization a note is in, by id: that of its workspace, walking the folders up to the organization's own
+ * (core/workspaceTree.ts), so a note filed in a folder under an organization is the team's exactly as one filed in
+ * the workspace itself. Null for a personal note, or one filed nowhere. Every "is this the team's" on this page
+ * asks here: the id's prefix alone read the connector's folders as personal and took 160 team notes out of their
+ * organizations on 2026-10-20 (GHST-108).
+ */
+export function orgOfNote(noteId: string): string | null {
+  const { list, notes } = current();
+  const id = notes[noteId];
+  return id ? orgOfWorkspace(list, id) : null;
+}
+
+/**
+ * A note from the team, filed where its row's path says (lib/team/folders.dart `fileAt`, GHST-107): the folders
+ * between `orgs/<the organization>/` and the file name are found by name under the organization's workspace and
+ * then under each in turn, or made, and the note is filed in the deepest. A path with no folders, or none at all,
+ * files it in the organization's own workspace, as before. Nothing is done without the organization's workspace.
+ */
+export function fileTeamNote(noteId: string, orgId: string, path?: string | null): void {
+  const root = orgWorkspaceId(orgId);
+  if (!current().list.some((w) => w.id === root)) return;
+  let at = root;
+  for (const name of orgFolderNames(path)) {
+    const inside = current().list.filter((w) => w.parent === at);
+    const found = inside.find((w) => folderName(w.name) === name) ?? inside.find((w) => folderName(w.name).toLowerCase() === name.toLowerCase()) ?? addWorkspace(name, 'ink', at);
+    // A name that cleans away to nothing makes no folder: the note is filed as deep as the names go.
+    if (!found || found.parent !== at) break;
+    at = found.id;
+  }
+  fileNote(noteId, at);
 }
 
 /** A note just made: filed in the chosen workspace, if there is one and the note is not filed yet. */
@@ -411,9 +453,10 @@ export function chooseWorkspace(id: string | null): void {
   write({ list, notes, current: next });
 }
 
-/** Of `notes`, those filed in workspace `id`; all of them for null. */
+/** Of `notes`, those filed in workspace `id` or in any folder inside it; all of them for null. */
 export function inWorkspace<T extends { id: string }>(notes: readonly T[], id: string | null): T[] {
   if (id === null) return [...notes];
-  const { notes: filed } = current();
-  return notes.filter((note) => filed[note.id] === id);
+  const { list, notes: filed } = current();
+  const under = new Set(workspaceFamily(list, id));
+  return notes.filter((note) => under.has(filed[note.id] ?? ''));
 }

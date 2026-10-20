@@ -63,8 +63,11 @@ export interface TeamSyncContext {
   now?: () => number;
   /** Whether a note on this device is filed in this organization's workspace. */
   isTeamNote(id: string): boolean;
-  /** A note from the team, filed in the organization's workspace on this device. */
-  file(id: string): void;
+  /**
+   * A note from the team, filed on this device where its row's `path` says: in the organization's workspace, or
+   * in the folder under it the path names (GHST-107), found or made by name as on every other member's device.
+   */
+  file(id: string, path?: string | null): void;
   /** The team's notes are on this device as far as the feed goes, their files still to come: the list can be drawn. */
   pulled?: () => void;
   /** The key's generation (docs/SHARED.md, S11), named on every write so one under a turned key is refused, not kept. */
@@ -209,7 +212,7 @@ async function takeRow(ctx: TeamSyncContext, item: TeamFeedItem, local: Note | u
     await ctx.notes.apply(theirs);
     outcome.changed += 1;
   }
-  ctx.file(item.id);
+  ctx.file(item.id, theirs.path);
   ctx.state.notes[item.id] = { rev: item.rev, mark: particulars(theirs) };
   // Read under a generation before the turn: put again under the one in force, so every member can read it.
   if (older) await putRow(ctx, (await ctx.notes.get(item.id)) ?? theirs, doc, outcome);

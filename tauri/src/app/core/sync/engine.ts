@@ -26,7 +26,7 @@ import { invoke, isTauri } from '../tauri.ts';
 import { forgetTeamDocs } from '../team/doc.ts';
 import { deviceDocs } from '../team/docs.ts';
 import { emptyTeamState, KeyTurned, resealTeamNotes, syncTeamNotes, type TeamSyncContext, type TeamSyncState } from '../team/sync.ts';
-import { fileNote, isOrgWorkspace, orgWorkspaceId, workspaceOf } from '../workspaces.ts';
+import { fileTeamNote, orgOfNote } from '../workspaces.ts';
 import { readVersionsFile, sentVersions, unsentVersions, writeVersionsFile } from '../versions/store.ts';
 import type { Bytes } from './crypto.ts';
 import { emptyState, mark, syncNotes, type FileKind, type LocalFiles, type LocalNotes, type SyncState } from './notes.ts';
@@ -341,7 +341,6 @@ async function once(parts: Parts): Promise<void> {
       const orgKey = orgKeyOf(row.id);
       if (!orgKey) continue;
       const teamKey = stateKey(session.accountId, `team-${row.id}`);
-      const workspace = orgWorkspaceId(row.id);
       const ctx: TeamSyncContext = {
         token: session.token,
         orgId: row.id,
@@ -353,8 +352,10 @@ async function once(parts: Parts): Promise<void> {
         docs: deviceDocs(),
         state: load<TeamSyncState>(teamKey, emptyTeamState()),
         save: (state) => store(teamKey, state),
-        isTeamNote: (id) => workspaceOf(id)?.id === workspace,
-        file: (id) => fileNote(id, workspace),
+        // Filed in the organization's workspace or in any folder under it (core/workspaceTree.ts): a folder the
+        // connector or another member made is the team's too, never a reason to take a note out of the team.
+        isTeamNote: (id) => orgOfNote(id) === row.id,
+        file: (id, path) => fileTeamNote(id, row.id, path),
         // Drawn as soon as the rows are in, before their histories and pictures.
         pulled: announceNotesChanged,
       };
@@ -465,10 +466,7 @@ async function once(parts: Parts): Promise<void> {
       // A note kept twice is worth a row in the feed: the person has two copies to look at (docs/TEAMS.md, "Kinds").
       onConflict: (copy) => void record('sync-conflict', copy),
       // A note filed in an organization's workspace is the team's (docs/SHARED.md, S1): the organization channel's below.
-      teamNote: (id) => {
-        const space = workspaceOf(id);
-        return space !== null && isOrgWorkspace(space);
-      },
+      teamNote: (id) => orgOfNote(id) !== null,
     }));
     if (synced?.changed) announceNotesChanged();
     const outcome = { conflicts: synced?.conflicts ?? 0, unsent: synced?.unsent ?? 0, reason: synced?.reason ?? null };

@@ -339,3 +339,18 @@ describe('the key turning under the team (docs/SHARED.md, S11)', () => {
     expect(((await open(orgKey, service.teamNotes(orgId).get('n1')!.blob!, `org:${orgId}:note:n1`)) as { note: Note }).note.body).toBe('words and one more');
   });
 });
+
+describe('a note in a folder under the organization (GHST-107)', () => {
+  it('arrives on the other device filed where its row’s path says, not taken out of the team', async () => {
+    // 2026-10-20: this page filed every arriving note in the organization's own workspace and read a folder under
+    // it as personal, so a connector's sort took 160 notes out of their organizations. The row's path is the truth.
+    const phone = device();
+    phone.put('n1', '# Plan', { path: 'orgs/Ghost/Clients/Acme/Plan.md' });
+    expect((await phone.sync()).sent).toBe(1);
+    forgetTeamDocs();
+    const mac = device();
+    const where: Array<[string, string | null | undefined]> = [];
+    expect((await mac.sync({ file: (id, path) => void where.push([id, path]) })).changed).toBe(1);
+    expect(where).toEqual([['n1', 'orgs/Ghost/Clients/Acme/Plan.md']]);
+  });
+});

@@ -11059,3 +11059,28 @@ settings/BackupPane.test.tsx (the tree, read once; the older app).
 
 Cites: §204.
 
+
+## 214. A folder under an organization is the team's (2026-10-20)
+
+**What happened.** The Flutter app's GHST-107 (2026-10-19) let an organization's workspace hold folders, and the
+connector's GHST-108 sorted Matt's three organizations into thirteen of them. This page read "the team's" as "the
+note's workspace id starts with `org-`" (core/sync/engine.ts, core/team/sync.ts, versions, the editor), so a note
+filed in `Ghost.md › The Book` looked personal here; the channel's push treats a held note that is no longer the
+team's as taken out, deleted its row for every member, and the pull then dropped the note from this device too.
+160 team notes vanished within half an hour; they were restored from a backup and session transcripts.
+
+**What changed.** core/workspaceTree.ts holds the phone's reading of the nesting as pure functions over the list:
+`orgOfWorkspace` walks parents up to an organization's workspace (a loop or a missing parent is no organization),
+`workspaceFamily`, `workspacePath` and `orgFolderNames`. `orgOfNote` in core/workspaces.ts is what every "is this
+the team's" asks now: the channel's `isTeamNote`, the account sync's `teamNote`, versions by default, the editor's
+live binding and the picker's notice. A note that arrives from the team is filed where its row's path says
+(`fileTeamNote`, as lib/team/folders.dart `fileAt`): each folder found by name under the organization's workspace
+or made there. `addWorkspace` takes a parent, deduping within it; `inWorkspace` shows a folder's notes with its
+parent's; `folderFor` writes a nested folder's path through its parents, `orgs/Ghost.md/Clients/Acme/`, so the path
+in a row this page puts is the one the phone would put.
+
+**Not covered.** The page still lists workspaces flat: no folder strip or icon view here, no drag into a folder;
+those are the phone's. Nothing guards against another old build on the account.
+
+**Tests.** core/workspaces.test.ts (the walk, the loop, the family, `addWorkspace` with a parent, `fileTeamNote` by
+path), core/noteFolders.test.ts (nested paths), core/team/sync.test.ts (the arriving note is filed by its row's path).

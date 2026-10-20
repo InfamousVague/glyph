@@ -5,7 +5,7 @@ import type { TeamRoom } from '../core/live/team.ts';
 import { noteTitle } from '../core/noteTitle.ts';
 import type { TeamDoc } from '../core/team/doc.ts';
 import { deviceDocs } from '../core/team/docs.ts';
-import { isOrgWorkspace, onWorkspaces, orgIdOf, workspaceOf } from '../core/workspaces.ts';
+import { onWorkspaces, orgOfNote } from '../core/workspaces.ts';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { bindLive, unbindLive } from './liveBinding.ts';
 
@@ -51,8 +51,7 @@ export function useTeamNote(view: EditorView | null, noteId: string, jump?: Jump
         const held = await teamDoc(noteId, deviceDocs(), view.state.doc.toString());
         if (gone || !held) return;
         held.reconcile(view.state.doc.toString());
-        const space = workspaceOf(noteId);
-        const orgId = space ? orgIdOf(space.id) : null;
+        const orgId = orgOfNote(noteId);
         const room = orgId ? openTeamRoom(orgId, noteId, held) : null;
         // A canvas is its structure (S9; core/team/canvas.ts), edited through the view: its editor, which shows its
         // JSON behind the view switch, stays the note's own and reaches the team by the pass, not by the binding.
@@ -141,8 +140,7 @@ function tellWhere(announce: (orgId: string, at: Whereabouts | null) => void, or
   };
 }
 
-/** Whether a note is a team's: filed in an organization's workspace. */
+/** Whether a note is a team's: filed in an organization's workspace, or in a folder under it (core/workspaceTree.ts). */
 export function isTeamNote(noteId: string): boolean {
-  const space = workspaceOf(noteId);
-  return space !== null && isOrgWorkspace(space);
+  return orgOfNote(noteId) !== null;
 }

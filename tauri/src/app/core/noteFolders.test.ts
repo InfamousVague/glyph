@@ -87,3 +87,25 @@ describe('the folder a note is filed in', () => {
     expect(applied).toEqual([]);
   });
 });
+
+describe('a folder inside another (GHST-107)', () => {
+  const CLIENTS = { id: 'w-cl', name: 'Clients', parent: GHOST.id };
+  const ACME = { id: 'w-acme', name: 'Acme', parent: CLIENTS.id };
+  const WORK = { id: 'w-work', name: 'Work' };
+  const PLANS = { id: 'w-plans', name: 'Plans', parent: WORK.id };
+
+  it('is a folder inside its parent’s, under orgs/ for an organization’s and workspaces/ for a personal one', () => {
+    // The path rides in a team note's row, so a folder under an organization is written where the phone writes it.
+    const all = [GHOST, CLIENTS, ACME, WORK, PLANS];
+    expect(folderFor(ACME, all)).toBe('orgs/Ghost/Clients/Acme');
+    expect(folderFor(CLIENTS, all)).toBe('orgs/Ghost/Clients');
+    expect(folderFor(PLANS, all)).toBe('workspaces/Work/Plans');
+    expect(folderFor(GHOST, all)).toBe('orgs/Ghost');
+  });
+
+  it('stands at the top without the list, with a parent that is gone, or with a parent whose name cleans away', () => {
+    expect(folderFor(ACME)).toBe('workspaces/Acme');
+    expect(folderFor(ACME, [ACME])).toBe('workspaces/Acme');
+    expect(folderFor({ id: 'w-x', name: 'X', parent: 'w-dots' }, [{ id: 'w-dots', name: '..' }, { id: 'w-x', name: 'X', parent: 'w-dots' }])).toBe('workspaces/X');
+  });
+});

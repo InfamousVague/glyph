@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Workspace as WorkspaceIcon } from '../art/Icons.tsx';
-import { addWorkspace, fileNote, isOrgWorkspace, useWorkspaces, workspaceOf } from '../core/workspaces.ts';
+import { addWorkspace, fileNote, orgOfWorkspace, useWorkspaces, workspaceOf } from '../core/workspaces.ts';
 import { SheetField, SheetGroup, SheetNote, SheetRow, SheetTitle } from '../plugins/kit.tsx';
 
 /**
@@ -24,7 +24,7 @@ export function WorkspacePicker({ noteId, onDone }: { noteId: string; onDone: ()
     const id = window.setTimeout(() => setArmed(null), 4000);
     return () => window.clearTimeout(id);
   }, [armed]);
-  const team = filed !== null && isOrgWorkspace(filed);
+  const team = filed !== null && orgOfWorkspace(list, filed.id) !== null;
   const choose = (id: string | null) => {
     const key = id ?? 'none';
     if (team && id !== filed.id && armed !== key) {
