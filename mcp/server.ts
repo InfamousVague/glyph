@@ -11,11 +11,12 @@ import { frontMatterEnd, frontMatterValue, withFrontMatterValue } from '../tauri
 import { geoTagOf, withGeoTag } from '../tauri/src/app/core/geotag.ts';
 import { plainFills } from '../tauri/src/app/core/blanks.ts';
 import { noteTitle, withoutFrontMatter } from '../tauri/src/app/core/noteTitle.ts';
-import { isOrgWorkspace, orgIdOf, orgWorkspaceId } from '../tauri/src/app/core/orgs/types.ts';
+import { isOrgWorkspace, orgWorkspaceId } from '../tauri/src/app/core/orgs/types.ts';
 import { issueKeyOf, isTicket, ticketIdOf, TICKET_PROPERTIES } from '../tauri/src/app/core/properties.ts';
 import { titleKey } from '../tauri/src/app/core/titleKey.ts';
 import { imageMarkdown } from '../tauri/src/app/core/imageRefs.ts';
 import { Conflict, GlyphApiError, type GlyphAccount, type NoteRecord } from './glyph.ts';
+import { canMove, effective, fileNameOf, fileStem, folderAtPath, folderFor, folderName, freshId, orgFolderNames, orgOf, pathName, tidyName, workspaceFamily, type Kept } from './folders.ts';
 import { downloadPicture, pictureName, placePicture, type PictureDownloader } from './pictures.ts';
 import { suggestBody } from './suggest.ts';
 import { commentOn, replyTo, resolve, stampOf, threadsIn, type Written } from './comments.ts';
@@ -208,10 +209,12 @@ export function rulesInstructions(rulesBody: string): string {
  * the list, and which workspace each note is filed in. Anything malformed is no workspace at all, as the app reads it,
  * and a filing that names no listed workspace is not one.
  */
-function workspacesIn(prefs: Record<string, unknown>): { list: { id: string; name: string; hue?: string }[]; notes: Record<string, string> } {
+function workspacesIn(prefs: Record<string, unknown>): { list: Kept[]; notes: Record<string, string> } {
   const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as { list?: unknown; notes?: unknown };
+  // Each workspace as it came, every field kept: a folder's `parent` (GHST-107), and whatever a newer app adds. Written
+  // back without it, every nested folder would be flattened to the top on every device.
   const list = (Array.isArray(held.list) ? held.list : []).filter(
-    (w): w is { id: string; name: string; hue?: string } => Boolean(w) && typeof (w as { id?: unknown }).id === 'string' && typeof (w as { name?: unknown }).name === 'string',
+    (w): w is Kept => Boolean(w) && typeof (w as { id?: unknown }).id === 'string' && typeof (w as { name?: unknown }).name === 'string',
   );
   const ids = new Set(list.map((w) => w.id));
   const notes: Record<string, string> = {};
@@ -219,6 +222,17 @@ function workspacesIn(prefs: Record<string, unknown>): { list: { id: string; nam
     for (const [note, id] of Object.entries(held.notes as Record<string, unknown>)) if (typeof id === 'string' && ids.has(id)) notes[note] = id;
   }
   return { list, notes };
+}
+
+/**
+ * The settings with their workspaces changed by `change`, which is handed the list (each workspace as it came, every
+ * field kept) and the filings to change in place, and may answer a new list; every other key kept.
+ */
+function withSpaces(prefs: Record<string, unknown>, change: (list: Kept[], notes: Record<string, string>) => Kept[] | void): Record<string, unknown> {
+  const { list, notes } = workspacesIn(prefs);
+  const next = change(list, notes) ?? list;
+  const held = (prefs.workspaces && typeof prefs.workspaces === 'object' ? prefs.workspaces : {}) as Record<string, unknown>;
+  return { ...prefs, workspaces: { ...held, list: next, notes } };
 }
 
 /** The settings with `ids` filed under workspace `into`, or - null - taken out of every workspace; every other key kept. */
@@ -258,14 +272,19 @@ interface Space {
   id: string;
   name: string;
   organization: boolean;
+  /** A folder's place, "Ghost.md › Clients › Acme"; left out for a workspace at the top. */
+  path?: string;
   /** For a note of the account's own that the settings file under an organization the team does not hold it in. */
   accountOnly?: string;
 }
 
 /** What a tool needs of the settings and the organizations to say where a note is: read once a call. */
 interface Settings {
-  /** Every workspace: the settings' list, and an organization the account is in that the app has not listed yet. */
-  list: { id: string; name: string }[];
+  /**
+   * Every workspace: the settings' list as the app reads it (a parent that is gone or loops is none), and an
+   * organization the account is in that the app has not listed yet.
+   */
+  list: Kept[];
   /** The settings' own list, which is all a filing may name. */
   listed: Set<string>;
   filing: Record<string, string>;
@@ -275,39 +294,92 @@ interface Settings {
 async function settingsOf(account: GlyphAccount): Promise<Settings> {
   const { prefs } = await account.readPrefs();
   const { list, notes } = workspacesIn(prefs);
-  const all = list.map((w) => ({ id: w.id, name: w.name }));
+  const all: Kept[] = effective(list);
   for (const org of account.organizations()) if (!all.some((w) => w.id === orgWorkspaceId(org.id))) all.push({ id: orgWorkspaceId(org.id), name: org.name });
   return { list: all, listed: new Set(list.map((w) => w.id)), filing: notes, trash: trashIn(prefs) };
 }
 
 const ACCOUNT_ONLY = 'In the account only: the settings file it under this organization, but the team does not hold it, so the app does not show it there. file_notes it into the organization again to put it to the team.';
 
-/** The workspace a note is in: its organization's for a team's note, else where the settings file it; null for none. */
+/**
+ * The workspace a team note is in (GHST-107): the folder its path names under its organization's, found by name as a
+ * member's device finds it (lib/team/folders.dart), as deep as the names are found; for a note whose path is not
+ * under `orgs/` yet, the account's filing of it when that is in the same organization; else the organization's own.
+ */
+function teamSpaceId(record: NoteRecord, settings: Settings): string {
+  const org = record.org!;
+  const root = orgWorkspaceId(org.id);
+  const names = orgFolderNames(record.note.path);
+  if (names.length) return folderAtPath(settings.list, root, names);
+  if (!record.note.path?.startsWith('orgs/')) {
+    const filed = settings.filing[record.note.id];
+    if (filed && orgOf(settings.list, filed) === org.id) return filed;
+  }
+  return root;
+}
+
+/** A workspace as an answer names it: a folder with its place from the top. */
+function spaceInfo(settings: Settings, w: Kept): Space {
+  return { id: w.id, name: w.name, organization: orgOf(settings.list, w.id) !== null, ...(w.parent ? { path: pathName(settings.list, w.id) } : {}) };
+}
+
+/** The workspace a note is in: its organization's, or a folder of it, for a team's note; else where the settings file it; null for none. */
 function spaceOf(account: GlyphAccount, record: NoteRecord, settings: Settings): Space | null {
-  if (record.org) return { id: orgWorkspaceId(record.org.id), name: record.org.name, organization: true };
+  if (record.org) {
+    const folder = settings.list.find((w) => w.id === teamSpaceId(record, settings));
+    if (folder && !isOrgWorkspace(folder)) return spaceInfo(settings, folder);
+    return { id: orgWorkspaceId(record.org.id), name: record.org.name, organization: true };
+  }
   const id = settings.filing[record.note.id];
   const space = id ? settings.list.find((w) => w.id === id) : undefined;
   if (!space) return null;
-  if (!isOrgWorkspace(space)) return { ...space, organization: false };
+  const told = spaceInfo(settings, space);
+  if (!told.organization) return told;
   const there = account.whereabouts(record.note.id);
-  return { ...space, organization: true, accountOnly: there ? `The account’s older copy: the team’s own is not readable by this connector (${there.why}).` : ACCOUNT_ONLY };
+  return { ...told, accountOnly: there ? `The account’s older copy: the team’s own is not readable by this connector (${there.why}).` : ACCOUNT_ONLY };
 }
 
-/** A note named among a workspace's: by the workspace's id or its name. */
-function resolveSpace(settings: Settings, wanted: string): { id: string; name: string } {
+/**
+ * A workspace named in a tool's arguments: by its id; by its name, when exactly one is called that; or by its path
+ * from the top, "Ghost.md › Clients" or "Ghost.md/Clients". Names are not unique once folders are nested, so two of a
+ * name are refused with each one's path.
+ */
+function resolveSpace(settings: Settings, wanted: string): Kept {
   const want = wanted.trim();
-  const byId = settings.list.find((w) => w.id === want);
-  const byName = settings.list.filter((w) => w.name.trim().toLowerCase() === want.toLowerCase());
-  if (!byId && byName.length > 1) throw new Error(`More than one workspace is called “${want}”: give its id (${byName.map((w) => w.id).join(', ')}).`);
-  const found = byId ?? byName[0];
-  if (!found) throw new Error(`No workspace is called “${want}”. These are: ${settings.list.map((w) => w.name).join(', ') || 'none'}.`);
-  return found;
+  const { list } = settings;
+  const byId = list.find((w) => w.id === want);
+  if (byId) return byId;
+  const same = (w: Kept, name: string) => w.name.trim().toLowerCase() === name.toLowerCase();
+  const byName = list.filter((w) => same(w, want));
+  if (byName.length === 1) return byName[0]!;
+  const parts = want
+    .split(/[›/]/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length > 1) {
+    let at = list.filter((w) => !w.parent && same(w, parts[0]!));
+    for (const part of parts.slice(1)) at = list.filter((w) => w.parent !== undefined && at.some((p) => p.id === w.parent) && same(w, part));
+    if (at.length === 1) return at[0]!;
+    if (at.length > 1) throw new Error(`More than one workspace is at “${want}”: give its id (${at.map((w) => w.id).join(', ')}).`);
+  }
+  const listed = (ws: Kept[]) => ws.map((w) => `${pathName(list, w.id)} (${w.id})`).join(', ');
+  if (byName.length > 1) throw new Error(`More than one workspace is called “${want}”: give its path or id (${listed(byName)}).`);
+  throw new Error(`No workspace is called “${want}”. These are: ${list.map((w) => pathName(list, w.id)).join(', ') || 'none'}.`);
 }
 
-/** Whether a note is in a workspace, as list_notes and list_workspaces both count it: a team's note in its organization's, any other where it is filed - but never one of the account's own under an organization. */
-function inSpace(account: GlyphAccount, record: NoteRecord, settings: Settings, id: string): boolean {
+/** The workspace a note counts in, by id, as list_workspaces counts it: never one of the account's own under an organization. */
+function countedIn(account: GlyphAccount, record: NoteRecord, settings: Settings): string | null {
   const space = spaceOf(account, record, settings);
-  return space?.id === id && !space.accountOnly;
+  return space && !space.accountOnly ? space.id : null;
+}
+
+/**
+ * Whether a note is in a workspace, as list_notes takes one: in it or in any folder under it, however deep, as the
+ * app's list of a workspace shows them (`inWorkspace`, `workspaceFamily`).
+ */
+function inSpace(account: GlyphAccount, record: NoteRecord, settings: Settings, id: string): boolean {
+  const at = countedIn(account, record, settings);
+  return at !== null && workspaceFamily(settings.list, id).includes(at);
 }
 
 /** What could not be read, for an answer that lists or counts notes; nothing when everything was. */
@@ -443,7 +515,7 @@ async function noSuchNote(account: GlyphAccount, id: string): Promise<string> {
   const settings = await settingsOf(account).catch(() => null);
   const filed = settings?.filing[id];
   const space = filed ? settings!.list.find((w) => w.id === filed) : undefined;
-  if (space && isOrgWorkspace(space)) {
+  if (space && orgOf(settings!.list, space.id) !== null) {
     const notices = account.notices();
     return `No note with the id ${id} could be read. The settings file it under the organization ${space.name}${notices.length ? `, and: ${notices.join(' ')}` : ', whose team does not hold a note of that id: it was deleted there, or taken out'}`;
   }
@@ -564,7 +636,7 @@ export function buildServer(
       inputSchema: {
         query: z.string().optional().describe('Only notes whose title contains this (case-insensitive).'),
         include_archived: z.boolean().optional().describe('Include archived notes. Off by default.'),
-        workspace: z.string().optional().describe('Only the notes in this workspace: its name or id, from list_workspaces. An organization’s workspace lists the team’s notes.'),
+        workspace: z.string().optional().describe('Only the notes in this workspace or folder and in every folder inside it: its id, its path (“Ghost.md › Clients”) or its name, from list_workspaces. An organization’s workspace lists the team’s notes.'),
         in_trash: z.boolean().optional().describe('List the notes in the Trash instead, the most recently deleted first: what restore_notes can bring back.'),
         limit: z.number().int().min(1).max(500).optional().describe('At most this many, default 50.'),
       },
@@ -650,7 +722,7 @@ export function buildServer(
         body: z.string().describe(`The note’s markdown. Ghost.md’s marks all work: headings, lists, \`- [ ]\` to-dos, tables, \`\`\`board fences. ${BLANKS}`),
         title: z.string().optional().describe('A title to put above the body as a heading, if the body does not start with one.'),
         pinned: z.boolean().optional().describe('Pin it to the top of the list.'),
-        workspace: z.string().optional().describe('The workspace to make it in: its name or id, from list_workspaces. Left out, the note is the account’s own and in no workspace.'),
+        workspace: z.string().optional().describe('The workspace or folder to make it in: its id, its path (“Ghost.md › Clients”) or its name, from list_workspaces. Left out, the note is the account’s own and in no workspace.'),
         author: authorField,
       },
     },
@@ -659,18 +731,25 @@ export function buildServer(
         const heading = title?.trim();
         const words = heading && !/^#\s/.test(body.trimStart()) ? `# ${heading}\n\n${body.trim()}` : body;
         if (!words.trim()) return failed('A note needs some words.');
-        let into: { id: string; name: string } | null = null;
+        let into: Kept | null = null;
+        let settings: Settings | null = null;
         if (workspace?.trim()) {
           await fresh();
-          into = resolveSpace(await settingsOf(account), workspace);
+          settings = await settingsOf(account);
+          into = resolveSpace(settings, workspace);
         }
-        const org = into ? orgIdOf(into.id) : null;
-        const made = await account.create(authored(words, author), { pinned: Boolean(pinned), ...(org ? { org } : {}) });
-        // A personal workspace is a filing in the settings, as the app's own is.
-        if (into && !org) await account.changePrefs((prefs) => filedIn(prefs, [made.note.id], into!.id));
+        const org = into ? orgOf(settings!.list, into.id) : null;
+        const signed = authored(words, author);
+        // In a folder of an organization's, the note's path is the folder's, which is how every member's device files
+        // it there (GHST-107); the file is named after its title, as the library names a new one.
+        const folder = into && org && !isOrgWorkspace(into) ? folderFor(into, settings!.list) : null;
+        const path = folder ? `${folder}/${fileStem(noteTitle(signed))}.md` : undefined;
+        const made = await account.create(signed, { pinned: Boolean(pinned), ...(org ? { org } : {}), ...(path ? { path } : {}) });
+        // A personal workspace is a filing in the settings, as the app's own is; so is a folder of an organization's.
+        if (into && (!org || path)) await account.changePrefs((prefs) => filedIn(prefs, [made.note.id], into!.id));
         seen('editing', made);
         await account.postNotification('note-created', { noteId: made.note.id, title: titled(made), by: by(author) });
-        return text({ created: whole(made, into ? { ...into, organization: Boolean(org) } : null) });
+        return text({ created: whole(made, into ? spaceInfo(settings!, into) : null) });
       }),
   );
 
@@ -928,7 +1007,7 @@ export function buildServer(
     {
       title: 'List workspaces',
       description:
-        'The workspaces notes can be filed under, as the app lists them: id, name, whether it is an organization’s, and how many notes are in it - the number list_notes answers for that workspace with archived notes included. An organization’s workspace holds the team’s notes; `notReadable` on one counts the notes there this connector could not read and says why, and `accountOnly` the notes of the account’s own that the settings file there but the team does not hold.',
+        'The workspaces and folders notes can be filed under, as the app lists them: id, name, `parent` (the id of the workspace a folder is inside; absent at the top), `path` from the top ("Ghost.md › Clients › Acme"), whether it is an organization’s or inside one, how many notes are in it (`notes`, the ones filed in it alone, archived included) and `notesUnder` (those and every folder’s under it: what list_notes answers for it). Names repeat once folders nest: name one in another tool by its id or its path. An organization’s workspace and its folders hold the team’s notes; `notReadable` on one counts the notes there this connector could not read and says why, and `accountOnly` the notes of the account’s own that the settings file there but the team does not hold.',
       inputSchema: {},
     },
     async () =>
@@ -937,17 +1016,24 @@ export function buildServer(
         const settings = await settingsOf(account);
         const notes = (await account.list({ archived: true })).filter((r) => !(r.note.id in settings.trash));
         const orgs = new Map(account.organizations().map((org) => [orgWorkspaceId(org.id), org]));
+        const at = new Map(notes.map((r) => [r.note.id, countedIn(account, r, settings)]));
         return text({
           count: settings.list.length,
           workspaces: settings.list.map((w) => {
-            const here = notes.filter((r) => inSpace(account, r, settings, w.id));
+            const here = notes.filter((r) => at.get(r.note.id) === w.id);
+            const family = new Set(workspaceFamily(settings.list, w.id));
+            const under = notes.filter((r) => family.has(at.get(r.note.id) ?? ''));
             const org = orgs.get(w.id);
-            const only = isOrgWorkspace(w) ? notes.filter((r) => !r.org && settings.filing[r.note.id] === w.id).length : 0;
+            const inOrg = orgOf(settings.list, w.id) !== null;
+            const only = inOrg ? notes.filter((r) => !r.org && settings.filing[r.note.id] === w.id).length : 0;
             return {
               id: w.id,
               name: w.name,
-              organization: isOrgWorkspace(w),
+              ...(w.parent ? { parent: w.parent } : {}),
+              path: pathName(settings.list, w.id),
+              organization: inOrg,
               notes: here.length,
+              notesUnder: under.length,
               archived: here.filter((r) => r.note.archivedAt).length,
               ...(org?.unreadable ? { notReadable: { notes: org.unreadable, why: org.why } } : {}),
               ...(only ? { accountOnly: only } : {}),
@@ -960,15 +1046,25 @@ export function buildServer(
       }),
   );
 
+  /**
+   * Where a team note goes on disk in workspace `w` of an organization's (GHST-107): the folder's path and its file's
+   * own name, which never changes, so links and calendar events keyed by the note go on finding it. Null for a folder
+   * whose name a file name cannot hold.
+   */
+  const teamPath = (list: Kept[], w: Kept, record: NoteRecord): string | null => {
+    const folder = folderFor(w, list);
+    return folder ? `${folder}/${fileNameOf(record.note.path, titled(record))}` : null;
+  };
+
   server.registerTool(
     'file_notes',
     {
       title: 'File notes in a workspace',
       description:
-        'Files notes under a workspace (an organization’s or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. Filing a note into an organization’s workspace shares it: it is put to the team, on every member’s devices, and stays readable and editable here. Taking a note out of an organization’s workspace, by `unfile` or by filing it elsewhere, takes it from the team for every member and back to this account alone. `workspace` is a name or id from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one.',
+        'Files notes under a workspace or a folder (an organization’s, a folder inside one, or a personal one), as a note’s Workspace setting in the app does: each note is in at most one, so filing moves it from any other. Filing a note into an organization’s workspace, or into a folder inside one, shares it: it is put to the team, on every member’s devices, and stays readable and editable here; its file goes into that folder on every member’s device, and only the folder changes - its id, words and file name stay as they are. Taking a note out of an organization, by `unfile` or by filing it in a personal workspace, takes it from the team for every member and back to this account alone. `workspace` is an id, a path ("Ghost.md › Clients") or a name from list_workspaces; set `unfile` instead to take the notes out of every workspace. Only an existing workspace: this never makes one (create_folder does).',
       inputSchema: {
         ids: z.array(z.string()).min(1).max(500).describe('The notes’ ids, from list_notes or search_notes.'),
-        workspace: z.string().optional().describe('The workspace’s name (case-insensitive) or id.'),
+        workspace: z.string().optional().describe('The workspace or folder: its id, its path (“Ghost.md › Clients”), or its name (case-insensitive) when only one is called that.'),
         unfile: z.boolean().optional().describe('Take the notes out of whatever workspace they are in.'),
       },
     },
@@ -986,15 +1082,24 @@ export function buildServer(
         if (!found.length) return failed(await noneOf(account, missing));
         const settings = await settingsOf(account);
         const into = unfile ? null : resolveSpace(settings, workspace!);
-        const org = into ? orgIdOf(into.id) : null;
-        // The note itself first - to the team, or back from one - and the settings after, for the notes that went:
-        // a filing that names an organization the team does not hold the note in is what the app never shows.
+        // Walking the parents: a folder inside an organization's workspace is the team's too (GHST-107).
+        const org = into ? orgOf(settings.list, into.id) : null;
+        // The note itself first - to the team, or back from one, or to another of the team's folders - and the
+        // settings after, for the notes that went: a filing that names an organization the team does not hold the
+        // note in is what the app never shows.
         const moved: NoteRecord[] = [];
         const notFiled: { id: string; title: string; why: string }[] = [];
         const picturesNotCarried: { id: string; pictures: string[] }[] = [];
         for (const record of found) {
           try {
-            const { record: now, left } = record.org || org ? await account.move(record.note.id, org) : { record, left: [] };
+            const path = into && org ? teamPath(settings.list, into, record) : undefined;
+            if (path === null) throw new Error(`“${into!.name}” has no name a folder on disk can hold.`);
+            if (org && record.org?.id === org) {
+              // Already the team's: only its path changes, and its row is put so every member's device follows.
+              moved.push(path !== record.note.path ? await account.repath(record.note.id, path!) : record);
+              continue;
+            }
+            const { record: now, left } = record.org || org ? await account.move(record.note.id, org, path ? { path } : {}) : { record, left: [] };
             moved.push(now);
             if (left.length) picturesNotCarried.push({ id: record.note.id, pictures: left });
           } catch (failure) {
@@ -1005,11 +1110,233 @@ export function buildServer(
         if (moved.length) await account.changePrefs((prefs) => filedIn(prefs, moved.map((r) => r.note.id), into?.id ?? null));
         if (!moved.length) return failed(`None of those notes was ${into ? 'filed' : 'unfiled'}: ${notFiled.map((n) => `${n.title} (${n.id}): ${n.why}`).join(' ')}`);
         return text({
-          workspace: into ? { id: into.id, name: into.name, organization: Boolean(org) } : null,
+          workspace: into ? spaceInfo(settings, into) : null,
           [into ? 'filed' : 'unfiled']: moved.map((r) => ({ id: r.note.id, title: titled(r) })),
           ...(notFiled.length ? { notFiled } : {}),
           ...(picturesNotCarried.length ? { picturesNotCarried } : {}),
           ...(missing.length ? { missing } : {}),
+        });
+      }),
+  );
+
+  /*
+   * Folders (GHST-108; Matt, 2026-10-19: "Make it so the AI can manage folders and sorting of files into folders and
+   * organize all my organizations into neat logical folders"). A folder is a workspace with a parent, kept in the
+   * synced settings as the app keeps one (lib/core/workspaces.dart), so every device of the account shows it. A folder
+   * inside an organization's workspace is the team's: its notes' paths name it, and each change that moves one puts
+   * the note's row again with the new path - only the path - so every member's device files it there.
+   */
+
+  /** A folder as the folder tools answer it. */
+  const folderInfo = (list: Kept[], w: Kept) => ({ id: w.id, name: w.name, ...(w.parent ? { parent: w.parent } : {}), path: pathName(list, w.id), organization: orgOf(list, w.id) !== null });
+
+  /** The workspace inside `parent` (null, the top) whose folder on disk would be called `name`'s, but `except`. */
+  const clash = (list: Kept[], parent: string | null, name: string, except?: string): Kept | undefined => {
+    const want = folderName(name).toLowerCase();
+    return list.find((w) => (w.parent ?? null) === parent && w.id !== except && !(parent === null && isOrgWorkspace(w)) && folderName(w.name).toLowerCase() === want);
+  };
+
+  /** An organization's workspace the settings do not list yet, listed, as the app lists it, so a folder can be in it. */
+  const listOrg = (list: Kept[], w: Kept | null): void => {
+    if (w && isOrgWorkspace(w) && !list.some((each) => each.id === w.id)) list.push({ id: w.id, name: w.name });
+  };
+
+  /**
+   * Every team note in the folders `to` names, put again at its new path: `to` answers, for the workspace a note is in
+   * now, the one it is in after (`after` the list as it is then), or null for a note this change does not move.
+   */
+  const refolder = async (before: Settings, after: Kept[], to: (id: string) => string | null) => {
+    const moved: { id: string; title: string; path: string }[] = [];
+    const notMoved: { id: string; title: string; why: string }[] = [];
+    for (const record of await account.list({ archived: true })) {
+      if (!record.org) continue;
+      const next = to(teamSpaceId(record, before));
+      if (next === null) continue;
+      const w = after.find((each) => each.id === next);
+      const path = w ? teamPath(after, w, record) : null;
+      if (!path) {
+        notMoved.push({ id: record.note.id, title: titled(record), why: 'its folder has no name a folder on disk can hold' });
+        continue;
+      }
+      if (path === record.note.path) continue;
+      try {
+        await account.repath(record.note.id, path);
+        moved.push({ id: record.note.id, title: titled(record), path });
+      } catch (failure) {
+        if (failure instanceof GlyphApiError && failure.status === 401) throw failure;
+        notMoved.push({ id: record.note.id, title: titled(record), why: failureText(failure) });
+      }
+    }
+    return { ...(moved.length ? { teamNotesMoved: moved } : {}), ...(notMoved.length ? { teamNotesNotMoved: notMoved } : {}) };
+  };
+
+  const UNUSABLE = 'A folder needs a name a folder on disk can hold: something besides / \\ : * ? " < > | and dots.';
+  const OWN_WORKSPACE = (w: Kept) => `“${w.name}” is an organization’s own workspace: it follows the organization, and is never renamed, moved or deleted here.`;
+  const folderField = z.string().min(1).describe('The folder: its id, its path (“Ghost.md › Clients”), or its name when only one is called that, from list_workspaces.');
+
+  server.registerTool(
+    'create_folder',
+    {
+      title: 'Make a folder',
+      description:
+        'Makes a folder, as New folder in the app does: at the top, or inside `parent` - a personal workspace, a folder, an organization’s workspace or a folder inside one. A folder inside an organization’s is the team’s: the notes filed in it are in it on every member’s devices. If its parent already has one of that name (ignoring case), that one is answered with `existed` and nothing is made. Makes no note and moves none: file_notes puts notes in it.',
+      inputSchema: {
+        name: z.string().min(1).max(200).describe('The folder’s name.'),
+        parent: z.string().optional().describe('The workspace or folder to make it in: its id, path or name. Left out, it is made at the top, a personal one.'),
+        hue: z.enum(['ink', 'ember', 'amber', 'moss', 'sea', 'violet', 'rose']).optional().describe('Its colour in the app; ink, the default, is none.'),
+      },
+    },
+    async ({ name, parent, hue }) =>
+      guarded(async () => {
+        const clean = tidyName(name);
+        if (!folderName(clean)) return failed(UNUSABLE);
+        await fresh();
+        const settings = await settingsOf(account);
+        const under = parent?.trim() ? resolveSpace(settings, parent) : null;
+        const there = clash(settings.list, under?.id ?? null, clean);
+        if (there) return text({ folder: folderInfo(settings.list, there), existed: true });
+        let made: Kept | null = null;
+        await account.changePrefs((prefs) =>
+          withSpaces(prefs, (list) => {
+            listOrg(list, under);
+            made = { id: freshId(list), name: clean, ...(hue && hue !== 'ink' ? { hue } : {}), ...(under ? { parent: under.id } : {}) };
+            list.push(made);
+          }),
+        );
+        return text({ folder: folderInfo([...settings.list, made!], made!) });
+      }),
+  );
+
+  server.registerTool(
+    'rename_folder',
+    {
+      title: 'Rename a folder',
+      description:
+        'Renames a personal workspace or folder, or a folder inside an organization’s workspace, as Rename in the app does; the folders and notes inside it stay inside it. In an organization, every team note in it or in a folder under it gets the new folder in its path, for every member, and nothing else of the note changes. Never an organization’s own workspace, whose name is the organization’s. Refused when its parent already has another folder of that name.',
+      inputSchema: {
+        folder: folderField,
+        name: z.string().min(1).max(200).describe('Its new name.'),
+      },
+    },
+    async ({ folder, name }) =>
+      guarded(async () => {
+        await fresh();
+        const settings = await settingsOf(account);
+        const target = resolveSpace(settings, folder);
+        if (isOrgWorkspace(target)) return failed(OWN_WORKSPACE(target));
+        const clean = tidyName(name);
+        if (!folderName(clean)) return failed(UNUSABLE);
+        if (clean === target.name) return text({ folder: folderInfo(settings.list, target), unchanged: true });
+        const other = clash(settings.list, target.parent ?? null, clean, target.id);
+        if (other) return failed(`“${pathName(settings.list, other.id)}” is there already (${other.id}). File the notes into it, or pick another name.`);
+        await account.changePrefs((prefs) =>
+          withSpaces(prefs, (list) => {
+            const w = list.find((each) => each.id === target.id);
+            if (w) w.name = clean;
+          }),
+        );
+        const after = settings.list.map((w) => (w.id === target.id ? { ...w, name: clean } : w));
+        const family = new Set(workspaceFamily(settings.list, target.id));
+        const team = orgOf(settings.list, target.id) ? await refolder(settings, after, (id) => (family.has(id) ? id : null)) : {};
+        return text({ folder: folderInfo(after, after.find((w) => w.id === target.id)!), ...team });
+      }),
+  );
+
+  server.registerTool(
+    'move_folder',
+    {
+      title: 'Move a folder',
+      description:
+        'Puts a folder inside another, or at the top with `parent` left out, as dragging one in the app does: the folders and notes inside it go with it. Never into itself or a folder inside it, and never into or out of an organization: a folder stays in the organization it is in (anywhere under its workspace) or out of every one, since its notes would change hands - file_notes moves notes between them. In an organization, every team note under it gets the new folders in its path, for every member, and nothing else of the note changes. Never an organization’s own workspace, which is always at the top.',
+      inputSchema: {
+        folder: folderField,
+        parent: z.string().optional().describe('The workspace or folder to put it in: its id, path or name. Left out, the top.'),
+      },
+    },
+    async ({ folder, parent }) =>
+      guarded(async () => {
+        await fresh();
+        const settings = await settingsOf(account);
+        const target = resolveSpace(settings, folder);
+        if (isOrgWorkspace(target)) return failed(OWN_WORKSPACE(target));
+        const to = parent?.trim() ? resolveSpace(settings, parent) : null;
+        if (!canMove(settings.list, target.id, to?.id ?? null)) {
+          if (to && workspaceFamily(settings.list, target.id).includes(to.id)) return failed(`“${pathName(settings.list, target.id)}” cannot go inside itself or a folder inside it.`);
+          const from = orgOf(settings.list, target.id);
+          return failed(
+            `A folder stays in the organization it is in, or out of every one: “${pathName(settings.list, target.id)}” ${from ? 'is the team’s, and its notes would leave the team' : 'is personal, and its notes would go to a team'}. Make a folder there with create_folder and move the notes with file_notes instead.`,
+          );
+        }
+        if ((target.parent ?? null) === (to?.id ?? null)) return text({ folder: folderInfo(settings.list, target), unchanged: true });
+        const other = clash(settings.list, to?.id ?? null, target.name, target.id);
+        if (other) return failed(`“${pathName(settings.list, other.id)}” is there already (${other.id}): rename one of them first.`);
+        await account.changePrefs((prefs) =>
+          withSpaces(prefs, (list) => {
+            listOrg(list, to);
+            const w = list.find((each) => each.id === target.id);
+            if (!w) return;
+            if (to) w.parent = to.id;
+            else delete w.parent;
+          }),
+        );
+        const after = settings.list.map((w) => {
+          if (w.id !== target.id) return w;
+          const { parent: _was, ...rest } = w;
+          return to ? { ...rest, parent: to.id } : rest;
+        });
+        const family = new Set(workspaceFamily(settings.list, target.id));
+        const team = orgOf(settings.list, target.id) ? await refolder(settings, after, (id) => (family.has(id) ? id : null)) : {};
+        return text({ folder: folderInfo(after, after.find((w) => w.id === target.id)!), ...team });
+      }),
+  );
+
+  server.registerTool(
+    'delete_folder',
+    {
+      title: 'Delete a folder',
+      description:
+        'Removes a folder; never a note. The folders inside it are kept, a level up: inside its parent, or at the top. Its own notes: in a personal folder they are unfiled, in no workspace, as removing a workspace in the app leaves them (their files go back to the Inbox on the person’s devices) - file them elsewhere first to keep them in one; in a folder inside an organization’s they go up into its parent, so they stay the team’s, and every team note under it gets its new folder in its path, for every member. Never an organization’s own workspace, which goes when the person leaves the organization.',
+      inputSchema: { folder: folderField },
+    },
+    async ({ folder }) =>
+      guarded(async () => {
+        await fresh();
+        const settings = await settingsOf(account);
+        const target = resolveSpace(settings, folder);
+        if (isOrgWorkspace(target)) return failed(OWN_WORKSPACE(target));
+        const org = orgOf(settings.list, target.id);
+        const up = target.parent ?? null;
+        let unfiled = 0;
+        await account.changePrefs((prefs) =>
+          withSpaces(prefs, (list, notes) => {
+            unfiled = 0;
+            for (const w of list) {
+              if (w.parent !== target.id) continue;
+              if (up) w.parent = up;
+              else delete w.parent;
+            }
+            for (const [note, id] of Object.entries(notes)) {
+              if (id !== target.id) continue;
+              // An organization's notes stay the team's, a level up; a personal folder's are unfiled, as in the app.
+              if (org && up) notes[note] = up;
+              else {
+                delete notes[note];
+                unfiled += 1;
+              }
+            }
+            return list.filter((w) => w.id !== target.id);
+          }),
+        );
+        const after = settings.list.filter((w) => w.id !== target.id).map((w) => (w.parent === target.id ? (up ? { ...w, parent: up } : (({ parent: _was, ...rest }) => rest)(w)) : w));
+        const inside = settings.list.filter((w) => w.parent === target.id).map((w) => folderInfo(after, after.find((each) => each.id === w.id)!));
+        const family = new Set(workspaceFamily(settings.list, target.id));
+        const team = org && up ? await refolder(settings, after, (id) => (id === target.id ? up : family.has(id) ? id : null)) : {};
+        const parentNow = up ? after.find((w) => w.id === up) : undefined;
+        return text({
+          deleted: folderInfo(settings.list, target),
+          ...(inside.length ? { foldersMovedUp: inside } : {}),
+          ...(org && parentNow ? { notesMovedTo: folderInfo(after, parentNow) } : { notesUnfiled: unfiled }),
+          ...team,
         });
       }),
   );

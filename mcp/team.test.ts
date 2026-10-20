@@ -59,7 +59,7 @@ describe('reading an organization’s notes', () => {
 
     const spaces = JSON.parse((await call('list_workspaces')).text) as Spaces;
     const ghost = spaces.workspaces.find((w) => w.name === 'Ghost')!;
-    expect(ghost).toEqual({ id: `org-${org.id}`, name: 'Ghost', organization: true, notes: 2, archived: 1 });
+    expect(ghost).toEqual({ id: `org-${org.id}`, name: 'Ghost', path: 'Ghost', organization: true, notes: 2, notesUnder: 2, archived: 1 });
     const inGhost = JSON.parse((await call('list_notes', { workspace: 'Ghost', include_archived: true })).text) as Listed;
     expect(inGhost.count).toBe(ghost.notes);
     const status = JSON.parse((await call('account_status')).text) as { notes: number; organizations: unknown };
@@ -140,7 +140,7 @@ describe('what it cannot read', () => {
     expect(await call('update_note', { id: 't1', body: '# Mine now' })).toMatchObject({ isError: true });
     expect((await call('delete_notes', { ids: ['t1'] })).text).toBe(`None of those notes could be read. The note t1 is in the organization HelloTrade, and is not readable by this connector: ${why}.`);
     const spaces = JSON.parse((await call('list_workspaces')).text) as Spaces;
-    expect(spaces.workspaces).toEqual([{ id: `org-${org.id}`, name: 'HelloTrade', organization: true, notes: 0, archived: 0, notReadable: { notes: 2, why } }]);
+    expect(spaces.workspaces).toEqual([{ id: `org-${org.id}`, name: 'HelloTrade', path: 'HelloTrade', organization: true, notes: 0, notesUnder: 0, archived: 0, notReadable: { notes: 2, why } }]);
     // It makes no key and no wrap of its own: the organization's keys are as the device left them.
     expect(service.keysOf(org.id)).toEqual({ generation: 1, wraps: {} });
     expect(service.calls.filter((c) => c.startsWith('POST orgs/') && c.endsWith('/keys'))).toHaveLength(1);

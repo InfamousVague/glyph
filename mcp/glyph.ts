@@ -439,8 +439,8 @@ export class GlyphAccount {
   }
 
   /** A new note of `body`, as the app would make one typed in; in organization `org`, the team's from its first word. */
-  async create(body: string, { pinned = false, org }: { pinned?: boolean; org?: string } = {}): Promise<NoteRecord> {
-    if (org) return this.teams.create(org, body, { pinned });
+  async create(body: string, { pinned = false, org, path }: { pinned?: boolean; org?: string; path?: string } = {}): Promise<NoteRecord> {
+    if (org) return this.teams.create(org, body, { pinned, ...(path ? { path } : {}) });
     const now = Date.now();
     const note: Note = { id: randomId(), body, createdAt: now, updatedAt: now, source: 'editor', starred: pinned, archivedAt: null };
     const images = imageNames(body);
@@ -496,14 +496,15 @@ export class GlyphAccount {
    * (docs/SHARED.md, S1; core/sync/notes.ts, core/team/sync.ts): into an organization it is put to the team and its
    * row in the account's feed deleted, so the account's devices take it from the team; out of one it is written to
    * the account and its row deleted from the team. From one organization to another it goes to the second, then
-   * from the first. Answers the note where it now is, and the pictures that could not be carried to a team.
+   * from the first. Answers the note where it now is, and the pictures that could not be carried to a team. With
+   * `path`, a note going to a team goes at that path: a folder of the organization's (GHST-108).
    */
-  async move(id: string, org: string | null): Promise<{ record: NoteRecord; left: string[] }> {
+  async move(id: string, org: string | null, { path }: { path?: string } = {}): Promise<{ record: NoteRecord; left: string[] }> {
     const current = await this.get(id);
     if (!current) throw new GlyphApiError(404, `No note ${id}.`);
     if ((current.org?.id ?? null) === org) return { record: current, left: [] };
     if (org) {
-      const placed = await this.teams.adopt(org, current.note);
+      const placed = await this.teams.adopt(org, current.note, path);
       if (current.org) await this.teams.remove(current.org.id, id);
       const mine = this.cache.get(id);
       if (mine) {
@@ -521,6 +522,18 @@ export class GlyphAccount {
     const written = await this.write(record, this.cache.get(id)?.rev ?? 0, true);
     await this.teams.remove(from.id, id);
     return { record: written, left: [] };
+  }
+
+  /**
+   * A team note's path changed, and only its path (GHST-108): a folder of its organization's to another, the row put
+   * so every member's device files it there. Not for one of the account's own, whose file the person's devices move
+   * by its filing in the settings.
+   */
+  async repath(id: string, path: string): Promise<NoteRecord> {
+    const current = await this.get(id);
+    if (!current) throw new GlyphApiError(404, `No note ${id}.`);
+    if (!current.org) throw new Error(`The note ${id} is not an organization’s: its folder is its filing.`);
+    return this.teams.repath(id, path);
   }
 
   /**
