@@ -1144,8 +1144,8 @@ void main() {
           isEnabled: true,
           isFocusable: true,
           hasFocusAction: true,
-          // Its swipes, for a finger that cannot make them.
-          customActions: const [CustomSemanticsAction(label: 'Unpin'), CustomSemanticsAction(label: 'Archive'), CustomSemanticsAction(label: 'Delete')],
+          // Its swipes, for a finger that cannot make them, and Move to…, for one that cannot carry it to a folder.
+          customActions: const [CustomSemanticsAction(label: 'Unpin'), CustomSemanticsAction(label: 'Archive'), CustomSemanticsAction(label: 'Delete'), CustomSemanticsAction(label: 'Move to…')],
         ),
       );
       expect(find.bySemanticsLabel('Fix the sign-in loop, 20 min ago'), findsOneWidget);

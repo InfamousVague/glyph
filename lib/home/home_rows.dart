@@ -27,6 +27,7 @@ import 'home_layout.dart';
 import 'home_parts.dart';
 import 'home_text.dart';
 import 'marks.dart';
+import '../notes/folder_drag.dart' show NoteCarry, carriedNote, noteCarryActions;
 import 'note_card.dart' show NoteSwipes;
 
 /// A note's kind as a mark at the start of its row or line: a notebook, a canvas, a recording's cassette, or a page
@@ -111,8 +112,10 @@ List<InlineSpan> _tapeWords(Tokens t, Note note, {required bool live, required d
 }
 
 /// What a row or a line's button is wrapped in: a swipe's frame, or nothing where the notes do not swipe (`Swiped`).
-Widget _swiped(NoteSwipes? swipe, {bool compact = false, required Widget child}) =>
-    swipe == null ? child : SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, compact: compact, child: child);
+Widget _swiped(BuildContext context, NoteSwipes? swipe, NoteCarry? carry, {bool compact = false, required Widget child}) {
+  final carried = carriedNote(carry, child, swipes: swipe != null);
+  return swipe == null ? carried : SwipeRow(start: swipe.start, end: swipe.end, onAction: swipe.onAction, compact: compact, also: noteCarryActions(context, carry), child: carried);
+}
 
 /// `.rowItem`: arriving a beat after the one before, `animation: arrive 300ms ... both; animation-delay: calc(var(--i)
 /// * 25ms)`, the thirteenth and after together.
@@ -136,6 +139,7 @@ class HomeRow extends StatelessWidget {
     this.swipe,
     this.onMenu,
     this.since = Duration.zero,
+    this.carry,
   });
 
   final Note note;
@@ -163,6 +167,11 @@ class HomeRow extends StatelessWidget {
   final bool live;
   final NoteSwipes? swipe;
   final void Function(String id, Offset at)? onMenu;
+
+  /// The note carried onto a folder (lib/notes/folder_drag.dart): picked up inside its swipe, so a mouse's drag
+  /// carries it and a finger's sideways swipe still swipes, with Move to… among the swipes' actions. None, and it is
+  /// not carried.
+  final NoteCarry? carry;
 
   static String _counted(int n, String one, String many) => n == 1 ? '1 $one' : '$n $many';
 
@@ -282,7 +291,7 @@ class HomeRow extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(swipe, child: row)));
+    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(context, swipe, carry, child: row)));
   }
 }
 
@@ -305,6 +314,7 @@ class HomeLine extends StatelessWidget {
     this.onMenu,
     this.since = Duration.zero,
     this.found,
+    this.carry,
   });
 
   final Note note;
@@ -329,6 +339,11 @@ class HomeLine extends StatelessWidget {
   /// The workspace the note is filed in, for its pill; null while the page is filtered to one.
   final Workspace? space;
   final void Function(String id, Offset at)? onMenu;
+
+  /// The note carried onto a folder (lib/notes/folder_drag.dart): picked up inside its swipe, so a mouse's drag
+  /// carries it and a finger's sideways swipe still swipes, with Move to… among the swipes' actions. None, and it is
+  /// not carried.
+  final NoteCarry? carry;
 
   @override
   Widget build(BuildContext context) {
@@ -405,7 +420,7 @@ class HomeLine extends StatelessWidget {
         ),
       ),
     );
-    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(swipe, compact: true, child: line)));
+    return _arriving(index, since, NoteMenuArea(onMenu: onMenu == null ? null : (at) => onMenu!(note.id, at), child: _swiped(context, swipe, carry, compact: true, child: line)));
   }
 
   /// The line with what a search matched in the note under it: two lines at most, quieter, in from the mark, the

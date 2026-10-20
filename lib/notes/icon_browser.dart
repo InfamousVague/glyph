@@ -26,10 +26,11 @@ import '../art/lucide.g.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/stored.dart';
-import '../core/workspaces.dart' show isOrgWorkspace;
+import '../core/workspaces.dart' show WorkspaceStore, isOrgWorkspace;
 import '../home/home_icons.dart';
 import '../home/home_layout.dart' show HomeKind, kindOf;
 import '../home/home_text.dart';
+import 'folder_drag.dart';
 import 'folder_strip.dart' show FolderCount;
 import 'note_menu.dart' show NoteMenuArea;
 import 'org_mark.dart';
@@ -99,7 +100,7 @@ class BrowseViewToggle extends StatelessWidget {
 
 /// The folders and the notes as tiles.
 class IconBrowser extends StatelessWidget {
-  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now, this.onNewFolder});
+  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now, this.onNewFolder, this.store});
 
   /// The folders first, each with its count.
   final List<FolderCount> folders;
@@ -123,6 +124,10 @@ class IconBrowser extends StatelessWidget {
   /// to add a folder"): inside the place shown, or a folder at the top where nothing is chosen.
   final VoidCallback? onNewFolder;
 
+  /// The workspaces, so a note's tile or a folder's can be carried onto a folder's (lib/notes/folder_drag.dart):
+  /// a mouse drags, a finger holds first. None, and nothing is carried here.
+  final WorkspaceStore? store;
+
   /// How many tiles go across a grid [width] wide: as many of at least [least] as fit, and never fewer than three,
   /// so a phone shows a row of three a touch narrower.
   static int columnsFor(double width, {required double gap, required double least}) => math.max(3, ((width + gap) / (least + gap)).floor());
@@ -141,14 +146,26 @@ class IconBrowser extends StatelessWidget {
         builder: (context, box) {
           final columns = columnsFor(box.maxWidth, gap: gap, least: t.lenOf('7rem'));
           Widget tile(int at) {
+            final store = this.store;
             if (at < folders.length) {
               final each = folders[at];
-              return _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id));
+              final Widget tile = _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id));
+              if (store == null) return tile;
+              // A place to drop a note or a folder, and itself carried into another; an organization's own stays.
+              return FolderCarrySource(
+                store: store,
+                carry: FolderCarry.folder(each.folder.id, each.folder.name),
+                enabled: !isOrgWorkspace(each.folder.id),
+                child: FolderDropZone(key: ValueKey('drop-${each.folder.id}'), store: store, target: each.folder.id, decorate: true, radius: t.radius('md'), builder: (context, _) => tile),
+              );
             }
             if (adds == 1 && at == folders.length) return _NewFolderTile(key: const ValueKey('tile-folder-new'), onPressed: onNewFolder!);
             final note = notes[at - folders.length - adds];
             final onMenu = onNoteMenu;
-            return _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
+            final Widget tile = _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
+            if (store == null) return tile;
+            final title = NoteFacts.of(note).title.trim();
+            return FolderCarrySource(store: store, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title), child: tile);
           }
 
           return Column(

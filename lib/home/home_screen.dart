@@ -62,6 +62,7 @@ import '../core/search_hits.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
+import '../notes/folder_drag.dart';
 import '../notes/folder_strip.dart';
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
@@ -677,6 +678,14 @@ class _HomeScreenState extends State<HomeScreen> {
       );
     }
 
+    // A card, a row or a line carried onto a folder (lib/notes/folder_drag.dart): a mouse drags it, a finger holds it
+    // first. Not while there is no workspace to carry it to.
+    NoteCarry? carry(Note note) {
+      if (spaces.list.isEmpty) return null;
+      final title = NoteFacts.of(note).title.trim();
+      return (store: widget.workspaces, carry: FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title));
+    }
+
     // The workspace a line's note is filed in, for its pill. None while the page is filtered to one.
     Workspace? filedIn(Note note) {
       if (workspace != null) return null;
@@ -729,6 +738,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   fill: fill,
                   swipe: swipe(note),
                   onMenu: onMenu,
+                  carry: carry(note),
                   since: _arrivals.since(fill ? _placed(section, i, note) : _name(section, note)),
                   gistSince: _gistArrivals.since(note.id),
                 ),
@@ -759,6 +769,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         live: note.id == recording,
                         swipe: swipe(note),
                         onMenu: onMenu,
+                        carry: carry(note),
                         since: since,
                       )
                     : HomeLine(
@@ -773,6 +784,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         swipe: swipe(note),
                         space: filedIn(note),
                         onMenu: onMenu,
+                        carry: carry(note),
                         since: since,
                         found: section.draw == SectionDraw.found ? read.found[note.id] : null,
                       );
@@ -879,6 +891,7 @@ class _HomeScreenState extends State<HomeScreen> {
           chosen: workspace,
           onChoose: widget.workspaces.chooseWorkspace,
           onNewFolder: widget.onNewFolder,
+          store: widget.workspaces,
         ),
       ValueListenableBuilder<List<Widget>>(
         valueListenable: _notices,

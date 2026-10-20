@@ -30,6 +30,7 @@ import '../art/lucide.g.dart';
 import '../core/note.dart';
 import '../core/workspaces.dart';
 import '../home/home_text.dart';
+import 'folder_drag.dart';
 
 /// A folder and how many notes are in it and under it.
 typedef FolderCount = ({Workspace folder, int count});
@@ -65,7 +66,7 @@ double _chipHeight(Tokens t) => math.max(t.lenOf('2rem'), 2.2 * t.fontSize('sm')
 
 /// The folders inside the chosen workspace as chips under a heading, with where the workspace is above them.
 class FolderStrip extends StatelessWidget {
-  const FolderStrip({super.key, required this.list, required this.of, required this.notes, required this.chosen, required this.onChoose, this.onNewFolder, this.crumbs = true});
+  const FolderStrip({super.key, required this.list, required this.of, required this.notes, required this.chosen, required this.onChoose, this.onNewFolder, this.crumbs = true, this.store});
 
   /// Every workspace (`Workspaces.list`), and which workspace each filed note is in (`Workspaces.of`).
   final List<Workspace> list;
@@ -86,9 +87,43 @@ class FolderStrip extends StatelessWidget {
   /// Whether the line above is drawn here; the icon view draws [FolderCrumbs] itself.
   final bool crumbs;
 
+  /// The workspaces, to carry notes and folders onto the chips and the line above and the chips themselves into
+  /// one another (lib/notes/folder_drag.dart); none, and nothing is carried here.
+  final WorkspaceStore? store;
+
   /// Whether there is anything to draw for [chosen]: a folder inside it, a workspace above it, or New folder (always
   /// offered where folders can be made, so making the first one is plain: Matt, 2026-10-19).
   static bool shows(List<Workspace> list, String chosen, {bool canMake = false}) => canMake || foldersIn(list, chosen).isNotEmpty || folderPath(list, chosen).length > 1;
+
+  /// [child] under the top level to drop on, where things are carried here.
+  Widget _overTop(Widget child) {
+    final store = this.store;
+    return store == null ? child : FolderTopDrop(store: store, child: child);
+  }
+
+  /// A folder's chip, where things are carried here: a place to drop a note or a folder, and itself carried into
+  /// another folder.
+  Widget _carried(Widget chip, Workspace folder) {
+    final store = this.store;
+    if (store == null) return chip;
+    return FolderCarrySource(
+      key: ValueKey('carry-folder-${folder.id}'),
+      store: store,
+      carry: FolderCarry.folder(folder.id, folder.name),
+      // An organization's own workspace stays at the top.
+      enabled: !isOrgWorkspace(folder.id),
+      child: Builder(
+        builder: (context) => FolderDropZone(
+          key: ValueKey('drop-${folder.id}'),
+          store: store,
+          target: folder.id,
+          decorate: true,
+          radius: context.tokens.radius('full'),
+          builder: (context, _) => chip,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -106,12 +141,13 @@ class FolderStrip extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         if (above) ...[
-          FolderCrumbs(list: list, chosen: chosen, onChoose: onChoose),
+          FolderCrumbs(list: list, chosen: chosen, onChoose: onChoose, store: store),
           if (folders.isNotEmpty || make) SizedBox(height: t.space(2)),
         ],
         if (folders.isNotEmpty || make) ...[
-          // The heading the page's sections wear: a mark, the word, how many.
-          Semantics(
+          // The heading the page's sections wear: a mark, the word, how many. While a personal note or folder is
+          // carried, the top level to drop it on stands over it.
+          _overTop(Semantics(
             header: true,
             label: folders.isEmpty ? 'Folders' : 'Folders, ${folders.length}',
             excludeSemantics: true,
@@ -126,7 +162,7 @@ class FolderStrip extends StatelessWidget {
                 ],
               ],
             ),
-          ),
+          )),
           SizedBox(height: t.space(2)),
           Semantics(
             container: true,
@@ -141,7 +177,7 @@ class FolderStrip extends StatelessWidget {
                 child: Row(
                   spacing: t.space(2),
                   children: [
-                    for (final each in folders) _Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)),
+                    for (final each in folders) _carried(_Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
                     if (onNewFolder != null) _NewChip(key: const ValueKey('folder-new'), onPressed: () => onNewFolder!(chosen)),
                   ],
                 ),
@@ -157,11 +193,21 @@ class FolderStrip extends StatelessWidget {
 /// Where the chosen workspace is, as a line: "Work › Clients", each part but the last a way up. Nothing for a
 /// workspace at the top.
 class FolderCrumbs extends StatelessWidget {
-  const FolderCrumbs({super.key, required this.list, required this.chosen, required this.onChoose});
+  const FolderCrumbs({super.key, required this.list, required this.chosen, required this.onChoose, this.store});
 
   final List<Workspace> list;
   final String chosen;
   final ValueChanged<String> onChoose;
+
+  /// The workspaces, so a note or a folder can be dropped on a part of the line and go there; none, and nothing is.
+  final WorkspaceStore? store;
+
+  /// [part] as a place to drop, where things are carried here.
+  Widget _drop(Widget part, Workspace at) {
+    final store = this.store;
+    if (store == null) return part;
+    return FolderDropZone(key: ValueKey('drop-crumb-${at.id}'), store: store, target: at.id, decorate: true, builder: (context, _) => part);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -183,9 +229,9 @@ class FolderCrumbs extends StatelessWidget {
                 if (at > 0) ExcludeSemantics(child: Text(' › ', style: pageText(t, sm, color: t.color('app-ink-3')))),
                 if (at == path.length - 1)
                   // The last part is where the page is: said, not pressed.
-                  Padding(padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: t.space(1)), child: Text(part.name, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: t.color('app-ink'))))
+                  _drop(Padding(padding: EdgeInsets.symmetric(horizontal: t.space(1), vertical: t.space(1)), child: Text(part.name, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: t.color('app-ink')))), part)
                 else
-                  GlacierPressable(
+                  _drop(GlacierPressable(
                     key: ValueKey('crumb-${part.id}'),
                     onPressed: () => onChoose(part.id),
                     semanticLabel: 'Up to ${part.name}',
@@ -202,7 +248,7 @@ class FolderCrumbs extends StatelessWidget {
                         child: Text(part.name, maxLines: 1, softWrap: false, style: pageText(t, sm, color: state.pressed ? t.color('app-ink') : t.color('app-ink-2'))),
                       ),
                     ),
-                  ),
+                  ), part),
               ],
             ],
           ),

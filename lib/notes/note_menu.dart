@@ -22,6 +22,9 @@
 /// - **Every row the web's menu has is here.** Add a comment takes [NoteMenuHost.onComment] and is left out
 ///   without it, as on the page; the root gives it (lib/comments/ask.dart: the note is opened, and its desk starts
 ///   a comment on its first line once its editor is there).
+/// - **Move to** (2026-10-20, the port's own), where [NoteMenuHost.workspaces] is given: the folders the note may go
+///   to, as carrying it onto one would move it (lib/notes/folder_drag.dart), with the same toast and Undo; a flyout
+///   where a mouse has room, else listed in place under its label. Nothing into or out of an organization.
 library;
 
 import 'package:flutter/gestures.dart';
@@ -31,6 +34,8 @@ import 'package:glacier/glacier.dart';
 import '../art/art.dart';
 import '../core/note.dart';
 import '../core/note_text.dart';
+import '../core/workspaces.dart';
+import 'folder_drag.dart';
 import '../shell/pop_menu.dart';
 
 /// Which note's menu is open, and where the pointer was, the menu's corner (`NoteMenuAt`).
@@ -96,7 +101,7 @@ class NoteMenuArea extends StatelessWidget {
 /// The note's menu, drawn while the [controller] has one open (`NoteMenuHost`). Nothing for a note no longer in
 /// [notes]. What differs from the page is in the library doc: who opens it, and the controller being handed in.
 class NoteMenuHost extends StatelessWidget {
-  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse});
+  const NoteMenuHost({super.key, required this.controller, required this.notes, required this.onOpen, this.onComment, required this.onPin, required this.onArchive, required this.onDelete, this.coarse, this.workspaces});
 
   final NoteMenuController controller;
 
@@ -114,6 +119,9 @@ class NoteMenuHost extends StatelessWidget {
 
   /// Whether the rows are a finger's; the device's answer unless a test says.
   final bool? coarse;
+
+  /// The workspaces, for Move to; absent, the row is not shown.
+  final WorkspaceStore? workspaces;
 
   @override
   Widget build(BuildContext context) {
@@ -154,6 +162,7 @@ class NoteMenuHost extends StatelessWidget {
             if (comment != null) GlacierMenuItem(icon: icon(Lucide.messageSquarePlus), onSelect: () => comment(it), child: const Text('Add a comment')),
             GlacierMenuItem(icon: icon(it.starred ? Lucide.pinOff : Lucide.pin), onSelect: () => onPin(it), child: Text(it.starred ? 'Unpin' : 'Pin')),
             GlacierMenuItem(icon: icon(archived ? Lucide.archiveRestore : Lucide.archive), onSelect: () => onArchive(it, !archived), child: Text(archived ? 'Unarchive' : 'Archive')),
+            if (workspaces != null) ...folderMoveRows(context, workspaces!, FolderCarry.note(it.id, title.isNotEmpty ? title : 'Untitled')),
             const GlacierMenuSeparator(),
             // In the one red the app has (NoteMenu.module.css `.danger`).
             GlacierMenuItem(danger: true, style: dangerRowStyle(t), icon: icon(Lucide.trash2), onSelect: () => onDelete(it), child: const Text('Delete')),

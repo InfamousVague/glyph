@@ -19,11 +19,12 @@ import '../perf/frame_log.dart';
 import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import 'book_place_mark.dart';
+import 'folder_drag.dart';
 import 'note_peek.dart';
 import 'org_mark.dart';
 import 'tree.dart';
 import 'workspace_sheet.dart';
-import '../shell/wide_screen.dart' show hoverPointer, mousePointer, wideScreen;
+import '../shell/wide_screen.dart' show hoverPointer;
 
 /// The sidebar: one tree of notes, the same whether it sits beside the note on a desktop or opens over it on a phone
 /// (Matt: "Make the sidebar on desktop the same sidebar that shows up in the pop-up sidebar. Make it more similar to
@@ -57,9 +58,10 @@ import '../shell/wide_screen.dart' show hoverPointer, mousePointer, wideScreen;
 /// - **The port's own, 2026-10-16** (docs/FEATURES_2_1.md, organize): a Tags row over the folders, opening the Tags
 ///   page ([onTags]); the smart notebooks under a heading of their own, each with how many notes its search finds
 ///   now ([smart]); folders inside folders, each folding on its own, its count its notes and those of the folders
-///   in it; and on a wide window a note or a folder dragged onto a folder is filed or moved there (a finger holds
-///   first, a mouse just drags). An organization's folder takes no drop and gives none: a note moved into or out
-///   of a team is asked about twice, in the note's own Workspace picker.
+///   in it; and a note or a folder dragged onto a folder is filed or moved there (a finger holds first, a mouse
+///   just drags; 2026-10-20, every width), or onto the top level that stands over the tools while one is carried,
+///   by the rules and the moves of lib/notes/folder_drag.dart. Nothing crosses into or out of an organization by
+///   a drag: that is asked about twice, in the note's own Workspace picker.
 class NoteTree extends StatefulWidget {
   const NoteTree({
     super.key,
@@ -230,46 +232,9 @@ class _NoteTreeState extends State<NoteTree> {
         also: (list, spaces),
       );
 
-  /// [child] dragged as [data] where [enabled]: a mouse drags it at once, a finger holds it first, so a finger's
-  /// scroll through the sidebar stays a scroll.
-  Widget _draggable(BuildContext context, bool enabled, _Dragged data, _Look look, Widget child) {
-    if (!enabled) return child;
-    final t = look.t;
-    final feedback = _DragFeedback(label: data.label, folder: data.folder != null, tokens: t);
-    final dimmed = Opacity(opacity: 0.4, child: child);
-    return mousePointer
-        ? Draggable<_Dragged>(data: data, feedback: feedback, childWhenDragging: dimmed, child: child)
-        : LongPressDraggable<_Dragged>(data: data, feedback: feedback, childWhenDragging: dimmed, hapticFeedbackOnStart: true, child: child);
-  }
-
-  /// Whether a drop on a folder would do anything: file a note there, or move a folder inside it. A note stays in
-  /// the organization it is in, or out of every one (GHST-107): an organization's workspace or a folder under it
-  /// takes a note already in that organization, from another of its folders, and refuses one from outside, as a
-  /// personal folder refuses an organization's note. A folder moves only where [WorkspaceStore.canMove] lets it,
-  /// never into or out of an organization.
-  bool _takes(_Dragged dragged, String folder) {
-    final spaces = widget.workspaces.value;
-    final org = orgOfWorkspace(spaces.list, folder);
-    final note = dragged.note;
-    if (note != null) {
-      final filed = spaces.of[note];
-      return filed != folder && (filed == null ? org == null : orgOfWorkspace(spaces.list, filed) == org);
-    }
-    final moving = dragged.folder;
-    return moving != null && widget.workspaces.canMove(moving, folder) && spaces.list.where((w) => w.id == moving).firstOrNull?.parent != folder;
-  }
-
-  void _drop(_Dragged dragged, String folder) {
-    if (!_takes(dragged, folder)) return;
-    final note = dragged.note, moving = dragged.folder;
-    if (note != null) {
-      widget.workspaces.fileNote(note, folder);
-    } else if (moving != null) {
-      widget.workspaces.moveWorkspace(moving, folder);
-    }
-    // A folder dropped into is opened, so what landed in it is seen.
-    if (_closed.contains(folder)) _toggle(folder);
-  }
+  /// [child] carried as [carry] (lib/notes/folder_drag.dart): a mouse drags it at once, a finger holds it first, so
+  /// a finger's scroll through the sidebar stays a scroll.
+  Widget _draggable(FolderCarry carry, Widget child, {bool enabled = true}) => FolderCarrySource(store: widget.workspaces, carry: carry, enabled: enabled, child: child);
 
   Widget _build(BuildContext context, Workspaces spaces) {
     final t = context.tokens;
@@ -299,10 +264,9 @@ class _NoteTreeState extends State<NoteTree> {
       seams: (widget.onNoteMenu != null ? 1 : 0) | (widget.onOrganization != null ? 2 : 0) | (widget.onEmptyTrash != null ? 4 : 0) | (widget.onRestore != null ? 8 : 0) | (widget.onDestroy != null ? 16 : 0),
       // The ghost over an empty list is made anew by whoever hands it over: asked about only while it is drawn.
       art: nothing ? widget.emptyArt : null,
-      // The smart notebooks, the Tags row, and whether rows can be dragged onto folders (a wide window).
+      // The smart notebooks and the Tags row.
       smart: widget.smart?.value,
       organize: (widget.onTags != null ? 1 : 0) | (widget.onSmart != null ? 2 : 0) | (widget.onManageSmart != null ? 4 : 0),
-      drags: wideScreen(MediaQuery.sizeOf(context)),
     );
     if (had != null && had.drawn == drawn && sameNotes(had.notes, widget.notes) && sameNotes(had.trashed, trashed)) {
       return _framed(context, t, look, had.tree, had.list, popup: popup, compact: compact);
@@ -330,12 +294,9 @@ class _NoteTreeState extends State<NoteTree> {
         softWrap: !compact,
         overflow: TextOverflow.ellipsis,
       );
-      // An organization's note is dragged too, to another folder of the same organization ([_takes]).
+      // An organization's note is dragged too, to another folder of the same organization ([folderVerdict]).
       return _draggable(
-        context,
-        drawn.drags,
-        _Dragged(note: note.id, label: title.isEmpty ? 'Untitled' : title),
-        look,
+        FolderCarry.note(note.id, title.isEmpty ? 'Untitled' : title),
         CssFlow.block(
         key: ValueKey('note-row-${note.id}'),
         // `.row { margin-block: 1px }`; `.tree[data-compact] .row { margin-block: 0 }`: kept by the list the row is
@@ -493,29 +454,24 @@ class _NoteTreeState extends State<NoteTree> {
                   },
                 ),
       );
-      // A workspace's folder takes a note or another folder dropped on it, and is itself dragged, on a wide window.
-      // An organization's own workspace is not dragged (it is always at the top), but takes a note back from one of
-      // its folders ([_takes]).
-      final Widget head = space == null || !drawn.drags
+      // A workspace's folder takes a note or another folder dropped on it, and is itself dragged. An organization's
+      // own workspace is not dragged (it is always at the top), but takes a note or a folder back from one of its
+      // folders ([folderVerdict]). Something held over it that it takes: a ring of the ink, as the open note's row
+      // wears; one it refuses, a faint red ring. Dropped into, it opens, so what landed in it is seen.
+      final Widget head = space == null
           ? folderRow
           : _draggable(
-              context,
-              org == null,
-              _Dragged(folder: id, label: name),
-              look,
-              DragTarget<_Dragged>(
-                onWillAcceptWithDetails: (details) => _takes(details.data, id),
-                onAcceptWithDetails: (details) => _drop(details.data, id),
-                builder: (context, candidates, _) => DecoratedBox(
-                  key: ValueKey('drop-$id'),
-                  // Something held over it that it takes: a ring of the ink, as the open note's row wears.
-                  decoration: BoxDecoration(
-                    border: candidates.isEmpty ? null : Border.all(color: t.colorOf('color-mix(in oklch, var(--app-ink) 55%, transparent)'), width: snapBorder(context, t.len('app-line'))),
-                    borderRadius: BorderRadius.circular(t.radius('sm')),
-                    color: candidates.isEmpty ? null : t.color('app-paper-2'),
-                  ),
-                  child: folderRow,
-                ),
+              FolderCarry.folder(id, name),
+              enabled: org == null,
+              FolderDropZone(
+                key: ValueKey('drop-$id'),
+                store: widget.workspaces,
+                target: id,
+                decorate: true,
+                onLanded: () {
+                  if (_closed.contains(id)) _toggle(id);
+                },
+                builder: (context, _) => folderRow,
               ),
             );
       final parts = <Widget>[
@@ -797,29 +753,33 @@ class _NoteTreeState extends State<NoteTree> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             // `.tools { display: flex; align-items: center; gap: var(--glacier-space-1); padding: var(--glacier-space-2) var(--glacier-space-3) }`
-            Semantics(
-              container: true,
-              explicitChildNodes: true,
-              label: 'Notes',
-              child: Padding(
-                padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(3)),
-                child: Row(
-                  spacing: t.space(1),
-                  children: [
-                    _Tool(label: 'New note', icon: Lucide.squarePen, onPressed: widget.onNew),
-                    if (!widget.simple) _Tool(label: 'New workspace', icon: Lucide.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
-                    if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
-                    if (!widget.simple) _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
-                    if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
-                    if (every.isNotEmpty)
-                      _Tool(
-                        label: allShut ? 'Open every folder' : 'Fold every folder',
-                        icon: allShut ? Lucide.chevronsUpDown : Lucide.chevronsDownUp,
-                        onPressed: () => _setAndKeep(allShut ? {} : {...every}),
-                      ),
-                    // The last tool sits at the far end (`.tool[data-end] { margin-inline-start: auto }`).
-                    if (popup) ...[const Spacer(), _Tool(label: 'Close', icon: Lucide.x, stroke: 2.2, onPressed: widget.onClose!)],
-                  ],
+            // While a personal note or folder is carried, the top level to drop it on, over the tools.
+            FolderTopDrop(
+              store: widget.workspaces,
+              child: Semantics(
+                container: true,
+                explicitChildNodes: true,
+                label: 'Notes',
+                child: Padding(
+                  padding: EdgeInsets.symmetric(vertical: t.space(2), horizontal: t.space(3)),
+                  child: Row(
+                    spacing: t.space(1),
+                    children: [
+                      _Tool(label: 'New note', icon: Lucide.squarePen, onPressed: widget.onNew),
+                      if (!widget.simple) _Tool(label: 'New workspace', icon: Lucide.folderPlus, onPressed: () => setState(() => _manage = const _Manage())),
+                      if (widget.onCommands != null) _Tool(label: 'Search and commands', icon: Lucide.search, onPressed: widget.onCommands!),
+                      if (!widget.simple) _Tool(label: compact ? 'Show each note drawn small' : 'Show names only', icon: compact ? Lucide.layoutList : Lucide.list, onPressed: _flipCompact),
+                      if (widget.onBrowseFiles != null) _Tool(label: 'Browse files', icon: Lucide.folderOpen, onPressed: widget.onBrowseFiles!),
+                      if (every.isNotEmpty)
+                        _Tool(
+                          label: allShut ? 'Open every folder' : 'Fold every folder',
+                          icon: allShut ? Lucide.chevronsUpDown : Lucide.chevronsDownUp,
+                          onPressed: () => _setAndKeep(allShut ? {} : {...every}),
+                        ),
+                      // The last tool sits at the far end (`.tool[data-end] { margin-inline-start: auto }`).
+                      if (popup) ...[const Spacer(), _Tool(label: 'Close', icon: Lucide.x, stroke: 2.2, onPressed: widget.onClose!)],
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -1293,48 +1253,6 @@ class _Speak extends StatelessWidget {
 
 /// The smart notebooks' place among the folders, for remembering whether it is open.
 const String smartFolder = 'smart';
-
-/// What is being dragged in the sidebar: a note, or a workspace's folder, by id, and its name for the drag's label.
-@immutable
-class _Dragged {
-  const _Dragged({this.note, this.folder, required this.label});
-  final String? note;
-  final String? folder;
-  final String label;
-}
-
-/// What follows the pointer while a row is dragged: its name in a small pill of the paper.
-class _DragFeedback extends StatelessWidget {
-  const _DragFeedback({required this.label, required this.folder, required this.tokens});
-  final String label;
-  final bool folder;
-  final Tokens tokens;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = tokens;
-    final size = t.fontSize('sm');
-    return IgnorePointer(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 240),
-        padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(2)),
-        decoration: BoxDecoration(
-          color: t.color('app-paper-2'),
-          border: Border.all(color: t.color('glacier-border-strong'), width: t.len('glacier-hairline')),
-          borderRadius: BorderRadius.circular(t.radius('md')),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          spacing: 0.45 * size,
-          children: [
-            lucide(folder ? Lucide.folder : Lucide.fileText, size: 14, color: t.color('app-ink-3')),
-            Flexible(child: Text(label, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, weight: 'semibold', color: t.color('app-ink')))),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 /// A row over the folders that opens a page rather than folding: the Tags page.
 class _ShelfRow extends StatelessWidget {

@@ -41,7 +41,7 @@ enum _Settling { home, awayLeft, awayRight }
 /// touch is going, where the page asked for 10px of travel more across than down; the rest is as the library doc
 /// above says.
 class SwipeRow extends StatefulWidget {
-  const SwipeRow({super.key, this.start = const [], this.end = const [], required this.onAction, this.radius = 0, this.compact = false, required this.child});
+  const SwipeRow({super.key, this.start = const [], this.end = const [], required this.onAction, this.radius = 0, this.compact = false, this.also = const {}, required this.child});
 
   /// Revealed by swiping right, nearest detent first.
   final List<SwipeAction> start;
@@ -55,6 +55,10 @@ class SwipeRow extends StatefulWidget {
 
   /// A row one line tall: the picture and its word side by side.
   final bool compact;
+
+  /// More of the row's own actions for a screen reader, beside its swipes': Move to… (lib/notes/folder_drag.dart),
+  /// which on the same node from inside the row would put the swipes' out.
+  final Map<CustomSemanticsAction, VoidCallback> also;
   final Widget child;
 
   @override
@@ -205,6 +209,7 @@ class _SwipeRowState extends State<SwipeRow> {
         child: Semantics(
           customSemanticsActions: {
             for (final action in [...widget.start, ...widget.end]) CustomSemanticsAction(label: action.label): () => widget.onAction(action.id),
+            ...widget.also,
           },
           child: frame,
         ),
