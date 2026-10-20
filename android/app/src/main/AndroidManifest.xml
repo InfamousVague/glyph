@@ -431,6 +431,19 @@
                 android:name="android.service.quicksettings.TOGGLEABLE_TILE"
                 android:value="false" />
         </service>
+        <!--
+          A voice note from the watch (watch/WatchListenerService.kt; docs/WATCH.md): a take arrives over a Data Layer
+          channel at /ghost/take, with the app open or closed, and waits in the inbox for the app to make it a note.
+          Bound only by Play services, for a watch app with this app's id and certificate.
+        -->
+        <service
+            android:name=".watch.WatchListenerService"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.google.android.gms.wearable.CHANNEL_EVENT" />
+                <data android:scheme="wear" android:host="*" android:path="/ghost/take" />
+            </intent-filter>
+        </service>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

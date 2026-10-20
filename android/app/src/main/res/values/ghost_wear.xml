@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  How the watch app finds this phone's Ghost.md among the nodes the Data Layer connects (WatchLink.PHONE_CAPABILITY,
+  android/wear-shared/): it sends its takes only to a node that has it. The watch declares `ghost_md_watch` the same way.
+-->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@array/android_wear_capabilities">
+    <string-array name="android_wear_capabilities" translatable="false">
+        <item>ghost_md_phone</item>
+    </string-array>
+</resources>

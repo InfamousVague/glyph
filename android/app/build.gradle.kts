@@ -137,6 +137,12 @@ android {
         resValues = true
     }
 
+    sourceSets {
+        // The words the watch app and this one speak (the paths, the capability names, a take's frame), from the one
+        // file both compile (android/wear-shared/; docs/WATCH.md).
+        getByName("main").java.srcDir("../wear-shared/kotlin")
+    }
+
     signingConfigs {
         // The Tauri app's own key, from its own file (the header above `ghostCutover` says which).
         if (releaseSigning.getProperty("storeFile") != null) {
@@ -190,6 +196,9 @@ dependencies {
     // Place reminders (reminders/Places.kt): Play services' geofences, which watch the places with the app closed and
     // cost the phone almost nothing while it is nowhere near them, and its fused last position for the nearest hundred.
     implementation("com.google.android.gms:play-services-location:21.3.0")
+    // Voice notes from the watch (watch/WatchListenerService.kt; docs/WATCH.md): the Wearable Data Layer, which hands
+    // this app a take over a channel and carries its answer back. Nothing is sent anywhere but the paired watch.
+    implementation("com.google.android.gms:play-services-wearable:19.0.0")
     // The ported classes' own tests (app/src/test): SoundMix, WavSpool, the notification's counter and line.
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
