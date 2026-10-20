@@ -7,11 +7,13 @@ import 'package:glacier/glacier.dart';
 
 import '../../capture/voice_log.dart';
 import '../../core/preferences.dart';
+import '../../watch/watch_link.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
 import '../tapes.dart';
 import 'pane_parts.dart';
 import 'settings_host.dart';
+import 'watch_section.dart';
 
 /// What Settings' search finds on Recording (`findable`, src/app/settings/RecordingPane.findable.ts, for the app), by
 /// the names the page draws, in its order. Android's rows are listed on Android only, the meetings whether or not
@@ -58,7 +60,7 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
-  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android});
+  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -66,6 +68,10 @@ class RecordingPane extends StatefulWidget {
 
   /// Whether this is an Android phone; asked of the platform when null.
   final bool? android;
+
+  /// The watch, for its card (watch_section.dart); the app's own ([watchLink]) when null, which is null itself off an
+  /// Android phone.
+  final WatchLink? watch;
 
   static Widget hosted(BuildContext context) => RecordingPane(features: SettingsHost.maybeOf(context)?.features ?? const SettingsFeatures());
 
@@ -136,11 +142,30 @@ class _RecordingPaneState extends State<RecordingPane> {
   /// What Copy did, in the voice log's footer.
   String? _copied;
 
+  /// The watch, as this page reads it: asked again each time the page is put up.
+  WatchLink? _watch;
+
+  void _watchChanged() {
+    if (mounted) setState(() {});
+  }
+
   @override
   void initState() {
     super.initState();
     // Each tape's file is asked whether it is on this device, as the page's Tapes card asked when it was put up.
     widget.features.onCountTapes?.call();
+    _watch = widget.watch ?? watchLink;
+    final watch = _watch;
+    if (watch != null) {
+      watch.addListener(_watchChanged);
+      unawaited(watch.refresh());
+    }
+  }
+
+  @override
+  void dispose() {
+    _watch?.removeListener(_watchChanged);
+    super.dispose();
   }
 
   @override
@@ -298,6 +323,8 @@ class _RecordingPaneState extends State<RecordingPane> {
             ),
             // Last, so every card above it stays where the page puts it (panes_test.dart, rect for rect).
             _voiceLogSection(context),
+            // The watch, after even the voice log, and only where a watch has Ghost.md (docs/WATCH.md).
+            if (android && (_watch?.value.any ?? false)) WatchSection(status: _watch!.value),
           ],
         );
       },

@@ -61,6 +61,7 @@ import '../capture/voice_model.dart' show VoiceModel;
 import '../core/mac_app.dart';
 import '../core/library.dart';
 import '../core/note.dart';
+import '../core/native/files.dart';
 import '../core/native/ghost_core.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
@@ -71,6 +72,9 @@ import '../claude/claude_settings.dart' show claudeSettings;
 import '../plugins/claude/claude.dart' show claudeManifest;
 import '../plugins/registry.dart' show plugins;
 import '../tapes/player.dart' show markAudioRemoved;
+import '../watch/watch_device.dart';
+import '../watch/watch_link.dart';
+import '../watch/watch_notes.dart';
 
 /// `--dart-define=GHOST_MODELS=http://…`: where this build fetches a voice or language model from. Empty in every
 /// build that was not given one.
@@ -231,7 +235,7 @@ class VoiceMaking {
 /// Voice, as the root holds it: the recorder its screens are drawn over, and what the app asks of the phone about a
 /// meeting. A test makes one over a scripted recorder and a service of its own.
 class Voice {
-  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.assistKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.cancelWriteUp, this.dispose_});
+  Voice({required this.recorder, this.service, this.models, this.assistant = false, this.launch = '', this.captureKey, this.assistKey, this.canMeet = false, this.sound, this.removeAudio, this.summaries, this.cancelWriteUp, this.watch, this.dispose_});
 
   /// Everything the recorder's screens reach (lib/capture/recorder.dart).
   final Recorder recorder;
@@ -266,6 +270,9 @@ class Voice {
 
   /// The summary queue (lib/ai/summaries.dart), or null where there is no engine to summarise with.
   final Summaries? summaries;
+
+  /// Voice notes from the watch, made notes here (lib/watch/watch_notes.dart); null off an Android phone.
+  final WatchNotes? watch;
 
   /// The notes were said to have changed: told to whoever follows it for the queue ([Summaries.onNotesChanged]).
   final Set<VoidCallback> _notesListeners = <VoidCallback>{};
@@ -334,6 +341,8 @@ class Voice {
       );
     }
     unawaited(models?.refresh());
+    // What the watch sent while the app was closed, made notes once the app has drawn its first frames.
+    watch?.start(after: const Duration(seconds: 4));
     final service = this.service;
     if (service == null) {
       // The Mac: whether it can tap its own sound, for the + sheet's switch. Asked, never opened, here.
@@ -353,6 +362,7 @@ class Voice {
   }
 
   void dispose() {
+    watch?.dispose();
     _stopSummaries?.call();
     _stopJobConfig?.call();
     _notesListeners.clear();
@@ -501,8 +511,9 @@ class Voice {
 
     // A meeting Ghost was in (docs/MEET.md, "On the device"): its sound kept as the note's recording, and its write-up
     // asked for as a meeting recorded here asks for it, Write up straight away honoured. Nowhere that writes nothing up.
+    DeviceMeetTapes? tapes;
     if (writesUp) {
-      meetDevice = DeviceMeetTapes(
+      meetDevice = tapes = DeviceMeetTapes(
         dataDir: making.dataDir,
         invoke: core.invoke,
         askWriteUp: (noteId) {
@@ -516,6 +527,27 @@ class Voice {
           if (prefs.summaries != 'off') summaries.enqueueSummary(noteId, SummaryKind.meeting, native: true);
         },
       );
+    }
+
+    // Voice notes from the watch (docs/WATCH.md): each take the phone's inbox holds made a voice note here, heard by
+    // this phone's Whisper, a long one written up as a meeting is. Only on an Android phone, the one with the inbox.
+    WatchNotes? watch;
+    if (Platform.isAndroid && host.hasMeetings) {
+      final watchHost = ChannelWatchHost();
+      watchLink = WatchLink(watchHost);
+      final files = CoreFiles(core.invoke);
+      watch = WatchNotes(
+        host: watchHost,
+        store: LibraryWatchNotes(library, files),
+        listen: (id, ms) => listenWithCore(capture, files, id, localOnly: () => preferences.value.localOnly),
+        preferences: () => preferences.value,
+        held: refining.refineHeld,
+        enqueueSummary: (id) => summaries.enqueueSummary(id, SummaryKind.recording),
+        writeUp: tapes?.writeUp,
+        markMeeting: (id, at) => preferences.update((was) => was.copyWith(meetings: {...was.meetings, id: at})),
+        made: (_, _) => voice.notesChanged(),
+      );
+      onVisible(() => unawaited(watch!.kick()));
     }
 
     // The scripted WAV in place of the device, in a debug build that asked for it and has the file.
@@ -633,8 +665,10 @@ class Voice {
         return done.removed;
       },
       cancelWriteUp: host.hasMeetings ? host.cancelWriteUp : null,
+      watch: watch,
       dispose_: () {
         if (meetDevice is DeviceMeetTapes) meetDevice = null;
+        if (watch != null) watchLink = null;
         writeUps?.dispose();
         offVisible();
         unbind?.call();
