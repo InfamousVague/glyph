@@ -433,7 +433,7 @@
         </service>
         <!--
           A voice note from the watch (watch/WatchListenerService.kt; docs/WATCH.md): a take arrives over a Data Layer
-          channel at /ghost/take, with the app open or closed, and waits in the inbox for the app to make it a note.
+          channel at /ghost/take, with the app open or closed, and waits in the inbox for the app to take it in.
           Bound only by Play services, for a watch app with this app's id and certificate.
         -->
         <service

@@ -82,8 +82,8 @@ once.
 Then:
 
 - **The app is running** (in front or behind another): it is told on `ghost_md/watch/events` and makes the note at once.
-- **The app is not running**: a notification, "Voice note from your watch" (channel *Watch*), "Open Ghost.md to make it
-  a note." Opening it, or the app any other way, makes the note four seconds after launch. The notification goes once
+- **The app is not running**: a notification, "Recording from your watch" (channel *Watch*), "Open Ghost.md to finish
+  it.", worded for a voice note and a Claude ask alike, since only the app knows which a take becomes. Opening it, or the app any other way, makes the note four seconds after launch. The notification goes once
   no take waits.
 
 The words cannot be made with the app closed: a voice note's words are the recorder's rules over Whisper's phrases,
