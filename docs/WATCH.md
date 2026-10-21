@@ -15,7 +15,7 @@ Wear OS 3. Round screens first; it lays out on square ones too.
 | `android/wear/` | The watch app: Gradle module `:wear`, Kotlin and Compose for Wear OS |
 | `android/wear-shared/kotlin/…/watchlink/WatchLink.kt` | What both ends say: the paths, the capability names, a take's frame. Compiled into both apps |
 | `android/app/…/ghost_md/watch/` | The phone's receiver (`WatchListenerService`), its inbox (`WatchInbox`) and the app's channel (`WatchBridge`) |
-| `lib/watch/` | The app making each take a note (`watch_notes.dart`), the channel (`watch_link.dart`), the phone's halves (`watch_device.dart`) |
+| `lib/watch/` | The app making each take a note (`watch_notes.dart`), the channel (`watch_link.dart`), the phone's halves (`watch_device.dart`), a take asked of Claude (`watch_claude.dart`; the root's own in `lib/root/root_claude.dart`) |
 | `lib/settings/panes/watch_section.dart` | Settings › Recording › Watch |
 
 ## On the watch
@@ -82,8 +82,8 @@ once.
 Then:
 
 - **The app is running** (in front or behind another): it is told on `ghost_md/watch/events` and makes the note at once.
-- **The app is not running**: a notification, "Voice note from your watch" (channel *Watch*), "Open Ghost.md to make it
-  a note." Opening it, or the app any other way, makes the note four seconds after launch. The notification goes once
+- **The app is not running**: a notification, "Recording from your watch" (channel *Watch*), "Open Ghost.md to finish
+  it.", worded for a voice note and a Claude ask alike, since only the app knows which a take becomes. Opening it, or the app any other way, makes the note four seconds after launch. The notification goes once
   no take waits.
 
 The words cannot be made with the app closed: a voice note's words are the recorder's rules over Whisper's phrases,
@@ -118,7 +118,31 @@ Local only on) leave the take waiting, its recording already the note-to-be's; i
 the app runs, when it comes back to the front, and when another take arrives. A take that fails three times in one run
 waits for the next run. Local only never holds the words themselves: they are made on the phone.
 
-A take is dictation: "Hey Ghost" commands said on the watch are written as words, not carried out, and the review after
+### A take sent to Claude
+
+Matt, 2026-10-20: "the voice messages sent from the phone should be parsed by the AI in the same way the microphone
+button does … that way we can add to existing notes, make lists etc". Where Claude is shown on the phone (its plugin on
+and an API key on this device; Local only holds it off) and Settings › Recording › Watch's **Send short watch
+recordings to Claude** is on (the default; kept with the key, `ClaudeSettings.watch`), a take of up to ten minutes is
+heard exactly as in step 3, and its words are then asked of Claude as the dock's Talk to Claude asks them, in the
+chat's conversation, with a line saying it was said into the watch, which one, and when (`watchClaudePrompt`):
+
+- **App in front**, nothing else on screen (no talk, recording or chat): the talk's own sheet comes up, "From your
+  watch" with the words, and goes on as one said to the microphone does (thinking, the note opened and followed, the
+  strip, the answer). With the chat open, it is asked there.
+- **App behind another, or the phone locked**: a quiet run, written out of sight (nothing opened, the screen left as
+  it was); the run needs only the network, so it is done then, and the bar and the chat show it on return. With the
+  app closed, the notification is posted as before and the take is asked when the app is opened.
+
+No note of its own is made, and the recording (kept by step 2 to be heard) is removed once Claude's run is over, as
+the microphone keeps no audio. Each take is asked once: `<dataDir>/watch-claude.json` says it is being asked before
+the ask is sent, and asked once the run is over, and only then does the take leave the inbox. Where Claude could not
+do it (the network, the key refused, the month's spending limit, Claude switched off meanwhile) the take is made a
+voice note as above, its tape kept, ending *Not done by Claude: why. Kept as a voice note.*; a take found being asked
+with no end (the app was closed under the run) is made such a voice note too, never asked again. Nothing heard, or
+over ten minutes: as before.
+
+A take is dictation otherwise: "Hey Ghost" commands said on the watch are written as words, not carried out, and the review after
 a recording is not offered (nobody is looking at the phone). New notes from the watch are not geotagged: the phone's
 position when the take arrives is not where it was said.
 
@@ -126,7 +150,8 @@ position when the take arrives is not where it was said.
 
 Settings › Recording › **Watch**, the last card, only where a watch has Ghost.md (connected now, or one that ever sent
 a take): each watch connected, "Connected" or "Connected, not nearby", or "No watch connected"; and under it the last
-voice note ("Last voice note from Galaxy Watch9 at 14:05, 0:42.") and how many wait.
+voice note ("Last voice note from Galaxy Watch9 at 14:05, 0:42.") and how many wait. Under the watches, **Send short
+watch recordings to Claude**: a switch where Claude is shown, else the line says to switch Claude on and add a key.
 
 ## Building
 

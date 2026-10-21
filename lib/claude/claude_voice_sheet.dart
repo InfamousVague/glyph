@@ -121,7 +121,7 @@ class _ClaudeVoiceSheetState extends State<ClaudeVoiceSheet> {
     final voice = _voice;
     final title = switch (voice.stage) {
       ClaudeVoiceStage.listening => 'Listening',
-      ClaudeVoiceStage.sending => 'Listening',
+      ClaudeVoiceStage.sending => voice.fromWatch ? 'From your watch' : 'Listening',
       ClaudeVoiceStage.thinking || ClaudeVoiceStage.following => voice.run?.state == ClaudeState.writing ? 'Claude is writing' : 'Claude is thinking',
       ClaudeVoiceStage.answered => 'Claude',
       ClaudeVoiceStage.sent => 'Sent',
@@ -188,7 +188,7 @@ class _ClaudeVoiceSheetState extends State<ClaudeVoiceSheet> {
             download != null && download.total > 0
                 ? 'Getting the voice model, ${(100 * download.received / download.total).round()}%. Keep talking: you are heard meanwhile.'
                 : voice.stage == ClaudeVoiceStage.sending
-                    ? 'Sending…'
+                    ? (voice.fromWatch ? 'Said on your watch. Sending to Claude…' : 'Sending…')
                     : 'Tap when you are done. It stops by itself when you pause.',
             textAlign: TextAlign.center,
             style: pageText(t, t.fontSize('xs'), color: quiet),

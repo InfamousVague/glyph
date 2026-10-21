@@ -10,10 +10,16 @@ import 'watch_notes.dart';
 
 /// [WatchNoteStore] over the app's library and the core's files.
 class LibraryWatchNotes implements WatchNoteStore {
-  LibraryWatchNotes(this.library, this.files);
+  LibraryWatchNotes(this.library, this.files, {this.removeRecordings});
 
   final NoteLibrary library;
   final CoreFiles files;
+
+  /// The core's `recording_delete` (lib/ai/native_backend.dart `recordingDelete`); none, and a recording stays.
+  final Future<void> Function(List<String> ids)? removeRecordings;
+
+  @override
+  Future<void> dropRecording(String id) async => removeRecordings?.call([id]);
 
   @override
   Future<Note?> getNote(String id) => library.get(id);

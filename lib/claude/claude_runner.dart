@@ -76,17 +76,18 @@ class ClaudeRunner extends ChangeNotifier {
   bool get limited => settings.spend.reached;
 
   /// Asks Claude. In the sheet's conversation unless [alone] (the inbox's requests are each their own). Answers the
-  /// run once it has started, which is after any run before it has ended.
-  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem}) {
+  /// run once it has started, which is after any run before it has ended. [desk] in place of the screen's, for a run
+  /// that writes out of sight (a request from the watch with the app in the background).
+  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk}) {
     final started = Completer<ClaudeRun>();
-    _queue = _queue.then((_) => _start(prompt, started, alone: alone, extraSystem: extraSystem)).catchError((Object error) {
+    _queue = _queue.then((_) => _start(prompt, started, alone: alone, extraSystem: extraSystem, desk: desk)).catchError((Object error) {
       // A failure here never stops the asks after it.
       if (!started.isCompleted) started.completeError(error);
     });
     return started.future;
   }
 
-  Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem}) async {
+  Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
     if (!(allowed?.call() ?? true)) {
       started.completeError(const ClaudeError('Claude is switched off on this device. Switch it on in Settings › Plugins.'));
       return;
@@ -115,7 +116,7 @@ class ClaudeRunner extends ChangeNotifier {
       system = [claudeSystem(now: _now(), rules: rules, folders: folders != null), ?extraSystem].join('\n\n');
       if (!alone) _system = system;
     }
-    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk, folders: folders, prompt: prompt, system: system, spend: settings.spend, history: alone ? null : _history);
+    final made = ClaudeRun(api: (kDebugMode ? debugClaudeApi?.call(key) : null) ?? _api(key), model: settings.model, effort: settings.effortChosen ? settings.effort : null, notes: notes, desk: desk ?? this.desk, folders: folders, prompt: prompt, system: system, spend: settings.spend, history: alone ? null : _history);
     _run?.removeListener(notifyListeners);
     _run = made..addListener(notifyListeners);
     if (!alone) conversation.add(made);
@@ -124,6 +125,21 @@ class ClaudeRunner extends ChangeNotifier {
     await made.run();
     if (!alone) _history = made.messages;
     notifyListeners();
+  }
+
+  /// Answers once [run] is over: done, stopped or failed.
+  static Future<ClaudeRun> over(ClaudeRun run) {
+    bool ended() => !run.working && run.state != ClaudeState.idle;
+    if (ended()) return Future.value(run);
+    final done = Completer<ClaudeRun>();
+    void heard() {
+      if (!ended() || done.isCompleted) return;
+      run.removeListener(heard);
+      done.complete(run);
+    }
+
+    run.addListener(heard);
+    return done.future;
   }
 
   /// Stops the run working now.

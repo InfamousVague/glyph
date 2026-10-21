@@ -119,7 +119,10 @@ class WatchBridge(private val context: Context) {
     }
 }
 
-/** "Voice note from your watch", while the app is not running to make it (docs/WATCH.md). */
+/**
+ * "Recording from your watch", while the app is not running to take it in (docs/WATCH.md). Worded for both ends a take
+ * can come to, a voice note or a Claude ask ("Send short watch recordings to Claude"), which only the app knows.
+ */
 object WatchNotice {
     private const val CHANNEL_ID = "ghost_watch"
     private const val ID = 4310
@@ -129,7 +132,7 @@ object WatchNotice {
         if (Build.VERSION.SDK_INT >= 33 && !manager.areNotificationsEnabled()) return
         if (manager.getNotificationChannel(CHANNEL_ID) == null) {
             manager.createNotificationChannel(NotificationChannel(CHANNEL_ID, "Watch", NotificationManager.IMPORTANCE_DEFAULT).apply {
-                description = "A voice note recorded on your watch, waiting to be made a note."
+                description = "A recording from your watch, waiting for Ghost.md to open."
             })
         }
         val count = WatchBridge.inbox(context).waiting().size.coerceAtLeast(1)
@@ -137,8 +140,8 @@ object WatchNotice {
         val tap = PendingIntent.getActivity(context, ID, open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
         val notification = androidx.core.app.NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ghost_ic_mic)
-            .setContentTitle(if (count == 1) "Voice note from your watch" else "$count voice notes from your watch")
-            .setContentText("Open Ghost.md to make it a note.")
+            .setContentTitle(if (count == 1) "Recording from your watch" else "$count recordings from your watch")
+            .setContentText(if (count == 1) "Open Ghost.md to finish it." else "Open Ghost.md to finish them.")
             .setAutoCancel(true)
             .setContentIntent(tap)
             .build()
