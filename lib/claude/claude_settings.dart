@@ -17,6 +17,7 @@ const String claudeKeyName = 'anthropic-api-key';
 const String claudeModelName = 'anthropic-model';
 const String claudeInboxName = 'anthropic-inbox';
 const String claudeEffortName = 'anthropic-effort';
+const String claudeWatchName = 'anthropic-watch';
 
 /// A model the app offers.
 @immutable
@@ -91,6 +92,7 @@ class ClaudeSettings extends ChangeNotifier {
   String _model = defaultClaudeModel;
   String? _effort;
   bool _inbox = true;
+  bool _watch = true;
   bool _loaded = false;
   Future<void>? _loading;
 
@@ -110,6 +112,10 @@ class ClaudeSettings extends ChangeNotifier {
   /// Whether requests added to the "Ask Claude" note are done as they are added.
   bool get inbox => _inbox;
 
+  /// Whether a short recording from the watch goes to Claude, as one said to the dock's microphone does
+  /// (lib/watch/watch_notes.dart, "To Claude"); off, it is a voice note. Settings › Recording › Watch.
+  bool get watch => _watch;
+
   /// Reads what this device keeps. Once; later calls wait for the same read.
   Future<void> load() => _loading ??= _load();
 
@@ -119,10 +125,12 @@ class ClaudeSettings extends ChangeNotifier {
       final model = await _store.read(claudeModelName);
       final inbox = await _store.read(claudeInboxName);
       final effort = await _store.read(claudeEffortName);
+      final watch = await _store.read(claudeWatchName);
       if (effort != null && claudeEfforts.any((e) => e.$1 == effort)) _effort = effort;
       _key = (key ?? '').trim().isEmpty ? null : key!.trim();
       if (model != null && model.isNotEmpty) _model = model;
       _inbox = inbox != 'off';
+      _watch = watch != 'off';
     } catch (_) {
       // A store that cannot be read is a device with no key.
     }
@@ -159,6 +167,13 @@ class ClaudeSettings extends ChangeNotifier {
     _inbox = on;
     notifyListeners();
     await _store.write(claudeInboxName, on ? 'on' : 'off');
+  }
+
+  Future<void> setWatch(bool on) async {
+    if (on == _watch) return;
+    _watch = on;
+    notifyListeners();
+    await _store.write(claudeWatchName, on ? 'on' : 'off');
   }
 }
 

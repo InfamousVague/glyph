@@ -110,6 +110,7 @@ class ClaudeVoice extends ChangeNotifier {
     this.inbox,
     this.about,
     this.onEnd,
+    this.fromWatch = false,
     this.quietMs = claudeQuietMs,
     this.longestMs = claudeLongestMs,
     this.nothingMs = claudeNothingMs,
@@ -130,6 +131,10 @@ class ClaudeVoice extends ChangeNotifier {
 
   /// Told when the talk is over and its sheet should go: closed, or lingered after it ended.
   final VoidCallback? onEnd;
+
+  /// Whether the words were said on the watch and heard by the phone ([sendHeard]): nothing is listened to here, the
+  /// sheet says where they came from, and a failure says the recording is kept as a voice note (lib/watch).
+  final bool fromWatch;
 
   final int quietMs;
   final int longestMs;
@@ -235,6 +240,19 @@ class ClaudeVoice extends ChangeNotifier {
     });
   }
 
+  /// Words already heard (a request from the watch, lib/watch/watch_notes.dart) asked as if said here: no ear is
+  /// opened. [prompt] is what Claude is asked, where it says more than the words; [words] are what the sheet shows.
+  /// Once, in place of [start].
+  Future<void> sendHeard(String words, {String? prompt}) async {
+    if (_started || _gone) return;
+    _started = true;
+    _set(() {
+      _words = words.trim();
+      _stage = ClaudeVoiceStage.sending;
+    });
+    await _send(prompt ?? _words);
+  }
+
   void _stopListening() {
     _ticking?.cancel();
     _ticking = null;
@@ -268,8 +286,10 @@ class ClaudeVoice extends ChangeNotifier {
     if (runner.settings.hasKey) {
       try {
         final run = await runner.ask(prompt);
+        // Kept even when the sheet went meanwhile: the run goes on, and whoever sent the words asks after it.
+        _run = run;
         if (_gone) return;
-        _run = run..addListener(_runChanged);
+        run.addListener(_runChanged);
         _set(() => _stage = ClaudeVoiceStage.thinking);
         _runChanged();
       } catch (error) {
@@ -343,7 +363,7 @@ class ClaudeVoice extends ChangeNotifier {
 
   void _fail(String message) {
     _set(() {
-      _problem = message;
+      _problem = fromWatch ? '$message The recording is kept as a voice note.' : message;
       _stage = ClaudeVoiceStage.failed;
     });
   }

@@ -115,7 +115,7 @@ class _Asking extends ClaudeRunner {
   final List<String> asked = [];
 
   @override
-  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem}) {
+  Future<ClaudeRun> ask(String prompt, {bool alone = false, String? extraSystem, ClaudeDesk? desk}) {
     asked.add(prompt);
     return Future<ClaudeRun>.error(const ClaudeError('refused'));
   }

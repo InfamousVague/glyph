@@ -6,7 +6,9 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../capture/voice_log.dart';
+import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
 import '../../core/preferences.dart';
+import '../../plugins/claude/claude.dart' show claudeInApp;
 import '../../watch/watch_link.dart';
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -60,7 +62,7 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
-  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch});
+  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -72,6 +74,10 @@ class RecordingPane extends StatefulWidget {
   /// The watch, for its card (watch_section.dart); the app's own ([watchLink]) when null, which is null itself off an
   /// Android phone.
   final WatchLink? watch;
+
+  /// This device's Claude settings, for the watch's "Send short watch recordings to Claude" (shown with a key, the
+  /// switch kept with them); the app's own ([claudeSettings]) when null.
+  final ClaudeSettings? claude;
 
   static Widget hosted(BuildContext context) => RecordingPane(features: SettingsHost.maybeOf(context)?.features ?? const SettingsFeatures());
 
@@ -324,7 +330,19 @@ class _RecordingPaneState extends State<RecordingPane> {
             // Last, so every card above it stays where the page puts it (panes_test.dart, rect for rect).
             _voiceLogSection(context),
             // The watch, after even the voice log, and only where a watch has Ghost.md (docs/WATCH.md).
-            if (android && (_watch?.value.any ?? false)) WatchSection(status: _watch!.value),
+            if (android && (_watch?.value.any ?? false))
+              ListenableBuilder(
+                listenable: widget.claude ?? claudeSettings,
+                builder: (context, _) {
+                  final claude = widget.claude ?? claudeSettings;
+                  return WatchSection(
+                    status: _watch!.value,
+                    claude: claudeInApp() && claude.hasKey,
+                    toClaude: claude.watch,
+                    onToClaude: (on) => unawaited(claude.setWatch(on)),
+                  );
+                },
+              ),
           ],
         );
       },

@@ -58,6 +58,15 @@ class FakeStore implements WatchNoteStore {
     recordings[id] = path;
   }
 
+  /// The recordings removed, by note id.
+  final List<String> dropped = [];
+
+  @override
+  Future<void> dropRecording(String id) async {
+    recordings.remove(id);
+    dropped.add(id);
+  }
+
   @override
   Future<Note> makeNote({required String id, required String body, required int createdAt, required int recordingMs, required List<Segment> segments}) async {
     if (failMaking != null) throw failMaking!;
