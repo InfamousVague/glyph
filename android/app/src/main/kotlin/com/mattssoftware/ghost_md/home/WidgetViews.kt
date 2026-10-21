@@ -51,8 +51,18 @@ import java.util.Locale
  * nothing asked of the app. Before 12, the size the widget says it is in this orientation.
  */
 object WidgetViews {
-  // The frame's own room, in dp (layout/ghost_w_frame.xml): its padding above and below and its heading.
-  internal const val FRAME_DP = 14 + 34
+  // The frame's padding, in dp (layout/ghost_w_frame.xml), kept off the launcher's edge by a margin you can see (Matt,
+  // 2026-10-21: "Add a bit more padding to the widgets stuff is too edge to edge").
+  internal const val PAD_START = 20
+  internal const val PAD_TOP = 14
+  internal const val PAD_END = 16
+  internal const val PAD_BOTTOM = 14
+
+  /** What a widget with no heading keeps at its edges besides the room it asks for ([headless]). */
+  internal const val INSET = 6
+
+  // The frame's own room, in dp: its padding above and below and its heading.
+  internal const val FRAME_DP = PAD_TOP + PAD_BOTTOM + 34
   internal const val MORE_DP = 18
   internal const val EYEBROW_DP = 22
   internal const val TODO_DP = 48
@@ -138,7 +148,7 @@ object WidgetViews {
     views.setViewVisibility(R.id.ghost_w_head, View.VISIBLE)
     views.setViewVisibility(R.id.ghost_w_action, View.VISIBLE)
     views.setViewVisibility(R.id.ghost_w_col_b, View.GONE)
-    views.setViewPadding(R.id.ghost_w_root, dp(context, 16), dp(context, 8), dp(context, 10), dp(context, 6))
+    views.setViewPadding(R.id.ghost_w_root, dp(context, PAD_START), dp(context, PAD_TOP), dp(context, PAD_END), dp(context, PAD_BOTTOM))
     views.setInt(R.id.ghost_w_root, "setGravity", Gravity.TOP or Gravity.START)
     views.setInt(R.id.ghost_w_body, "setGravity", Gravity.TOP or Gravity.START)
     views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.TOP or Gravity.START)
@@ -148,13 +158,13 @@ object WidgetViews {
 
   /** A narrow widget (two cells across) keeps less room at its sides, so its rows have more. */
   internal fun narrowed(context: Context, views: RemoteViews) {
-    views.setViewPadding(R.id.ghost_w_root, dp(context, 12), dp(context, 6), dp(context, 8), dp(context, 6))
+    views.setViewPadding(R.id.ghost_w_root, dp(context, PAD_START - 6), dp(context, PAD_TOP), dp(context, PAD_END - 6), dp(context, PAD_BOTTOM))
   }
 
   /** No heading: a widget a cell high, or one whose own top is its heading (Search's field), gives it all to its rows. */
-  internal fun headless(context: Context, views: RemoteViews, sides: Int = 12, ends: Int = 4) {
+  internal fun headless(context: Context, views: RemoteViews, sides: Int = 12, ends: Int = 4, inset: Int = INSET) {
     views.setViewVisibility(R.id.ghost_w_head, View.GONE)
-    views.setViewPadding(R.id.ghost_w_root, dp(context, sides), dp(context, ends), dp(context, sides - 4), dp(context, ends))
+    views.setViewPadding(R.id.ghost_w_root, dp(context, sides + inset), dp(context, ends + inset), dp(context, sides - 4 + inset), dp(context, ends + inset))
   }
 
   /** The line under a list for the [left] rows that did not fit (none: gone), a tap [link]: the app, or the note. */
@@ -212,7 +222,7 @@ object WidgetViews {
     link: PendingIntent?,
     said: String = label,
   ): RemoteViews {
-    headless(context, views, sides = 6, ends = 4)
+    headless(context, views, sides = 6, ends = 4, inset = 4)
     val tile = RemoteViews(context.packageName, R.layout.ghost_w_tile)
     tile.setViewVisibility(R.id.ghost_w_tile_ring, if (icon != null) View.VISIBLE else View.GONE)
     if (icon != null) {
@@ -259,7 +269,7 @@ object WidgetViews {
   internal fun roomFor(context: Context, views: RemoteViews, tall: Int, need: Int): Int {
     if (room(tall) >= need) return room(tall)
     headless(context, views, sides = 12, ends = 4)
-    return tall - 8
+    return tall - 8 - 2 * INSET
   }
 
   /** A row's height at the phone's text size: its words grow, so it does. */
@@ -336,8 +346,8 @@ object WidgetViews {
         // only where it still leaves the ring the dock's size and more.
         val words = scaled(context, if (mic.line.isEmpty()) 30 else 44) + reserve
         if (room(tall) - words < 72) headless(context, views, sides = 12, ends = 6)
-        val left = (if (room(tall) - words < 72) tall - 12 else room(tall)) - words
-        val ring = minOf(wide - 32, left - 8, 136).coerceAtLeast(44)
+        val left = (if (room(tall) - words < 72) tall - 12 - 2 * INSET else room(tall)) - words
+        val ring = minOf(wide - 44, left - 8, 136).coerceAtLeast(44)
         sized(hero, R.id.ghost_w_voice_ring, ring)
         sized(hero, R.id.ghost_w_voice_icon, ring * 7 / 16)
         used = ring + words + 8
@@ -428,7 +438,7 @@ object WidgetViews {
       parts.addAll(items)
     }
     // In a column a to-do's words take two lines where they need them, and its row the room they make.
-    val perRow = ((wide - 66) / (16.2f * 0.47f * context.resources.configuration.fontScale.coerceAtLeast(1f))).toInt().coerceAtLeast(8)
+    val perRow = ((wide - 76) / (16.2f * 0.47f * context.resources.configuration.fontScale.coerceAtLeast(1f))).toInt().coerceAtLeast(8)
     val small = scaled(context, COMPACT_DP)
     val filled = HomeData.fill(
       room,

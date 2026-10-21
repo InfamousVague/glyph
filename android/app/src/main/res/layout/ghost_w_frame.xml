@@ -10,10 +10,10 @@
     android:layout_height="match_parent"
     android:background="@drawable/ghost_w_back"
     android:orientation="vertical"
-    android:paddingStart="16dp"
-    android:paddingTop="8dp"
-    android:paddingEnd="10dp"
-    android:paddingBottom="6dp">
+    android:paddingStart="20dp"
+    android:paddingTop="14dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="14dp">
 
     <LinearLayout
         android:id="@+id/ghost_w_head"

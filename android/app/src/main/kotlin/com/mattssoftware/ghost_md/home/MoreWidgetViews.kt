@@ -131,7 +131,7 @@ object MoreWidgetViews {
         narrowed(context, views)
         val heading = tall >= 300
         if (!heading) headless(context, views, sides = 10, ends = 6)
-        val room = if (heading) room(tall) else tall - 12
+        val room = if (heading) room(tall) else tall - 12 - 2 * WidgetViews.INSET
         for (capture in captures.take((room / scaled(context, 46)).coerceIn(1, captures.size))) views.addView(R.id.ghost_w_col_a, stackRow(context, capture, hint = false))
       }
       Fit.MEDIUM -> views.addView(R.id.ghost_w_col_a, ringRow(context, captures.take(if (wide >= WidgetViews.TWO_COLUMNS_DP) 6 else 4), words = true))
@@ -173,9 +173,9 @@ object MoreWidgetViews {
   private fun heightOf(context: Context, line: HomeData.Line, wide: Int, most: Int = 2): Int {
     val rows = HomeData.rowsFor(line.words.length + if (line.kind == "bullet") 2 else 0, perRow(context, wide - 30 - line.depth * 14), most)
     return when (line.kind) {
-      "heading" -> scaled(context, 26)
-      "todo", "done" -> maxOf(CHECK_DP, scaled(context, rows * 18 + 10))
-      else -> maxOf(LINE_DP, scaled(context, rows * 18 + 6))
+      "heading" -> scaled(context, 28)
+      "todo", "done" -> maxOf(CHECK_DP, scaled(context, rows * 21 + 10))
+      else -> maxOf(LINE_DP, scaled(context, rows * 21 + 6))
     }
   }
 
@@ -298,7 +298,7 @@ object MoreWidgetViews {
       val compact = fit == Fit.NARROW || fit == Fit.MEDIUM
       val small = scaled(context, COMPACT_DP)
       val each = HomeData.Part(if (compact) small else scaled(context, NOTE_DP), small)
-      val fill = HomeData.fill(tall - 20 - 44, listOf(HomeData.Part(scaled(context, EYEBROW_DP), heading = true)) + rows.map { each }, scaled(context, MORE_DP))
+      val fill = HomeData.fill(tall - 20 - 2 * WidgetViews.INSET - 44, listOf(HomeData.Part(scaled(context, EYEBROW_DP), heading = true)) + rows.map { each }, scaled(context, MORE_DP))
       if (fill.shown > 1) {
         filled = fill
         val shown = rows.take(fill.shown - 1).mapIndexed { index, row -> (if (compact || fill.compact(index + 1)) WidgetViews.compactRow(context, row) else WidgetViews.noteRow(context, row, now)) to false }
@@ -359,7 +359,7 @@ object MoreWidgetViews {
       Fit.NARROW -> narrowed(context, views)
       else -> {}
     }
-    if (page != null) linesInto(context, views, page, room(tall), if (fit == Fit.NARROW) wide - 20 else wide - 26, scaled(context, MORE_DP), opened) else more(context, views, 0)
+    if (page != null) linesInto(context, views, page, room(tall), if (fit == Fit.NARROW) wide - 24 else wide - 36, scaled(context, MORE_DP), opened) else more(context, views, 0)
     empty(
       context,
       views,

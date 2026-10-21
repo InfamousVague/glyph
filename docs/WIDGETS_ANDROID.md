@@ -164,7 +164,11 @@ ground is the whole of what the launcher gives, edge to edge (the gaps between w
 columns are the body's whole height, so what is in them is placed in it: lists fill it to the bottom (below), a
 microphone's ring grows with its room (`setViewLayoutWidth`, Android 12), Quick capture's rings share the width and its
 stack the height, and one thing alone (Next up's, a microphone) sits in the middle of the room rather than at its top.
-A heading's padding is the frame's only inset.
+The ground is edge to edge, but what is on it is kept off the edge (Matt, 2026-10-21: "Add a bit more padding to the
+widgets stuff is too edge to edge"): the frame's padding is 20dp at the start, 14dp above and below and 16dp at the end
+(WidgetViews `PAD_*`, the round button's own ring sitting in the last of it); a column two cells across 14dp and 10dp
+at its sides, so a due chip still fits beside the tick; a widget with no heading its own room plus `INSET` (6dp) each
+way, and a 1×1 tile 4dp more. Every room a list is fitted into is counted with them, so nothing is clipped at the foot.
 
 **How a list fills its height** (HomeData.fill, held by HomeDataTest; every list: To-dos, Calendar, Recent notes,
 Pinned notes, A folder, Today, A note, Search's notes, Voice note's recordings, Next up's rest). Each row's height is
