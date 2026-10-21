@@ -41,7 +41,10 @@ import java.util.Locale
  * day); a cell high (2×1, 4×1) puts the heading away and gives the cell to one row; two cells across (2×N) draws a
  * column, as many rows as its height holds; four by two and four by four as before. The ground is the frame's root,
  * the whole of what the launcher gives, with the launcher's own corners (drawable-v31/ghost_w_back.xml), and what is
- * in it grows into the room: more rows, a bigger ring, a grid's rows sharing the height.
+ * in it grows into the room: more rows, a bigger ring, a grid's rows sharing the height. A list fills its height to
+ * the bottom (HomeData.fill, [placed]): whole rows while the next fits, then one-line rows (a to-do's tick and words,
+ * an event's time and title, a note's name) while they do, then "N more" where it has its room; what is left, less
+ * than a row, is shared out between the rows rather than left as a band under the last.
  *
  * From Android 12 the launcher says each size the widget is drawn at (upright and on its side), and a view is made for
  * each (`RemoteViews(Map<SizeF, RemoteViews>)`), so the launcher shows the right one as it turns or resizes with
@@ -154,10 +157,30 @@ object WidgetViews {
     views.setViewPadding(R.id.ghost_w_root, dp(context, sides), dp(context, ends), dp(context, sides - 4), dp(context, ends))
   }
 
-  internal fun more(context: Context, views: RemoteViews, left: Int) {
+  /** The line under a list for the [left] rows that did not fit (none: gone), a tap [link]: the app, or the note. */
+  internal fun more(context: Context, views: RemoteViews, left: Int, link: PendingIntent? = home(context)) {
     views.setViewVisibility(R.id.ghost_w_more, if (left > 0) View.VISIBLE else View.GONE)
     views.setTextViewText(R.id.ghost_w_more, "$left more")
-    home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_w_more, it) }
+    link?.let { views.setOnClickPendingIntent(R.id.ghost_w_more, it) }
+  }
+
+  /** The line under a list as [filled] says: how many did not fit, where they did not and it has its room. */
+  internal fun more(context: Context, views: RemoteViews, filled: HomeData.Filled, link: PendingIntent? = home(context)) {
+    more(context, views, if (filled.more) filled.left else 0, link)
+  }
+
+  /**
+   * A list's [rows] (each a row and whether it is a heading) into [column]; where [spread], the room the list leaves
+   * shared between them (layout/ghost_w_gap.xml before each row but a heading's first, and before the first where
+   * [after] something else is above it in the column), so it is a little more space between the rows rather than a
+   * band under the last.
+   */
+  internal fun placed(context: Context, views: RemoteViews, column: Int, rows: List<Pair<RemoteViews, Boolean>>, spread: Boolean, after: Boolean = false) {
+    for ((index, row) in rows.withIndex()) {
+      val gap = if (index == 0) after else !rows[index - 1].second
+      if (spread && gap) views.addView(column, RemoteViews(context.packageName, R.layout.ghost_w_gap))
+      views.addView(column, row.first)
+    }
   }
 
   internal fun empty(context: Context, views: RemoteViews, title: String?, words: String = "", link: PendingIntent? = home(context)) {
@@ -356,17 +379,19 @@ object WidgetViews {
     )
     val used = micInto(context, views, fit, wide, tall, mic)
     // Large (and a tall column): the recordings under the microphone, from the top.
+    var filled: HomeData.Filled? = null
     if (large && takes.isNotEmpty()) {
       views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.TOP or Gravity.CENTER_HORIZONTAL)
-      val each = scaled(context, if (fit == Fit.NARROW) COMPACT_DP else NOTE_DP)
-      val left = room(tall) - used - scaled(context, EYEBROW_DP)
-      val shown = HomeData.fitting(left, takes.map { each }, 0).takeIf { left >= each } ?: 0
-      if (shown > 0) {
-        views.addView(R.id.ghost_w_col_a, eyebrow(context, "Recordings", null))
-        for (take in takes.take(shown)) views.addView(R.id.ghost_w_col_a, if (fit == Fit.NARROW) compactRow(context, take) else noteRow(context, take, now))
+      val small = scaled(context, COMPACT_DP)
+      val each = HomeData.Part(if (fit == Fit.NARROW) small else scaled(context, NOTE_DP), small)
+      val fill = HomeData.fill(room(tall) - used, listOf(HomeData.Part(scaled(context, EYEBROW_DP), heading = true)) + takes.map { each }, scaled(context, MORE_DP))
+      if (fill.shown > 1) {
+        filled = fill
+        val rows = takes.take(fill.shown - 1).mapIndexed { index, take -> (if (fit == Fit.NARROW || fill.compact(index + 1)) compactRow(context, take) else noteRow(context, take, now)) to false }
+        placed(context, views, R.id.ghost_w_col_a, listOf(eyebrow(context, "Recordings", null) to true) + rows, fill.spread, after = true)
       }
     }
-    more(context, views, 0)
+    if (filled != null) more(context, views, filled) else more(context, views, 0)
     empty(context, views, null)
     return views
   }
@@ -392,8 +417,9 @@ object WidgetViews {
       )
     }
     if (fit == Fit.NARROW) narrowed(context, views)
-    // Each group's eyebrow, then its rows, in as many as fit; a group's eyebrow is never the last thing shown, and
-    // where an eyebrow and a row do not both fit, the rows alone.
+    // Each group's eyebrow, then its rows, in as many as fit (HomeData.fill): whole rows, then one-line rows for the
+    // room under them, a group's eyebrow only with a row under it; where an eyebrow and a row do not both fit, the
+    // rows alone.
     val room = roomFor(context, views, tall, scaled(context, TODO_DP))
     val eyebrows = room >= scaled(context, EYEBROW_DP + TODO_DP)
     val parts = mutableListOf<Any>()
@@ -403,35 +429,53 @@ object WidgetViews {
     }
     // In a column a to-do's words take two lines where they need them, and its row the room they make.
     val perRow = ((wide - 66) / (16.2f * 0.47f * context.resources.configuration.fontScale.coerceAtLeast(1f))).toInt().coerceAtLeast(8)
-    val heights = parts.map {
-      when {
-        it !is HomeData.Todo -> scaled(context, EYEBROW_DP)
-        fit == Fit.NARROW -> maxOf(TODO_DP, scaled(context, 8 + 21 * HomeData.rowsFor(it.words.length, perRow, 2) + 20))
-        else -> scaled(context, TODO_DP)
-      }
-    }
-    var shown = HomeData.fitting(room, heights, 0)
-    while (shown > 0 && parts[shown - 1] !is HomeData.Todo) shown -= 1
-    for (part in parts.take(shown)) {
+    val small = scaled(context, COMPACT_DP)
+    val filled = HomeData.fill(
+      room,
+      parts.map {
+        when {
+          it !is HomeData.Todo -> HomeData.Part(scaled(context, EYEBROW_DP), heading = true)
+          fit == Fit.NARROW -> HomeData.Part(maxOf(TODO_DP, scaled(context, 8 + 21 * HomeData.rowsFor(it.words.length, perRow, 2) + 20)), small)
+          else -> HomeData.Part(scaled(context, TODO_DP), small)
+        }
+      },
+      if (room(tall) == room) scaled(context, MORE_DP) else 0,
+    )
+    val rows = parts.take(filled.shown).mapIndexed { index, part ->
       if (part is HomeData.Todo) {
-        views.addView(R.id.ghost_w_col_a, todoRow(context, part, today, narrow = fit == Fit.NARROW))
-      } else if (part is Pair<*, *>) {
-        views.addView(R.id.ghost_w_col_a, eyebrow(context, (part.first as HomeData.Group).words, part.second as Int))
+        todoRow(context, part, today, narrow = fit == Fit.NARROW, compact = filled.compact(index)) to false
+      } else {
+        val (group, count) = part as Pair<*, *>
+        eyebrow(context, (group as HomeData.Group).words, count as Int) to true
       }
     }
-    // The heading counts them all, so no line says how many did not fit: the room is rows'.
-    more(context, views, 0)
+    placed(context, views, R.id.ghost_w_col_a, rows, filled.spread)
+    // The heading counts them all; a line says how many did not fit only where the rows leave it its room.
+    more(context, views, filled)
     empty(context, views, if (todos.isEmpty()) "Nothing to do." else null, if (fit == Fit.SLIM) "" else "To-dos you write in any note show here.")
     return views
   }
 
-  /** A to-do's row; [narrow] (two cells across), the due day's chip alone under the words where it has one. */
-  internal fun todoRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false): RemoteViews {
-    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_todo_row_tall else R.layout.ghost_w_todo_row)
+  /**
+   * A to-do's row; [narrow] (two cells across), the due day's chip alone under the words where it has one; [compact],
+   * one line, its tick and its words alone (layout/ghost_w_todo_row_compact.xml), for the room under the whole rows.
+   */
+  internal fun todoRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false, compact: Boolean = false): RemoteViews {
+    val row = RemoteViews(
+      context.packageName,
+      when {
+        compact -> R.layout.ghost_w_todo_row_compact
+        narrow -> R.layout.ghost_w_todo_row_tall
+        else -> R.layout.ghost_w_todo_row
+      },
+    )
     val code = "${todo.note}:${todo.line}".hashCode()
     val group = HomeData.groupOf(todo.due, today)
     val overdue = group == HomeData.Group.OVERDUE
     row.setTextViewText(R.id.ghost_w_todo_words, todo.words)
+    row.setOnClickPendingIntent(R.id.ghost_w_todo_text, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), code))
+    tickInto(context, row, todo, overdue, code)
+    if (compact) return row
     // A ticket is its whole note, whose title is its words already; a priority worth a word after the note's name.
     row.setTextViewText(R.id.ghost_w_todo_note, listOfNotNull(if (todo.line == 0) "Ticket" else todo.title, HomeData.priorityWords(todo.priority)).joinToString(" · "))
     row.setViewVisibility(R.id.ghost_w_todo_note, if (narrow && todo.due != null) View.GONE else View.VISIBLE)
@@ -451,7 +495,11 @@ object WidgetViews {
       row.setTextColor(R.id.ghost_w_todo_due, ink)
       row.setTextViewCompoundDrawables(R.id.ghost_w_todo_due, icon, 0, 0, 0)
     }
-    row.setOnClickPendingIntent(R.id.ghost_w_todo_text, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), code))
+    return row
+  }
+
+  /** A to-do row's tick: from Android 12 its real box (the red one where [overdue]), before it the ring to press. */
+  private fun tickInto(context: Context, row: RemoteViews, todo: HomeData.Todo, overdue: Boolean, code: Int) {
     val tick = tickOf(context, todo.note, todo.line, todo.match, code)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       val box = if (overdue) R.id.ghost_w_check_late else R.id.ghost_w_check
@@ -463,7 +511,6 @@ object WidgetViews {
       row.setImageViewResource(R.id.ghost_w_tick_ring, if (overdue) R.drawable.ghost_w_tick_late else R.drawable.ghost_w_tick_off)
       row.setOnClickPendingIntent(R.id.ghost_w_tick, tick)
     }
-    return row
   }
 
   /** The tick of [line] of [note] (said as [words]): the app's own broadcast, which ticks it without opening the app. */
@@ -519,29 +566,48 @@ object WidgetViews {
       parts.addAll(day.events)
       parts.addAll(day.todos)
     }
-    val heights = parts.map { if (it is HomeData.Day) scaled(context, EYEBROW_DP) else scaled(context, EVENT_DP) }
-    var shown = HomeData.fitting(roomFor(context, views, tall, scaled(context, if (fit == Fit.SLIM) EVENT_DP else EYEBROW_DP + EVENT_DP)), heights, 0)
-    while (shown > 0 && parts[shown - 1] is HomeData.Day) shown -= 1
-    for (part in parts.take(shown)) {
+    // As To-dos fills its room: whole rows, then one-line ones (the time and the words), a day's eyebrow only with a
+    // row under it.
+    val room = roomFor(context, views, tall, scaled(context, if (fit == Fit.SLIM) EVENT_DP else EYEBROW_DP + EVENT_DP))
+    val each = HomeData.Part(scaled(context, EVENT_DP), scaled(context, COMPACT_DP))
+    val filled = HomeData.fill(room, parts.map { if (it is HomeData.Day) HomeData.Part(scaled(context, EYEBROW_DP), heading = true) else each }, if (room(tall) == room) scaled(context, MORE_DP) else 0)
+    val narrowRows = wide < HomeData.NARROW_DP
+    val rows = parts.take(filled.shown).mapIndexed { index, part ->
       when (part) {
-        is HomeData.Day -> views.addView(R.id.ghost_w_col_a, eyebrow(context, HomeData.dayWords(part.day, today) { weekdayOf(context, noonOf(it)) }, part.events.size + part.todos.size))
-        is HomeData.Event -> views.addView(R.id.ghost_w_col_a, eventRow(context, part, narrow = wide < HomeData.NARROW_DP))
-        is HomeData.Todo -> views.addView(R.id.ghost_w_col_a, dueRow(context, part, today, narrow = wide < HomeData.NARROW_DP))
+        is HomeData.Day -> eyebrow(context, HomeData.dayWords(part.day, today) { weekdayOf(context, noonOf(it)) }, part.events.size + part.todos.size) to true
+        is HomeData.Event -> eventRow(context, part, narrow = narrowRows, compact = filled.compact(index)) to false
+        else -> dueRow(context, part as HomeData.Todo, today, narrow = narrowRows, compact = filled.compact(index)) to false
       }
     }
+    placed(context, views, R.id.ghost_w_col_a, rows, filled.spread)
     if (fit == Fit.SLIM) views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
-    // Each day's eyebrow counts its own; the room is rows'.
-    more(context, views, 0)
+    // Each day's eyebrow counts its own; a line says how many did not fit only where the rows leave it its room.
+    more(context, views, filled)
     empty(context, views, if (parts.isEmpty()) "Nothing on your calendar" else null, if (fit == Fit.SLIM) "" else "This week’s events and the to-dos due show here.")
     return views
   }
 
-  /** An event's row; [narrow] (two cells across), when it runs under its words, its calendar left out for the room. */
-  internal fun eventRow(context: Context, event: HomeData.Event, narrow: Boolean = false): RemoteViews {
-    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_event_row_narrow else R.layout.ghost_w_event_row)
+  /** An event's or a due to-do's row: [compact], one line, when and the words (ghost_w_event_row_compact*.xml). */
+  private fun eventLayout(narrow: Boolean, compact: Boolean): Int = when {
+    compact && narrow -> R.layout.ghost_w_event_row_compact_narrow
+    compact -> R.layout.ghost_w_event_row_compact
+    narrow -> R.layout.ghost_w_event_row_narrow
+    else -> R.layout.ghost_w_event_row
+  }
+
+  /**
+   * An event's row; [narrow] (two cells across), when it runs under its words, its calendar left out for the room;
+   * [compact], one line, the time it starts and its words, for the room under the whole rows.
+   */
+  internal fun eventRow(context: Context, event: HomeData.Event, narrow: Boolean = false, compact: Boolean = false): RemoteViews {
+    val row = RemoteViews(context.packageName, eventLayout(narrow, compact))
     row.setImageViewResource(R.id.ghost_w_event_mark, R.drawable.ghost_w_event_ring)
     row.setTextViewText(R.id.ghost_w_event_title, event.title)
     home(context)?.let { row.setOnClickPendingIntent(R.id.ghost_w_event_row, it) }
+    if (compact) {
+      row.setTextViewText(R.id.ghost_w_event_time, if (event.allDay) "All day" else timeOf(context, event.start))
+      return row
+    }
     if (narrow) {
       row.setTextViewText(R.id.ghost_w_event_time, if (event.allDay) "All day" else "${timeOf(context, event.start)} – ${timeOf(context, event.end)}")
       return row
@@ -555,19 +621,20 @@ object WidgetViews {
     return row
   }
 
-  /** A to-do due on a day, as the calendar shows one; [narrow], as [eventRow] is. */
-  internal fun dueRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false): RemoteViews {
-    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_event_row_narrow else R.layout.ghost_w_event_row)
+  /** A to-do due on a day, as the calendar shows one; [narrow] and [compact], as [eventRow] is. */
+  internal fun dueRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false, compact: Boolean = false): RemoteViews {
+    val row = RemoteViews(context.packageName, eventLayout(narrow, compact))
     val late = HomeData.groupOf(todo.due, today) == HomeData.Group.OVERDUE
     // Where the time would be: what it is, in the red where it is late (its day is the To-dos widget's to say).
     row.setTextViewText(R.id.ghost_w_event_time, if (late) "Overdue" else "To-do")
     if (late) row.setTextColor(R.id.ghost_w_event_time, ink(context, R.color.ghost_w_light_red_11, R.color.ghost_w_dark_red_11))
-    row.setViewVisibility(R.id.ghost_w_event_until, View.GONE)
     row.setImageViewResource(R.id.ghost_w_event_mark, if (late) R.drawable.ghost_w_pip_late else R.drawable.ghost_w_pip)
     row.setTextViewText(R.id.ghost_w_event_title, todo.words)
+    row.setOnClickPendingIntent(R.id.ghost_w_event_row, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), "due:${todo.note}:${todo.line}".hashCode()))
+    if (compact) return row
+    row.setViewVisibility(R.id.ghost_w_event_until, View.GONE)
     row.setTextViewText(R.id.ghost_w_event_sub, if (todo.line == 0) "Ticket" else todo.title)
     if (narrow) row.setViewVisibility(R.id.ghost_w_event_sub, View.GONE)
-    row.setOnClickPendingIntent(R.id.ghost_w_event_row, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), "due:${todo.note}:${todo.line}".hashCode()))
     return row
   }
 
@@ -594,17 +661,23 @@ object WidgetViews {
     }
     val narrow = wide < HomeData.NARROW_DP
     if (fit == Fit.NARROW) narrowed(context, views)
-    val each = scaled(context, if (narrow) NOTE_DP - 6 else NOTE_DP)
+    // A narrow row is as tall as a wide one (layout/ghost_w_note_row.xml, 52dp): only its when is put away.
+    val each = HomeData.Part(scaled(context, NOTE_DP), scaled(context, COMPACT_DP))
     val columns = if (fit == Fit.LARGE && wide >= TWO_COLUMNS_DP) 2 else 1
-    val room = roomFor(context, views, tall, each + if (rows.size > 1) MORE_DP else 0)
-    val perColumn = HomeData.fitting(room, List(rows.size) { each }, if (room(tall) == room) MORE_DP else 0)
-    val shown = rows.take(perColumn * columns)
+    val room = roomFor(context, views, tall, each.full + if (rows.size > 1) MORE_DP else 0)
+    // Whole rows, then names alone (compactRow) for the room under them, then the line for the rest where it has its
+    // room (HomeData.fill). A cell high, no line under the one row: the heading that counted is put away too.
+    val one = HomeData.fill(room, List(rows.size) { each }, if (room(tall) == room) scaled(context, MORE_DP) else 0)
+    val shown = rows.take(one.shown * columns)
     val first = if (columns == 2) (shown.size + 1) / 2 else shown.size
-    for ((index, note) in shown.withIndex()) views.addView(if (index < first) R.id.ghost_w_col_a else R.id.ghost_w_col_b, noteRow(context, note, now, narrow = narrow))
+    // Two columns with room for them all, each as a column of the first's rows would be.
+    val filled = if (columns == 2 && shown.size == rows.size) HomeData.fill(room, List(first) { each }, 0) else one
+    fun rowOf(index: Int, note: HomeData.Row) = (if (filled.compact(index)) compactRow(context, note) else noteRow(context, note, now, narrow = narrow)) to false
+    placed(context, views, R.id.ghost_w_col_a, shown.take(first).mapIndexed(::rowOf), filled.spread)
+    placed(context, views, R.id.ghost_w_col_b, shown.drop(first).mapIndexed(::rowOf), filled.spread)
     views.setViewVisibility(R.id.ghost_w_col_b, if (columns == 2 && shown.size > first) View.VISIBLE else View.GONE)
     if (fit == Fit.SLIM) views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
-    // A cell high, no line under the one row: the heading that counted is put away too.
-    more(context, views, if (room(tall) == room) rows.size - shown.size else 0)
+    more(context, views, if (one.more) rows.size - shown.size else 0)
     empty(context, views, if (rows.isEmpty()) none else null, if (fit == Fit.SLIM) "" else noneWords, noneLink)
     return views
   }

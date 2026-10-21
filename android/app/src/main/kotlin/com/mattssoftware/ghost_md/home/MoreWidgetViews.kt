@@ -14,6 +14,7 @@ import com.mattssoftware.ghost_md.home.HomeData.Fit
 import com.mattssoftware.ghost_md.home.WidgetViews.COMPACT_DP
 import com.mattssoftware.ghost_md.home.WidgetViews.EVENT_DP
 import com.mattssoftware.ghost_md.home.WidgetViews.EYEBROW_DP
+import com.mattssoftware.ghost_md.home.WidgetViews.MORE_DP
 import com.mattssoftware.ghost_md.home.WidgetViews.NOTE_DP
 import com.mattssoftware.ghost_md.home.WidgetViews.dayIn
 import com.mattssoftware.ghost_md.home.WidgetViews.empty
@@ -24,6 +25,7 @@ import com.mattssoftware.ghost_md.home.WidgetViews.home
 import com.mattssoftware.ghost_md.home.WidgetViews.ink
 import com.mattssoftware.ghost_md.home.WidgetViews.more
 import com.mattssoftware.ghost_md.home.WidgetViews.narrowed
+import com.mattssoftware.ghost_md.home.WidgetViews.placed
 import com.mattssoftware.ghost_md.home.WidgetViews.room
 import com.mattssoftware.ghost_md.home.WidgetViews.scaled
 import com.mattssoftware.ghost_md.home.WidgetViews.tile
@@ -167,8 +169,9 @@ object MoreWidgetViews {
   /** About how many characters of the md words a row of [wide] dp holds: the face's average letter is near 0.47em. */
   private fun perRow(context: Context, wide: Int): Int = ((wide / (16.2f * 0.5f * context.resources.configuration.fontScale.coerceAtLeast(1f)))).toInt().coerceAtLeast(8)
 
-  private fun heightOf(context: Context, line: HomeData.Line, wide: Int): Int {
-    val rows = HomeData.rowsFor(line.words.length + if (line.kind == "bullet") 2 else 0, perRow(context, wide - 30 - line.depth * 14), 2)
+  /** A line's height at [wide], its words over two lines at [most] (one: a compact line, for the room under the rest). */
+  private fun heightOf(context: Context, line: HomeData.Line, wide: Int, most: Int = 2): Int {
+    val rows = HomeData.rowsFor(line.words.length + if (line.kind == "bullet") 2 else 0, perRow(context, wide - 30 - line.depth * 14), most)
     return when (line.kind) {
       "heading" -> scaled(context, 26)
       "todo", "done" -> maxOf(CHECK_DP, scaled(context, rows * 18 + 10))
@@ -176,12 +179,13 @@ object MoreWidgetViews {
     }
   }
 
-  private fun lineRow(context: Context, page: HomeData.Page, line: HomeData.Line): RemoteViews {
+  /** One of [page]'s lines as the note has it; [compact], its words on one line. */
+  private fun lineRow(context: Context, page: HomeData.Page, line: HomeData.Line, compact: Boolean = false): RemoteViews {
     val note = page.row.id
     val code = "line:$note:${line.line}".hashCode()
     val open = Doors.press(context, Doors.noteAt(note, line.line, line.match ?: ""), code)
     val indent = WidgetViews.dp(context, 2 + line.depth * 14)
-    return when (line.kind) {
+    val row = when (line.kind) {
       "todo", "done" -> RemoteViews(context.packageName, R.layout.ghost_w_check_row).apply {
         setTextViewText(R.id.ghost_w_line, line.words)
         setOnClickPendingIntent(R.id.ghost_w_line, open)
@@ -211,23 +215,22 @@ object MoreWidgetViews {
         setOnClickPendingIntent(R.id.ghost_w_line, open)
       }
     }
+    if (compact) row.setInt(R.id.ghost_w_line, "setMaxLines", 1)
+    return row
   }
 
-  /** [page]'s lines into the first column, as many as [room] holds at [wide]; how many were shown. */
-  private fun linesInto(context: Context, views: RemoteViews, page: HomeData.Page, room: Int, wide: Int): Int {
-    var used = 0
-    var shown = 0
-    for ((index, line) in page.lines.withIndex()) {
-      val height = heightOf(context, line, wide)
-      if (used + height > room) break
-      // A heading is never the last thing shown: the line under it fits too, or neither is drawn.
-      val under = page.lines.getOrNull(index + 1)
-      if (line.kind == "heading" && under != null && used + height + heightOf(context, under, wide) > room) break
-      views.addView(R.id.ghost_w_col_a, lineRow(context, page, line))
-      used += height
-      shown += 1
+  /**
+   * [page]'s lines into the first column, as many as [room] holds at [wide] (HomeData.fill): as the note has them, then
+   * on one line each for the room under them; a heading never the last thing shown, the line under it fits too or
+   * neither is drawn; then how many lines are left, a tap [link], where it has its room ([moreDp] dp; 0, no line).
+   */
+  private fun linesInto(context: Context, views: RemoteViews, page: HomeData.Page, room: Int, wide: Int, moreDp: Int, link: PendingIntent?) {
+    val parts = page.lines.map { line ->
+      if (line.kind == "heading") HomeData.Part(heightOf(context, line, wide), heading = true) else HomeData.Part(heightOf(context, line, wide), heightOf(context, line, wide, most = 1))
     }
-    return shown
+    val filled = HomeData.fill(room, parts, moreDp)
+    placed(context, views, R.id.ghost_w_col_a, page.lines.take(filled.shown).mapIndexed { index, line -> lineRow(context, page, line, compact = filled.compact(index)) to (line.kind == "heading") }, filled.spread)
+    more(context, views, filled, link)
   }
 
   // ---- Today ---------------------------------------------------------------------------------------------------------
@@ -256,8 +259,7 @@ object MoreWidgetViews {
       Fit.NARROW -> narrowed(context, views)
       else -> {}
     }
-    if (read != null && page != null) linesInto(context, views, page, room(tall), wide)
-    more(context, views, 0)
+    if (read != null && page != null) linesInto(context, views, page, room(tall), wide, scaled(context, MORE_DP), open) else more(context, views, 0)
     empty(
       context,
       views,
@@ -287,20 +289,23 @@ object MoreWidgetViews {
     field.setOnClickPendingIntent(R.id.ghost_w_field, find)
     if (wide < HomeData.NARROW_DP) field.setTextViewText(R.id.ghost_w_field_words, "Search")
     views.addView(R.id.ghost_w_col_a, field)
+    var filled: HomeData.Filled? = null
     if (fit == Fit.SLIM) {
       views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
     } else {
+      // "Recent" and the notes under the field: whole rows (large), then names alone, then how many more (HomeData.fill).
       val rows = HomeData.notes(HomeScreen.kept(context, "notes"))
       val compact = fit == Fit.NARROW || fit == Fit.MEDIUM
-      val each = scaled(context, if (compact) COMPACT_DP else NOTE_DP)
-      val left = tall - 20 - 44 - scaled(context, EYEBROW_DP)
-      val shown = if (left >= each) HomeData.fitting(left, rows.map { each }, 0) else 0
-      if (shown > 0) {
-        views.addView(R.id.ghost_w_col_a, eyebrow(context, "Recent", null))
-        for (row in rows.take(shown)) views.addView(R.id.ghost_w_col_a, if (compact) WidgetViews.compactRow(context, row) else WidgetViews.noteRow(context, row, now))
+      val small = scaled(context, COMPACT_DP)
+      val each = HomeData.Part(if (compact) small else scaled(context, NOTE_DP), small)
+      val fill = HomeData.fill(tall - 20 - 44, listOf(HomeData.Part(scaled(context, EYEBROW_DP), heading = true)) + rows.map { each }, scaled(context, MORE_DP))
+      if (fill.shown > 1) {
+        filled = fill
+        val shown = rows.take(fill.shown - 1).mapIndexed { index, row -> (if (compact || fill.compact(index + 1)) WidgetViews.compactRow(context, row) else WidgetViews.noteRow(context, row, now)) to false }
+        placed(context, views, R.id.ghost_w_col_a, listOf(eyebrow(context, "Recent", null) to true) + shown, fill.spread, after = true)
       }
     }
-    more(context, views, 0)
+    if (filled != null) more(context, views, filled) else more(context, views, 0)
     empty(context, views, null)
     return views
   }
@@ -354,8 +359,7 @@ object MoreWidgetViews {
       Fit.NARROW -> narrowed(context, views)
       else -> {}
     }
-    if (page != null) linesInto(context, views, page, room(tall), if (fit == Fit.NARROW) wide - 20 else wide - 26) else 0
-    more(context, views, 0)
+    if (page != null) linesInto(context, views, page, room(tall), if (fit == Fit.NARROW) wide - 20 else wide - 26, scaled(context, MORE_DP), opened) else more(context, views, 0)
     empty(
       context,
       views,
@@ -540,6 +544,15 @@ object MoreWidgetViews {
       return views
     }
     val heroDp = scaled(context, 92)
+    val small = scaled(context, COMPACT_DP)
+    var filled: HomeData.Filled? = null
+    // One of the rest: in a column the clock's or the to-dos' mark and its words; wider, the calendar's row, whole or
+    // (for the room under the whole ones) on one line.
+    fun restRow(item: Any, compact: Boolean): RemoteViews = when {
+      fit == Fit.NARROW -> thenRow(context, item)
+      item is HomeData.Event -> WidgetViews.eventRow(context, item, compact = compact)
+      else -> WidgetViews.dueRow(context, item as HomeData.Todo, today, compact = compact)
+    }
     when (fit) {
       Fit.SLIM -> {
         headless(context, views, sides = 14, ends = 4)
@@ -552,26 +565,19 @@ object MoreWidgetViews {
         val rest = items.drop(1)
         val wideOne = fit != Fit.NARROW && wide >= WidgetViews.TWO_COLUMNS_DP
         if (wideOne) {
-          // Wide: the rest beside it, in a column of their own.
-          val shown = HomeData.fitting(room(tall), rest.map { scaled(context, EVENT_DP) }, 0).takeIf { rest.isNotEmpty() } ?: 0
-          for (item in rest.take(shown)) views.addView(R.id.ghost_w_col_b, if (item is HomeData.Event) WidgetViews.eventRow(context, item) else WidgetViews.dueRow(context, item as HomeData.Todo, today))
-          views.setViewVisibility(R.id.ghost_w_col_b, if (shown > 0) View.VISIBLE else View.GONE)
+          // Wide: the rest beside it, in a column of their own, filling it as a list does (HomeData.fill).
+          val fill = HomeData.fill(room(tall), rest.map { HomeData.Part(scaled(context, EVENT_DP), small) }, scaled(context, MORE_DP))
+          if (rest.isNotEmpty()) filled = fill
+          placed(context, views, R.id.ghost_w_col_b, rest.take(fill.shown).mapIndexed { index, item -> restRow(item, fill.compact(index)) to false }, fill.spread)
+          views.setViewVisibility(R.id.ghost_w_col_b, if (fill.shown > 0) View.VISIBLE else View.GONE)
         } else {
-          val each = scaled(context, if (fit == Fit.NARROW) COMPACT_DP else EVENT_DP)
-          val left = room(tall) - heroDp - scaled(context, EYEBROW_DP)
-          val shown = if (rest.isNotEmpty() && left >= each + scaled(context, 4)) HomeData.fitting(left, rest.map { each }, 0) else 0
-          if (shown > 0) {
-            views.addView(R.id.ghost_w_col_a, eyebrow(context, "Then", null))
-            for (item in rest.take(shown)) {
-              views.addView(
-                R.id.ghost_w_col_a,
-                when {
-                  fit == Fit.NARROW -> thenRow(context, item)
-                  item is HomeData.Event -> WidgetViews.eventRow(context, item)
-                  else -> WidgetViews.dueRow(context, item as HomeData.Todo, today)
-                },
-              )
-            }
+          // Under it "Then" and the rest: whole rows, then one-line ones, then how many more, where the room has them.
+          val each = HomeData.Part(if (fit == Fit.NARROW) small else scaled(context, EVENT_DP), small)
+          val fill = HomeData.fill(room(tall) - heroDp, listOf(HomeData.Part(scaled(context, EYEBROW_DP), heading = true)) + rest.map { each }, scaled(context, MORE_DP))
+          if (rest.isNotEmpty() && fill.shown > 1) {
+            filled = fill
+            val rows = rest.take(fill.shown - 1).mapIndexed { index, item -> restRow(item, fill.compact(index + 1)) to false }
+            placed(context, views, R.id.ghost_w_col_a, listOf(eyebrow(context, "Then", null) to true) + rows, fill.spread, after = true)
           } else {
             // Nothing after it: the one thing in the middle of the room.
             views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
@@ -579,7 +585,7 @@ object MoreWidgetViews {
         }
       }
     }
-    more(context, views, 0)
+    if (filled != null) more(context, views, filled) else more(context, views, 0)
     empty(context, views, null)
     return views
   }

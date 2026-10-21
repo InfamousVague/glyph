@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * What the four home-screen widgets make of what the app handed over (HomeData.kt, docs/WIDGETS.md): the To-dos
- * view's groups and words, the home page's "20 min ago", the Calendar widget's days, and how many rows fit.
+ * view's groups and words, the home page's "20 min ago", the Calendar widget's days, and how a list fills its room.
  */
 class HomeDataTest {
   private val todosJson = """
@@ -128,12 +128,68 @@ class HomeDataTest {
     assertEquals("Thursday", HomeData.dayWords("2026-10-22", "2026-10-20") { "Thursday" })
   }
 
+  // The To-dos widget's parts: a group's eyebrow (22dp), a whole row (48dp, or as tall as a column's words make it)
+  // and a one-line row (36dp).
+  private val eyebrow = HomeData.Part(22, heading = true)
+  private fun row(full: Int = 48) = HomeData.Part(full, 36)
+
   @Test
-  fun `as many rows as fit, with room for the line that says how many did not`() {
-    assertEquals(3, HomeData.fitting(160, listOf(50, 50, 50), 18))
-    assertEquals(2, HomeData.fitting(140, listOf(50, 50, 50), 18))
-    assertEquals("one at least", 1, HomeData.fitting(20, listOf(50, 50), 18))
-    assertEquals(0, HomeData.fitting(100, emptyList(), 18))
+  fun `the room under the whole rows goes to one-line rows, a group's eyebrow only with one under it`() {
+    // Four by three (414×280, 232dp of room) with Overdue 2, Today 2, Later 1, Someday 2: "Send the Q4 report" missed
+    // a whole row by 4dp and left 44dp blank under "Call the plumber"; it is a one-line row now, and Later's eyebrow,
+    // which would need 58dp with a one-line row under it, is not drawn in the 8dp left.
+    val wide = listOf(eyebrow, row(), row(), eyebrow, row(), row(), eyebrow, row(), eyebrow, row(), row())
+    val large = HomeData.fill(232, wide, 18)
+    assertEquals(6, large.shown)
+    assertEquals(5, large.compactFrom)
+    assertEquals(listOf(false, false, false, false, false, true), (0 until large.shown).map(large::compact))
+    assertEquals(3, large.left)
+    assertEquals("no room for the line under them", false, large.more)
+    assertEquals(8, large.spare)
+    assertTrue("cut, so the 8dp is shared between the rows", large.spread)
+
+    // Two by three (159×280), each to-do's words over two lines (70dp): Overdue's two whole, then Today's eyebrow and
+    // "Call the plumber" on one line where its whole row would not fit, 12dp left rather than 70.
+    val column = listOf(eyebrow, row(70), row(70), eyebrow, row(70), row(70), eyebrow, row(70), eyebrow, row(70), row(70))
+    val tall = HomeData.fill(232, column, 18)
+    assertEquals(5, tall.shown)
+    assertEquals("the eyebrow drawn as it is, the row under it on one line", 4, tall.compactFrom)
+    assertEquals(4, tall.left)
+    assertEquals(false, tall.more)
+    assertEquals(12, tall.spare)
+    assertTrue(tall.spread)
+
+    // Once on one line, the rest stay so: a short row after a tall one is not drawn whole again, though it would fit.
+    val mixed = HomeData.fill(150, listOf(row(70), row(90), HomeData.Part(40, 36)), 0)
+    assertEquals(3, mixed.shown)
+    assertEquals(1, mixed.compactFrom)
+    assertEquals(150 - 70 - 36 - 36, mixed.spare)
+  }
+
+  @Test
+  fun `the line that says how many did not fit, where the rows leave it its room, and what is left shared`() {
+    // Four whole rows (192dp) in 220: a fifth on one line would need 228, so the 28dp left holds the line (18dp).
+    val cut = HomeData.fill(220, List(10) { row() }, 18)
+    assertEquals(4, cut.shown)
+    assertEquals(6, cut.left)
+    assertTrue(cut.more)
+    assertEquals(10, cut.spare)
+    assertTrue(cut.spread)
+    // No line asked for (a cell high): the room left is the rows'.
+    assertEquals(false, HomeData.fill(220, List(10) { row() }, 0).more)
+    // Every row whole with room to spare: no line, and the list ends where it ends, at the top.
+    val short = HomeData.fill(300, List(3) { row() }, 18)
+    assertEquals(3, short.shown)
+    assertEquals(0, short.left)
+    assertEquals(false, short.more)
+    assertEquals(false, short.spread)
+    // All of them, with less than a one-line row left: shared between them rather than a band under the last.
+    assertTrue(HomeData.fill(170, List(3) { row() }, 18).spread)
+    // A heading with nothing under it (a note's last line) is drawn where it fits alone.
+    assertEquals(2, HomeData.fill(100, listOf(row(), eyebrow), 0).shown)
+    assertEquals("one at least", 1, HomeData.fill(20, listOf(row(), row()), 18).shown)
+    assertEquals("but never a heading alone", 0, HomeData.fill(30, listOf(eyebrow, row()), 0).shown)
+    assertEquals(0, HomeData.fill(100, emptyList(), 18).shown)
   }
 
   @Test

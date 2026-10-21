@@ -161,11 +161,33 @@ it says for this orientation.
 **Filling the room**: every widget's root is the frame (layout/ghost_w_frame.xml), `match_parent` both ways with the
 page as its ground and, from Android 12, the launcher's own corners (`system_app_widget_background_radius`), so the
 ground is the whole of what the launcher gives, edge to edge (the gaps between widgets are the launcher's grid). Its
-columns are the body's whole height, so what is in them is placed in it: lists take as many rows as fit (a row's
-height read at the phone's text size, a column's to-do and a note's lines as tall as their words wrap), a microphone's
-ring grows with its room (`setViewLayoutWidth`, Android 12), Quick capture's rings share the width and its stack the
-height, and one thing alone (Next up's, a microphone) sits in the middle of the room rather than at its top. What is
-left under a list is less than a row. A heading's padding is the frame's only inset.
+columns are the body's whole height, so what is in them is placed in it: lists fill it to the bottom (below), a
+microphone's ring grows with its room (`setViewLayoutWidth`, Android 12), Quick capture's rings share the width and its
+stack the height, and one thing alone (Next up's, a microphone) sits in the middle of the room rather than at its top.
+A heading's padding is the frame's only inset.
+
+**How a list fills its height** (HomeData.fill, held by HomeDataTest; every list: To-dos, Calendar, Recent notes,
+Pinned notes, A folder, Today, A note, Search's notes, Voice note's recordings, Next up's rest). Each row's height is
+known before it is drawn (WidgetViews.kt's `*_DP`, read at the phone's text size; a column's to-do and a note's lines as
+tall as their words wrap), and the list is made in order:
+
+1. Whole rows while the next fits (a to-do with its chip and note, an event with its calendar, a note with how it
+   starts and when). A group's eyebrow (Overdue, Today, a day; a note's heading) only with a row under it.
+2. Where the next whole row does not fit, it and those after it go to one line each (36dp, `COMPACT_DP`) while they
+   fit: a to-do's tick and its words (layout/ghost_w_todo_row_compact.xml, the tick the same real box from Android 12
+   as a whole row's, ticked in place), an event's time and title (ghost_w_event_row_compact*.xml), a note's mark and
+   name (ghost_w_compact_row.xml), a note's line on one line. The next group's eyebrow only where it and a one-line row
+   both fit. Once on one line, the rest of the list stays so.
+3. With rows still left and room for it (18dp, `MORE_DP`), "N more" under them, which opens the app (A note's and
+   Today's, the note). None a cell high.
+4. What is left, less than a one-line row, is shared between the rows (layout/ghost_w_gap.xml, an equal weighted gap
+   before each row but a heading's first), so there is no band under the last; where the whole list fits with more
+   room than that, it ends where it ends, from the top.
+
+So To-dos at 2×3 (159×280dp), with Overdue 2 and Today 2, draws Overdue's two whole and Today's eyebrow with "Call the
+plumber" on one line, 12dp left between the rows, where it stopped after "Book the train" with 70dp blank; at 4×3
+(414×280) "Send the Q4 report", 4dp short of a whole row, is a one-line row, where 44dp was blank
+(`fill-todos-dark.webp`).
 
 **One entry each in the picker**, as before: a launcher resizes a widget in place, and twelve things in five sizes
 would be sixty entries.
@@ -297,8 +319,9 @@ kinds are no longer handed over; the phone takes them and keeps nothing.
   data, the choices, the alarms, the shortcuts), Doors.kt (the links); android/app/src/test/…/home/HomeDataTest.kt;
   android/app/src/debug/…/home/WidgetGallery.kt (debug builds only: every size of a widget side by side, for the
   pictures).
-- Resources: layout/ghost_w_*.xml (the frame, the tile, the rows, the capture cells, the field, the lines, the
-  previews, the configuration), layout-v31/ghost_w_todo_row*.xml and ghost_w_check_row.xml (the box),
+- Resources: layout/ghost_w_*.xml (the frame, the tile, the rows and their one-line forms, the gap, the capture cells,
+  the field, the lines, the previews, the configuration), layout-v31/ghost_w_todo_row*.xml and ghost_w_check_row.xml
+  (the box),
   drawable/ghost_w_*.xml, drawable-nodpi/ghost_w_preview_*.webp (the picker's pictures before Android 12),
   values(-night)/ghost_widget_tokens.xml (made), values(-v28)/ghost_widget_styles.xml, values/ghost_home_screen.xml
   (the words), xml/ghost_widget_{voice,todos,calendar,notes,quick,pins,daily,search,note,folder,ask,next}.xml and the
@@ -313,7 +336,10 @@ a widget side by side, drawn by WidgetGallery (debug builds) exactly as the laun
 Pixel launcher gives each (left: 1×1 74×82, 2×1 159×82, 4×1 329×82, 2×2 159×181, 4×2 329×181, 2×3 159×280, wide
 414×280; right: 2×4 159×379, 4×4 329×379; the display at 336dpi so they fit), with made-up notes, events and
 recordings written into the widgets' kept data: all twelve dark (and A note gone, `sizes-notegone-dark`, and Ask AI
-with Claude off, `sizes-askoff-dark`), and To-dos, Quick capture, Today, A note, Ask AI and Next up light too. From
+with Claude off, `sizes-askoff-dark`), and To-dos, Quick capture, Today, A note, Ask AI and Next up light too. The ten
+lists' were drawn again (2026-10-21) with plenty in them (16 to-dos, 15 notes, 11 events, 7 recordings, an 11-note
+folder, notes of 19 and 14 lines), so each runs out of room before it runs out of rows and shows how it fills its
+height; `fill-todos-dark` is To-dos with the seven to-dos the first pictures had, the two sizes that left a band. From
 the launcher itself at 420dpi: `launcher-placed-dark` (Quick capture at 2×1, To-dos, A note set to a real note through
 WidgetPick and its lines handed over at once by the running app, Pinned notes), `launcher-note-ticked-dark` (a to-do
 ticked on A note, drawn ticked at once), `launcher-note-deleted-dark` (A note whose note is not in the library, after

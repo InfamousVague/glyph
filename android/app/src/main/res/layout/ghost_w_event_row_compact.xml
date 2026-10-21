@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  An event, or a to-do due that day, on one line, where a whole row does not fit under the last (home/WidgetViews.kt
+  `eventRow`, compact): ghost_w_event_row.xml's time (or All day, To-do, Overdue) in its column, its mark and its
+  words, nothing under them. The ids are the wider row's; 36dp.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_event_row"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <TextView
+        android:id="@+id/ghost_w_event_time"
+        style="@style/GhostW.Time"
+        android:layout_width="62dp"
+        android:layout_height="wrap_content" />
+
+    <ImageView
+        android:id="@+id/ghost_w_event_mark"
+        android:layout_width="6.4dp"
+        android:layout_height="6.4dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ghost_w_event_ring" />
+
+    <TextView
+        android:id="@+id/ghost_w_event_title"
+        style="@style/GhostW.Words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_3"
+        android:layout_weight="1" />
+</LinearLayout>

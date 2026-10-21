@@ -468,18 +468,57 @@ object HomeData {
   // ---- room ----------------------------------------------------------------------------------------------------------
 
   /**
-   * How many of [heights] (each a row's height, in order) fit in [room]: all where they fit, else as many as fit with
-   * [more] under them for the line that says how many did not; one at least.
+   * One thing in a widget's list, for [fill], in dp: [full] its row's height, [compact] its one-line row's (a to-do's
+   * tick and words, an event's time and title, a note's name). A [heading] (a group's eyebrow, a note's heading) is
+   * drawn the same either way and never last: it shows only with the row under it.
    */
-  fun fitting(room: Int, heights: List<Int>, more: Int): Int {
-    if (heights.sum() <= room) return heights.size
+  data class Part(val full: Int, val compact: Int = full, val heading: Boolean = false)
+
+  /**
+   * How a list is drawn in its room ([fill]): its first [shown] parts, those from [compactFrom] on as one-line rows;
+   * [left] the rows not shown (headings not counted), and [more] whether the line that says so is drawn under them;
+   * [spare] the dp left after it all, and [spread] whether that is shared out between the rows rather than left as a
+   * band under the last (where the list was cut, or what is left is less than a row).
+   */
+  data class Filled(val shown: Int, val compactFrom: Int, val left: Int, val more: Boolean, val spare: Int, val spread: Boolean) {
+    fun compact(index: Int): Boolean = index >= compactFrom
+  }
+
+  /**
+   * [parts] in [room] (Matt, 2026-10-21: "make sure they take up 100% of avail space"): whole rows while the next
+   * fits; then, where it does not, one-line rows while they fit, a heading only where it and a one-line row under it
+   * do; then, with rows still left and [more] dp to spare, the line that says how many (0: no line). A row at least,
+   * where the first is one. Once rows go to one line they stay so, the rest of the list alike.
+   */
+  fun fill(room: Int, parts: List<Part>, more: Int = 0): Filled {
     var used = 0
     var shown = 0
-    for (height in heights) {
-      if (used + height > room - more) break
-      used += height
+    var compactFrom = parts.size
+    while (shown < parts.size) {
+      val part = parts[shown]
+      // A heading's room is its own and its first row's; one with nothing under it (a note's last line), its own.
+      val under = if (part.heading) parts.getOrNull(shown + 1) else null
+      val compacting = shown >= compactFrom
+      when {
+        !compacting && used + part.full + (under?.full ?: 0) <= room -> used += part.full
+        used + (if (part.heading) part.full else part.compact) + (under?.compact ?: 0) <= room -> {
+          if (!compacting) compactFrom = if (part.heading) shown + 1 else shown
+          used += if (part.heading) part.full else part.compact
+        }
+        else -> break
+      }
       shown += 1
     }
-    return shown.coerceAtLeast(minOf(1, heights.size))
+    if (shown == 0 && parts.isNotEmpty() && !parts[0].heading) {
+      // Not even one line fits (a launcher's odd size): the first row anyway, as small as it is drawn.
+      shown = 1
+      compactFrom = 0
+      used = parts[0].compact
+    }
+    val left = parts.drop(shown).count { !it.heading }
+    val line = more > 0 && left > 0 && room - used >= more
+    val spare = room - used - if (line) more else 0
+    val least = parts.filter { !it.heading }.minOfOrNull { it.compact } ?: 0
+    return Filled(shown, compactFrom, left, line, spare, left > 0 || spare < least)
   }
 }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The room a cut list leaves, shared between its rows (home/WidgetViews.kt `placed`): one of these before each row but
+  a heading's first, each an equal share, so what is left is a little more space between the rows rather than a band
+  under the last. Empty; a FrameLayout because a widget may hold no plain view.
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:importantForAccessibility="no" />
