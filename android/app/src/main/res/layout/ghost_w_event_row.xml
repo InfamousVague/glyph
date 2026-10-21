@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  An event, or a to-do due that day, in the Calendar widget: the time (or All day), the calendar's mark (a ring for an
+  event, a dot for a to-do, as the app's calendar of to-dos draws them), the words, and the calendar or the note
+  under them. 46dp.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_event_row"
+    android:layout_width="match_parent"
+    android:layout_height="46dp"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <LinearLayout
+        android:layout_width="62dp"
+        android:layout_height="wrap_content"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/ghost_w_event_time"
+            style="@style/GhostW.Time"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/ghost_w_event_until"
+            style="@style/GhostW.When"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/ghost_w_event_mark"
+        android:layout_width="6.4dp"
+        android:layout_height="6.4dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ghost_w_event_ring" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_3"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/ghost_w_event_title"
+            style="@style/GhostW.Words"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/ghost_w_event_sub"
+            style="@style/GhostW.Meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp" />
+    </LinearLayout>
+</LinearLayout>

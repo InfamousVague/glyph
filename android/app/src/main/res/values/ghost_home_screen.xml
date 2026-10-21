@@ -14,11 +14,14 @@
     <string name="ghost_shortcut_search_short">Search</string>
     <string name="ghost_shortcut_search_long">Search your notes</string>
     <string name="ghost_tile_new_note">New note</string>
-    <string name="ghost_widget_quick_note">Quick note</string>
-    <string name="ghost_widget_quick_note_about">A new note, or a voice note, in one tap.</string>
-    <string name="ghost_widget_today">Today</string>
-    <string name="ghost_widget_today_about">The to-dos due today and those overdue, from every note. Tick them here.</string>
-    <string name="ghost_widget_pinned">Pinned notes</string>
-    <string name="ghost_widget_pinned_about">The notes you pinned, a tap away.</string>
+    <!-- The four widgets (docs/WIDGETS_ANDROID.md). The three before them (Quick note, Today, Pinned notes) are these now. -->
+    <string name="ghost_widget_voice">Voice note</string>
+    <string name="ghost_widget_voice_about">Record a voice note in one tap, and see your last recordings.</string>
+    <string name="ghost_widget_todos">To-dos</string>
+    <string name="ghost_widget_todos_about">Your open to-dos from every note, overdue first. Tick them here.</string>
+    <string name="ghost_widget_calendar">Calendar</string>
+    <string name="ghost_widget_calendar_about">Today\'s and the week\'s events, beside the to-dos due.</string>
+    <string name="ghost_widget_notes">Recent notes</string>
+    <string name="ghost_widget_notes_about">The notes you wrote in last, a tap away.</string>
     <string name="ghost_widget_tick">Done</string>
 </resources>

@@ -462,7 +462,8 @@ Android's: an iPhone and a Mac show none of it (the last part says what an iPhon
 - **Settings › Notifications › Reminders**, first on the page: Remind me (on by default), Time (9:00, the phone's own
   clock to change it), The day before. Under them, what Android keeps from reminders and the way to allow it: Allow
   notifications, or Allow exact times (Android's Alarms and reminders page). Findable in Settings' search.
-- **Home-screen widgets** (long-press the home screen, Widgets, Ghost.md): **Quick note** (the pen: a new note with the
+- **Home-screen widgets**: replaced on 2026-10-20 by Voice note, To-dos, Calendar and Recent notes in the app's own
+  look (docs/WIDGETS_ANDROID.md), the three below kept as those for widgets already placed. Before: **Quick note** (the pen: a new note with the
   keyboard up; the microphone: a new note being recorded, the microphone opened by that tap and never before),
   **Today** (the open to-dos due today and overdue from every note, each with a box to tick and the row a tap away
   from its note at that line; "Overdue" in a muted red), **Pinned notes** (a tap opens the note). The app's dark look on

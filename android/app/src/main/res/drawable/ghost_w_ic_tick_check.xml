@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucide's check (lib/art/lucide.g.dart) in ?attr/ghost_w_on_ink (the look's), the wash a third of it inside, the strokes 3 of 24. Made by tool/widget_look.dart from the stylesheets (GHOST_WRITE=1 flutter test test/home_screen/widget_look_test.dart); do not edit by hand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="14dp"
+    android:height="14dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M 20 6 9 17 l -5 -5"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_on_ink"
+        android:strokeWidth="3"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

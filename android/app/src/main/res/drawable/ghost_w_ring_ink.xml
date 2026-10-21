@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The one filled ring, the dock's Speak (lib/shell/page_dock.dart `DockRing`, `ink`): a disc of the ink, pressed
+     with the card's wash. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="?attr/ghost_w_ink" />
+        </shape>
+    </item>
+</ripple>

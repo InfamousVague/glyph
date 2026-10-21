@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The widgets' face from Android 9: the phone's sans at the very weight the app draws each job in (400, 500, 600,
+     700), where the phone's font has them; values/ghost_widget_styles.xml says why it is not Inter. -->
+<resources>
+    <style name="GhostW.Face.Regular">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textFontWeight">400</item>
+    </style>
+    <style name="GhostW.Face.Medium">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textFontWeight">500</item>
+    </style>
+    <style name="GhostW.Face.Semibold">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textFontWeight">600</item>
+    </style>
+    <style name="GhostW.Face.Bold">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textFontWeight">700</item>
+    </style>
+</resources>

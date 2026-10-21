@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Voice note's microphone where the widget is a cell high (a Quick note placed before the four): the dock's filled
+  ring at the dock's own size (app-ring), and the last recording beside it, with no heading. home/WidgetViews.kt.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_voice_ring"
+        android:layout_width="@dimen/ghost_w_ring"
+        android:layout_height="@dimen/ghost_w_ring"
+        android:background="@drawable/ghost_w_ring_ink"
+        android:contentDescription="@string/ghost_shortcut_voice_long">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_w_ic_mic"
+            android:tint="?attr/ghost_w_on_ink" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:id="@+id/ghost_w_voice_words"
+        android:layout_width="0dp"
+        android:layout_height="match_parent"
+        android:layout_marginStart="@dimen/ghost_w_space_3"
+        android:layout_weight="1"
+        android:background="@drawable/ghost_w_press"
+        android:gravity="center_vertical"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/ghost_w_space_1"
+        android:paddingEnd="@dimen/ghost_w_space_1">
+
+        <TextView
+            android:id="@+id/ghost_w_voice_title"
+            style="@style/GhostW.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/ghost_w_voice_line"
+            style="@style/GhostW.Meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp" />
+    </LinearLayout>
+</LinearLayout>

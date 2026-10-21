@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A to-do on a day (the query calendar's `.pip`): a dot of the second ink, 0.4rem across. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <size android:width="6.4dp" android:height="6.4dp" />
+    <solid android:color="?attr/ghost_w_ink_2" />
+</shape>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- System, the widgets' look that follows the phone, where the phone is dark (docs/WIDGETS_ANDROID.md). Made by tool/widget_look.dart from the stylesheets (GHOST_WRITE=1 flutter test test/home_screen/widget_look_test.dart); do not edit by hand. -->
+<resources>
+    <style name="GhostW.Theme.System">
+        <item name="ghost_w_paper">@color/ghost_w_dark_paper</item>
+        <item name="ghost_w_press">@color/ghost_w_dark_press</item>
+        <item name="ghost_w_rule">@color/ghost_w_dark_rule</item>
+        <item name="ghost_w_line">@color/ghost_w_dark_line</item>
+        <item name="ghost_w_ink">@color/ghost_w_dark_ink</item>
+        <item name="ghost_w_ink_2">@color/ghost_w_dark_ink_2</item>
+        <item name="ghost_w_ink_3">@color/ghost_w_dark_ink_3</item>
+        <item name="ghost_w_ink_4">@color/ghost_w_dark_ink_4</item>
+        <item name="ghost_w_on_ink">@color/ghost_w_dark_on_ink</item>
+        <item name="ghost_w_red_9">@color/ghost_w_dark_red_9</item>
+        <item name="ghost_w_red_11">@color/ghost_w_dark_red_11</item>
+        <item name="ghost_w_amber_11">@color/ghost_w_dark_amber_11</item>
+        <item name="ghost_w_chip">@color/ghost_w_dark_chip</item>
+        <item name="ghost_w_chip_overdue">@color/ghost_w_dark_chip_overdue</item>
+        <item name="ghost_w_chip_today">@color/ghost_w_dark_chip_today</item>
+    </style>
+</resources>

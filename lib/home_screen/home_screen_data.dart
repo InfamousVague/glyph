@@ -1,10 +1,12 @@
-/// The home screen kept in step with the notes: each pass works out what the Today and Pinned widgets draw and what
-/// the icon's recent notes are (home_data.dart), and hands over only what changed (home_host.dart). Asked for with
-/// the reminders' pass (lib/root/phone_extras.dart), after the notes have been still a moment.
+/// The home screen kept in step with the notes: each pass works out what the four widgets draw (Voice note, To-dos,
+/// Calendar, Recent notes: docs/WIDGETS_ANDROID.md) and what the icon's recent notes are (home_data.dart), and hands over only
+/// what changed (home_host.dart). Asked for with the reminders' pass (lib/root/phone_extras.dart), after the notes,
+/// the Trash or the calendars have been still a moment.
 library;
 
 import 'dart:async';
 
+import '../calendar/event.dart' show CalendarEvent;
 import '../core/note.dart';
 import '../core/stored.dart';
 import 'home_data.dart';
@@ -33,10 +35,17 @@ class HomeScreenData {
     if (!taken && _sent[kind] == json) _sent.remove(kind);
   }
 
-  /// One pass over [notes]: the Today widget's to-dos, the pinned notes, and the recent notes' titles.
-  Future<void> pass(List<Note> notes, Note? Function(String id) noteOf, {bool Function(Note note)? skip}) async {
-    await _put(HomeKind.today, todayJson(todayItems(notes, now: _clock(), skip: skip)));
-    await _put(HomeKind.pinned, namedJson(pinnedNotes(notes, skip: skip)));
+  /// One pass over [notes]: the widgets' look (the app theme's [scheme]), the to-dos, the notes touched last, the
+  /// recordings, the calendars' [events] (none, and the widget's word for it, where [calendarOn] is false: the
+  /// Calendar plugin off), and the recent notes' titles.
+  Future<void> pass(List<Note> notes, Note? Function(String id) noteOf, {bool Function(Note note)? skip, bool calendarOn = false, List<CalendarEvent> events = const [], String scheme = 'dark'}) async {
+    final now = _clock();
+    // The look first, so the widgets drawn by the rest are drawn in it.
+    await _put(HomeKind.look, lookJson(scheme));
+    await _put(HomeKind.todos, todosJson(homeTodos(notes, now: now, skip: skip)));
+    await _put(HomeKind.notes, notesJson(homeNotes(notes, skip: skip)));
+    await _put(HomeKind.voice, notesJson(homeRecordings(notes, skip: skip)));
+    await _put(HomeKind.calendar, calendarJson(on: calendarOn, events: events, now: now));
     await _put(HomeKind.recent, namedJson(namedNotes(recent, noteOf, skip: skip)));
   }
 

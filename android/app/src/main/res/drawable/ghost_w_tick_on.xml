@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The round tick, ticked (`_Tick`, ticked): a disc of the ink with the check in the page's colour, 14 across. -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:width="22dp" android:height="22dp">
+        <shape android:shape="oval">
+            <solid android:color="?attr/ghost_w_ink" />
+        </shape>
+    </item>
+    <item android:drawable="@drawable/ghost_w_ic_tick_check" android:gravity="center" android:width="14dp" android:height="14dp" />
+</layer-list>

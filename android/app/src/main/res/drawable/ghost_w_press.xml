@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A press on a row or a heading: the card's wash of the ink, in the corners of the kit's small radius. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item android:id="@android:id/mask">
+        <shape android:shape="rectangle">
+            <solid android:color="#FFFFFFFF" />
+            <corners android:radius="@dimen/ghost_w_radius_sm" />
+        </shape>
+    </item>
+</ripple>

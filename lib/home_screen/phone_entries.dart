@@ -3,12 +3,12 @@
 ///
 /// | link                                | from                                                | does                        |
 /// | ----------------------------------- | --------------------------------------------------- | --------------------------- |
-/// | `ghostmd://new`                     | the icon's New note, Quick note's pen, the tile     | a new note, keyboard up     |
-/// | `ghostmd://voice`                   | the icon's Voice note, Quick note's microphone      | a new note, recording       |
+/// | `ghostmd://new`                     | the icon's New note, a widget's pen or +, the tile  | a new note, keyboard up     |
+/// | `ghostmd://voice`                   | the icon's Voice note, the Voice note widget's ring | a new note, recording       |
 /// | `ghostmd://today`                   | the icon's Today's note                             | today's entry               |
 /// | `ghostmd://search`                  | the icon's Search                                   | the palette, to type in     |
 /// | `ghostmd://scan`                    | the icon's Scan document                            | a new note of a scan        |
-/// | `ghostmd://note/<id>?line=12&find=` | a reminder, a Today or Pinned row, a recent note    | the note, at that line      |
+/// | `ghostmd://note/<id>?line=12&find=` | a reminder, a widget's row, a recent note           | the note, at that line      |
 ///
 /// A voice note's microphone opens only on the tap that asks for it, as the dock's does: nothing listens before.
 /// `ghostmd://note/<id>` with nothing after it is the app's older note link (app_links.dart), which this leaves alone.

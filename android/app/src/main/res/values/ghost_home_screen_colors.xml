@@ -1,13 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- The home screen's widgets and the icon's shortcuts in the app's dark look (assets/css/ink.css, dark): the paper
-     oklch(0.14 0 0), its hairline oklch(0.24 0 0), and the inks oklch(0.965 / 0.8 / 0.6 0 0) as sRGB. Always dark: a
-     widget sits on whatever the wallpaper is, and the app's look is ink on near-black paper. -->
+<!-- The icon's shortcuts' ground in the app's dark look (assets/css/ink.css, dark: the paper oklch(0.14 0 0)). The
+     widgets' colours are values/ghost_widget_tokens.xml, made from the stylesheets in both looks. -->
 <resources>
-    <color name="ghost_widget_paper">#F2090909</color>
-    <color name="ghost_widget_rule">#1F1F1F</color>
-    <color name="ghost_widget_ink">#F3F3F3</color>
-    <color name="ghost_widget_ink_2">#BDBDBD</color>
-    <color name="ghost_widget_ink_3">#808080</color>
-    <color name="ghost_widget_overdue">#E8968E</color>
     <color name="ghost_shortcut_back">#141414</color>
 </resources>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The home-screen widgets' words (docs/WIDGETS_ANDROID.md), each the app's own style for the same job, sized and coloured by
+  the tokens (values/ghost_widget_tokens.xml, made from the stylesheets):
+
+    GhostW.Heading   a section's heading, HomeHeading: sm, semibold, the second ink
+    GhostW.Count     how many beside it: sm, the third ink, figures of one width
+    GhostW.Eyebrow   a group's small capitals, .app-eyebrow: xs, bold, the third ink, 0.08em apart
+    GhostW.Title     a note's name in a row, HomeRow: md, semibold
+    GhostW.Words     a to-do's or an event's words, the To-dos view's row: md
+    GhostW.Meta      the line under them: sm, the third ink
+    GhostW.When      when, at a row's end: xs, the third ink, figures of one width
+    GhostW.Chip      a due day's chip, .cm-field: 0.92 of the line it sits in, the second ink
+
+  The face is the phone's own sans, at the weight the app draws each job in (values-v28: 400, 500, 600, 700; before
+  Android 9, regular, medium and bold), not the app's Inter: a widget is drawn by the launcher from a restricted
+  context of this app's, and TextView loads no font resource there (`canLoadUnsafeResources`), so an Inter in res/font
+  is drawn as the phone's sans anyway (measured on the emulator: 357px for a line Inter draws at 384).
+-->
+<resources>
+    <style name="GhostW" />
+    <style name="GhostW.Face" />
+    <style name="GhostW.Face.Regular">
+        <item name="android:fontFamily">sans-serif</item>
+    </style>
+    <style name="GhostW.Face.Medium">
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    <style name="GhostW.Face.Semibold">
+        <item name="android:fontFamily">sans-serif-medium</item>
+    </style>
+    <style name="GhostW.Face.Bold">
+        <item name="android:fontFamily">sans-serif</item>
+        <item name="android:textStyle">bold</item>
+    </style>
+
+    <style name="GhostW.Heading" parent="GhostW.Face.Semibold">
+        <item name="android:textSize">@dimen/ghost_w_text_sm</item>
+        <item name="android:textColor">?attr/ghost_w_ink_2</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="GhostW.Count" parent="GhostW.Face.Regular">
+        <item name="android:textSize">@dimen/ghost_w_text_sm</item>
+        <item name="android:textColor">?attr/ghost_w_ink_3</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+    </style>
+    <style name="GhostW.Eyebrow" parent="GhostW.Face.Bold">
+        <item name="android:textSize">@dimen/ghost_w_text_xs</item>
+        <item name="android:textColor">?attr/ghost_w_ink_3</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.08</item>
+        <item name="android:maxLines">1</item>
+    </style>
+    <style name="GhostW.Title" parent="GhostW.Face.Semibold">
+        <item name="android:textSize">@dimen/ghost_w_text_md</item>
+        <item name="android:textColor">?attr/ghost_w_ink</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="GhostW.Hero" parent="GhostW.Face.Semibold">
+        <item name="android:textSize">@dimen/ghost_w_text_lg</item>
+        <item name="android:textColor">?attr/ghost_w_ink</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="GhostW.Words" parent="GhostW.Face.Regular">
+        <item name="android:textSize">@dimen/ghost_w_text_md</item>
+        <item name="android:textColor">?attr/ghost_w_ink</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="GhostW.Meta" parent="GhostW.Face.Regular">
+        <item name="android:textSize">@dimen/ghost_w_text_sm</item>
+        <item name="android:textColor">?attr/ghost_w_ink_3</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:ellipsize">end</item>
+    </style>
+    <style name="GhostW.When" parent="GhostW.Face.Regular">
+        <item name="android:textSize">@dimen/ghost_w_text_xs</item>
+        <item name="android:textColor">?attr/ghost_w_ink_3</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+    </style>
+    <style name="GhostW.Time" parent="GhostW.Face.Medium">
+        <item name="android:textSize">@dimen/ghost_w_text_sm</item>
+        <item name="android:textColor">?attr/ghost_w_ink_2</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+    </style>
+    <style name="GhostW.Chip" parent="GhostW.Face.Regular">
+        <item name="android:textSize">@dimen/ghost_w_text_chip</item>
+        <item name="android:textColor">?attr/ghost_w_ink_2</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+        <item name="android:background">@drawable/ghost_w_chip</item>
+        <item name="android:drawablePadding">@dimen/ghost_w_chip_gap</item>
+        <item name="android:gravity">center_vertical</item>
+        <item name="android:paddingStart">@dimen/ghost_w_chip_pad</item>
+        <item name="android:paddingEnd">@dimen/ghost_w_chip_pad</item>
+    </style>
+</resources>

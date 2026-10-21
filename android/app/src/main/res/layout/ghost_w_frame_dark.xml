@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A widget in the app's Dark: the frame (ghost_w_frame.xml) and every row added to it read their colours from the look's
+     attributes (values/ghost_widget_tokens.xml), so the look is chosen here, by the theme the app is in. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:theme="@style/GhostW.Theme.Dark">
+
+    <include layout="@layout/ghost_w_frame" />
+</FrameLayout>

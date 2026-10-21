@@ -376,14 +376,60 @@
         </receiver>
 
         <!--
-          THE HOME SCREEN (ghost_md/home; docs/FEATURES_2_1.md): Quick note, Today and Pinned notes, RemoteViews that
-          draw what the app last handed over. Exported, as a widget's provider must be for the launcher to find it;
-          only the system sends APPWIDGET_UPDATE. Today's own midnight comes to it as an alarm of this app's.
+          THE HOME SCREEN (ghost_md/home; docs/WIDGETS_ANDROID.md): Voice note, To-dos, Calendar and Recent notes, RemoteViews
+          that draw what the app last handed over. Exported, as a widget's provider must be for the launcher to find
+          it; only the system sends APPWIDGET_UPDATE. The three before them (Quick note, Today, Pinned notes) keep
+          their receivers so a widget already placed keeps working, each drawing the one it became, and are hidden
+          from the picker (their xml's `hide_from_picker`, Android 9 on).
         -->
+        <receiver
+            android:name=".home.VoiceNoteWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_voice">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_voice" />
+        </receiver>
+        <receiver
+            android:name=".home.TodosWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_todos">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_todos" />
+        </receiver>
+        <receiver
+            android:name=".home.CalendarWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_calendar">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_calendar" />
+        </receiver>
+        <receiver
+            android:name=".home.RecentNotesWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_notes">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_notes" />
+        </receiver>
         <receiver
             android:name=".home.QuickNoteWidget"
             android:exported="true"
-            android:label="@string/ghost_widget_quick_note">
+            android:label="@string/ghost_widget_voice">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -394,7 +440,7 @@
         <receiver
             android:name=".home.TodayWidget"
             android:exported="true"
-            android:label="@string/ghost_widget_today">
+            android:label="@string/ghost_widget_todos">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -405,7 +451,7 @@
         <receiver
             android:name=".home.PinnedWidget"
             android:exported="true"
-            android:label="@string/ghost_widget_pinned">
+            android:label="@string/ghost_widget_notes">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -413,7 +459,11 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/ghost_widget_pinned" />
         </receiver>
-        <!-- A to-do ticked on the Today widget: reached only by the widget's own PendingIntent. -->
+        <!-- The widgets' midnight and quarter-hour clock: reached only by this app's own alarms. -->
+        <receiver
+            android:name=".home.WidgetClock"
+            android:exported="false" />
+        <!-- A to-do ticked on the To-dos widget: reached only by the widget's own PendingIntent. -->
         <receiver
             android:name=".home.WidgetTicks"
             android:exported="false" />

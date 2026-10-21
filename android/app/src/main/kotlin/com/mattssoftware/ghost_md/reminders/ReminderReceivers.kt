@@ -30,8 +30,8 @@ class ReminderAlarms : BroadcastReceiver() {
  * every reminder held again from what was kept (Reminders.kt), and a restart rings what it missed. Alarms only: no
  * service is started from here, which Android refuses an app woken by an update or a restart from Android 12 on.
  *
- * The home screen's Today widget turns its day too (HomeScreen.kt), since a restart or a new zone may have passed a
- * midnight. And a restart or an update registers the places' geofences again (Places.kt), which Play services drops
+ * The home screen's widgets turn their day too, and their clock is armed again (HomeScreen.kt), since a restart or
+ * a new zone may have passed a midnight. And a restart or an update registers the places' geofences again (Places.kt), which Play services drops
  * with either.
  */
 class ReminderRestart : BroadcastReceiver() {
@@ -48,7 +48,11 @@ class ReminderRestart : BroadcastReceiver() {
         Thread({
           try {
             Reminders.arm(app, missed = intent.action == Intent.ACTION_BOOT_COMPLETED)
-            if (restarted || intent.action == Intent.ACTION_TIMEZONE_CHANGED || intent.action == Intent.ACTION_TIME_CHANGED) HomeScreen.redraw(app)
+            if (restarted || intent.action == Intent.ACTION_TIMEZONE_CHANGED || intent.action == Intent.ACTION_TIME_CHANGED) {
+              HomeScreen.redraw(app)
+              // The widgets' midnight and quarter hour, which a restart takes away and a new zone moves.
+              if (HomeScreen.anyPlaced(app)) HomeScreen.armClock(app)
+            }
             if (restarted) {
               val registered = CountDownLatch(1)
               Places.arm(app) { registered.countDown() }

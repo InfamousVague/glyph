@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- An overdue to-do on a day (`.dots[data-late] .pip`): the red's dot. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="oval">
+    <size android:width="6.4dp" android:height="6.4dp" />
+    <solid android:color="?attr/ghost_w_red_9" />
+</shape>

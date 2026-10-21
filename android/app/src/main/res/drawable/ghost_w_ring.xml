@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A round button, the dock's `.round` (lib/shell/page_dock.dart `DockRing`): the page inside a ring of the strong
+     border, the app's drawn line (1.5px) wide. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="?attr/ghost_w_paper" />
+            <stroke android:width="1.5dp" android:color="?attr/ghost_w_line" />
+        </shape>
+    </item>
+</ripple>

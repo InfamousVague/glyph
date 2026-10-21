@@ -11,6 +11,8 @@
 ///   through its editor, saved like typing, so the note's own next save never meets it as somebody else's words; into
 ///   any other note through the library (lib/reminders/done_writer.dart).
 /// - **A note opened** is first among the icon's recent notes.
+/// - **The home screen's widgets** (docs/WIDGETS_ANDROID.md) are handed the to-dos, the notes, the recordings and the
+///   calendars' events by the same pass, which a change to the events asks for too.
 /// - **Places**, while the Place reminders plugin is on (lib/plugins/places): the same pass works out the open to-dos
 ///   with a `📍` and hands the phone the whole set for its geofences (lib/reminders/place_scheduler.dart), and the
 ///   plugin switched off clears them; as the app opens and comes back to the front, whether the location they need
@@ -22,6 +24,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 
+import '../calendar/event.dart' show CalendarEvent;
 import '../core/library.dart';
 import '../core/note.dart';
 import '../core/stored.dart';
@@ -52,11 +55,17 @@ class PhoneExtras {
     ReminderSettingsStore? settings,
     Stored? kept,
     this.openView,
+    this.events,
+    bool Function()? calendarOn,
+    String Function()? scheme,
+    this.lookChanged,
     DateTime Function()? clock,
     Duration settle = const Duration(milliseconds: 1500),
     Timer Function(Duration wait, void Function() then)? timer,
   })  : settings = settings ?? reminderSettings,
         placesOn = placesOn ?? _off,
+        calendarOn = calendarOn ?? _off,
+        scheme = scheme ?? _dark,
         _clock = clock ?? DateTime.now {
     _scheduler = ReminderScheduler(host: reminders, settings: this.settings, clock: _clock);
     final watched = places;
@@ -81,6 +90,17 @@ class PhoneExtras {
   final Listenable? placesSwitch;
 
   static bool _off() => false;
+
+  /// The calendars' events for the home screen's Calendar widget (lib/calendar `calendar.events`, empty while the
+  /// plugin is off), and whether the Calendar plugin is on; none and off where nothing says.
+  final ValueListenable<List<CalendarEvent>>? events;
+  final bool Function() calendarOn;
+
+  /// The side of the app's theme (`themeScheme`: dark, light or system), the widgets' look, and what tells when it
+  /// may have changed (the preferences); the app's own Dark where nothing says.
+  final String Function() scheme;
+  final Listenable? lookChanged;
+  static String _dark() => 'dark';
 
   /// The editor of the note [noteId] where it is open on screen; null where it is not.
   final EditorViewLike? Function(String noteId)? openView;
@@ -107,7 +127,7 @@ class PhoneExtras {
     final notes = library.value;
     await _scheduler.pass(notes, skip: _skip);
     await _places?.pass(notes, skip: _skip);
-    await _home.pass(notes, library.noteOf, skip: _skip);
+    await _home.pass(notes, library.noteOf, skip: _skip, calendarOn: calendarOn(), events: events?.value ?? const [], scheme: scheme());
   }
 
   void _changed() => _settle.poke();
@@ -137,6 +157,10 @@ class PhoneExtras {
     library.addListener(_changed);
     trash.addListener(_changed);
     settings.addListener(_placesChanged);
+    // The calendars read again, or the Calendar plugin switched (which empties or fills the events): the Calendar
+    // widget drawn again at the next pass.
+    events?.addListener(_changed);
+    lookChanged?.addListener(_changed);
     reminders.onTick = done;
     phoneReminders.value = reminders;
     if (places != null) {
@@ -204,6 +228,8 @@ class PhoneExtras {
     library.removeListener(_changed);
     trash.removeListener(_changed);
     settings.removeListener(_placesChanged);
+    events?.removeListener(_changed);
+    lookChanged?.removeListener(_changed);
     reminders.onTick = null;
     if (identical(phoneReminders.value, reminders)) phoneReminders.value = null;
     if (places != null) {

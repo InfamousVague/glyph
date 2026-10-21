@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Lucide's calendar-days (lib/art/lucide.g.dart) in ?attr/ghost_w_red_11 (the look's), the wash a third of it inside, the strokes 2 of 24. Made by tool/widget_look.dart from the stylesheets (GHOST_WRITE=1 flutter test test/home_screen/widget_look_test.dart); do not edit by hand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="@dimen/ghost_w_chip_icon"
+    android:height="@dimen/ghost_w_chip_icon"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z"
+        android:fillType="nonZero"
+        android:fillColor="?attr/ghost_w_red_11"
+        android:fillAlpha="0.33" />
+    <path
+        android:pathData="M 8 2 v 3"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 16 2 v 3"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 5 3 H 19 A 2 2 0 0 1 21 5 V 19 A 2 2 0 0 1 19 21 H 5 A 2 2 0 0 1 3 19 V 5 A 2 2 0 0 1 5 3 Z"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 3 9 h 18"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 8 13 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 12 13 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 16 13 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 8 17 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 12 17 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+    <path
+        android:pathData="M 16 17 h .01"
+        android:fillColor="#00000000"
+        android:strokeColor="?attr/ghost_w_red_11"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

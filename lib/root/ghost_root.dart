@@ -858,7 +858,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
   late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
-      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view)
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences)
       : null;
 
   /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).

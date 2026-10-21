@@ -10,10 +10,11 @@ import com.mattssoftware.ghost_md.MainActivity
  * The ways into the app from outside its window, each a `ghostmd://` link handed to the one activity, which keeps it
  * until the app asks (AppLinks.kt) and the app follows (lib/home_screen/phone_entries.dart):
  *
- * - `ghostmd://new`, a new note with the keyboard up: the icon's New note, Quick note's pen, the tile;
- * - `ghostmd://voice`, a new note being recorded: the microphone opens on that tap and not before;
+ * - `ghostmd://new`, a new note with the keyboard up: the icon's New note, a widget's pen or +, the tile;
+ * - `ghostmd://voice`, a new note being recorded: the Voice note widget's ring, the icon's Voice note; the microphone
+ *   opens on that tap and not before;
  * - `ghostmd://today`, `ghostmd://search`: the icon's Today's note and Search;
- * - `ghostmd://note/<id>?line=12&find=…`, a note at a line: a reminder, a Today or Pinned row, a recent note.
+ * - `ghostmd://note/<id>?line=12&find=…`, a note at a line: a reminder, a widget's row, a recent note.
  *
  * Every intent names the activity, so a phone with the Tauri app on it too (which takes the same scheme) is never
  * asked which app opens it.
