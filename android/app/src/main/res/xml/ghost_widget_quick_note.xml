@@ -1,15 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Quick note (home/QuickNoteWidget.kt): two cells by one, wider or taller as it is made. Never updated on a clock. -->
+<!-- Quick note, before the four (home/Widgets.kt): one already on a home screen is the Voice note now, kept at the
+     size it was placed at; hidden from the picker, which offers Voice note itself. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/ghost_widget_quick_note_about"
-    android:initialLayout="@layout/ghost_widget_quick_note"
+    android:description="@string/ghost_widget_voice_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
     android:minWidth="110dp"
     android:minHeight="40dp"
     android:minResizeWidth="96dp"
     android:minResizeHeight="40dp"
-    android:previewLayout="@layout/ghost_widget_quick_note"
-    android:resizeMode="horizontal|vertical"
     android:targetCellWidth="2"
     android:targetCellHeight="1"
+    android:previewLayout="@layout/ghost_w_preview_voice"
+    android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
+    android:widgetFeatures="hide_from_picker"
     android:widgetCategory="home_screen" />

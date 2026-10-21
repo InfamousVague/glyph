@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The To-dos widget's box from Android 12 (a CheckBox): the open ring, the disc once ticked. -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:drawable="@drawable/ghost_w_tick_on" android:state_checked="true" />
+    <item android:drawable="@drawable/ghost_w_tick_off" />
+</selector>

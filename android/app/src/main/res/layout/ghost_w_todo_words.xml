@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A to-do's words, and under them its due day's chip and the note it is in: a tap opens the note at that line. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_todo_text"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingStart="4dp"
+    android:paddingEnd="4dp">
+
+    <TextView
+        android:id="@+id/ghost_w_todo_words"
+        style="@style/GhostW.Words"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/ghost_w_todo_due"
+            style="@style/GhostW.Chip"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="@dimen/ghost_w_space_2"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/ghost_w_todo_note"
+            style="@style/GhostW.Meta"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1" />
+    </LinearLayout>
+</LinearLayout>

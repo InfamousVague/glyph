@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- the app's own (lib/art/icons.dart), white, to be tinted: the wash a third of the ink inside, the strokes 2.4 of 24. Made by tool/widget_look.dart from the stylesheets (GHOST_WRITE=1 flutter test test/home_screen/widget_look_test.dart); do not edit by hand. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:pathData="M 4 5 h 16 a 2 2 0 0 1 2 2 v 10 a 2 2 0 0 1 -2 2 H 4 a 2 2 0 0 1 -2 -2 V 7 a 2 2 0 0 1 2 -2 z M 10.4 12 a 3 3 0 1 1 -6 0 3 3 0 0 1 6 0 z M 19.6 12 a 3 3 0 1 1 -6 0 3 3 0 0 1 6 0 z"
+        android:fillType="evenOdd"
+        android:fillColor="#54FFFFFF" />
+    <path
+        android:pathData="M 4 5 h 16 a 2 2 0 0 1 2 2 v 10 a 2 2 0 0 1 -2 2 H 4 a 2 2 0 0 1 -2 -2 V 7 a 2 2 0 0 1 2 -2 z M 10.4 12 a 3 3 0 1 1 -6 0 3 3 0 0 1 6 0 z M 19.6 12 a 3 3 0 1 1 -6 0 3 3 0 0 1 6 0 z"
+        android:fillColor="#00000000"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2.4"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round" />
+</vector>

@@ -131,7 +131,8 @@ void main() {
         await Future<void>.delayed(const Duration(milliseconds: 10));
       });
       expect(phone.last, ['2026-10-03 09:00 Call the plumber']);
-      expect(home.puts[HomeKind.today], hasLength(1));
+      expect(home.puts[HomeKind.todos], hasLength(1));
+      expect(home.puts[HomeKind.calendar], hasLength(1), reason: 'the Calendar widget told the plugin is off');
       expect(phoneReminders.value, same(phone));
       // A note that arrives by a sync is a change to the library like any other.
       library.value = [...library.value, note('b', '- [ ] Pay the rent ⏰ 2026-10-02 18:00')];

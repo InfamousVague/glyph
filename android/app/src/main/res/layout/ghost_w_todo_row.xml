@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One to-do before Android 12, which has no box a widget can tick: the To-dos view's round tick drawn as a picture to
+  press, then the words. Android 12 and later draw layout-v31's, with a real box. 48dp.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="48dp"
+    android:gravity="center_vertical"
+    android:orientation="horizontal">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_tick"
+        android:layout_width="36dp"
+        android:layout_height="match_parent"
+        android:background="@drawable/ghost_w_press"
+        android:contentDescription="@string/ghost_widget_tick">
+
+        <ImageView
+            android:id="@+id/ghost_w_tick_ring"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_w_tick_off" />
+    </FrameLayout>
+
+    <include layout="@layout/ghost_w_todo_words" />
+</LinearLayout>

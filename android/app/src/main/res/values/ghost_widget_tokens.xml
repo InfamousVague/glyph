@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The home-screen widgets' colours, looks and lengths (docs/WIDGETS_ANDROID.md). Made by tool/widget_look.dart from the stylesheets (GHOST_WRITE=1 flutter test test/home_screen/widget_look_test.dart); do not edit by hand. -->
+<resources>
+    <!-- the page: var(glacier-bg) -->
+    <attr name="ghost_w_paper" format="color" />
+    <color name="ghost_w_light_paper">#FFFDFDFD</color>
+    <color name="ghost_w_dark_paper">#FF040404</color>
+    <!-- a pressed row: the card's hover wash, 6% of the ink: color-mix(in oklch, var(app-ink) 6%, transparent) -->
+    <attr name="ghost_w_press" format="color" />
+    <color name="ghost_w_light_press">#0F0D0D0D</color>
+    <color name="ghost_w_dark_press">#0FF3F3F3</color>
+    <!-- a card's hairline: var(glacier-border-subtle) -->
+    <attr name="ghost_w_rule" format="color" />
+    <color name="ghost_w_light_rule">#FFE6E6E6</color>
+    <color name="ghost_w_dark_rule">#FF171717</color>
+    <!-- a ring's edge (the dock's round buttons): var(glacier-border-strong) -->
+    <attr name="ghost_w_line" format="color" />
+    <color name="ghost_w_light_line">#FF9E9E9E</color>
+    <color name="ghost_w_dark_line">#FF525252</color>
+    <!-- text, solid controls: var(app-ink) -->
+    <attr name="ghost_w_ink" format="color" />
+    <color name="ghost_w_light_ink">#FF0D0D0D</color>
+    <color name="ghost_w_dark_ink">#FFF3F3F3</color>
+    <!-- secondary text: var(app-ink-2) -->
+    <attr name="ghost_w_ink_2" format="color" />
+    <color name="ghost_w_light_ink_2">#FF3D3D3D</color>
+    <color name="ghost_w_dark_ink_2">#FFBEBEBE</color>
+    <!-- tertiary text, marks: var(app-ink-3) -->
+    <attr name="ghost_w_ink_3" format="color" />
+    <color name="ghost_w_light_ink_3">#FF747474</color>
+    <color name="ghost_w_dark_ink_3">#FF808080</color>
+    <!-- faint marks: an event's ring: var(app-ink-4) -->
+    <attr name="ghost_w_ink_4" format="color" />
+    <color name="ghost_w_light_ink_4">#FFBEBEBE</color>
+    <color name="ghost_w_dark_ink_4">#FF383838</color>
+    <!-- what is drawn on the ink: the mic in the filled ring, a ticked box's check: var(app-paper) -->
+    <attr name="ghost_w_on_ink" format="color" />
+    <color name="ghost_w_light_on_ink">#FFFDFDFD</color>
+    <color name="ghost_w_dark_on_ink">#FF040404</color>
+    <!-- an overdue to-do's ring: var(glacier-red-9) -->
+    <attr name="ghost_w_red_9" format="color" />
+    <color name="ghost_w_light_red_9">#FFE44B49</color>
+    <color name="ghost_w_dark_red_9">#FFEF4747</color>
+    <!-- an overdue day, said: var(glacier-red-11) -->
+    <attr name="ghost_w_red_11" format="color" />
+    <color name="ghost_w_light_red_11">#FFAC2F2F</color>
+    <color name="ghost_w_dark_red_11">#FFFF9289</color>
+    <!-- a day that is today, on its chip: var(glacier-amber-11) -->
+    <attr name="ghost_w_amber_11" format="color" />
+    <color name="ghost_w_light_amber_11">#FF8C5500</color>
+    <color name="ghost_w_dark_amber_11">#FFEFB359</color>
+    <!-- a field chip's ground (field_chips.dart, `.cm-field`): color-mix(in srgb, var(app-ink-2) 9%, transparent) -->
+    <attr name="ghost_w_chip" format="color" />
+    <color name="ghost_w_light_chip">#173D3D3D</color>
+    <color name="ghost_w_dark_chip">#17BEBEBE</color>
+    <!-- an overdue day's chip: color-mix(in oklch, var(glacier-red-9) 16%, transparent) -->
+    <attr name="ghost_w_chip_overdue" format="color" />
+    <color name="ghost_w_light_chip_overdue">#29E44B49</color>
+    <color name="ghost_w_dark_chip_overdue">#29EF4747</color>
+    <!-- today's chip: color-mix(in oklch, var(glacier-amber-9) 18%, transparent) -->
+    <attr name="ghost_w_chip_today" format="color" />
+    <color name="ghost_w_light_chip_today">#2EBC7800</color>
+    <color name="ghost_w_dark_chip_today">#2EC47A00</color>
+    <!-- The looks: the app's Light and Dark, and System, which is Light here and Dark in values-night. A widget
+         is drawn in the one the app's theme says (home/WidgetViews.kt). -->
+    <style name="GhostW.Theme" />
+    <style name="GhostW.Theme.Light">
+        <item name="ghost_w_paper">@color/ghost_w_light_paper</item>
+        <item name="ghost_w_press">@color/ghost_w_light_press</item>
+        <item name="ghost_w_rule">@color/ghost_w_light_rule</item>
+        <item name="ghost_w_line">@color/ghost_w_light_line</item>
+        <item name="ghost_w_ink">@color/ghost_w_light_ink</item>
+        <item name="ghost_w_ink_2">@color/ghost_w_light_ink_2</item>
+        <item name="ghost_w_ink_3">@color/ghost_w_light_ink_3</item>
+        <item name="ghost_w_ink_4">@color/ghost_w_light_ink_4</item>
+        <item name="ghost_w_on_ink">@color/ghost_w_light_on_ink</item>
+        <item name="ghost_w_red_9">@color/ghost_w_light_red_9</item>
+        <item name="ghost_w_red_11">@color/ghost_w_light_red_11</item>
+        <item name="ghost_w_amber_11">@color/ghost_w_light_amber_11</item>
+        <item name="ghost_w_chip">@color/ghost_w_light_chip</item>
+        <item name="ghost_w_chip_overdue">@color/ghost_w_light_chip_overdue</item>
+        <item name="ghost_w_chip_today">@color/ghost_w_light_chip_today</item>
+    </style>
+    <style name="GhostW.Theme.Dark">
+        <item name="ghost_w_paper">@color/ghost_w_dark_paper</item>
+        <item name="ghost_w_press">@color/ghost_w_dark_press</item>
+        <item name="ghost_w_rule">@color/ghost_w_dark_rule</item>
+        <item name="ghost_w_line">@color/ghost_w_dark_line</item>
+        <item name="ghost_w_ink">@color/ghost_w_dark_ink</item>
+        <item name="ghost_w_ink_2">@color/ghost_w_dark_ink_2</item>
+        <item name="ghost_w_ink_3">@color/ghost_w_dark_ink_3</item>
+        <item name="ghost_w_ink_4">@color/ghost_w_dark_ink_4</item>
+        <item name="ghost_w_on_ink">@color/ghost_w_dark_on_ink</item>
+        <item name="ghost_w_red_9">@color/ghost_w_dark_red_9</item>
+        <item name="ghost_w_red_11">@color/ghost_w_dark_red_11</item>
+        <item name="ghost_w_amber_11">@color/ghost_w_dark_amber_11</item>
+        <item name="ghost_w_chip">@color/ghost_w_dark_chip</item>
+        <item name="ghost_w_chip_overdue">@color/ghost_w_dark_chip_overdue</item>
+        <item name="ghost_w_chip_today">@color/ghost_w_dark_chip_today</item>
+    </style>
+    <style name="GhostW.Theme.System">
+        <item name="ghost_w_paper">@color/ghost_w_light_paper</item>
+        <item name="ghost_w_press">@color/ghost_w_light_press</item>
+        <item name="ghost_w_rule">@color/ghost_w_light_rule</item>
+        <item name="ghost_w_line">@color/ghost_w_light_line</item>
+        <item name="ghost_w_ink">@color/ghost_w_light_ink</item>
+        <item name="ghost_w_ink_2">@color/ghost_w_light_ink_2</item>
+        <item name="ghost_w_ink_3">@color/ghost_w_light_ink_3</item>
+        <item name="ghost_w_ink_4">@color/ghost_w_light_ink_4</item>
+        <item name="ghost_w_on_ink">@color/ghost_w_light_on_ink</item>
+        <item name="ghost_w_red_9">@color/ghost_w_light_red_9</item>
+        <item name="ghost_w_red_11">@color/ghost_w_light_red_11</item>
+        <item name="ghost_w_amber_11">@color/ghost_w_light_amber_11</item>
+        <item name="ghost_w_chip">@color/ghost_w_light_chip</item>
+        <item name="ghost_w_chip_overdue">@color/ghost_w_light_chip_overdue</item>
+        <item name="ghost_w_chip_today">@color/ghost_w_light_chip_today</item>
+    </style>
+    <!-- Lengths, the same in both looks: a CSS pixel as a dp, a type size as an sp. -->
+    <dimen name="ghost_w_space_1">4.5dp</dimen>
+    <dimen name="ghost_w_space_2">9dp</dimen>
+    <dimen name="ghost_w_space_3">13.5dp</dimen>
+    <dimen name="ghost_w_space_4">17.9dp</dimen>
+    <dimen name="ghost_w_space_5">22.4dp</dimen>
+    <dimen name="ghost_w_space_6">26.9dp</dimen>
+    <dimen name="ghost_w_space_8">35.9dp</dimen>
+    <dimen name="ghost_w_space_10">44.8dp</dimen>
+    <dimen name="ghost_w_space_12">53.8dp</dimen>
+    <dimen name="ghost_w_radius_sm">6dp</dimen>
+    <dimen name="ghost_w_radius_md">10dp</dimen>
+    <dimen name="ghost_w_radius_lg">16dp</dimen>
+    <dimen name="ghost_w_ring">39.5dp</dimen>
+    <dimen name="ghost_w_text_xs">11.1sp</dimen>
+    <dimen name="ghost_w_text_sm">13.4sp</dimen>
+    <dimen name="ghost_w_text_md">16.2sp</dimen>
+    <dimen name="ghost_w_text_lg">19.4sp</dimen>
+    <dimen name="ghost_w_text_xl">23.4sp</dimen>
+    <!-- A due day's chip, `.cm-field`: 0.92 of the sm line it sits in, 0.35em at its sides and corners. -->
+    <dimen name="ghost_w_text_chip">12.3sp</dimen>
+    <dimen name="ghost_w_chip_pad">4.3dp</dimen>
+    <dimen name="ghost_w_chip_radius">4.3dp</dimen>
+    <dimen name="ghost_w_chip_icon">11.7dp</dimen>
+    <dimen name="ghost_w_chip_gap">3.1dp</dimen>
+</resources>

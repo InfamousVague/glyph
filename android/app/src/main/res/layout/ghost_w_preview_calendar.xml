@@ -1,0 +1,230 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows of Calendar: a made-up day, in the widget's own look, in the app's own Dark (its theme unless chosen otherwise). -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:theme="@style/GhostW.Theme.Dark"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_w_back"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ghost_w_ic_calendar"
+            android:tint="?attr/ghost_w_ink_3" />
+
+        <TextView
+            style="@style/GhostW.Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:text="Calendar" />
+
+        <TextView
+            style="@style/GhostW.Count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:layout_weight="1"
+            android:text="Mon, Oct 20" />
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/ghost_w_ring">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ghost_w_ic_plus"
+                android:tint="?attr/ghost_w_ink" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="22dp"
+        android:gravity="bottom"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingBottom="3dp">
+
+        <TextView
+            style="@style/GhostW.Eyebrow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Today" />
+
+        <TextView
+            style="@style/GhostW.When"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:text="3" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <LinearLayout
+            android:layout_width="62dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="9:30" />
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="10:00" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="6.4dp"
+            android:layout_height="6.4dp"
+            android:src="@drawable/ghost_w_event_ring" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_3"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Words"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Standup" />
+
+            <TextView
+                style="@style/GhostW.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="Work" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <LinearLayout
+            android:layout_width="62dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="12:30" />
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="13:30" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="6.4dp"
+            android:layout_height="6.4dp"
+            android:src="@drawable/ghost_w_event_ring" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_3"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Words"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Lunch with Sam" />
+
+            <TextView
+                style="@style/GhostW.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="Home · Café Lisboa" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="2dp"
+        android:paddingEnd="2dp">
+
+        <LinearLayout
+            android:layout_width="62dp"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Time"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="To-do" />
+        </LinearLayout>
+
+        <ImageView
+            android:layout_width="6.4dp"
+            android:layout_height="6.4dp"
+            android:src="@drawable/ghost_w_pip" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_3"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                style="@style/GhostW.Words"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="Call the plumber" />
+
+            <TextView
+                style="@style/GhostW.Meta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="1dp"
+                android:text="Errands" />
+        </LinearLayout>
+    </LinearLayout>
+
+</LinearLayout>
