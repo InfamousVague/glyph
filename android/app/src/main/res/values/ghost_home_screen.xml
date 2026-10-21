@@ -24,4 +24,26 @@
     <string name="ghost_widget_notes">Recent notes</string>
     <string name="ghost_widget_notes_about">The notes you wrote in last, a tap away.</string>
     <string name="ghost_widget_tick">Done</string>
+    <!-- The eight more (docs/WIDGETS_ANDROID.md, "Twelve"). Ask AI is named for what it is in the picker; inside, the
+         widget says what the app says, Claude. -->
+    <string name="ghost_widget_quick">Quick capture</string>
+    <string name="ghost_widget_quick_about">A new note, a voice note, a checklist or a scan, in one tap.</string>
+    <string name="ghost_widget_pinned">Pinned notes</string>
+    <string name="ghost_widget_pinned_about">The notes you pinned to the top, a tap away.</string>
+    <string name="ghost_widget_today">Today</string>
+    <string name="ghost_widget_today_about">Today\'s note: its first lines, its to-dos ticked here, and a pen to write in it.</string>
+    <string name="ghost_widget_search">Search</string>
+    <string name="ghost_widget_search_about">Search your notes, with the ones you wrote in last under the field.</string>
+    <string name="ghost_widget_search_words">Search notes</string>
+    <string name="ghost_widget_note">A note</string>
+    <string name="ghost_widget_note_about">One note you choose: its name and first lines. Tick its to-dos here.</string>
+    <string name="ghost_widget_folder">A folder</string>
+    <string name="ghost_widget_folder_about">One workspace or folder you choose: its notes, and a + that files a new one there.</string>
+    <string name="ghost_widget_ask">Ask AI</string>
+    <string name="ghost_widget_ask_about">Ask the app\'s AI assistant about your notes, aloud or in the chat.</string>
+    <string name="ghost_widget_next">Next up</string>
+    <string name="ghost_widget_next_about">The one next thing: today\'s next event, or the most pressing to-do.</string>
+    <string name="ghost_widget_pick_note">Choose a note</string>
+    <string name="ghost_widget_pick_folder">Choose a folder</string>
+    <string name="ghost_widget_pick_filter">Find a note</string>
 </resources>

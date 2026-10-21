@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  An event, or a to-do due that day, in a Calendar two cells across (2×N): its mark (a ring, a dot), its words, and
+  under them when (the time it runs, All day, Overdue, To-do), the time's column of the wider row given to the words.
+  The ids are ghost_w_event_row.xml's, so the one drawing fills either; 46dp.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_event_row"
+    android:layout_width="match_parent"
+    android:layout_height="46dp"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <ImageView
+        android:id="@+id/ghost_w_event_mark"
+        android:layout_width="6.4dp"
+        android:layout_height="6.4dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ghost_w_event_ring" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_2"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/ghost_w_event_title"
+            style="@style/GhostW.Words"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/ghost_w_event_time"
+            style="@style/GhostW.Meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp" />
+
+        <TextView
+            android:id="@+id/ghost_w_event_until"
+            style="@style/GhostW.When"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/ghost_w_event_sub"
+            style="@style/GhostW.Meta"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

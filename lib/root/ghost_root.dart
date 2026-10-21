@@ -858,7 +858,7 @@ class _GhostRootState extends State<GhostRoot> {
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
   late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
-      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences)
+      ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences, workspaces: _workspaces, claudeOn: () => _claudeOn, claudeKey: () => claudeSettings.hasKey, claudeChanged: Listenable.merge([_pluginsHeard, claudeSettings]))
       : null;
 
   /// The links the home screen, the icon and the tile open the app with (lib/home_screen/phone_entries.dart).
@@ -1959,6 +1959,46 @@ class _PhoneDoor implements PhoneEntryDoor {
         root._new();
         raiseKeyboardSoon();
       });
+
+  /// A new note filed in [workspaceId], as the folder browser's New note files one in the level it shows (an
+  /// organization's folder's note is the team's by that filing); a plain new note where the workspace is gone.
+  @override
+  void newNoteIn(String workspaceId) => _withShell((_) {
+        root._new(root._workspaces.value.list.any((w) => w.id == workspaceId) ? workspaceId : null);
+        raiseKeyboardSoon();
+      });
+
+  /// A new note from the built-in "A checklist", as its card on a new note's blank page makes one: the caret in its
+  /// name, a to-do under it, and taken back if it is left without a word of the person's own.
+  @override
+  void checklist() => _withShell((_) {
+        root._new(null, builtIns.firstWhere((template) => template.kind == TemplateId.checklist));
+        raiseKeyboardSoon();
+      });
+
+  /// Talk to Claude, as the dock's orange microphone opens it: where Claude is shown (on, and a key on this device)
+  /// and something can hear; the chat where Claude is shown and nothing can hear (or the recorder holds the
+  /// microphone); Claude's settings where it is not shown, where both are put right. Voice and the key are read a
+  /// moment after the app opens, so a tap that started it waits for them, three seconds at most.
+  @override
+  void talk() => unawaited(() async {
+        await root._voiceKnown.future.timeout(const Duration(seconds: 3), onTimeout: () {});
+        await claudeSettings.load().catchError((Object _) {});
+        if (!root.mounted) return;
+        _withShell((_) {
+          if (root._startTalk()) return;
+          if (root._claudeShown) return root._openAskClaude();
+          root._openSettingsAt('plugin:claude');
+        });
+      }());
+
+  /// The chat with Claude, as the dock's orange ring opens it; Claude's settings where Claude is not shown.
+  @override
+  void chat() => unawaited(() async {
+        await claudeSettings.load().catchError((Object _) {});
+        if (!root.mounted) return;
+        _withShell((_) => root._claudeShown ? root._openAskClaude() : root._openSettingsAt('plugin:claude'));
+      }());
 
   /// A new note being recorded into, as the dock's microphone does: the microphone opens on this tap and not before.
   /// Voice is made a moment after the notes are read, so a tap that started the app waits for it, three seconds at

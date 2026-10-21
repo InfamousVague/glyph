@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One of a note's lines on A note or Today (home/MoreWidgetViews.kt): its words as the note says them, two lines at
+  most; a list item's bullet before them and its depth as the space before that. A tap opens the note at the line.
+-->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_line"
+    style="@style/GhostW.Words"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/ghost_w_press"
+    android:maxLines="2"
+    android:minHeight="26dp"
+    android:gravity="center_vertical"
+    android:paddingStart="2dp"
+    android:paddingTop="2dp"
+    android:paddingEnd="2dp"
+    android:paddingBottom="2dp" />

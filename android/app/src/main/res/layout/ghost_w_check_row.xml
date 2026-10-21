@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A to-do among a note's lines on A note or Today, before Android 12: the To-dos view's round tick as a picture to
+  press (which ticks it without opening the app, as the To-dos widget's does), then its words; ticked, the disc and
+  the words in the third ink, with nothing to press. Android 12 and later draw layout-v31's, with a real box.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_line_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="32dp"
+    android:orientation="horizontal">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_tick"
+        android:layout_width="30dp"
+        android:layout_height="32dp"
+        android:background="@drawable/ghost_w_press"
+        android:contentDescription="@string/ghost_widget_tick">
+
+        <ImageView
+            android:id="@+id/ghost_w_tick_ring"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_w_tick_off" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/ghost_w_line"
+        style="@style/GhostW.Words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="@drawable/ghost_w_press"
+        android:maxLines="2"
+        android:paddingStart="4dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="2dp"
+        android:paddingBottom="4dp" />
+</LinearLayout>

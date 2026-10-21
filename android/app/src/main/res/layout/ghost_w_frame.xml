@@ -71,7 +71,8 @@
         </FrameLayout>
     </LinearLayout>
 
-    <!-- The rows, in what the heading leaves (Voice note's microphone in the middle of it); gone for the words for none. -->
+    <!-- The rows, in what the heading leaves, each column the whole of its height (so a grid of buttons or a microphone
+         fills it, set by its gravity); gone for the words for none. -->
     <LinearLayout
         android:id="@+id/ghost_w_body"
         android:layout_width="match_parent"
@@ -82,14 +83,14 @@
         <LinearLayout
             android:id="@+id/ghost_w_col_a"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_weight="1"
             android:orientation="vertical" />
 
         <LinearLayout
             android:id="@+id/ghost_w_col_b"
             android:layout_width="0dp"
-            android:layout_height="wrap_content"
+            android:layout_height="match_parent"
             android:layout_marginStart="@dimen/ghost_w_space_4"
             android:layout_weight="1"
             android:orientation="vertical"

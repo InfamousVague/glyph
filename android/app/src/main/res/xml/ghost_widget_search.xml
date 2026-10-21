@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Search (home/Widgets.kt, docs/WIDGETS_ANDROID.md): placed four cells by one, the field; a cell, the magnifier; taller,
+     the notes written in last under the field.
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_search_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:previewLayout="@layout/ghost_w_preview_search"
+    android:previewImage="@drawable/ghost_w_preview_search"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

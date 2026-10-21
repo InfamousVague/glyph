@@ -17,13 +17,14 @@
 // - res/values-night/ghost_widget_tokens.xml: GhostW.Theme.System where the phone is dark.
 // - res/drawable/ghost_w_ic_*.xml: each icon in white with its wash a third of white inside, so an ImageView's tint
 //   (SRC_IN) paints both in one ink, as AppIcon paints them in the one colour it is given; the few nothing can tint, in
-//   their attribute's colour.
+//   their attribute's colour; and Claude's mark, filled (lib/claude/claude_mark.dart), for Ask AI.
 import 'package:flutter/painting.dart' show Color;
 import 'package:ghost_md/app/token_sheet.g.dart';
 import 'package:ghost_md/art/app_icon.dart' show LucideIcon;
 import 'package:ghost_md/art/icon_wash.dart' show iconWash;
 import 'package:ghost_md/art/icons.dart' show AppIcons, DrawnIcon;
 import 'package:ghost_md/art/lucide.g.dart' show Lucide;
+import 'package:ghost_md/claude/claude_mark.dart' show claudeIvory, claudeMarkPath, claudeOrange;
 import 'package:glacier/glacier.dart';
 
 const String res = 'android/app/src/main/res';
@@ -51,6 +52,13 @@ const List<(String, String, String)> colours = [
   ('ghost_w_chip', 'color-mix(in srgb, var(--app-ink-2) 9%, transparent)', "a field chip's ground (field_chips.dart, `.cm-field`)"),
   ('ghost_w_chip_overdue', 'color-mix(in oklch, var(--glacier-red-9) 16%, transparent)', "an overdue day's chip"),
   ('ghost_w_chip_today', 'color-mix(in oklch, var(--glacier-amber-9) 18%, transparent)', "today's chip"),
+];
+
+/// The colours that are Claude's own, the same in both looks (lib/claude/claude_mark.dart): the dock's orange ring
+/// and its mic, and the ivory its mark is drawn in on the orange.
+final List<(String, Color, String)> brandColours = [
+  ('ghost_w_claude', claudeOrange, "Claude's orange: Talk to Claude's ring and mic, the chat's disc (claudeOrange)"),
+  ('ghost_w_claude_ivory', claudeIvory, "Claude's mark on its orange disc (claudeIvory)"),
 ];
 
 /// Each length: its resource name, the token, and how it is written (dp or sp).
@@ -96,6 +104,14 @@ final List<(String, Object, double)> _tinted = [
   ('ghost_w_ic_book', Lucide.bookOpen, 2),
   ('ghost_w_ic_canvas', Lucide.workflow, 2),
   ('ghost_w_ic_tape', AppIcons.cassette, 2.4),
+  // The eight more: the dock's magnifier and the pin, the folder, the clock (AppIcons), and the kit's checklist and
+  // scan (the note settings' Make a list and Summarize marks).
+  ('ghost_w_ic_search', AppIcons.magnifier, 2),
+  ('ghost_w_ic_pin', AppIcons.pin, 2),
+  ('ghost_w_ic_folder', AppIcons.workspace, 2),
+  ('ghost_w_ic_clock', AppIcons.clock, 2),
+  ('ghost_w_ic_checklist', Lucide.listChecks, 2),
+  ('ghost_w_ic_scan', Lucide.scanText, 2),
 ];
 
 String _hex(Color c) => '#${c.toARGB32().toRadixString(16).padLeft(8, '0').toUpperCase()}';
@@ -124,6 +140,11 @@ String _tokens(Tokens light, Tokens dark) {
       ..writeln('    <attr name="$name" format="color" />')
       ..writeln('    <color name="${colourIn('light', name)}">${_hex(light.colorOf(css))}</color>')
       ..writeln('    <color name="${colourIn('dark', name)}">${_hex(dark.colorOf(css))}</color>');
+  }
+  for (final (name, colour, about) in brandColours) {
+    out
+      ..writeln('    <!-- $about -->')
+      ..writeln('    <color name="$name">${_hex(colour)}</color>');
   }
   out
     ..writeln('    <!-- The looks: the app\'s Light and Dark, and System, which is Light here and Dark in values-night. A widget')
@@ -251,6 +272,20 @@ String _vector(String name, Object icon, double stroke, String? colour) {
   return (out..writeln('</vector>')).toString();
 }
 
+/// Claude's mark as a drawable: its one path filled in white, to be tinted (ivory on the chat's orange disc).
+String _filled(String d, String about) => (StringBuffer(_header)
+      ..writeln('<!-- $about, filled in white, to be tinted. $_made -->')
+      ..writeln('<vector xmlns:android="http://schemas.android.com/apk/res/android"')
+      ..writeln('    android:width="24dp"')
+      ..writeln('    android:height="24dp"')
+      ..writeln('    android:viewportWidth="24"')
+      ..writeln('    android:viewportHeight="24">')
+      ..writeln('    <path')
+      ..writeln('        android:pathData="${androidPath(d)}"')
+      ..writeln('        android:fillColor="#FFFFFFFF" />')
+      ..writeln('</vector>'))
+    .toString();
+
 /// Every file, by its path from the repo's root, and what it is to say.
 Map<String, String> generate() {
   final light = tokensFor('light'), dark = tokensFor('dark');
@@ -258,5 +293,6 @@ Map<String, String> generate() {
     '$res/values/ghost_widget_tokens.xml': _tokens(light, dark),
     '$res/values-night/ghost_widget_tokens.xml': _night(),
     for (final (name, icon, stroke, colour) in icons) '$res/drawable/$name.xml': _vector(name, icon, stroke, colour),
+    '$res/drawable/ghost_w_ic_claude.xml': _filled(claudeMarkPath, "Claude's mark (lib/claude/claude_mark.dart, the landing's Claude card)"),
   };
 }

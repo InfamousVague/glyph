@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/calendar/event.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/stored.dart';
+import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home_screen/home_data.dart';
 import 'package:ghost_md/home_screen/home_host.dart';
 import 'package:ghost_md/home_screen/home_screen_data.dart';
@@ -69,7 +70,20 @@ void main() {
     Note? noteOf(String id) => notes.where((n) => n.id == id).firstOrNull;
     await data.pass(notes, noteOf);
     await data.pass(notes, noteOf);
-    expect(home.puts.map((kind, puts) => MapEntry(kind, puts.length)), {HomeKind.look: 1, HomeKind.todos: 1, HomeKind.notes: 1, HomeKind.voice: 1, HomeKind.calendar: 1, HomeKind.recent: 1});
+    expect(home.puts.map((kind, puts) => MapEntry(kind, puts.length)), {
+      HomeKind.look: 1,
+      HomeKind.todos: 1,
+      HomeKind.notes: 1,
+      HomeKind.voice: 1,
+      HomeKind.calendar: 1,
+      HomeKind.recent: 1,
+      HomeKind.pins: 1,
+      HomeKind.daily: 1,
+      HomeKind.pages: 1,
+      HomeKind.picks: 1,
+      HomeKind.folders: 1,
+      HomeKind.assistant: 1,
+    });
     await data.opened('b', noteOf);
     await data.opened('a', noteOf);
     await data.opened('a', noteOf);
@@ -166,6 +180,128 @@ void main() {
       expect(jsonDecode(lookJson('dark')), {'theme': 'dark'});
       expect(jsonDecode(lookJson('light')), {'theme': 'light'});
       expect(jsonDecode(lookJson('system')), {'theme': 'system'});
+    });
+  });
+
+  group('the eight more', () {
+    test('Pinned notes: the pinned ones in Recent notes\' rows, the one written in last first; blank ones and the Trash out', () {
+      final notes = [
+        note('a', '# Old pin\nWords', starred: true, updatedAt: 1),
+        note('b', '# New pin\nMore', starred: true, updatedAt: 9),
+        note('c', '# Not pinned', updatedAt: 20),
+        note('d', '', starred: true, updatedAt: 5),
+        note('e', '# Trashed pin', starred: true, updatedAt: 30),
+      ];
+      expect([for (final n in homePins(notes, skip: (n) => n.id == 'e')) '${n.id} ${n.title} ${n.pinned}'], ['b New pin true', 'a Old pin true']);
+    });
+
+    test('A note offers the pinned first, then the notes written in last', () {
+      final notes = [note('a', '# A', updatedAt: 3), note('b', '# B', updatedAt: 9), note('p', '# Pinned', updatedAt: 1, starred: true)];
+      expect([for (final n in homePicks(notes)) n.id], ['p', 'b', 'a']);
+      expect(homePicks(notes, most: 2), hasLength(2));
+    });
+
+    test('A note: its lines after its name, each said plainly, to-dos open and ticked with what ticks them, the rest left out', () {
+      final body = [
+        '---',
+        'tags: [home]',
+        '---',
+        '# Groceries',
+        '',
+        'For **Saturday**, see [[Meal plan|the plan]].',
+        '## Fruit',
+        '- [ ] Apples 📅 2026-10-03 ^a1',
+        '  - [x] Pears',
+        '- Bread',
+        '> Remember the bags',
+        '```board',
+        '- [ ] Not a line of the page',
+        '```',
+        '![](image/basket.png)',
+        '| a | b |',
+        '---',
+        '1. [Shop](https://example.com) early',
+      ].join('\n');
+      expect(pageLines(note('g', body)), const [
+        PageLine(line: 6, kind: PageLineKind.text, words: 'For Saturday, see the plan.'),
+        PageLine(line: 7, kind: PageLineKind.heading, words: 'Fruit'),
+        PageLine(line: 8, kind: PageLineKind.todo, words: 'Apples', match: 'Apples'),
+        PageLine(line: 9, kind: PageLineKind.done, words: 'Pears', match: 'Pears', depth: 1),
+        PageLine(line: 10, kind: PageLineKind.bullet, words: 'Bread'),
+        PageLine(line: 11, kind: PageLineKind.quote, words: 'Remember the bags'),
+        PageLine(line: 18, kind: PageLineKind.bullet, words: 'Shop early'),
+      ]);
+      expect(pageLines(note('g', body), most: 2), hasLength(2));
+      expect(pageLines(note('t', '# Title only')), isEmpty);
+    });
+
+    test('A note: the chosen notes drawn, and those deleted or in the Trash said as gone', () {
+      final notes = {'a': note('a', '# Errands\n- [ ] Milk', updatedAt: 7), 't': note('t', '# Trashed')};
+      final chosen = homePages(['a', 'gone', 't', 'a'], (id) => notes[id], skip: (n) => n.id == 't');
+      expect(chosen.gone, ['gone', 't']);
+      final json = jsonDecode(pagesJson(chosen)) as Map;
+      expect(json['gone'], ['gone', 't']);
+      expect(json['pages'], [
+        {
+          'id': 'a',
+          'title': 'Errands',
+          'line': 'Milk',
+          'updated': 7,
+          'kind': 'note',
+          'lines': [
+            {'line': 2, 'kind': 'todo', 'words': 'Milk', 'match': 'Milk'},
+          ],
+        },
+      ]);
+    });
+
+    test("Today: the day, and that day's note where there is one", () {
+      expect(jsonDecode(dailyJson([note('x', '# Something else')], now: now)), {'day': '2026-10-02'});
+      final json = jsonDecode(dailyJson([note('d', '# 2026-10-02\n\n- [ ] Call Mum', updatedAt: 4)], now: now)) as Map;
+      expect(json['day'], '2026-10-02');
+      expect((json['note'] as Map)['id'], 'd');
+      expect((json['note'] as Map)['lines'], [
+        {'line': 3, 'kind': 'todo', 'words': 'Call Mum', 'match': 'Call Mum'},
+      ]);
+      expect(jsonDecode(dailyJson([note('d', '# 2026-10-02')], now: now, skip: (n) => true)), {'day': '2026-10-02'}, reason: 'one in the Trash is none');
+    });
+
+    test("A folder: every workspace and folder by its path, an organization's labelled under it, each with the notes in it and the folders under it", () {
+      const spaces = Workspaces(
+        list: [
+          Workspace(id: 'w-work', name: 'Work', hue: 'sea'),
+          Workspace(id: 'w-clients', name: 'Clients', parent: 'w-work'),
+          Workspace(id: 'org-acme', name: 'Acme'),
+          Workspace(id: 'w-design', name: 'Design', parent: 'org-acme'),
+        ],
+        of: {'a': 'w-work', 'b': 'w-clients', 'c': 'w-design', 'd': 'w-clients'},
+      );
+      final notes = [note('a', '# Plan', updatedAt: 1), note('b', '# Acme brief', updatedAt: 5), note('c', '# Logo', updatedAt: 3), note('d', '# Trashed', updatedAt: 9), note('e', '# Loose', updatedAt: 2)];
+      final folders = homeFolders(notes, spaces, skip: (n) => n.id == 'd');
+      expect([for (final f in folders) '${f.path} (${f.org ? 'org' : 'own'}) ${f.count}: ${f.notes.map((n) => n.id).join(',')}'], [
+        'Acme (org) 1: c',
+        'Acme › Design (org) 1: c',
+        'Work (own) 2: b,a',
+        'Work › Clients (own) 1: b',
+      ]);
+      final json = jsonDecode(foldersJson(folders)) as Map;
+      expect(((json['folders'] as List)[2] as Map)..remove('notes'), {'id': 'w-work', 'name': 'Work', 'path': 'Work', 'hue': 'sea', 'count': 2});
+      expect(homeFolders(notes, spaces, each: 1)[2].notes, hasLength(1));
+    });
+
+    test('Ask AI: whether Claude is on and a key is entered', () {
+      expect(jsonDecode(assistantJson(on: true, key: false)), {'on': true, 'key': false});
+    });
+
+    test('the pass asks the phone which notes its A note widgets show, and hands over their lines', () async {
+      final home = FakeHome()..shown = ['a', 'old'];
+      final data = HomeScreenData(host: home, kept: MemoryStored(), clock: () => now);
+      final notes = [note('a', '# Errands\n- [ ] Milk')];
+      await data.pass(notes, (id) => notes.where((n) => n.id == id).firstOrNull, claudeOn: true, claudeKey: true);
+      final pages = jsonDecode(home.puts[HomeKind.pages]!.single) as Map;
+      expect([for (final page in pages['pages'] as List) (page as Map)['id']], ['a']);
+      expect(pages['gone'], ['old']);
+      expect(jsonDecode(home.puts[HomeKind.assistant]!.single), {'on': true, 'key': true});
     });
   });
 }

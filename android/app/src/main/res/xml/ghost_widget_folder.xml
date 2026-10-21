@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A folder (home/Widgets.kt, docs/WIDGETS_ANDROID.md): one workspace or folder, chosen as it is placed (home/WidgetPick.kt).
+     Placed four cells by two; a cell, its + (a new note filed there); otherwise Recent notes' sizes, its notes in them.
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_folder_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:previewLayout="@layout/ghost_w_preview_folder"
+    android:previewImage="@drawable/ghost_w_preview_folder"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:configure="com.mattssoftware.ghost_md.home.WidgetPick"
+    android:widgetFeatures="reconfigurable"
+    android:widgetCategory="home_screen" />

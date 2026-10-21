@@ -47,9 +47,21 @@ class FakeReminders implements ReminderHost {
 class FakeHome implements HomeScreenHost {
   final Map<HomeKind, List<String>> puts = {};
 
+  /// The notes the phone's A note widgets show, as the phone answers `chosen`.
+  List<String> shown = [];
+
+  /// What the phone calls when a widget is set to another note.
+  void Function()? heard;
+
   @override
   Future<bool> put(HomeKind kind, String json) async {
     puts.putIfAbsent(kind, () => []).add(json);
     return true;
   }
+
+  @override
+  Future<List<String>> chosen() async => shown;
+
+  @override
+  void listen(void Function() then) => heard = then;
 }

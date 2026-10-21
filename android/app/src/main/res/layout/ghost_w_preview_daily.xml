@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows of Today (Android 12+ draws a preview from a layout; older ones the picture of it):
+     made-up lines of today's note, in the widget's own look, in the app's own Dark. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:theme="@style/GhostW.Theme.Dark"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_w_back"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="10dp"
+    android:paddingBottom="6dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:layout_width="16dp"
+            android:layout_height="16dp"
+            android:src="@drawable/ghost_w_ic_calendar"
+            android:tint="?attr/ghost_w_ink_3" />
+
+        <TextView
+            style="@style/GhostW.Heading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:text="Today" />
+
+        <TextView
+            style="@style/GhostW.Count"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:layout_weight="1"
+            android:text="Tue, Oct 21" />
+
+        <FrameLayout
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="@drawable/ghost_w_ring">
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ghost_w_ic_pen"
+                android:tint="?attr/ghost_w_ink" />
+        </FrameLayout>
+    </LinearLayout>
+
+    <TextView
+        style="@style/GhostW.Words"
+        android:layout_width="match_parent"
+        android:layout_height="26dp"
+        android:gravity="center_vertical"
+        android:paddingStart="2dp"
+        android:text="Slept well, long walk before work." />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="30dp"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ghost_w_tick_off" />
+        </FrameLayout>
+
+        <TextView
+            style="@style/GhostW.Words"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:text="Call the plumber" />
+    </LinearLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="34dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <FrameLayout
+            android:layout_width="30dp"
+            android:layout_height="match_parent">
+
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_gravity="center"
+                android:src="@drawable/ghost_w_tick_on" />
+        </FrameLayout>
+
+        <TextView
+            style="@style/GhostW.Words"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:paddingStart="4dp"
+            android:textColor="?attr/ghost_w_ink_3"
+            android:text="Book the train" />
+    </LinearLayout>
+</LinearLayout>

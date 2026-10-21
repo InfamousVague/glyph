@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Claude's own ring on the dock (lib/claude/claude_dock.dart `ClaudeDockButton`): a disc of Claude's orange, its mark
+     in ivory on it; the chat. Pressed with the card's wash. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="@color/ghost_w_claude" />
+        </shape>
+    </item>
+</ripple>

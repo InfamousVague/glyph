@@ -25,6 +25,18 @@ class Door implements PhoneEntryDoor {
 
   @override
   void openNoteAt(String noteId, int line, String find) => did.add('note $noteId $line "$find"');
+
+  @override
+  void newNoteIn(String workspaceId) => did.add('new in $workspaceId');
+
+  @override
+  void checklist() => did.add('checklist');
+
+  @override
+  void talk() => did.add('talk');
+
+  @override
+  void chat() => did.add('chat');
 }
 
 void main() {
@@ -37,6 +49,17 @@ void main() {
     expect(readPhoneEntry('ghostmd://scan'), const ScanEntry());
     expect(readPhoneEntry('ghostmd://note/n_12?line=7&find=Call%20the%20plumber'), const NoteAtEntry('n_12', line: 7, find: 'Call the plumber'));
     expect(readPhoneEntry('ghostmd://note/n_12?line=x'), const NoteAtEntry('n_12'));
+    expect(readPhoneEntry('ghostmd://new?into=w-k3f9x2'), const NewNoteInEntry('w-k3f9x2'));
+    expect(readPhoneEntry('ghostmd://new?into='), const NewNoteEntry(), reason: 'no workspace said: a plain new note');
+    expect(readPhoneEntry('ghostmd://new?into=a%20b'), const NewNoteEntry(), reason: 'no workspace has such an id');
+    expect(readPhoneEntry('ghostmd://checklist'), const ChecklistEntry());
+    expect(readPhoneEntry('ghostmd://talk'), const TalkEntry());
+    expect(readPhoneEntry('ghostmd://chat'), const ChatEntry());
+  });
+
+  test('a new note in a folder, as A folder widget is handed it, reads back the same', () {
+    expect(newNoteInLink('org-9f2c-41'), 'ghostmd://new?into=org-9f2c-41');
+    expect(readPhoneEntry(newNoteInLink('org-9f2c-41')), const NewNoteInEntry('org-9f2c-41'));
   });
 
   test('leaves every other link to the app’s own reader, the bare note link among them', () {
@@ -55,9 +78,20 @@ void main() {
 
   test('each is handed to the door, and anything else is not', () {
     final door = Door();
-    for (final link in ['ghostmd://new', 'ghostmd://voice', 'ghostmd://today', 'ghostmd://search', 'ghostmd://note/a?line=2&find=Call', 'ghostmd://notifications']) {
+    for (final link in [
+      'ghostmd://new',
+      'ghostmd://voice',
+      'ghostmd://today',
+      'ghostmd://search',
+      'ghostmd://note/a?line=2&find=Call',
+      'ghostmd://new?into=w-1',
+      'ghostmd://checklist',
+      'ghostmd://talk',
+      'ghostmd://chat',
+      'ghostmd://notifications',
+    ]) {
       followPhoneEntry(link, door);
     }
-    expect(door.did, ['new', 'voice', 'today', 'search', 'note a 2 "Call"']);
+    expect(door.did, ['new', 'voice', 'today', 'search', 'note a 2 "Call"', 'new in w-1', 'checklist', 'talk', 'chat']);
   });
 }

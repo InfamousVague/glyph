@@ -21,16 +21,21 @@ import java.util.Calendar
 
 /**
  * The home screen's half of the notes (docs/WIDGETS_ANDROID.md; lib/home_screen): the phone's half of `ghost_md/home_screen`,
- * where the app hands over what the four widgets draw and what the icon's recent shortcuts name, kept in
+ * where the app hands over what the twelve widgets draw and what the icon's recent shortcuts name, kept in
  * SharedPreferences so they draw with the app closed.
  *
  * - `put {kind, json}`: kept, and the widgets that draw it drawn again (or the shortcuts set). The app hands one over
  *   only when it is another than the last (lib/home_screen/home_screen_data.dart). The kinds: `todos` (To-dos, and
  *   Calendar's dated to-dos), `notes` (Recent notes), `voice` (Voice note's recordings), `calendar` (Calendar's
  *   events, or that the plugin is off), `look` (the app theme's side, which the widgets are drawn in), `recent` (the
- *   icon's shortcuts); and `widgets`, the shared snapshot the iPhone's widgets read, taken as `todos`, `notes` and
- *   `calendar`. `today` and `pinned`, what the Today and
- *   Pinned widgets drew before the four replaced them, are taken and kept nowhere.
+ *   icon's shortcuts); for the eight after the four, `pins` (Pinned notes), `daily` (Today: today's note as its
+ *   lines), `pages` (the notes the A note widgets show, as their lines, and those gone), `picks` (the notes A note's
+ *   configuration offers), `folders` (every workspace and folder with its notes, A folder's) and `assistant` (whether
+ *   Claude is on with a key, Ask AI's); and `widgets`, the shared snapshot the iPhone's widgets read, taken as
+ *   `todos`, `notes` and `calendar`. `today` and `pinned`, what the Today and Pinned widgets drew before the four
+ *   replaced them, are taken and kept nowhere.
+ * - `chosen`, asked by the app: the notes the A note widgets show (WidgetPick.kt keeps each widget's), so `pages` is
+ *   made for them; and called on the app, where it runs, as one is set to another note.
  *
  * The widgets word their days and times themselves (HomeData.kt), so two alarms of this app's draw them again with
  * nothing asked of it, neither waking the phone: one at midnight (within ten minutes of it), when "Tomorrow" becomes
@@ -44,16 +49,25 @@ object HomeScreen {
   private const val PREFS = "ghost_home_screen"
   const val ACTION_MIDNIGHT = "com.mattssoftware.ghost_md.home.MIDNIGHT"
   const val ACTION_FRESHEN = "com.mattssoftware.ghost_md.home.FRESHEN"
+  const val ACTION_NEXT = "com.mattssoftware.ghost_md.home.NEXT"
   private const val MIDNIGHT_WINDOW_MS = 10L * 60 * 1000
 
   private fun prefs(context: Context) = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+  /** The channel while the app runs: told when an A note widget is set to another note (`chosen`). */
+  @Volatile
+  private var channel: MethodChannel? = null
 
   fun register(context: Context, messenger: BinaryMessenger) {
     val app = context.applicationContext
     // What the Today and Pinned widgets drew before the four: nothing reads it now.
     prefs(app).edit().remove("today").remove("pinned").apply()
-    MethodChannel(messenger, CHANNEL).setMethodCallHandler { call, result ->
+    val made = MethodChannel(messenger, CHANNEL)
+    channel = made
+    made.setMethodCallHandler { call, result ->
       when (call.method) {
+        // The notes the A note widgets show, for the app to hand over their lines (`pages`).
+        "chosen" -> result.success(chosen(app))
         "put" -> {
           val kind = call.argument<String>("kind") ?: ""
           val json = call.argument<String>("json") ?: ""
@@ -81,11 +95,18 @@ object HomeScreen {
         prefs(context).edit().putString("todos", json).commit()
         WidgetKind.TODOS.drawAll(context)
         WidgetKind.CALENDAR.drawAll(context)
+        WidgetKind.NEXT.drawAll(context)
       }
       "notes" -> {
         prefs(context).edit().putString("notes", json).commit()
         WidgetKind.NOTES.drawAll(context)
+        WidgetKind.SEARCH.drawAll(context)
       }
+      "pins" -> keep(context, kind, json, WidgetKind.PINNED)
+      "daily" -> keep(context, kind, json, WidgetKind.TODAY)
+      "pages", "picks" -> keep(context, kind, json, WidgetKind.NOTE)
+      "folders" -> keep(context, kind, json, WidgetKind.FOLDER)
+      "assistant" -> keep(context, kind, json, WidgetKind.ASK)
       "voice" -> {
         prefs(context).edit().putString("voice", json).commit()
         WidgetKind.VOICE.drawAll(context)
@@ -93,6 +114,7 @@ object HomeScreen {
       "calendar" -> {
         prefs(context).edit().putString("calendar", json).commit()
         WidgetKind.CALENDAR.drawAll(context)
+        WidgetKind.NEXT.drawAll(context)
       }
       "look" -> {
         if (prefs(context).getString("look", null) == json) return true
@@ -117,8 +139,44 @@ object HomeScreen {
     return true
   }
 
+  private fun keep(context: Context, kind: String, json: String, drawn: WidgetKind) {
+    prefs(context).edit().putString(kind, json).commit()
+    drawn.drawAll(context)
+  }
+
   /** What [kind] was last handed, or null where nothing has been. */
   fun kept(context: Context, kind: String): String? = prefs(context).getString(kind, null)
+
+  // ---- what A note and A folder were set to (WidgetPick.kt) --------------------------------------------------------
+
+  /** The note or the folder the widget [id] was set to show, by id; null for none yet. */
+  fun chosenFor(context: Context, id: Int): String? = prefs(context).getString("chose:$id", null)
+
+  /**
+   * The widget [id] set to show [what] (a note's id, a workspace's), and drawn; and the app, where it runs, told, so
+   * a note's lines come at once rather than at its next pass.
+   */
+  fun choose(context: Context, id: Int, what: String) {
+    prefs(context).edit().putString("chose:$id", what).commit()
+    val kind = WidgetKind.of(context, id) ?: return
+    WidgetViews.draw(context, AppWidgetManager.getInstance(context), id, kind)
+    val told = channel ?: return
+    Handler(Looper.getMainLooper()).post {
+      try {
+        told.invokeMethod("chosen", null)
+      } catch (error: Throwable) {
+        Log.w(TAG, "the app was not told of the widget's note", error)
+      }
+    }
+  }
+
+  /** A widget taken off the home screen: what it was set to, let go. */
+  fun unchoose(context: Context, id: Int) {
+    prefs(context).edit().remove("chose:$id").apply()
+  }
+
+  /** The notes the A note widgets on any home screen show, for the app's `pages`. */
+  fun chosen(context: Context): List<String> = WidgetKind.NOTE.ids(context).toList().mapNotNull { chosenFor(context, it) }.distinct()
 
   /** The app theme's side the widgets are drawn in: `dark` (the app's own default), `light` or `system`. */
   fun look(context: Context): String = try {
@@ -143,10 +201,14 @@ object HomeScreen {
   @Synchronized
   fun ticked(context: Context, note: String, line: Int) {
     try {
+      // A note's line on A note or Today: drawn ticked there at once.
+      HomeData.tickedIn(kept(context, "pages"), note, line)?.let { keep(context, "pages", it, WidgetKind.NOTE) }
+      HomeData.tickedIn(kept(context, "daily"), note, line)?.let { keep(context, "daily", it, WidgetKind.TODAY) }
       val (left, gone) = HomeData.without(kept(context, "todos"), note, line) ?: return
       prefs(context).edit().putString("todos", left).commit()
       WidgetKind.TODOS.drawAll(context)
       WidgetKind.CALENDAR.drawAll(context)
+      WidgetKind.NEXT.drawAll(context)
       if (gone != null) com.mattssoftware.ghost_md.reminders.Reminders.forget(context, note, gone.match)
     } catch (error: Throwable) {
       Log.w(TAG, "the tick was not taken off the widgets", error)
@@ -155,7 +217,7 @@ object HomeScreen {
 
   // ---- the two alarms ------------------------------------------------------------------------------------------------
 
-  /** Whether any of the four is on a home screen (the old three's places among them). */
+  /** Whether any of the twelve is on a home screen (the old three's places among them). */
   fun anyPlaced(context: Context): Boolean = WidgetKind.values().any { it.ids(context).isNotEmpty() }
 
   /** The midnight and the quarter-hour alarms, armed (again: each replaces its own). */
@@ -180,11 +242,32 @@ object HomeScreen {
     val manager = context.getSystemService(AlarmManager::class.java) ?: return
     manager.cancel(clock(context, ACTION_MIDNIGHT))
     manager.cancel(clock(context, ACTION_FRESHEN))
+    manager.cancel(clock(context, ACTION_NEXT))
+  }
+
+  /**
+   * Next up drawn again when what it says first changes (HomeData.nextChange): as its event starts ("In 5 min"
+   * becomes "Now") and as it ends (the next thing takes its place), within a minute, never waking the phone. Nothing
+   * while no Next up is placed or nothing is timed.
+   */
+  fun armNext(context: Context) {
+    val manager = context.getSystemService(AlarmManager::class.java) ?: return
+    val now = System.currentTimeMillis()
+    val at = if (WidgetKind.NEXT.ids(context).isEmpty()) null else {
+      val events = HomeData.calendar(kept(context, "calendar"))?.takeIf { it.on }?.events.orEmpty()
+      HomeData.nextChange(HomeData.nextUp(events, HomeData.todos(kept(context, "todos")), today(), now), now)
+    }
+    if (at == null || at <= now) return manager.cancel(clock(context, ACTION_NEXT))
+    manager.setWindow(AlarmManager.RTC, at, 60_000L, clock(context, ACTION_NEXT))
   }
 
   private fun clock(context: Context, action: String): PendingIntent = PendingIntent.getBroadcast(
     context,
-    if (action == ACTION_MIDNIGHT) 7_101 else 7_102,
+    when (action) {
+      ACTION_MIDNIGHT -> 7_101
+      ACTION_NEXT -> 7_103
+      else -> 7_102
+    },
     Intent(context, WidgetClock::class.java).setAction(action),
     PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
   )

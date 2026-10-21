@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One of Quick capture's buttons in a row of them (home/MoreWidgetViews.kt): the dock's round button (`.round`, or the
+  filled Speak for a voice note) over its word, an equal share of the row's width and all of its height, the whole
+  share one press. Its word is put away where the widget is a cell high.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_cap"
+    android:layout_width="0dp"
+    android:layout_height="match_parent"
+    android:layout_weight="1"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_cap_ring"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/ghost_w_ring">
+
+        <ImageView
+            android:id="@+id/ghost_w_cap_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:tint="?attr/ghost_w_ink" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/ghost_w_cap_label"
+        style="@style/GhostW.When"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/ghost_w_space_1"
+        android:ellipsize="end"
+        android:textColor="?attr/ghost_w_ink_2" />
+</LinearLayout>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows of Quick capture (Android 12+ draws a preview from a layout; older ones the picture
+     of it): made-up nothing: its buttons, in the widget's own look, in the app's own Dark. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:theme="@style/GhostW.Theme.Dark"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_w_back"
+    android:orientation="vertical"
+    android:paddingStart="8dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/ghost_w_ring">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ghost_w_ic_pen"
+                    android:tint="?attr/ghost_w_ink" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/ghost_w_space_1"
+                android:textColor="?attr/ghost_w_ink_2"
+                android:text="Note" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/ghost_w_ring_ink">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ghost_w_ic_mic"
+                    android:tint="?attr/ghost_w_on_ink" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/ghost_w_space_1"
+                android:textColor="?attr/ghost_w_ink_2"
+                android:text="Voice" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/ghost_w_ring">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ghost_w_ic_checklist"
+                    android:tint="?attr/ghost_w_ink" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/ghost_w_space_1"
+                android:textColor="?attr/ghost_w_ink_2"
+                android:text="Checklist" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <FrameLayout
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:background="@drawable/ghost_w_ring">
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="center"
+                    android:src="@drawable/ghost_w_ic_scan"
+                    android:tint="?attr/ghost_w_ink" />
+            </FrameLayout>
+
+            <TextView
+                style="@style/GhostW.When"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="@dimen/ghost_w_space_1"
+                android:textColor="?attr/ghost_w_ink_2"
+                android:text="Scan" />
+        </LinearLayout>
+    </LinearLayout>
+</LinearLayout>

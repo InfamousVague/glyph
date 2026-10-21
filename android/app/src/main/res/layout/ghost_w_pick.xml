@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Choosing what A note or A folder shows (home/WidgetPick.kt), as the widget is placed or chosen again: the app's page
+  in the widget's look, a heading as the home page heads a section, a field to find a note by, and the notes (the
+  pinned first) or the workspaces and folders as the home page's rows. A tap chooses.
+-->
+<!-- The window's insets on the outer frame (fitsSystemWindows takes its padding), the page's own margins inside. -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="?attr/ghost_w_paper"
+    android:fitsSystemWindows="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="vertical"
+        android:paddingStart="@dimen/ghost_w_space_4"
+        android:paddingEnd="@dimen/ghost_w_space_4">
+
+        <TextView
+            android:id="@+id/ghost_w_pick_title"
+            style="@style/GhostW.Hero"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ghost_w_space_5" />
+
+        <TextView
+            android:id="@+id/ghost_w_pick_words"
+            style="@style/GhostW.Meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/ghost_w_space_1"
+            android:maxLines="2" />
+
+        <EditText
+            android:id="@+id/ghost_w_pick_find"
+            style="@style/GhostW.Words"
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginTop="@dimen/ghost_w_space_4"
+            android:background="@drawable/ghost_w_field"
+            android:drawableStart="@drawable/ghost_w_ic_search"
+            android:drawablePadding="@dimen/ghost_w_space_2"
+            android:drawableTint="?attr/ghost_w_ink_3"
+            android:hint="@string/ghost_widget_pick_filter"
+            android:importantForAutofill="no"
+            android:inputType="text"
+            android:paddingStart="@dimen/ghost_w_space_3"
+            android:paddingEnd="@dimen/ghost_w_space_3"
+            android:textColorHint="?attr/ghost_w_ink_3" />
+
+        <ScrollView
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="@dimen/ghost_w_space_3"
+            android:layout_weight="1">
+
+            <LinearLayout
+                android:id="@+id/ghost_w_pick_list"
+                android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="@dimen/ghost_w_space_4" />
+    </ScrollView>
+</LinearLayout>
+</FrameLayout>

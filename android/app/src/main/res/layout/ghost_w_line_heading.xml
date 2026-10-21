@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A heading among a note's lines on A note or Today: a row's name's weight, a little room above it. -->
+<TextView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_line"
+    style="@style/GhostW.Title"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:minHeight="26dp"
+    android:paddingStart="2dp"
+    android:paddingTop="4dp"
+    android:paddingEnd="2dp"
+    android:paddingBottom="2dp" />

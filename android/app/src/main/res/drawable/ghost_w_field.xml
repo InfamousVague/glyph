@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Search's field: the page inside the strong border, a pill (the home page's search field), pressed with the card's
+     wash. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item>
+        <shape android:shape="rectangle">
+            <solid android:color="?attr/ghost_w_paper" />
+            <stroke android:width="1.5dp" android:color="?attr/ghost_w_line" />
+            <corners android:radius="22dp" />
+        </shape>
+    </item>
+</ripple>

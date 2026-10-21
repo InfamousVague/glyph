@@ -1,15 +1,18 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Calendar (home/Widgets.kt, docs/WIDGETS_ANDROID.md): medium, four cells by two, and as many rows as it is made tall. -->
+<!-- Calendar (home/Widgets.kt, docs/WIDGETS_ANDROID.md): placed four cells by two; resized to a cell (the day, and how many
+     things are on it), a cell high (the next one), a column or four by four (each day's, as many as fit).
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/ghost_widget_calendar_about"
     android:initialLayout="@layout/ghost_w_frame_system"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:previewLayout="@layout/ghost_w_preview_calendar"
+    android:previewImage="@drawable/ghost_w_preview_calendar"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen" />

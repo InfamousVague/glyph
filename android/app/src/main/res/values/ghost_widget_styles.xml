@@ -7,6 +7,8 @@
     GhostW.Count     how many beside it: sm, the third ink, figures of one width
     GhostW.Eyebrow   a group's small capitals, .app-eyebrow: xs, bold, the third ink, 0.08em apart
     GhostW.Title     a note's name in a row, HomeRow: md, semibold
+    GhostW.Hero      the big line beside a microphone, Next up's thing: lg, semibold
+    GhostW.Big       a cell's one word (1×1): a count, a day, a time: xl, semibold, figures of one width
     GhostW.Words     a to-do's or an event's words, the To-dos view's row: md
     GhostW.Meta      the line under them: sm, the third ink
     GhostW.When      when, at a row's end: xs, the third ink, figures of one width
@@ -65,6 +67,12 @@
         <item name="android:maxLines">1</item>
         <item name="android:ellipsize">end</item>
     </style>
+    <style name="GhostW.Big" parent="GhostW.Face.Semibold">
+        <item name="android:textSize">@dimen/ghost_w_text_xl</item>
+        <item name="android:textColor">?attr/ghost_w_ink</item>
+        <item name="android:fontFeatureSettings">tnum</item>
+        <item name="android:maxLines">1</item>
+    </style>
     <style name="GhostW.Words" parent="GhostW.Face.Regular">
         <item name="android:textSize">@dimen/ghost_w_text_md</item>
         <item name="android:textColor">?attr/ghost_w_ink</item>
@@ -88,6 +96,11 @@
         <item name="android:textColor">?attr/ghost_w_ink_2</item>
         <item name="android:fontFeatureSettings">tnum</item>
         <item name="android:maxLines">1</item>
+    </style>
+    <!-- Choosing A note's note or A folder's folder (home/WidgetPick.kt): a plain window, its look's colours laid over
+         it as the widget's theme is (GhostW.Theme.Dark, .Light or .System) when it opens. -->
+    <style name="GhostW.Pick" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ghost_w_dark_paper</item>
     </style>
     <style name="GhostW.Chip" parent="GhostW.Face.Regular">
         <item name="android:textSize">@dimen/ghost_w_text_chip</item>

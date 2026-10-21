@@ -17,6 +17,7 @@
         android:contentDescription="@string/ghost_shortcut_voice_long">
 
         <ImageView
+            android:id="@+id/ghost_w_voice_icon"
             android:layout_width="18dp"
             android:layout_height="18dp"
             android:layout_gravity="center"

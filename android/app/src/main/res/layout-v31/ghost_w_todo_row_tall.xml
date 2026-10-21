@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One to-do in a column (two cells across, 2×N) from Android 12: layout-v31/ghost_w_todo_row.xml with its words over two
+  lines where they need them, the row as tall as they make it; 48dp at least.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal">
+
+    <FrameLayout
+        android:layout_width="36dp"
+        android:layout_height="48dp">
+
+        <CheckBox
+            android:id="@+id/ghost_w_check"
+            style="@android:style/Widget.CompoundButton.CheckBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@null"
+            android:button="@drawable/ghost_w_tick"
+            android:contentDescription="@string/ghost_widget_tick"
+            android:minWidth="0dp"
+            android:minHeight="0dp" />
+
+        <CheckBox
+            android:id="@+id/ghost_w_check_late"
+            style="@android:style/Widget.CompoundButton.CheckBox"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:background="@null"
+            android:button="@drawable/ghost_w_tick_overdue"
+            android:contentDescription="@string/ghost_widget_tick"
+            android:minWidth="0dp"
+            android:minHeight="0dp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+    <include layout="@layout/ghost_w_todo_words_tall" />
+</LinearLayout>

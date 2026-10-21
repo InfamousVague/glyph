@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- What the widget picker shows of Search (Android 12+ draws a preview from a layout; older ones the picture of it):
+     made-up notes, in the widget's own look, in the app's own Dark. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:theme="@style/GhostW.Theme.Dark"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_w_back"
+    android:gravity="center_vertical"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="8dp"
+    android:paddingBottom="10dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:background="@drawable/ghost_w_field"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="@dimen/ghost_w_space_3"
+        android:paddingEnd="@dimen/ghost_w_space_3">
+
+        <ImageView
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:src="@drawable/ghost_w_ic_search"
+            android:tint="?attr/ghost_w_ink_3" />
+
+        <TextView
+            style="@style/GhostW.Words"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="@dimen/ghost_w_space_2"
+            android:layout_weight="1"
+            android:text="@string/ghost_widget_search_words"
+            android:textColor="?attr/ghost_w_ink_3" />
+    </LinearLayout>
+</LinearLayout>

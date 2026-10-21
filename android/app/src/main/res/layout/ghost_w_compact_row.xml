@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A note in a narrow widget's rows (two cells across, or under Search's field): its kind's mark and its name. 36dp. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_note_row"
+    android:layout_width="match_parent"
+    android:layout_height="36dp"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <ImageView
+        android:id="@+id/ghost_w_note_mark"
+        android:layout_width="16dp"
+        android:layout_height="16dp"
+        android:importantForAccessibility="no"
+        android:tint="?attr/ghost_w_ink_3" />
+
+    <TextView
+        android:id="@+id/ghost_w_note_title"
+        style="@style/GhostW.Words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_2"
+        android:layout_weight="1" />
+</LinearLayout>

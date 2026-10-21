@@ -1,16 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Voice note (home/Widgets.kt, docs/WIDGETS_ANDROID.md): medium, four cells by two; made four by four it is large and lists the
-     last recordings. Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<!-- Voice note (home/Widgets.kt, docs/WIDGETS_ANDROID.md): placed four cells by two, the big ring beside the last recording; resized to
+     a cell (the ring alone), a cell high (the ring at the dock's size), a column (the ring as big as it has room for) or four
+     by four (the recordings under it).
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
     android:description="@string/ghost_widget_voice_about"
     android:initialLayout="@layout/ghost_w_frame_system"
     android:minWidth="250dp"
     android:minHeight="110dp"
-    android:minResizeWidth="180dp"
-    android:minResizeHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
     android:targetCellWidth="4"
     android:targetCellHeight="2"
     android:previewLayout="@layout/ghost_w_preview_voice"
+    android:previewImage="@drawable/ghost_w_preview_voice"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen" />

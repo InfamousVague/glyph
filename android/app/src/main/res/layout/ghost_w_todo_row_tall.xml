@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One to-do in a column (two cells across, 2×N) before Android 12: ghost_w_todo_row.xml with its words over two lines
+  where they need them, the row as tall as they make it; 48dp at least.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:gravity="center_vertical"
+    android:minHeight="48dp"
+    android:orientation="horizontal">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_tick"
+        android:layout_width="30dp"
+        android:layout_height="48dp"
+        android:background="@drawable/ghost_w_press"
+        android:contentDescription="@string/ghost_widget_tick">
+
+        <ImageView
+            android:id="@+id/ghost_w_tick_ring"
+            android:layout_width="22dp"
+            android:layout_height="22dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_w_tick_off" />
+    </FrameLayout>
+
+    <include layout="@layout/ghost_w_todo_words_tall" />
+</LinearLayout>

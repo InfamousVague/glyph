@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A widget a cell each way, 1×1 (home/WidgetViews.kt `tile`): the whole cell one press, its thing in the middle of
+  it. Either a round button (the dock's ring, filled for Speak) or a big word (a count, a day, a time), and a small
+  one under it (what it is, or a dot where there is something). Added to the frame with its heading put away, so the
+  look's theme and the page's ground are the frame's and fill the cell.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_tile"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center"
+    android:orientation="vertical">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_tile_ring"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="@drawable/ghost_w_ring">
+
+        <ImageView
+            android:id="@+id/ghost_w_tile_icon"
+            android:layout_width="20dp"
+            android:layout_height="20dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:tint="?attr/ghost_w_ink" />
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/ghost_w_tile_big"
+        style="@style/GhostW.Big"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="gone" />
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="@dimen/ghost_w_space_1"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/ghost_w_tile_dot"
+            android:layout_width="6dp"
+            android:layout_height="6dp"
+            android:layout_marginEnd="@dimen/ghost_w_space_1"
+            android:importantForAccessibility="no"
+            android:src="@drawable/ghost_w_pip"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/ghost_w_tile_label"
+            style="@style/GhostW.When"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:gravity="center"
+            android:maxLines="1" />
+    </LinearLayout>
+</LinearLayout>

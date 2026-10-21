@@ -12,7 +12,10 @@
 ///   any other note through the library (lib/reminders/done_writer.dart).
 /// - **A note opened** is first among the icon's recent notes.
 /// - **The home screen's widgets** (docs/WIDGETS_ANDROID.md) are handed the to-dos, the notes, the recordings and the
-///   calendars' events by the same pass, which a change to the events asks for too.
+///   calendars' events by the same pass, which a change to the events asks for too; and the pinned notes, today's
+///   note, the notes the A note widgets show, the workspaces and folders with their notes (a filing changed asks for
+///   it), and whether Claude is on with a key (its switch or its key changed asks). A note widget set to another note
+///   asks for a pass of its own, so the note's lines come at once.
 /// - **Places**, while the Place reminders plugin is on (lib/plugins/places): the same pass works out the open to-dos
 ///   with a `📍` and hands the phone the whole set for its geofences (lib/reminders/place_scheduler.dart), and the
 ///   plugin switched off clears them; as the app opens and comes back to the front, whether the location they need
@@ -29,6 +32,7 @@ import '../core/library.dart';
 import '../core/note.dart';
 import '../core/stored.dart';
 import '../core/trash.dart';
+import '../core/workspaces.dart' show Workspaces;
 import '../editor/editor.dart';
 import '../home_screen/home_host.dart';
 import '../home_screen/home_screen_data.dart';
@@ -59,6 +63,10 @@ class PhoneExtras {
     bool Function()? calendarOn,
     String Function()? scheme,
     this.lookChanged,
+    this.workspaces,
+    bool Function()? claudeOn,
+    bool Function()? claudeKey,
+    this.claudeChanged,
     DateTime Function()? clock,
     Duration settle = const Duration(milliseconds: 1500),
     Timer Function(Duration wait, void Function() then)? timer,
@@ -66,6 +74,8 @@ class PhoneExtras {
         placesOn = placesOn ?? _off,
         calendarOn = calendarOn ?? _off,
         scheme = scheme ?? _dark,
+        claudeOn = claudeOn ?? _off,
+        claudeKey = claudeKey ?? _off,
         _clock = clock ?? DateTime.now {
     _scheduler = ReminderScheduler(host: reminders, settings: this.settings, clock: _clock);
     final watched = places;
@@ -102,6 +112,15 @@ class PhoneExtras {
   final Listenable? lookChanged;
   static String _dark() => 'dark';
 
+  /// The workspaces and folders and which notes are filed in each, for A folder; none where nothing says.
+  final ValueListenable<Workspaces>? workspaces;
+
+  /// Whether the app's own Claude is on (its plugin's switch) and a key is entered on this device, for Ask AI, and
+  /// what tells when either may have changed (the plugins and Claude's settings); off where nothing says.
+  final bool Function() claudeOn;
+  final bool Function() claudeKey;
+  final Listenable? claudeChanged;
+
   /// The editor of the note [noteId] where it is open on screen; null where it is not.
   final EditorViewLike? Function(String noteId)? openView;
 
@@ -127,7 +146,17 @@ class PhoneExtras {
     final notes = library.value;
     await _scheduler.pass(notes, skip: _skip);
     await _places?.pass(notes, skip: _skip);
-    await _home.pass(notes, library.noteOf, skip: _skip, calendarOn: calendarOn(), events: events?.value ?? const [], scheme: scheme());
+    await _home.pass(
+      notes,
+      library.noteOf,
+      skip: _skip,
+      calendarOn: calendarOn(),
+      events: events?.value ?? const [],
+      scheme: scheme(),
+      spaces: workspaces?.value ?? const Workspaces(),
+      claudeOn: claudeOn(),
+      claudeKey: claudeKey(),
+    );
   }
 
   void _changed() => _settle.poke();
@@ -161,6 +190,10 @@ class PhoneExtras {
     // widget drawn again at the next pass.
     events?.addListener(_changed);
     lookChanged?.addListener(_changed);
+    workspaces?.addListener(_changed);
+    claudeChanged?.addListener(_changed);
+    // A note widget set to another note: its lines handed over at the next pass, which this asks for.
+    home.listen(_changed);
     reminders.onTick = done;
     phoneReminders.value = reminders;
     if (places != null) {
@@ -230,6 +263,8 @@ class PhoneExtras {
     settings.removeListener(_placesChanged);
     events?.removeListener(_changed);
     lookChanged?.removeListener(_changed);
+    workspaces?.removeListener(_changed);
+    claudeChanged?.removeListener(_changed);
     reminders.onTick = null;
     if (identical(phoneReminders.value, reminders)) phoneReminders.value = null;
     if (places != null) {

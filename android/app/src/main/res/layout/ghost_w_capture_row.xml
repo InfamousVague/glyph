@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  One of Quick capture's buttons as a row (home/MoreWidgetViews.kt): in a column (two cells across, 2×N) the round
+  button and its word, stacked; large, with what it makes under the word, as the + sheet's rows say it
+  (lib/notes/new_sheet.dart). An equal share of the column's height, so the stack fills the widget; the whole row one
+  press.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_cap"
+    android:layout_width="match_parent"
+    android:layout_height="0dp"
+    android:layout_weight="1"
+    android:background="@drawable/ghost_w_press"
+    android:gravity="center_vertical"
+    android:minHeight="40dp"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingEnd="2dp">
+
+    <FrameLayout
+        android:id="@+id/ghost_w_cap_ring"
+        android:layout_width="38dp"
+        android:layout_height="38dp"
+        android:background="@drawable/ghost_w_ring">
+
+        <ImageView
+            android:id="@+id/ghost_w_cap_icon"
+            android:layout_width="18dp"
+            android:layout_height="18dp"
+            android:layout_gravity="center"
+            android:importantForAccessibility="no"
+            android:tint="?attr/ghost_w_ink" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_3"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/ghost_w_cap_label"
+            style="@style/GhostW.Title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content" />
+
+        <TextView
+            android:id="@+id/ghost_w_cap_hint"
+            style="@style/GhostW.Meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:visibility="gone" />
+    </LinearLayout>
+</LinearLayout>

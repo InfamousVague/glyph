@@ -406,10 +406,22 @@ extension _RootCommands on _GhostRootState {
   /// note opened and left still leaves nothing behind. Only a note the person makes here: a canvas, a notebook, the
   /// guide, a shared link's copy and a note made for a title are the app's, and are not tagged. Where a fix is
   /// expected its map's box is held first (`willLocate`), so the card arriving never moves line 1.
-  void _new([String? into]) {
+  /// [template] (the home screen's Checklist: "A checklist") makes it as that template's card on its blank page does
+  /// (NoteScreen `startFrom`): filled, its name settled against every other note's, the caret in its first open line,
+  /// and its record kept, so a note left without a word of the person's own is taken back.
+  void _new([String? into, NoteTemplate? template]) {
+    Note make() {
+      if (template == null) return _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+      final now = DateTime.now();
+      final filled = fillNoteTemplate(template, now, _takenTitles);
+      final note = _showMade(filled.body, caret: Caret.at(filled.caret), fresh: true, into: into);
+      _untouched.remember(note.id, UntouchedRecord(title: filled.title, words: filled.words, at: now.millisecondsSinceEpoch));
+      return note;
+    }
+
     final places = _places;
     if (places == null) {
-      _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+      make();
       return;
     }
     unawaited(() async {
@@ -417,7 +429,7 @@ extension _RootCommands on _GhostRootState {
       // frame.
       final expected = await places.willLocate().timeout(const Duration(milliseconds: 300), onTimeout: () => false).then<bool>((will) => will, onError: (Object _) => false);
       if (!mounted) return;
-      final note = _showMade('', caret: const Caret.at(0), fresh: true, into: into);
+      final note = make();
       if (expected) places.holdFor([note.id]);
       await places.tagNewNotesIfWanted([note.id], (reviewing: false), introduce: _introduceLocation);
     }());

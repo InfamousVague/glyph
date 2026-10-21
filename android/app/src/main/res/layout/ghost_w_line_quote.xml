@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A quote among a note's lines on A note or Today: the quote's bar (the hairline's ink) before the words, in the
+     second ink. -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_line_row"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/ghost_w_press"
+    android:minHeight="26dp"
+    android:orientation="horizontal"
+    android:paddingStart="2dp"
+    android:paddingTop="2dp"
+    android:paddingEnd="2dp"
+    android:paddingBottom="2dp">
+
+    <ImageView
+        android:layout_width="2dp"
+        android:layout_height="match_parent"
+        android:importantForAccessibility="no"
+        android:background="@drawable/ghost_w_quote_bar" />
+
+    <TextView
+        android:id="@+id/ghost_w_line"
+        style="@style/GhostW.Words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_2"
+        android:layout_weight="1"
+        android:maxLines="2"
+        android:textColor="?attr/ghost_w_ink_2" />
+</LinearLayout>

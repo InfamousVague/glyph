@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Talk to Claude's ring (lib/claude/claude_dock.dart `ClaudeTalkButton`): the dock's plain ring, its rim in Claude's
+     orange, the app's drawn line wide; pressed with the card's wash. -->
+<ripple xmlns:android="http://schemas.android.com/apk/res/android" android:color="?attr/ghost_w_press">
+    <item>
+        <shape android:shape="oval">
+            <solid android:color="?attr/ghost_w_paper" />
+            <stroke android:width="1.5dp" android:color="@color/ghost_w_claude" />
+        </shape>
+    </item>
+</ripple>

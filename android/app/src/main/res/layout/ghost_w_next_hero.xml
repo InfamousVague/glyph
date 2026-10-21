@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Next up's one thing (home/MoreWidgetViews.kt): when, as an eyebrow ("Now", "In 25 min", red "Overdue · 2 days",
+  amber "Due today"), its words large over two lines at most, and under them the time it runs and its calendar, or the
+  note a to-do is in. The whole of it one press: an event the app, a to-do its note at its line.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_next"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@drawable/ghost_w_press"
+    android:orientation="vertical"
+    android:paddingStart="2dp"
+    android:paddingTop="@dimen/ghost_w_space_1"
+    android:paddingEnd="2dp"
+    android:paddingBottom="@dimen/ghost_w_space_1">
+
+    <TextView
+        android:id="@+id/ghost_w_next_when"
+        style="@style/GhostW.Eyebrow"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/ghost_w_next_title"
+        style="@style/GhostW.Hero"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:maxLines="2" />
+
+    <TextView
+        android:id="@+id/ghost_w_next_sub"
+        style="@style/GhostW.Meta"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp" />
+</LinearLayout>

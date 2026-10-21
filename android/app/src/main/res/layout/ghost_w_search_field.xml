@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Search's field (home/MoreWidgetViews.kt): the home page's search field, a pill of the page in the strong border with
+  the dock's magnifier and its words, which opens the palette to type in (`ghostmd://search`). Not a field to type in
+  here: a widget has none. 44dp, the whole of it one press.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/ghost_w_field"
+    android:layout_width="match_parent"
+    android:layout_height="44dp"
+    android:background="@drawable/ghost_w_field"
+    android:contentDescription="@string/ghost_shortcut_search_long"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="@dimen/ghost_w_space_3"
+    android:paddingEnd="@dimen/ghost_w_space_3">
+
+    <ImageView
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:importantForAccessibility="no"
+        android:src="@drawable/ghost_w_ic_search"
+        android:tint="?attr/ghost_w_ink_3" />
+
+    <TextView
+        android:id="@+id/ghost_w_field_words"
+        style="@style/GhostW.Words"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="@dimen/ghost_w_space_2"
+        android:layout_weight="1"
+        android:text="@string/ghost_widget_search_words"
+        android:textColor="?attr/ghost_w_ink_3" />
+</LinearLayout>

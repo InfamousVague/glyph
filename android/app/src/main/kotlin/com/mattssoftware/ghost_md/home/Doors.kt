@@ -13,7 +13,11 @@ import com.mattssoftware.ghost_md.MainActivity
  * - `ghostmd://new`, a new note with the keyboard up: the icon's New note, a widget's pen or +, the tile;
  * - `ghostmd://voice`, a new note being recorded: the Voice note widget's ring, the icon's Voice note; the microphone
  *   opens on that tap and not before;
- * - `ghostmd://today`, `ghostmd://search`: the icon's Today's note and Search;
+ * - `ghostmd://today`, `ghostmd://search`, `ghostmd://scan`: the icon's Today's note, Search and Scan document, and
+ *   the Today, Search and Quick capture widgets;
+ * - `ghostmd://new?into=<workspace>`, a new note filed there: A folder's +;
+ * - `ghostmd://checklist`, a new note from "A checklist": Quick capture's;
+ * - `ghostmd://talk`, `ghostmd://chat`: Talk to Claude and the chat, Ask AI's;
  * - `ghostmd://note/<id>?line=12&find=…`, a note at a line: a reminder, a widget's row, a recent note.
  *
  * Every intent names the activity, so a phone with the Tauri app on it too (which takes the same scheme) is never
@@ -24,6 +28,13 @@ object Doors {
   const val VOICE = "ghostmd://voice"
   const val TODAY = "ghostmd://today"
   const val SEARCH = "ghostmd://search"
+  const val SCAN = "ghostmd://scan"
+  const val CHECKLIST = "ghostmd://checklist"
+  const val TALK = "ghostmd://talk"
+  const val CHAT = "ghostmd://chat"
+
+  /** A new note filed in the workspace or folder [workspace] (lib/home_screen/phone_entries.dart `newNoteInLink`). */
+  fun newIn(workspace: String): String = Uri.Builder().scheme("ghostmd").authority("new").appendQueryParameter("into", workspace).build().toString()
 
   /** A note, at [line] (counting from 1; 0 where it was left) with the item's first words to find it by. */
   fun noteAt(note: String, line: Int = 0, find: String = ""): String {

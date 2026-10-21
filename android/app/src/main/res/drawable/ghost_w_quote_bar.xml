@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A quote's bar on A note or Today: the strong border's ink, as the editor draws a quote's left edge. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android" android:shape="rectangle">
+    <solid android:color="?attr/ghost_w_line" />
+    <corners android:radius="1dp" />
+</shape>

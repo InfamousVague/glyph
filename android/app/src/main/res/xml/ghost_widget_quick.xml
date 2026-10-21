@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Quick capture (home/Widgets.kt, docs/WIDGETS_ANDROID.md): placed four cells by one, a row of the dock's round buttons;
+     a cell, the pen alone; a column, a stack of them with their words; four by two, a row with words; four by four, the
+     + sheet's rows.
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_quick_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
+    android:minWidth="250dp"
+    android:minHeight="40dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="1"
+    android:previewLayout="@layout/ghost_w_preview_quick"
+    android:previewImage="@drawable/ghost_w_preview_quick"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

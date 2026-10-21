@@ -376,7 +376,8 @@
         </receiver>
 
         <!--
-          THE HOME SCREEN (ghost_md/home; docs/WIDGETS_ANDROID.md): Voice note, To-dos, Calendar and Recent notes, RemoteViews
+          THE HOME SCREEN (ghost_md/home; docs/WIDGETS_ANDROID.md): twelve widgets, Voice note, To-dos, Calendar, Recent
+          notes, Quick capture, Pinned notes, Today, Search, A note, A folder, Ask AI and Next up, RemoteViews
           that draw what the app last handed over. Exported, as a widget's provider must be for the launcher to find
           it; only the system sends APPWIDGET_UPDATE. The three before them (Quick note, Today, Pinned notes) keep
           their receivers so a widget already placed keeps working, each drawing the one it became, and are hidden
@@ -426,10 +427,113 @@
                 android:name="android.appwidget.provider"
                 android:resource="@xml/ghost_widget_notes" />
         </receiver>
+        <!-- The eight more (docs/WIDGETS_ANDROID.md, "Twelve"). A note and A folder are each set to one as they are
+             placed (.home.WidgetPick, below). -->
+        <receiver
+            android:name=".home.QuickCaptureWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_quick">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_quick" />
+        </receiver>
+        <receiver
+            android:name=".home.PinnedNotesWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_pinned">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_pins" />
+        </receiver>
+        <receiver
+            android:name=".home.TodayNoteWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_today">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_daily" />
+        </receiver>
+        <receiver
+            android:name=".home.SearchWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_search">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_search" />
+        </receiver>
+        <receiver
+            android:name=".home.NoteWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_note">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_note" />
+        </receiver>
+        <receiver
+            android:name=".home.FolderWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_folder">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_folder" />
+        </receiver>
+        <receiver
+            android:name=".home.AskWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_ask">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_ask" />
+        </receiver>
+        <receiver
+            android:name=".home.NextUpWidget"
+            android:exported="true"
+            android:label="@string/ghost_widget_next">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/ghost_widget_next" />
+        </receiver>
+        <!-- Choosing what A note or A folder shows: the launcher opens it as one is placed (and to reconfigure), so it
+             is exported; it chooses which of the person's own notes their own widget shows, and writes no note. -->
+        <activity
+            android:name=".home.WidgetPick"
+            android:excludeFromRecents="true"
+            android:exported="true"
+            android:label="@string/ghost_widget_pick_note"
+            android:taskAffinity=""
+            android:theme="@style/GhostW.Pick">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
         <receiver
             android:name=".home.QuickNoteWidget"
             android:exported="true"
-            android:label="@string/ghost_widget_voice">
+            android:label="@string/ghost_widget_quick">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>
@@ -451,7 +555,7 @@
         <receiver
             android:name=".home.PinnedWidget"
             android:exported="true"
-            android:label="@string/ghost_widget_notes">
+            android:label="@string/ghost_widget_pinned">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
             </intent-filter>

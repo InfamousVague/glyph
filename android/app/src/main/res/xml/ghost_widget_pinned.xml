@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Pinned notes, before the four (home/Widgets.kt): one already on a home screen is the Recent notes now; hidden
+<!-- Pinned notes, before the four (home/Widgets.kt): one already on a home screen is the Pinned notes again; hidden
      from the picker. -->
 <appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
-    android:description="@string/ghost_widget_notes_about"
+    android:description="@string/ghost_widget_pinned_about"
     android:initialLayout="@layout/ghost_w_frame_system"
     android:minWidth="110dp"
     android:minHeight="110dp"
@@ -10,7 +10,8 @@
     android:minResizeHeight="80dp"
     android:targetCellWidth="2"
     android:targetCellHeight="2"
-    android:previewLayout="@layout/ghost_w_preview_notes"
+    android:previewLayout="@layout/ghost_w_preview_pins"
+    android:previewImage="@drawable/ghost_w_preview_pins"
     android:resizeMode="horizontal|vertical"
     android:updatePeriodMillis="0"
     android:widgetFeatures="hide_from_picker"

@@ -148,6 +148,112 @@ class HomeDataTest {
     assertTrue(HomeData.calendar(calendar)!!.on)
   }
 
+  // ---- the eight more ------------------------------------------------------------------------------------------------
+
+  private val pagesJson = """
+    {"pages":[
+      {"id":"g","title":"Groceries","line":"Eggs","updated":5,"kind":"note","lines":[
+        {"line":3,"kind":"heading","words":"Fruit"},
+        {"line":4,"kind":"todo","words":"Apples","match":"Apples"},
+        {"line":5,"kind":"done","words":"Pears","match":"Pears","depth":1},
+        {"line":6,"kind":"bullet","words":"Bread","depth":9}
+      ]}
+    ],"gone":["old"]}
+  """.trimIndent()
+
+  @Test
+  fun `A note's lines as handed over, and the notes gone`() {
+    val read = HomeData.pages(pagesJson)!!
+    assertEquals(setOf("old"), read.gone)
+    val page = read.pages.getValue("g")
+    assertEquals("Groceries", page.row.title)
+    assertEquals(listOf("heading", "todo", "done", "bullet"), page.lines.map { it.kind })
+    assertTrue(page.lines[1].todo)
+    assertTrue(page.lines[2].done)
+    assertEquals("a depth is three at most", 3, page.lines[3].depth)
+    assertNull(HomeData.pages(null))
+    assertNull("not JSON", HomeData.pages("soon"))
+  }
+
+  @Test
+  fun `a to-do ticked on A note or Today drawn ticked at once, the rest left as they were`() {
+    val ticked = HomeData.tickedIn(pagesJson, "g", 4)!!
+    assertEquals(listOf("heading", "done", "done", "bullet"), HomeData.pages(ticked)!!.pages.getValue("g").lines.map { it.kind })
+    assertNull("a line that is no to-do is nothing to tick", HomeData.tickedIn(pagesJson, "g", 3))
+    assertNull("another note's line", HomeData.tickedIn(pagesJson, "x", 4))
+    val daily = """{"day":"2026-10-21","note":{"id":"d","title":"2026-10-21","line":"","updated":1,"kind":"note","lines":[{"line":3,"kind":"todo","words":"Call Mum","match":"Call Mum"}]}}"""
+    val read = HomeData.daily(HomeData.tickedIn(daily, "d", 3))!!
+    assertEquals("2026-10-21", read.day)
+    assertTrue(read.page!!.lines.single().done)
+    assertNull("no note today", HomeData.daily("""{"day":"2026-10-21"}""")!!.page)
+  }
+
+  @Test
+  fun `A folder's folders, an organization's labelled under it, each with its notes`() {
+    val folders = HomeData.folders("""{"folders":[{"id":"org-a","name":"Acme","path":"Acme","org":true,"count":1,"notes":[{"id":"c","title":"Logo","line":"","updated":3,"kind":"note"}]},{"id":"w-2","name":"Clients","path":"Work › Clients","count":0,"notes":[]}]}""")!!
+    assertEquals(listOf("Acme", "Work › Clients"), folders.map { it.path })
+    assertTrue(folders.first().org)
+    assertEquals("Logo", folders.first().notes.single().title)
+    assertNull(HomeData.folders(null))
+  }
+
+  @Test
+  fun `Ask AI shows Claude only with it on and a key, as the dock does`() {
+    assertTrue(HomeData.assistant("""{"on":true,"key":true}""")!!.shown)
+    assertEquals(false, HomeData.assistant("""{"on":true,"key":false}""")!!.shown)
+    assertEquals(false, HomeData.assistant("""{"on":false,"key":true}""")!!.shown)
+    assertNull(HomeData.assistant(null))
+  }
+
+  @Test
+  fun `Next up, the event on now or soonest today, else the to-do most overdue, then today's, and when`() {
+    val today = "2026-10-21"
+    val now = 1_000_000_000_000L
+    val minute = 60_000L
+    fun event(id: String, start: Long, end: Long, allDay: Boolean = false) = HomeData.Event(id, id, "Home", null, allDay, today, today, start, end)
+    val todos = HomeData.todos(
+      """{"todos":[
+        {"note":"a","line":2,"words":"Today's","due":"2026-10-21","title":"A"},
+        {"note":"b","line":2,"words":"Late","due":"2026-10-18","title":"B"},
+        {"note":"c","line":2,"words":"Tomorrow's","due":"2026-10-22","title":"C"},
+        {"note":"d","line":2,"words":"Someday","title":"D"}
+      ]}""",
+    )
+    val ended = event("ended", now - 90 * minute, now - 30 * minute)
+    val later = event("later", now + 130 * minute, now + 160 * minute)
+    val soon = event("soon", now + 25 * minute, now + 55 * minute)
+    val holiday = event("holiday", 0, 0, allDay = true)
+    val items = HomeData.nextUp(listOf(later, ended, holiday, soon), todos, today, now)
+    assertEquals(listOf("soon", "later", "Late", "Today's", "holiday"), items.map { if (it is HomeData.Event) it.id else (it as HomeData.Todo).words })
+    assertEquals("In 25 min", HomeData.whenNext(soon, today, now))
+    assertEquals("In 2 hr 10 min", HomeData.whenNext(later, today, now))
+    assertEquals("In 2 hr", HomeData.whenNext(event("x", now + 120 * minute, now + 130 * minute), today, now))
+    assertEquals("Now", HomeData.whenNext(event("on", now - minute, now + minute), today, now))
+    assertEquals("Overdue · 3 days", HomeData.whenNext(items[2], today, now))
+    assertEquals("Due today", HomeData.whenNext(items[3], today, now))
+    assertEquals("the next change is the first one's start", soon.start, HomeData.nextChange(items, now))
+    assertEquals("one on now changes as it ends", now + minute, HomeData.nextChange(listOf(event("on", now - minute, now + minute)), now))
+    assertNull("a to-do first changes with the day", HomeData.nextChange(items.drop(2), now))
+    val none = HomeData.nextUp(emptyList(), todos, today, now)
+    assertEquals("no events: the to-dos due by today, the most overdue first", listOf("Late", "Today's"), none.map { (it as HomeData.Todo).words })
+  }
+
+  @Test
+  fun `the size a widget is drawn at, by the room the launcher gives it`() {
+    assertEquals(HomeData.Fit.TINY, HomeData.fitOf(75, 82))
+    assertEquals(HomeData.Fit.SLIM, HomeData.fitOf(159, 82))
+    assertEquals(HomeData.Fit.SLIM, HomeData.fitOf(330, 82))
+    assertEquals(HomeData.Fit.NARROW, HomeData.fitOf(159, 181))
+    assertEquals(HomeData.Fit.NARROW, HomeData.fitOf(159, 380))
+    assertEquals(HomeData.Fit.NARROW, HomeData.fitOf(75, 280))
+    assertEquals(HomeData.Fit.MEDIUM, HomeData.fitOf(330, 181))
+    assertEquals(HomeData.Fit.LARGE, HomeData.fitOf(330, 280))
+    assertEquals(HomeData.Fit.LARGE, HomeData.fitOf(600, 380))
+    assertEquals(2, HomeData.rowsFor(30, 20, 2))
+    assertEquals(1, HomeData.rowsFor(0, 20, 2))
+    assertEquals(2, HomeData.rowsFor(300, 20, 2))
+  }
+
   @Test
   fun `days counted on the calendar, not the clock`() {
     assertEquals(1, HomeData.daysBetween("2026-03-28", "2026-03-29"))

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Today (home/Widgets.kt, docs/WIDGETS_ANDROID.md): today's note, placed four cells by two; a cell, the day and a dot where
+     it is written in; a cell high, how it starts; a column or four by four, as many of its lines as fit.
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_today_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
+    android:minWidth="250dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="4"
+    android:targetCellHeight="2"
+    android:previewLayout="@layout/ghost_w_preview_daily"
+    android:previewImage="@drawable/ghost_w_preview_daily"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:widgetCategory="home_screen" />

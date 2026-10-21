@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- A note (home/Widgets.kt, docs/WIDGETS_ANDROID.md): one note, chosen as it is placed (home/WidgetPick.kt; from Android
+     12 chosen again by its Reconfigure). Placed two cells by two; a cell, its mark and name; a cell high, its row; else
+     as many of its lines as fit.
+     Drawn when the app hands something over and on its own clock, never on one of Android's. -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:description="@string/ghost_widget_note_about"
+    android:initialLayout="@layout/ghost_w_frame_system"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:minResizeWidth="40dp"
+    android:minResizeHeight="40dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:previewLayout="@layout/ghost_w_preview_note"
+    android:previewImage="@drawable/ghost_w_preview_note"
+    android:resizeMode="horizontal|vertical"
+    android:updatePeriodMillis="0"
+    android:configure="com.mattssoftware.ghost_md.home.WidgetPick"
+    android:widgetFeatures="reconfigurable"
+    android:widgetCategory="home_screen" />

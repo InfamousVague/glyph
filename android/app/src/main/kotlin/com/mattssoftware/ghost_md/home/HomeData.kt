@@ -8,7 +8,7 @@ import java.util.Locale
 import java.util.TimeZone
 
 /**
- * What the four widgets draw, read from what the app handed over (lib/home_screen/home_data.dart;
+ * What the twelve widgets draw, read from what the app handed over (lib/home_screen/home_data.dart;
  * docs/WIDGETS_ANDROID.md) and put in the app's own words: the To-dos view's groups, a due day as its rows say it
  * ("Tomorrow", "3 days ago"), a note's "20 min ago" as the home page's (lib/notes/when.dart), a tape's "0:40". Pure
  * (no Android), so the words and the groups are held by HomeDataTest; the phone's own names for a weekday and a date
@@ -94,10 +94,7 @@ object HomeData {
   /** A note as Recent notes and Voice note list it (`notesJson`). [kind] is `note`, `tape`, `book` or `canvas`. */
   data class Row(val id: String, val title: String, val line: String, val updated: Long, val kind: String, val ms: Long, val pinned: Boolean)
 
-  fun notes(raw: String?): List<Row> = items(raw, "notes").mapNotNull {
-    val id = it.text("id") ?: return@mapNotNull null
-    Row(id, it.text("title") ?: "Untitled", it.optString("line"), it.optLong("updated"), it.text("kind") ?: "note", it.optLong("ms"), it.optBoolean("pinned"))
-  }
+  fun notes(raw: String?): List<Row> = items(raw, "notes").mapNotNull(::rowOf)
 
   /** What a row says under its name: a tape's length first, "0:40 · …", then how the note starts. */
   fun lineOf(row: Row): String = when {
@@ -276,6 +273,197 @@ object HomeData {
 
   /** The day [ms] is on, on this phone's clock. */
   fun dayOf(ms: Long, zone: TimeZone = TimeZone.getDefault()): String = written(Calendar.getInstance(zone).apply { timeInMillis = ms })
+
+  // ---- a note's lines (A note, Today) ------------------------------------------------------------------------------
+
+  /** What a line is (lib/home_screen/home_data.dart `PageLineKind`): `text`, `heading`, `bullet`, `quote`, `todo`, `done`. */
+  data class Line(val line: Int, val kind: String, val words: String, val match: String?, val depth: Int) {
+    val todo: Boolean get() = kind == "todo"
+    val done: Boolean get() = kind == "done"
+  }
+
+  /** A note as A note and Today draw it: its row and its first lines after its name (`HomePage`). */
+  data class Page(val row: Row, val lines: List<Line>)
+
+  private fun rowOf(it: JSONObject): Row? {
+    val id = it.text("id") ?: return null
+    return Row(id, it.text("title") ?: "Untitled", it.optString("line"), it.optLong("updated"), it.text("kind") ?: "note", it.optLong("ms"), it.optBoolean("pinned"))
+  }
+
+  private fun pageOf(it: JSONObject?): Page? {
+    val row = rowOf(it ?: return null) ?: return null
+    val lines = it.optJSONArray("lines") ?: JSONArray()
+    return Page(
+      row,
+      (0 until lines.length()).mapNotNull { index ->
+        val line = lines.optJSONObject(index) ?: return@mapNotNull null
+        val words = line.text("words") ?: return@mapNotNull null
+        Line(line.optInt("line"), line.text("kind") ?: "text", words, line.text("match"), line.optInt("depth").coerceIn(0, 3))
+      },
+    )
+  }
+
+  /** The notes the A note widgets were set to (`pagesJson`), by id, and those deleted or in the Trash. */
+  data class Pages(val pages: Map<String, Page>, val gone: Set<String>)
+
+  fun pages(raw: String?): Pages? {
+    if (raw == null) return null
+    return try {
+      val read = JSONObject(raw)
+      val gone = read.optJSONArray("gone") ?: JSONArray()
+      Pages(items(raw, "pages").mapNotNull(::pageOf).associateBy { it.row.id }, (0 until gone.length()).map { gone.optString(it) }.filter { it.isNotEmpty() }.toSet())
+    } catch (_: Throwable) {
+      null
+    }
+  }
+
+  /** Today's note as Today draws it (`dailyJson`): the day it was handed for, and that day's note, if there is one. */
+  data class Daily(val day: String, val page: Page?)
+
+  fun daily(raw: String?): Daily? = try {
+    val read = JSONObject(raw ?: return null)
+    read.text("day")?.let { Daily(it, pageOf(read.optJSONObject("note"))) }
+  } catch (_: Throwable) {
+    null
+  }
+
+  /**
+   * [raw] (`pages` or `daily`) with [line] of [note] drawn ticked: a to-do ticked on A note or Today, ticked there at
+   * once, before the app has written it (HomeScreen.ticked). Null where nothing changed.
+   */
+  fun tickedIn(raw: String?, note: String, line: Int): String? {
+    val read = try {
+      JSONObject(raw ?: return null)
+    } catch (_: Throwable) {
+      return null
+    }
+    var changed = false
+    fun tick(page: JSONObject?) {
+      if (page == null || page.optString("id") != note) return
+      val lines = page.optJSONArray("lines") ?: return
+      for (index in 0 until lines.length()) {
+        val each = lines.optJSONObject(index) ?: continue
+        if (each.optInt("line") == line && each.optString("kind") == "todo") {
+          each.put("kind", "done")
+          changed = true
+        }
+      }
+    }
+    read.optJSONArray("pages")?.let { all -> for (index in 0 until all.length()) tick(all.optJSONObject(index)) }
+    tick(read.optJSONObject("note"))
+    return if (changed) read.toString() else null
+  }
+
+  /** How many rows of [chars] characters a line of words takes at [perRow] characters a row, [most] at most. */
+  fun rowsFor(chars: Int, perRow: Int, most: Int): Int = ((chars + perRow - 1) / maxOf(1, perRow)).coerceIn(1, most)
+
+  // ---- folders (A folder) ------------------------------------------------------------------------------------------
+
+  /** A workspace or a folder (`HomeFolder`): [path] its name with its parents' ("Acme › Design"), [org] in one. */
+  data class Folder(val id: String, val name: String, val path: String, val org: Boolean, val hue: String?, val count: Int, val notes: List<Row>)
+
+  fun folders(raw: String?): List<Folder>? {
+    if (raw == null) return null
+    return items(raw, "folders").mapNotNull {
+      val id = it.text("id") ?: return@mapNotNull null
+      val name = it.text("name") ?: "Untitled"
+      val notes = it.optJSONArray("notes") ?: JSONArray()
+      Folder(id, name, it.text("path") ?: name, it.optBoolean("org"), it.text("hue"), it.optInt("count"), (0 until notes.length()).mapNotNull { index -> notes.optJSONObject(index)?.let(::rowOf) })
+    }
+  }
+
+  // ---- the assistant (Ask AI) --------------------------------------------------------------------------------------
+
+  /** Whether Claude is on and a key entered (`assistantJson`): shown, as the dock shows it, only with both. */
+  data class Assistant(val on: Boolean, val key: Boolean) {
+    val shown: Boolean get() = on && key
+  }
+
+  fun assistant(raw: String?): Assistant? = try {
+    val read = JSONObject(raw ?: return null)
+    Assistant(read.optBoolean("on"), read.optBoolean("key"))
+  } catch (_: Throwable) {
+    null
+  }
+
+  // ---- Next up -------------------------------------------------------------------------------------------------------
+
+  /**
+   * What Next up shows, the first the most pressing: today's timed events not yet over (the one on now first, then the
+   * soonest), else the to-dos overdue (the longest overdue first) and those due today; then the rest of those, and
+   * today's all-day events last. A list of [Event] and [Todo].
+   */
+  fun nextUp(events: List<Event>, todos: List<Todo>, today: String, now: Long): List<Any> {
+    val timed = events.filter { !it.allDay && it.first <= today && it.last >= today && it.end > now }.sortedWith(compareBy({ it.start }, { it.title.lowercase(Locale.ROOT) }))
+    val allDay = events.filter { it.allDay && it.first <= today && it.last >= today }.sortedBy { it.title.lowercase(Locale.ROOT) }
+    val due = todos.filter { val d = it.due ?: return@filter false; d <= today }.sortedWith(compareBy({ it.due }, { it.title.lowercase(Locale.ROOT) }, { it.line }))
+    return timed + due + allDay
+  }
+
+  /**
+   * When the next thing is, as Next up's eyebrow says it: "Now" for an event on, "In 25 min", "In 2 hr", "In 1 hr 20
+   * min" for one to come; for a to-do, "Overdue · 3 days", "Overdue · Yesterday", "Due today".
+   */
+  fun whenNext(item: Any, today: String, now: Long): String = when (item) {
+    is Event -> when {
+      item.allDay -> "All day"
+      item.start <= now -> "Now"
+      else -> {
+        val minutes = ((item.start - now + 59_999) / 60_000).toInt()
+        val hours = minutes / 60
+        val rest = minutes % 60
+        when {
+          minutes < 60 -> "In $minutes min"
+          rest == 0 -> "In $hours hr"
+          else -> "In $hours hr $rest min"
+        }
+      }
+    }
+    is Todo -> {
+      val days = item.due?.let { daysBetween(it, today) } ?: 0
+      when {
+        days <= 0 -> "Due today"
+        days == 1 -> "Overdue · Yesterday"
+        else -> "Overdue · $days days"
+      }
+    }
+    else -> ""
+  }
+
+  /** The next moment Next up says something else of its first: its event's start where it is to come, else its end. */
+  fun nextChange(items: List<Any>, now: Long): Long? {
+    val first = items.firstOrNull() as? Event ?: return null
+    if (first.allDay) return null
+    return if (first.start > now) first.start else first.end
+  }
+
+  // ---- sizes ---------------------------------------------------------------------------------------------------------
+
+  /**
+   * The size a widget is drawn at, by the room the launcher gives it (docs/WIDGETS_ANDROID.md, "Sizes"): [TINY] a cell
+   * each way (1×1), [SLIM] a cell high and wider (2×1, 4×1), [NARROW] two cells across or one and taller (1×N, 2×N),
+   * [MEDIUM] three cells across or more and two high (4×2), [LARGE] three high or more (4×3, 4×4). Measured on the
+   * Pixel launcher at 420dpi (a cell 75dp across and 82dp high, two 159 by 181, four 330 by 380) and the Fold's
+   * cover screen, whose cells are a little larger.
+   */
+  enum class Fit { TINY, SLIM, NARROW, MEDIUM, LARGE }
+
+  /** Narrower or shorter than this, a widget is a cell that way. */
+  const val ONE_CELL_DP = 120
+
+  /** Narrower than this, a widget is two cells across at most: a column. */
+  const val NARROW_DP = 215
+
+  /** This tall or more, a widget is large. */
+  const val LARGE_DP = 230
+
+  fun fitOf(wide: Int, tall: Int): Fit = when {
+    tall < ONE_CELL_DP && wide < ONE_CELL_DP -> Fit.TINY
+    tall < ONE_CELL_DP -> Fit.SLIM
+    wide < NARROW_DP -> Fit.NARROW
+    tall >= LARGE_DP -> Fit.LARGE
+    else -> Fit.MEDIUM
+  }
 
   // ---- room ----------------------------------------------------------------------------------------------------------
 

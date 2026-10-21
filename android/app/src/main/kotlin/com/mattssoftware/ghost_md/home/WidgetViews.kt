@@ -10,18 +10,21 @@ import android.os.Build
 import android.os.Bundle
 import android.text.format.DateFormat
 import android.util.SizeF
+import android.util.TypedValue
 import android.view.Gravity
 import android.view.View
 import android.widget.RemoteViews
 import com.mattssoftware.ghost_md.R
+import com.mattssoftware.ghost_md.home.HomeData.Fit
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
 /**
- * How each of the four widgets is drawn (docs/WIDGETS_ANDROID.md), in the app's look: the frame (layout/ghost_w_frame.xml),
- * its heading as the home page heads a section, and the rows each widget has room for at the size it is.
+ * How the widgets are drawn (docs/WIDGETS_ANDROID.md), in the app's look: the frame (layout/ghost_w_frame.xml), its
+ * heading as the home page heads a section, and what each widget has room for at the size it is. This file has the
+ * frame, what every widget shares, and the four first; MoreWidgetViews.kt the eight more.
  *
  * - **Voice note**: the dock's filled ring made big, which records a voice note at once (`ghostmd://voice`: the app
  *   opens straight into the recorder); beside it the last recording, its name and length. Large: under it, the
@@ -33,41 +36,46 @@ import java.util.Locale
  * - **Recent notes**: the notes written in last, each as a home page's row: its mark, name, how it starts, when.
  *   Large and wide (the Fold opened), two columns of them.
  *
- * Sizes: from Android 12 the launcher says each size the widget is drawn at (upright and on its side), and a view is
- * made for each (`RemoteViews(Map<SizeF, RemoteViews>)`), so the launcher shows the right one as it turns or resizes
- * with nothing asked of the app. Before 12, the size the widget says it is in this orientation.
+ * **Sizes** (HomeData.Fit; Matt, 2026-10-21: "I want to have more 2xN and 1x1 also make sure they take up 100% of
+ * avail space"): a cell each way (1×1) draws one thing in the middle of the cell (`tile`: the microphone, a count, the
+ * day); a cell high (2×1, 4×1) puts the heading away and gives the cell to one row; two cells across (2×N) draws a
+ * column, as many rows as its height holds; four by two and four by four as before. The ground is the frame's root,
+ * the whole of what the launcher gives, with the launcher's own corners (drawable-v31/ghost_w_back.xml), and what is
+ * in it grows into the room: more rows, a bigger ring, a grid's rows sharing the height.
+ *
+ * From Android 12 the launcher says each size the widget is drawn at (upright and on its side), and a view is made for
+ * each (`RemoteViews(Map<SizeF, RemoteViews>)`), so the launcher shows the right one as it turns or resizes with
+ * nothing asked of the app. Before 12, the size the widget says it is in this orientation.
  */
 object WidgetViews {
   // The frame's own room, in dp (layout/ghost_w_frame.xml): its padding above and below and its heading.
-  private const val FRAME_DP = 14 + 34
-  private const val MORE_DP = 18
-  private const val EYEBROW_DP = 22
-  private const val TODO_DP = 48
-  private const val NOTE_DP = 52
-  private const val EVENT_DP = 46
-  private const val HERO_DP = 76
+  internal const val FRAME_DP = 14 + 34
+  internal const val MORE_DP = 18
+  internal const val EYEBROW_DP = 22
+  internal const val TODO_DP = 48
+  internal const val NOTE_DP = 52
+  internal const val COMPACT_DP = 36
+  internal const val EVENT_DP = 46
+  internal const val HERO_DP = 76
 
-  /** A widget this tall or more is large: Voice note lists its recordings under the microphone. */
-  private const val LARGE_DP = 230
-
-  /** Recent notes in two columns from this wide, when large. */
-  private const val TWO_COLUMNS_DP = 420
+  /** Two columns of rows from this wide, when large: the Fold opened. */
+  internal const val TWO_COLUMNS_DP = 420
 
   fun draw(context: Context, manager: AppWidgetManager, id: Int, kind: WidgetKind) {
-    manager.updateAppWidget(id, views(context, manager.getAppWidgetOptions(id), kind))
+    manager.updateAppWidget(id, views(context, manager.getAppWidgetOptions(id), kind, id))
   }
 
-  fun views(context: Context, options: Bundle?, kind: WidgetKind): RemoteViews {
+  fun views(context: Context, options: Bundle?, kind: WidgetKind, id: Int): RemoteViews {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       val sizes = sizesOf(options)
-      if (sizes.isNotEmpty()) return RemoteViews(sizes.associateWith { build(context, kind, it.width.toInt(), it.height.toInt()) })
+      if (sizes.isNotEmpty()) return RemoteViews(sizes.associateWith { build(context, kind, id, it.width.toInt(), it.height.toInt()) })
     }
     // Upright, a widget is its minimum width by its maximum height; on its side, its maximum width by its minimum
     // height (the Fold opened and turned).
     val sideways = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
     val wide = options?.getInt(if (sideways) AppWidgetManager.OPTION_APPWIDGET_MAX_WIDTH else AppWidgetManager.OPTION_APPWIDGET_MIN_WIDTH)?.takeIf { it > 0 } ?: 250
     val tall = options?.getInt(if (sideways) AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT else AppWidgetManager.OPTION_APPWIDGET_MAX_HEIGHT)?.takeIf { it > 0 } ?: 160
-    return build(context, kind, wide, tall)
+    return build(context, kind, id, wide, tall)
   }
 
   @Suppress("DEPRECATION")
@@ -82,11 +90,12 @@ object WidgetViews {
     return sizes.orEmpty().filter { it.width > 0 && it.height > 0 }.distinct().take(8)
   }
 
-  fun build(context: Context, kind: WidgetKind, wide: Int, tall: Int): RemoteViews = when (kind) {
+  fun build(context: Context, kind: WidgetKind, id: Int, wide: Int, tall: Int): RemoteViews = when (kind) {
     WidgetKind.VOICE -> voice(context, wide, tall)
     WidgetKind.TODOS -> todos(context, wide, tall)
     WidgetKind.CALENDAR -> calendar(context, wide, tall)
     WidgetKind.NOTES -> notes(context, wide, tall)
+    else -> MoreWidgetViews.build(context, kind, id, wide, tall)
   }
 
   // ---- the frame ---------------------------------------------------------------------------------------------------
@@ -95,16 +104,16 @@ object WidgetViews {
    * Whether the widgets are drawn dark: the app's theme (HomeScreen.look; its own default is Dark), the phone's mode
    * where the app follows the phone.
    */
-  private fun dark(context: Context): Boolean = when (HomeScreen.look(context)) {
+  internal fun dark(context: Context): Boolean = when (HomeScreen.look(context)) {
     "light" -> false
     "system" -> (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
     else -> true
   }
 
   /** A colour set from here (a due chip's words), in the look the widget is drawn in. */
-  private fun ink(context: Context, light: Int, dark: Int): Int = context.getColor(if (dark(context)) dark else light)
+  internal fun ink(context: Context, light: Int, dark: Int): Int = context.getColor(if (dark(context)) dark else light)
 
-  private fun frame(context: Context, mark: Int, title: String, count: String, action: Int, actionSaid: String, actionLink: String): RemoteViews {
+  internal fun frame(context: Context, mark: Int, title: String, count: String, action: Int, actionSaid: String, actionLink: String): RemoteViews {
     // The look is the theme on the frame's own root (layout/ghost_w_frame_*.xml): the rows added to it read it too.
     val layout = when (HomeScreen.look(context)) {
       "light" -> R.layout.ghost_w_frame_light
@@ -124,19 +133,34 @@ object WidgetViews {
     // Everything a size may change, said again for every size: a launcher applies a widget's new views over its old
     // ones, and what one size set and another does not say stays (a medium's centring under a large's rows).
     views.setViewVisibility(R.id.ghost_w_head, View.VISIBLE)
+    views.setViewVisibility(R.id.ghost_w_action, View.VISIBLE)
+    views.setViewVisibility(R.id.ghost_w_col_b, View.GONE)
     views.setViewPadding(R.id.ghost_w_root, dp(context, 16), dp(context, 8), dp(context, 10), dp(context, 6))
     views.setInt(R.id.ghost_w_root, "setGravity", Gravity.TOP or Gravity.START)
     views.setInt(R.id.ghost_w_body, "setGravity", Gravity.TOP or Gravity.START)
+    views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.TOP or Gravity.START)
+    views.setInt(R.id.ghost_w_col_b, "setGravity", Gravity.TOP or Gravity.START)
     return views
   }
 
-  private fun more(context: Context, views: RemoteViews, left: Int) {
+  /** A narrow widget (two cells across) keeps less room at its sides, so its rows have more. */
+  internal fun narrowed(context: Context, views: RemoteViews) {
+    views.setViewPadding(R.id.ghost_w_root, dp(context, 12), dp(context, 6), dp(context, 8), dp(context, 6))
+  }
+
+  /** No heading: a widget a cell high, or one whose own top is its heading (Search's field), gives it all to its rows. */
+  internal fun headless(context: Context, views: RemoteViews, sides: Int = 12, ends: Int = 4) {
+    views.setViewVisibility(R.id.ghost_w_head, View.GONE)
+    views.setViewPadding(R.id.ghost_w_root, dp(context, sides), dp(context, ends), dp(context, sides - 4), dp(context, ends))
+  }
+
+  internal fun more(context: Context, views: RemoteViews, left: Int) {
     views.setViewVisibility(R.id.ghost_w_more, if (left > 0) View.VISIBLE else View.GONE)
     views.setTextViewText(R.id.ghost_w_more, "$left more")
     home(context)?.let { views.setOnClickPendingIntent(R.id.ghost_w_more, it) }
   }
 
-  private fun empty(context: Context, views: RemoteViews, title: String?, words: String = "", link: PendingIntent? = home(context)) {
+  internal fun empty(context: Context, views: RemoteViews, title: String?, words: String = "", link: PendingIntent? = home(context)) {
     views.setViewVisibility(R.id.ghost_w_empty, if (title == null) View.GONE else View.VISIBLE)
     views.setViewVisibility(R.id.ghost_w_body, if (title == null) View.VISIBLE else View.GONE)
     if (title == null) return
@@ -146,46 +170,96 @@ object WidgetViews {
     link?.let { views.setOnClickPendingIntent(R.id.ghost_w_empty, it) }
   }
 
+  /**
+   * A cell each way (1×1): the frame with its heading away and its padding a hair, and in the middle of the cell one
+   * round button ([icon] on [ring], tinted [tint]) or one big word ([big]), [label] under it and a dot before the
+   * label where [dot]; the whole cell [link].
+   */
+  internal fun tile(
+    context: Context,
+    views: RemoteViews,
+    icon: Int? = null,
+    ring: Int = R.drawable.ghost_w_ring,
+    tint: Int? = null,
+    big: String? = null,
+    bigColour: Int? = null,
+    label: String,
+    labelColour: Int? = null,
+    dot: Boolean = false,
+    link: PendingIntent?,
+    said: String = label,
+  ): RemoteViews {
+    headless(context, views, sides = 6, ends = 4)
+    val tile = RemoteViews(context.packageName, R.layout.ghost_w_tile)
+    tile.setViewVisibility(R.id.ghost_w_tile_ring, if (icon != null) View.VISIBLE else View.GONE)
+    if (icon != null) {
+      tile.setImageViewResource(R.id.ghost_w_tile_icon, icon)
+      tile.setInt(R.id.ghost_w_tile_ring, "setBackgroundResource", ring)
+      if (tint != null) tile.setInt(R.id.ghost_w_tile_icon, "setColorFilter", tint)
+    }
+    tile.setViewVisibility(R.id.ghost_w_tile_big, if (big != null) View.VISIBLE else View.GONE)
+    if (big != null) tile.setTextViewText(R.id.ghost_w_tile_big, big)
+    if (bigColour != null) tile.setTextColor(R.id.ghost_w_tile_big, bigColour)
+    tile.setTextViewText(R.id.ghost_w_tile_label, label)
+    if (labelColour != null) tile.setTextColor(R.id.ghost_w_tile_label, labelColour)
+    tile.setViewVisibility(R.id.ghost_w_tile_dot, if (dot) View.VISIBLE else View.GONE)
+    tile.setContentDescription(R.id.ghost_w_tile, said)
+    link?.let { tile.setOnClickPendingIntent(R.id.ghost_w_tile, it) }
+    views.addView(R.id.ghost_w_col_a, tile)
+    more(context, views, 0)
+    empty(context, views, null)
+    return views
+  }
+
   /** The app's home page: its own launch, no link. */
-  private fun home(context: Context): PendingIntent? {
+  internal fun home(context: Context): PendingIntent? {
     val launch = context.packageManager.getLaunchIntentForPackage(context.packageName) ?: return null
     return PendingIntent.getActivity(context, 7_200, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
   }
 
-  private fun dp(context: Context, value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
+  internal fun dp(context: Context, value: Int): Int = (value * context.resources.displayMetrics.density).toInt()
+
+  /** A view's width and height set to [size] dp, from Android 12 (`setViewLayoutWidth`); before, as its layout says. */
+  internal fun sized(views: RemoteViews, id: Int, size: Int) {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return
+    views.setViewLayoutWidth(id, size.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+    views.setViewLayoutHeight(id, size.toFloat(), TypedValue.COMPLEX_UNIT_DIP)
+  }
 
   /** The room under the heading for rows, in dp. */
-  private fun room(tall: Int): Int = tall - FRAME_DP
+  internal fun room(tall: Int): Int = tall - FRAME_DP
 
   /**
-   * The room for rows where one of [need] dp must fit: under the heading where it does; else (a widget a cell high,
-   * as the Today and Pinned widgets placed before the four may be) the heading put away and the rows in all of it.
+   * The room for rows where one of [need] dp must fit: under the heading where it does; else (a widget a cell high)
+   * the heading put away and the rows in all of it.
    */
-  private fun roomFor(context: Context, views: RemoteViews, tall: Int, need: Int): Int {
+  internal fun roomFor(context: Context, views: RemoteViews, tall: Int, need: Int): Int {
     if (room(tall) >= need) return room(tall)
-    views.setViewVisibility(R.id.ghost_w_head, View.GONE)
-    views.setViewPadding(R.id.ghost_w_root, dp(context, 12), dp(context, 4), dp(context, 8), dp(context, 4))
+    headless(context, views, sides = 12, ends = 4)
     return tall - 8
   }
 
   /** A row's height at the phone's text size: its words grow, so it does. */
-  private fun scaled(context: Context, dp: Int): Int = (dp * context.resources.configuration.fontScale.coerceAtLeast(1f)).toInt()
+  internal fun scaled(context: Context, dp: Int): Int = (dp * context.resources.configuration.fontScale.coerceAtLeast(1f)).toInt()
 
-  private fun eyebrow(context: Context, words: String, count: Int?): RemoteViews = RemoteViews(context.packageName, R.layout.ghost_w_eyebrow).apply {
+  internal fun eyebrow(context: Context, words: String, count: Int?): RemoteViews = RemoteViews(context.packageName, R.layout.ghost_w_eyebrow).apply {
     setTextViewText(R.id.ghost_w_eyebrow_words, words)
     setTextViewText(R.id.ghost_w_eyebrow_count, count?.toString() ?: "")
   }
 
   // ---- words, in the phone's own ------------------------------------------------------------------------------------
 
-  private fun locale(context: Context): Locale = context.resources.configuration.locales[0] ?: Locale.getDefault()
+  internal fun locale(context: Context): Locale = context.resources.configuration.locales[0] ?: Locale.getDefault()
 
-  private fun weekdayOf(context: Context, ms: Long): String = SimpleDateFormat("EEEE", locale(context)).format(Date(ms))
+  internal fun weekdayOf(context: Context, ms: Long): String = SimpleDateFormat("EEEE", locale(context)).format(Date(ms))
 
-  private fun dateOf(context: Context, ms: Long): String = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale(context), "MMMMd"), locale(context)).format(Date(ms))
+  internal fun dateOf(context: Context, ms: Long): String = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale(context), "MMMMd"), locale(context)).format(Date(ms))
+
+  /** A date in the phone's words by [skeleton]: "Tue, Oct 21" (`EEEMMMd`), "Tue 21" (`EEEd`), "21" (`d`). */
+  internal fun dayIn(context: Context, ms: Long, skeleton: String): String = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale(context), skeleton), locale(context)).format(Date(ms))
 
   /** A day `2026-10-03` at noon on this phone's clock. */
-  private fun noonOf(day: String): Long {
+  internal fun noonOf(day: String): Long {
     val (y, m, d) = day.split('-').map { it.toInt() }
     return Calendar.getInstance().apply {
       clear()
@@ -193,49 +267,103 @@ object WidgetViews {
     }.timeInMillis
   }
 
-  private fun ago(context: Context, ms: Long, now: Long): String = HomeData.ago(ms, now, { weekdayOf(context, it) }, { dateOf(context, it) })
+  internal fun ago(context: Context, ms: Long, now: Long): String = HomeData.ago(ms, now, { weekdayOf(context, it) }, { dateOf(context, it) })
 
-  private fun dueWords(context: Context, due: String, today: String): String =
+  internal fun dueWords(context: Context, due: String, today: String): String =
     HomeData.dueWords(due, today, { weekdayOf(context, noonOf(it)) }, { dateOf(context, noonOf(it)) })
 
-  private fun timeOf(context: Context, ms: Long): String = DateFormat.getTimeFormat(context).format(Date(ms))
+  internal fun timeOf(context: Context, ms: Long): String = DateFormat.getTimeFormat(context).format(Date(ms))
+
+  // ---- a microphone, Voice note's and Ask AI's ----------------------------------------------------------------------
+
+  /** A ring and its words: the dock's filled Speak, or Talk to Claude's orange ring with its orange mic. */
+  internal class Mic(val ring: Int, val icon: Int, val tint: Int?, val title: String, val line: String, val press: PendingIntent, val wordsPress: PendingIntent, val said: String)
+
+  /**
+   * [mic] drawn for the size: a cell high, at the dock's own size beside its words; two cells across, in the middle of
+   * the column and as big as its room, its words under it; else big beside its words. [square] draws it the
+   * column's way at any size (Ask AI, large), leaving [reserve] dp under it for what follows. The heading goes where
+   * the ring would want its room. Answers the dp it takes.
+   */
+  internal fun micInto(context: Context, views: RemoteViews, fit: Fit, wide: Int, tall: Int, mic: Mic, reserve: Int = 0, square: Boolean = fit == Fit.NARROW): Int {
+    val layout = when {
+      fit == Fit.SLIM -> R.layout.ghost_w_voice_small
+      square -> R.layout.ghost_w_voice_square
+      else -> R.layout.ghost_w_voice_hero
+    }
+    val hero = RemoteViews(context.packageName, layout)
+    hero.setInt(R.id.ghost_w_voice_ring, "setBackgroundResource", mic.ring)
+    hero.setImageViewResource(R.id.ghost_w_voice_icon, mic.icon)
+    mic.tint?.let { hero.setInt(R.id.ghost_w_voice_icon, "setColorFilter", it) }
+    hero.setContentDescription(R.id.ghost_w_voice_ring, mic.said)
+    hero.setOnClickPendingIntent(R.id.ghost_w_voice_ring, mic.press)
+    hero.setTextViewText(R.id.ghost_w_voice_title, mic.title)
+    hero.setTextViewText(R.id.ghost_w_voice_line, mic.line)
+    hero.setViewVisibility(R.id.ghost_w_voice_line, if (mic.line.isEmpty()) View.GONE else View.VISIBLE)
+    hero.setOnClickPendingIntent(R.id.ghost_w_voice_words, mic.wordsPress)
+    var used = HERO_DP
+    when {
+      fit == Fit.SLIM -> {
+        headless(context, views, sides = 10, ends = 4)
+        views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
+      }
+      square -> {
+        if (fit == Fit.NARROW) narrowed(context, views)
+        // The ring as big as the column and its height leave, with room for two lines of words under it; the heading
+        // only where it still leaves the ring the dock's size and more.
+        val words = scaled(context, if (mic.line.isEmpty()) 30 else 44) + reserve
+        if (room(tall) - words < 72) headless(context, views, sides = 12, ends = 6)
+        val left = (if (room(tall) - words < 72) tall - 12 else room(tall)) - words
+        val ring = minOf(wide - 32, left - 8, 136).coerceAtLeast(44)
+        sized(hero, R.id.ghost_w_voice_ring, ring)
+        sized(hero, R.id.ghost_w_voice_icon, ring * 7 / 16)
+        used = ring + words + 8
+        views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER)
+      }
+      else -> views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
+    }
+    views.addView(R.id.ghost_w_col_a, hero)
+    return used
+  }
 
   // ---- Voice note ----------------------------------------------------------------------------------------------------
 
   private fun voice(context: Context, wide: Int, tall: Int): RemoteViews {
     val takes = HomeData.notes(HomeScreen.kept(context, "voice"))
     val now = System.currentTimeMillis()
-    val large = tall >= LARGE_DP
+    val fit = HomeData.fitOf(wide, tall)
     val views = frame(context, R.drawable.ghost_w_ic_mic, "Voice note", "", R.drawable.ghost_w_ic_pen, context.getString(R.string.ghost_shortcut_new_long), Doors.NEW)
-    // A cell high (a Quick note placed before the four): the ring at the dock's own size and no heading.
-    val small = tall < FRAME_DP + HERO_DP
-    if (small) {
-      views.setViewVisibility(R.id.ghost_w_head, View.GONE)
-      views.setViewPadding(R.id.ghost_w_root, dp(context, 10), dp(context, 4), dp(context, 10), dp(context, 4))
-      views.setInt(R.id.ghost_w_root, "setGravity", Gravity.CENTER_VERTICAL)
-    }
-    val hero = RemoteViews(context.packageName, if (small) R.layout.ghost_w_voice_small else R.layout.ghost_w_voice_hero)
     val record = Doors.press(context, Doors.VOICE)
-    hero.setOnClickPendingIntent(R.id.ghost_w_voice_ring, record)
-    val last = takes.firstOrNull()
-    if (large || last == null) {
-      hero.setTextViewText(R.id.ghost_w_voice_title, "Tap to record")
-      hero.setTextViewText(R.id.ghost_w_voice_line, "A new note, in your own words")
-      hero.setOnClickPendingIntent(R.id.ghost_w_voice_words, record)
-    } else {
-      hero.setTextViewText(R.id.ghost_w_voice_title, last.title)
-      hero.setTextViewText(R.id.ghost_w_voice_line, "${HomeData.counter(last.ms)} · ${ago(context, last.updated, now)}")
-      hero.setOnClickPendingIntent(R.id.ghost_w_voice_words, Doors.press(context, Doors.noteAt(last.id), "voice:${last.id}".hashCode()))
+    if (fit == Fit.TINY) {
+      return tile(context, views, icon = R.drawable.ghost_w_ic_mic, ring = R.drawable.ghost_w_ring_ink, tint = ink(context, R.color.ghost_w_light_on_ink, R.color.ghost_w_dark_on_ink), label = "Record", link = record, said = context.getString(R.string.ghost_shortcut_voice_long))
     }
-    views.addView(R.id.ghost_w_col_a, hero)
-    // Medium: the microphone in the middle of what the heading leaves; large, the recordings under it from the top.
-    views.setInt(R.id.ghost_w_body, "setGravity", if (large) Gravity.TOP else Gravity.CENTER_VERTICAL)
+    val large = fit == Fit.LARGE || (fit == Fit.NARROW && tall >= 260)
+    val last = takes.firstOrNull()
+    val fresh = large || last == null
+    val mic = Mic(
+      R.drawable.ghost_w_ring_ink,
+      R.drawable.ghost_w_ic_mic,
+      null,
+      if (fresh) "Tap to record" else last!!.title,
+      when {
+        fresh && fit == Fit.NARROW -> ""
+        fresh -> "A new note, in your own words"
+        else -> "${HomeData.counter(last!!.ms)} · ${ago(context, last.updated, now)}"
+      },
+      record,
+      if (fresh) record else Doors.press(context, Doors.noteAt(last!!.id), "voice:${last.id}".hashCode()),
+      context.getString(R.string.ghost_shortcut_voice_long),
+    )
+    val used = micInto(context, views, fit, wide, tall, mic)
+    // Large (and a tall column): the recordings under the microphone, from the top.
     if (large && takes.isNotEmpty()) {
-      val room = room(tall) - HERO_DP - scaled(context, EYEBROW_DP)
-      val shown = HomeData.fitting(room, takes.map { scaled(context, NOTE_DP) }, MORE_DP)
+      views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.TOP or Gravity.CENTER_HORIZONTAL)
+      val each = scaled(context, if (fit == Fit.NARROW) COMPACT_DP else NOTE_DP)
+      val left = room(tall) - used - scaled(context, EYEBROW_DP)
+      val shown = HomeData.fitting(left, takes.map { each }, 0).takeIf { left >= each } ?: 0
       if (shown > 0) {
         views.addView(R.id.ghost_w_col_a, eyebrow(context, "Recordings", null))
-        for (take in takes.take(shown)) views.addView(R.id.ghost_w_col_a, noteRow(context, take, now))
+        for (take in takes.take(shown)) views.addView(R.id.ghost_w_col_a, if (fit == Fit.NARROW) compactRow(context, take) else noteRow(context, take, now))
       }
     }
     more(context, views, 0)
@@ -248,7 +376,22 @@ object WidgetViews {
   private fun todos(context: Context, wide: Int, tall: Int): RemoteViews {
     val today = HomeScreen.today()
     val todos = HomeData.todos(HomeScreen.kept(context, "todos"))
+    val fit = HomeData.fitOf(wide, tall)
     val views = frame(context, R.drawable.ghost_w_ic_todos, "To-dos", if (todos.isEmpty()) "" else "${todos.size}", R.drawable.ghost_w_ic_plus, context.getString(R.string.ghost_shortcut_new_long), Doors.NEW)
+    if (fit == Fit.TINY) {
+      // How many are open, and under it how many are overdue, in the red, where any are.
+      val late = todos.count { HomeData.groupOf(it.due, today) == HomeData.Group.OVERDUE }
+      return tile(
+        context,
+        views,
+        big = "${todos.size}",
+        label = if (late > 0) "$late overdue" else "To do",
+        labelColour = if (late > 0) ink(context, R.color.ghost_w_light_red_11, R.color.ghost_w_dark_red_11) else null,
+        link = home(context),
+        said = "${todos.size} to-dos open",
+      )
+    }
+    if (fit == Fit.NARROW) narrowed(context, views)
     // Each group's eyebrow, then its rows, in as many as fit; a group's eyebrow is never the last thing shown, and
     // where an eyebrow and a row do not both fit, the rows alone.
     val room = roomFor(context, views, tall, scaled(context, TODO_DP))
@@ -258,30 +401,40 @@ object WidgetViews {
       if (eyebrows) parts.add(group to items.size)
       parts.addAll(items)
     }
-    val heights = parts.map { if (it is HomeData.Todo) scaled(context, TODO_DP) else scaled(context, EYEBROW_DP) }
+    // In a column a to-do's words take two lines where they need them, and its row the room they make.
+    val perRow = ((wide - 66) / (16.2f * 0.47f * context.resources.configuration.fontScale.coerceAtLeast(1f))).toInt().coerceAtLeast(8)
+    val heights = parts.map {
+      when {
+        it !is HomeData.Todo -> scaled(context, EYEBROW_DP)
+        fit == Fit.NARROW -> maxOf(TODO_DP, scaled(context, 8 + 21 * HomeData.rowsFor(it.words.length, perRow, 2) + 20))
+        else -> scaled(context, TODO_DP)
+      }
+    }
     var shown = HomeData.fitting(room, heights, 0)
     while (shown > 0 && parts[shown - 1] !is HomeData.Todo) shown -= 1
     for (part in parts.take(shown)) {
       if (part is HomeData.Todo) {
-        views.addView(R.id.ghost_w_col_a, todoRow(context, part, today))
+        views.addView(R.id.ghost_w_col_a, todoRow(context, part, today, narrow = fit == Fit.NARROW))
       } else if (part is Pair<*, *>) {
         views.addView(R.id.ghost_w_col_a, eyebrow(context, (part.first as HomeData.Group).words, part.second as Int))
       }
     }
     // The heading counts them all, so no line says how many did not fit: the room is rows'.
     more(context, views, 0)
-    empty(context, views, if (todos.isEmpty()) "Nothing to do." else null, "To-dos you write in any note show here.")
+    empty(context, views, if (todos.isEmpty()) "Nothing to do." else null, if (fit == Fit.SLIM) "" else "To-dos you write in any note show here.")
     return views
   }
 
-  private fun todoRow(context: Context, todo: HomeData.Todo, today: String): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.ghost_w_todo_row)
+  /** A to-do's row; [narrow] (two cells across), the due day's chip alone under the words where it has one. */
+  internal fun todoRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false): RemoteViews {
+    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_todo_row_tall else R.layout.ghost_w_todo_row)
     val code = "${todo.note}:${todo.line}".hashCode()
     val group = HomeData.groupOf(todo.due, today)
     val overdue = group == HomeData.Group.OVERDUE
     row.setTextViewText(R.id.ghost_w_todo_words, todo.words)
     // A ticket is its whole note, whose title is its words already; a priority worth a word after the note's name.
     row.setTextViewText(R.id.ghost_w_todo_note, listOfNotNull(if (todo.line == 0) "Ticket" else todo.title, HomeData.priorityWords(todo.priority)).joinToString(" · "))
+    row.setViewVisibility(R.id.ghost_w_todo_note, if (narrow && todo.due != null) View.GONE else View.VISIBLE)
     val due = todo.due
     if (due == null) {
       row.setViewVisibility(R.id.ghost_w_todo_due, View.GONE)
@@ -299,32 +452,29 @@ object WidgetViews {
       row.setTextViewCompoundDrawables(R.id.ghost_w_todo_due, icon, 0, 0, 0)
     }
     row.setOnClickPendingIntent(R.id.ghost_w_todo_text, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), code))
-    val tick = tickOf(context, todo, code)
+    val tick = tickOf(context, todo.note, todo.line, todo.match, code)
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
       val box = if (overdue) R.id.ghost_w_check_late else R.id.ghost_w_check
       row.setViewVisibility(R.id.ghost_w_check, if (overdue) View.GONE else View.VISIBLE)
       row.setViewVisibility(R.id.ghost_w_check_late, if (overdue) View.VISIBLE else View.GONE)
-      if (tick == null) {
-        row.setViewVisibility(box, View.INVISIBLE)
-      } else {
-        row.setCompoundButtonChecked(box, false)
-        row.setOnCheckedChangeResponse(box, RemoteViews.RemoteResponse.fromPendingIntent(tick))
-      }
+      row.setCompoundButtonChecked(box, false)
+      row.setOnCheckedChangeResponse(box, RemoteViews.RemoteResponse.fromPendingIntent(tick))
     } else {
       row.setImageViewResource(R.id.ghost_w_tick_ring, if (overdue) R.drawable.ghost_w_tick_late else R.drawable.ghost_w_tick_off)
-      if (tick == null) row.setViewVisibility(R.id.ghost_w_tick, View.INVISIBLE) else row.setOnClickPendingIntent(R.id.ghost_w_tick, tick)
+      row.setOnClickPendingIntent(R.id.ghost_w_tick, tick)
     }
     return row
   }
 
-  private fun tickOf(context: Context, todo: HomeData.Todo, code: Int): PendingIntent? {
+  /** The tick of [line] of [note] (said as [words]): the app's own broadcast, which ticks it without opening the app. */
+  internal fun tickOf(context: Context, note: String, line: Int, words: String, code: Int): PendingIntent {
     return PendingIntent.getBroadcast(
       context,
       code,
       Intent(context, WidgetTicks::class.java)
         .setAction(WidgetTicks.ACTION_TICK)
-        .setData(Uri.Builder().scheme("ghostmd-widget").authority("tick").appendPath(todo.note).appendPath(todo.line.toString()).build())
-        .putExtra("words", todo.match),
+        .setData(Uri.Builder().scheme("ghostmd-widget").authority("tick").appendPath(note).appendPath(line.toString()).build())
+        .putExtra("words", words),
       // Immutable: what the box's response would fill in (whether it is checked) is not read; a tick is a tick.
       PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
     )
@@ -335,54 +485,79 @@ object WidgetViews {
   private fun calendar(context: Context, wide: Int, tall: Int): RemoteViews {
     val today = HomeScreen.today()
     val now = System.currentTimeMillis()
-    val date = SimpleDateFormat(DateFormat.getBestDateTimePattern(locale(context), "EEEMMMd"), locale(context)).format(Date(now))
-    val views = frame(context, R.drawable.ghost_w_ic_calendar, "Calendar", date, R.drawable.ghost_w_ic_plus, context.getString(R.string.ghost_shortcut_new_long), Doors.NEW)
+    val fit = HomeData.fitOf(wide, tall)
+    // Two cells across, the date alone is the heading ("Tue 21"); wider, "Calendar" and the date beside it.
+    val narrow = fit == Fit.NARROW
+    val views = frame(
+      context,
+      R.drawable.ghost_w_ic_calendar,
+      if (narrow) dayIn(context, now, "MMMd") else "Calendar",
+      if (narrow) "" else dayIn(context, now, "EEEMMMd"),
+      R.drawable.ghost_w_ic_plus,
+      context.getString(R.string.ghost_shortcut_new_long),
+      Doors.NEW,
+    )
+    if (narrow) narrowed(context, views)
     val read = HomeData.calendar(HomeScreen.kept(context, "calendar"))
+    val todos = HomeData.todos(HomeScreen.kept(context, "todos"))
+    val days = if (read?.on == true) HomeData.agenda(read.events, todos, today, now) else emptyList()
+    if (fit == Fit.TINY) {
+      // The day, as a desk calendar's page, and how many things are on it.
+      val on = days.firstOrNull { it.day == today }?.let { it.events.size + it.todos.size } ?: 0
+      return tile(context, views, big = dayIn(context, now, "d"), label = dayIn(context, now, "EEE") + if (on > 0) " · $on" else "", dot = false, link = home(context), said = dayIn(context, now, "EEEEMMMMd"))
+    }
     if (read == null || !read.on) {
+      if (fit == Fit.SLIM) headless(context, views)
       more(context, views, 0)
       empty(context, views, if (read == null) "Open Ghost.md" else "Turn on Calendar in Ghost.md", if (read == null) "Your calendar shows here once it has opened." else "Settings › Plugins › Calendar")
       return views
     }
-    val todos = HomeData.todos(HomeScreen.kept(context, "todos"))
-    val days = HomeData.agenda(read.events, todos, today, now)
     val parts = mutableListOf<Any>()
     for (day in days) {
-      parts.add(day)
+      // A cell high, the next things without the days' eyebrows: the room is one row's.
+      if (fit != Fit.SLIM) parts.add(day)
       parts.addAll(day.events)
       parts.addAll(day.todos)
     }
     val heights = parts.map { if (it is HomeData.Day) scaled(context, EYEBROW_DP) else scaled(context, EVENT_DP) }
-    var shown = HomeData.fitting(roomFor(context, views, tall, scaled(context, EYEBROW_DP + EVENT_DP)), heights, 0)
+    var shown = HomeData.fitting(roomFor(context, views, tall, scaled(context, if (fit == Fit.SLIM) EVENT_DP else EYEBROW_DP + EVENT_DP)), heights, 0)
     while (shown > 0 && parts[shown - 1] is HomeData.Day) shown -= 1
     for (part in parts.take(shown)) {
       when (part) {
         is HomeData.Day -> views.addView(R.id.ghost_w_col_a, eyebrow(context, HomeData.dayWords(part.day, today) { weekdayOf(context, noonOf(it)) }, part.events.size + part.todos.size))
-        is HomeData.Event -> views.addView(R.id.ghost_w_col_a, eventRow(context, part))
-        is HomeData.Todo -> views.addView(R.id.ghost_w_col_a, dueRow(context, part, today))
+        is HomeData.Event -> views.addView(R.id.ghost_w_col_a, eventRow(context, part, narrow = wide < HomeData.NARROW_DP))
+        is HomeData.Todo -> views.addView(R.id.ghost_w_col_a, dueRow(context, part, today, narrow = wide < HomeData.NARROW_DP))
       }
     }
+    if (fit == Fit.SLIM) views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
     // Each day's eyebrow counts its own; the room is rows'.
     more(context, views, 0)
-    empty(context, views, if (parts.isEmpty()) "Nothing on your calendar" else null, "This week’s events and the to-dos due show here.")
+    empty(context, views, if (parts.isEmpty()) "Nothing on your calendar" else null, if (fit == Fit.SLIM) "" else "This week’s events and the to-dos due show here.")
     return views
   }
 
-  private fun eventRow(context: Context, event: HomeData.Event): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.ghost_w_event_row)
+  /** An event's row; [narrow] (two cells across), when it runs under its words, its calendar left out for the room. */
+  internal fun eventRow(context: Context, event: HomeData.Event, narrow: Boolean = false): RemoteViews {
+    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_event_row_narrow else R.layout.ghost_w_event_row)
+    row.setImageViewResource(R.id.ghost_w_event_mark, R.drawable.ghost_w_event_ring)
+    row.setTextViewText(R.id.ghost_w_event_title, event.title)
+    home(context)?.let { row.setOnClickPendingIntent(R.id.ghost_w_event_row, it) }
+    if (narrow) {
+      row.setTextViewText(R.id.ghost_w_event_time, if (event.allDay) "All day" else "${timeOf(context, event.start)} – ${timeOf(context, event.end)}")
+      return row
+    }
     row.setTextViewText(R.id.ghost_w_event_time, if (event.allDay) "All day" else timeOf(context, event.start))
     row.setTextViewText(R.id.ghost_w_event_until, if (event.allDay) "" else timeOf(context, event.end))
     row.setViewVisibility(R.id.ghost_w_event_until, if (event.allDay) View.GONE else View.VISIBLE)
-    row.setImageViewResource(R.id.ghost_w_event_mark, R.drawable.ghost_w_event_ring)
-    row.setTextViewText(R.id.ghost_w_event_title, event.title)
     val sub = listOfNotNull(event.calendar.takeIf { it.isNotEmpty() }, event.location).joinToString(" · ")
     row.setTextViewText(R.id.ghost_w_event_sub, sub)
     row.setViewVisibility(R.id.ghost_w_event_sub, if (sub.isEmpty()) View.GONE else View.VISIBLE)
-    home(context)?.let { row.setOnClickPendingIntent(R.id.ghost_w_event_row, it) }
     return row
   }
 
-  private fun dueRow(context: Context, todo: HomeData.Todo, today: String): RemoteViews {
-    val row = RemoteViews(context.packageName, R.layout.ghost_w_event_row)
+  /** A to-do due on a day, as the calendar shows one; [narrow], as [eventRow] is. */
+  internal fun dueRow(context: Context, todo: HomeData.Todo, today: String, narrow: Boolean = false): RemoteViews {
+    val row = RemoteViews(context.packageName, if (narrow) R.layout.ghost_w_event_row_narrow else R.layout.ghost_w_event_row)
     val late = HomeData.groupOf(todo.due, today) == HomeData.Group.OVERDUE
     // Where the time would be: what it is, in the red where it is late (its day is the To-dos widget's to say).
     row.setTextViewText(R.id.ghost_w_event_time, if (late) "Overdue" else "To-do")
@@ -391,6 +566,7 @@ object WidgetViews {
     row.setImageViewResource(R.id.ghost_w_event_mark, if (late) R.drawable.ghost_w_pip_late else R.drawable.ghost_w_pip)
     row.setTextViewText(R.id.ghost_w_event_title, todo.words)
     row.setTextViewText(R.id.ghost_w_event_sub, if (todo.line == 0) "Ticket" else todo.title)
+    if (narrow) row.setViewVisibility(R.id.ghost_w_event_sub, View.GONE)
     row.setOnClickPendingIntent(R.id.ghost_w_event_row, Doors.press(context, Doors.noteAt(todo.note, todo.line, todo.match), "due:${todo.note}:${todo.line}".hashCode()))
     return row
   }
@@ -398,39 +574,67 @@ object WidgetViews {
   // ---- Recent notes ----------------------------------------------------------------------------------------------------
 
   private fun notes(context: Context, wide: Int, tall: Int): RemoteViews {
-    val rows = HomeData.notes(HomeScreen.kept(context, "notes"))
+    val views = frame(context, R.drawable.ghost_w_ic_note, if (wide < HomeData.NARROW_DP) "Recent" else "Recent notes", "", R.drawable.ghost_w_ic_pen, context.getString(R.string.ghost_shortcut_new_long), Doors.NEW)
+    return noteList(context, views, HomeData.notes(HomeScreen.kept(context, "notes")), wide, tall, "No notes yet", "The notes you write in show here.", Doors.press(context, Doors.NEW))
+  }
+
+  /**
+   * Notes as the home page's rows, as many as the size holds (Recent notes, Pinned notes, A folder): a cell high, one;
+   * two cells across, a column of their names (and how each starts, where the column is tall); large and wide, two
+   * columns; a line for how many did not fit. [none] and [noneWords] where there are none, a tap [noneLink].
+   */
+  internal fun noteList(context: Context, views: RemoteViews, rows: List<HomeData.Row>, wide: Int, tall: Int, none: String, noneWords: String, noneLink: PendingIntent?): RemoteViews {
     val now = System.currentTimeMillis()
-    val views = frame(context, R.drawable.ghost_w_ic_note, "Recent notes", "", R.drawable.ghost_w_ic_pen, context.getString(R.string.ghost_shortcut_new_long), Doors.NEW)
-    val each = scaled(context, NOTE_DP)
-    val columns = if (tall >= LARGE_DP && wide >= TWO_COLUMNS_DP) 2 else 1
+    val fit = HomeData.fitOf(wide, tall)
+    if (fit == Fit.TINY) {
+      // A cell (not offered by the lists' providers, whose least is two by one; a launcher may make one anyway): the
+      // first note, its mark and name, a tap from it; none, the pen.
+      val first = rows.firstOrNull() ?: return tile(context, views, icon = R.drawable.ghost_w_ic_pen, label = "New note", link = noneLink)
+      return tile(context, views, icon = markOf(first.kind), label = first.title, link = Doors.press(context, Doors.noteAt(first.id), "note:${first.id}".hashCode()))
+    }
+    val narrow = wide < HomeData.NARROW_DP
+    if (fit == Fit.NARROW) narrowed(context, views)
+    val each = scaled(context, if (narrow) NOTE_DP - 6 else NOTE_DP)
+    val columns = if (fit == Fit.LARGE && wide >= TWO_COLUMNS_DP) 2 else 1
     val room = roomFor(context, views, tall, each + if (rows.size > 1) MORE_DP else 0)
     val perColumn = HomeData.fitting(room, List(rows.size) { each }, if (room(tall) == room) MORE_DP else 0)
     val shown = rows.take(perColumn * columns)
     val first = if (columns == 2) (shown.size + 1) / 2 else shown.size
-    for ((index, note) in shown.withIndex()) views.addView(if (index < first) R.id.ghost_w_col_a else R.id.ghost_w_col_b, noteRow(context, note, now))
+    for ((index, note) in shown.withIndex()) views.addView(if (index < first) R.id.ghost_w_col_a else R.id.ghost_w_col_b, noteRow(context, note, now, narrow = narrow))
     views.setViewVisibility(R.id.ghost_w_col_b, if (columns == 2 && shown.size > first) View.VISIBLE else View.GONE)
+    if (fit == Fit.SLIM) views.setInt(R.id.ghost_w_col_a, "setGravity", Gravity.CENTER_VERTICAL)
     // A cell high, no line under the one row: the heading that counted is put away too.
     more(context, views, if (room(tall) == room) rows.size - shown.size else 0)
-    empty(context, views, if (rows.isEmpty()) "No notes yet" else null, "The notes you write in show here.", Doors.press(context, Doors.NEW))
+    empty(context, views, if (rows.isEmpty()) none else null, if (fit == Fit.SLIM) "" else noneWords, noneLink)
     return views
   }
 
-  private fun noteRow(context: Context, note: HomeData.Row, now: Long): RemoteViews {
+  internal fun markOf(kind: String): Int = when (kind) {
+    "tape" -> R.drawable.ghost_w_ic_tape
+    "book" -> R.drawable.ghost_w_ic_book
+    "canvas" -> R.drawable.ghost_w_ic_canvas
+    else -> R.drawable.ghost_w_ic_note
+  }
+
+  /** A note's row; [narrow] (two cells across), when it was touched put away so its name has the width. */
+  internal fun noteRow(context: Context, note: HomeData.Row, now: Long, narrow: Boolean = false): RemoteViews {
     val row = RemoteViews(context.packageName, R.layout.ghost_w_note_row)
-    row.setImageViewResource(
-      R.id.ghost_w_note_mark,
-      when (note.kind) {
-        "tape" -> R.drawable.ghost_w_ic_tape
-        "book" -> R.drawable.ghost_w_ic_book
-        "canvas" -> R.drawable.ghost_w_ic_canvas
-        else -> R.drawable.ghost_w_ic_note
-      },
-    )
+    row.setImageViewResource(R.id.ghost_w_note_mark, markOf(note.kind))
     row.setTextViewText(R.id.ghost_w_note_title, note.title)
-    val line = HomeData.lineOf(note)
+    val line = if (narrow) HomeData.lineOf(note).ifEmpty { ago(context, note.updated, now) } else HomeData.lineOf(note)
     row.setTextViewText(R.id.ghost_w_note_line, line)
     row.setViewVisibility(R.id.ghost_w_note_line, if (line.isEmpty()) View.GONE else View.VISIBLE)
     row.setTextViewText(R.id.ghost_w_note_when, ago(context, note.updated, now))
+    row.setViewVisibility(R.id.ghost_w_note_when, if (narrow) View.GONE else View.VISIBLE)
+    row.setOnClickPendingIntent(R.id.ghost_w_note_row, Doors.press(context, Doors.noteAt(note.id), "note:${note.id}".hashCode()))
+    return row
+  }
+
+  /** A note's name and mark alone, 36dp: under Search's field, and a column's recordings. */
+  internal fun compactRow(context: Context, note: HomeData.Row): RemoteViews {
+    val row = RemoteViews(context.packageName, R.layout.ghost_w_compact_row)
+    row.setImageViewResource(R.id.ghost_w_note_mark, markOf(note.kind))
+    row.setTextViewText(R.id.ghost_w_note_title, note.title)
     row.setOnClickPendingIntent(R.id.ghost_w_note_row, Doors.press(context, Doors.noteAt(note.id), "note:${note.id}".hashCode()))
     return row
   }

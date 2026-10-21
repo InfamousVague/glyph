@@ -1,6 +1,7 @@
-/// The home screen kept in step with the notes: each pass works out what the four widgets draw (Voice note, To-dos,
-/// Calendar, Recent notes: docs/WIDGETS_ANDROID.md) and what the icon's recent notes are (home_data.dart), and hands over only
-/// what changed (home_host.dart). Asked for with the reminders' pass (lib/root/phone_extras.dart), after the notes,
+/// The home screen kept in step with the notes: each pass works out what the twelve widgets draw (Voice note, To-dos,
+/// Calendar, Recent notes, and Pinned notes, Today, A note, A folder and Ask AI: docs/WIDGETS_ANDROID.md; Quick
+/// capture, Search and Next up draw from the others') and what the icon's recent notes are (home_data.dart), and
+/// hands over only what changed (home_host.dart). Asked for with the reminders' pass (lib/root/phone_extras.dart), after the notes,
 /// the Trash or the calendars have been still a moment.
 library;
 
@@ -9,6 +10,7 @@ import 'dart:async';
 import '../calendar/event.dart' show CalendarEvent;
 import '../core/note.dart';
 import '../core/stored.dart';
+import '../core/workspaces.dart' show Workspaces;
 import 'home_data.dart';
 import 'home_host.dart';
 
@@ -37,8 +39,20 @@ class HomeScreenData {
 
   /// One pass over [notes]: the widgets' look (the app theme's [scheme]), the to-dos, the notes touched last, the
   /// recordings, the calendars' [events] (none, and the widget's word for it, where [calendarOn] is false: the
-  /// Calendar plugin off), and the recent notes' titles.
-  Future<void> pass(List<Note> notes, Note? Function(String id) noteOf, {bool Function(Note note)? skip, bool calendarOn = false, List<CalendarEvent> events = const [], String scheme = 'dark'}) async {
+  /// Calendar plugin off), and the recent notes' titles; then the pinned notes, today's note, the notes the A note
+  /// widgets show (asked of the phone), the notes they may be set to, the [spaces]' folders with their notes, and
+  /// whether Claude is on ([claudeOn]) with a key ([claudeKey]).
+  Future<void> pass(
+    List<Note> notes,
+    Note? Function(String id) noteOf, {
+    bool Function(Note note)? skip,
+    bool calendarOn = false,
+    List<CalendarEvent> events = const [],
+    String scheme = 'dark',
+    Workspaces spaces = const Workspaces(),
+    bool claudeOn = false,
+    bool claudeKey = false,
+  }) async {
     final now = _clock();
     // The look first, so the widgets drawn by the rest are drawn in it.
     await _put(HomeKind.look, lookJson(scheme));
@@ -47,6 +61,12 @@ class HomeScreenData {
     await _put(HomeKind.voice, notesJson(homeRecordings(notes, skip: skip)));
     await _put(HomeKind.calendar, calendarJson(on: calendarOn, events: events, now: now));
     await _put(HomeKind.recent, namedJson(namedNotes(recent, noteOf, skip: skip)));
+    await _put(HomeKind.pins, notesJson(homePins(notes, skip: skip)));
+    await _put(HomeKind.daily, dailyJson(notes, now: now, skip: skip));
+    await _put(HomeKind.pages, pagesJson(homePages(await host.chosen(), noteOf, skip: skip)));
+    await _put(HomeKind.picks, notesJson(homePicks(notes, skip: skip)));
+    await _put(HomeKind.folders, foldersJson(homeFolders(notes, spaces, skip: skip)));
+    await _put(HomeKind.assistant, assistantJson(on: claudeOn, key: claudeKey));
   }
 
   /// A note opened: first among the recent ones, and the icon's shortcuts told.
