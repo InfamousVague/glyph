@@ -35,7 +35,9 @@
 /// - **Folders, and the icon view** (GHST-107, 2026-10-19) are the port's own: the folders inside the organization's
 ///   workspace stand above its Notes as chips (lib/notes/folder_strip.dart), a tap on one going to All notes with
 ///   that folder chosen ([OrganizationScreen.onAllNotes] with its id); and the Notes heading offers Cards or Icons
-///   (lib/notes/icon_browser.dart), the device's one choice, All notes' too. Nothing of the folders is drawn until
+///   (lib/notes/icon_browser.dart), chosen for the organization's workspace and so for its folders wherever they are
+///   browsed, until one of them chooses its own; the strip and the icon view offer New folder and New note
+///   ([OrganizationScreen.onNewNote]) in the organization's workspace. Nothing of the folders is drawn until
 ///   the organization's workspace holds one.
 library;
 
@@ -104,6 +106,7 @@ class OrganizationScreen extends StatefulWidget {
     this.now,
     this.dock,
     this.onNewFolder,
+    this.onNewNote,
   });
 
   final AccountServices? services;
@@ -126,6 +129,10 @@ class OrganizationScreen extends StatefulWidget {
   /// New folder on the folders' strip (GHST-107): a folder inside the workspace given, by id, through the root's
   /// workspace sheet. Absent, the strip offers none.
   final ValueChanged<String?>? onNewFolder;
+
+  /// New note on the folders' strip and in the icon view: a note filed in the workspace given (the organization's
+  /// own here), opened ready to type, the team's as any note filed there. Absent, neither offers one.
+  final ValueChanged<String>? onNewNote;
 
   /// The organization's settings (lib/settings/organization_sheet.dart), from the cog.
   final VoidCallback onSettings;
@@ -176,12 +183,13 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
   AccountServices? get _services => widget.services;
   PreferencesStore get _prefs => _services?.prefs ?? preferences;
 
-  /// Cards or icons for the notes (lib/notes/icon_browser.dart): the device's one choice, All notes' too.
-  late BrowseView _view = readBrowseView(_services?.kept ?? stored);
+  /// Cards or icons for the notes (lib/notes/icon_browser.dart): the organization's workspace is a level, and what is
+  /// chosen here is what its folders open in, on home and All notes too, until one of them chooses its own.
+  BrowseView get _view => browseViewAt(_services?.workspaces?.value.list ?? const <Workspace>[], orgWorkspaceId(widget.orgId), _services?.kept ?? stored);
 
   void _setView(BrowseView view) {
-    writeBrowseView(view, _services?.kept ?? stored);
-    setState(() => _view = view);
+    chooseBrowseView(_services?.workspaces?.value.list ?? const <Workspace>[], orgWorkspaceId(widget.orgId), view, _services?.kept ?? stored);
+    setState(() {});
   }
 
   bool get _signedIn => _services?.signedIn ?? false;
@@ -441,13 +449,14 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
                 )
               : null,
         ),
-        if (!icons && (folders.isNotEmpty || widget.onNewFolder != null))
-          FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder, store: store),
-        if (icons && (filedHere.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null))
+        if (!icons && (folders.isNotEmpty || widget.onNewFolder != null || widget.onNewNote != null))
+          FolderStrip(key: const ValueKey('org-folders'), list: spaces, of: filed, notes: widget.notes, chosen: workspaceId, onChoose: widget.onAllNotes, onNewFolder: widget.onNewFolder, onNewNote: widget.onNewNote, store: store),
+        if (icons && (filedHere.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null || widget.onNewNote != null))
           IconBrowser(
             key: const ValueKey('org-notes-icons'),
             folders: folders,
             onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspaceId),
+            onNewNote: widget.onNewNote == null ? null : () => widget.onNewNote!(workspaceId),
             // The organization's own level, beside its folders' tiles (folder_strip.dart `notesAt`).
             notes: notesAt(filed, filedHere, workspaceId).take(organizationNotesShown).toList(growable: false),
             onFolder: widget.onAllNotes,

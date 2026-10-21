@@ -13,9 +13,16 @@
 /// to two lines, and when it was touched. A tap on a folder enters it, as the strip's chip does; a tap on a note
 /// opens it; a mouse's right-click on a note asks for its menu, as the cards do. The keyboard's focus rings a tile.
 ///
-/// Cards or icons is one choice for the device ([BrowseView], kept in [Stored] under [browseViewKey]), made on All
-/// notes' line of order words and on an organization's dashboard, and read by both ([BrowseViewToggle], a segmented toggle with a glyph each). Cards
-/// unless chosen, so a page looks as it always did. The empty page's words stay the page's own.
+/// Cards or icons is chosen at a level and carries down (Matt, 2026-10-20: "When navigating into a folder sub folders
+/// should share the same ability to have icons or list keeping the parents selection"): a level's view is the one
+/// chosen at it, or else at the nearest level above it where one was chosen, or else the one chosen at the top (All
+/// notes with no workspace chosen), which is the device's view as before folders had their own ([browseViewAt]).
+/// Choosing at a level sets it for that level and everything under it: what the folders below had chosen of their
+/// own is let go ([chooseBrowseView]), so a choice made higher up is never hidden under one made lower down. The
+/// top's choice is kept under [browseViewKey], the others by workspace under [browseViewsKey], on the device. Cards
+/// unless chosen, so a page looks as it always did. The toggle ([BrowseViewToggle], a segmented toggle with a glyph
+/// each) stands at every level: All notes' line of order words, an organization's Notes heading, and home's folders'
+/// heading while a workspace is chosen. The empty page's words stay the page's own.
 library;
 
 import 'dart:math' as math;
@@ -28,7 +35,7 @@ import '../art/lucide.g.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/stored.dart';
-import '../core/workspaces.dart' show WorkspaceStore, isOrgWorkspace;
+import '../core/workspaces.dart' show Workspace, WorkspaceStore, isOrgWorkspace, workspaceFamily, workspacePath;
 import '../home/home_icons.dart';
 import '../home/home_layout.dart' show HomeKind, kindOf;
 import '../home/home_text.dart';
@@ -52,20 +59,85 @@ enum BrowseView {
   final String label;
 }
 
-/// The view chosen last time, kept on the device: one choice for every page that offers it.
+/// The view chosen at the top, kept on the device: what every level shows where none above it has a choice of its
+/// own.
 const String browseViewKey = 'glyph-browse-view';
 
-/// Nothing kept, or storage that cannot be read: cards, as the pages always were.
+/// The views chosen at levels below the top, by workspace id: `{"work": "icons", "clients": "cards"}`.
+const String browseViewsKey = 'glyph-browse-views';
+
+/// Nothing kept, or storage that cannot be read: cards, as the pages always were. The top's choice.
 BrowseView readBrowseView([Stored? from]) => (from ?? stored).readText(browseViewKey) == BrowseView.icons.id ? BrowseView.icons : BrowseView.cards;
 
 /// Storage that cannot be written: the choice holds for this page, and is asked again next time.
 void writeBrowseView(BrowseView view, [Stored? to]) => (to ?? stored).writeText(browseViewKey, view.id);
 
+BrowseView? _viewOf(Object? id) => id == BrowseView.icons.id ? BrowseView.icons : (id == BrowseView.cards.id ? BrowseView.cards : null);
+
+/// The levels' own choices, as kept; none where nothing is, or what is kept is not a map of views.
+Map<String, BrowseView> _levelViews(Stored from) => from.readShared<Map<String, BrowseView>>(browseViewsKey, const {}, (raw) {
+      if (raw is! Map) return null;
+      return {
+        for (final entry in raw.entries)
+          if (entry.key is String && _viewOf(entry.value) != null) entry.key as String: _viewOf(entry.value)!,
+      };
+    });
+
+/// The view at level [id] (null for the top): its own choice, else the nearest above it with one, else the top's.
+BrowseView browseViewAt(List<Workspace> list, String? id, [Stored? from]) {
+  final kept = from ?? stored;
+  if (id != null) {
+    final levels = _levelViews(kept);
+    if (levels.isNotEmpty) {
+      // Where it is, from the level itself up to the workspace at the top.
+      for (final at in workspacePath(list, id).reversed) {
+        final view = levels[at.id];
+        if (view != null) return view;
+      }
+      // A level the list no longer has, kept for nothing but itself.
+      final own = levels[id];
+      if (own != null) return own;
+    }
+  }
+  return readBrowseView(kept);
+}
+
+/// [view] chosen at level [id] (null for the top), for it and every level under it: the choices of the folders under
+/// it are let go, and those of workspaces the list no longer has. A choice that is what the level would show anyway
+/// is not kept as its own, so it follows its parent's next time.
+void chooseBrowseView(List<Workspace> list, String? id, BrowseView view, [Stored? to]) {
+  final kept = to ?? stored;
+  if (id == null) {
+    writeBrowseView(view, kept);
+    kept.writeText(browseViewsKey, null);
+    return;
+  }
+  final under = workspaceFamily(list, id).toSet();
+  final known = {for (final w in list) w.id};
+  final levels = {
+    for (final entry in _levelViews(kept).entries)
+      if (!under.contains(entry.key) && known.contains(entry.key)) entry.key: entry.value,
+  };
+  final parent = list.where((w) => w.id == id).firstOrNull?.parent;
+  // What the level shows with no choice of its own: its parent's, with the choices below it let go.
+  BrowseView inherited() {
+    for (final at in parent == null ? const <Workspace>[] : workspacePath(list, parent).reversed) {
+      final view = levels[at.id];
+      if (view != null) return view;
+    }
+    return readBrowseView(kept);
+  }
+
+  if (view != inherited()) levels[id] = view;
+  kept.write(browseViewsKey, levels.isEmpty ? null : {for (final entry in levels.entries) entry.key: entry.value.id});
+}
+
 /// Cards or icons, as a segmented toggle with a glyph each (Matt, 2026-10-19: "use a segmented toggle with iconography
 /// for the different modes"): the kit's [GlacierSegmentedControl] at its small size, its thumb springing between the
 /// two, a list of cards' glyph for Cards and a grid's for Icons, each named for a screen reader. The glyph takes the
 /// label's own colour, so the chosen one is ink and the other muted. Each label keeps the key the words had (`view-cards`,
-/// `view-icons`). One control a page: All notes' line of order words, and an organization's Notes heading.
+/// `view-icons`). One control a page: All notes' line of order words, an organization's Notes heading, and home's
+/// folders' heading.
 class BrowseViewToggle extends StatelessWidget {
   const BrowseViewToggle({super.key, required this.view, required this.onView});
 
@@ -102,7 +174,7 @@ class BrowseViewToggle extends StatelessWidget {
 
 /// The folders and the notes as tiles.
 class IconBrowser extends StatelessWidget {
-  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now, this.onNewFolder, this.store});
+  const IconBrowser({super.key, required this.folders, required this.notes, required this.onFolder, required this.onOpen, this.onNoteMenu, this.now, this.onNewFolder, this.onNewNote, this.store});
 
   /// The folders first, each with its count.
   final List<FolderCount> folders;
@@ -126,6 +198,10 @@ class IconBrowser extends StatelessWidget {
   /// to add a folder"): inside the place shown, or a folder at the top where nothing is chosen.
   final VoidCallback? onNewFolder;
 
+  /// A New note tile after New folder (Matt, 2026-10-20: "we should be able to nest folders and files this way"): a
+  /// note filed in the place shown, opened ready to type.
+  final VoidCallback? onNewNote;
+
   /// The workspaces, so a note's tile or a folder's can be carried onto a folder's (lib/notes/folder_drag.dart):
   /// a mouse drags, a finger holds first. None, and nothing is carried here.
   final WorkspaceStore? store;
@@ -138,7 +214,9 @@ class IconBrowser extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final gap = t.space(2);
-    final adds = onNewFolder == null ? 0 : 1;
+    final folderAt = onNewFolder == null ? -1 : folders.length;
+    final noteAt = onNewNote == null ? -1 : folders.length + (onNewFolder == null ? 0 : 1);
+    final adds = (onNewFolder == null ? 0 : 1) + (onNewNote == null ? 0 : 1);
     final count = folders.length + adds + notes.length;
     if (count == 0) return const SizedBox.shrink();
     return Semantics(
@@ -161,7 +239,8 @@ class IconBrowser extends StatelessWidget {
                 child: FolderDropZone(key: ValueKey('drop-${each.folder.id}'), store: store, target: each.folder.id, decorate: true, radius: t.radius('md'), builder: (context, _) => tile),
               );
             }
-            if (adds == 1 && at == folders.length) return _NewFolderTile(key: const ValueKey('tile-folder-new'), onPressed: onNewFolder!);
+            if (at == folderAt) return _NewTile(key: const ValueKey('tile-folder-new'), glyph: Lucide.folderPlus, name: 'New folder', onPressed: onNewFolder!);
+            if (at == noteAt) return _NewTile(key: const ValueKey('tile-note-new'), glyph: Lucide.filePlus, name: 'New note', onPressed: onNewNote!);
             final note = notes[at - folders.length - adds];
             final onMenu = onNoteMenu;
             final Widget tile = _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
@@ -227,21 +306,24 @@ class _FolderTile extends StatelessWidget {
   }
 }
 
-/// New folder, as a tile after the folders: the folder-plus glyph on a dashed-looking faint square, no count.
-class _NewFolderTile extends StatelessWidget {
-  const _NewFolderTile({super.key, required this.onPressed});
+/// New folder or New note, as a tile after the folders: the folder-plus or file-plus glyph on a faint square, no
+/// count.
+class _NewTile extends StatelessWidget {
+  const _NewTile({super.key, required this.glyph, required this.name, required this.onPressed});
 
+  final LucideIcon glyph;
+  final String name;
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     return _Tile(
-      glyph: AppIcon(Lucide.folderPlus, size: _Tile.glyphSize(t), strokeWidth: 1.75, color: t.color('app-ink-3')),
+      glyph: AppIcon(glyph, size: _Tile.glyphSize(t), strokeWidth: 1.75, color: t.color('app-ink-3')),
       wash: t.colorOf('color-mix(in oklch, var(--app-ink) 4%, transparent)'),
-      name: 'New folder',
+      name: name,
       meta: '',
-      said: 'New folder',
+      said: name,
       onPressed: onPressed,
     );
   }

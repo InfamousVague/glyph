@@ -32,7 +32,9 @@
 ///   that workspace stand between the order words and the cards (lib/notes/folder_strip.dart), a chip each that
 ///   chooses the folder as a pill does, and where the workspace is above them; the line of words offers Cards or
 ///   Icons at its end (lib/notes/icon_browser.dart), the words the tally's line tall so the line stands where the
-///   page measured it, kept on the device for every page that offers it; the icon view draws the folders as its
+///   page measured it, chosen for the level shown and the folders under it and kept on the device (2026-10-20); the
+///   strip and the icon view offer New folder and New note inside the level; inside a folder the back gesture and
+///   Escape go up a level, at a workspace at the top home as ever; the icon view draws the folders as its
 ///   first tiles, then the level's own notes in the page's order (a folder's are in its tile), and at All the
 ///   workspaces at the top as the folders, then the notes filed in none. The cards are every note under the chosen
 ///   workspace, and a card whose note is in a folder inside it says which (`FolderPlaceMark`; 2026-10-20). No
@@ -50,6 +52,7 @@ import 'package:glacier/glacier.dart';
 import '../core/page_scroll.dart';
 import '../core/search_ahead.dart';
 import '../art/art.dart';
+import '../core/back.dart';
 import '../core/book.dart';
 import '../core/glide_to_top.dart';
 import '../core/note.dart';
@@ -110,6 +113,7 @@ class AllNotesScreen extends StatefulWidget {
     this.dock,
     this.simple = false,
     this.onNewFolder,
+    this.onNewNote,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -176,6 +180,10 @@ class AllNotesScreen extends StatefulWidget {
   /// workspace sheet. Absent, the strip offers none.
   final ValueChanged<String?>? onNewFolder;
 
+  /// New note on the folders' strip and in the icon view: a note filed in the workspace given, by id, or in none at
+  /// the top, opened ready to type. Absent, neither offers one.
+  final ValueChanged<String?>? onNewNote;
+
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
 }
@@ -193,8 +201,6 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
   late final GlideToTop _glide = GlideToTop(_scroller, onRoom: _redraw);
   late AllNotesSort _sort = readSort(widget.stored);
 
-  /// Cards or icons (lib/notes/icon_browser.dart), the device's one choice.
-  late BrowseView _view = readBrowseView(widget.stored);
   late bool _tapes = widget.tapes;
   bool _archived = false;
   String _query = '';
@@ -509,10 +515,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     setState(() => _sort = sort);
   }
 
+  /// Cards or icons chosen at the level shown, for it and the folders under it (lib/notes/icon_browser.dart
+  /// `chooseBrowseView`): kept on the device, and read by every page that shows these levels.
   void _setView(BrowseView view) {
-    // As the order is: one choice for the device, and the dashboard reads the same.
-    writeBrowseView(view, widget.stored);
-    setState(() => _view = view);
+    chooseBrowseView(widget.workspaces.value.list, widget.workspaces.value.current?.id, view, widget.stored);
+    setState(() {});
   }
 
   @override
@@ -534,7 +541,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     // Whether the page draws icons, and the folders: inside a workspace, the folders in it, for the strip and the
     // icon view's first tiles; at All, the workspaces at the top as the icon view's first tiles alone (the pills are
     // the strip's part there). None in simple mode, and none while a search is typed (the cards are what it found).
-    final icons = !widget.simple && _view == BrowseView.icons;
+    // Cards or icons at this level: its own choice, or the nearest one above it (lib/notes/icon_browser.dart).
+    final view = browseViewAt(spaces.list, workspace, widget.stored);
+    final icons = !widget.simple && view == BrowseView.icons;
     final browsing = !widget.simple && !searched && (workspace != null || icons);
     final folders = browsing ? folderTiles(spaces.list, spaces.of, widget.notes, workspace) : const <FolderCount>[];
     final crumbs = browsing && folderPath(spaces.list, workspace).length > 1;
@@ -654,7 +663,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                             mainAxisSize: MainAxisSize.min,
                             spacing: t.space(3),
                             children: [
-                              if (!widget.simple) BrowseViewToggle(key: const ValueKey('all-notes-view'), view: _view, onView: _setView),
+                              if (!widget.simple) BrowseViewToggle(key: const ValueKey('all-notes-view'), view: view, onView: _setView),
                               if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
                             ],
                           ),
@@ -665,11 +674,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 SizedBox(height: t.space(3)),
                 // The folders inside the chosen workspace, with where it is above them (GHST-107); in the icon view
                 // they are the first tiles, and only the line above is drawn here.
-                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs || widget.onNewFolder != null))) ...[
+                if (workspace != null && (icons ? crumbs : (folders.isNotEmpty || crumbs || widget.onNewFolder != null || widget.onNewNote != null))) ...[
                   if (icons)
                     FolderCrumbs(list: spaces.list, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, store: widget.workspaces)
                   else
-                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder, store: widget.workspaces),
+                    FolderStrip(list: spaces.list, of: spaces.of, notes: widget.notes, chosen: workspace, onChoose: widget.workspaces.chooseWorkspace, onNewFolder: widget.onNewFolder, onNewNote: widget.onNewNote, store: widget.workspaces),
                   SizedBox(height: t.space(4)),
                 ],
                 if (!widget.loading && !searched && live == 0 && !_archived)
@@ -695,11 +704,11 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
               slivers: [
                 SliverPadding(padding: EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd + ahead, shown.isEmpty ? foot : 0), sliver: SliverToBoxAdapter(child: head)),
                 // The cards: only the rows of them near the screen are built. Or the tiles, the folders first.
-                if (icons && (shown.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null))
+                if (icons && (shown.isNotEmpty || folders.isNotEmpty || widget.onNewFolder != null || widget.onNewNote != null))
                   SliverPadding(
                     padding: EdgeInsetsDirectional.fromSTEB(gutterStart, 0, gutterEnd + ahead, foot),
                     sliver: SliverToBoxAdapter(
-                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: searched ? shown : notesAt(spaces.of, shown, workspace), onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace), store: widget.workspaces),
+                      child: IconBrowser(key: const ValueKey('all-notes-icons'), folders: folders, notes: searched ? shown : notesAt(spaces.of, shown, workspace), onFolder: widget.workspaces.chooseWorkspace, onOpen: _open, onNoteMenu: widget.onNoteMenu, now: now, onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace), onNewNote: widget.onNewNote == null ? null : () => widget.onNewNote!(workspace), store: widget.workspaces),
                     ),
                   )
                 else if (!icons && shown.isNotEmpty)
@@ -715,6 +724,9 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
 
     final onRefresh = widget.onRefresh;
     final manage = _manage;
+    // Inside a folder, the phone's back gesture and Escape go up a level, as the line above does; at a workspace at
+    // the top they go home, as ever (the shell's own OnBack, under this one).
+    final up = workspace == null ? null : spaces.current?.parent;
     return ColoredBox(
       // `.screen { background: var(--glacier-bg) }`
       color: t.color('glacier-bg'),
@@ -775,6 +787,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                 notesIn: widget.notesInWorkspace,
                 onTrashNotes: widget.onTrashNotes,
               ),
+            OnBack(active: up != null && !widget.simple, onBack: () => widget.workspaces.chooseWorkspace(up), child: const SizedBox.shrink()),
           ],
         ),
       ),

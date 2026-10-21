@@ -54,16 +54,19 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/page_scroll.dart';
+import '../core/back.dart';
 import '../core/book.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/search_ahead.dart';
 import '../core/search_hits.dart';
+import '../core/stored.dart';
 import '../core/swipe.dart';
 import '../core/workspaces.dart';
 import '../format/gist.dart' show Gists;
 import '../notes/folder_drag.dart';
 import '../notes/folder_strip.dart';
+import '../notes/icon_browser.dart';
 import '../notes/pull_to_refresh.dart';
 import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
@@ -191,6 +194,8 @@ class HomeScreen extends StatefulWidget {
     this.claudeTalk,
     this.simple = false,
     this.onNewFolder,
+    this.onNewNote,
+    this.stored,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -244,6 +249,14 @@ class HomeScreen extends StatefulWidget {
   /// New folder on the folders' strip (GHST-107): the workspace's sheet for a folder inside the workspace given, by
   /// id. Absent, the strip offers none.
   final ValueChanged<String?>? onNewFolder;
+
+  /// New note on the folders' strip and in the icon view: a note filed in the workspace given, by id, opened ready to
+  /// type. Absent, neither offers one (the dock's + still files a new note in the workspace chosen).
+  final ValueChanged<String>? onNewNote;
+
+  /// Where cards or icons is kept for each level (lib/notes/icon_browser.dart `browseViewAt`); the app's own unless
+  /// given.
+  final Stored? stored;
 
   /// A new organization, from the filters' panel; absent signed out.
   final VoidCallback? onNewOrganization;
@@ -354,6 +367,7 @@ class _Drawn {
     required this.orgNews,
     required this.sideKey,
     required this.seams,
+    this.view = BrowseView.cards,
     this.cover = 0,
   });
 
@@ -372,6 +386,10 @@ class _Drawn {
   /// drawn, and a seam left out is a page drawn without it.
   final int seams;
 
+  /// Cards or icons at the workspace chosen (lib/notes/icon_browser.dart): the sections as the layout draws them, or
+  /// the level's folders and notes as tiles.
+  final BrowseView view;
+
   /// How much of the window's end the chat with Claude covers (lib/shell/page_dock.dart `windowEndCover`): the dock
   /// stands out to its start.
   final double cover;
@@ -386,6 +404,7 @@ class _Drawn {
       (identical(orgNews, other.orgNews) || listEquals(orgNews, other.orgNews)) &&
       sideKey == other.sideKey &&
       seams == other.seams &&
+      view == other.view &&
       cover == other.cover;
 }
 
@@ -485,6 +504,16 @@ class _HomeScreenState extends State<HomeScreen> {
   void _open(String id) => widget.onOpen(id);
   void _menu(String id, Offset at) => widget.onNoteMenu?.call(id, at);
   void _new() => widget.onNew();
+
+  /// Cards or icons chosen at the workspace shown, for it and the folders under it (lib/notes/icon_browser.dart
+  /// `chooseBrowseView`): kept on the device, and read by All notes and an organization's dashboard too.
+  void _setView(BrowseView view) {
+    final spaces = widget.workspaces.value;
+    final workspace = spaces.current?.id;
+    if (workspace == null) return;
+    chooseBrowseView(spaces.list, workspace, view, widget.stored);
+    setState(() {});
+  }
   void _capture() => widget.onCapture?.call();
   void _search() => widget.onSearch?.call();
   void _settings() => widget.onSettings?.call();
@@ -600,7 +629,10 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.claudeTalk != null ? 8192 : 0) |
           (widget.onSaveSearch != null ? 32768 : 0) |
           (widget.simple ? 65536 : 0) |
-          (widget.onNewFolder != null ? 131072 : 0),
+          (widget.onNewFolder != null ? 131072 : 0) |
+          (widget.onNewNote != null ? 262144 : 0),
+      // Cards or icons where a workspace is chosen: its own choice, or the nearest one above it. Not in simple mode.
+      view: workspace == null || widget.simple ? BrowseView.cards : browseViewAt(spaces.list, workspace, widget.stored),
       cover: windowEndCover.value,
     );
     // The notices are made anew by whoever hands them over, at every build: the page reads them where they stand,
@@ -641,6 +673,12 @@ class _HomeScreenState extends State<HomeScreen> {
 
     final searched = query.trim().isNotEmpty;
     final hasNotes = counts[HomeFilter.all]! > 0;
+    // Inside a workspace, its folders and notes as tiles where icons is chosen at it or above it (GHST-107): not while
+    // searching, whose page is what was found, and not in simple mode; and only where there is anything to browse, a
+    // folder in it or above it or a way to make one, which the app always gives (a page handed no New draws its
+    // workspace's notes as it always did).
+    final browsing = workspace != null && !widget.simple && !searched && FolderStrip.shows(spaces.list, workspace, canMake: widget.onNewFolder != null || widget.onNewNote != null);
+    final icons = browsing && drawn.view == BrowseView.icons;
     // The search and its filters stay while there is anything to find, or a workspace to leave.
     final tools = notes.any((n) => n.archivedAt == null) || spaces.list.isNotEmpty;
     // Whether the layout draws anything: what the search and the filter found, as the layout places it.
@@ -830,6 +868,26 @@ class _HomeScreenState extends State<HomeScreen> {
     List<({Widget sliver, double above})> column(double width) {
       final blocks = <({Widget sliver, double above})>[];
       void add(Widget sliver, [double more = 0]) => blocks.add((sliver: sliver, above: (blocks.isEmpty ? 0 : gap) + more));
+      if (icons) {
+        // The level as a file browser has it: its folders, New folder and New note, then its own notes, notebooks
+        // first, as the filter leaves them (folder_strip.dart `notesAt`; a folder's notes are behind its tile).
+        add(SliverToBoxAdapter(
+          child: IconBrowser(
+            key: const ValueKey('home-icons'),
+            folders: folderTiles(spaces.list, spaces.of, notes, workspace),
+            notes: notesAt(spaces.of, [...read.lists.books, ...read.lists.notes], workspace),
+            onFolder: widget.workspaces.chooseWorkspace,
+            onOpen: _open,
+            onNoteMenu: onMenu == null ? null : (note, at) => onMenu(note.id, at),
+            now: now,
+            onNewFolder: widget.onNewFolder == null ? null : () => widget.onNewFolder!(workspace),
+            onNewNote: widget.onNewNote == null ? null : () => widget.onNewNote!(workspace),
+            store: widget.workspaces,
+          ),
+        ));
+        if (hasNotes) add(SliverToBoxAdapter(child: _AllNotes(words: 'All notes · ${counts[HomeFilter.all]}', onPressed: _allNotes)));
+        return blocks;
+      }
       if (!drawn.loading && !hasNotes) {
         add(SliverToBoxAdapter(
           child: _Empty(
@@ -885,9 +943,10 @@ class _HomeScreenState extends State<HomeScreen> {
           onSaveSearch: widget.onSaveSearch == null ? null : () => widget.onSaveSearch!(_query),
           simple: widget.simple,
         ),
-      // The folders inside the chosen workspace, and where it is (GHST-107): not while searching, not in simple
-      // mode, and nothing for a workspace at the top with no folders inside it.
-      if (workspace != null && !widget.simple && !searched && FolderStrip.shows(spaces.list, workspace, canMake: widget.onNewFolder != null))
+      // The folders inside the chosen workspace, where it is, and cards or icons for it (GHST-107): not while
+      // searching, and not in simple mode. In icons the folders are the first tiles, and the strip is the line above
+      // and the heading with the toggle.
+      if (browsing)
         FolderStrip(
           key: const ValueKey('home-folders'),
           list: spaces.list,
@@ -896,6 +955,9 @@ class _HomeScreenState extends State<HomeScreen> {
           chosen: workspace,
           onChoose: widget.workspaces.chooseWorkspace,
           onNewFolder: widget.onNewFolder,
+          onNewNote: widget.onNewNote,
+          chips: !icons,
+          view: BrowseViewToggle(key: const ValueKey('home-view'), view: drawn.view, onView: _setView),
           store: widget.workspaces,
         ),
       ValueListenableBuilder<List<Widget>>(
@@ -1022,10 +1084,12 @@ class _HomeScreenState extends State<HomeScreen> {
       // Out to the start of the chat down the right of a wide window, where it is up.
       padding: EdgeInsetsDirectional.only(end: t.len('app-safe-right') + t.space(4) + drawn.cover, bottom: safeBottom + t.space(4)),
     );
-    return _screen(t, widget.dockHalo, dock);
+    // Inside a folder, the phone's back gesture and Escape go up a level, as the line above does.
+    final up = browsing ? spaces.current?.parent : null;
+    return _screen(t, widget.dockHalo, dock, up: up == null ? null : () => widget.workspaces.chooseWorkspace(up));
   }
 
-  Widget _screen(Tokens t, HomeDockHaloBuilder? halo, HomeDock dock) {
+  Widget _screen(Tokens t, HomeDockHaloBuilder? halo, HomeDock dock, {VoidCallback? up}) {
     return ColoredBox(
       color: t.color('glacier-bg'),
       // Nothing drawn here widens the window: the halo is cut only where it was past the window anyway.
@@ -1049,6 +1113,7 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             // The top bar: no word at all, only the pane the app's tab bar sits on, at exactly the bar's height.
             const HeaderPane(child: _SaidOnly('Home')),
+            OnBack(active: up != null, onBack: up ?? () {}, child: const SizedBox.shrink()),
           ],
         ),
       ),

@@ -259,6 +259,8 @@ extension _RootParts on _GhostRootState {
           simple: preferences.value.simple,
           dock: _notesDock(),
           onNewFolder: _newFolder,
+          // New note on the strip and in the icon view: filed in the level shown, or in none at the top.
+          onNewNote: _new,
         ),
       ),
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
@@ -540,6 +542,10 @@ extension _RootParts on _GhostRootState {
       onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null)),
       // New folder on the folders' strip (GHST-107): the sheet for a folder inside the chosen workspace.
       onNewFolder: _newFolder,
+      // New note on the strip and in the icon view: a note filed in the folder shown.
+      onNewNote: _new,
+      // Where cards or icons is kept for each level, All notes' and the dashboard's too.
+      stored: _stored,
       organizations: simple ? const [] : homeOrganizations(services, here: {for (final row in services?.joined ?? const <OrgRow>[]) row.id: _seenIn(row.id)}),
       orgNews: simple ? const [] : homeOrgNews(services, chosenOrg),
       onOrganization: services == null ? null : shell.openOrganization,
@@ -1041,6 +1047,8 @@ extension _RootParts on _GhostRootState {
         shell.backToList();
       },
       onNewFolder: _newFolder,
+      // New note on the strip and in the icon view: filed in the organization's workspace, the team's.
+      onNewNote: _new,
       onSettings: () => _openOrganizationSettings(id, OrganizationFrom.dashboard),
       onOpenOrganization: shell.openOrganization,
       seen: _seenIn(id),

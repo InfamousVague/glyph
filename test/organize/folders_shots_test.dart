@@ -38,12 +38,25 @@ void main() {
       testWidgets('home with Home chosen: Garden in its hue above the sections, $sized $theme', (tester) async {
         await page(
           tester,
-          HomeScreen(notes: organizeNotes(), workspaces: spaces('home'), onOpen: (_) {}, onNew: () {}, onAllNotes: () {}, onSearch: () {}, clock: () => organizeNow, onNewFolder: (_) {}),
+          HomeScreen(notes: organizeNotes(), workspaces: spaces('home'), onOpen: (_) {}, onNew: () {}, onAllNotes: () {}, onSearch: () {}, clock: () => organizeNow, onNewFolder: (_) {}, onNewNote: (_) {}, stored: MemoryStored()),
           size: size,
           theme: theme,
         );
         expect(find.byKey(const ValueKey('home-folders')), findsOneWidget);
         await snap(tester, 'folders-home-$sized-$theme');
+      });
+
+      testWidgets('home as icons inside Clients, chosen at Work: the way up, the toggle, Kiln, New folder, New note, $sized $theme', (tester) async {
+        final kept = MemoryStored();
+        chooseBrowseView(organizeSpaces().list, 'work', BrowseView.icons, kept);
+        await page(
+          tester,
+          HomeScreen(notes: organizeNotes(), workspaces: spaces('clients'), onOpen: (_) {}, onNew: () {}, onAllNotes: () {}, onSearch: () {}, clock: () => organizeNow, onNewFolder: (_) {}, onNewNote: (_) {}, stored: kept),
+          size: size,
+          theme: theme,
+        );
+        expect(find.byKey(const ValueKey('home-icons')), findsOneWidget);
+        await snap(tester, 'folders-home-icons-$sized-$theme');
       });
 
       testWidgets('All notes with Clients chosen: the strip under the order words, and where it is above, $sized $theme', (tester) async {

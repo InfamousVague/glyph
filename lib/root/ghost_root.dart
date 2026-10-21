@@ -1812,9 +1812,12 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   /// The + (`setNewSheet(true)`): the sheet of what it makes, one for every +, so the choice reads the same
-  /// wherever it is offered. From an organization's +, what is made is filed in its workspace ([into]).
+  /// wherever it is offered. From an organization's +, what is made is filed in its workspace ([into]); and from any
+  /// + while an organization's workspace or a folder inside it is chosen, in that, so the sheet offers only what may
+  /// be the team's (no Today, no journal entry, no copy of a shared link), as the dashboard's + does.
   void _plus([String? into]) => setState(() {
-        _newInto = into;
+        final chosen = _workspaces.value.current?.id;
+        _newInto = into ?? (chosen != null && _workspaces.orgOf(chosen) != null ? chosen : null);
         _newSheet = true;
       });
 

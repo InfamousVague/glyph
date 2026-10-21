@@ -197,7 +197,7 @@ void main() {
       await down(tester);
     });
 
-    testWidgets('Icons lists the folders first, then the notes in the page’s order; a tap opens a note; the choice is kept', (tester) async {
+    testWidgets('Icons lists the folders first, then the notes in the page’s order; a tap opens a note; the choice is Work’s, kept', (tester) async {
       final store = spaces()..chooseWorkspace('work');
       final kept = MemoryStored();
       final opened = <String>[];
@@ -206,7 +206,9 @@ void main() {
       expect(find.byKey(const ValueKey('all-notes-view')), findsOneWidget);
       await tester.tap(find.byKey(const ValueKey('view-icons')));
       await settle(tester);
-      expect(kept.readText(browseViewKey), 'icons');
+      // Chosen at Work, for Work and the folders under it; the top is as it was.
+      expect(kept.readText(browseViewsKey), '{"work":"icons"}');
+      expect(kept.readText(browseViewKey), isNull);
       expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
       // No strip apart from the tiles; the cards are gone.
       expect(find.byKey(const ValueKey('folder-strip')), findsNothing);
@@ -228,9 +230,25 @@ void main() {
       expect(find.byKey(const ValueKey('tile-note-kickoff')), findsNothing, reason: 'Kiln’s, behind its tile');
       await down(tester);
 
-      // Opened again, the page is in icons: the choice was the device's.
+      // Opened again at Kiln, inside Clients inside Work, the page is in icons: Work's choice carries down.
+      await page(tester, allNotes(spaces()..chooseWorkspace('kiln'), stored: kept));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tile-note-kickoff')), findsOneWidget);
+      await down(tester);
+
+      // Home is not under Work: its cards, until icons is chosen at the top, which every level then follows.
       final again = spaces()..chooseWorkspace('home');
       await page(tester, allNotes(again, stored: kept));
+      await settle(tester);
+      expect(find.byKey(const ValueKey('all-notes-icons')), findsNothing);
+      again.chooseWorkspace(null);
+      await settle(tester);
+      await tester.tap(find.byKey(const ValueKey('view-icons')));
+      await settle(tester);
+      expect(kept.readText(browseViewKey), 'icons');
+      expect(kept.readText(browseViewsKey), isNull, reason: 'a choice at the top lets the levels’ own go');
+      again.chooseWorkspace('home');
       await settle(tester);
       expect(find.byKey(const ValueKey('all-notes-icons')), findsOneWidget);
       // Home's notes are all in Garden: its tile, and none of theirs beside it.
@@ -238,7 +256,7 @@ void main() {
       expect(find.byKey(const ValueKey('tile-note-seeds')), findsNothing);
       await tester.tap(find.byKey(const ValueKey('view-cards')));
       await settle(tester);
-      expect(kept.readText(browseViewKey), 'cards');
+      expect(kept.readText(browseViewsKey), '{"home":"cards"}');
       // The cards are every note under Home, each saying the folder it is in.
       expect(find.byKey(const ValueKey('card-seeds')), findsOneWidget);
       expect(find.descendant(of: find.byKey(const ValueKey('card-seeds')), matching: find.text('Garden')), findsOneWidget);
@@ -296,7 +314,7 @@ void main() {
   });
 
   group('on an organization’s dashboard', () {
-    testWidgets('offers Cards or Icons on its Notes heading, the device’s one choice, and the folders’ strip once its workspace holds one', (tester) async {
+    testWidgets('offers Cards or Icons on its Notes heading, the organization’s level’s choice, and the folders’ strip once its workspace holds one', (tester) async {
       final device = await Device.make();
       final id = await ghost(device);
       final notes = [device.keep('n1', '# Launch plan', at: 3000), device.keep('n2', '# Press list', at: 2000)];
@@ -339,7 +357,7 @@ void main() {
       expect((asked, allNotesWith), (1, null));
       await tester.tap(find.byKey(const ValueKey('view-icons')));
       await settle(tester);
-      expect(device.kept.readText(browseViewKey), 'icons');
+      expect(device.kept.readText(browseViewsKey), '{"${orgWorkspaceId(id)}":"icons"}');
       expect(find.byKey(const ValueKey('org-notes-icons')), findsOneWidget);
       expect(find.byKey(const ValueKey('card-n1')), findsNothing);
       expect(find.byKey(const ValueKey('tile-note-n1')), findsOneWidget);

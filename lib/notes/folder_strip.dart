@@ -4,7 +4,10 @@
 ///
 /// Under a small heading - "Folders", and how many - the folders directly inside the chosen workspace as a row of
 /// chips that scrolls sideways: the folder's glyph, its name, and how many notes are in it and in the folders under
-/// it, in the folder's hue where it wears one; then New folder at the end, where the page can make one. Above the
+/// it, in the folder's hue where it wears one; then New folder and New note at the end, where the page can make them,
+/// each inside the chosen workspace (Matt, 2026-10-20: "we should be able to nest folders and files this way"). Home
+/// has no other line for cards or icons, so its strip has the toggle at its heading's end, and in icons it is that
+/// line and that heading alone, the folders being the icon view's first tiles. Above the
 /// heading, when the chosen workspace is itself inside another, where it is: "Work › Clients", each part but the
 /// last a way up (an organization's root is the first part of its folders' line, once an organization's workspace
 /// holds folders). A tap on a chip chooses that folder as a pill does, and the page shows its notes.
@@ -83,7 +86,7 @@ double _chipHeight(Tokens t) => math.max(t.lenOf('2rem'), 2.2 * t.fontSize('sm')
 
 /// The folders inside the chosen workspace as chips under a heading, with where the workspace is above them.
 class FolderStrip extends StatelessWidget {
-  const FolderStrip({super.key, required this.list, required this.of, required this.notes, required this.chosen, required this.onChoose, this.onNewFolder, this.crumbs = true, this.store});
+  const FolderStrip({super.key, required this.list, required this.of, required this.notes, required this.chosen, required this.onChoose, this.onNewFolder, this.onNewNote, this.crumbs = true, this.chips = true, this.view, this.store});
 
   /// Every workspace (`Workspaces.list`), and which workspace each filed note is in (`Workspaces.of`).
   final List<Workspace> list;
@@ -101,8 +104,20 @@ class FolderStrip extends StatelessWidget {
   /// New folder pressed: a folder inside [chosen], through the page's workspace sheet. Absent, no New folder chip.
   final ValueChanged<String?>? onNewFolder;
 
+  /// New note pressed: a note filed in [chosen], opened ready to type (Matt, 2026-10-20: "we should be able to nest
+  /// folders and files this way"). Absent, no New note chip.
+  final ValueChanged<String>? onNewNote;
+
   /// Whether the line above is drawn here; the icon view draws [FolderCrumbs] itself.
   final bool crumbs;
+
+  /// Whether the folders' chips are drawn under the heading: not where the icon view below draws them as its first
+  /// tiles, and the strip is the line above and the heading with its [view] alone.
+  final bool chips;
+
+  /// Cards or icons for this level, at the heading's end (lib/notes/icon_browser.dart `BrowseViewToggle`), where the
+  /// page has no other place for it: home's. Its heading is drawn wherever it is given.
+  final Widget? view;
 
   /// The workspaces, to carry notes and folders onto the chips and the line above and the chips themselves into
   /// one another (lib/notes/folder_drag.dart); none, and nothing is carried here.
@@ -142,14 +157,28 @@ class FolderStrip extends StatelessWidget {
     );
   }
 
+  /// The heading with the view's toggle at its end, where there is one.
+  static Widget _withView(Widget heading, Widget? view, Tokens t) => view == null
+      ? heading
+      : Row(
+          spacing: t.space(2),
+          children: [
+            Expanded(child: heading),
+            KeyedSubtree(key: const ValueKey('folder-view'), child: view),
+          ],
+        );
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final folders = folderTiles(list, of, notes, chosen);
     final path = folderPath(list, chosen);
     final above = crumbs && path.length > 1;
-    final make = onNewFolder != null;
-    if (folders.isEmpty && !above && !make) return const SizedBox.shrink();
+    final make = chips && (onNewFolder != null || onNewNote != null);
+    final view = this.view;
+    // The heading and its chips: while there is a folder or a New to draw, or the view to choose.
+    final heading = (chips && folders.isNotEmpty) || make || view != null;
+    if (!heading && !above) return const SizedBox.shrink();
     final sm = t.fontSize('sm');
     final ink3 = t.color('app-ink-3');
     return Column(
@@ -159,27 +188,33 @@ class FolderStrip extends StatelessWidget {
       children: [
         if (above) ...[
           FolderCrumbs(list: list, chosen: chosen, onChoose: onChoose, store: store),
-          if (folders.isNotEmpty || make) SizedBox(height: t.space(2)),
+          if (heading) SizedBox(height: t.space(2)),
         ],
-        if (folders.isNotEmpty || make) ...[
+        if (heading) ...[
           // The heading the page's sections wear: a mark, the word, how many. While a personal note or folder is
           // carried, the top level to drop it on stands over it.
-          _overTop(Semantics(
-            header: true,
-            label: folders.isEmpty ? 'Folders' : 'Folders, ${folders.length}',
-            excludeSemantics: true,
-            child: Row(
-              children: [
-                AppIcon(Lucide.folder, size: 15, color: ink3),
-                SizedBox(width: t.space(2)),
-                Text('Folders', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
-                if (folders.isNotEmpty) ...[
+          _withView(
+            _overTop(Semantics(
+              header: true,
+              label: folders.isEmpty ? 'Folders' : 'Folders, ${folders.length}',
+              excludeSemantics: true,
+              child: Row(
+                children: [
+                  AppIcon(Lucide.folder, size: 15, color: ink3),
                   SizedBox(width: t.space(2)),
-                  Text('${folders.length}', style: tabular(pageText(t, sm, color: ink3))),
+                  Text('Folders', style: pageText(t, sm, weight: 'semibold', color: t.color('app-ink-2'))),
+                  if (folders.isNotEmpty) ...[
+                    SizedBox(width: t.space(2)),
+                    Text('${folders.length}', style: tabular(pageText(t, sm, color: ink3))),
+                  ],
                 ],
-              ],
-            ),
-          )),
+              ),
+            )),
+            view,
+            t,
+          ),
+        ],
+        if (chips && (folders.isNotEmpty || make)) ...[
           SizedBox(height: t.space(2)),
           Semantics(
             container: true,
@@ -195,7 +230,8 @@ class FolderStrip extends StatelessWidget {
                   spacing: t.space(2),
                   children: [
                     for (final each in folders) _carried(_Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
-                    if (onNewFolder != null) _NewChip(key: const ValueKey('folder-new'), onPressed: () => onNewFolder!(chosen)),
+                    if (onNewFolder != null) _NewChip(key: const ValueKey('folder-new'), glyph: Lucide.folderPlus, words: 'New folder', onPressed: () => onNewFolder!(chosen)),
+                    if (onNewNote != null) _NewChip(key: const ValueKey('folder-new-note'), glyph: Lucide.filePlus, words: 'New note', onPressed: () => onNewNote!(chosen)),
                   ],
                 ),
               ),
@@ -329,10 +365,13 @@ class _Chip extends StatelessWidget {
   }
 }
 
-/// New folder, at the end of the row: the folder-plus glyph and the words, outlined in the faint ink.
+/// New folder or New note, at the end of the row: the folder-plus or file-plus glyph and the words, outlined in the
+/// faint ink.
 class _NewChip extends StatelessWidget {
-  const _NewChip({super.key, required this.onPressed});
+  const _NewChip({super.key, required this.glyph, required this.words, required this.onPressed});
 
+  final LucideIcon glyph;
+  final String words;
   final VoidCallback onPressed;
 
   @override
@@ -342,7 +381,7 @@ class _NewChip extends StatelessWidget {
     final ink = t.color('app-ink-2');
     return GlacierPressable(
       onPressed: onPressed,
-      semanticLabel: 'New folder',
+      semanticLabel: words,
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         child: Container(
@@ -358,8 +397,8 @@ class _NewChip extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               spacing: 0.4 * sm,
               children: [
-                AppIcon(Lucide.folderPlus, size: 1.1 * sm, strokeWidth: 2.2, color: ink),
-                Text('New folder', maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: ink)),
+                AppIcon(glyph, size: 1.1 * sm, strokeWidth: 2.2, color: ink),
+                Text(words, maxLines: 1, softWrap: false, style: pageText(t, sm, weight: 'medium', color: ink)),
               ],
             ),
           ),
