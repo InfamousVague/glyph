@@ -8,6 +8,15 @@
 //! src/meet/ics.rs) and books Ghost for the meeting: one row per invite UID, moved by a newer SEQUENCE and called off by
 //! METHOD:CANCEL or STATUS:CANCELLED. Only Google Meet links are booked. A device can also say "join this now".
 //!
+//! A RECURRING MEETING is joined every time, with no new mail. Its invite makes a row for the series (`apply_series`;
+//! never listed, due or counted) that keeps what expanding the rule needs (`ics::Series`) and the link, and a booking for
+//! the occurrence next to come, `<UID>#<its start in ms>`. Once that one is over, or done, failed or skipped, `advance`
+//! books the next as a booking of its own, with a fresh id: the bot's per-process memory of ids it has handled
+//! (meet/bot/lib/decide.mjs), a take's `meeting`, and a device's skip each stay with the one occurrence they were of.
+//! `advance` runs whenever bookings are read (`due`, the device's list) and with the hourly sweep. An occurrence changed
+//! or called off on its own (RECURRENCE-ID) has that same UID, so its invite finds the booking the series made, or makes
+//! it, and the series passes over it.
+//!
 //! HOW GHOST JOINS. A separate bot service on the same box (Node, a signed-in Chrome; meet/spike/README.md) polls the
 //! internal routes over loopback, joins what is due, says in the chat what it is, records, and uploads the recording
 //! with the captions it read. This service seals that upload to the account's encryption PUBLIC key in the same
@@ -18,7 +27,9 @@
 //! kept in the clear - what "automatically join" needs, and no more (the organizer and the guest list are read and
 //! dropped). Only until the meeting is done: the hourly sweep (`sweep`, run with the hook inbox's in hooks.rs) blanks the
 //! title and the link of every booking that ended more than an hour ago, and deletes bookings thirty days after they
-//! ended. The recording and its captions are never kept in the clear, on disk or in a log.
+//! ended. A series' own row keeps its title, link and rule while it has occurrences to come, and is blanked and deleted
+//! as any booking once it is over (COUNT, UNTIL) or called off. The recording and its captions are never kept in the
+//! clear, on disk or in a log.
 //!
 //!   GET    /api/v1/meet                 the account's meetings: still to come, and the last seven days'
 //!   POST   /api/v1/meet                 { url, title? } Ghost joins this Meet now (for two hours at most)
@@ -46,7 +57,7 @@ pub mod ics;
 use crate::accounts::Accounts;
 use crate::identity::Claims;
 use crate::mail::seal;
-use crate::store::{MeetBooking, Store};
+use crate::store::{MeetBooking, Store, MEET_SERIES as SERIES};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::multipart::Field;
 use axum::extract::rejection::ExtensionRejection;
@@ -56,7 +67,7 @@ use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
-use ics::Invite;
+use ics::{Invite, Series};
 use mail_parser::{MessageParser, MimeHeaders, PartType};
 use serde::Deserialize;
 use serde_json::{json, Value};
@@ -167,19 +178,71 @@ pub fn book_from_mail(store: &Store, account: i64, mime: &[u8], now: i64) -> usi
     written
 }
 
-/// One meeting of an invite, applied to the account's bookings. A new one is booked if it has a Meet link and is not
-/// over; one already booked follows the invite unless the invite is older (a lower SEQUENCE) than what was applied.
+/// One meeting of an invite, applied to the account's bookings: a series (`apply_series`), or one meeting, which may be
+/// one changed occurrence of a series (`apply_one`).
 fn apply(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
+    match &invite.series {
+        Some(series) => apply_series(store, account, invite, series, now),
+        None => apply_one(store, account, invite, now),
+    }
+}
+
+/// The UID of an occurrence of the series `uid` that starts at `start` (ms, as the rule makes it): the one a changed
+/// occurrence's RECURRENCE-ID gives it (ics.rs), so the change finds the occurrence the series booked.
+fn occurrence_uid(uid: &str, start: i64) -> String {
+    format!("{uid}#{start}")
+}
+
+/// A booking's series, read back.
+fn series_of(b: &MeetBooking) -> Option<Series> {
+    b.series.as_deref().and_then(|rule| serde_json::from_str(rule).ok())
+}
+
+/// Why a meeting is called off: the organizer did, or the invite no longer has a Meet link.
+fn called_off(invite: &Invite) -> &'static str {
+    if invite.cancelled {
+        "The organizer called it off."
+    } else {
+        "The invite no longer has a Google Meet link."
+    }
+}
+
+/// One meeting, applied to the account's bookings. A new one is booked if it has a Meet link and is not over; one
+/// already booked follows the invite unless the invite is older (a lower SEQUENCE) than what was applied.
+fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
     let secs = now.div_euclid(1000);
-    // One occurrence moved or called off, where the series' booking is that very occurrence (a recurring meeting is
-    // booked one occurrence at a time, ics.rs): the series' booking follows it.
+    // One occurrence moved or called off, where a v1 booking of the series (one occurrence at a time, under the
+    // series' UID, before series were kept) is that very occurrence: that booking follows it.
+    let series_uid = invite.recurrence_id.and(invite.uid.rsplit_once('#')).map(|(uid, _)| uid);
     let existing = store.meet_booking_by_uid(account, &invite.uid).or_else(|| {
         let at = invite.recurrence_id?;
-        let series = invite.uid.rsplit_once('#')?.0;
-        store.meet_booking_by_uid(account, series).filter(|b| b.starts_at == at)
+        store.meet_booking_by_uid(account, series_uid?).filter(|b| b.series.is_none() && b.starts_at == at)
     });
     let Some(mut b) = existing else {
-        let Some(url) = invite.url.clone().filter(|_| !invite.cancelled && invite.ends_at > now) else { return false };
+        let bookable = invite.url.clone().filter(|_| !invite.cancelled && invite.ends_at > now);
+        let Some(url) = bookable else {
+            // One occurrence of a series the account has booked, called off on its own (or its link taken away) before
+            // the series reached it: kept as called off, so the series passes over it.
+            let original_end = invite.recurrence_id.map_or(0, |at| at + (invite.ends_at - invite.starts_at));
+            let series = series_uid.and_then(|uid| store.meet_booking_by_uid(account, uid)).filter(|s| s.series.is_some());
+            if series.is_none() || original_end <= now {
+                return false;
+            }
+            let booking = MeetBooking {
+                id: fresh_id(),
+                account,
+                uid: invite.uid.clone(),
+                url: String::new(),
+                title: clip(invite.title.as_deref(), TITLE_LIMIT),
+                starts_at: invite.starts_at,
+                ends_at: invite.ends_at,
+                state: "cancelled".into(),
+                detail: Some(called_off(invite).into()),
+                sequence: invite.sequence,
+                series: None,
+            };
+            return store.insert_meet_booking(&booking, secs).unwrap_or(false);
+        };
         if store.meet_upcoming(account, now) >= UPCOMING {
             return false;
         }
@@ -194,6 +257,7 @@ fn apply(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
             state: "booked".into(),
             detail: None,
             sequence: invite.sequence,
+            series: None,
         };
         return store.insert_meet_booking(&booking, secs).unwrap_or(false);
     };
@@ -208,15 +272,15 @@ fn apply(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
             b.title = clip(invite.title.as_deref(), TITLE_LIMIT);
             b.starts_at = invite.starts_at;
             b.ends_at = invite.ends_at;
-            // Invited again after it was called off, or to a new time after it was over (the next occurrence of a
-            // recurring meeting, or a meeting moved): booked again. A skip stands until the meeting moves.
+            // Invited again after it was called off, or to a new time after it was over (a meeting moved, or the next
+            // occurrence of a v1 booking of a series): booked again. A skip stands until the meeting moves.
             if invite.ends_at > now && (b.state == "cancelled" || (moved && ENDED.contains(&b.state.as_str()))) {
                 b.state = "booked".into();
                 b.detail = None;
             }
         }
         _ => {
-            let why = if invite.cancelled { "The organizer called it off." } else { "The invite no longer has a Google Meet link." };
+            let why = called_off(invite);
             let next = match b.state.as_str() {
                 "booked" => "cancelled",
                 // Ghost is in it, or on its way: the bot reads `leave` and goes.
@@ -232,15 +296,164 @@ fn apply(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
     store.update_meet_booking(&b, secs).is_ok()
 }
 
-/// The hourly sweep's part, at `now` (ms): see the header. Answers how many bookings were blanked and how many deleted.
+/// A recurring meeting's invite: the series' own row made, or brought up to date with the rule, the link and the title;
+/// then the occurrence the invite reads as next is booked or follows the invite through `apply_one`, as any meeting
+/// does. Called off, or with no Meet link, the series and each of its occurrences still to come are called off.
+fn apply_series(store: &Store, account: i64, invite: &Invite, series: &Series, now: i64) -> bool {
+    let secs = now.div_euclid(1000);
+    let Ok(rule) = serde_json::to_string(series) else { return false };
+    let mut existing = store.meet_booking_by_uid(account, &invite.uid);
+    // A v1 booking: the one occurrence it booked, under the series' UID. It becomes that occurrence's own, and the
+    // series is booked anew beside it.
+    if let Some(v1) = existing.as_ref().filter(|b| b.series.is_none()) {
+        if !store.set_meet_uid(&v1.id, &occurrence_uid(&invite.uid, v1.starts_at), secs) {
+            return false;
+        }
+        existing = None;
+    }
+    let next = Invite { uid: occurrence_uid(&invite.uid, invite.starts_at), recurrence_id: Some(invite.starts_at), series: None, over: false, ..invite.clone() };
+    let Some(mut s) = existing else {
+        let Some(url) = invite.url.clone().filter(|_| !invite.cancelled && !invite.over) else { return false };
+        if store.meet_upcoming(account, now) >= UPCOMING {
+            return false;
+        }
+        let own = MeetBooking {
+            id: fresh_id(),
+            account,
+            uid: invite.uid.clone(),
+            url,
+            title: clip(invite.title.as_deref(), TITLE_LIMIT),
+            starts_at: invite.starts_at,
+            ends_at: invite.ends_at,
+            state: SERIES.into(),
+            detail: None,
+            sequence: invite.sequence,
+            series: Some(rule),
+        };
+        return store.insert_meet_booking(&own, secs).unwrap_or(false) && apply_one(store, account, &next, now);
+    };
+    if invite.sequence < s.sequence {
+        return false;
+    }
+    let applied = s.sequence;
+    s.sequence = invite.sequence;
+    let Some(url) = invite.url.clone().filter(|_| !invite.cancelled) else {
+        let why = called_off(invite);
+        for o in store.meet_occurrences(account, &invite.uid).into_iter().filter(|o| o.ends_at > now) {
+            let next = match o.state.as_str() {
+                "booked" => "cancelled",
+                "joining" | "in_call" => "leave",
+                _ => continue,
+            };
+            store.set_meet_state(&o.id, next, Some(why), secs);
+        }
+        // Its link is blanked an hour from now.
+        s.state = "cancelled".into();
+        s.detail = Some(why.into());
+        s.ends_at = s.ends_at.min(now);
+        return store.update_meet_booking(&s, secs).is_ok();
+    };
+    s.url = url;
+    s.title = clip(invite.title.as_deref(), TITLE_LIMIT);
+    s.series = Some(rule);
+    s.detail = None;
+    // The occurrence booked last, if the update takes it away (moves the series, ends it sooner) before it has begun,
+    // is gone: it will not happen. One changed on its own since (a later SEQUENCE than the series had) is left to its
+    // own invite.
+    if !series.occurs(s.starts_at) {
+        let last = store.meet_booking_by_uid(account, &occurrence_uid(&invite.uid, s.starts_at));
+        if let Some(o) = last.filter(|o| o.starts_at == s.starts_at && o.starts_at > now && o.sequence <= applied && matches!(o.state.as_str(), "booked" | "skipped" | "cancelled")) {
+            store.delete_meet_booking(&o.id);
+        }
+    }
+    if invite.over {
+        s.state = "done".into();
+        s.ends_at = s.ends_at.min(now);
+        return store.update_meet_booking(&s, secs).is_ok();
+    }
+    s.state = SERIES.into();
+    s.starts_at = invite.starts_at;
+    s.ends_at = invite.ends_at;
+    let kept = store.update_meet_booking(&s, secs).is_ok();
+    apply_one(store, account, &next, now) || kept
+}
+
+/// The states an occurrence is still live in, as the store's LIVE.
+const LIVE: &[&str] = &["booked", "joining", "in_call", "leave"];
+
+/// Each running series whose last occurrence is over, or not live (done, failed, skipped, called off), moved on to its
+/// next occurrence still to come, booked as a meeting of its own (`booked`, a fresh id: the one before keeps its own
+/// state and takes, and a skip of it was of it alone). An occurrence the account has a booking for already (changed or
+/// called off on its own) is that booking's, and the series moves past it. A series with none to come is `done`, and
+/// the sweep forgets it as any meeting. Run whenever bookings are read: by `due` (the bot, every 20 seconds), the
+/// device's list, and the hourly sweep. At `now` (ms); answers how many occurrences it booked.
+pub fn advance(store: &Store, now: i64) -> usize {
+    let secs = now.div_euclid(1000);
+    let mut booked = 0;
+    for mut s in store.meet_series_to_advance(now) {
+        let Some(series) = series_of(&s) else { continue };
+        let before = s.clone();
+        // The occurrence booked last is passed over, unless it never got its booking (the limit was reached) and is
+        // still to come.
+        let unbooked = s.ends_at > now && store.meet_booking_by_uid(s.account, &occurrence_uid(&s.uid, s.starts_at)).is_none();
+        let mut after = if unbooked { s.starts_at - 1000 } else { s.starts_at };
+        // A few occurrences changed on their own in a row at most; past that, the next run goes on.
+        for _ in 0..8 {
+            let Some((start, end)) = series.next(Some(after), now) else {
+                s.state = "done".into();
+                break;
+            };
+            let uid = occurrence_uid(&s.uid, start);
+            if let Some(o) = store.meet_booking_by_uid(s.account, &uid) {
+                (s.starts_at, s.ends_at, after) = (start, end, start);
+                if LIVE.contains(&o.state.as_str()) {
+                    break;
+                }
+                continue;
+            }
+            // The limit holds for a series as for any invite: it waits for room.
+            if store.meet_upcoming(s.account, now) >= UPCOMING {
+                break;
+            }
+            let occurrence = MeetBooking {
+                id: fresh_id(),
+                account: s.account,
+                uid,
+                url: s.url.clone(),
+                title: s.title.clone(),
+                starts_at: start,
+                ends_at: end,
+                state: "booked".into(),
+                detail: None,
+                sequence: s.sequence,
+                series: None,
+            };
+            if store.insert_meet_booking(&occurrence, secs).unwrap_or(false) {
+                booked += 1;
+                (s.starts_at, s.ends_at) = (start, end);
+            }
+            break;
+        }
+        if s != before {
+            let _ = store.update_meet_booking(&s, secs);
+        }
+    }
+    booked
+}
+
+/// The hourly sweep's part, at `now` (ms): see the header. Series are moved on first, so one with occurrences to
+/// come keeps its link. Answers how many bookings were blanked and how many deleted.
 pub fn sweep(store: &Store, now: i64) -> (usize, usize) {
+    advance(store, now);
     store.sweep_meet(now, CLEAR_FOR, KEPT_FOR)
 }
 
 // --- the device's routes -------------------------------------------------------------------------
 
 async fn list(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
-    let meetings: Vec<Value> = accounts.store.meet_bookings(who.sub, now_ms() - LISTED_FOR).iter().map(meeting_json).collect();
+    let now = now_ms();
+    advance(&accounts.store, now);
+    let meetings: Vec<Value> = accounts.store.meet_bookings(who.sub, now - LISTED_FOR).iter().map(meeting_json).collect();
     Json(json!({ "meetings": meetings })).into_response()
 }
 
@@ -275,6 +488,7 @@ async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body)
         state: "booked".into(),
         detail: None,
         sequence: 0,
+        series: None,
     };
     match accounts.store.insert_meet_booking(&booking, now_secs()) {
         Ok(true) => Json(json!({ "meeting": meeting_json(&booking) })).into_response(),
@@ -282,9 +496,10 @@ async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body)
     }
 }
 
-/// The account's booking `id`, or the 404 every other account's is answered with.
+/// The account's booking `id`, or the 404 every other account's is answered with. A series' own row is not a meeting:
+/// its occurrences are.
 fn own(accounts: &Accounts, account: i64, id: &str) -> Result<MeetBooking, Response> {
-    let found = if base64url(id, 1..=64) { accounts.store.meet_booking(id).filter(|b| b.account == account) } else { None };
+    let found = if base64url(id, 1..=64) { accounts.store.meet_booking(id).filter(|b| b.account == account && b.series.is_none()) } else { None };
     found.ok_or_else(|| error(StatusCode::NOT_FOUND, "No meeting by that id."))
 }
 
@@ -404,10 +619,12 @@ async fn bot_only(State(bot): State<Arc<Bot>>, peer: Result<ConnectInfo<SocketAd
 }
 
 async fn due(State(bot): State<Arc<Bot>>) -> Response {
+    let now = now_ms();
+    advance(&bot.accounts.store, now);
     let meetings: Vec<Value> = bot
         .accounts
         .store
-        .meet_due(now_ms(), JOIN_EARLY, STAY_LATE)
+        .meet_due(now, JOIN_EARLY, STAY_LATE)
         .iter()
         .map(|b| json!({ "id": b.id, "url": b.url, "title": b.title, "startsAt": b.starts_at, "endsAt": b.ends_at, "state": b.state, "announce": ANNOUNCE }))
         .collect();
@@ -428,7 +645,7 @@ async fn set_state(State(bot): State<Arc<Bot>>, Path(id): Path<String>, Json(bod
     if !BOT_STATES.contains(&body.state.as_str()) {
         return error(StatusCode::BAD_REQUEST, "A state is joining, in_call, done, failed or skipped.");
     }
-    let Some(b) = bot.accounts.store.meet_booking(&id).filter(|_| base64url(&id, 1..=64)) else {
+    let Some(b) = bot.accounts.store.meet_booking(&id).filter(|b| base64url(&id, 1..=64) && b.series.is_none()) else {
         return error(StatusCode::NOT_FOUND, "No meeting by that id.");
     };
     let refused = (ENDED.contains(&b.state.as_str()) && b.state != body.state) || (b.state == "leave" && matches!(body.state.as_str(), "joining" | "in_call"));
@@ -479,7 +696,7 @@ fn audio_type(given: Option<&str>) -> String {
 /// and the meeting then `done`. Multipart: `audio` (the recording; its type is kept), `captions` (NDJSON, optional),
 /// and optionally `startedAt` and `endedAt` (ms) when the recording's own span differs from the booking's.
 async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multipart: Multipart) -> Response {
-    let Some(b) = bot.accounts.store.meet_booking(&id).filter(|_| base64url(&id, 1..=64)) else {
+    let Some(b) = bot.accounts.store.meet_booking(&id).filter(|b| base64url(&id, 1..=64) && b.series.is_none()) else {
         return error(StatusCode::NOT_FOUND, "No meeting by that id.");
     };
     if b.state == "skipped" || b.state == "cancelled" {

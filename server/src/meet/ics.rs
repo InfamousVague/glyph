@@ -18,14 +18,17 @@
 //!   clock of the attendee's, so it is read as UTC. Google never sends one for a timed event;
 //! - a date (`VALUE=DATE`), an all-day event, which has nothing to join and is left out.
 //!
-//! RECURRENCE. A recurring meeting (RRULE on the VEVENT) is booked ONE occurrence at a time in v1: the next one that has
-//! not ended yet, expanded in the event's own wall-clock time, so a weekly 9:00 stays at 9:00 across a change of clocks.
-//! EXDATEs, and occurrences the same invite changes separately (a VEVENT with the same UID and a RECURRENCE-ID, booked
-//! as a meeting of its own), are skipped. Nothing books the occurrence after that until Google mails the invite again
-//! (any update does): a known limit of v1. DAILY, WEEKLY, MONTHLY and YEARLY with INTERVAL, COUNT, UNTIL, BYDAY (with
-//! an ordinal for MONTHLY, `2TU`, `-1FR`), BYMONTHDAY and BYMONTH are read; a rule with any other part (BYSETPOS,
-//! BYHOUR, ...) books only its first occurrence, if that is still to come.
+//! RECURRENCE. A recurring meeting (RRULE on the VEVENT) is read as its next occurrence that has not ended yet,
+//! expanded in the event's own wall-clock time, so a weekly 9:00 stays at 9:00 across a change of clocks, and as the
+//! `Series` that makes it: the rule, DTSTART with its zone's observances, the length, and the starts the series does not
+//! book (EXDATEs, and occurrences the same invite changes separately: a VEVENT with the same UID and a RECURRENCE-ID,
+//! booked as a meeting of its own). meet.rs keeps the `Series` on the series' booking and books each occurrence once the
+//! one before is over, with `Series::next`, and no new mail. DAILY, WEEKLY, MONTHLY and YEARLY with INTERVAL, COUNT,
+//! UNTIL, BYDAY (with an ordinal for MONTHLY, `2TU`, `-1FR`), BYMONTHDAY and BYMONTH are read; a rule with any other
+//! part (BYSETPOS, BYHOUR, ...) books only its first occurrence, if that is still to come. A series with no occurrence
+//! to come is read all the same (`over`), so an update that ends it (an UNTIL moved earlier) reaches its booking.
 
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 /// One meeting an invite books, moves or calls off, with the occurrence chosen and its time resolved.
@@ -44,9 +47,10 @@ pub struct Invite {
     pub sequence: i64,
     /// METHOD:CANCEL, or STATUS:CANCELLED.
     pub cancelled: bool,
-    /// Whether this is the next occurrence of a series. Read by the tests; a booking needs only the occurrence.
-    #[allow(dead_code)]
-    pub recurring: bool,
+    /// The series this is the next occurrence of, when the VEVENT has an RRULE.
+    pub series: Option<Series>,
+    /// A series with no occurrence still to come: `starts_at` and `ends_at` are then its first, and it books nothing.
+    pub over: bool,
     /// Who sent it, as the invite says (`mailto:` dropped). Read, and not kept: a booking has no use for it.
     #[allow(dead_code)]
     pub organizer: Option<String>,
@@ -347,7 +351,7 @@ fn duration(value: &str) -> Option<i64> {
 // --- time zones ----------------------------------------------------------------------------------
 
 /// When an observance begins again each year: a month and a weekday's ordinal in it, or a day of the month.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 struct Yearly {
     month: i64,
     nth: i64,
@@ -357,7 +361,7 @@ struct Yearly {
 
 /// One of a zone's observances (STANDARD or DAYLIGHT): from its onset, and each year's by its rule, the clock reads
 /// UTC + `to`. The onset is wall-clock time under the offset it replaces, `from`.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct Observance {
     onset: i64,
     from: i64,
@@ -528,11 +532,12 @@ fn when<'z>(prop: &Prop, zones: &'z HashMap<String, Zone>) -> Option<When<'z>> {
     Some(When::At(Moment { wall, zone }))
 }
 
-/// The next occurrence of a recurring meeting that has not ended at `now` (UTC seconds), as UTC seconds, skipping
-/// `skip` (the starts the invite removes or books separately); none when the rule is done. The header says what is read.
-fn next_occurrence(start: Moment<'_>, length: i64, rule: &str, skip: &[i64], now: i64) -> Option<(i64, i64)> {
+/// The next occurrence of a recurring meeting that starts after `after` (when given) and has not ended at `now` (UTC
+/// seconds, both), as UTC seconds, skipping `skip` (the starts the invite removes or books separately); none when the
+/// rule is done. The header says what is read.
+fn next_occurrence(start: Moment<'_>, length: i64, rule: &str, skip: &[i64], after: Option<i64>, now: i64) -> Option<(i64, i64)> {
     let parts = rule_parts(rule);
-    let usable = |at: i64| !skip.contains(&at);
+    let usable = |at: i64| !skip.contains(&at) && after.is_none_or(|after| at > after);
     let first = start.utc();
     let known = ["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "BYMONTH", "WKST"];
     let freq = parts.get("FREQ").map(String::as_str).unwrap_or("");
@@ -634,6 +639,38 @@ fn next_occurrence(start: Moment<'_>, length: i64, rule: &str, skip: &[i64], now
     None
 }
 
+/// What expanding a recurring meeting needs, and nothing else: kept on the series' booking (meet.rs, as JSON) so each
+/// occurrence after the next is booked with no new mail. No names: the organizer and the guests are not in it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Series {
+    /// The RRULE's value.
+    rule: String,
+    /// DTSTART's wall-clock time, as seconds since the epoch as though it were UTC...
+    start: i64,
+    /// ...and the zone it is in, as the invite's VTIMEZONE (or the fallback table) gave it; none for UTC or floating.
+    zone: Option<Zone>,
+    /// Seconds.
+    length: i64,
+    /// The starts the series does not book, UTC seconds: its EXDATEs, and the RECURRENCE-IDs of the occurrences the
+    /// invite changed separately.
+    skip: Vec<i64>,
+}
+
+impl Series {
+    /// The first occurrence that starts after `after` (ms; none, from the first) and has not ended at `now` (ms), in ms;
+    /// none once the rule is done (COUNT, UNTIL).
+    pub fn next(&self, after: Option<i64>, now: i64) -> Option<(i64, i64)> {
+        let start = Moment { wall: self.start, zone: self.zone.as_ref() };
+        let after = after.map(|a| a.div_euclid(1000));
+        next_occurrence(start, self.length, &self.rule, &self.skip, after, now.div_euclid(1000)).map(|(s, e)| (s * 1000, e * 1000))
+    }
+
+    /// Whether an occurrence of the series starts at `at` (ms).
+    pub fn occurs(&self, at: i64) -> bool {
+        self.next(Some(at - 1000), i64::MIN / 2).is_some_and(|(s, _)| s == at)
+    }
+}
+
 /// The first Google Meet link in `text`, as `https://meet.google.com/abc-defg-hij`: a code of three, four and three
 /// lower-case letters. Anything else - another service's link, a Meet "lookup" link - is none.
 pub fn meet_url(text: &str) -> Option<String> {
@@ -665,7 +702,7 @@ pub fn typed_meet_url(typed: &str) -> Option<String> {
 }
 
 /// Every meeting the calendar text books, moves or calls off, at `now` (ms). All-day events, and events with no UID or
-/// no start, are left out; so is a recurring meeting with no occurrence still to come (unless it is being called off).
+/// no start, are left out. A recurring meeting with no occurrence still to come is read as `over`.
 pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
     let now_secs = now.div_euclid(1000);
     let mut out = Vec::new();
@@ -704,7 +741,7 @@ pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
                 _ => None,
             };
             let rule = event.value("RRULE").filter(|_| recurrence_id.is_none());
-            let (starts_at, ends_at) = match rule {
+            let (series, (starts_at, ends_at), over) = match rule {
                 Some(rule) => {
                     // EXDATEs, and the occurrences this invite books on their own, are not the series' to book.
                     let mut skip: Vec<i64> = event
@@ -719,13 +756,15 @@ pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
                             skip.push(at.utc());
                         }
                     }
-                    match next_occurrence(start, length, rule, &skip, now_secs) {
-                        Some(found) => found,
-                        None if method_cancel => (first, first + length),
-                        None => continue,
-                    }
+                    let series = Series { rule: rule.to_string(), start: start.wall, zone: start.zone.cloned(), length, skip };
+                    // None to come: read all the same, so a booking of the series hears that it is over.
+                    let (occurrence, over) = match next_occurrence(start, length, rule, &series.skip, None, now_secs) {
+                        Some(found) => (found, false),
+                        None => ((first, first + length), true),
+                    };
+                    (Some(series), occurrence, over)
                 }
-                None => (first, first + length),
+                None => (None, (first, first + length), false),
             };
             let status_cancelled = event.value("STATUS").is_some_and(|s| s.trim().eq_ignore_ascii_case("CANCELLED"));
             let url = ["X-GOOGLE-CONFERENCE", "DESCRIPTION", "LOCATION", "URL"].into_iter().find_map(|name| event.all(name).find_map(|p| meet_url(&text(&p.value))));
@@ -746,7 +785,8 @@ pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
                 ends_at: ends_at * 1000,
                 sequence: event.value("SEQUENCE").and_then(|s| s.trim().parse().ok()).unwrap_or(0),
                 cancelled: method_cancel || status_cancelled,
-                recurring: rule.is_some(),
+                series,
+                over,
                 organizer,
             });
         }
@@ -826,7 +866,7 @@ END:VCALENDAR\r\n"
         assert_eq!(one.title.as_deref(), Some("Roadmap review, Q4"));
         assert_eq!(one.url.as_deref(), Some("https://meet.google.com/abc-defg-hij"));
         assert_eq!(one.organizer.as_deref(), Some("sam@example.com"));
-        assert!(!one.cancelled && !one.recurring);
+        assert!(!one.cancelled && one.series.is_none());
         let december = invites(&google_invite("REQUEST", 0, "20261210T110000", "20261210T113000", "CONFIRMED"), 0);
         assert_eq!((december[0].starts_at, december[0].ends_at), (utc(2026, 12, 10, 16, 0), utc(2026, 12, 10, 16, 30)));
         // Either side of the change of clocks on 2026-11-01 (2:00 EDT becomes 1:00 EST).
@@ -907,7 +947,7 @@ END:VCALENDAR\r\n";
         let weekly = base.replace("SEQUENCE:0\r\n", "SEQUENCE:0\r\nRRULE:FREQ=WEEKLY;BYDAY=TU,TH\r\nEXDATE;TZID=America/New_York:20261105T110000\r\n");
         let at = |now| invites(&weekly, now).into_iter().find(|i| i.recurrence_id.is_none()).unwrap();
         let first = at(utc(2026, 10, 1, 0, 0));
-        assert!(first.recurring);
+        assert!(first.series.is_some() && !first.over);
         assert_eq!(first.starts_at, utc(2026, 10, 20, 15, 0));
         assert_eq!(at(utc(2026, 10, 20, 15, 30)).starts_at, utc(2026, 10, 20, 15, 0), "still on: that one");
         assert_eq!(at(utc(2026, 10, 20, 16, 0)).starts_at, utc(2026, 10, 22, 15, 0), "over: the Thursday");
@@ -923,7 +963,7 @@ END:VCALENDAR\r\n";
         assert_eq!(series.starts_at, utc(2026, 10, 27, 15, 0), "the 22nd is booked by its own VEVENT");
         let one = found.iter().find(|i| i.recurrence_id.is_some()).unwrap();
         assert_eq!(one.uid, format!("7kukuqrfedlm2f9t0vd0b2gscq@google.com#{}", utc(2026, 10, 22, 15, 0)));
-        assert_eq!((one.starts_at, one.title.as_deref(), one.recurring), (utc(2026, 10, 23, 18, 0), Some("Moved"), false));
+        assert_eq!((one.starts_at, one.title.as_deref(), one.series.is_some()), (utc(2026, 10, 23, 18, 0), Some("Moved"), false));
     }
 
     #[test]
@@ -936,11 +976,42 @@ END:VCALENDAR\r\n";
         assert_eq!(invites(&cal("FREQ=MONTHLY"), after)[0].starts_at, utc(2026, 11, 13, 15, 0));
         assert_eq!(invites(&cal("FREQ=DAILY;INTERVAL=2"), after)[0].starts_at, utc(2026, 10, 15, 15, 0));
         assert_eq!(invites(&cal("FREQ=YEARLY"), after)[0].starts_at, utc(2027, 10, 13, 15, 0));
-        assert!(invites(&cal("FREQ=DAILY;COUNT=2"), utc(2026, 10, 20, 0, 0)).is_empty(), "two days and done");
-        assert!(invites(&cal("FREQ=WEEKLY;UNTIL=20261021T000000Z"), utc(2026, 10, 21, 0, 0)).is_empty());
+        assert!(invites(&cal("FREQ=DAILY;COUNT=2"), utc(2026, 10, 20, 0, 0))[0].over, "two days and done");
+        assert!(invites(&cal("FREQ=WEEKLY;UNTIL=20261021T000000Z"), utc(2026, 10, 21, 0, 0))[0].over);
         // A rule part this does not read: the first occurrence only, while it is to come.
         assert_eq!(invites(&cal("FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO,TU"), utc(2026, 10, 1, 0, 0))[0].starts_at, utc(2026, 10, 13, 15, 0));
-        assert!(invites(&cal("FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO,TU"), after).is_empty());
+        assert!(invites(&cal("FREQ=MONTHLY;BYSETPOS=-1;BYDAY=MO,TU"), after)[0].over);
+    }
+
+    #[test]
+    fn a_series_kept_as_json_books_each_occurrence_after_the_last_in_its_own_wall_clock_time() {
+        // 9:00 in New York on weekdays from Friday 2030-03-08, not Tuesday the 12th; the clocks change on the 10th.
+        let base = google_invite("REQUEST", 0, "20300308T090000", "20300308T091500", "CONFIRMED");
+        let weekdays = base.replace("SEQUENCE:0\r\n", "SEQUENCE:0\r\nRRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;COUNT=5\r\nEXDATE;TZID=America/New_York:20300312T090000\r\n");
+        let invite = invites(&weekdays, utc(2030, 3, 1, 0, 0)).remove(0);
+        assert_eq!((invite.starts_at, invite.over), (utc(2030, 3, 8, 14, 0), false));
+        // What a booking keeps, and reads back: the rule, the start, New York's observances, the length, the EXDATE.
+        let kept = serde_json::to_string(invite.series.as_ref().unwrap()).unwrap();
+        assert!(!kept.contains("sam@example.com") && !kept.contains("in.ghostmarkdown.com"), "no names: {kept}");
+        let series: Series = serde_json::from_str(&kept).unwrap();
+        assert_eq!(Some(&series), invite.series.as_ref());
+        // Each after the one before, whatever the time: Monday at 13:00 UTC (EDT), the 12th passed over, and COUNT
+        // (five, the EXDATE among them) ending it after Thursday.
+        let mut seen = Vec::new();
+        let mut after = invite.starts_at;
+        while let Some((start, end)) = series.next(Some(after), 0) {
+            assert_eq!(end - start, 15 * 60 * 1000);
+            seen.push(start);
+            after = start;
+        }
+        assert_eq!(seen, vec![utc(2030, 3, 11, 13, 0), utc(2030, 3, 13, 13, 0), utc(2030, 3, 14, 13, 0)]);
+        // Not ended at `now`: the one under way, then the next.
+        assert_eq!(series.next(None, utc(2030, 3, 11, 13, 10)), Some((utc(2030, 3, 11, 13, 0), utc(2030, 3, 11, 13, 15))));
+        assert_eq!(series.next(None, utc(2030, 3, 11, 13, 15)).map(|o| o.0), Some(utc(2030, 3, 13, 13, 0)));
+        assert!(series.occurs(utc(2030, 3, 13, 13, 0)));
+        assert!(!series.occurs(utc(2030, 3, 12, 13, 0)), "the EXDATE");
+        assert!(!series.occurs(utc(2030, 3, 13, 14, 0)), "an hour off");
+        assert!(!series.occurs(utc(2030, 3, 15, 13, 0)), "past COUNT");
     }
 
     #[test]

@@ -7,6 +7,7 @@ use crate::mail::seal;
 use crate::mail_tests::{post, token, turned_on, with_key};
 use crate::meet::ics::tests::{google_invite, utc};
 use crate::meet::{self, take_seal_context, take_wrap_context, unpack, TEST_BOT_TOKEN};
+use crate::store::MeetBooking;
 use crate::test_support::{behind_caddy, device, routes, Harness};
 use axum::body::{to_bytes, Body};
 use axum::extract::connect_info::MockConnectInfo;
@@ -364,4 +365,366 @@ async fn the_sweep_forgets_a_meeting_s_title_and_link_an_hour_after_it_is_over()
     let response = h.service.clone().oneshot(crate::test_support::request(Method::GET, "/api/v1/meet", Some(&account), None)).await.unwrap();
     let body = to_bytes(response.into_body(), usize::MAX).await.unwrap();
     assert!(!String::from_utf8_lossy(&body).contains("Secret project"));
+}
+
+// --- recurring meetings --------------------------------------------------------------------------
+//
+// These book at times of their own (`book_from_mail`, `advance` and `sweep` take `now`), so a series is followed across
+// days with no new mail. The device's list and `due` move a series on at the real now, which is before every meeting
+// here: that changes nothing a test does not mean it to.
+
+/// The UID of `google_invite`.
+const UID: &str = "7kukuqrfedlm2f9t0vd0b2gscq@google.com";
+
+/// `google_invite` made a series by the lines `rule` (an RRULE, EXDATEs), each ending `\r\n`.
+fn series(method: &str, sequence: i64, start: &str, end: &str, status: &str, rule: &str) -> String {
+    google_invite(method, sequence, start, end, status).replace("TRANSP:OPAQUE\r\n", &format!("TRANSP:OPAQUE\r\n{rule}"))
+}
+
+/// The same calendar with one more VEVENT: an occurrence of the series changed on its own.
+fn with_changed(calendar: &str, recurrence_id: &str, start: &str, end: &str, sequence: i64, status: &str) -> String {
+    calendar.replace(
+        "END:VCALENDAR\r\n",
+        &format!(
+            "BEGIN:VEVENT\r\nUID:{UID}\r\nRECURRENCE-ID;TZID=America/New_York:{recurrence_id}\r\nDTSTART;TZID=America/New_York:{start}\r\n\
+DTEND;TZID=America/New_York:{end}\r\nSEQUENCE:{sequence}\r\nSTATUS:{status}\r\nSUMMARY:Stand-up, moved\r\nX-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n"
+        ),
+    )
+}
+
+/// One VCALENDAR of only a changed occurrence, as Google mails "this event" alone.
+fn only_changed(method: &str, recurrence_id: &str, start: &str, end: &str, sequence: i64, status: &str) -> String {
+    let empty = format!("BEGIN:VCALENDAR\r\nPRODID:-//Google Inc//Google Calendar 70.9054//EN\r\nVERSION:2.0\r\nMETHOD:{method}\r\nEND:VCALENDAR\r\n");
+    with_changed(&empty, recurrence_id, start, end, sequence, status)
+}
+
+/// An account with its key, and its id.
+async fn sam(h: &Harness) -> (String, i64) {
+    let (token, _) = with_key(h, "sam").await;
+    let id = h.accounts.store.account_by_handle("sam").unwrap().id;
+    (token, id)
+}
+
+/// The invite `calendar`, mailed to `account` at `now`.
+fn mailed(h: &Harness, account: i64, calendar: &str, now: i64) -> usize {
+    meet::book_from_mail(&h.accounts.store, account, invite_mail("k7m2q9xh4t3vbn8p@in.ghostmarkdown.com", calendar).as_bytes(), now)
+}
+
+/// The account's meetings, every one the device would list, soonest first.
+fn listed(h: &Harness, account: i64) -> Vec<MeetBooking> {
+    h.accounts.store.meet_bookings(account, i64::MIN)
+}
+
+/// What the bot is told is due at `now`, the series moved on first as `due` moves them.
+fn due_at(h: &Harness, now: i64) -> Vec<MeetBooking> {
+    meet::advance(&h.accounts.store, now);
+    h.accounts.store.meet_due(now, 120_000, 900_000)
+}
+
+/// The series' own row.
+fn series_row(h: &Harness, account: i64) -> MeetBooking {
+    h.accounts.store.meet_booking_by_uid(account, UID).unwrap()
+}
+
+/// The bot's part in one meeting: joining, in it, and out.
+async fn attended(h: &Harness, id: &str) {
+    for state in ["joining", "in_call", "done"] {
+        let (status, body) = bot_call(h, Method::POST, &format!("/api/internal/meet/{id}/state"), Some(json!({ "state": state }))).await;
+        assert_eq!(status, StatusCode::OK, "{state}: {body}");
+    }
+}
+
+#[tokio::test]
+async fn a_daily_series_is_joined_every_day_with_no_new_mail_and_keeps_its_link_between() {
+    let h = Harness::new("meet");
+    let (token, account) = sam(&h).await;
+    // A stand-up at 11:00 in New York (16:00 UTC in January), every day from 2030-01-15.
+    let daily = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n");
+    assert_eq!(mailed(&h, account, &daily, utc(2030, 1, 10, 12, 0)), 1);
+    // The device lists the one occurrence booked; the series' own row is no meeting of its list, nor its to skip.
+    let listed_now = meetings(&h, &token).await;
+    assert_eq!(listed_now.len(), 1, "{listed_now:?}");
+    assert_eq!((listed_now[0]["startsAt"].as_i64(), listed_now[0]["url"].as_str()), (Some(utc(2030, 1, 15, 16, 0)), Some("https://meet.google.com/abc-defg-hij")));
+    let own = series_row(&h, account);
+    assert_eq!((own.state.as_str(), own.uid.as_str()), ("series", UID));
+    let (status, _) = h.call(Method::DELETE, &format!("/api/v1/meet/{}", own.id), Some(&token), None).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+    let (status, _) = bot_call(&h, Method::POST, &format!("/api/internal/meet/{}/state", own.id), Some(json!({ "state": "joining" }))).await;
+    assert_eq!(status, StatusCode::NOT_FOUND);
+
+    // Day one: due, joined, and the take kept for it.
+    let first = due_at(&h, utc(2030, 1, 15, 15, 59));
+    assert_eq!(first.len(), 1);
+    let one = first[0].id.clone();
+    assert_eq!(first[0].uid, format!("{UID}#{}", utc(2030, 1, 15, 16, 0)));
+    for state in ["joining", "in_call"] {
+        bot_call(&h, Method::POST, &format!("/api/internal/meet/{one}/state"), Some(json!({ "state": state }))).await;
+    }
+    let (status, _, _) = h.send(take_upload(&one, &[("audio", Some("audio/webm"), b"day one")])).await;
+    assert_eq!(status, StatusCode::OK);
+    // Done, the next day is booked as a meeting of its own: a fresh id, booked, with the link.
+    assert!(due_at(&h, utc(2030, 1, 15, 16, 16)).is_empty(), "nothing is due until tomorrow");
+    let all = listed(&h, account);
+    assert_eq!(all.iter().map(|b| (b.starts_at, b.state.as_str())).collect::<Vec<_>>(), vec![(utc(2030, 1, 15, 16, 0), "done"), (utc(2030, 1, 16, 16, 0), "booked")]);
+    let two = all[1].id.clone();
+    assert_ne!(one, two);
+    // The take still names day one, which is still there to name.
+    let (_, takes) = h.call(Method::GET, "/api/v1/meet/takes", Some(&token), None).await;
+    assert_eq!(takes["takes"][0]["meeting"].as_str(), Some(one.as_str()));
+
+    // The sweep between: day one's title and link are forgotten; the series and day two keep theirs.
+    meet::sweep(&h.accounts.store, utc(2030, 1, 15, 18, 0));
+    let day_one = h.accounts.store.meet_booking(&one).unwrap();
+    assert_eq!((day_one.url.as_str(), day_one.title, day_one.state.as_str()), ("", None, "done"));
+    assert_eq!(series_row(&h, account).url, "https://meet.google.com/abc-defg-hij");
+    assert_eq!(h.accounts.store.meet_booking(&two).unwrap().url, "https://meet.google.com/abc-defg-hij");
+
+    // Day two: joined.
+    assert_eq!(due_at(&h, utc(2030, 1, 16, 15, 59)).iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![two.clone()]);
+    attended(&h, &two).await;
+    // Day three is booked; the bot never comes, and the day after is booked all the same once it is over.
+    let three = due_at(&h, utc(2030, 1, 17, 15, 59));
+    assert_eq!((three.len(), three[0].starts_at), (1, utc(2030, 1, 17, 16, 0)));
+    meet::sweep(&h.accounts.store, utc(2030, 1, 17, 18, 0));
+    let missed = h.accounts.store.meet_booking(&three[0].id).unwrap();
+    assert_eq!((missed.state.as_str(), missed.detail.as_deref()), ("failed", Some("missed")));
+    let four = due_at(&h, utc(2030, 1, 18, 15, 59));
+    assert_eq!((four.len(), four[0].starts_at, four[0].url.as_str()), (1, utc(2030, 1, 18, 16, 0), "https://meet.google.com/abc-defg-hij"));
+    // And a month on, the occurrences that are thirty days over are gone while the series runs on.
+    meet::sweep(&h.accounts.store, utc(2030, 2, 17, 12, 0));
+    assert!(h.accounts.store.meet_booking(&one).is_none());
+    let own = series_row(&h, account);
+    assert_eq!((own.state.as_str(), own.url.as_str(), own.starts_at), ("series", "https://meet.google.com/abc-defg-hij", utc(2030, 2, 17, 16, 0)));
+}
+
+#[tokio::test]
+async fn a_weekday_series_in_new_york_keeps_its_wall_clock_time_across_the_change_of_clocks() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    // 9:00 in New York, Monday to Friday, from Friday 2030-03-08; the clocks go forward on Sunday the 10th.
+    let weekdays = series("REQUEST", 0, "20300308T090000", "20300308T091500", "CONFIRMED", "RRULE:FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR\r\n");
+    mailed(&h, account, &weekdays, utc(2030, 3, 1, 12, 0));
+    let mut joined = Vec::new();
+    // Each morning, a minute before: what is due, joined.
+    for (day, hour) in [(8, 14), (11, 13), (12, 13), (13, 13), (14, 13), (15, 13), (18, 13)] {
+        let due = due_at(&h, utc(2030, 3, day, hour, 0) - 60_000);
+        assert_eq!(due.len(), 1, "the {day}th: {due:?}");
+        assert!(!joined.contains(&due[0].id), "a fresh booking each day");
+        joined.push(due[0].id.clone());
+        attended(&h, &due[0].id).await;
+        assert_eq!(h.accounts.store.meet_booking(&due[0].id).unwrap().starts_at, utc(2030, 3, day, hour, 0), "the {day}th at 9:00 New York time");
+    }
+    // Nothing is booked on the weekend: Friday the 15th was followed by Monday the 18th.
+    assert!(listed(&h, account).iter().all(|b| b.starts_at != utc(2030, 3, 16, 13, 0) && b.starts_at != utc(2030, 3, 17, 13, 0)));
+}
+
+#[tokio::test]
+async fn an_exdate_and_occurrences_changed_or_called_off_on_their_own_are_passed_over_by_the_series() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    // Daily at 11:00 New York (16:00 UTC), not on the 16th; the 17th moved to 14:00 (19:00 UTC) in the same invite.
+    let daily = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\nEXDATE;TZID=America/New_York:20300116T110000\r\n");
+    let daily = with_changed(&daily, "20300117T110000", "20300117T140000", "20300117T141500", 1, "CONFIRMED");
+    mailed(&h, account, &daily, utc(2030, 1, 10, 12, 0));
+    let starts = |h: &Harness| listed(h, account).iter().map(|b| (b.starts_at, b.state.clone())).collect::<Vec<_>>();
+    assert_eq!(starts(&h), vec![(utc(2030, 1, 15, 16, 0), "booked".into()), (utc(2030, 1, 17, 19, 0), "booked".into())]);
+    let moved = listed(&h, account)[1].clone();
+    assert_eq!((moved.uid, moved.title.as_deref()), (format!("{UID}#{}", utc(2030, 1, 17, 16, 0)), Some("Stand-up, moved")));
+    attended(&h, &listed(&h, account)[0].id).await;
+    // Over: the 16th is excluded and the 17th is booked on its own, so the next the series books is the 18th.
+    meet::advance(&h.accounts.store, utc(2030, 1, 15, 16, 20));
+    assert_eq!(starts(&h)[1..], [(utc(2030, 1, 17, 19, 0), "booked".into()), (utc(2030, 1, 18, 16, 0), "booked".into())]);
+    // The 19th called off on its own, in a mail of its own, before the series reaches it.
+    mailed(&h, account, &only_changed("CANCEL", "20300119T110000", "20300119T110000", "20300119T111500", 1, "CANCELLED"), utc(2030, 1, 16, 12, 0));
+    let cancelled = h.accounts.store.meet_booking_by_uid(account, &format!("{UID}#{}", utc(2030, 1, 19, 16, 0))).unwrap();
+    assert_eq!((cancelled.state.as_str(), cancelled.url.as_str()), ("cancelled", ""), "kept as called off, with no link");
+    // The moved 17th joined at its own time; after the 18th, not the 19th but the 20th.
+    assert_eq!(due_at(&h, utc(2030, 1, 17, 18, 59)).iter().map(|b| b.id.clone()).collect::<Vec<_>>(), vec![moved.id.clone()]);
+    attended(&h, &moved.id).await;
+    let eighteenth = listed(&h, account).into_iter().find(|b| b.starts_at == utc(2030, 1, 18, 16, 0)).unwrap();
+    attended(&h, &eighteenth.id).await;
+    let due = due_at(&h, utc(2030, 1, 20, 15, 59));
+    assert_eq!((due.len(), due[0].starts_at), (1, utc(2030, 1, 20, 16, 0)), "the 19th is passed over");
+    assert!(due_at(&h, utc(2030, 1, 19, 15, 59)).is_empty());
+}
+
+#[tokio::test]
+async fn a_series_called_off_calls_off_what_it_booked_and_books_no_more() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    let daily = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n");
+    mailed(&h, account, &daily, utc(2030, 1, 10, 12, 0));
+    let one = listed(&h, account)[0].id.clone();
+    for state in ["joining", "in_call"] {
+        bot_call(&h, Method::POST, &format!("/api/internal/meet/{one}/state"), Some(json!({ "state": state }))).await;
+    }
+    // Called off while Ghost is in day one: it leaves; and the series is over.
+    let cancel = series("CANCEL", 1, "20300115T110000", "20300115T111500", "CANCELLED", "RRULE:FREQ=DAILY\r\n");
+    mailed(&h, account, &cancel, utc(2030, 1, 15, 16, 5));
+    assert_eq!(h.accounts.store.meet_booking(&one).unwrap().state, "leave");
+    assert_eq!(series_row(&h, account).state, "cancelled");
+    bot_call(&h, Method::POST, &format!("/api/internal/meet/{one}/state"), Some(json!({ "state": "done" }))).await;
+    for day in 16..=20 {
+        assert!(due_at(&h, utc(2030, 1, day, 15, 59)).is_empty(), "the {day}th");
+    }
+    assert_eq!(listed(&h, account).len(), 1);
+    // Its link goes an hour after it was called off, and the series' row a month after.
+    meet::sweep(&h.accounts.store, utc(2030, 1, 15, 17, 5));
+    assert_eq!((series_row(&h, account).url.as_str(), series_row(&h, account).title), ("", None));
+    meet::sweep(&h.accounts.store, utc(2030, 2, 15, 17, 5));
+    assert!(h.accounts.store.meet_booking_by_uid(account, UID).is_none());
+
+    // A series called off before the occurrence it booked: that occurrence is called off.
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    mailed(&h, account, &daily, utc(2030, 1, 10, 12, 0));
+    mailed(&h, account, &cancel, utc(2030, 1, 11, 12, 0));
+    let only = &listed(&h, account)[0];
+    assert_eq!((only.state.as_str(), only.detail.as_deref()), ("cancelled", Some("The organizer called it off.")));
+}
+
+#[tokio::test]
+async fn a_series_updated_by_a_higher_sequence_moves_what_it_booked_and_what_it_books_next() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 10, 12, 0));
+    let before = listed(&h, account)[0].clone();
+    // Moved to 9:30 with a new link, before the first: the 11:00 booking is gone, the 9:30 one booked.
+    let moved = series("REQUEST", 1, "20300115T093000", "20300115T094500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n").replace("abc-defg-hij", "xyz-wxyz-xyz");
+    mailed(&h, account, &moved, utc(2030, 1, 11, 12, 0));
+    assert!(h.accounts.store.meet_booking(&before.id).is_none());
+    let after = listed(&h, account);
+    assert_eq!(after.len(), 1);
+    assert_eq!((after[0].starts_at, after[0].url.as_str()), (utc(2030, 1, 15, 14, 30), "https://meet.google.com/xyz-wxyz-xyz"));
+    assert_eq!(series_row(&h, account).url, "https://meet.google.com/xyz-wxyz-xyz");
+    // An older copy arriving late changes nothing.
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 12, 12, 0));
+    assert_eq!(listed(&h, account).iter().map(|b| b.starts_at).collect::<Vec<_>>(), vec![utc(2030, 1, 15, 14, 30)]);
+    // A new title at the same time: the same booking follows it.
+    mailed(&h, account, &moved.replace("SEQUENCE:1", "SEQUENCE:2").replace("Roadmap review\\, Q4", "Stand-up"), utc(2030, 1, 13, 12, 0));
+    let renamed = listed(&h, account);
+    assert_eq!((renamed.len(), renamed[0].id.as_str(), renamed[0].title.as_deref()), (1, after[0].id.as_str(), Some("Stand-up")));
+    // And the next day is booked by the rule as it is now.
+    attended(&h, &renamed[0].id).await;
+    let next = due_at(&h, utc(2030, 1, 16, 14, 29));
+    assert_eq!((next.len(), next[0].starts_at, next[0].url.as_str(), next[0].title.as_deref()), (1, utc(2030, 1, 16, 14, 30), "https://meet.google.com/xyz-wxyz-xyz", Some("Stand-up")));
+}
+
+#[tokio::test]
+async fn count_and_until_end_a_series_and_the_sweep_then_forgets_it() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY;COUNT=2\r\n"), utc(2030, 1, 10, 12, 0));
+    attended(&h, &due_at(&h, utc(2030, 1, 15, 15, 59))[0].id).await;
+    attended(&h, &due_at(&h, utc(2030, 1, 16, 15, 59))[0].id).await;
+    // Two, and done: nothing on the third day, and the series is over.
+    assert!(due_at(&h, utc(2030, 1, 17, 15, 59)).is_empty());
+    assert_eq!(listed(&h, account).len(), 2);
+    let own = series_row(&h, account);
+    assert_eq!((own.state.as_str(), own.ends_at), ("done", utc(2030, 1, 16, 16, 15)));
+    // So the sweep forgets it as any meeting: its link an hour after the last ended, the row a month after.
+    meet::sweep(&h.accounts.store, utc(2030, 1, 16, 17, 15));
+    assert_eq!((series_row(&h, account).url.as_str(), series_row(&h, account).title), ("", None));
+    meet::sweep(&h.accounts.store, utc(2030, 2, 15, 16, 15));
+    assert!(h.accounts.store.meet_booking_by_uid(account, UID).is_none());
+
+    // UNTIL, moved earlier by an update before the occurrence booked: that booking goes, and the series is over.
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 16, 12, 0));
+    assert_eq!(listed(&h, account)[0].starts_at, utc(2030, 1, 16, 16, 0), "the 15th is over: the 16th");
+    let ended = series("REQUEST", 1, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY;UNTIL=20300115T235959Z\r\n");
+    mailed(&h, account, &ended, utc(2030, 1, 16, 12, 30));
+    assert!(listed(&h, account).is_empty());
+    assert_eq!(series_row(&h, account).state, "done");
+    assert!(due_at(&h, utc(2030, 1, 16, 15, 59)).is_empty());
+}
+
+#[tokio::test]
+async fn skipping_one_occurrence_skips_that_one_and_not_the_series() {
+    let h = Harness::new("meet");
+    let (token, account) = sam(&h).await;
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 10, 12, 0));
+    let first = meetings(&h, &token).await[0]["id"].as_str().unwrap().to_string();
+    let (status, body) = h.call(Method::DELETE, &format!("/api/v1/meet/{first}"), Some(&token), None).await;
+    assert_eq!((status, body["meeting"]["state"].as_str()), (StatusCode::OK, Some("skipped")));
+    // The device's list has the skip, and the next day booked already.
+    let now = meetings(&h, &token).await;
+    assert_eq!(
+        now.iter().map(|m| (m["startsAt"].as_i64().unwrap(), m["state"].as_str().unwrap().to_string())).collect::<Vec<_>>(),
+        vec![(utc(2030, 1, 15, 16, 0), "skipped".to_string()), (utc(2030, 1, 16, 16, 0), "booked".to_string())]
+    );
+    let (status, _) = bot_call(&h, Method::POST, &format!("/api/internal/meet/{first}/state"), Some(json!({ "state": "joining" }))).await;
+    assert_eq!(status, StatusCode::CONFLICT, "the skipped day is not joined");
+    assert!(due_at(&h, utc(2030, 1, 15, 15, 59)).is_empty());
+    let next = due_at(&h, utc(2030, 1, 16, 15, 59));
+    assert_eq!((next.len(), next[0].starts_at), (1, utc(2030, 1, 16, 16, 0)));
+    assert_eq!(series_row(&h, account).state, "series");
+}
+
+#[tokio::test]
+async fn a_series_counts_one_occurrence_at_a_time_and_waits_for_room_under_the_limit() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    mailed(&h, account, &series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 10, 12, 0));
+    let first = listed(&h, account)[0].id.clone();
+    // A hundred more to come: the account's hundred, and the first besides.
+    let store = &h.accounts.store;
+    for n in 0..100 {
+        let b = MeetBooking { id: format!("f{n}"), uid: format!("filler-{n}"), starts_at: utc(2031, 1, 1, 0, 0), ends_at: utc(2031, 1, 1, 1, 0), series: None, ..store.meet_booking(&first).unwrap() };
+        assert!(store.insert_meet_booking(&b, 1).unwrap());
+    }
+    assert_eq!(store.meet_upcoming(account, utc(2030, 1, 10, 12, 0)), 101, "the series' own row is not counted");
+    let another = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n").replace(UID, "another@google.com");
+    assert_eq!(mailed(&h, account, &another, utc(2030, 1, 10, 12, 0)), 0, "a new series is held to the limit too");
+    assert!(store.meet_booking_by_uid(account, "another@google.com").is_none());
+    attended(&h, &first).await;
+    assert_eq!(meet::advance(store, utc(2030, 1, 15, 16, 20)), 0, "no room: the 16th waits");
+    // Waiting, its last occurrence over for more than an hour: the sweep leaves the series its link all the same.
+    meet::sweep(store, utc(2030, 1, 15, 18, 0));
+    assert_eq!((series_row(&h, account).starts_at, series_row(&h, account).url.as_str()), (utc(2030, 1, 15, 16, 0), "https://meet.google.com/abc-defg-hij"));
+    assert_eq!(store.meet_booking(&first).unwrap().url, "", "the occurrence's own is forgotten");
+    store.set_meet_state("f0", "skipped", None, 2);
+    assert_eq!(meet::advance(store, utc(2030, 1, 16, 12, 0)), 1);
+    let sixteenth = listed(&h, account).into_iter().find(|b| b.starts_at == utc(2030, 1, 16, 16, 0)).unwrap();
+    assert_eq!((sixteenth.state.as_str(), sixteenth.url.as_str()), ("booked", "https://meet.google.com/abc-defg-hij"));
+}
+
+#[tokio::test]
+async fn a_v1_booking_of_one_occurrence_becomes_that_occurrence_s_when_the_series_is_booked_whole() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    // As v1 booked a series: its next occurrence, under the series' UID.
+    let v1 = MeetBooking {
+        id: "v1".into(),
+        account,
+        uid: UID.into(),
+        url: "https://meet.google.com/abc-defg-hij".into(),
+        title: Some("Roadmap review, Q4".into()),
+        starts_at: utc(2030, 1, 15, 16, 0),
+        ends_at: utc(2030, 1, 15, 16, 15),
+        state: "booked".into(),
+        detail: None,
+        sequence: 0,
+        series: None,
+    };
+    h.accounts.store.insert_meet_booking(&v1, 1).unwrap();
+    mailed(&h, account, &series("REQUEST", 1, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 10, 12, 0));
+    let all = listed(&h, account);
+    assert_eq!(all.len(), 1);
+    assert_eq!((all[0].id.as_str(), all[0].uid.clone()), ("v1", format!("{UID}#{}", utc(2030, 1, 15, 16, 0))));
+    assert_eq!(series_row(&h, account).state, "series");
+}
+
+#[tokio::test]
+async fn one_occurrence_of_a_series_mailed_alone_after_it_ended_books_nothing() {
+    // Matt's stand-up: the organizer added Ghost to "this event" only, and Google mailed it once it was over.
+    let h = Harness::new("meet");
+    let (token, account) = sam(&h).await;
+    let alone = only_changed("REQUEST", "20300115T110000", "20300115T110000", "20300115T111500", 0, "CONFIRMED");
+    assert_eq!(mailed(&h, account, &alone, utc(2030, 1, 15, 17, 0)), 0);
+    assert!(meetings(&h, &token).await.is_empty());
+    // The same, still to come: booked as a meeting of its own.
+    assert_eq!(mailed(&h, account, &alone, utc(2030, 1, 15, 15, 0)), 1);
+    assert_eq!(listed(&h, account)[0].uid, format!("{UID}#{}", utc(2030, 1, 15, 16, 0)));
 }

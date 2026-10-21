@@ -15,10 +15,11 @@
 //! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks) and `store/meet.rs` (Ghost
 //! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) - each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
-//! THE SCHEMA ONLY GROWS BY TABLES. It is `CREATE TABLE IF NOT EXISTS` and nothing else: a new table reaches the box on
-//! the next start (shares did), and a new column on a table that is already there does not. The first column added
-//! needs an ALTER path, as src-tauri/src/store.rs's `add_missing_columns` has. Nor is there a `busy_timeout`, which is
-//! safe only while the one `Mutex<Connection>` is the file's only writer.
+//! THE SCHEMA GROWS BY TABLES, AND BY COLUMNS ADDED. It is `CREATE TABLE IF NOT EXISTS`: a new table reaches the box on
+//! the next start (shares did). A new column on a table that is already there does not, so it goes in the table's
+//! CREATE (for a new database) and in `ADDED_COLUMNS` (an ALTER for one made before, run at every open, as
+//! tauri/src-tauri/src/store.rs's `add_missing_columns`); the first was `meet_bookings.series`. Nor is there a
+//! `busy_timeout`, which is safe only while the one `Mutex<Connection>` is the file's only writer.
 
 mod accounts;
 mod hooks;
@@ -48,7 +49,7 @@ pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
 pub use mail::{MailWrite, SealedMail};
-pub use meet::MeetBooking;
+pub use meet::{MeetBooking, SERIES as MEET_SERIES};
 pub use shares::ShareWrite;
 pub use sites::SiteWrite;
 
@@ -336,7 +337,9 @@ CREATE INDEX IF NOT EXISTS hook_inbox_by_age ON hook_inbox(received_at);
 -- Ghost in a Google Meet (server/src/meet.rs, docs/MEET.md; store/meet.rs). A booking: an invite mailed to the
 -- account's mail address, or "join now" from a device. Its link, title and times are in the CLEAR, because the bot that
 -- joins has no key, and only until the meeting is over: the hourly sweep blanks `title` and `url` an hour after
--- `ends_at` and deletes the row thirty days after. `starts_at` and `ends_at` are ms. A take: a recording and its
+-- `ends_at` and deletes the row thirty days after. `starts_at` and `ends_at` are ms. A recurring meeting is a row of
+-- its own with `series` (ADDED_COLUMNS) - what expanding it needs, as JSON - beside a row for each occurrence it has
+-- booked; it keeps its link while occurrences are to come. A take: a recording and its
 -- captions ONLY sealed to the account's encryption public key - the key `wrapped` here, the sealed bytes a file under
 -- recordings/<account>/meet/ - until a device of the account takes it. Both go with the account.
 CREATE TABLE IF NOT EXISTS meet_bookings (
@@ -352,6 +355,7 @@ CREATE TABLE IF NOT EXISTS meet_bookings (
     sequence   INTEGER NOT NULL DEFAULT 0,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
+    series     TEXT,
     UNIQUE (account_id, uid)
 );
 CREATE INDEX IF NOT EXISTS meet_bookings_by_start ON meet_bookings(starts_at);
@@ -397,10 +401,37 @@ pub struct Store {
     recordings: PathBuf,
 }
 
-/// What every connection is opened with, the file and the tests' in-memory one alike: the cascades on, and the tables.
+/// Columns added to a table after it first reached the box: `CREATE TABLE IF NOT EXISTS` makes them in a new
+/// database (SCHEMA has each), and these add them to one made before. Each is (table, column, the ALTER).
+///
+/// - `meet_bookings.series`: a recurring meeting's rule, DTSTART and zone, length and skipped starts, as JSON
+///   (`meet::ics::Series`), on the series' own row; NULL on every occurrence's and every other meeting's (2026-10-21).
+const ADDED_COLUMNS: &[(&str, &str, &str)] = &[("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT")];
+
+/// Each of ADDED_COLUMNS its table does not have yet, added. Two starts racing to add one: the second's "duplicate
+/// column" is the column being there.
+fn add_missing_columns(conn: &Connection) -> rusqlite::Result<()> {
+    for (table, column, ddl) in ADDED_COLUMNS {
+        let mut statement = conn.prepare(&format!("PRAGMA table_info({table})"))?;
+        let present: Vec<String> = statement.query_map([], |row| row.get::<_, String>(1))?.collect::<rusqlite::Result<_>>()?;
+        if present.iter().any(|p| p == column) {
+            continue;
+        }
+        match conn.execute(ddl, []) {
+            Ok(_) => {}
+            Err(rusqlite::Error::SqliteFailure(_, Some(message))) if message.contains("duplicate column") => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(())
+}
+
+/// What every connection is opened with, the file and the tests' in-memory one alike: the cascades on, the tables, and
+/// the columns added since.
 fn schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
-    conn.execute_batch(SCHEMA)
+    conn.execute_batch(SCHEMA)?;
+    add_missing_columns(conn)
 }
 
 impl Store {
@@ -496,6 +527,32 @@ mod tests {
         assert_eq!(mode, "wal");
         let cascades: i64 = reopened.lock().query_row("PRAGMA foreign_keys", [], |r| r.get(0)).unwrap();
         assert_eq!(cascades, 1, "a connection without foreign keys would leave a deleted account's shares readable");
+    }
+
+    #[test]
+    fn a_database_made_before_a_column_was_added_gets_it_at_the_next_open() {
+        // meet_bookings as it first reached the box, with a booking in it.
+        let dir = TempDir::new("store-columns");
+        let data = dir.path().join("glyph-api");
+        std::fs::create_dir_all(&data).unwrap();
+        {
+            let conn = Connection::open(data.join("glyph-accounts.sqlite3")).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE meet_bookings (id TEXT PRIMARY KEY, account_id INTEGER NOT NULL, uid TEXT NOT NULL, url TEXT NOT NULL, title TEXT,
+                 starts_at INTEGER NOT NULL, ends_at INTEGER NOT NULL, state TEXT NOT NULL, detail TEXT, sequence INTEGER NOT NULL DEFAULT 0,
+                 created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL, UNIQUE (account_id, uid));
+                 INSERT INTO meet_bookings VALUES ('m', 1, 'u', 'https://meet.google.com/abc-defg-hij', 'Old', 1, 2, 'booked', NULL, 0, 1, 1);",
+            )
+            .unwrap();
+        }
+        let store = Store::open(&data).unwrap();
+        let old = store.meet_booking("m").unwrap();
+        assert_eq!((old.title.as_deref(), old.series), (Some("Old"), None), "what was there is kept, the new column empty");
+        store.update_meet_booking(&MeetBooking { series: Some("{}".into()), ..old }, 3).unwrap();
+        drop(store);
+        // And opened again, nothing is added twice.
+        let again = Store::open(&data).unwrap();
+        assert_eq!(again.meet_booking("m").unwrap().series.as_deref(), Some("{}"));
     }
 
     #[test]

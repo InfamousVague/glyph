@@ -22,7 +22,8 @@ the bot's day.
 
 ### Reading the invite
 
-One booking per invite UID (an occurrence changed on its own is `<UID>#<its RECURRENCE-ID in ms>`):
+One booking per invite UID (an occurrence of a series is `<UID>#<its start in ms>`, and one changed on its own
+`<UID>#<its RECURRENCE-ID in ms>`, the same; a series, below):
 
 | The invite | The booking |
 |---|---|
@@ -35,11 +36,47 @@ Times: UTC (`…Z`); wall-clock time in a zone, resolved with the invite's own V
 STANDARD and DAYLIGHT, their offsets and yearly rules), or a small table of common IANA names when an invite names a
 zone without a block; floating time is read as UTC. All-day events are left out.
 
-Recurring meetings, v1: only the next occurrence that has not ended is booked, expanded in the event's own wall-clock
-time (a weekly 9:00 stays at 9:00 across a change of clocks), skipping EXDATEs and occurrences the invite books on
-their own. DAILY, WEEKLY, MONTHLY, YEARLY with INTERVAL, COUNT, UNTIL, BYDAY (`2TU`, `-1FR`), BYMONTHDAY and BYMONTH
-are read; any other rule books only its first occurrence. The occurrence after is booked when Google mails the invite
-again (any change to the event does). Booking every occurrence is the next step.
+### Recurring meetings
+
+Every occurrence is joined, with no new mail (Matt, 2026-10-21: "The ghost bot was invited to join a standup daily but
+it's not joining"; v1 booked one occurrence and waited for Google to mail again). The rule is expanded in the event's
+own wall-clock time (a weekly 9:00 stays at 9:00 across a change of clocks), skipping EXDATEs and occurrences the
+invite changes on their own. DAILY, WEEKLY, MONTHLY, YEARLY with INTERVAL, COUNT, UNTIL, BYDAY (`2TU`, `-1FR`),
+BYMONTHDAY and BYMONTH are read; any other rule books only its first occurrence.
+
+- **The series' row** (uid `<UID>`) keeps, beside the link, the title and the SEQUENCE, what expanding the rule needs
+  and nothing else, as JSON in `meet_bookings.series` (`ics::Series`): the RRULE, DTSTART's wall-clock time and its
+  zone's observances (from the invite's VTIMEZONE), the length, and the starts it does not book (EXDATEs, RECURRENCE-
+  IDs). No organizer, no guests. Its `starts_at` and `ends_at` are the occurrence it booked last. It is not a meeting:
+  never in the list, never due, not counted toward the 100, and 404 to a skip or the bot.
+- **Each occurrence** is a booking like any other, uid `<UID>#<its start as the rule makes it, ms>` - the uid a changed
+  occurrence's RECURRENCE-ID gives it, so the change finds it. The invite books the next one to come.
+- **Moving on**: once the occurrence booked last is over (its end has passed) or not live (done, failed, skipped,
+  cancelled), the next one still to come is booked as a new booking, `booked`, with a fresh id. Run whenever bookings
+  are read - the bot's `due` (every 20 s), the device's `GET /api/v1/meet` - and by the hourly sweep. A fresh row per
+  occurrence, rather than one row moved on, because each occurrence keeps its own history: the bot remembers the ids
+  it has handled for as long as it runs (`meet/bot/lib/decide.mjs`) and would never join a reused id again, a take's
+  `meeting` names the occurrence it recorded, and the device lists each past occurrence with its own state.
+- **A skip** (`DELETE /api/v1/meet/{id}`) skips that occurrence: the series moves on to the next at once.
+- **An occurrence the account has a booking for already** (changed or called off on its own, `<UID>#<ms>`) is that
+  booking's: the series moves past it. One called off on its own in a mail of its own before the series reached it is
+  kept as `cancelled`, with no link, so the series passes over it.
+- **An update** (a higher SEQUENCE; Google mails the whole VCALENDAR) brings the series' rule, link and title up to
+  date, and the occurrence it reads as next follows the invite. If the update takes away the occurrence booked last
+  (a new time, an UNTIL sooner) before it has begun, that booking is deleted; one changed on its own since (a later
+  SEQUENCE) is left to its own invite.
+- **Called off** (`METHOD:CANCEL`, `STATUS:CANCELLED`, or no Meet link any more): the series is `cancelled`, and each
+  of its occurrences still to come is `cancelled`, or `leave` if Ghost is in it.
+- **Over** (COUNT, UNTIL): the series is `done`.
+- **The limit** holds: a new series needs room for its first occurrence, and a series with no room waits, its link
+  kept, until there is.
+
+A booking of v1 (one occurrence under the series' UID) becomes that occurrence's own (`<UID>#<ms>`, same id) when the
+series is mailed again, and the series is booked beside it.
+
+**One occurrence alone.** The organizer may add Ghost to one occurrence only ("This event"): Google mails a VEVENT
+with a RECURRENCE-ID and no RRULE. That is one meeting, booked if it is still to come; mailed after it ended, as
+happened to Matt's stand-up on 2026-10-21, it books nothing, and the mail is a note as any mail is.
 
 ## What is in the clear, and for how long
 
@@ -47,6 +84,9 @@ The bot has no key, so a booking keeps what joining needs in the clear: the Meet
 start and the end. The organizer and the guest list are read and dropped. **Only until the meeting is done**: the
 hourly sweep (with the hook inbox's, `server/src/hooks.rs`) blanks the title and the link an hour after the meeting
 ended, marks a booking the bot never finished `failed` (`missed`), and deletes the booking thirty days after it ended.
+A recurring meeting's own row keeps its title, link and rule while it has occurrences to come (each occurrence is
+blanked and deleted on its own, as any booking); once it is over or called off it is blanked an hour after its last
+occurrence ended (or it was called off) and deleted thirty days after.
 
 The recording and its captions are never kept in the clear, on disk or in a log: they are sealed to the account's
 encryption PUBLIC key in the request that uploads them, the clear bytes are wiped, and only the sealed copy is kept,

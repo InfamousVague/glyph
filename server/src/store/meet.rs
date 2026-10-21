@@ -6,6 +6,12 @@
 //! title and link an hour after it ended and deletes it after thirty days. Times are in milliseconds, as the app keeps
 //! every moment; `created_at` and `updated_at` are seconds, as every other table's are.
 //!
+//! A recurring meeting is two kinds of row. The SERIES' own (uid `<UID>`, `series` set: what expanding it needs) is
+//! never due, listed or counted; its `starts_at` and `ends_at` are the latest occurrence it booked, as the rule makes
+//! it, and it keeps the link and the title while it is `series` (occurrences to come), for each occurrence it books.
+//! Each OCCURRENCE is a booking like any other (uid `<UID>#<its start as the rule makes it, ms>`, the uid a changed
+//! occurrence's RECURRENCE-ID gives it too), with its own id, state and takes, and is swept like any other.
+//!
 //! A take is kept ONLY sealed: its key wrapped to the account's encryption public key (`wrapped`), and the recording
 //! with its captions sealed under that key, as a file under `<data>/recordings/<account id>/meet/<take id>.take`
 //! beside the account's recordings (megabytes, so not a column), which goes with the account's folder. A take waits
@@ -32,6 +38,8 @@ pub struct MeetBooking {
     pub state: String,
     pub detail: Option<String>,
     pub sequence: i64,
+    /// A series' own row: its `meet::ics::Series`, as JSON. None for an occurrence, and for every other booking.
+    pub series: Option<String>,
 }
 
 /// A take as a device lists it.
@@ -44,7 +52,7 @@ pub struct MeetTake {
     pub at: i64,
 }
 
-const BOOKING_COLUMNS: &str = "id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence";
+const BOOKING_COLUMNS: &str = "id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series";
 
 fn booking(r: &Row<'_>) -> rusqlite::Result<MeetBooking> {
     Ok(MeetBooking {
@@ -58,11 +66,14 @@ fn booking(r: &Row<'_>) -> rusqlite::Result<MeetBooking> {
         state: r.get(7)?,
         detail: r.get(8)?,
         sequence: r.get(9)?,
+        series: r.get(10)?,
     })
 }
 
 /// The states a booking is still live in: the bot may yet join it, or is in it.
 const LIVE: &str = "('booked', 'joining', 'in_call', 'leave')";
+/// A series' own row while occurrences are to come: kept whole by the sweep.
+pub const SERIES: &str = "series";
 
 impl Store {
     // --- bookings --------------------------------------------------------------------------------
@@ -70,21 +81,33 @@ impl Store {
     /// A new booking; none if the account already has one for that UID (two copies of one invite at once).
     pub fn insert_meet_booking(&self, b: &MeetBooking, now: i64) -> rusqlite::Result<bool> {
         let n = self.lock().execute(
-            "INSERT OR IGNORE INTO meet_bookings (id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?11)",
-            params![b.id, b.account, b.uid, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, now],
+            "INSERT OR IGNORE INTO meet_bookings (id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
+            params![b.id, b.account, b.uid, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now],
         )?;
         Ok(n > 0)
     }
 
-    /// A booking written over with `b`'s link, title, times, state, detail and sequence (its id, account and UID stay).
+    /// A booking written over with `b`'s link, title, times, state, detail, sequence and series (its id, account and UID
+    /// stay).
     pub fn update_meet_booking(&self, b: &MeetBooking, now: i64) -> rusqlite::Result<()> {
         self.lock().execute(
-            "UPDATE meet_bookings SET url = ?3, title = ?4, starts_at = ?5, ends_at = ?6, state = ?7, detail = ?8, sequence = ?9, updated_at = ?10
+            "UPDATE meet_bookings SET url = ?3, title = ?4, starts_at = ?5, ends_at = ?6, state = ?7, detail = ?8, sequence = ?9, series = ?10, updated_at = ?11
              WHERE id = ?1 AND account_id = ?2",
-            params![b.id, b.account, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, now],
+            params![b.id, b.account, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now],
         )?;
         Ok(())
+    }
+
+    /// Only a booking's UID: a v1 booking of one occurrence of a series, which had the series' UID, made that
+    /// occurrence's (`<UID>#<start ms>`) when the series is booked whole. False if the account has that UID already.
+    pub fn set_meet_uid(&self, id: &str, uid: &str, now: i64) -> bool {
+        self.lock().execute("UPDATE meet_bookings SET uid = ?2, updated_at = ?3 WHERE id = ?1", params![id, uid, now]).map(|n| n > 0).unwrap_or(false)
+    }
+
+    /// A booking gone: an occurrence a series' update took away before it began, so never joined and with no take.
+    pub fn delete_meet_booking(&self, id: &str) -> bool {
+        self.lock().execute("DELETE FROM meet_bookings WHERE id = ?1", params![id]).map(|n| n > 0).unwrap_or(false)
     }
 
     /// Only a booking's state and detail, as the bot or a device moves it on.
@@ -105,10 +128,35 @@ impl Store {
         self.one(&format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE id = ?1"), params![id], booking)
     }
 
-    /// The account's bookings that end at `since` (ms) or later, soonest first.
+    /// The account's bookings of the occurrences of the series `uid`, soonest first.
+    pub fn meet_occurrences(&self, account: i64, uid: &str) -> Vec<MeetBooking> {
+        let prefix = format!("{uid}#");
+        self.all(
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND substr(uid, 1, length(?2)) = ?2 ORDER BY starts_at, id"),
+            params![account, prefix],
+            booking,
+        )
+    }
+
+    /// The series, of every account, that may have an occurrence to book at `now` (ms): running, and the occurrence
+    /// they booked last is over (its end as the rule made it has passed) or is not live (done, failed, skipped, called
+    /// off, or never booked).
+    pub fn meet_series_to_advance(&self, now: i64) -> Vec<MeetBooking> {
+        self.all(
+            &format!(
+                "SELECT {BOOKING_COLUMNS} FROM meet_bookings s WHERE s.state = '{SERIES}' AND s.series IS NOT NULL AND (s.ends_at <= ?1 OR NOT EXISTS (
+                     SELECT 1 FROM meet_bookings o WHERE o.account_id = s.account_id AND o.uid = s.uid || '#' || s.starts_at AND o.state IN {LIVE}))
+                 ORDER BY s.starts_at, s.id"
+            ),
+            params![now],
+            booking,
+        )
+    }
+
+    /// The account's bookings that end at `since` (ms) or later, soonest first; a series' own row is not one.
     pub fn meet_bookings(&self, account: i64, since: i64) -> Vec<MeetBooking> {
         self.all(
-            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND ends_at >= ?2 ORDER BY starts_at, id"),
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND ends_at >= ?2 AND series IS NULL ORDER BY starts_at, id"),
             params![account, since],
             booking,
         )
@@ -116,7 +164,7 @@ impl Store {
 
     /// How many of the account's bookings are live and not over at `now` (ms).
     pub fn meet_upcoming(&self, account: i64, now: i64) -> i64 {
-        self.one(&format!("SELECT COUNT(*) FROM meet_bookings WHERE account_id = ?1 AND ends_at > ?2 AND state IN {LIVE}"), params![account, now], |r| r.get(0))
+        self.one(&format!("SELECT COUNT(*) FROM meet_bookings WHERE account_id = ?1 AND ends_at > ?2 AND state IN {LIVE} AND series IS NULL"), params![account, now], |r| r.get(0))
             .unwrap_or(0)
     }
 
@@ -124,7 +172,7 @@ impl Store {
     /// each starts until `late` ms after it ends. Oldest first, of every account.
     pub fn meet_due(&self, now: i64, early: i64, late: i64) -> Vec<MeetBooking> {
         self.all(
-            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND url != '' AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND series IS NULL AND url != '' AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
             params![now, early, late],
             booking,
         )
@@ -132,15 +180,17 @@ impl Store {
 
     /// The hourly sweep's part for meetings, at `now` (ms): a live booking whose meeting ended `clear_for` ago or
     /// longer has missed its bot and is `failed`; such a booking, of any state, has its title and link blanked; and
-    /// one that ended `kept_for` ago or longer is deleted. Answers how many were blanked and how many deleted.
+    /// one that ended `kept_for` ago or longer is deleted. A series' own row is left whole while it is `series`
+    /// (meet.rs moves it on first): only once it is over or called off is it blanked and deleted, by its last
+    /// occurrence's end. Answers how many were blanked and how many deleted.
     pub fn sweep_meet(&self, now: i64, clear_for: i64, kept_for: i64) -> (usize, usize) {
         let mut conn = self.lock();
         let Ok(tx) = conn.transaction() else { return (0, 0) };
         let over = now - clear_for;
         let swept = (|| -> rusqlite::Result<(usize, usize)> {
             tx.execute(&format!("UPDATE meet_bookings SET state = 'failed', detail = 'missed' WHERE state IN {LIVE} AND ends_at <= ?1"), params![over])?;
-            let blanked = tx.execute("UPDATE meet_bookings SET title = NULL, url = '' WHERE ends_at <= ?1 AND (title IS NOT NULL OR url != '')", params![over])?;
-            let deleted = tx.execute("DELETE FROM meet_bookings WHERE ends_at <= ?1", params![now - kept_for])?;
+            let blanked = tx.execute("UPDATE meet_bookings SET title = NULL, url = '' WHERE ends_at <= ?1 AND state != ?2 AND (title IS NOT NULL OR url != '')", params![over, SERIES])?;
+            let deleted = tx.execute("DELETE FROM meet_bookings WHERE ends_at <= ?1 AND state != ?2", params![now - kept_for, SERIES])?;
             Ok((blanked, deleted))
         })();
         match swept {
@@ -237,6 +287,7 @@ mod tests {
             state: state.into(),
             detail: None,
             sequence: 0,
+            series: None,
         }
     }
 
