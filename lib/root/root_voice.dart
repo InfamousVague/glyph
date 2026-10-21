@@ -88,6 +88,8 @@ extension _RootVoice on _GhostRootState {
       _capture = capture;
     });
     _voiceKnown.complete();
+    // A short recording from the watch goes to Claude where Claude is shown here (lib/root/root_claude.dart).
+    voice.watch?.claude = _RootWatchClaude(this);
     // The phone's write-up changed a note: the note's own screen, if it is open, takes it.
     _unhearRecordings = voice.summaries?.onRecordingChanged((id) {
       for (final heard in _recordingHeard.toList()) {

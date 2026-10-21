@@ -538,7 +538,7 @@ class Voice {
       final files = CoreFiles(core.invoke);
       watch = WatchNotes(
         host: watchHost,
-        store: LibraryWatchNotes(library, files),
+        store: LibraryWatchNotes(library, files, removeRecordings: (ids) => engine.recordingDelete(ids)),
         listen: (id, ms) => listenWithCore(capture, files, id, localOnly: () => preferences.value.localOnly),
         preferences: () => preferences.value,
         held: refining.refineHeld,
@@ -546,6 +546,8 @@ class Voice {
         writeUp: tapes?.writeUp,
         markMeeting: (id, at) => preferences.update((was) => was.copyWith(meetings: {...was.meetings, id: at})),
         made: (_, _) => voice.notesChanged(),
+        // A short take sent to Claude (lib/root/root_claude.dart sets `claude`) is asked once: the record is kept here.
+        asks: FileWatchAsks(File('${making.dataDir}/watch-claude.json')),
       );
       onVisible(() => unawaited(watch!.kick()));
     }

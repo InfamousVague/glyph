@@ -25,7 +25,9 @@ void main() {
     await tester.pump();
     await settleSettings(tester);
     expect(cardTitles(tester).last, 'Watch');
-    expect(rowLabels(tester, 'Watch'), ['Galaxy Watch9']);
+    expect(rowLabels(tester, 'Watch'), ['Galaxy Watch9', watchClaudeLabel]);
+    // No key on this device in a test: the line says how Claude is shown, with no switch to turn.
+    expect(find.textContaining('add your Anthropic API key', skipOffstage: false), findsOneWidget);
     expect(find.text('Connected', skipOffstage: false), findsOneWidget);
     expect(find.textContaining('Last voice note from Galaxy Watch9 at ', skipOffstage: false), findsOneWidget);
     expect(find.textContaining(', 0:42. One is waiting to be made a note.', skipOffstage: false), findsOneWidget);

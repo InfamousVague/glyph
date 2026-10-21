@@ -366,3 +366,82 @@ class _RootClaudeDesk implements ClaudeDesk {
   @override
   bool get smoke => preferences.value.wisp;
 }
+
+/// Claude as a request from the watch reaches it (lib/watch/watch_notes.dart, "To Claude"): the words the phone heard,
+/// asked as the dock's Talk to Claude asks them, in the chat's conversation.
+///
+/// - With the app in front and nothing else holding the screen, the talk's own sheet is put up with the words in it,
+///   and the run goes on as one said to the microphone does: Claude's thinking, then the note it writes opened and
+///   followed, the sheet made way down to its strip.
+/// - With the chat open, it is asked there, and the chat shows it.
+/// - With the app behind another (or the phone locked, a talk or a recording under way) it is a quiet run: written
+///   out of sight ([_QuietClaudeDesk]), nothing opened, the screen left as it was. The run needs no frames, only the
+///   network, so it is done then rather than kept for the app's return; the bar over the notes and the chat show it.
+class _RootWatchClaude implements WatchClaude {
+  _RootWatchClaude(this._root);
+
+  final _GhostRootState _root;
+
+  @override
+  Future<bool> ready() async {
+    await claudeSettings.load();
+    return _root.mounted && _root._claudeShown && claudeSettings.watch;
+  }
+
+  bool get _inFront => WidgetsBinding.instance.lifecycleState == AppLifecycleState.resumed;
+
+  @override
+  Future<WatchAsked> ask({required String words, required String prompt, required WatchTake take}) async {
+    final root = _root;
+    if (!root.mounted || !root._claudeShown) return const WatchAskFailed('Claude is off on this phone');
+    final voice = root._voice;
+    final busy = root._talk != null ||
+        (root._shell.currentState?.screen.isRecording ?? false) ||
+        (voice?.live?.meetingStateNow()?.recording ?? false) ||
+        (voice?.locked ?? false);
+    if (_inFront && !busy && !root._askClaude) {
+      late final ClaudeVoice talk;
+      talk = ClaudeVoice(
+        runner: root._claude,
+        // Nothing is listened to: the words were heard from the watch's recording.
+        ear: (_) => throw StateError('a request from the watch is not listened to'),
+        fromWatch: true,
+        onEnd: () {
+          if (identical(root._talk, talk)) root._endTalk();
+        },
+      );
+      FocusManager.instance.primaryFocus?.unfocus();
+      root._told(() {
+        root._talk = talk;
+        root._talkFromAssistant = false;
+      });
+      await talk.sendHeard(words, prompt: prompt);
+      final run = talk.run;
+      if (run == null) return WatchAskFailed(talk.problem ?? 'Claude could not be asked');
+      return watchRunOutcome(run);
+    }
+    // In the chat, open in front, as the chat shows it; else out of sight.
+    final chat = root._askClaude && _inFront;
+    return RunnerWatchClaude(runner: root._claude, shown: () => root._claudeShown, desk: () => chat ? null : _QuietClaudeDesk(root)).ask(words: words, prompt: prompt, take: take);
+  }
+}
+
+/// The screen as a run out of sight reaches it: nothing is opened, and a note is written where it is (its editor, if
+/// it is open, else the library), as the screen's own desk writes one it cannot show.
+class _QuietClaudeDesk implements ClaudeDesk {
+  _QuietClaudeDesk(this._root);
+
+  final _GhostRootState _root;
+
+  @override
+  Future<ed.EditorViewLike?> open(String noteId) async => null;
+
+  @override
+  bool showing(String noteId, ed.EditorViewLike view) => false;
+
+  @override
+  Future<void> change(String noteId, String Function(String body) change) => _RootClaudeDesk(_root).change(noteId, change);
+
+  @override
+  bool get smoke => false;
+}
