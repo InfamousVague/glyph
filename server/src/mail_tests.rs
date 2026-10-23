@@ -74,7 +74,11 @@ async fn an_address_is_turned_on_shown_made_anew_and_turned_off() {
     let first = turned_on(&h, &token).await;
     let (local, domain) = first.split_once('@').unwrap();
     assert_eq!(domain, "in.ghostmarkdown.com");
-    assert!(local.len() == 16 && local.bytes().all(|b| b"abcdefghijklmnopqrstuvwxyz234567".contains(&b)), "{local}");
+    // A readable name, `sneaky_siren33` (Matt, 2026-10-23): words, an underscore, two digits.
+    let (adjective, rest) = local.split_once('_').expect(local);
+    let (noun, number) = rest.split_at(rest.len() - 2);
+    assert!(adjective.bytes().all(|b| b.is_ascii_lowercase()) && noun.bytes().all(|b| b.is_ascii_lowercase()) && !noun.is_empty(), "{local}");
+    assert!(number.bytes().all(|b| b.is_ascii_digit()), "{local}");
     let (_, body) = h.call(Method::GET, "/api/v1/mail/address", Some(&token), None).await;
     assert_eq!(body["address"], first.as_str());
     let second = turned_on(&h, &token).await;
@@ -91,6 +95,20 @@ async fn an_address_is_turned_on_shown_made_anew_and_turned_off() {
     let (status, _, _) = h.send(post(&second, MAIL.as_bytes(), &token_n(3))).await;
     assert_eq!(status, StatusCode::NOT_ACCEPTABLE, "off is off");
     // What came while it was on still waits for a device.
+    let (_, body) = h.call(Method::GET, "/api/v1/mail", Some(&token), None).await;
+    assert_eq!(body["mail"].as_array().unwrap().len(), 1);
+}
+
+#[tokio::test]
+async fn an_address_made_before_the_readable_names_still_takes_mail() {
+    let h = Harness::new("mail");
+    let (token, _) = with_key(&h, "sam").await;
+    let readable = turned_on(&h, &token).await;
+    let account = h.accounts.store.mail_account(readable.split('@').next().unwrap()).unwrap();
+    // As the store holds an address given out before 2026-10-23: sixteen base32 letters and digits.
+    h.accounts.store.set_mail_address(account, "k7m2q3xh4t5vbn6p", 0).unwrap();
+    let (status, _, _) = h.send(post("Ghost <K7M2Q3XH4T5VBN6P@in.ghostmarkdown.com>", MAIL.as_bytes(), &token_n(1))).await;
+    assert_eq!(status, StatusCode::OK);
     let (_, body) = h.call(Method::GET, "/api/v1/mail", Some(&token), None).await;
     assert_eq!(body["mail"].as_array().unwrap().len(), 1);
 }

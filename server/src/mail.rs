@@ -17,9 +17,9 @@
 //!   DELETE /api/v1/mail/{id}         taken: its note is filed
 //!   POST   /api/v1/mail/inbound/mime what the mail provider posts (src/mail/mailgun.rs), signed
 //!
-//! An address is `<sixteen letters and digits>@in.ghostmarkdown.com` (`GLYPH_MAIL_DOMAIN`): eighty random bits, so
-//! nobody finds one by guessing, on a subdomain of its own, so the mail records it needs touch nothing else of the
-//! domain. Mail to a dead address is refused at once (the sender is told). Each address takes thirty mails an hour,
+//! An address is a readable name, `sneaky_siren33@in.ghostmarkdown.com` (`GLYPH_MAIL_DOMAIN`, src/mail/names.rs), on
+//! a subdomain of its own, so the mail records it needs touch nothing else of the domain. Addresses made before the
+//! names were sixteen random letters and digits; those still take mail. Mail to a dead address is refused at once (the sender is told). Each address takes thirty mails an hour,
 //! a mail is at most 10 MB, and an account keeps at most two hundred waiting for its devices.
 //!
 //! THE ENVIRONMENT: GLYPH_MAILGUN_SIGNING_KEY (Mailgun's HTTP webhook signing key; unset, the service takes no mail and
@@ -27,6 +27,7 @@
 
 mod mailgun;
 pub mod message;
+mod names;
 pub mod seal;
 
 use crate::accounts::{Accounts, HasAccounts};
@@ -62,8 +63,11 @@ const PER_ADDRESS_PER_HOUR: u32 = 30;
 const SIGNATURE_WINDOW: i64 = 9 * 3600;
 /// The most tokens remembered, so a post seen once is not taken twice.
 const TOKENS_KEPT: usize = 50_000;
-/// An address's local part: sixteen of RFC 4648's base32 alphabet, lower-cased (eighty bits).
+/// The local part addresses had before the readable names: sixteen of RFC 4648's base32 alphabet, lower-cased.
+/// None is made any more, but those already given out still take mail.
 const LOCAL_LENGTH: usize = 16;
+/// How many names a new address tries before giving up: a name already taken is the only reason to try again.
+const NAME_TRIES: usize = 8;
 const ALPHABET: &[u8; 32] = b"abcdefghijklmnopqrstuvwxyz234567";
 
 /// What the service needs to take mail: the domain addresses are on, and the provider's signing key.
@@ -136,7 +140,8 @@ impl Mail {
             let one = one.rsplit('<').next().unwrap_or(one).trim_end_matches('>').trim().to_ascii_lowercase();
             let Some(local) = one.strip_suffix(&suffix) else { continue };
             let local = local.split('+').next().unwrap_or(local);
-            if local.len() == LOCAL_LENGTH && local.bytes().all(|b| ALPHABET.contains(&b)) && !out.iter().any(|o| o == local) {
+            let old = local.len() == LOCAL_LENGTH && local.bytes().all(|b| ALPHABET.contains(&b));
+            if (old || names::is_readable(local)) && !out.iter().any(|o| o == local) {
                 out.push(local.to_string());
             }
         }
@@ -144,9 +149,6 @@ impl Mail {
     }
 }
 
-fn new_local() -> String {
-    rand::random::<[u8; LOCAL_LENGTH]>().iter().map(|b| ALPHABET[(*b & 31) as usize] as char).collect()
-}
 
 async fn get_address(State(mail): State<Arc<Mail>>, who: Claims) -> Response {
     let address = mail.accounts.store.mail_address_of(who.sub).map(|local| mail.full(&local));
@@ -161,11 +163,18 @@ async fn new_address(State(mail): State<Arc<Mail>>, who: Claims) -> Response {
     if mail.accounts.store.account_key(who.sub).is_none() {
         return error(StatusCode::CONFLICT, "Your account needs its encryption key first. Sync once, then try again.");
     }
-    let local = new_local();
-    match mail.accounts.store.set_mail_address(who.sub, &local, now_secs()) {
-        Ok(()) => Json(json!({ "address": mail.full(&local) })).into_response(),
-        Err(_) => error(StatusCode::INTERNAL_SERVER_ERROR, "That address could not be made. Try again."),
+    // A name already someone's is refused by the table's key and its transaction undone, so the account keeps its
+    // old address; another name is tried.
+    for _ in 0..NAME_TRIES {
+        let local = names::readable();
+        if mail.accounts.store.mail_account(&local).is_some() {
+            continue;
+        }
+        if mail.accounts.store.set_mail_address(who.sub, &local, now_secs()).is_ok() {
+            return Json(json!({ "address": mail.full(&local) })).into_response();
+        }
     }
+    error(StatusCode::INTERNAL_SERVER_ERROR, "That address could not be made. Try again.")
 }
 
 async fn delete_address(State(mail): State<Arc<Mail>>, who: Claims) -> Response {
