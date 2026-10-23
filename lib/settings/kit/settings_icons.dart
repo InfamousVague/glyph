@@ -19,6 +19,8 @@ enum SettingsGlyph {
   folder,
   folderOpen,
   folderInput,
+  // Meetings' row: Ghost, who goes to the meeting (GHST-110).
+  ghost,
   hardDriveDownload,
   hardDriveUpload,
   info,
@@ -78,6 +80,7 @@ LucideIcon? _kit(SettingsGlyph glyph) => switch (glyph) {
       SettingsGlyph.folder => Lucide.folder,
       SettingsGlyph.folderOpen => Lucide.folderOpen,
       SettingsGlyph.folderInput => Lucide.folderInput,
+      SettingsGlyph.ghost => Lucide.ghost,
       SettingsGlyph.hardDriveDownload => Lucide.hardDriveDownload,
       SettingsGlyph.hardDriveUpload => Lucide.hardDriveUpload,
       SettingsGlyph.info => Lucide.info,

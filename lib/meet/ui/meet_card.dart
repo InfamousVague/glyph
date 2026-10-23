@@ -12,11 +12,12 @@ import '../../settings/kit/settings_kit.dart';
 import '../meet_api.dart';
 import '../meet_in.dart';
 
-/// Ghost in meetings, in Settings › Account beside Email to a note (lib/meet/meet_in.dart, docs/MEET.md): the
-/// mail-to-note address is also the address Ghost is invited by, so the card is drawn only once there is one
-/// ([meetCardShown]). It says what Ghost does and where the sound goes, gives the address with Copy, lists the
-/// meetings Ghost is booked for and was in with where each stands, lets a person tell Ghost not to join one, and sends
-/// Ghost to a meeting by its link now.
+/// Ghost in meetings, Settings › Meetings (lib/settings/panes/meetings_pane.dart, lib/meet/meet_in.dart, docs/MEET.md):
+/// the mail-to-note address is also the address Ghost is invited by, so the cards are drawn only once there is one
+/// ([meetCardShown]). Two cards. First the ways to invite Ghost (Matt, 2026-10-23: "move the invite card to the top"):
+/// a Meet link sent now, then the address to put on a Calendar invite, with Copy. Then what Ghost does and where the
+/// sound goes, over the meetings Ghost is booked for and was in with where each stands, and a way to tell Ghost not to
+/// join one or to leave.
 bool meetCardShown(AccountServices services) => services.meetIn != null && services.meetIn!.available && services.mailIn?.address?.address != null;
 
 /// What the card says under itself: where a meeting's sound goes.
@@ -97,11 +98,25 @@ class _MeetCardState extends State<MeetCard> {
         final now = widget.services.now();
         final meetings = meet.meetings;
         final ready = meetLink(_link) != null && !_busy;
-        return PaneSection(
-          title: 'Ghost in meetings',
-          description: const Text('Invite Ghost to a Google Meet and it joins by itself, records the meeting, and files it as a note, written up with who said what.'),
-          footer: Text(_said ?? meetCardFooter),
+        final invite = PaneSection(
+          title: 'Invite Ghost',
+          description: const Text('Paste a Google Meet link to send Ghost in now, or add your address as a guest on a Google Calendar invite and Ghost joins by itself.'),
+          footer: _said == null ? null : Text(_said!),
           children: [
+            SettingsForm(
+              children: [
+                GlacierInput(
+                  ariaLabel: 'Meet link',
+                  placeholder: 'meet.google.com/abc-defg-hij',
+                  value: _link,
+                  onChange: (text) => setState(() => _link = text),
+                  onSubmitted: (_) {
+                    if (ready) unawaited(_send(meet));
+                  },
+                ),
+                FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'One moment…' : 'Send Ghost to a meeting now', onPressed: ready ? () => unawaited(_send(meet)) : null),
+              ],
+            ),
             SettingRow(
               key: const ValueKey('meet-address'),
               icon: const AppIcon(Lucide.calendarPlus, size: 20),
@@ -110,6 +125,13 @@ class _MeetCardState extends State<MeetCard> {
               hint: const Text('Add this address as a guest on a Google Calendar invite.'),
               control: RowAction(onPress: () => unawaited(_copy(address)), child: const Text('Copy')),
             ),
+          ],
+        );
+        final list = PaneSection(
+          title: 'Ghost in meetings',
+          description: const Text('Ghost joins by itself, records the meeting, and files it as a note, written up with who said what.'),
+          footer: const Text(meetCardFooter),
+          children: [
             if (meetings == null)
               SettingRow(key: const ValueKey('meet-reading'), icon: const AppIcon(Lucide.clock, size: 20), label: meet.problem ?? 'Reading your meetings…')
             else if (meetings.isEmpty)
@@ -135,21 +157,13 @@ class _MeetCardState extends State<MeetCard> {
                         )
                       : null,
                 ),
-            SettingsForm(
-              children: [
-                GlacierInput(
-                  ariaLabel: 'Meet link',
-                  placeholder: 'meet.google.com/abc-defg-hij',
-                  value: _link,
-                  onChange: (text) => setState(() => _link = text),
-                  onSubmitted: (_) {
-                    if (ready) unawaited(_send(meet));
-                  },
-                ),
-                FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'One moment…' : 'Send Ghost to a meeting now', onPressed: ready ? () => unawaited(_send(meet)) : null),
-              ],
-            ),
           ],
+        );
+        // Two cards with the gap a pane puts between its own (PaneBody).
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [invite, SizedBox(height: context.tokens.space(4)), list],
         );
       },
     );

@@ -67,7 +67,9 @@ void main() {
       expect(_among(_facts(_simple)), ['experience', 'account', 'notifications', 'theme', 'about', 'cheatsheet']);
       // The hidden pages answer to their own switch, in either mode.
       expect(_among(_facts(_simple, developer: true)), ['experience', 'account', 'notifications', 'theme', 'about', 'cheatsheet', 'developer', 'test-results']);
-      expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections);
+      // Meetings is kept in Simple too, but listed only for an account whose service has Ghost in meetings, and
+      // these facts have no account (test/meet/meet_card_test.dart lists it).
+      expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections.difference({'meetings'}));
       const everything = ['experience', 'account', 'organizations', 'workspaces', 'daily', 'notifications', 'library', 'backup', 'export', 'import', 'theme', 'recording', 'ai', 'plugins', 'about', 'cheatsheet', 'spec', 'examples'];
       expect(_among(_facts(_advanced)), everything);
       // Until the choice is made the app is advanced, and so is Settings.

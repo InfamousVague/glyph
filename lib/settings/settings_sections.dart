@@ -13,6 +13,7 @@ import '../plugins/things/things.dart' show thingsOn;
 import '../plugins/todoist/todoist.dart' show todoistOn;
 import 'panes/backup_pane.dart';
 import 'panes/library_folder_pane.dart';
+import 'panes/meetings_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
@@ -195,11 +196,12 @@ const int pluginsGroup = 5;
 /// The card Simple or advanced has to itself, over Account's.
 const int experienceGroup = 6;
 
-/// The sections Simple keeps (Matt, 2026-10-18): the choice itself, who you are and what reaches you, how it looks,
+/// The sections Simple keeps (Matt, 2026-10-18): the choice itself, who you are and what reaches you (with Meetings,
+/// which was a card of Account's until GHST-110), how it looks,
 /// and the app itself with its cheat sheet. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, Plugins, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'experience', 'account', 'notifications', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'experience', 'account', 'notifications', 'meetings', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -343,6 +345,21 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => notificationsSummary(facts.prefs.notifications),
     settings: (facts) => notificationsFindable(orgs: facts.services != null ? facts.services!.joined.isNotEmpty : facts.features.orgs.isNotEmpty),
     pane: NotificationsPane.hosted,
+  ),
+  // Ghost in meetings, a section of its own after the card on Account it was (Matt, 2026-10-23: "Make the meeting
+  // section its own section in settings and move the invite card to the top"). Only where the account's service has
+  // the bot; kept in Simple, as Account's card was. The port's own: the web app has no such page.
+  SettingsSectionSpec(
+    id: 'meetings',
+    label: 'Meetings',
+    words: 'meet google meeting ghost bot invite join record transcribe calendar notetaker',
+    glyph: SettingsGlyph.ghost,
+    group: 0,
+    webFile: 'settings/AccountPane.tsx',
+    where: (facts) => meetingsOffered(facts.services),
+    summary: (facts) => meetingsSummary(facts.services),
+    settings: (facts) => meetingsFindable,
+    pane: MeetingsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
   // files (not an iPhone), and Export everywhere.

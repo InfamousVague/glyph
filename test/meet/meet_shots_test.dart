@@ -1,4 +1,4 @@
-// Pictures of Settings › Account › Ghost in meetings, for the eye (docs/MEET.md, "On the device"): written only by
+// Pictures of Settings › Meetings (GHST-110; Account's card until then), for the eye (docs/MEET.md, "On the device"): written only by
 // `flutter test --update-goldens test/meet/meet_shots_test.dart`, into build/feature-shots/meet/ (not committed), at the
 // phone's size and the Fold's inner one, dark and light.
 import 'package:flutter/widgets.dart';
@@ -8,7 +8,7 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
-import 'package:ghost_md/settings/panes/account_pane.dart';
+import 'package:ghost_md/settings/panes/meetings_pane.dart';
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -34,7 +34,7 @@ void main() {
           {'id': 'b', 'title': 'Standup', 'url': 'https://meet.google.com/abc-defg-hij', 'startsAt': at - 600000, 'endsAt': at + 600000, 'state': 'in_call', 'detail': null},
           {'id': 'a', 'title': 'Roadmap review, Q4', 'url': 'https://meet.google.com/abc-defg-hij', 'startsAt': at + 86400000 + 18000000, 'endsAt': at + 86400000 + 21600000, 'state': 'booked', 'detail': null},
         ]);
-        await pumpApp(tester, size: size, ratio: 3, prefs: Preferences(theme: theme), home: BackScope(stack: BackStack(), child: AccountScope(services: device.services, child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: AccountPane(services: device.services))))));
+        await pumpApp(tester, size: size, ratio: 3, prefs: Preferences(theme: theme), home: BackScope(stack: BackStack(), child: AccountScope(services: device.services, child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: MeetingsPane(services: device.services))))));
         tester.view.padding = FakeViewPadding.zero;
         tester.view.viewPadding = FakeViewPadding.zero;
         await settle(tester, 12);

@@ -10,7 +10,6 @@ import '../../core/location.dart' show LocateFailure, whyLocateFailed;
 import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
-import '../../meet/ui/meet_card.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
 import '../../sync/notes.dart' show stayedHere;
 import '../account_forms.dart';
@@ -466,8 +465,6 @@ class _AccountPaneState extends State<AccountPane> {
           if (shared != null && shared.any) SharedLinks(services: services, model: shared),
           if (sites != null && publishedSitesShown(sites)) PublishedSites(services: services),
           if (mail != null && mailCardShown(mail)) MailCard(services: services),
-          // Ghost in meetings: invited by the same address, so beside it (docs/MEET.md).
-          if (meetCardShown(services)) MeetCard(services: services),
           privacy,
           ...location.parts(prefs),
           GhostexExportCard(ghostex: widget.features.ghostex),

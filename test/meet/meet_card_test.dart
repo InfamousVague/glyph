@@ -1,12 +1,14 @@
-// Settings › Account › Ghost in meetings (lib/meet/ui/meet_card.dart): drawn beside Email to a note once there is an
-// address, saying what Ghost does and where the sound goes; the address with Copy; the meetings with where each
-// stands in words, Don't join on one to come; and a Meet link sent now. On a phone and a wide window, light and dark.
+// Settings › Meetings (lib/settings/panes/meetings_pane.dart, lib/meet/ui/meet_card.dart; GHST-110, Account's card
+// until then): once there is an address, the invite first (a Meet link sent now, the address with Copy), then what
+// Ghost does and where the sound goes over the meetings with where each stands in words, Don't join on one to come.
+// Without an address, a word pointing at Account. On a phone and a wide window, light and dark.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
 import 'package:ghost_md/settings/panes/account_pane.dart';
+import 'package:ghost_md/settings/panes/meetings_pane.dart';
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -36,12 +38,27 @@ void main() {
     expect(meetLink('https://zoom.us/j/123'), isNull);
   });
 
-  testWidgets('drawn only once there is an address to invite Ghost by', (tester) async {
+  testWidgets('drawn only once there is an address to invite Ghost by, and the page says where to make one', (tester) async {
     final d = await made(address: false);
     await d.device.mailIn!.refresh();
+    var opened = 0;
+    await d.device.pump(tester, MeetingsPane(services: d.device.services, onOpenAccount: () => opened++));
+    await settle(tester, 10);
+    expect(find.byType(MeetCard), findsNothing);
+    expect(find.text('Ghost is invited by your Email to a note address. Turn it on in Account, then come back here to invite Ghost.'), findsOneWidget);
+    await tester.tap(find.text('Open Account'));
+    await settle(tester);
+    expect(opened, 1);
+    await endSettings(tester);
+  });
+
+  testWidgets('Account no longer draws the meetings: they are a section of their own', (tester) async {
+    final d = await made();
+    expect(meetingsOffered(d.device.services), isTrue);
     await d.device.pump(tester, AccountPane(services: d.device.services));
     await settle(tester, 10);
     expect(find.byType(MeetCard), findsNothing);
+    expect(titlesOf(tester), isNot(contains('Ghost in meetings')));
     await endSettings(tester);
   });
 
@@ -54,9 +71,13 @@ void main() {
       meeting('c', null, 'failed', detail: 'not_admitted'),
       meeting('d', 'Retro', 'done'),
     ]);
-    await d.device.pump(tester, AccountPane(services: d.device.services));
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
     await settle(tester, 10);
-    expect(titlesOf(tester), containsAllInOrder(['Email to a note', 'Ghost in meetings']));
+    // The invite on top (Matt, 2026-10-23: "move the invite card to the top"), the link before the address.
+    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in meetings']));
+    expect(tester.getTopLeft(find.text('Send Ghost to a meeting now')).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy));
+    expect(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy, lessThan(tester.getTopLeft(find.text('Ghost in meetings')).dy));
+    expect(meetingsSummary(d.device.services), 'Ghost is booked for 2 meetings');
     expect(find.text(meetCardFooter), findsOneWidget);
     expect(meetCardFooter, 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.');
     expect(find.text('Add this address as a guest on a Google Calendar invite.'), findsOneWidget);
@@ -100,11 +121,12 @@ void main() {
     });
   }
 
-  testWidgets('a service with no meeting routes draws no card', (tester) async {
+  testWidgets('a service with no meeting routes lists no Meetings and draws no card', (tester) async {
     final d = await made();
     d.meet.routes = false;
     await d.device.meetIn!.refresh();
-    await d.device.pump(tester, AccountPane(services: d.device.services));
+    expect(meetingsOffered(d.device.services), isFalse, reason: 'and Settings does not list Meetings');
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
     await settle(tester, 10);
     expect(find.byType(MeetCard), findsNothing);
     await endSettings(tester);

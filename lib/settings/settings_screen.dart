@@ -101,6 +101,8 @@ const Map<String, String> _hues = {
   // Account's sub-page keeps its blue; Notifications wears the coral that was kept free until it.
   'organizations': 'blue',
   'notifications': 'coral',
+  // Meetings (GHST-110) wears the graphite no other row had.
+  'meetings': 'graphite',
   'theme': 'purple',
   'recording': 'red',
   'plugins': 'green',

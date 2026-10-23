@@ -99,6 +99,8 @@ void main() {
         // The port's own (2026-10-16): today's note's choices, a page behind Workspaces.
         ('daily', 0, SettingsGlyph.calendarDays),
         ('notifications', 0, SettingsGlyph.bell),
+        // The port's own (2026-10-23, GHST-110): Ghost in meetings, a card of Account's until then.
+        ('meetings', 0, SettingsGlyph.ghost),
         ('library', 1, SettingsGlyph.folderOpen),
         ('backup', 1, SettingsGlyph.hardDriveUpload),
         ('export', 1, SettingsGlyph.hardDriveDownload),

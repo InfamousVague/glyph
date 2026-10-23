@@ -370,13 +370,22 @@ notification as for any meeting); on the Mac the core's `write_up_run`, run by t
 summary queue's native job where Summaries are on; the Mac's queue now reads the core's write-up states and results as
 Android's does (lib/root/voice_wiring.dart), so Try again, Write up now and a model arriving ask the Mac's runner.
 
-### Settings › Account › Ghost in meetings
+### Settings › Meetings
 
-lib/meet/ui/meet_card.dart, beside Email to a note and drawn only once that address exists and the service has the
-meeting routes; in Simple too (the Account page is one of its sections). It says what Ghost does; the invite address
-with Copy ("Add this address as a guest on a Google Calendar invite."); the meetings from `GET meet` with their state
-in words (Booked, Joining, In the meeting, Leaving, Written up, Couldn't join: Ghost was signed out of Google / nobody
-let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and Leave now on one Ghost
-is in (`DELETE meet/{id}`); and "Send Ghost to a meeting now", a Meet link sent to `POST meet` after the account's
-encryption key is seen to. Its footer: "The meeting's sound passes through Ghost.md's server while it records, sealed
-to your account as it arrives; it is written up on your device."
+A section of its own on the Account card, after Notifications (GHST-110; Matt, 2026-10-23: "Make the meeting section
+its own section in settings and move the invite card to the top"). It was a card on Account until then. Settings lists
+it for a signed-in account whose service has the meeting routes (`meetingsOffered`), in Simple too; its row reads
+"Ghost is booked for N meetings", or "Invite Ghost to a Google Meet". The page is lib/settings/panes/meetings_pane.dart
+over lib/meet/ui/meet_card.dart. With no Email to a note address yet it says "Ghost is invited by your Email to a note
+address. Turn it on in Account, then come back here to invite Ghost.", with Open Account. With one, two cards:
+
+- **Invite Ghost**, first: "Send Ghost to a meeting now", a Meet link sent to `POST meet` after the account's
+  encryption key is seen to; then the invite address with Copy ("Add this address as a guest on a Google Calendar
+  invite."). What a press did is said under it.
+- **Ghost in meetings**: what Ghost does; the meetings from `GET meet` with their state in words (Booked, Joining, In
+  the meeting, Leaving, Written up, Couldn't join: Ghost was signed out of Google / nobody let Ghost in / the meeting
+  refused Ghost / …, Skipped, Cancelled), Don't join on one to come and Leave now on one Ghost is in
+  (`DELETE meet/{id}`). Its footer: "The meeting's sound passes through Ghost.md's server while it records, sealed to
+  your account as it arrives; it is written up on your device."
+
+Decided: "the invite card" read as the ways to invite Ghost, the link and the address together, so both are on top.
