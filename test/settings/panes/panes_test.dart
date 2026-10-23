@@ -748,7 +748,9 @@ void main() {
         'library': {'Where your notes are', 'Good to know'},
       };
       for (final spec in settingsSections) {
-        if (spec.pane == null || spec.id == 'cheatsheet' || spec.id == 'theme') continue;
+        // Meetings is listed only for an account whose service has Ghost in meetings, which these devices have not
+        // (meet_card_test.dart opens it with one).
+        if (spec.pane == null || spec.id == 'cheatsheet' || spec.id == 'theme' || spec.id == 'meetings') continue;
         final developer = spec.id == 'developer' || spec.id == 'test-results';
         await openPane(tester, spec.id, size: const Size(390, 3000), developer: developer);
         expect(display(tester), spec.label);

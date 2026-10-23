@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
+import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/account_pane.dart';
 import 'package:ghost_md/settings/panes/meetings_pane.dart';
 
@@ -76,7 +77,7 @@ void main() {
     // The invite on top (Matt, 2026-10-23: "move the invite card to the top"), the link before the address.
     expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in meetings']));
     expect(tester.getTopLeft(find.text('Send Ghost to a meeting now')).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy));
-    expect(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy, lessThan(tester.getTopLeft(find.text('Ghost in meetings')).dy));
+    expect(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy, lessThan(tester.getTopLeft(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Ghost in meetings')).dy));
     expect(meetingsSummary(d.device.services), 'Ghost is booked for 2 meetings');
     expect(find.text(meetCardFooter), findsOneWidget);
     expect(meetCardFooter, 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.');
