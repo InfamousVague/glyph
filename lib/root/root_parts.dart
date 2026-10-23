@@ -1097,6 +1097,8 @@ extension _RootParts on _GhostRootState {
           onHide: () => setState(dismissAcademyBanner),
         ),
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
+      // The meetings Ghost is going to (Matt, 2026-10-23); nothing when there are none. Its foot is Settings › Meetings.
+      if (services != null) HomeMeetings(services: services, onOpen: () => _openSettingsAt('meetings')),
       if (model != null && _voiceModelLine != null)
         ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
     ];

@@ -389,3 +389,11 @@ address. Turn it on in Account, then come back here to invite Ghost.", with Open
   your account as it arrives; it is written up on your device."
 
 Decided: "the invite card" read as the ways to invite Ghost, the link and the address together, so both are on top.
+
+### Home › Upcoming meetings
+
+lib/home/home_meetings.dart (Matt, 2026-10-23: "adding a home page section for upcoming meetings"): a card among home's
+notices, on the advanced page and Simple's, listing the meetings still to come or going on (`booked`, `joining`,
+`in_call`, not yet past their end), the soonest first, four at most: a booked one with when it is ("Today, 14:00"),
+one Ghost is joining or in with where it stands ("In the meeting"). Nothing at all when there are none or the service
+has no meeting routes. Its foot, **Meetings**, opens Settings › Meetings. Tests: test/meet/home_meetings_test.dart.
