@@ -29,7 +29,7 @@ final DeviceFlag developerMode = DeviceFlag('glyph-developer');
 ///
 /// The callbacks are the web sheet's props, and each may be null: the row that would run one is then drawn and
 /// cannot be pressed. [onGuide], [onSample], [onGuideBook], [onBoard], [onCanvas], [onHowCanvas] and [onAcademy]
-/// are About's Help and the Examples; [onOrganization] opens an organization's own screen.
+/// are About's Help and the Examples; [onOrganization] opens an organization's own screen, and [onOpenNote] a note.
 ///
 /// What differs from the web original:
 /// - [workspaces] is the store the Workspaces page edits and its row counts. The web had one for the whole app;
@@ -64,6 +64,7 @@ class SettingsSheet extends StatefulWidget {
     this.onAcademy,
     this.onOrganization,
     this.onOpenLink,
+    this.onOpenNote,
     this.dock,
   });
 
@@ -123,6 +124,9 @@ class SettingsSheet extends StatefulWidget {
 
   /// Opens a link outside the app.
   final void Function(String url)? onOpenLink;
+
+  /// Opens a note: the shell closes this sheet first (a meeting's, from Meetings).
+  final void Function(String id)? onOpenNote;
 
   /// Claude and the halo for Settings' dock (docs/DOCK.md); none where it is left out.
   final PageDockSeam? dock;
@@ -202,6 +206,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       onAcademy: widget.onAcademy,
       onOrganization: widget.onOrganization,
       onOpenLink: widget.onOpenLink,
+      onOpenNote: widget.onOpenNote,
       notesInWorkspace: widget.notesInWorkspace,
       onTrashNotes: widget.onTrashNotes,
       child: ListenableBuilder(

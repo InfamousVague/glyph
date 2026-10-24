@@ -73,13 +73,17 @@ String meetTitle(OpenedTake take, {required int now}) {
 String _two(int n) => n.toString().padLeft(2, '0');
 String _clock(DateTime at) => '${_two(at.hour)}:${_two(at.minute)}';
 
+/// How [ghostLine] starts: the words that tell a note Ghost filed from one a person recorded (meet_in.dart
+/// `meetingNoteFor`).
+const String ghostLineStart = 'Ghost was in this meeting on ';
+
 /// "Ghost was in this meeting on 18 Oct, 14:00 to 14:45." in the device's own order of day and month.
 String ghostLine(OpenedTake take, {required int now}) {
   final start = DateTime.fromMillisecondsSinceEpoch(take.startedAt > 0 ? take.startedAt : now);
   final day = localeDayMonth(start, DateForm.MMMd);
-  if (take.endedAt <= take.startedAt || take.startedAt <= 0) return 'Ghost was in this meeting on $day, from ${_clock(start)}.';
+  if (take.endedAt <= take.startedAt || take.startedAt <= 0) return '$ghostLineStart$day, from ${_clock(start)}.';
   final end = DateTime.fromMillisecondsSinceEpoch(take.endedAt);
-  return 'Ghost was in this meeting on $day, ${_clock(start)} to ${_clock(end)}.';
+  return '$ghostLineStart$day, ${_clock(start)} to ${_clock(end)}.';
 }
 
 /// Why a note was filed from the captions alone, as its first line says it after [ghostLine].

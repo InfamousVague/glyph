@@ -8,8 +8,16 @@ import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../mail_in.dart';
 
-/// Email to a note, in Settings › Account (lib/mail/mail_in.dart, docs/MAIL.md): a private address, shown with Copy,
-/// a new one in its place, and off.
+/// Email to a note (lib/mail/mail_in.dart, docs/MAIL.md): a private address, shown with Copy, a new one in its place,
+/// and off.
+///
+/// The address is also the one Ghost is invited to a meeting by (docs/MEET.md), so where the account's service has
+/// Ghost in meetings the card is on Settings › Meetings, after the meetings, and the address itself is drawn once, on
+/// the invite card above it with Copy and a new one (lib/meet/ui/meet_card.dart): [addressAbove], and this card is
+/// what mail to the address becomes, what the server sees of it, and off (Matt, 2026-10-24: "move all google meet
+/// related stuff to under the meet section"). Account then has only a line pointing there. Before there is an address
+/// it is this card that turns one on, on Meetings as it was on Account. A service with no Ghost in meetings has the
+/// whole card on Account, as before.
 ///
 /// This is the one setting where the server reads words of the person's in the clear, so the card says so in plain
 /// words before it is turned on, and again under it once it is: the server reads each mail as it arrives, as any
@@ -28,9 +36,12 @@ const String mailCardFooter =
 
 /// The card.
 class MailCard extends StatefulWidget {
-  const MailCard({super.key, required this.services});
+  const MailCard({super.key, required this.services, this.addressAbove = false});
 
   final AccountServices services;
+
+  /// The address, with Copy and a new one, is on the invite card above (Settings › Meetings), so it is not drawn here.
+  final bool addressAbove;
 
   @override
   State<MailCard> createState() => _MailCardState();
@@ -70,8 +81,10 @@ class _MailCardState extends State<MailCard> {
       listenable: mail,
       builder: (context, _) {
         final address = mail.address?.address;
+        final above = widget.addressAbove;
         return PaneSection(
           title: 'Email to a note',
+          description: above && address != null ? const Text('Mail sent to your address becomes a note in your Inbox: its subject the title, its words and pictures the note.') : null,
           footer: Text(_said ?? mailCardFooter),
           children: [
             if (address == null)
@@ -79,9 +92,18 @@ class _MailCardState extends State<MailCard> {
                 key: const ValueKey('mail-on'),
                 icon: const AppIcon(Lucide.mail, size: 20),
                 label: _busy ? 'Making an address…' : 'Turn on an address',
-                hint: const Text('Mail sent to a private address of yours becomes a note in your Inbox: its subject the title, its words and pictures the note.'),
+                hint: Text('Mail sent to a private address of yours becomes a note in your Inbox: its subject the title, its words and pictures the note.${above ? ' It is the address Ghost is invited to a meeting by, too.' : ''}'),
                 disabled: _busy,
                 onPress: () => unawaited(_run(() => mail.newAddress())),
+              )
+            else if (above)
+              SettingRow(
+                key: const ValueKey('mail-off'),
+                icon: const AppIcon(Lucide.x, size: 20),
+                label: 'Turn off',
+                hint: const Text('Mail and invites to the address are turned away. Mail already sent is still filed.'),
+                disabled: _busy,
+                onPress: () => unawaited(_run(() => mail.turnOff())),
               )
             else ...[
               SettingRow(

@@ -301,8 +301,9 @@ meeting routes. For each take in `GET meet/takes`:
 4. The note is written through the door a note from another device comes in by (`LocalNotes.apply`), with the
    recording's length; marked a meeting in `prefs.meetings` ({noteId: startedAt}), so Sync meeting recordings governs
    its audio as it does a recorded meeting's (on unless turned off, since 2026-10-23, GHST-112: the audio goes to
-   the account's other devices, and filed in a team's folder to every member); and its write-up asked for
-   (`MeetDevice.writeUp`).
+   the account's other devices, and filed in a team's folder to every member); the meeting it was of kept against it
+   in the synced preference `meetingNotes` ({meetingId: noteId}, in `Preferences.more`), so Settings › Meetings opens
+   it; and its write-up asked for (`MeetDevice.writeUp`).
 5. Only then `DELETE meet/takes/{id}`.
 
 Every pass also names the speakers of a meeting whose write-up has come (the list `glyph-meet-pending` in the
@@ -378,17 +379,29 @@ A section of its own on the Account card, after Notifications (GHST-110; Matt, 2
 its own section in settings and move the invite card to the top"). It was a card on Account until then. Settings lists
 it for a signed-in account whose service has the meeting routes (`meetingsOffered`), in Simple too; its row reads
 "Ghost is booked for N meetings", or "Invite Ghost to a Google Meet". The page is lib/settings/panes/meetings_pane.dart
-over lib/meet/ui/meet_card.dart. With no Email to a note address yet it says "Ghost is invited by your Email to a note
-address. Turn it on in Account, then come back here to invite Ghost.", with Open Account. With one, two cards:
+over lib/meet/ui/meet_card.dart. Since 2026-10-24 (Matt: "remove the meetings stuff from the account page the account
+settings page is overwhelming move all google meet related stuff to under the meet section") everything about
+meetings is here and nothing on Account. With no Email to a note address yet it says "Ghost is invited by your Email
+to a note address. Turn one on below, then invite Ghost here.", over the Email to a note card that turns one on. With
+one:
 
 - **Invite Ghost**, first: "Send Ghost to a meeting now", a Meet link sent to `POST meet` after the account's
-  encryption key is seen to; then the invite address with Copy ("Add this address as a guest on a Google Calendar
-  invite."). What a press did is said under it.
+  encryption key is seen to; then the address with Copy and a refresh icon ("Make a new address"; Matt, 2026-10-24:
+  "add a refresh button next to the email so i can regeenrate the email"), which asks "Make a new address?" in the
+  card, with Make it and Cancel, then runs `POST mail/address` (the old address takes no more invites or mail) and
+  draws the new one. The only place the address is shown. What a press did, or why it failed, is said under it.
 - **Ghost in meetings**: what Ghost does; the meetings from `GET meet` with their state in words (Booked, Joining, In
-  the meeting, Leaving, Written up, Couldn't join: Ghost was signed out of Google / nobody let Ghost in / the meeting
-  refused Ghost / …, Skipped, Cancelled), Don't join on one to come and Leave now on one Ghost is in
-  (`DELETE meet/{id}`). Its footer: "The meeting's sound passes through Ghost.md's server while it records, sealed to
-  your account as it arrives; it is written up on your device."
+  the meeting, Leaving, Written up / Being written up / Not written up yet, Couldn't join: Ghost was signed out of
+  Google / nobody let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and
+  Leave now on one Ghost is in (`DELETE meet/{id}`). A meeting whose note is here is pressed to open it (Settings
+  shuts; Matt, 2026-10-24: "add the ability to click a meeting to jump to the associated note"): the note kept
+  against it (`meetingNotes`), or, for one filed before that was kept, Ghost's note whose recording began while the
+  meeting was on (`meetingNoteFor`). Its footer: "The meeting's sound passes through Ghost.md's server while it
+  records, sealed to your account as it arrives; it is written up on your device."
+- **Email to a note**: what a mail to the address becomes, Turn off, and what the server sees (mail_card.dart).
+  Account keeps a single row pointing here. A service with no meeting routes has no Meetings, and keeps the whole card
+  on Account.
+- **Recordings**: Sync meeting recordings, and how many recordings stayed on this phone (not on an iPhone).
 
 Decided: "the invite card" read as the ways to invite Ghost, the link and the address together, so both are on top.
 

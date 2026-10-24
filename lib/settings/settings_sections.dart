@@ -358,7 +358,7 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/AccountPane.tsx',
     where: (facts) => meetingsOffered(facts.services),
     summary: (facts) => meetingsSummary(facts.services),
-    settings: (facts) => meetingsFindable,
+    settings: (facts) => meetingsFindable(facts.services),
     pane: MeetingsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
