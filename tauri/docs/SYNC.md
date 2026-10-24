@@ -136,7 +136,8 @@ What is sealed, and under which associated data: a note as `{ v: 1, note, record
 file under `file:<its id>`; a notification the account makes for itself as `{ kind, ...details }` under
 `notification:<id>`, with the kind inside the seal so nothing outside it can relabel the row (docs/TEAMS.md).
 
-Limits: a note blob 1.4 MB and prefs 350 KB (as base64), a file 64 MB, 500 notes a page; sign-in 20 attempts a
+Limits: a note blob 1.4 MB and prefs 350 KB (as base64), a file 256 MiB and 64 KiB for its sealing (an account's or a
+team's: a two-hour meeting's recording; 64 MB until 2026-10-23, GHST-112), 500 notes a page; sign-in 20 attempts a
 minute per address and 10 per handle.
 
 ## The client

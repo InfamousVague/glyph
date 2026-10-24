@@ -330,16 +330,20 @@ async fn a_page_of_the_feed_is_at_least_one_note_whatever_the_limit() {
     }
 }
 
-/// A recording or a picture is taken up to 64 MiB and refused at a byte more. Written out, as the note's and the
-/// settings' limits are above. A route that lost its own limit would fall back to axum's two megabytes, and only a file
-/// past those shows it.
+/// A recording or a picture is taken up to 256 MiB and the sealing's 64 KiB, two hours and nineteen minutes of a
+/// meeting (GHST-112), and refused at a byte more. Written out, as the note's and the settings' limits are above. A
+/// route that lost its own limit would fall back to axum's two megabytes, and only a file past those shows it.
 #[tokio::test]
-async fn a_recording_is_taken_up_to_sixty_four_megabytes_and_not_a_byte_past() {
+async fn a_recording_is_taken_up_to_a_two_hour_meeting_and_not_a_byte_past() {
     let h = harness();
     let token = h.signup("matt", &device()).await;
-    let (status, _, _) = raw(&h, Method::PUT, "/api/v1/recordings/r-long?base=0", &token, vec![7; 64 * 1024 * 1024]).await;
+    let most = 256 * 1024 * 1024 + 64 * 1024;
+    // A two-hour meeting as the app keeps it, 16 kHz mono 16-bit with its header, sealed: well inside.
+    let meeting = 2 * 60 * 60 * 32_000 + 44 + 64;
+    assert!(meeting < most);
+    let (status, _, _) = raw(&h, Method::PUT, "/api/v1/recordings/r-long?base=0", &token, vec![7; most]).await;
     assert_eq!(status, StatusCode::OK);
-    let (status, _, _) = raw(&h, Method::PUT, "/api/v1/recordings/r-longer?base=0", &token, vec![7; 64 * 1024 * 1024 + 1]).await;
+    let (status, _, _) = raw(&h, Method::PUT, "/api/v1/recordings/r-longer?base=0", &token, vec![7; most + 1]).await;
     assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
     let (status, _, _) = raw(&h, Method::GET, "/api/v1/recordings/r-longer", &token, Vec::new()).await;
     assert_eq!(status, StatusCode::NOT_FOUND, "nothing of it was kept");
