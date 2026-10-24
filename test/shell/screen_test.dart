@@ -143,15 +143,15 @@ void main() {
       expect(splitFits(const Size(844, 390), mouse: true), isTrue);
     });
 
-    test('sizes its columns as the stylesheet does, and starts the docked sidebar hidden under a finger', () {
-      expect(sidebarColumn(840), 300);
-      expect(sidebarColumn(1280), 380);
-      expect(sidebarColumn(1100), closeTo(330, 1e-9));
+    test('sizes its columns as the stylesheet does, and starts the sidebar hidden under a mouse and a finger alike', () {
+      expect(simpleListColumn(704), 300);
+      expect(simpleListColumn(1280), 360);
+      expect(simpleListColumn(800), closeTo(336, 1e-9));
       expect(asideColumn(840), 240);
       expect(asideColumn(1280), closeTo(281.6, 1e-9));
       expect(asideColumn(2000), 320);
-      expect(sidebarShownByDefault(mouse: true), isTrue);
-      expect(sidebarShownByDefault(mouse: false), isFalse);
+      // Matt, 2026-10-24: "just hide it by default".
+      expect(sidebarShownAtFirst, isFalse);
       expect(wideScreen(const Size(600, 800)), isTrue);
       expect(wideScreen(const Size(599, 800)), isFalse);
     });

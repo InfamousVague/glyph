@@ -85,14 +85,23 @@ void main() {
       expect(local.getItem('glyph-aside-tab'), 'index');
     });
 
-    test('the docked sidebar has no answer until it has been toggled, then the one kept', () {
+    test('the sidebar has no answer until it has been toggled, then the one kept', () {
       final local = MemoryStored();
       expect(readSidebarShown(local), isNull);
       writeSidebarShown(true, local);
       expect(readSidebarShown(local), isTrue);
       writeSidebarShown(false, local);
       expect(readSidebarShown(local), isFalse);
-      expect(local.getItem('glyph-sidebar-shown'), '0');
+      expect(local.getItem('glyph-sidebar-list-shown'), '0');
+    });
+
+    // Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple but just hide it by default".
+    test('the old tree\'s switch is not read, so everyone who had the tree open starts with the list hidden once, and the first toggle forgets it', () {
+      final local = MemoryStored()..setItem('glyph-sidebar-shown', '1');
+      expect(readSidebarShown(local), isNull);
+      writeSidebarShown(true, local);
+      expect(readSidebarShown(local), isTrue);
+      expect(local.getItem('glyph-sidebar-shown'), isNull);
     });
   });
 

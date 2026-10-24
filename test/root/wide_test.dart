@@ -21,6 +21,7 @@ import 'package:ghost_md/note/version_history.dart';
 import 'package:ghost_md/notes/note_tree.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/shell/app_shell.dart';
+import 'package:ghost_md/simple/simple_home.dart';
 
 import '../support/render.dart';
 
@@ -170,9 +171,11 @@ void main() {
     writeSidebarShown(true, local);
     writeAsideShown(true, local);
     final library = await open(tester, sidebar: 'docked', stored: local);
-    // `clamp(300px, 30vw, 380px)`: the tree, with the home page in the rest.
-    expect(tester.getSize(find.bySemanticsLabel('All notes').first).width, 300);
-    expect(find.byType(NoteTree), findsOneWidget);
+    // Simple mode's list (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple"), 300 wide on
+    // the Fold, with the home page in the rest.
+    expect(tester.getSize(find.bySemanticsLabel('Your notes').first).width, 300);
+    expect(find.byType(SimpleHome), findsOneWidget);
+    expect(find.byType(NoteTree), findsNothing);
     // A notebook's page, 164px wide between the two: its bar and its foot are cut by the pane, as the page's
     // are, and nothing gives up.
     final errors = <String>[];
@@ -191,7 +194,7 @@ void main() {
     // The bar's icon hides the column, and the device remembers.
     await tester.tap(find.bySemanticsLabel('All your notes'));
     await settle(tester);
-    expect(find.byType(NoteTree), findsNothing);
+    expect(find.byType(SimpleHome), findsNothing);
     expect(readSidebarShown(local), isFalse);
     expect(tester.getRect(find.byType(NoteScreen)).width, closeTo(704 - 240, 1));
     await close(tester);

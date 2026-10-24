@@ -18,6 +18,12 @@
 /// so with [SimpleHome.pane]: the Notes/To-dos switch is then a segmented control under the title and the + and the
 /// microphone sit at the column's foot, since a bar along the window's foot would be under the note.
 ///
+/// The same column is advanced mode's sidebar on a wide window (Matt, 2026-10-24: "make the sidebar on advanced mode
+/// the same as simple but just hide it by default"; lib/root/root_parts.dart `_listColumn`), hidden until the bar's
+/// panel icon shows it. There it stands under the advanced app's top bar ([SimpleHome.underBar]), which holds the
+/// Mac's window buttons and the cog, so the column draws neither; and on a phone that can show the notes' folder its
+/// foot carries Browse files, the old tree's tool that nothing else in advanced mode offers ([SimpleHome.onBrowseFiles]).
+///
 /// What it reads is kept ([_Read]) until the notes, the search or the day change, as the advanced page keeps its own;
 /// the rows are built as they are scrolled to.
 library;
@@ -98,6 +104,8 @@ class SimpleHome extends StatefulWidget {
     this.onTab,
     this.todos,
     this.pane = false,
+    this.underBar = false,
+    this.onBrowseFiles,
     this.ghost,
   });
 
@@ -149,6 +157,16 @@ class SimpleHome extends StatefulWidget {
   /// Drawn as a column beside the note on a wide window: the switch moves under the title and the + and the
   /// microphone to the column's foot.
   final bool pane;
+
+  /// Drawn under the advanced app's top bar, as its sidebar (2026-10-24): the head starts under the bar
+  /// (`--app-safe-top`, which carries it) rather than under the notch, and the Mac's window buttons are the bar's to
+  /// hold, so there is no row for them here. Simple mode has no bar and leaves this off.
+  final bool underBar;
+
+  /// Browse files at the start of the column's foot ([pane]): the notes' folder in the phone's Files app
+  /// (lib/core/library_files.dart). The root hands it only to advanced mode's sidebar, on a device that can; the old
+  /// tree's tool had it, and simple mode never did.
+  final VoidCallback? onBrowseFiles;
 
   /// The ghost over the empty page's words (lib/art/ghost.dart), where the app hands one in.
   final Widget? ghost;
@@ -216,8 +234,9 @@ class _SimpleHomeState extends State<SimpleHome> {
     final safeBottom = t.len('app-safe-bottom');
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
     // On the Mac the window's buttons have a row of their own over the page ([_LightsRow]), and the title starts
-    // just under it, as Settings' head does under theirs; elsewhere the page starts under the notch.
-    final overlay = titlebarOverlay(t);
+    // just under it, as Settings' head does under theirs; elsewhere the page starts under the notch. Under the
+    // advanced app's bar the bar holds them, and the page starts under the bar.
+    final overlay = titlebarOverlay(t) && !widget.underBar;
     final headTop = overlay ? t.space(1) : safeTop + t.space(3);
     final gap = t.space(3);
     final hairline = t.len('glacier-hairline');
@@ -306,7 +325,9 @@ class _SimpleHomeState extends State<SimpleHome> {
           Container(
             padding: EdgeInsetsDirectional.fromSTEB(gutterStart, t.space(3), gutterEnd, safeBottom + t.space(3)),
             decoration: BoxDecoration(border: Border(top: BorderSide(color: t.color('glacier-border-subtle'), width: hairline))),
-            child: Align(alignment: AlignmentDirectional.centerEnd, child: actions),
+            child: widget.onBrowseFiles == null
+                ? Align(alignment: AlignmentDirectional.centerEnd, child: actions)
+                : Row(children: [_BrowseFiles(onPressed: widget.onBrowseFiles!), const Spacer(), actions]),
           ),
         ],
       );
@@ -425,6 +446,34 @@ class _Header extends StatelessWidget {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Browse files, a quiet ring the size of the gear's with the folder's mark in it (the tree's tool, notes/NoteTree.tsx
+/// `Browse files`), at the start of the column's foot across from the + and the microphone.
+class _BrowseFiles extends StatelessWidget {
+  const _BrowseFiles({required this.onPressed});
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ring = t.len('app-ring');
+    return GlacierPressable(
+      key: const ValueKey('simple-browse-files'),
+      semanticLabel: 'Browse files',
+      onPressed: onPressed,
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        child: Container(
+          width: ring,
+          height: ring,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(shape: BoxShape.circle, color: state.hovered || state.pressed ? t.colorOf('color-mix(in oklch, var(--app-ink) 6%, transparent)') : null),
+          child: AppIcon(Lucide.folderOpen, size: 22, strokeWidth: 1.9, color: t.color('app-ink-2')),
+        ),
+      ),
     );
   }
 }

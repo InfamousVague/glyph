@@ -258,7 +258,10 @@ class AppearancePane extends StatelessWidget {
                 children: [
                   SettingRow(
                     label: 'Sidebar',
-                    hint: const Text('Your notes over the note, or docked as a column beside it.'),
+                    // Since 2026-10-24 the notes' sidebar on a wide window is simple mode's list, a column beside the
+                    // note whichever is chosen (Matt: "make the sidebar on advanced mode the same as simple but just
+                    // hide it by default"); what is left to choose is the side panel's shell.
+                    hint: const Text('The side panel over the note, or docked as a column beside it. Your notes open beside the note either way.'),
                     layout: SettingRowLayout.stacked,
                     control: segments('Sidebar', sidebarWords, prefs.sidebarStyle, (value) {
                       if (isSidebarStyle(value)) set((now) => now.copyWith(sidebarStyle: value));

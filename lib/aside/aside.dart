@@ -161,13 +161,25 @@ void showAsideTab(AsideTab tab, [Stored? on]) {
 
 // ---- the docked sidebar's own switch (core/useWideScreen.ts) ------------------------------------------------------
 
-const String _sidebarShownKey = 'glyph-sidebar-shown';
+/// Kept under a key of its own since the sidebar on a wide window became simple mode's list (Matt, 2026-10-24: "make
+/// the sidebar on advanced mode the same as simple but just hide it by default"). The old tree's switch was
+/// `glyph-sidebar-shown`, which a Mac had at '1' from the first time the tree showed; read as this one it would have
+/// opened the new list on everyone who ever had the tree, so "hide it by default" would have held only for new
+/// installs. Under a new key everyone starts hidden once, and from their first press on the list is where they left
+/// it. The old key is not read again, and the first write forgets it (the Tauri carry still brings it over, as it
+/// brings every key it finds).
+const String _sidebarShownKey = 'glyph-sidebar-list-shown';
+const String _oldSidebarShownKey = 'glyph-sidebar-shown';
 
-/// Whether the docked sidebar is showing, as kept to this device; null until it has ever been toggled, when the
-/// device's default answers (`readSidebarShown`, shell/wide_screen.dart `sidebarShownByDefault`).
+/// Whether the sidebar beside the note is showing, as kept to this device; null until it has ever been toggled,
+/// when it is hidden (`readSidebarShown`, shell/wide_screen.dart `sidebarShownAtFirst`).
 bool? readSidebarShown([Stored? on]) {
   final kept = (on ?? stored).readText(_sidebarShownKey);
   return kept == '1' || kept == '0' ? kept == '1' : null;
 }
 
-void writeSidebarShown(bool shown, [Stored? on]) => (on ?? stored).writeText(_sidebarShownKey, shown ? '1' : '0');
+void writeSidebarShown(bool shown, [Stored? on]) {
+  final at = on ?? stored;
+  at.writeText(_sidebarShownKey, shown ? '1' : '0');
+  at.writeText(_oldSidebarShownKey, null);
+}

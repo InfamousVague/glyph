@@ -23,8 +23,12 @@ import 'visible_notes.dart';
 import 'visited.dart';
 import 'wide_screen.dart';
 
-/// How the notes sidebar opens on a wide window (`SidebarStyle`, core/preferences.ts): a card over the note, which is
-/// the default everywhere, or a column docked beside it.
+/// How the side panel (the aside) opens on a wide window (`SidebarStyle`, core/preferences.ts): a card over the note,
+/// which is the default everywhere, or a column docked beside it.
+///
+/// It chose the notes' sidebar's shell too until 2026-10-24, when the sidebar on a wide window became simple mode's
+/// list, a column whichever is chosen (Matt: "make the sidebar on advanced mode the same as simple but just hide it by
+/// default"; [AppShellState._panes]). The card of the tree is a narrow window's now, where it always was.
 enum SidebarStyle { popover, docked }
 
 /// Builds one of the shell's screens. [shell] is the way to everything the screen may ask of it.
@@ -177,8 +181,8 @@ class AppShell extends StatefulWidget {
   final ValueChanged<List<String>>? onOpenNotesChanged;
   final ValueChanged<TabGroups>? onTabGroupsChanged;
 
-  /// Whether the docked sidebar is showing, as kept to this device; null until it has ever been toggled, when it
-  /// shows where there is a mouse and starts hidden under a finger.
+  /// Whether the sidebar beside the note is showing, as kept to this device; null until it has ever been toggled,
+  /// when it is hidden (shell/wide_screen.dart `sidebarShownAtFirst`).
   final bool? sidebarShown;
   final ValueChanged<bool>? onSidebarShownChanged;
 
@@ -201,10 +205,11 @@ class AppShell extends StatefulWidget {
   final ShellScreenBuilder<ScreenMeeting>? meetingBuilder;
   final ShellBuilder? academyBuilder;
 
-  /// The floating list of every note, over the screen (notes/NotesDrawer.tsx).
+  /// The floating list of every note, over the screen (notes/NotesDrawer.tsx): a narrow window's sidebar.
   final ShellOverlayBuilder? sidebarBuilder;
 
-  /// The same list as a column beside the note (notes/NoteTree.tsx, docked).
+  /// Advanced mode's sidebar on a wide window, a column beside the note: simple mode's list since 2026-10-24
+  /// (lib/simple/simple_home.dart, `underBar`), where it was the tree (notes/NoteTree.tsx, docked).
   final ShellBuilder? dockedSidebarBuilder;
   final ShellAsideBuilder? asideBuilder;
   final ShellAsideCardBuilder? asideCardBuilder;
@@ -535,7 +540,7 @@ class AppShellState extends State<AppShell> {
   void closeSidebar() => _change(() => _drawer = false);
 
   void _toggleDock() {
-    final next = !(_sidebarShown ?? sidebarShownByDefault(mouse: _mouse));
+    final next = !(_sidebarShown ?? sidebarShownAtFirst);
     _change(() => _sidebarShown = next);
     widget.onSidebarShownChanged?.call(next);
   }
@@ -668,9 +673,11 @@ class AppShellState extends State<AppShell> {
     final quietBar = _mobile && screen is ScreenNote;
     // Simple mode's places are drawn plain (GHST-105): no bar over them, no sidebar beside them, no aside.
     final plain = widget.simple && screen.isPlace;
-    // The sidebar docked beside the note, rather than a card over it: a window wide enough, and Docked chosen.
-    final docked = split && !plain && widget.sidebarStyle == SidebarStyle.docked;
-    final sidebarShown = _sidebarShown ?? sidebarShownByDefault(mouse: _mouse);
+    // The sidebar beside the note, rather than a card over it: any window wide enough, whichever style is chosen
+    // (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple but just hide it by default"). The
+    // style is the aside's alone now ([_frame]); a narrow window keeps the card.
+    final docked = split && !plain;
+    final sidebarShown = _sidebarShown ?? sidebarShownAtFirst;
     final dockShown = docked && sidebarShown;
     // Docking takes over from a card left open, so the notes are never drawn twice; and plain has no card at all.
     if (docked || plain) _drawer = false;
@@ -726,11 +733,12 @@ class AppShellState extends State<AppShell> {
     required bool sidebarShown,
     required bool quietBar,
   }) {
-    // The aside follows the sidebar's shell: a column beside a docked sidebar, else a card. Simple
+    // The aside is a column with Docked chosen, else a card: the style it shared with the sidebar until the sidebar
+    // became a column on every wide window (2026-10-24), and kept for the aside so nobody's side panel moved. Simple
     // mode has none: the note's screen keeps its history and links in More.
     final aside = tabBar && !widget.simple ? widget.asideBuilder?.call(context, this) : null;
     final asideHolds = aside != null;
-    final asideDocked = docked && _asideShown && asideHolds;
+    final asideDocked = docked && widget.sidebarStyle == SidebarStyle.docked && _asideShown && asideHolds;
     return Stack(
       fit: StackFit.expand,
       children: [
@@ -842,6 +850,12 @@ class AppShellState extends State<AppShell> {
   /// column. Each pane is its screen as it is on a phone, sized to its column. With neither column it is the place alone,
   /// the whole window, as a phone has it.
   ///
+  /// The notes' column is simple mode's (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple but
+  /// just hide it by default"): the same width, rule and name as [_plain]'s, holding what [AppShell.dockedSidebarBuilder]
+  /// builds, which the root makes simple's list. It starts under the bar as every pane does, and the bar and the Mac's
+  /// window buttons are the whole window's, so neither moves as it comes and goes; nor does the note, whose pane is
+  /// the same child of the row with the column or without it.
+  ///
   /// The panes wear the page's class while the window is split, for the rules that ask for it: an editor's room
   /// under its last line is `.app-split`'s (editor/looks/look.dart `LookEnv.splitRoom`).
   Widget _panes(BuildContext context, {required bool split, required bool dockShown, required Widget? aside}) {
@@ -855,11 +869,12 @@ class AppShellState extends State<AppShell> {
         children: [
           if (dockShown)
             Semantics(
+              key: const ValueKey('pane:list'),
               container: true,
               explicitChildNodes: true,
-              label: 'All notes',
+              label: 'Your notes',
               child: Container(
-                width: sidebarColumn(window),
+                width: simpleListColumn(window),
                 decoration: BoxDecoration(border: Border(right: rule)),
                 child: ClipRect(child: widget.dockedSidebarBuilder?.call(context, this) ?? PanePlaceholder(what: 'the notes, docked', notes: notes, onOpen: openNote)),
               ),

@@ -47,15 +47,15 @@ bool get hoverPointer => mousePointer;
 /// A phone or a tablet, whatever its window's width (`isMobile`, core/platform.ts).
 bool get mobileDevice => !mousePointer;
 
-/// Whether the docked sidebar shows before it has ever been toggled (`readSidebarShown`): where there is a mouse, and
-/// hidden under a finger, so a folding phone opened out starts on the note with its sidebar a tap away.
-bool sidebarShownByDefault({required bool mouse}) => mouse;
+/// Whether advanced mode's sidebar shows before it has ever been toggled (`readSidebarShown`): never. Matt,
+/// 2026-10-24: "make the sidebar on advanced mode the same as simple but just hide it by default". It was shown where
+/// there is a mouse and hidden under a finger; now a Mac and a folding phone opened out alike start on the note, or
+/// on home, with the list a press of the bar's panel icon away, and once pressed the device keeps what was chosen.
+const bool sidebarShownAtFirst = false;
 
-/// The split window's columns (app.css `.app-split`): the sidebar `clamp(300px, 30vw, 380px)`, the aside
-/// `clamp(240px, 22vw, 320px)`, the note the rest.
-double sidebarColumn(double window) => (window * 0.30).clamp(300.0, 380.0);
-
-/// Simple mode's list column beside the note (GHST-105): about 360px, a little narrower on a window where the note
-/// would otherwise be a strip (the Fold opened out is 704 wide).
+/// The split window's columns: the notes' list beside the note, simple mode's (GHST-105) and since 2026-10-24
+/// advanced mode's too, about 360px, a little narrower on a window where the note would otherwise be a strip (the
+/// Fold opened out is 704 wide); the aside `clamp(240px, 22vw, 320px)` (app.css `.app-split`); the note the rest.
+/// The tree's own column, `clamp(300px, 30vw, 380px)`, went with the tree.
 double simpleListColumn(double window) => (window * 0.42).clamp(300.0, 360.0);
 double asideColumn(double window) => (window * 0.22).clamp(240.0, 320.0);

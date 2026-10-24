@@ -366,9 +366,11 @@ extension _RootParts on _GhostRootState {
           simple: simple,
         ),
       ),
-      dockedSidebarBuilder: (context, shell) => _part('tree', () => _sidebarReads(shell), (context) => _tree(shell)),
-      // The docked sidebar and the aside, shown or hidden as this device left them (core/useWideScreen.ts
-      // `readSidebarShown`, aside/aside.ts `readAsideShown`).
+      // Advanced mode's sidebar on a wide window: simple mode's list (Matt, 2026-10-24: "make the sidebar on advanced
+      // mode the same as simple but just hide it by default"), where it was the tree.
+      dockedSidebarBuilder: (context, shell) => _part('list', () => _listReads(shell), (context) => _listColumn(shell)),
+      // The sidebar and the aside, shown or hidden as this device left them (core/useWideScreen.ts
+      // `readSidebarShown`, aside/aside.ts `readAsideShown`): the sidebar hidden until it is first shown.
       sidebarShown: readSidebarShown(_stored),
       onSidebarShownChanged: (shown) => writeSidebarShown(shown, _stored),
       asideShown: readAsideShown(_stored),
@@ -430,9 +432,69 @@ extension _RootParts on _GhostRootState {
     );
   }
 
-  /// What either sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there is a
-  /// folder to browse and a recorder to speak to, and the update a wide window's sidebar carries.
+  /// What the narrow window's sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there
+  /// is a folder to browse and a recorder to speak to, and the update it carries.
   Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, preferences.value.simple);
+
+  /// What the wide window's sidebar reads ([_listColumn]): the notes, whether they are read yet, the microphone
+  /// and whose it is, which list it is on, the update it carries, and whether there is a folder to browse.
+  Object _listReads(AppShellState shell) => (shell.notes, !_read, _capture != null, _canTalk, _simpleTab, _updatesAt, _canBrowse, preferences.value.simple);
+
+  /// Advanced mode's sidebar on a wide window (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple
+  /// but just hide it by default"): simple mode's list itself ([_simpleHome] as a column), under the bar. What
+  /// differs from simple's column is what the bar already has, or what only the old tree had:
+  /// - no gear: the bar's cog is over it;
+  /// - its notices are the tree's, an update waiting, not home's whole list (the experience card, the Academy's,
+  ///   the invitations and the voice model are home's, which is beside it or a press of the bar's house away);
+  /// - Browse files at its foot, on a phone that can show the folder: the tree's tool, which nothing else offers.
+  /// Everything else the tree held lives elsewhere in advanced mode: the folders and workspaces on home and in All
+  /// notes, the organizations behind the bar's people icon and on home, the archive in All notes, the trash in All
+  /// notes and the palette, Tags, smart notebooks and the graph in the palette.
+  Widget _listColumn(AppShellState shell) => SimpleHome(
+        notes: shell.notes,
+        loading: !_read,
+        onOpen: (id) => _openFromHome(shell, id),
+        onNew: _new,
+        onNewLong: _plus,
+        onSpeak: _simpleSpeak,
+        onSwipe: _simpleSwipe,
+        onNoteMenu: _menu.open,
+        onRefresh: _pullRefresh,
+        notices: _sidebarNotices(),
+        clock: widget.clock,
+        tab: _simpleTab,
+        onTab: (tab) => _told(() => _simpleTab = tab),
+        todos: _simpleTodos(shell),
+        pane: true,
+        underBar: true,
+        onBrowseFiles: _browseFiles,
+        ghost: const Ghost(scene: GhostScene.noNotes, size: GhostSize.lead, heightShare: 0.38),
+      );
+
+  /// The microphone of simple's list: Talk to Claude where Claude can hear and the recorder otherwise, one
+  /// microphone only (GHST-104).
+  VoidCallback? get _simpleSpeak => _canTalk
+      ? () => _startTalk()
+      : _capture == null
+          ? null
+          : _speak;
+
+  /// `tabs.drop(note.id)` before a delete, as the advanced page's swipe does: the note's one tab goes too.
+  void _simpleSwipe(Note note, NoteSwipe action) {
+    if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
+    _actions.swipe(note, action);
+  }
+
+  /// The To-dos tab: every open to-do across the notes (lib/simple/simple_todos.dart). A tick is written as the
+  /// query lists write theirs (tickedBody); a tap opens the note at the line.
+  Widget _simpleTodos(AppShellState shell) => SimpleTodos(
+        notes: _library,
+        trash: _trash,
+        clock: () => widget.clock == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(widget.clock!()),
+        onTick: (id, line, done) => unawaited(_writeNote(id, (body) => tickedBody(body, line, body.split('\n')[line], done))),
+        onOpen: (id, line) => shell.openNote(id, at: 'line:${line + 1}'),
+        onAdd: _new,
+      );
 
   /// The home page, while it is the screen (the shell takes it down under a note, the grid and an organization's
   /// page, and makes it anew on the way back, as the page's is: lib/shell/app_shell.dart). It is built again for
@@ -482,33 +544,16 @@ extension _RootParts on _GhostRootState {
         onOpen: (id) => _openFromHome(shell, id),
         onNew: _new,
         onNewLong: _plus,
-        onSpeak: _canTalk
-            ? () => _startTalk()
-            : _capture == null
-                ? null
-                : _speak,
+        onSpeak: _simpleSpeak,
         onSettings: _openSettings,
-        // `tabs.drop(note.id)` before a delete, as the advanced page's swipe does: the note's one tab goes too.
-        onSwipe: (note, action) {
-          if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
-          _actions.swipe(note, action);
-        },
+        onSwipe: _simpleSwipe,
         onNoteMenu: _menu.open,
         onRefresh: _pullRefresh,
         notices: _notices(),
         clock: widget.clock,
         tab: _simpleTab,
         onTab: (tab) => _told(() => _simpleTab = tab),
-        // The To-dos tab: every open to-do across the notes (lib/simple/simple_todos.dart). A tick is written as
-        // the query lists write theirs (tickedBody); a tap opens the note at the line.
-        todos: SimpleTodos(
-          notes: _library,
-          trash: _trash,
-          clock: () => widget.clock == null ? DateTime.now() : DateTime.fromMillisecondsSinceEpoch(widget.clock!()),
-          onTick: (id, line, done) => unawaited(_writeNote(id, (body) => tickedBody(body, line, body.split('\n')[line], done))),
-          onOpen: (id, line) => shell.openNote(id, at: 'line:${line + 1}'),
-          onAdd: _new,
-        ),
+        todos: _simpleTodos(shell),
         pane: pane,
         ghost: const Ghost(scene: GhostScene.noNotes, size: GhostSize.lead, heightShare: 0.38),
       );
@@ -961,76 +1006,6 @@ extension _RootParts on _GhostRootState {
       onDone: () => _told(() => _launching = false),
     );
   }
-  Widget _tree(AppShellState shell, {VoidCallback? onClose}) {
-    // Simple mode's sidebar (GHST-103): no Browse files, no graph, no smart notebooks, no Tags row, and the tree's
-    // own tools trimmed (NoteTree.simple).
-    final simple = preferences.value.simple;
-    return NoteTree(
-      notes: shell.notes,
-      activeId: shell.shown,
-      workspaces: _workspaces,
-      stored: _stored,
-      onOpen: (id) {
-        onClose?.call();
-        _openWhereLeft(shell, id);
-      },
-      onNew: () {
-        onClose?.call();
-        _plus();
-      },
-      onClose: onClose,
-      onCommands: _search,
-      onBrowseFiles: simple ? null : _browseFiles,
-      onGraph: simple
-          ? null
-          : () {
-              onClose?.call();
-              _showGraph();
-            },
-      notices: _sidebarNotices(),
-      onSpeak: _capture == null
-          ? null
-          : () {
-              onClose?.call();
-              _speak();
-            },
-      onSettings: () {
-        onClose?.call();
-        _openSettings();
-      },
-      trashed: _trashed,
-      onRestore: _actions.restore,
-      onDestroy: _actions.destroy,
-      onEmptyTrash: () => _actions.emptyTrash(_trashed),
-      onOpenTrash: (id) {
-        onClose?.call();
-        _openTrash(id);
-      },
-      notesInWorkspace: _notesIn,
-      onTrashNotes: _trashNotes,
-      // An organization's workspace's "…" is the organization's settings.
-      onOrganization: _services == null ? null : _openOrganizationSettings,
-      // A mouse's right-click on a row: the note's menu, where the pointer is.
-      onNoteMenu: _menu.open,
-      emptyArt: const Ghost(scene: GhostScene.noNotes),
-      smart: simple ? null : _organize.smart,
-      onSmart: simple
-          ? null
-          : (id) {
-              onClose?.call();
-              _organize.showSmart(id);
-            },
-      onManageSmart: simple ? null : _organize.editSmart,
-      onTags: simple
-          ? null
-          : () {
-              onClose?.call();
-              _organize.showTags();
-            },
-      simple: simple,
-    );
-  }
-
   /// A note's screen with its editor: one desk to an open note (lib/root/note_desk.dart). Built again when the
   /// screen is another (the note, what it was opened with), and when what it reads of the app is: the other notes
   /// (the titles that are taken, its place in its notebook, your templates; so a notebook thrown away takes its bar
@@ -1187,8 +1162,8 @@ extension _RootParts on _GhostRootState {
   void _pickExperience(String mode) => preferences.update((now) => now.choosing(mode));
 
   /// An update waiting: the sidebar's to carry on a wide window, where there is no home list to show it (App.tsx
-  /// `notices`, notes/NoteTree.tsx): docked, and floating where the window is in two panes. Nothing while there is
-  /// nothing newer, and the tree gives it no room then.
+  /// `notices`, notes/NoteTree.tsx): the list beside the note ([_listColumn]), and the tree's card where the window
+  /// is in two panes. Nothing while there is nothing newer, and neither gives it room then.
   List<Widget> _sidebarNotices() {
     final updates = widget.updates;
     return [if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates))];

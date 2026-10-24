@@ -16,7 +16,7 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
 import 'package:ghost_md/launch/launch_screen.dart';
 import 'package:ghost_md/aside/aside.dart' show writeSidebarShown;
-import 'package:ghost_md/notes/note_tree.dart';
+import 'package:ghost_md/simple/simple_home.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/notices.dart' as notices;
 import 'package:ghost_md/orgs/types.dart';
@@ -321,7 +321,7 @@ void main() {
       updates.dispose();
     });
 
-    testWidgets('the sidebar carries the card on a window in two panes, docked or as a card, and a phone\'s card leaves it to the home page', (tester) async {
+    testWidgets('the sidebar carries the card on a window in two panes, whichever style is chosen, and a phone\'s card leaves it to the home page', (tester) async {
       Future<Updates> shown(Size size, String style, {bool docked = false}) async {
         final updates = make();
         final local = MemoryStored();
@@ -344,21 +344,18 @@ void main() {
         return updates;
       }
 
-      // The Fold opened, the sidebar docked: the tree has it under its notes.
-      var updates = await shown(const Size(704, 933), 'docked', docked: true);
-      expect(tester.widget<NoteTree>(find.byType(NoteTree)).notices.single, isA<notices.UpdateNotice>());
-      expect(find.descendant(of: find.byKey(const ValueKey('tree-notices')), matching: find.text('Ghost.md 0.2.0 is out.')), findsOneWidget);
-      await close(tester);
-      updates.dispose();
-
-      // The same window with the sidebar as a card over the note: the card has it too.
-      updates = await shown(const Size(704, 933), 'popover');
-      expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices.single, isA<notices.UpdateNotice>());
-      await close(tester);
-      updates.dispose();
+      // The Fold opened, the sidebar shown: simple's list beside the note has it over its rows (Matt, 2026-10-24:
+      // "make the sidebar on advanced mode the same as simple"), whichever style is chosen.
+      for (final style in ['docked', 'popover']) {
+        final updates = await shown(const Size(704, 933), style, docked: true);
+        expect(tester.widget<SimpleHome>(find.byType(SimpleHome)).notices.single, isA<notices.UpdateNotice>());
+        expect(find.descendant(of: find.bySemanticsLabel('Your notes'), matching: find.text('Ghost.md 0.2.0 is out.')), findsOneWidget);
+        await close(tester);
+        updates.dispose();
+      }
 
       // A phone: its home page says it, and its card of notes does not say it again.
-      updates = await shown(const Size(390, 844), 'popover');
+      final updates = await shown(const Size(390, 844), 'popover');
       expect(tester.widget<NotesDrawer>(find.byType(NotesDrawer)).notices, isEmpty);
       expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
       await close(tester);
