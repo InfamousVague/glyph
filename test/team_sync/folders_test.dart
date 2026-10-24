@@ -93,8 +93,9 @@ void main() {
     expect(mac.notes['n1']!.path, 'orgs/Ghost/Clients/n1.md');
     expect(mac.notes['n2']!.path, 'orgs/Ghost/Clients/Acme/n2.md');
     expect(mac.notes['n3']!.path, 'orgs/Ghost/n3.md');
-    // The folders' ids are each device's own: nothing of them crossed but the paths.
-    expect(mac.workspaces!.childrenOf(mac.root).single.id, isNot(clients.id));
+    // Nothing of the folders crossed but the paths, and still each device made the same one: a folder's id is its
+    // place's (lib/core/workspaces.dart `folderIdFor`, 2026-10-23), so the account's settings meet it as one.
+    expect(mac.workspaces!.childrenOf(mac.root).single.id, clients.id);
     // A quiet pass changes nothing, and puts nothing again: the paths agree.
     expect(saidOutcome(await mac.sync()), 'changed 0, sent 0, unsent 0, reason null');
     expect(saidOutcome(await phone.sync()), 'changed 0, sent 0, unsent 0, reason null');

@@ -158,6 +158,23 @@ List<Object?> _mergedList(List<Object?> base, List<Object?> mine, List<Object?> 
   ];
 }
 
+/// The merged workspaces with a colour put back on a folder both devices made since [base]: the one here, kept as
+/// what both changed is, from a note's path in a team pass, which knows no colour, and theirs by hand, in the colour
+/// the person chose (2026-10-23: a folder's id is its place's, lib/core/workspaces.dart, so the two meet as one).
+/// Only a colour is taken, and only onto one that has none: a folder that was here before has its own.
+List<Object?> _madeOnBoth(List<Object?> base, List<Object?> theirs, List<Object?> list) {
+  final before = {for (final each in base) if (each is Map) '${each['id']}'};
+  final hues = {
+    for (final each in theirs)
+      if (each is Map && each['hue'] is String && !before.contains('${each['id']}')) '${each['id']}': each['hue'],
+  };
+  if (hues.isEmpty) return list;
+  return [
+    for (final each in list)
+      if (each is Map && each['hue'] == null && hues.containsKey('${each['id']}')) {...each, 'hue': hues['${each['id']}']} else each,
+  ];
+}
+
 /// This device's settings and another's, both changed since [base] (`merged`). A setting only one of them changed is
 /// that one's. The maps (which note is filed where, what is in the trash) are merged an entry at a time, since a
 /// filing made on one device and another made elsewhere are two changes, not one. What both changed stays as it is
@@ -172,7 +189,7 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
     } else if (_said(theirs, key) == _said(base, key) || _said(theirs, key) == _said(mine, key)) {
       continue;
     } else if (key == 'workspaces' && b != null && m != null && t != null && [b, m, t].every((each) => each['list'] is List && each['notes'] is Map)) {
-      final list = _mergedList(b['list'] as List, m['list'] as List, t['list'] as List);
+      final list = _madeOnBoth(b['list'] as List, t['list'] as List, _mergedList(b['list'] as List, m['list'] as List, t['list'] as List));
       final notes = _mergedEntries(_entries(b['notes'])!, _entries(m['notes'])!, _entries(t['notes'])!);
       // A note filed in a workspace the other device removed is in none.
       notes.removeWhere((note, space) => !list.any((each) => each is Map && each['id'] == space));

@@ -31,12 +31,28 @@
 ///   parents ([orgOfWorkspace]); the id's prefix ([isOrgWorkspace]) says only whether it is the organization's own.
 ///   Nothing is moved into or out of an organization: [canMove] keeps a folder in the organization it is in, or out
 ///   of every one. The organization's workspace gone ([dropOrgWorkspace]) takes its folders with it.
+/// - **A folder's id is its place's** (2026-10-23; Matt: "When creating multiple folders it seems like it's syncing
+///   then duplicating the folder I created a meetings folder and got one with no notes but the color i chose and then
+///   one with no color but the note i placed inside"). A folder was given a random id as it was made, and a folder
+///   of an organization's is also made by the team's channel, by name, for a note whose path names one this device
+///   has not got (lib/team/folders.dart). His Mac made Meetings in HelloTrade, in a colour, and filed a note in it;
+///   the note's row reached his phone in a team pass, which syncs no settings, so the phone had no Meetings yet and
+///   made one of its own, with another id and no colour, and filed the note there. The settings merged both lists by
+///   id, so both folders stood, and the note's filing went to the phone's, which sent last. Now a folder is given
+///   the id its place says ([folderIdFor]): who it is under (the account, or the organization) and the names of the
+///   folders down to it, cleaned and in lower case, as its folder on disk is named. So every device that makes
+///   Meetings in HelloTrade makes the same one, by hand or by a note's path, and the settings meet it as one
+///   ([mergeTwinFolders] heals the twins made before this). The id is the old shape (`w-` and six letters); one
+///   already taken by another folder, a folder renamed since, is passed over for a random one.
 library;
 
+import 'dart:convert' show utf8;
 import 'dart:math';
 
+import 'package:crypto/crypto.dart' show sha1;
 import 'package:flutter/foundation.dart';
 
+import 'note_folders.dart' show folderName;
 import 'trash.dart';
 
 /// The hues a workspace can wear (`WORKSPACE_HUES`). A name, not a colour: what each looks like is ink.css `[data-hue]`.
@@ -138,6 +154,35 @@ List<Workspace> workspacePath(List<Workspace> list, String id) {
 /// A workspace's name with its parents' before it, as a list that holds folders inside folders says it:
 /// "Work › Clients".
 String workspacePathName(List<Workspace> list, String id) => workspacePath(list, id).map((w) => w.name).join(' › ');
+
+/// What makes two folders the same folder: who they are under, by id, and their names as their folders on disk are
+/// named, in lower case, as the team's channel finds a folder by its path (lib/team/folders.dart `_find`). Null for
+/// an organization's own workspace, which is one of its kind by its id, and for a name that cleans away to nothing.
+String? _twinKey(Workspace w) {
+  if (isOrgWorkspace(w.id)) return null;
+  final name = folderName(w.name).toLowerCase();
+  return name.isEmpty ? null : '${w.parent ?? ''}\u0000$name';
+}
+
+const String _idLetters = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+/// The id a folder called [name] inside [parent] (null, the top) is given, the same on every device of the account
+/// (see the library's doc, "A folder's id is its place's"): read from who it is under, the account or the
+/// organization, and the names of the folders from there down to it, cleaned and in lower case. Null where a name
+/// on the way cleans away to nothing, or [parent] is not in [list]: such a folder has a random id, as before.
+String? folderIdFor(List<Workspace> list, String name, String? parent) {
+  final path = parent == null ? const <Workspace>[] : workspacePath(list, parent);
+  if (parent != null && path.isEmpty) return null;
+  final org = path.isEmpty ? null : orgIdOf(path.first.id);
+  final names = [
+    for (final w in path)
+      if (!isOrgWorkspace(w.id)) folderName(w.name).toLowerCase(),
+    folderName(name).toLowerCase(),
+  ];
+  if (names.any((each) => each.isEmpty)) return null;
+  final digest = sha1.convert(utf8.encode('glyph/folder/v1\u0000${org == null ? 'account' : 'org:$org'}\u0000${names.join('/')}')).bytes;
+  return 'w-${[for (var at = 0; at < 6; at += 1) _idLetters[digest[at] % _idLetters.length]].join()}';
+}
 
 /// What the page reads of the workspaces at a moment (`Workspaces`).
 @immutable
@@ -304,6 +349,14 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     }
   }
 
+  /// The id a new folder called [name] inside [parent] is given: its place's ([folderIdFor]) unless another folder
+  /// has that id already, then a random one.
+  String _idFor(List<Workspace> list, String name, String? parent) {
+    final placed = folderIdFor(list, name, parent);
+    if (placed != null && !list.any((w) => w.id == placed)) return placed;
+    return _freshId(list);
+  }
+
   /// A new workspace called [name], in [hue], or the one already called that; null for an empty name. With
   /// [parent], a folder inside that workspace, a personal one or an organization's (GHST-107), and the one already
   /// called that inside the same parent is the one. Without, the personal one already called that, wherever it is,
@@ -318,7 +371,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       if (w.name.toLowerCase() != clean.toLowerCase()) continue;
       if (inside != null ? w.parent == inside : orgOfWorkspace(sheet.list, w.id) == null) return w;
     }
-    final made = Workspace(id: _freshId(sheet.list), name: clean, hue: _wornHue(hue), parent: inside);
+    final made = Workspace(id: _idFor(sheet.list, clean, inside), name: clean, hue: _wornHue(hue), parent: inside);
     _write(WorkspaceSheet(list: [...sheet.list, made], notes: sheet.notes, current: sheet.current));
     return made;
   }
@@ -533,6 +586,67 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       },
       current: gone.contains(sheet.current) ? null : sheet.current,
     ));
+  }
+
+  /// Folders that are one folder made twice, made one again: two or more inside the same parent whose names name the
+  /// same folder on disk (2026-10-23, Matt's Meetings and Agents in HelloTrade: see the library's doc, "A folder's
+  /// id is its place's", for how they were made). Answers how many went.
+  ///
+  /// Of each set, the one kept is the one in a colour, the colour being what the person chose and the only thing a
+  /// folder has besides its name; among those alike, the lowest id. So every device that has the same twins keeps the
+  /// same one, and their settings meet with nothing to argue over. The kept one takes a colour from another where it
+  /// has none. Every note filed in the others is filed in it, the trashed among them, and the folders inside them
+  /// are put inside it, where they may be twins in turn and are made one the same way. The others then go. A note is
+  /// never deleted, unfiled or taken out of its organization here: twins share a parent, so they are in the same
+  /// organization or in none, and their notes' files are moved as any filing moves them ([onFiled], where nothing
+  /// moves when the names were the same, so a team note's row is put again only when its path's case changed).
+  int mergeTwinFolders() {
+    var gone = 0;
+    final kept = <String>{};
+    // A pass a level at a time: twins inside twins are siblings only once their parents are one.
+    for (var pass = 0; pass < 32; pass += 1) {
+      final sheet = _current;
+      final sets = <String, List<Workspace>>{};
+      for (final w in sheet.list) {
+        final key = _twinKey(w);
+        if (key != null) (sets[key] ??= []).add(w);
+      }
+      final into = <String, Workspace>{};
+      for (final set in sets.values) {
+        if (set.length < 2) continue;
+        final ordered = [...set]..sort((a, b) => a.hue != null && b.hue == null ? -1 : (a.hue == null && b.hue != null ? 1 : a.id.compareTo(b.id)));
+        final keep = ordered.first;
+        final hue = keep.hue ?? ordered.map((w) => w.hue).nonNulls.firstOrNull;
+        into[keep.id] = keep.copyWith(hue: hue);
+        for (final other in ordered.skip(1)) {
+          into[other.id] = into[keep.id]!;
+        }
+        kept.add(keep.id);
+      }
+      if (into.isEmpty) break;
+      String to(String id) => into[id]?.id ?? id;
+      final list = <Workspace>[];
+      for (final w in sheet.list) {
+        final keep = into[w.id];
+        // A twin that goes is not listed; every other folder is, the kept one in its colour, and each inside a
+        // twin that went is put inside the one kept.
+        if (keep != null && keep.id != w.id) continue;
+        final it = keep ?? w, parent = it.parent;
+        list.add(parent != null && into.containsKey(parent) ? it.copyWith(parent: () => to(parent)) : it);
+      }
+      _write(WorkspaceSheet(
+        list: list,
+        notes: {for (final entry in sheet.notes.entries) entry.key: to(entry.value)},
+        current: sheet.current == null ? null : to(sheet.current!),
+      ));
+      gone += into.entries.where((entry) => entry.key != entry.value.id).length;
+    }
+    // Where the kept ones' notes belong now, and their folders' under them: the same place, unless a name's case was
+    // another.
+    for (final id in kept) {
+      if (_current.list.any((w) => w.id == id)) _refile(id);
+    }
+    return gone;
   }
 
   /// Files [noteId] in a workspace, or in none with null. The note's file follows its filing: into

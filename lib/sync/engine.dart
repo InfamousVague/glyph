@@ -613,6 +613,7 @@ class SyncEngine {
         await fed();
         final list = await listed();
         if (list != null) await teams(list, Outcome());
+        _mergeTwins();
       } catch (failure) {
         if (failure is ApiError && failure.status == 401) await _resume();
       }
@@ -778,7 +779,11 @@ class SyncEngine {
           bridge.applying = false;
         }
       });
+      // The settings in, and the team's notes filed: folders made twice are made one (lib/core/workspaces.dart
+      // `mergeTwinFolders`), outside the settings' own write, so what it changes goes with the next pass.
+      _mergeTwins();
       if (list != null) await teams(list, outcome);
+      _mergeTwins();
       _status.value = failed != null
           ? SyncStatus(phase: 'error', lastAt: _status.value.lastAt, message: failed, conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason)
           : SyncStatus(phase: 'idle', lastAt: _now(), conflicts: outcome.conflicts, unsent: outcome.unsent, unsentReason: outcome.reason);
@@ -786,6 +791,19 @@ class SyncEngine {
       // The session lapsed mid-sync: renew it (with this device's key if need be) and go again next time.
       if (failure is ApiError && failure.status == 401) await _resume();
       _phase('error', message: failureText(failure));
+    }
+  }
+
+  /// Folders made twice, made one again (lib/core/workspaces.dart `mergeTwinFolders`; Matt, 2026-10-23: "fix the
+  /// duplicate folders"): twins come in with another device's settings, or are made by a team pass before the
+  /// settings that hold the folder have landed, so both are where they are healed. Quiet: a folder that will not
+  /// merge stays as it was, and the pass goes on.
+  void _mergeTwins() {
+    try {
+      final gone = _workspaces.mergeTwinFolders();
+      if (gone > 0) debugPrint('[sync] $gone folder${gone == 1 ? '' : 's'} made twice, made one again');
+    } catch (failure) {
+      debugPrint('[sync] the twin folders stayed: $failure');
     }
   }
 

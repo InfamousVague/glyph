@@ -776,6 +776,31 @@ void main() {
       expect(phone.engine.hasUnsyncedChanges(phoneNotes.held['a']!.copyWith(body: 'more')), isTrue);
     });
 
+    test('folders made twice are made one again by a pass, on both devices, the notes in the one kept', () async {
+      // Matt's HelloTrade on 2026-10-23 (lib/core/workspaces.dart `mergeTwinFolders`): Meetings twice, the empty
+      // one in his colour.
+      final service = await FakeService.start(seed: testAccount);
+      final phone = await Rig.make(service: service, standIns: false, as: live(service));
+      final fold = await Rig.make(service: service, standIns: false, as: live(service));
+      final org = await phone.orgs.createOrg('HelloTrade');
+      final root = orgWorkspaceId(org.id);
+      phone.prefs.update((now) => now.copyWith(
+            workspaces: KeptWorkspaces(
+              list: [KeptWorkspace(id: root, name: 'HelloTrade'), KeptWorkspace(id: 'w-i6k7sk', name: 'Meetings', hue: 'sea', parent: root), KeptWorkspace(id: 'w-m6jy58', name: 'Meetings', parent: root)],
+              notes: const {'standup': 'w-m6jy58'},
+            ),
+          ));
+      phone.workspaces.reloadWorkspaces();
+      await phone.engine.syncNow();
+      expect(phone.workspaces.childrenOf(root).map((w) => (w.id, w.hue)), [('w-i6k7sk', 'sea')]);
+      expect(phone.workspaces.workspaceOf('standup')?.id, 'w-i6k7sk');
+      // Sent with the next pass, and taken by the other device as it is.
+      await phone.engine.syncNow();
+      await fold.engine.syncNow();
+      expect(fold.prefs.value.workspaces.list.map((w) => w.id), [root, 'w-i6k7sk']);
+      expect(fold.prefs.value.workspaces.notes, {'standup': 'w-i6k7sk'});
+    });
+
     test('a pass with "Nothing leaves the phone" on asks the service nothing at all', () async {
       final service = await FakeService.start(seed: testAccount);
       final rig = await Rig.make(service: service, standIns: false, as: live(service));
