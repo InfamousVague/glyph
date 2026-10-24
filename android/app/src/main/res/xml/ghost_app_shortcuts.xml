@@ -7,6 +7,11 @@
   note (the microphone opens on that tap and not before), Today and Search. The notes opened last follow them, set
   while the app runs (HomeScreen.kt). A shortcut's package and class have to be written out, which is why each build
   has a file of its own (android/app/build.gradle.kts `ghostShortcuts`).
+
+  The class is the door every link comes in by (LinkDoor.kt), in every build's file, never the activity: a shortcut
+  that started the app was the intent its task was made with, and Android made the activity with it again when it
+  brought the task back after an update (Matt, 2026-10-24: "when i restart the app after an update the notifications
+  always opens"). Only the assistant's Record note, an action and no link, names the activity.
 -->
 <shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
     <shortcut
@@ -19,7 +24,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://new"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <shortcut
         android:shortcutId="voice-note"
@@ -31,7 +36,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://voice"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <shortcut
         android:shortcutId="today"
@@ -43,7 +48,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://today"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <shortcut
         android:shortcutId="search"
@@ -55,7 +60,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://search"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <!-- Scan document: Google's document scanner, its pages kept as a new note's PDF (lib/files/plus_files.dart). -->
     <shortcut
@@ -68,6 +73,6 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://scan"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
 </shortcuts>

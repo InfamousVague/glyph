@@ -16,6 +16,7 @@ import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
+import com.mattssoftware.ghost_md.LinkDoor
 import com.mattssoftware.ghost_md.MainActivity
 import com.mattssoftware.glyph.capture.MeetingService
 
@@ -155,14 +156,15 @@ internal object RecordingAlerts {
   /**
    * "Written up: Meeting, 26 Sep 14:05" with the summary's first sentence, or
    * what stood in for one; tapping it opens the note through its `ghostmd://`
-   * link. Private: the sentence shows once the phone is unlocked, and a locked
-   * one says only that a recording was written up.
+   * link, by the door (LinkDoor.kt), so the note's link is never what the app's
+   * task was made with (Matt, 2026-10-24). Private: the sentence shows once the
+   * phone is unlocked, and a locked one says only that a recording was written up.
    */
   fun postWrittenUp(context: Context, noteId: String, title: String, text: String) {
     ensureChannel(context)
     val open = Intent(Intent.ACTION_VIEW, Uri.parse("ghostmd://note/$noteId"))
       .setPackage(context.packageName)
-      .setClass(context, MainActivity::class.java)
+      .setClass(context, LinkDoor::class.java)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pending = PendingIntent.getActivity(context, noteId.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val public = NotificationCompat.Builder(context, CHANNEL_ID)

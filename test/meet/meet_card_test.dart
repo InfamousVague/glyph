@@ -233,7 +233,11 @@ void main() {
     await settle(tester, 10);
     // The invite on top (Matt, 2026-10-23: "move the invite card to the top"), the link before the address.
     expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in meetings']));
-    expect(tester.getTopLeft(find.text('Send Ghost to a meeting now')).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy));
+    expect(tester.getTopLeft(find.text('Join')).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy));
+    // Join on the link's line, to its right (Matt, 2026-10-24).
+    final field = tester.getRect(find.bySemanticsLabel('Meet link').first), join = tester.getRect(find.byKey(const ValueKey('meet-send')));
+    expect(join.left, greaterThan(field.right));
+    expect((join.center.dy - field.center.dy).abs(), lessThan(4));
     expect(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy, lessThan(tester.getTopLeft(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Ghost in meetings')).dy));
     expect(meetingsSummary(d.device.services), 'Ghost is booked for 2 meetings');
     expect(find.text(meetCardFooter), findsOneWidget);
@@ -260,7 +264,7 @@ void main() {
     await typeInto(tester, 'Meet link', 'not a link');
     expect(d.meet.booked, isNull);
     await typeInto(tester, 'Meet link', 'meet.google.com/xyz-abcd-efg');
-    await press(tester, 'Send Ghost to a meeting now');
+    await press(tester, 'Join');
     await settle(tester, 10);
     expect(d.meet.booked, {'url': 'https://meet.google.com/xyz-abcd-efg'});
     expect(find.text('Ghost is on its way into the meeting.'), findsOneWidget);

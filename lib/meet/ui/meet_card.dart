@@ -507,18 +507,30 @@ class _MeetCardState extends State<MeetCard> {
           description: const Text('Paste a Google Meet link to send Ghost in now, or add your address as a guest on a Google Calendar invite and Ghost joins by itself.'),
           footer: _said == null ? null : Text(_said!),
           children: [
+            // The link and Join beside it (Matt, 2026-10-24: "change the \"send ghost to a meeting now\" to be a
+            // button called \"join\" to the right of the meet invite input"), where the line under it said it whole.
             SettingsForm(
               children: [
-                GlacierInput(
-                  ariaLabel: 'Meet link',
-                  placeholder: 'meet.google.com/abc-defg-hij',
-                  value: _link,
-                  onChange: (text) => setState(() => _link = text),
-                  onSubmitted: (_) {
-                    if (ready) unawaited(_send(meet));
-                  },
+                Row(
+                  spacing: t.space(3),
+                  children: [
+                    Expanded(
+                      child: GlacierInput(
+                        ariaLabel: 'Meet link',
+                        placeholder: 'meet.google.com/abc-defg-hij',
+                        value: _link,
+                        onChange: (text) => setState(() => _link = text),
+                        onSubmitted: (_) {
+                          if (ready) unawaited(_send(meet));
+                        },
+                      ),
+                    ),
+                    Semantics(
+                      label: 'Send Ghost to this meeting now',
+                      child: FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'Joining…' : 'Join', onPressed: ready ? () => unawaited(_send(meet)) : null),
+                    ),
+                  ],
                 ),
-                FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'One moment…' : 'Send Ghost to a meeting now', onPressed: ready ? () => unawaited(_send(meet)) : null),
               ],
             ),
             SettingRow(

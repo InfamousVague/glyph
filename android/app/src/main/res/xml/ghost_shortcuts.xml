@@ -35,7 +35,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://new"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <shortcut
         android:shortcutId="today"
@@ -47,7 +47,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://today"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <shortcut
         android:shortcutId="search"
@@ -59,7 +59,7 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://search"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
     <!-- Scan document: Google's document scanner, its pages kept as a new note's PDF (lib/files/plus_files.dart). -->
     <shortcut
@@ -72,6 +72,6 @@
             android:action="android.intent.action.VIEW"
             android:data="ghostmd://scan"
             android:targetPackage="com.mattssoftware.glyph.flutter"
-            android:targetClass="com.mattssoftware.ghost_md.MainActivity" />
+            android:targetClass="com.mattssoftware.ghost_md.LinkDoor" />
     </shortcut>
 </shortcuts>
