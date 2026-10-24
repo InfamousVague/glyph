@@ -127,6 +127,7 @@ import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
 import '../notes/all_notes_screen.dart';
 import '../notes/collection_screen.dart';
+import '../notes/folder_menu.dart';
 import '../notes/new_sheet.dart';
 import '../notes/note_actions.dart';
 import '../notes/note_menu.dart';

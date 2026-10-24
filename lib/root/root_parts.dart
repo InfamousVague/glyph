@@ -23,6 +23,13 @@ extension _RootParts on _GhostRootState {
   /// What [_whole] is made of, once (the field is the class's own).
   Widget _wholeOf() => AccountScope(
     services: _services,
+    // A folder's menu at a right-click anywhere a folder is shown (lib/notes/folder_menu.dart): its sheet to rename
+    // it, or at its Delete; and a note's menu for a list handed none of its own.
+    child: FolderMenuScope(
+    store: _workspaces,
+    onRename: (folder) => _manageFolder(folder),
+    onDelete: (folder) => _manageFolder(folder, deleting: true),
+    onNoteMenu: _menu.open,
     child: Stack(
       fit: StackFit.expand,
       children: [
@@ -95,6 +102,7 @@ extension _RootParts on _GhostRootState {
         _part('shareIn', () => _sharing.isEmpty || _launching ? null : _sharing.first, _shareInPart),
         _part('launch', () => _launching ? (_launchLoading, _launchNotes, _updatesAt, _launchSync, _voice) : null, _launchPart),
       ],
+    ),
     ),
   );
 

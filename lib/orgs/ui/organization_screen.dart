@@ -60,6 +60,7 @@ import '../../core/workspaces.dart' show Workspace;
 import '../../home/home_organizations.dart' show OrgPresence;
 import '../../live/presence.dart' show aiDoingWords;
 import '../../home/note_card.dart';
+import '../../notes/folder_menu.dart' show FolderMenuScope;
 import '../../notes/folder_drag.dart';
 import '../../notes/folder_strip.dart';
 import '../../notes/icon_browser.dart';
@@ -470,7 +471,8 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
             label: 'Notes in this organization',
             child: NoteCards(
               count: math.min(filedHere.length, organizationNotesShown),
-              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now, carry: carry(filedHere[i]), folder: folderUnder(spaces, filed, filedHere[i].id, workspaceId)?.name),
+              // A mouse's right-click on a card: the note's menu, the app's (lib/notes/folder_menu.dart's scope).
+              itemBuilder: (context, i, fill) => NoteCard(key: ValueKey('card-${filedHere[i].id}'), note: filedHere[i], index: i, onOpen: widget.onOpenNote, dense: true, fill: fill, now: now, carry: carry(filedHere[i]), folder: folderUnder(spaces, filed, filedHere[i].id, workspaceId)?.name, onMenu: FolderMenuScope.maybeOf(context)?.onNoteMenu),
             ),
           )
         else if (folders.isEmpty)

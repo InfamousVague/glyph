@@ -34,6 +34,7 @@ import '../core/note.dart';
 import '../core/workspaces.dart';
 import '../home/home_text.dart';
 import 'folder_drag.dart';
+import 'folder_menu.dart';
 
 /// A folder and how many notes are in it and under it.
 typedef FolderCount = ({Workspace folder, int count});
@@ -229,7 +230,13 @@ class FolderStrip extends StatelessWidget {
                 child: Row(
                   spacing: t.space(2),
                   children: [
-                    for (final each in folders) _carried(_Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
+                    // A mouse's right-click on a chip: the folder's menu (lib/notes/folder_menu.dart).
+                    for (final each in folders)
+                      FolderMenuArea(
+                        folderId: each.folder.id,
+                        onOpen: () => onChoose(each.folder.id),
+                        child: _carried(_Chip(key: ValueKey('folder-chip-${each.folder.id}'), folder: each.folder, count: each.count, onPressed: () => onChoose(each.folder.id)), each.folder),
+                      ),
                     if (onNewFolder != null) _NewChip(key: const ValueKey('folder-new'), glyph: Lucide.folderPlus, words: 'New folder', onPressed: () => onNewFolder!(chosen)),
                     if (onNewNote != null) _NewChip(key: const ValueKey('folder-new-note'), glyph: Lucide.filePlus, words: 'New note', onPressed: () => onNewNote!(chosen)),
                   ],

@@ -40,6 +40,7 @@ import '../home/home_icons.dart';
 import '../home/home_layout.dart' show HomeKind, kindOf;
 import '../home/home_text.dart';
 import 'folder_drag.dart';
+import 'folder_menu.dart';
 import 'folder_strip.dart' show FolderCount;
 import 'note_menu.dart' show NoteMenuArea;
 import 'org_mark.dart';
@@ -229,7 +230,12 @@ class IconBrowser extends StatelessWidget {
             final store = this.store;
             if (at < folders.length) {
               final each = folders[at];
-              final Widget tile = _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id));
+              // A mouse's right-click on a folder's tile: its menu (lib/notes/folder_menu.dart).
+              final Widget tile = FolderMenuArea(
+                folderId: each.folder.id,
+                onOpen: () => onFolder(each.folder.id),
+                child: _FolderTile(key: ValueKey('tile-folder-${each.folder.id}'), folder: each, onPressed: () => onFolder(each.folder.id)),
+              );
               if (store == null) return tile;
               // A place to drop a note or a folder, and itself carried into another; an organization's own stays.
               return FolderCarrySource(
@@ -242,7 +248,9 @@ class IconBrowser extends StatelessWidget {
             if (at == folderAt) return _NewTile(key: const ValueKey('tile-folder-new'), glyph: Lucide.folderPlus, name: 'New folder', onPressed: onNewFolder!);
             if (at == noteAt) return _NewTile(key: const ValueKey('tile-note-new'), glyph: Lucide.filePlus, name: 'New note', onPressed: onNewNote!);
             final note = notes[at - folders.length - adds];
-            final onMenu = onNoteMenu;
+            // A note's menu: the page's own, else the app's, for a page handed none (an organization's).
+            final scoped = FolderMenuScope.maybeOf(context)?.onNoteMenu;
+            final onMenu = onNoteMenu ?? (scoped == null ? null : (Note note, Offset at) => scoped(note.id, at));
             final Widget tile = _NoteTile(key: ValueKey('tile-note-${note.id}'), note: note, now: now, onPressed: () => onOpen(note.id), onMenu: onMenu == null ? null : (at) => onMenu(note, at));
             if (store == null) return tile;
             final title = NoteFacts.of(note).title.trim();

@@ -20,6 +20,7 @@ import '../sheet/css.dart';
 import '../sheet/flow.dart';
 import 'book_place_mark.dart';
 import 'folder_drag.dart';
+import 'folder_menu.dart';
 import 'note_peek.dart';
 import 'org_mark.dart';
 import 'tree.dart';
@@ -484,7 +485,8 @@ class _NoteTreeState extends State<NoteTree> {
         SliverToBoxAdapter(
           child: Padding(
             padding: EdgeInsets.only(top: gap),
-            child: KeyedSubtree(key: ValueKey('folder-row-$id'), child: head),
+            // A mouse's right-click on a folder's row: its menu (lib/notes/folder_menu.dart); a finger has its More.
+            child: KeyedSubtree(key: ValueKey('folder-row-$id'), child: space == null ? head : FolderMenuArea(folderId: id, child: head)),
           ),
         ),
       ];
