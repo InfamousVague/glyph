@@ -164,9 +164,10 @@ void main() {
         held.rect('the chip of $label', rectOf(tester, find.ancestor(of: inRow(label, find.byType(AppIcon)), matching: find.byType(Container)).first), page.rect('icons', i), by: by);
       }
       expect(held.off, isEmpty, reason: held.off.join('\n'));
-      // The plugin's colour on its page: graphite, rgb(95, 99, 104), and 16% of it under a glyph.
+      // The plugin's colour on its page: orange since 2026-10-24 (the page's graphite), rgb(217, 96, 13), and 16% of it
+      // under a glyph.
       final chip = tester.widget<Container>(find.ancestor(of: inRow('Roadmap', find.byType(AppIcon)), matching: find.byType(Container)).first);
-      expect((chip.decoration! as BoxDecoration).color, sameColor(const Color.fromARGB(255, 95, 99, 104).withValues(alpha: 0.16)));
+      expect((chip.decoration! as BoxDecoration).color, sameColor(const Color.fromARGB(255, 217, 96, 13).withValues(alpha: 0.16)));
       await endSettings(tester);
     });
   });

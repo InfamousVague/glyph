@@ -45,6 +45,13 @@ const String settingsCss = '''
 [data-hue='grey']     { --hue: #7c7c82; --hue-dark: #a1a1a8; }
 [data-hue='brown']    { --hue: #93724e; --hue-dark: #c7a57f; }
 [data-hue='mint']     { --hue: #1f9e8f; --hue-dark: #5fe0cf; }
+[data-hue='amber']    { --hue: #c27c00; --hue-dark: #ffb84d; }
+[data-hue='indigo']   { --hue: #4f5bd5; --hue-dark: #8c95ff; }
+[data-hue='orange']   { --hue: #d9600d; --hue-dark: #ff9a4d; }
+[data-hue='cyan']     { --hue: #0a86a8; --hue-dark: #4cc9f0; }
+[data-hue='lime']     { --hue: #5a8a00; --hue-dark: #a3d93f; }
+[data-hue='rose']     { --hue: #d6336c; --hue-dark: #ff7aa8; }
+[data-hue='magenta']  { --hue: #b5279f; --hue-dark: #f07ae0; }
 
 :root[data-theme='dark'] [data-hue] {
   --hue: var(--hue-dark);

@@ -101,21 +101,42 @@ const Map<String, String> _hues = {
   // Account's sub-page keeps its blue; Notifications wears the coral that was kept free until it.
   'organizations': 'blue',
   'notifications': 'coral',
-  // Meetings (GHST-110) wears the graphite no other row had.
-  'meetings': 'graphite',
+  // Every row in a colour of its own (Matt, 2026-10-24: "make sure all settings sections icons have a color"): none
+  // in grey or graphite.
+  'meetings': 'orange',
+  'workspaces': 'indigo',
+  'daily': 'indigo',
+  'library': 'cyan',
+  'backup': 'lime',
+  'export': 'rose',
+  'import': 'rose',
+  'ai': 'magenta',
   'theme': 'purple',
   'recording': 'red',
   'plugins': 'green',
-  'about': 'grey',
+  'about': 'yellow',
   'developer': 'brown',
   'test-results': 'mint',
   // The sub-pages About opens keep the cheat sheet's yellow; a plugin's brings its own.
   'cheatsheet': 'yellow',
   'examples': 'yellow',
+  'spec': 'yellow',
 };
 
-/// A section's colour (`hueOf`): its own, or its id's, or grey for a section added later without one.
-String settingsHueOf(SettingsSection section) => section.hue ?? _hues[section.id] ?? 'grey';
+/// The colours a section is drawn in where nothing names one: a section added later, or a plugin's page that brings
+/// none, takes one of these by its id, never grey.
+const List<String> _spareHues = ['blue', 'purple', 'red', 'coral', 'green', 'yellow', 'mint', 'amber', 'indigo', 'orange', 'cyan', 'lime', 'rose', 'magenta'];
+
+String _spareHue(String id) {
+  var hash = 0x811c9dc5;
+  for (final unit in id.codeUnits) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+  }
+  return _spareHues[hash % _spareHues.length];
+}
+
+/// A section's colour (`hueOf`): its own, or its id's, or one picked by its id for a section added later without one.
+String settingsHueOf(SettingsSection section) => section.hue ?? _hues[section.id] ?? _spareHue(section.id);
 
 /// Whether Settings is a split view in this window: exactly the sidebar's line (core/useWideScreen.ts `useSidebar`,
 /// lib/shell/wide_screen.dart), so the app changes shape once.

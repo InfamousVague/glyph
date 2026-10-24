@@ -114,7 +114,7 @@ void main() {
       expect(manifest.secrets, ['glyph-github-token']);
       expect(manifest.native, isNull);
       expect(githubPlugin.icon, 'git-branch');
-      expect(githubPlugin.settings?.hue, 'graphite');
+      expect(githubPlugin.settings?.hue, 'indigo');
       expect([for (final found in githubPlugin.settings!.settings) found.name], ['Repos', 'Token']);
     });
   });

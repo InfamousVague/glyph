@@ -400,14 +400,15 @@ void main() {
         section('about', 'About', 2),
         section('plugin:someday', 'Someday', 3, hue: 'coral'),
         section('plugin:unknown', 'Unknown', 3),
-        // Formatting's orange went with its page: a section by that id now is grey like any without one.
+        // Formatting's orange went with its page: a section by that id now takes one picked by its id, as any without
+        // one does; never grey (Matt, 2026-10-24: "make sure all settings sections icons have a color").
         section('formatting', 'Formatting', 3),
       ];
-      expect([for (final s in sections) settingsHueOf(s)], ['blue', 'purple', 'red', 'green', 'grey', 'coral', 'grey', 'grey']);
+      expect([for (final s in sections) settingsHueOf(s)], ['blue', 'purple', 'red', 'green', 'yellow', 'coral', 'mint', 'blue']);
       await _show(tester, _Props(sections: sections));
       // And each chip is that hue as the page draws it on the light page: the colour at 16% under the glyph in it.
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
-      final light = ['#0a6fe0', '#9a45c9', '#dd3a30', '#2a9d4b', '#7c7c82', '#c8643f', '#7c7c82', '#7c7c82'];
+      final light = ['#0a6fe0', '#9a45c9', '#dd3a30', '#2a9d4b', '#b58400', '#c8643f', '#1f9e8f', '#0a6fe0'];
       for (var i = 0; i < light.length; i++) {
         final ground = (chips[i].decoration! as BoxDecoration).color!;
         expect(ground, sameColor(cssColor(tester, light[i]).withValues(alpha: 0.16)), reason: sections[i].label);
@@ -612,8 +613,8 @@ void main() {
       );
       await tester.pump(const Duration(milliseconds: 16));
       expect(_lit(tester, 'Smoke at the edges'), isTrue);
-      // Lit in the section's colour, 18% of it for the first third: no hue is kept for this id, so it is grey.
-      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.18)));
+      // Lit in the section's colour, 18% of it for the first third: no hue is kept for this id, so its id picks blue.
+      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#0a6fe0').withValues(alpha: 0.18)));
       await tester.pump(const Duration(milliseconds: 1700));
       await tester.pump();
       expect(_lit(tester, 'Smoke at the edges'), isFalse);
@@ -659,9 +660,9 @@ void main() {
       await tester.pump(const Duration(milliseconds: 16));
       // Nothing arrives: the page and its row are where they rest from the first frame.
       expect(_display(tester), 'Animations');
-      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.12)));
+      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#0a6fe0').withValues(alpha: 0.12)));
       await tester.pump(const Duration(milliseconds: 800));
-      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.12)));
+      expect(_lights(tester).single.color, sameColor(cssColor(tester, '#0a6fe0').withValues(alpha: 0.12)));
       await tester.pump(const Duration(milliseconds: 1000));
       await tester.pump();
       expect(_lights(tester), isEmpty);

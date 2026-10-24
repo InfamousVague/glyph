@@ -133,7 +133,9 @@ void main() {
         expect(ours.storage, theirs.storage, reason: id);
         expect((ours.native?.generation, ours.native?.commands), (theirs.native?.generation, theirs.native?.commands), reason: id);
         expect(plugin.icon, web[index].icon, reason: id);
-        expect(plugin.settings?.hue, web[index].settings?.hue, reason: id);
+        // The page's graphite is a colour here (Matt, 2026-10-24: "make sure all settings sections icons have a color").
+        final webHue = web[index].settings?.hue;
+        expect(plugin.settings?.hue, webHue == 'graphite' ? isNot(anyOf('graphite', 'grey', isNull)) : webHue, reason: id);
         expect([for (final s in plugin.settings?.settings ?? const <SettingsFindable>[]) (s.name, s.words)], [for (final s in web[index].settings?.settings ?? const <SettingsFindable>[]) (s.name, s.words)], reason: id);
       }
     });

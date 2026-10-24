@@ -45,7 +45,7 @@ final GlyphPlugin thingsPlugin = GlyphPlugin(
   settings: PluginSettings(
     pane: (context) => ImportPane.hosted(context, kinds: const [ImportKind.things]),
     summary: () => 'Import from Things 3',
-    hue: 'graphite',
+    hue: 'blue',
     settings: _findable,
   ),
 );

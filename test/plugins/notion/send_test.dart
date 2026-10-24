@@ -204,7 +204,7 @@ void main() {
       expect(m.storage, ['glyph-notion-links', 'glyph-notion-signin', 'glyph-notion-tasks']);
       expect(notionPlugin.icon, 'square-kanban');
       expect(notionPlugin.settings!.summary(), 'Boards for your lists');
-      expect(notionPlugin.settings!.hue, 'graphite');
+      expect(notionPlugin.settings!.hue, 'orange');
       expect(identical(notionPlugin.marks, notionDetails), isTrue);
       expect(jsonEncode([for (final s in notionPlugin.settings!.settings) [s.name, s.words]]), '[["Account","sign in connect oauth workspace"],["Boards","databases lists"]]');
     });

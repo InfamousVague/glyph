@@ -53,7 +53,7 @@ final GlyphPlugin webhooksPlugin = GlyphPlugin(
   icon: 'link',
   settings: PluginSettings(
     pane: WebhooksPane.hosted,
-    hue: 'graphite',
+    hue: 'lime',
     summary: () => webhooksSummary(preferences.value),
     settings: <SettingsFindable>[...webhooksFindable()],
   ),

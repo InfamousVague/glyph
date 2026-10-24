@@ -121,7 +121,7 @@ void main() {
       expect([manifest.native!.generation, ...manifest.native!.commands], [25, 'slack_channels', 'slack_save_channel', 'slack_forget_channel', 'slack_post']);
       expect(manifest.storage, ['glyph-slack-channels', 'glyph-slack-news', 'glyph-slack-posted']);
       expect(manifest.secrets, ['glyph-slack-webhook:']);
-      expect([slackPlugin.icon, slackPlugin.settings?.hue], ['hash', 'graphite']);
+      expect([slackPlugin.icon, slackPlugin.settings?.hue], ['hash', 'magenta']);
       expect([for (final found in slackPlugin.settings!.settings) found.name], ['Channels', 'Add a channel']);
       expect([for (final action in slackPlugin.noteActions) action.id], ['slack-post-note', 'slack-post-summary']);
     });

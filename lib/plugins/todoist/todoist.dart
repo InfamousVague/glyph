@@ -46,7 +46,7 @@ final GlyphPlugin todoistPlugin = GlyphPlugin(
   settings: PluginSettings(
     pane: (context) => ImportPane.hosted(context, kinds: const [ImportKind.todoist]),
     summary: () => 'Import from Todoist',
-    hue: 'graphite',
+    hue: 'red',
     settings: _findable,
   ),
 );

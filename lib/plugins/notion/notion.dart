@@ -72,7 +72,7 @@ GlyphPlugin _make() {
     settings: PluginSettings(
       pane: (context) => const NotionPane(),
       summary: () => 'Boards for your lists',
-      hue: 'graphite',
+      hue: 'orange',
       // What Settings' search finds on the page (docs/DESIGN.md §138): its cards, by their titles.
       settings: const [
         SettingsFindable('Account', 'sign in connect oauth workspace'),

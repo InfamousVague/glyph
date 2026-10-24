@@ -56,7 +56,7 @@ bool calendarInUse([CalendarService? service]) {
 /// The page, and what the search finds on it as it stands now: Google's card is drawn only where its sign-in is
 /// offered or connected, so the list is read afresh each time it is asked for.
 class _CalendarSettings extends PluginSettings {
-  _CalendarSettings() : super(pane: (context) => const CalendarPane(), summary: () => calendarSummary(preferences.value), hue: 'graphite');
+  _CalendarSettings() : super(pane: (context) => const CalendarPane(), summary: () => calendarSummary(preferences.value), hue: 'cyan');
 
   @override
   List<SettingsFindable> get settings => calendarFindable(preferences.value, offered: calendar.offered == true);

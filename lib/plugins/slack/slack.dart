@@ -122,7 +122,7 @@ final GlyphPlugin slackPlugin = GlyphPlugin(
   icon: 'hash',
   settings: PluginSettings(
     pane: (context) => const SlackPane(),
-    hue: 'graphite',
+    hue: 'magenta',
     summary: _summary,
     // What Settings' search finds on the page: its cards, by their titles.
     settings: const [SettingsFindable('Channels', 'webhook test message organizations news'), SettingsFindable('Add a channel', 'incoming webhook hooks.slack.com')],

@@ -53,7 +53,7 @@ final GlyphPlugin contactsPlugin = GlyphPlugin(manifest: contactsManifest, icon:
 
 /// The page, and what the search finds on it as it stands now: the people once the phone allows it.
 class _ContactsSettings extends PluginSettings {
-  _ContactsSettings() : super(pane: (context) => const ContactsPane(), summary: () => contactsSummary(phoneContacts), hue: 'graphite');
+  _ContactsSettings() : super(pane: (context) => const ContactsPane(), summary: () => contactsSummary(phoneContacts), hue: 'rose');
 
   @override
   List<SettingsFindable> get settings => contactsFindable(phoneContacts);

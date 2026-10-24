@@ -216,7 +216,7 @@ class _OrganizationSheetState extends State<OrganizationSheet> {
         id: 'general',
         label: 'General',
         icon: const AppIcon(Lucide.slidersHorizontal, size: 16),
-        hue: 'graphite',
+        hue: 'indigo',
         group: 0,
         content: (context) => org != null && row != null
             ? _General(

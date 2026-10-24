@@ -130,11 +130,12 @@ void main() {
       }
     });
 
-    testWidgets('wear the web’s colours: Account and Organizations blue, Notifications coral, Appearance purple, Recording red, Plugins green, the rest grey', (tester) async {
+    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, Plugins green, About yellow; none grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
-      // Appearance's purple under Account's card since 2026-10-24.
-      final want = ['#0a6fe0', '#0a6fe0', '#7c7c82', '#c8643f', '#9a45c9', '#7c7c82', '#7c7c82', '#7c7c82', '#dd3a30', '#7c7c82', '#2a9d4b', '#7c7c82'];
+      // Appearance's purple under Account's card since 2026-10-24; no row grey since the same day (Matt: "make sure all
+      // settings sections icons have a color").
+      final want = ['#0a6fe0', '#0a6fe0', '#4f5bd5', '#c8643f', '#9a45c9', '#0a86a8', '#5a8a00', '#d6336c', '#dd3a30', '#b5279f', '#2a9d4b', '#b58400'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');
@@ -190,9 +191,9 @@ void main() {
       expect(_display(tester), 'Backup');
       expect(find.text('Not ported yet'), findsNothing);
       expect(find.text('Backups need the app'), findsOneWidget);
-      // In the section's colour.
+      // In the section's colour, Backup's lime.
       final tile = find.descendant(of: find.byType(SettingsEmpty), matching: find.byType(Container)).at(1);
-      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#7c7c82').withValues(alpha: 0.16)));
+      expect((tester.widget<Container>(tile).decoration! as BoxDecoration).color, sameColor(cssColor(tester, '#5a8a00').withValues(alpha: 0.16)));
       await _tap(tester, find.byKey(const ValueKey('settings-head-word')));
       await _tap(tester, _rowFor('Library folder'));
       expect(find.text('Needs the app’s next update'), findsOneWidget);

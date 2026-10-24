@@ -73,7 +73,7 @@ final GlyphPlugin githubPlugin = GlyphPlugin(
   icon: 'git-branch',
   settings: PluginSettings(
     pane: (context) => const GitHubPane(),
-    hue: 'graphite',
+    hue: 'indigo',
     // What Settings' search finds on the page: its cards, by their titles.
     settings: const [SettingsFindable('Repos', 'repositories briefing context'), SettingsFindable('Token', 'private issues')],
     summary: _summary,
