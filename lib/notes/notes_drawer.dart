@@ -38,6 +38,7 @@ class NotesDrawer extends StatelessWidget {
     this.onRestore,
     this.onDestroy,
     this.onEmptyTrash,
+    this.onOpenTrash,
     this.onOrganization,
     this.onBrowseFiles,
     this.onGraph,
@@ -76,6 +77,9 @@ class NotesDrawer extends StatelessWidget {
   final void Function(Note note)? onRestore;
   final void Function(Note note)? onDestroy;
   final VoidCallback? onEmptyTrash;
+
+  /// The Trash's own page, from its folder (lib/notes/note_tree.dart `onOpenTrash`).
+  final ValueChanged<String?>? onOpenTrash;
 
   /// An organization's own screen, from its folder's menu.
   final void Function(String orgId)? onOrganization;
@@ -128,6 +132,7 @@ class NotesDrawer extends StatelessWidget {
         onRestore: onRestore,
         onDestroy: onDestroy,
         onEmptyTrash: onEmptyTrash,
+        onOpenTrash: onOpenTrash,
         onOrganization: onOrganization,
         onBrowseFiles: onBrowseFiles,
         onGraph: onGraph,

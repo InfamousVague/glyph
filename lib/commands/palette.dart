@@ -158,6 +158,7 @@ class PaletteDoing {
     this.today,
     this.askClaude,
     this.tags,
+    this.trash,
     this.openSmart,
   });
 
@@ -227,6 +228,9 @@ class PaletteDoing {
   final VoidCallback? askClaude;
   final VoidCallback? tags;
   final void Function(String id)? openSmart;
+
+  /// The Trash, as a section of its own (lib/notes/trash_sheet.dart, 2026-10-23); offered in simple mode too.
+  final VoidCallback? trash;
 }
 
 /// A row of the palette and what choosing it does (`PaletteCommand`).
@@ -363,6 +367,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   if (speak != null) add('speak', 'Speak a new note', 'Notes', 'record voice dictate mic talk', speak);
   add('list', 'Home', 'Notes', 'home list back dashboard start', doing.showList);
   add('notes', 'All notes', 'Notes', 'browse every grid cards library search archive', doing.browseNotes);
+  final trash = doing.trash;
+  if (trash != null) add('trash', 'Trash', 'Notes', 'deleted bin restore empty delete for good', trash);
   final graph = simple ? null : doing.graph;
   if (graph != null) add('graph', 'Graph of your notes', 'Notes', 'graph links network map backlinks', graph);
   final today = doing.today;

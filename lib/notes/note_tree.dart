@@ -79,6 +79,7 @@ class NoteTree extends StatefulWidget {
     this.onRestore,
     this.onDestroy,
     this.onEmptyTrash,
+    this.onOpenTrash,
     this.onOrganization,
     this.onBrowseFiles,
     this.onGraph,
@@ -111,6 +112,11 @@ class NoteTree extends StatefulWidget {
   final void Function(Note note)? onRestore;
   final void Function(Note note)? onDestroy;
   final VoidCallback? onEmptyTrash;
+
+  /// The Trash as a section of its own (lib/notes/trash_sheet.dart; Matt, 2026-10-23: "add a "trash" section in the
+  /// app"), on a note's page for the note whose name was pressed, or on its list for Open the Trash under them. Left
+  /// out, a name in the folder is words, as before.
+  final ValueChanged<String?>? onOpenTrash;
 
   /// An organization's own screen, from its folder's menu.
   final void Function(String orgId)? onOrganization;
@@ -261,7 +267,7 @@ class _NoteTreeState extends State<NoteTree> {
       hairline: look.hairline,
       peek: widget.peek,
       // What the rows are handed, a bit each: a callback left out is a button not drawn.
-      seams: (widget.onNoteMenu != null ? 1 : 0) | (widget.onOrganization != null ? 2 : 0) | (widget.onEmptyTrash != null ? 4 : 0) | (widget.onRestore != null ? 8 : 0) | (widget.onDestroy != null ? 16 : 0),
+      seams: (widget.onNoteMenu != null ? 1 : 0) | (widget.onOrganization != null ? 2 : 0) | (widget.onEmptyTrash != null ? 4 : 0) | (widget.onRestore != null ? 8 : 0) | (widget.onDestroy != null ? 16 : 0) | (widget.onOpenTrash != null ? 32 : 0),
       // The ghost over an empty list is made anew by whoever hands it over: asked about only while it is drawn.
       art: nothing ? widget.emptyArt : null,
       // The smart notebooks and the Tags row.
@@ -578,13 +584,19 @@ class _NoteTreeState extends State<NoteTree> {
                               Expanded(
                                 // `.trashRow .rowTitle { flex: 1; white-space: nowrap; text-overflow: ellipsis; color: var(--app-ink-2) }`,
                                 // under `.rowTitle[data-untitled]`, which comes later in the sheet and so keeps its colour.
-                                child: cssLines(
-                                  said,
-                                  look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold', color: t.color('app-ink-2')),
-                                  maxLines: 1,
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
+                                // Pressed, the Trash opens on the note's page (2026-10-23): when it went in, and
+                                // where Restore puts it.
+                                child: () {
+                                  final words = cssLines(
+                                    said,
+                                    look.rowTitle(untitled: title.isEmpty, weight: compact ? 'medium' : 'semibold', color: t.color('app-ink-2')),
+                                    maxLines: 1,
+                                    softWrap: false,
+                                    overflow: TextOverflow.ellipsis,
+                                  );
+                                  if (widget.onOpenTrash == null) return words;
+                                  return GlacierPressable(key: ValueKey('trash-open-${note.id}'), onPressed: () => widget.onOpenTrash!(note.id), semanticLabel: '$said, in the Trash', builder: (context, _) => words);
+                                }(),
                               ),
                               if (widget.onRestore != null)
                                 _Small(look: look, hides: false, rowHovered: hovered, label: 'Restore $said', icon: Lucide.rotateCcw, iconSize: 15, stroke: 2.2, onPressed: () => widget.onRestore!(note)),
@@ -596,6 +608,30 @@ class _NoteTreeState extends State<NoteTree> {
                       ),
                     );
                   }(),
+                // The Trash's own page: every note in it with when it went in, and the thirty days' rule.
+                if (widget.onOpenTrash != null)
+                  CssFlow.block(
+                    key: const ValueKey('trash-open'),
+                    margin: const EdgeInsets.symmetric(vertical: 1),
+                    child: GlacierPressable(
+                      onPressed: () => widget.onOpenTrash!(null),
+                      semanticLabel: 'Open the Trash',
+                      // The row's whole width is the button, as a trashed note's row is its own.
+                      builder: (context, state) => Container(
+                        width: double.infinity,
+                        padding: EdgeInsets.fromLTRB(0.6 * look.em, 0.35 * look.em, 0.4 * look.em, 0.35 * look.em),
+                        child: ExcludeSemantics(
+                          child: cssLines(
+                            'Open the Trash',
+                            look.rowTitle(untitled: false, weight: 'medium', color: state.hovered ? t.color('app-ink-2') : t.color('app-ink-3')),
+                            maxLines: 1,
+                            softWrap: false,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
               ]),
           ],
         );

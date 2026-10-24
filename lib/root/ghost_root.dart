@@ -136,6 +136,7 @@ import '../notes/note_tree.dart';
 import '../notes/notes_drawer.dart';
 import '../notes/notices.dart' as notices;
 import '../notes/notifications_drawer.dart';
+import '../notes/trash_sheet.dart';
 import '../notes/workspace_sheet.dart';
 import '../orgs/join_links.dart' show readJoinLink;
 import '../orgs/ui/fed_notifications.dart';
@@ -1264,6 +1265,8 @@ class _GhostRootState extends State<GhostRoot> {
   void _syncChanged() {
     _syncAt += 1;
     _tick.tell();
+    // A pass finished: the trash is as the account has it, so what has waited its thirty days may go.
+    if (_services?.engine?.status.value.phase == 'idle') _purgeTrash();
   }
 
   /// What the account is listened to by, less where its sync stands (`AccountServices.changes` is all of them).
@@ -1490,7 +1493,13 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// The workspace sheet: shut, a new one (inside [parent] from a folders' strip's New folder, GHST-107), or one
   /// to change.
-  ({Workspace? editing, String? parent})? _workspace;
+  ({Workspace? editing, String? parent, bool deleting})? _workspace;
+
+  /// The Trash's sheet (lib/notes/trash_sheet.dart): shut, open on its list, or on one note's page ([note]).
+  ({String? note})? _trashSheet;
+
+  /// When the trash last let go of the notes whose thirty days were up, in this run ([_purgeTrash]).
+  int? _purgedAt;
 
   /// The smoke at the edges is the art's own switch (lib/art/wisp_settings.dart), which follows the preference.
   late final ValueListenable<bool> _wispEdge = preferences.select((prefs) => prefs.wispEdge);
@@ -1706,6 +1715,9 @@ class _GhostRootState extends State<GhostRoot> {
     if (mounted) unawaited(_offerCommandUndo());
     // And the tags that waited for a pass or a note's first words while the app was away.
     if (mounted) _settleTags();
+    // And the notes whose thirty days in the Trash are up, on a device that does not sync: one that does waits for
+    // its first pass, so a note brought back on another device is not deleted here before the news of it lands.
+    if (mounted && _services?.session == null) _purgeTrash();
     // The links that opened the app wait for the notes to be read, so a copy lands in a library that is there and
     // a note opened is one the list has.
     final links = widget.links;
@@ -1871,6 +1883,27 @@ class _GhostRootState extends State<GhostRoot> {
   }
 
   void _trashNotes(Iterable<String> ids) => ids.forEach(_trash.trashNote);
+
+  /// The Trash, as a section of its own (lib/notes/trash_sheet.dart), on its list or on [note]'s page.
+  void _openTrash([String? note]) => setState(() => _trashSheet = (note: note));
+
+  /// Whether a note is an organization's: filed in its workspace or a folder under it.
+  bool _isTeamNote(String id) {
+    final space = _workspaces.workspaceOf(id);
+    return space != null && _workspaces.orgOf(space.id) != null;
+  }
+
+  /// The notes that have waited [trashKeeps] in the Trash, deleted for good (lib/core/trash.dart `expiredInTrash`):
+  /// at launch on a device that does not sync, after a pass on one that does, and at most once an hour. An
+  /// organization's note waits for the person's own Empty: deleting it for good deletes it for the whole team.
+  void _purgeTrash() {
+    final now = widget.clock?.call() ?? DateTime.now().millisecondsSinceEpoch;
+    final last = _purgedAt;
+    if (_library.loading || (last != null && now - last < Duration.millisecondsPerHour)) return;
+    _purgedAt = now;
+    final due = expiredInTrash(_trashed, _trash.value, now, kept: _isTeamNote);
+    if (due.isNotEmpty) unawaited(_actions.purge(due));
+  }
 
   void _organizationSettings(String id) => _openOrganizationSettings(id, OrganizationFrom.settings);
 

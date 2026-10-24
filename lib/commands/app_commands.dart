@@ -147,6 +147,7 @@ PaletteDoing paletteDoingFor({
   VoidCallback? askClaude,
   VoidCallback? tags,
   void Function(String id)? openSmart,
+  VoidCallback? trash,
 }) {
   final store = prefs ?? preferences;
   return PaletteDoing(
@@ -187,6 +188,7 @@ PaletteDoing paletteDoingFor({
     askClaude: askClaude,
     tags: tags,
     openSmart: openSmart,
+    trash: trash,
   );
 }
 

@@ -233,6 +233,33 @@ class NoteActions extends ChangeNotifier with WidgetsBindingObserver {
     say(NoteToast(notes.length == 1 ? 'Deleted 1 note for good.' : 'Deleted ${notes.length} notes for good.'));
   }
 
+  /// The notes whose thirty days in the trash are up, deleted for good as Empty Trash deletes them, without a word:
+  /// nobody asked for it just now, and the Trash's foot said it would happen (lib/core/trash.dart `trashKeeps`).
+  /// Answers how many went.
+  Future<int> purge(List<Note> notes) async {
+    var gone = 0;
+    for (final note in notes) {
+      // Brought back on another device and synced here since the list was made: it stays.
+      if (!(trash?.isTrashed(note.id) ?? false)) continue;
+      try {
+        await library.destroy(note.id);
+        _forgetKept(note.id);
+        trash?.forget([note.id]);
+        gone += 1;
+      } catch (error) {
+        debugPrint('[glyph] the trash kept a note it should have let go: $error');
+      }
+    }
+    if (gone > 0) {
+      try {
+        await library.refresh();
+      } catch (error) {
+        debugPrint('[glyph] refresh after the trash let go failed: $error');
+      }
+    }
+    return gone;
+  }
+
   /// Deleted for good, from the trash: hidden at once, and gone from the library when its Undo runs out.
   void destroy(Note note) {
     // One undo at a time: the toast is latest-wins, so an earlier delete whose Undo is about to disappear from the

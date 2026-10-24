@@ -114,6 +114,8 @@ class AllNotesScreen extends StatefulWidget {
     this.simple = false,
     this.onNewFolder,
     this.onNewNote,
+    this.trashCount = 0,
+    this.onTrash,
   });
 
   /// Every note the app shows: the trash and the notes hidden by a delete already taken out.
@@ -183,6 +185,12 @@ class AllNotesScreen extends StatefulWidget {
   /// New note on the folders' strip and in the icon view: a note filed in the workspace given, by id, or in none at
   /// the top, opened ready to type. Absent, neither offers one.
   final ValueChanged<String?>? onNewNote;
+
+  /// How many notes are in the Trash, and the way into it (lib/notes/trash_sheet.dart; Matt, 2026-10-23: "add a
+  /// "trash" section in the app where deleted notes go before getting perma deleted"): a Trash word at the end of
+  /// the line of order words, beside Archived, while it holds any. Simple mode keeps it, as it keeps Archived.
+  final int trashCount;
+  final VoidCallback? onTrash;
 
   @override
   State<AllNotesScreen> createState() => _AllNotesScreenState();
@@ -533,6 +541,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
     final inArchive = read.inArchive;
     final withTape = read.withTape;
     final live = read.live;
+    final trash = widget.trashCount > 0 && widget.onTrash != null;
     final searched = _query.trim().isNotEmpty;
     // What a search is counted out of: the tapes when only they are shown, else the notes, and the archive with them.
     final outOf = _tapes ? withTape : live + (_archived ? inArchive : 0);
@@ -659,14 +668,19 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
                         // end with the archive's word: the one place on the line that moves nothing the page is held
                         // to (test/allnotes, where things stand). Simple mode keeps the cards.
                         if (!widget.simple || inArchive > 0)
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            spacing: t.space(3),
-                            children: [
+                          () {
+                            final words = [
                               if (!widget.simple) BrowseViewToggle(key: const ValueKey('all-notes-view'), view: view, onView: _setView),
                               if (inArchive > 0) _Word(key: const ValueKey('archive-word'), label: 'Archived · $inArchive', icon: AppIcons.archiveBox, on: _archived, onPressed: () => setState(() => _archived = !_archived)),
-                            ],
-                          ),
+                              if (trash) _Word(key: const ValueKey('trash-word'), label: 'Trash · ${widget.trashCount}', icon: AppIcons.bin, on: false, onPressed: widget.onTrash!),
+                            ];
+                            if (!trash) return Row(mainAxisSize: MainAxisSize.min, spacing: t.space(3), children: words);
+                            // With the Trash's word too, the line may be more than a phone has: what does not fit
+                            // goes under it, at its end. Where it fits, it stands as the line of one would.
+                            return Flexible(child: Wrap(alignment: WrapAlignment.end, crossAxisAlignment: WrapCrossAlignment.center, spacing: t.space(3), runSpacing: t.space(2), children: words));
+                          }()
+                        else if (trash)
+                          _Word(key: const ValueKey('trash-word'), label: 'Trash · ${widget.trashCount}', icon: AppIcons.bin, on: false, onPressed: widget.onTrash!),
                       ],
                     ),
                   ],

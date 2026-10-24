@@ -52,6 +52,8 @@ extension _RootParts on _GhostRootState {
         ),
         _part('newBook', () => _bookSheet == null ? null : (_bookSheet, _bookInto, _shown), _newBookPart),
         _part('workspace', () => _workspace, _workspacePart),
+        // The Trash (lib/notes/trash_sheet.dart), with the notes in it as they are now, while it is open.
+        _part('trash', () => _trashSheet == null ? null : (_trashSheet, _trashed, _trash.value, _made?.hidden, _workspaces.value, preferences.value.simple), _trashPart),
         // The chat with Claude (lib/claude/claude_chat.dart): it hears the runner for itself while it is up.
         _part('askClaude', () => (_askClaude && _claudeOn, _chatAgent, _chatInitial), _askClaudePart),
         // Claude talked to (lib/claude/claude_voice_sheet.dart): it hears the talk for itself while it is up.
@@ -234,7 +236,7 @@ extension _RootParts on _GhostRootState {
       homeBuilder: _home,
       allNotesBuilder: (context, shell, screen) => _part(
         'allNotes',
-        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple),
+        () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple, _trashed.length),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
           sideKey: defaultTargetPlatform == TargetPlatform.android,
@@ -261,6 +263,9 @@ extension _RootParts on _GhostRootState {
           onNewFolder: _newFolder,
           // New note on the strip and in the icon view: filed in the level shown, or in none at the top.
           onNewNote: _new,
+          // The Trash's word, beside Archived, while it holds any.
+          trashCount: _trashed.length,
+          onTrash: _openTrash,
         ),
       ),
       // The Tags page, a tag's notes and a smart notebook's (lib/notes/collection_screen.dart).
@@ -326,6 +331,10 @@ extension _RootParts on _GhostRootState {
           onRestore: _actions.restore,
           onDestroy: _actions.destroy,
           onEmptyTrash: () => _actions.emptyTrash(_trashed),
+          onOpenTrash: (id) {
+            close();
+            _openTrash(id);
+          },
           notesInWorkspace: _notesIn,
           onTrashNotes: _trashNotes,
           onOrganization: _services == null ? null : _openOrganizationSettings,
@@ -539,7 +548,7 @@ extension _RootParts on _GhostRootState {
       },
       onRefresh: _pullRefresh,
       onNoteMenu: _menu.open,
-      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null)),
+      onManageWorkspace: (workspace) => _told(() => _workspace = (editing: workspace, parent: null, deleting: false)),
       // New folder on the folders' strip (GHST-107): the sheet for a folder inside the chosen workspace.
       onNewFolder: _newFolder,
       // New note on the strip and in the icon view: a note filed in the folder shown.
@@ -719,6 +728,7 @@ extension _RootParts on _GhostRootState {
         today: _organize.today,
         askClaude: _claudeOn ? () => _openAskClaude() : null,
         tags: _organize.showTags,
+        trash: _openTrash,
         openSmart: _organize.showSmart,
       ),
     );
@@ -815,7 +825,11 @@ extension _RootParts on _GhostRootState {
 
   /// The workspace sheet for a new folder inside [parent] (the folders' strips' and tiles' New folder, GHST-107), or
   /// at the top for null (the icon view with nothing chosen).
-  void _newFolder(String? parent) => _told(() => _workspace = (editing: null, parent: parent));
+  void _newFolder(String? parent) => _told(() => _workspace = (editing: null, parent: parent, deleting: false));
+
+  /// A folder's sheet from its menu (lib/notes/folder_menu.dart): to rename it, or at its Delete, which asks what
+  /// becomes of its notes, as the sheet's own Delete does.
+  void _manageFolder(Workspace folder, {bool deleting = false}) => _told(() => _workspace = (editing: folder, parent: null, deleting: deleting));
 
   Widget _workspacePart(BuildContext context) {
     final sheet = _workspace;
@@ -826,10 +840,36 @@ extension _RootParts on _GhostRootState {
       // A folder inside another, from a strip's New folder: the sheet says where it goes.
       parent: sheet.parent,
       folders: sheet.parent != null,
+      deleting: sheet.deleting,
       onClose: () => _told(() => _workspace = null),
       onOrganization: _services == null ? null : _openOrganizationSettings,
       notesIn: _notesIn,
       onTrashNotes: _trashNotes,
+    );
+  }
+
+  Widget _trashPart(BuildContext context) {
+    final sheet = _trashSheet;
+    if (sheet == null) return _nothing;
+    final hidden = _made?.hidden ?? const <String>{};
+    final spaces = _workspaces.value;
+    return TrashSheet(
+      key: ValueKey('trash-sheet:${sheet.note}'),
+      // Less a note deleted for good whose Undo still stands: it has gone, as far as the person can see.
+      notes: [for (final note in _trashed) if (!hidden.contains(note.id)) note],
+      held: _trash.value,
+      open: sheet.note,
+      onRestore: _actions.restore,
+      onDestroy: _actions.destroy,
+      onEmpty: () => _actions.emptyTrash([for (final note in _trashed) if (!hidden.contains(note.id)) note]),
+      onClose: () => _told(() => _trashSheet = null),
+      teamNote: _isTeamNote,
+      placeOf: (id) {
+        final space = _workspaces.workspaceOf(id);
+        return space == null ? null : workspacePathName(spaces.list, space.id);
+      },
+      simple: preferences.value.simple,
+      now: widget.clock,
     );
   }
 
@@ -938,6 +978,10 @@ extension _RootParts on _GhostRootState {
       onRestore: _actions.restore,
       onDestroy: _actions.destroy,
       onEmptyTrash: () => _actions.emptyTrash(_trashed),
+      onOpenTrash: (id) {
+        onClose?.call();
+        _openTrash(id);
+      },
       notesInWorkspace: _notesIn,
       onTrashNotes: _trashNotes,
       // An organization's workspace's "…" is the organization's settings.

@@ -30,7 +30,7 @@ import 'workspace_swatch.dart';
 ///   goes (the web's `deleteWorkspace(id, { trashNotes: true })`). Without [onTrashNotes] the row that would use it
 ///   is there and cannot be pressed.
 class WorkspaceManageSheet extends StatefulWidget {
-  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes});
+  const WorkspaceManageSheet({super.key, required this.store, this.editing, this.parent, this.folders = false, this.deleting = false, required this.onClose, this.onOrganization, this.notesIn, this.onTrashNotes});
 
   final WorkspaceStore store;
 
@@ -43,6 +43,11 @@ class WorkspaceManageSheet extends StatefulWidget {
   /// Whether a workspace's sheet offers New folder inside and Move: the sidebar's and Settings' do; left out, the
   /// sheet is the web page's, row for row, as the tests that hold it to the page draw it.
   final bool folders;
+
+  /// Whether the sheet opens at Delete, asking what becomes of the notes: a folder's menu's Delete folder
+  /// (lib/notes/folder_menu.dart; Matt, 2026-10-23: "add a right click context menu to files and folders to delete
+  /// them"). Cancel there shuts the sheet, which was opened for nothing else.
+  final bool deleting;
   final VoidCallback onClose;
 
   /// An organization's own screen, for its workspace's one row.
@@ -63,7 +68,7 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
   late String _hue = widget.editing?.hue ?? 'ink';
 
   /// Delete pressed: the sheet asks what becomes of the notes before anything goes.
-  bool _deleting = false;
+  late bool _deleting = widget.deleting;
 
   /// New folder inside pressed: the sheet makes a folder inside the one it is up for.
   bool _making = false;
@@ -75,10 +80,10 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
   void didUpdateWidget(WorkspaceManageSheet old) {
     super.didUpdateWidget(old);
     // `useEffect(..., [editing, which])`: another workspace in the same sheet starts again from its own.
-    if (old.editing != widget.editing) {
+    if (old.editing != widget.editing || old.deleting != widget.deleting) {
       _name = widget.editing?.name ?? '';
       _hue = widget.editing?.hue ?? 'ink';
-      _deleting = false;
+      _deleting = widget.deleting;
       _making = false;
       _moving = false;
     }
@@ -216,7 +221,7 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
                 ),
               ] else
                 SheetRow(label: 'Delete workspace', danger: true, onPress: () => _delete(editing, notes, trashNotes: false)),
-              SheetRow(label: 'Cancel', onPress: () => setState(() => _deleting = false)),
+              SheetRow(label: 'Cancel', onPress: widget.deleting ? widget.onClose : () => setState(() => _deleting = false)),
             ],
           ),
         ],
