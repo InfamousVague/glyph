@@ -6,7 +6,7 @@ import 'accent_swatch.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
-import 'panes/settings_host.dart' show SettingsHost;
+import 'mode_cards.dart';
 import 'scale_cards.dart';
 import 'settings_screen.dart' show settingsSplitFits;
 import 'settings_search.dart';
@@ -18,13 +18,16 @@ import '../core/iphone_app.dart' show recordsVoice;
 
 /// What Settings' search finds on Appearance (`findable`, src/app/settings/AppearancePane.findable.ts), by the names
 /// the page draws, in its order. Type, Motion and Touch were pages of their own until docs/DESIGN.md §138: each
-/// page's words are its card's now, so looking for "type" or "animations" still lands.
+/// page's words are its card's now, so looking for "type" or "animations" still lands. So was Simple or advanced until
+/// 2026-10-24, and its card is first here now in either mode ([experienceFindable]): "mode", "simple" and "advanced"
+/// land on it.
 ///
 /// Two rows are drawn only where they do something, and listed only there: the sidebar's choice on a window wide
 /// enough for the sidebar, and the haptics where there is a motor. In Simple ([Preferences.simple]) the page is the
 /// theme and the text size and nothing else, so that is all the search finds on it: "accent" typed in Simple finds
 /// nothing, rather than a card that is not there.
 List<SettingsFindable> appearanceFindable({required bool wide, required bool haptics, bool simple = false}) => [
+      ...experienceFindable,
       const SettingsFindable('Page', 'theme light dark system dawn boreal ember'),
       if (simple) ...[
         const SettingsFindable('Type', 'text font'),
@@ -59,20 +62,24 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
       for (final entry in words.entries) GlacierSegmentedOption(value: entry.key, label: Text(entry.value)),
     ];
 
-/// Port of `AppearancePane` (src/app/settings/AppearancePane.tsx): how the app looks, moves and feels. The page
-/// first, then how the home page is laid out and how the top bar is, each as cards that are the thing drawn small,
-/// then its one colour, then the type, how much air it gives itself and how round its corners are, then the colours
-/// of code, then how it moves and how it answers a touch.
+/// Port of `AppearancePane` (src/app/settings/AppearancePane.tsx): how the app looks, moves and feels. How much of
+/// the app there is first ([modeSection]), then the page, then how the home page is laid out and how the top bar
+/// is, each as cards that are the thing drawn small, then its one colour, then the type, how much air it gives
+/// itself and how round its corners are, then the colours of code, then how it moves and how it answers a touch.
 ///
 /// Every control writes the app's preferences ([store], the app's own unless a test brings one), and the app's theme
 /// is built from them, so each choice is seen at once. The sidebar's choice is drawn only on a window wide enough
 /// for the sidebar, and Touch only where there is a motor.
 ///
-/// In Simple (GHST-103; Matt, 2026-10-18) the page is the theme cards and the text size alone, with one line under
-/// them saying where the rest is: a new person asked for less, and twelve cards of looks are the most of Settings
-/// there is. The rest comes back the moment Advanced is chosen, with whatever was set on it before.
+/// In Simple (GHST-103; Matt, 2026-10-18) the page is the mode, the theme cards and the text size alone: a new person
+/// asked for less, and twelve cards of looks are the most of Settings there is. The rest comes back the moment
+/// Advanced is chosen on the first card, with whatever was set on it before. The mode's card heads the page in
+/// either mode (Matt, 2026-10-24: "move the simple or advanced toggle under appearance"); until then it was a page of
+/// its own, and Simple's Appearance ended in a line, "More looks are in Advanced", whose word led there. With the
+/// choice on the page itself the line had nowhere to send anyone, and went.
 ///
 /// What differs from the web original:
+/// - The first card, the mode, is the port's own: the web app has no mode.
 /// - Controls whose feature has no Flutter port yet still write their preference and change nothing more: the home
 ///   page's layout and the top bar's style until those screens read them, the code colours, the sidebar's style,
 ///   the three Motion switches, and the note's face until there is a note to set in it.
@@ -145,31 +152,14 @@ class AppearancePane extends StatelessWidget {
           control: segments('Text size', sizeWords, prefs.textSize, (value) => set((now) => now.copyWith(textSize: value))),
         );
 
-        if (prefs.simple) {
-          // The way to the rest, said once and quietly, under the two cards: the word lands on Simple or advanced.
-          final host = SettingsHost.maybeOf(context);
-          return PaneBody(
-            children: [
-              page,
-              PaneSection(title: 'Type', description: sample, children: [textSize]),
-              SettingsFootnote(
-                key: const ValueKey('appearance-more-looks'),
-                child: Text.rich(
-                  TextSpan(
-                    children: [
-                      const TextSpan(text: 'More looks are in '),
-                      WidgetSpan(alignment: PlaceholderAlignment.baseline, baseline: TextBaseline.alphabetic, child: GoWord('Advanced', onPress: host == null ? null : () => host.go('experience'))),
-                      const TextSpan(text: '.'),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          );
-        }
+        // How much of the app there is, first in either mode: in Simple it is the way to the rest of these cards.
+        final mode = modeSection(prefs: prefs, store: store);
+
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize])]);
 
         return PaneBody(
           children: [
+            mode,
             page,
             // The home page's four layouts, each a card that is the page drawn small.
             PaneSection(

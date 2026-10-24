@@ -1,65 +1,53 @@
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/app_icon.dart';
-import '../../art/lucide.g.dart';
-import '../../core/preferences.dart';
-import '../../guide/pages/mode.dart' show experienceChoices;
-import '../choice_card.dart';
-import '../kit/settings_icons.dart';
-import '../kit/settings_kit.dart';
-import '../kit/settings_type.dart';
-import '../settings_search.dart';
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
+import '../core/preferences.dart';
+import '../guide/pages/mode.dart' show experienceChoices;
+import 'choice_card.dart';
+import 'kit/settings_icons.dart';
+import 'kit/settings_kit.dart';
+import 'kit/settings_type.dart';
+import 'settings_search.dart';
 
-/// What Settings' search finds on Simple or advanced: the one card, by the name it draws.
+/// What Settings' search finds of the mode on Appearance: the one card, by the name it draws.
 const List<SettingsFindable> experienceFindable = [SettingsFindable('Mode', 'simple advanced beginner everything hide more fewer')];
 
-/// The row's line: the mode the app is in. Before the choice is ever made the app is advanced ([Preferences.experience]
-/// reads so), and the line says that rather than nothing: it is true, and it is what a tap on the row would show lit.
+/// The mode the app is in, said in a word: the first of Appearance's line on the list, since its first card is the
+/// choice. Before the choice is ever made the app is advanced ([Preferences.experience] reads so), and the word says
+/// that rather than nothing: it is true, and it is what the card would show lit.
 String experienceSummary(Preferences prefs) => prefs.simple ? 'Simple' : 'Advanced';
 
-/// Settings › Simple or advanced (GHST-103): the same choice the walkthrough asks on its "How much of it?" page, for
-/// anyone who wants to change it later. Matt, 2026-10-17: "allow selecting between simple and advanced mode where
-/// simple mode has a much more approachable UI with fancy features hidden behind more". Two cards, as Appearance
-/// chooses a theme, with the walkthrough's own words under each ([experienceChoices]), and a line under the card
-/// saying what Simple puts away, so nobody fears losing their boards by tapping it.
+/// Simple or advanced (GHST-103), as Settings asks it: the first card of Appearance, in Simple and in Advanced alike.
+/// The same choice the walkthrough asks on its "How much of it?" page, for anyone who wants to change it later. Matt,
+/// 2026-10-17: "allow selecting between simple and advanced mode where simple mode has a much more approachable UI
+/// with fancy features hidden behind more". Two cards, as the theme is chosen under it, with the walkthrough's own
+/// words under each ([experienceChoices]), and a line under the card saying what Simple puts away, so nobody fears
+/// losing their boards by tapping it.
+///
+/// It was a page of its own heading Settings' list until Matt, 2026-10-24: "move the simple or advanced toggle under
+/// appearance and move appearnce up in the settings to under account". The page's `experience` id still lands, on
+/// this card, lit ([settingsAliases], lib/settings/settings_sections.dart).
 ///
 /// A tap is the choice, with nothing to confirm, and writes it the one way every place does
 /// ([Preferences.choosing]): the mode, that it was chosen, and for Simple the notes opened formatted. Settings
-/// itself answers at once, since its list is read from the preferences: the sections Simple hides leave the list
-/// under the person's finger.
+/// itself answers at once, since its list and Appearance's cards are read from the preferences: the sections Simple
+/// hides leave the list, and the cards it hides leave the page under the person's finger, this one staying first.
 ///
 /// Nothing of the web app's to port: the choice is new with the Flutter app.
-class ExperiencePane extends StatelessWidget {
-  const ExperiencePane({super.key, this.store});
-
-  /// The preferences to read and write; the app's own when null.
-  final PreferencesStore? store;
-
-  @override
-  Widget build(BuildContext context) {
-    final store = this.store ?? preferences;
-    return ValueListenableBuilder<Preferences>(
-      valueListenable: store,
-      builder: (context, prefs, _) => PaneBody(
-        children: [
-          PaneSection(
-            title: 'Mode',
-            description: const Text('Start simple and grow into the rest, or have it all from the first day.'),
-            // Matt's worry for a new person is the opposite of an old hand's: the first needs less, the second needs to
-            // know that less is not loss.
-            footer: const Text('Boards, databases, canvases, AI, teams and most settings wait behind Advanced. Nothing is lost: switch back any time.'),
-            children: [
-              // Unlike the walkthrough, which lights Simple for a new person, this lights what the app is: advanced
-              // until the choice is made, which is what every section on the list behind this page is answering to.
-              SettingRowBox(child: ExperienceCards(value: prefs.experience, onValueChange: (mode) => store.update((now) => now.choosing(mode)))),
-            ],
-          ),
-        ],
-      ),
+PaneSection modeSection({required Preferences prefs, required PreferencesStore store}) => PaneSection(
+      title: 'Mode',
+      description: const Text('Start simple and grow into the rest, or have it all from the first day.'),
+      // Matt's worry for a new person is the opposite of an old hand's: the first needs less, the second needs to
+      // know that less is not loss.
+      footer: const Text('Boards, databases, canvases, AI, teams and most settings wait behind Advanced. Nothing is lost: switch back any time.'),
+      children: [
+        // Unlike the walkthrough, which lights Simple for a new person, this lights what the app is: advanced until
+        // the choice is made, which is what every section on the list is answering to.
+        SettingRowBox(child: ExperienceCards(value: prefs.experience, onValueChange: (mode) => store.update((now) => now.choosing(mode)))),
+      ],
     );
-  }
-}
 
 /// The two modes as choice cards (choice_card.dart), in the pattern of the theme cards: a picture over its words and
 /// a tick. The picture is the walkthrough's sign for each, a feather for Simple and a grid of everything for

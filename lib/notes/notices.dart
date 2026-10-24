@@ -456,7 +456,8 @@ class _Paper extends StatelessWidget {
 /// Simple or advanced, asked once of an install from before there was a choice (GHST-103; Matt, 2026-10-18: new
 /// installs choose in the walkthrough, "existing users see it on the card one time"). The same paper as the update
 /// card, with the two modes as its actions; either puts the card away for good, and Settings has the choice from
-/// then on. Nothing to port: the choice is new with the Flutter app.
+/// then on, as Appearance's first card (Matt, 2026-10-24: "move the simple or advanced toggle under appearance"),
+/// which the line names. Nothing to port: the choice is new with the Flutter app.
 class ExperienceCard extends StatelessWidget {
   const ExperienceCard({super.key, required this.onPick});
 
@@ -470,7 +471,7 @@ class ExperienceCard extends StatelessWidget {
       key: const ValueKey('experience-card'),
       icon: Lucide.feather,
       lead: 'Simple or advanced?',
-      line: 'Simple keeps notes, lists and to-dos in front and the rest behind More. Change it any time in Settings.',
+      line: 'Simple keeps notes, lists and to-dos in front and the rest behind More. Change it any time in Settings › Appearance.',
       actions: Row(
         mainAxisSize: MainAxisSize.min,
         spacing: t.space(2),

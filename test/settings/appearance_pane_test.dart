@@ -20,8 +20,18 @@ import 'support.dart';
 /// AccentSwatch.test.tsx on the Flutter port, with each control held to what the app then draws, and the page held
 /// to the rects the web page measured (390 x 844, light, 2026-10-07). Drawn through the real sheet, over the app's
 /// real preferences, on a window tall enough to hold the whole page.
+///
+/// The page's first card is the port's own since 2026-10-24, the mode (Matt: "move the simple or advanced toggle
+/// under appearance"; mode_cards_test.dart): the web's page begins with Page, so each of the web's measures is held
+/// that card and its gap further down ([_modeAbove]), and the card itself where Page stood.
 
-const Size _tall = Size(390, 5200);
+const Size _tall = Size(390, 5700);
+
+/// How far the mode's card puts the web's page down: from its top to Page's, its height and the gap between cards.
+double _modeAbove(WidgetTester tester) {
+  double top(String title) => tester.getRect(find.byWidgetPredicate((w) => w is PaneSection && w.title == title)).top;
+  return top('Page') - top('Mode');
+}
 
 Future<void> _open(WidgetTester tester, {Preferences prefs = const Preferences(theme: 'light'), Size size = _tall}) =>
     pumpSettings(tester, SettingsSheet(open: true, onClose: () {}, toPage: const SettingsTarget('theme', nonce: 1)), size: size, prefs: prefs);
@@ -62,7 +72,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
       await endSettings(tester);
     });
 
@@ -77,13 +87,13 @@ void main() {
       expect(sample.style!.fontSize, closeTo(36.6157, 0.01));
       expect(sample.style!.letterSpacing, closeTo(-1.6477, 0.001));
       expect(sample.style!.fontWeight, FontWeight.w700);
-      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75, 327.53, 36.61, 2.5));
+      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75 + _modeAbove(tester), 327.53, 36.61, 2.5));
       await endSettings(tester);
     });
 
     testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
       expect(find.text('Haptics'), findsNothing);
       expect(find.text('Sidebar'), findsNothing);
       expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));
@@ -339,19 +349,20 @@ void main() {
 
     testWidgets('are the page’s cards to the pixel', (tester) async {
       await _open(tester);
+      final down = _modeAbove(tester);
       Rect card(String name) => tester.getRect(find.ancestor(of: _within('Theme', find.text(name)), matching: find.byType(AnimatedContainer)).first);
       // Measured on the page: System across the card, then the others in pairs, 13.39 apart.
-      expect(card('System'), rectNear(35.7, 208.13, 318.59, 170.56, 0.6));
-      expect(card('Light'), rectNear(35.7, 392.08, 152.59, 170.56, 0.8));
-      expect(card('Dark'), rectNear(201.69, 392.08, 152.61, 170.56, 0.8));
-      expect(card('Dawn'), rectNear(35.7, 576.03, 152.59, 170.56, 1.2));
+      expect(card('System'), rectNear(35.7, 208.13 + down, 318.59, 170.56, 0.6));
+      expect(card('Light'), rectNear(35.7, 392.08 + down, 152.59, 170.56, 0.8));
+      expect(card('Dark'), rectNear(201.69, 392.08 + down, 152.61, 170.56, 0.8));
+      expect(card('Dawn'), rectNear(35.7, 576.03 + down, 152.59, 170.56, 1.2));
       // The miniature: 6.5rem with its hairline, the words 13.39 in from the card's edge, the tick 20 across.
       final system = find.ancestor(of: _within('Theme', find.text('System')), matching: find.byType(AnimatedContainer)).first;
       final miniature = find.descendant(of: system, matching: find.byWidgetPredicate((w) => w is Container && w.constraints?.maxHeight == 104));
-      expect(tester.getRect(miniature), rectNear(36.7, 209.13, 316.59, 104, 0.3));
+      expect(tester.getRect(miniature), rectNear(36.7, 209.13 + down, 316.59, 104, 0.3));
       expect(tester.getRect(find.text('System')).topLeft.dx, closeTo(50.09, 0.1));
-      expect(tester.getRect(find.text('System')).topLeft.dy, closeTo(326.52, 0.3));
-      expect(tester.getRect(find.descendant(of: system, matching: find.byType(ChoiceTick))), rectNear(319.91, 335.41, 20, 20, 0.5));
+      expect(tester.getRect(find.text('System')).topLeft.dy, closeTo(326.52 + down, 0.3));
+      expect(tester.getRect(find.descendant(of: system, matching: find.byType(ChoiceTick))), rectNear(319.91, 335.41 + down, 20, 20, 0.5));
       final look = tester.widget<AnimatedContainer>(system).decoration! as BoxDecoration;
       expect(look.borderRadius, BorderRadius.circular(16));
       expect(look.border, Border.all(color: cssColor(tester, 'oklch(0.925 0 0)')));
@@ -447,7 +458,7 @@ void main() {
       expect(find.descendant(of: find.byType(ScaleCards), matching: find.text('Default')), findsOneWidget);
       // Measured on the page: five cards 56.58 x 84.08, 8.93 apart; and the piece's icon 0.7em of each step.
       final first = find.ancestor(of: _within('Interface size', find.text('85%')), matching: find.byType(AnimatedContainer)).first;
-      expect(tester.getRect(first), rectNear(35.7, 3530.88, 56.58, 84.08, 3.5));
+      expect(tester.getRect(first), rectNear(35.7, 3530.88 + _modeAbove(tester), 56.58, 84.08, 3.5));
       expect(tester.getRect(first).size.width, closeTo(56.58, 0.05));
       expect(tester.getRect(first).size.height, closeTo(84.08, 0.6));
       final icons = tester.widgetList<Container>(_within('Interface size', find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).borderRadius != null && w.constraints?.maxWidth == w.constraints?.maxHeight && (w.constraints?.maxWidth ?? 99) < 16)));
@@ -499,6 +510,14 @@ void main() {
       // (20.09px for a caption) is a whole number of pixels here, so a card may be a pixel or two off and the page
       // three by its foot; nothing more.
       expect(tester.getRect(find.byKey(const ValueKey('settings-display'))), rectNear(22.31, 62.45, 345.38, 29.05, 0.1));
+      // The mode's card where the web's first card stood, as wide; the web's cards that much further down.
+      expect(card('Mode').top, closeTo(122.73, 3.5));
+      expect(card('Mode').left, closeTo(22.31, 0.05));
+      expect(card('Mode').width, closeTo(345.38, 0.05));
+      final down = _modeAbove(tester);
+      // Its title, its words, the two cards and the line under them, and the gap to the next card: a figure of the
+      // port's own, so held loosely, and the web's cards to it.
+      expect(down, inInclusiveRange(250, 450));
       final web = {
         'Page': (122.73, 821.2),
         'Home page': (961.78, 569.66),
@@ -515,7 +534,7 @@ void main() {
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
         expect(rect.height, closeTo(entry.value.$2, 2), reason: '${entry.key}’s height');
-        expect(rect.top, closeTo(entry.value.$1, 3.5), reason: '${entry.key}’s top');
+        expect(rect.top, closeTo(entry.value.$1 + down, 3.5), reason: '${entry.key}’s top');
       }
       // The segmented controls: the kit's small size, on the deeper track a card gives them.
       final size = find.ancestor(of: find.text('Largest'), matching: find.byType(GlacierSegmentedControl));

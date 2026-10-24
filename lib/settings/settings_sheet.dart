@@ -169,17 +169,18 @@ class _SettingsSheetState extends State<SettingsSheet> {
     _ownSpaces?.reloadWorkspaces();
   }
 
-  /// Each link once, when it is asked: the sheet comes up on that page rather than on the list of sections.
+  /// Each link once, when it is asked: the sheet comes up on that page rather than on the list of sections. An id
+  /// that was a page once lands where its card is now ([settingsLanding]).
   void _links(SettingsSheet? was) {
     if (widget.toCheatSheet != 0 && widget.toCheatSheet != was?.toCheatSheet) _goTo = SettingsTarget('cheatsheet', nonce: widget.toCheatSheet);
     if (widget.toModel != 0 && widget.toModel != was?.toModel) _goTo = SettingsTarget('ai', setting: 'Model', nonce: widget.toModel);
     final page = widget.toPage;
-    if (page != null && page.nonce != was?.toPage?.nonce) _goTo = SettingsTarget(page.id, setting: page.setting, nonce: page.nonce);
+    if (page != null && page.nonce != was?.toPage?.nonce) _goTo = settingsLanding(SettingsTarget(page.id, setting: page.setting, nonce: page.nonce));
   }
 
   /// Lands on a section, and on a setting there when one is named (`go`): a row that opens a sub-page, or a word
-  /// like "Local only".
-  void _go(String id, {String? setting}) => setState(() => _goTo = settingsTargetNow(id, setting: setting));
+  /// like "Local only". An old id lands as a link from outside does ([settingsLanding]).
+  void _go(String id, {String? setting}) => setState(() => _goTo = settingsLanding(settingsTargetNow(id, setting: setting)));
 
   @override
   Widget build(BuildContext context) {

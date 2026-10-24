@@ -9,6 +9,7 @@ import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
+import 'mode_cards.dart';
 import '../plugins/things/things.dart' show thingsOn;
 import '../plugins/todoist/todoist.dart' show todoistOn;
 import 'panes/backup_pane.dart';
@@ -21,7 +22,6 @@ import 'panes/cheat_sheet.dart';
 import 'panes/daily_notes_pane.dart';
 import 'panes/developer_pane.dart';
 import 'panes/examples_pane.dart';
-import 'panes/experience_pane.dart';
 import 'panes/export_pane.dart';
 import 'panes/import_pane.dart';
 import 'panes/notifications_pane.dart';
@@ -32,6 +32,7 @@ import 'panes/settings_host.dart';
 import 'panes/spec_pane.dart';
 import 'panes/test_results_pane.dart';
 import 'panes/workspaces_pane.dart';
+import 'settings_screen.dart' show SettingsTarget;
 import 'settings_search.dart';
 import 'words.dart';
 
@@ -158,10 +159,13 @@ String _static(String line, SettingsFacts _) => line;
 /// pages are lib/settings/panes/, each built with what the sheet hands it, `X.hosted`); the rest name the web file
 /// they will come from. To port a page, write it and put it here.
 ///
-/// The rows: who you are and what leaves the phone (Account, and beside it Organizations, Workspaces and
-/// Notifications); where the notes are and the ways to carry them off (Library folder, Backup, Export); how it
-/// looks, moves and feels (Appearance), what happens to a recording (Recording), the model (AI) and what reaches
-/// beyond the phone (Plugins); the app itself (About); and the hidden pages (Developer, Test results) once unlocked.
+/// The rows: who you are and what leaves the phone (Account, and beside it Organizations, Workspaces, Notifications
+/// and Meetings); how much of the app there is and how it looks, moves and feels (Appearance, on a card of its own
+/// under Account's); where the notes are and the ways to carry them off (Library folder, Backup, Export); what
+/// happens to a recording (Recording) and the model (AI); what reaches beyond the phone (Plugins); the app itself
+/// (About); and the hidden pages (Developer, Test results) once unlocked. Appearance stood after Export, beside
+/// Recording and AI, until Matt, 2026-10-24: "move the simple or advanced toggle under appearance and move appearnce
+/// up in the settings to under account".
 ///
 /// What differs from the web original:
 /// - The account is the [AccountServices] the sheet finds over it ([SettingsFacts.services]). With none, Account
@@ -179,10 +183,13 @@ String _static(String line, SettingsFacts _) => line;
 ///   time it is asked for, where the web built its list on every draw, and the sheet draws it again whenever a
 ///   plugin's switch moves.
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
-/// - Simple or advanced heads the list, on a card of its own (GHST-103, the port's own): the choice the walkthrough
-///   asks, for later. In Simple ([SettingsFacts.simple]) the list is [simpleSections] and no more: the rest of the
-///   rows, and every plugin's page, pass out of `where` until Advanced is chosen again, and what is not among the
-///   sections is not found by the search either, since the sheet lists a section's settings only once it is in.
+/// - Simple or advanced (GHST-103, the port's own), the choice the walkthrough asks, is Appearance's first card for
+///   later (lib/settings/mode_cards.dart). It headed the list as a page of its own on a card of its own from
+///   2026-10-18 until Matt, 2026-10-24: "move the simple or advanced toggle under appearance"; its id still lands,
+///   on the card ([settingsAliases]). In Simple ([SettingsFacts.simple]) the list is [simpleSections] and no more:
+///   the rest of the rows, and every plugin's page, pass out of `where` until Advanced is chosen again, and what is
+///   not among the sections is not found by the search either, since the sheet lists a section's settings only once
+///   it is in.
 List<SettingsSectionSpec> get settingsSections => [
       for (final spec in _sections) ...[
         spec,
@@ -193,15 +200,29 @@ List<SettingsSectionSpec> get settingsSections => [
 /// The card Plugins and the plugins' own pages share on the list, between AI's and About's.
 const int pluginsGroup = 5;
 
-/// The card Simple or advanced has to itself, over Account's.
-const int experienceGroup = 6;
+/// The card Appearance has to itself, under Account's (Matt, 2026-10-24: "move appearnce up in the settings to under
+/// account"). Its own rather than a row of Account's: that card is who you are and what leaves the phone, and a row
+/// in the middle of it would split it in two, since consecutive rows of one group are what share a card.
+const int appearanceGroup = 6;
 
-/// The sections Simple keeps (Matt, 2026-10-18): the choice itself, who you are and what reaches you (with Meetings,
-/// which was a card of Account's until GHST-110), how it looks,
-/// and the app itself with its cheat sheet. Everything else, Organizations, Workspaces, Library folder, Backup,
+/// Ids that were a page once and are a card on another page now, each to its page and the card there, lit as a
+/// search's find is: a link from outside or from a page that still says the old id lands where the thing is now
+/// ([settingsLanding]). `experience`, Simple or advanced's page until 2026-10-24, is Appearance's Mode card.
+const Map<String, ({String id, String setting})> settingsAliases = {'experience': (id: 'theme', setting: 'Mode')};
+
+/// Where [target] lands: itself, or for an id of [settingsAliases] the page and the card it names, unless the link
+/// named a card of its own.
+SettingsTarget settingsLanding(SettingsTarget target) {
+  final alias = settingsAliases[target.id];
+  return alias == null ? target : SettingsTarget(alias.id, setting: target.setting ?? alias.setting, nonce: target.nonce);
+}
+
+/// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you (with Meetings, which was a card of
+/// Account's until GHST-110), how it looks with the choice itself on its first card, and the app itself with its
+/// cheat sheet. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, Plugins, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'experience', 'account', 'notifications', 'meetings', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'account', 'notifications', 'meetings', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -261,21 +282,7 @@ List<SettingsSectionSpec> pluginInfoSections() => [
     ];
 
 final List<SettingsSectionSpec> _sections = [
-  // How much of the app there is, before anything else and on a card of its own (GHST-103): in Simple it is the way
-  // to the rest, so it cannot itself be among what is put away, and it stands where the person who chose less will
-  // look first for more. Nothing of the web app's: its file is the sheet that lists it.
-  SettingsSectionSpec(
-    id: 'experience',
-    label: 'Simple or advanced',
-    words: 'mode simple advanced beginner approachable everything more fewer hide show',
-    glyph: SettingsGlyph.slidersHorizontal,
-    group: experienceGroup,
-    webFile: 'settings/SettingsSheet.tsx',
-    summary: (facts) => experienceSummary(facts.prefs),
-    settings: (facts) => experienceFindable,
-    pane: (context) => const ExperiencePane(),
-  ),
-  // Who you are, next and on its own card: it is what a person opens Settings for on a new phone.
+  // Who you are, first and on its own card: it is what a person opens Settings for on a new phone.
   SettingsSectionSpec(
     id: 'account',
     label: 'Account',
@@ -361,6 +368,24 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => meetingsFindable,
     pane: MeetingsPane.hosted,
   ),
+  // How much of the app there is and how it looks, moves and feels: on a card of its own under Account's (Matt,
+  // 2026-10-24: "move the simple or advanced toggle under appearance and move appearnce up in the settings to under
+  // account"). No `where`: in Simple its first card is the way back to the rest, so it is never put away.
+  SettingsSectionSpec(
+    id: 'theme',
+    label: 'Appearance',
+    // Feel was a page's name until §138: its movement and its touch are cards here now. The mode's words since
+    // 2026-10-24, when its page became the first card here.
+    words: 'theme look feel mode simple advanced',
+    glyph: SettingsGlyph.sunMoon,
+    group: appearanceGroup,
+    webFile: 'settings/AppearancePane.tsx',
+    // The mode first, as the page has it, then the looks.
+    summary: (facts) => '${experienceSummary(facts.prefs)} · ${appearanceSummary(facts.prefs)}',
+    // In Simple the page is the mode, the theme and the text size alone, and so is what the search finds on it.
+    settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
+    pane: (context) => const AppearancePane(),
+  ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
   // files (not an iPhone), and Export everywhere.
   SettingsSectionSpec(
@@ -421,19 +446,6 @@ final List<SettingsSectionSpec> _sections = [
     pane: (context) => ImportPane.hosted(context, kinds: importKinds()),
     listed: false,
     parent: 'export',
-  ),
-  SettingsSectionSpec(
-    id: 'theme',
-    label: 'Appearance',
-    // Feel was a page's name until §138: its movement and its touch are cards here now.
-    words: 'theme look feel',
-    glyph: SettingsGlyph.sunMoon,
-    group: 2,
-    webFile: 'settings/AppearancePane.tsx',
-    summary: (facts) => appearanceSummary(facts.prefs),
-    // In Simple the page is the theme and the text size alone, and so is what the search finds on it.
-    settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
-    pane: (context) => const AppearancePane(),
   ),
   // Where a recorder runs: Android, and the desktop app.
   SettingsSectionSpec(

@@ -10,8 +10,10 @@ import '../support/render.dart';
 /// Pictures of Settings, drawn with the real faces, to lay beside the web app's own (taken over its dev server at
 /// the same sizes, 2026-10-07): the section list, the Appearance page and the search, on a phone and on a wide
 /// window, light and dark. `flutter test --update-goldens test/settings/settings_shots_test.dart`, then open
-/// `test/settings/shots/`. Since 2026-10-18 the list's first card is Simple or advanced's (GHST-103), and two more
-/// pictures are the port's own: that page, and Appearance as Simple leaves it.
+/// `test/settings/shots/`. One more picture is the port's own: Appearance as Simple leaves it (GHST-103). Simple or
+/// advanced's page, which headed the list from 2026-10-18 and had a picture of its own, is Appearance's first card
+/// since Matt, 2026-10-24: "move the simple or advanced toggle under appearance and move appearnce up in the settings
+/// to under account".
 void main() {
   setUpAll(loadAppFonts);
 
@@ -40,17 +42,12 @@ void main() {
     });
 
     testWidgets('all of Appearance, $theme', (tester) async {
-      await open(tester, theme, size: const Size(390, 4935), toPage: const SettingsTarget('theme', nonce: 1));
+      await open(tester, theme, size: const Size(390, 5330), toPage: const SettingsTarget('theme', nonce: 1));
       await shot(tester, 'settings-appearance-full-$theme');
     });
 
-    testWidgets('Simple or advanced on a phone, $theme', (tester) async {
-      await open(tester, theme, toPage: const SettingsTarget('experience', nonce: 1));
-      await shot(tester, 'settings-experience-$theme');
-    });
-
     testWidgets('Appearance in Simple on a phone, $theme', (tester) async {
-      // Tall enough for the whole of it: the theme cards, the text size and the line to Advanced.
+      // Tall enough for the whole of it: the mode, the theme cards and the text size.
       await open(tester, theme, size: const Size(390, 1500), simple: true, toPage: const SettingsTarget('theme', nonce: 1));
       await shot(tester, 'settings-appearance-simple-$theme');
     });

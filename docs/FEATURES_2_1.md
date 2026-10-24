@@ -683,9 +683,11 @@ alone; the mode syncs across devices.
 `lib/guide/pages.dart` (the walkthrough's "How much of it?" page after the theme, Simple lit before anything is
 tapped; `walkthroughPagesFor` drops the model page for Simple as it does for an iPhone); `lib/notes/notices.dart`
 `ExperienceCard` and `lib/root/root_parts.dart` `_asksExperience` (home's one-time card: the guide was seen, nothing
-chosen, here or on another device); `lib/settings/panes/experience_pane.dart` and `settings_sections.dart`
-(Settings › Simple or advanced, its own card above Account, two choice cards and "Nothing is lost: switch back any
-time."). Choosing Simple also sets `noteView: 'formatted'`: the marks are what a new person finds hard to read, and
+chosen, here or on another device); `lib/settings/mode_cards.dart` and `settings_sections.dart` (two choice cards
+and "Nothing is lost: switch back any time.": Settings › Simple or advanced, its own card above Account, until Matt,
+2026-10-24: "move the simple or advanced toggle under appearance and move appearnce up in the settings to under
+account"; since then the Mode card heads Appearance in either mode, Appearance is on a card of its own under
+Account's, and the old `experience` link lands on the card, lit). Choosing Simple also sets `noteView: 'formatted'`: the marks are what a new person finds hard to read, and
 the note's view switch brings them back.
 
 - Unchosen reads as advanced, so every install from before the choice is the whole app, as it was; a stored mode this
@@ -720,11 +722,12 @@ the cheat sheet and the template cards read the store themselves when not told.
   Show radios only; no workspace radios, operator chips, Save as a smart notebook, organization cards, today's events
   or workspace pills. The home page's Academy card (`AcademyCard`, `lib/academy/banner.dart` `academyBannerDue`,
   stamped under `glyph-academy-banner-since`, seven days) invites the Academy for the first week.
-- **Settings** (`settings_sections.dart` `simpleSections`): Simple or advanced, Account, Notifications, Appearance,
-  About (with the cheat sheet), plus Developer and Test results when developer mode is on. Organizations,
+- **Settings** (`settings_sections.dart` `simpleSections`): Account, Notifications, Appearance (the choice its first
+  card since 2026-10-24), About (with the cheat sheet), plus Developer and Test results when developer mode is on. Organizations,
   Workspaces, Daily notes, Library folder, Backup, Export, Import, Recording, AI, Plugins and every plugin's page,
   Specification and Examples wait behind Advanced (`_advanced` on `where`), and search finds nothing of them.
-  Appearance (`appearance_pane.dart`) is Page and Text size with "More looks are in Advanced." linking to the choice.
+  Appearance (`appearance_pane.dart`) is Mode, Page and Text size; until the choice was its first card it ended in
+  "More looks are in Advanced." linking to the choice's page.
 - **The note's +** (`lib/editor/plus/add_rows.dart`, `add_list.dart`): A picture, A to-do, A heading, A bulleted
   list, A numbered list, A quote, A table, A link (new, `[text](url)` with "text" selected), A divider, each with a
   plain hint under it, then More with everything else in today's order; the slash list is basics first.
@@ -752,7 +755,7 @@ first in both modes, a dozen marks with a plain line each from `basicsPlain`; in
 
 `test/core/preferences_test.dart`, `test/core/sample_library_test.dart`, `test/guide/pages_test.dart` (and the
 guide's goldens taken again for the fifth dot; `measure_test.dart` holds the web's four dots where they still agree),
-`test/settings/experience_pane_test.dart`, `test/root/simple_test.dart` (switching live, both ways),
+`test/settings/mode_cards_test.dart`, `test/root/simple_test.dart` (switching live, both ways),
 `test/shell/simple_bar_test.dart`, `test/sidebar/simple_tree_test.dart`, `test/allnotes/new_sheet_simple_test.dart`,
 `test/home/simple_home_test.dart`, `test/commands/palette_simple_test.dart`, `test/editor/band/format_bar_test.dart`,
 `test/note/note_format_bar_test.dart`, `test/editor/band/context_band_test.dart`, `test/editor/plus/*`,

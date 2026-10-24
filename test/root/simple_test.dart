@@ -200,6 +200,8 @@ void main() {
     await settle(tester);
     expect(preferences.value.experienceChosen, isFalse);
     expect(find.byType(ExperienceCard), findsOneWidget);
+    // It says where the choice is kept from then on: Appearance's first card since 2026-10-24.
+    expect(find.descendant(of: find.byType(ExperienceCard), matching: find.textContaining('Change it any time in Settings › Appearance.')), findsOneWidget);
     // The whole app meanwhile: unchosen reads as advanced.
     expect(shellWidget(tester).simple, isFalse);
 

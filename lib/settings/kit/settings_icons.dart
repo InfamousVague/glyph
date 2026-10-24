@@ -28,8 +28,6 @@ enum SettingsGlyph {
   puzzle,
   search,
   shapes,
-  // Simple or advanced's row (the port's own, GHST-103): a level to set, not a feature.
-  slidersHorizontal,
   sparkles,
   sunMoon,
   terminal,
@@ -88,7 +86,6 @@ LucideIcon? _kit(SettingsGlyph glyph) => switch (glyph) {
       SettingsGlyph.puzzle => Lucide.puzzle,
       SettingsGlyph.search => Lucide.search,
       SettingsGlyph.shapes => Lucide.shapes,
-      SettingsGlyph.slidersHorizontal => Lucide.slidersHorizontal,
       SettingsGlyph.sparkles => Lucide.sparkles,
       SettingsGlyph.sunMoon => Lucide.sunMoon,
       SettingsGlyph.terminal => Lucide.terminal,

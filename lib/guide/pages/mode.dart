@@ -3,9 +3,9 @@
 /// a much more approachable UI with fancy features hidden behind more".
 ///
 /// Like the theme page, each choice applies the moment it is tapped, and the page stays still until one is. Simple is
-/// lit when the page opens: a new person is who the page is for, and the whole app is one tap away, here or in
-/// Settings. Choosing Simple also takes the model page out of the walkthrough (pages.dart): a person who asked for
-/// less is not asked to pick a language model next.
+/// lit when the page opens: a new person is who the page is for, and the whole app is one tap away, here or on
+/// Settings › Appearance, whose first card it has been since 2026-10-24. Choosing Simple also takes the model page
+/// out of the walkthrough (pages.dart): a person who asked for less is not asked to pick a language model next.
 ///
 /// Nothing of the web app's to port: the choice is new with the Flutter app.
 library;
@@ -18,7 +18,8 @@ import '../../art/lucide.g.dart';
 import '../../core/preferences.dart';
 import 'parts.dart';
 
-/// The two modes, in the page's order, with the words Settings says too (lib/settings/panes/experience_pane.dart).
+/// The two modes, in the page's order, with the words Settings says too, on Appearance's first card
+/// (lib/settings/mode_cards.dart).
 const List<({String value, String label, String hint})> experienceChoices = [
   (value: 'simple', label: 'Simple', hint: 'Notes, lists and to-dos. Everything else waits behind More.'),
   (value: 'advanced', label: 'Advanced', hint: 'The whole app: boards, databases, canvases, AI, teams.'),
@@ -40,7 +41,7 @@ class GuideMode extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const GuideTitle('How much of it?'),
-          const GuideLead('Start simple and grow into the rest, or have it all from the first day. You can change it any time in Settings.'),
+          const GuideLead('Start simple and grow into the rest, or have it all from the first day. You can change it any time in Settings › Appearance.'),
           GuideChoices(
             label: 'Mode',
             children: [
