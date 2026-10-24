@@ -443,17 +443,20 @@ class TodoEvent {
     return there is String && (DateTime.tryParse(there)?.isAtSameMomentAs(at) ?? false);
   }
 
-  /// The event as Google is sent it.
+  /// The event as Google is sent it. Without its id it is a `PATCH`, which Google merges into the event field by field,
+  /// `start` and `end` too: a to-do that was all day and is now at a time (a `⏰` added, as the baby book's dates were
+  /// moved to business hours) would keep its old `date` beside the new `dateTime`, and Google refuses the pair with
+  /// "Invalid start time." (Matt, 2026-10-24). So a patch says the other form is gone, with a null.
   Map<String, Object?> body({bool withId = true}) => {
         if (withId) 'id': id,
         'summary': title,
         'description': description,
         if (startsAt case final at?) ...{
-          'start': {'dateTime': _moment(at)},
-          'end': {'dateTime': _moment(at.add(timedLength))},
+          'start': {'dateTime': _moment(at), if (!withId) 'date': null},
+          'end': {'dateTime': _moment(at.add(timedLength)), if (!withId) 'date': null},
         } else ...{
-          'start': {'date': day},
-          'end': {'date': isoDayAfter(day, 1)},
+          'start': {'date': day, if (!withId) ...{'dateTime': null, 'timeZone': null}},
+          'end': {'date': isoDayAfter(day, 1), if (!withId) ...{'dateTime': null, 'timeZone': null}},
         },
         'transparency': 'transparent',
         'status': 'confirmed',
@@ -492,30 +495,38 @@ Future<TodoExport> exportTodos(GoogleSession session, String calendarId, List<To
   final path = 'calendars/${Uri.encodeComponent(calendarId)}/events';
   final made = await session.ours(calendarId);
   var added = 0, moved = 0, removed = 0;
+  // One to-do Google turns away does not hold every other back: the pass goes on, and the first refusal is said at
+  // its end, naming the to-do (a transient failure, the network or Google busy, still stops it at once).
+  GoogleFailure? refused;
   for (final todo in wanted) {
     final there = made.remove(todo.id);
-    if (there != null) {
-      final same = todo.startsWhere(there['start']) && there['summary'] == todo.title && there['description'] == todo.description;
-      if (!same) {
-        await session.ask('PATCH', '$path/${todo.id}', body: todo.body(withId: false));
-        moved += 1;
+    try {
+      if (there != null) {
+        final same = todo.startsWhere(there['start']) && there['summary'] == todo.title && there['description'] == todo.description;
+        if (!same) {
+          await session.ask('PATCH', '$path/${todo.id}', body: todo.body(withId: false));
+          moved += 1;
+        }
+        continue;
       }
-      continue;
-    }
-    final answer = await session.call('POST', path, body: todo.body());
-    if (answer.status == 409) {
-      // The id is taken: by one of the app's own that was deleted (Google keeps it, cancelled), which is put back;
-      // or by an event the app did not make, which is never touched.
-      final existing = await session.call('GET', '$path/${todo.id}');
-      final item = existing.body;
-      if (existing.status < 400 && item is Map<Object?, Object?> && isOurs(item)) {
-        await session.ask('PATCH', '$path/${todo.id}', body: todo.body(withId: false));
-        added += 1;
+      final answer = await session.call('POST', path, body: todo.body());
+      if (answer.status == 409) {
+        // The id is taken: by one of the app's own that was deleted (Google keeps it, cancelled), which is put back;
+        // or by an event the app did not make, which is never touched.
+        final existing = await session.call('GET', '$path/${todo.id}');
+        final item = existing.body;
+        if (existing.status < 400 && item is Map<Object?, Object?> && isOurs(item)) {
+          await session.ask('PATCH', '$path/${todo.id}', body: todo.body(withId: false));
+          added += 1;
+        }
+        continue;
       }
-      continue;
+      if (answer.status >= 400) throw GoogleFailure(_said(answer.body) ?? 'Google answered ${answer.status}.', answer.status);
+      added += 1;
+    } on GoogleFailure catch (failure) {
+      if (failure.status == 0 || failure.status == 401 || failure.status == 429 || failure.status >= 500) rethrow;
+      refused ??= GoogleFailure('“${todo.title}”: ${failure.message}', failure.status);
     }
-    if (answer.status >= 400) throw GoogleFailure(_said(answer.body) ?? 'Google answered ${answer.status}.', answer.status);
-    added += 1;
   }
   for (final id in made.keys) {
     final answer = await session.call('DELETE', '$path/$id');
@@ -523,6 +534,7 @@ Future<TodoExport> exportTodos(GoogleSession session, String calendarId, List<To
     if (answer.status >= 400 && answer.status != 404 && answer.status != 410) throw GoogleFailure(_said(answer.body) ?? 'Google answered ${answer.status}.', answer.status);
     removed += 1;
   }
+  if (refused != null) throw refused;
   return (added: added, moved: moved, removed: removed);
 }
 

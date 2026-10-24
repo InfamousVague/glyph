@@ -172,6 +172,41 @@ void main() {
       expect(moved.isAtSameMomentAs(DateTime(2026, 10, 27, 15)), isTrue);
     });
 
+    test('an event left with both a day and a moment is put right by the next patch', () async {
+      final allDay = todoEvents(library('- [ ] Tour the hospital 📅 2026-10-27\n'));
+      await exportTodos(session(), 'me@example.com', allDay);
+      google.events['me@example.com']![allDay.single.id]!['start'] = {'date': '2026-10-26', 'dateTime': '2026-10-26T09:00:00Z'};
+      expect(await exportTodos(session(), 'me@example.com', allDay), (added: 0, moved: 1, removed: 0));
+      expect(google.events['me@example.com']![allDay.single.id]!['start'], {'date': '2026-10-27'});
+    });
+
+    test('a to-do all day that gets a time, and back, is moved: the patch says the other form is gone', () async {
+      // Matt, 2026-10-24, Settings › Calendar: "Invalid start time." Google merges a patch's start into the event's,
+      // so an all-day to-do moved to a time kept its `date` beside the new `dateTime` and was refused.
+      final allDay = todoEvents(library('- [ ] Tour the hospital 📅 2026-10-27\n'));
+      expect(await exportTodos(session(), 'me@example.com', allDay), (added: 1, moved: 0, removed: 0));
+      final timed = todoEvents(library('- [ ] Tour the hospital ⏰ 2026-10-27 10:00 📅 2026-10-27\n'));
+      expect(await exportTodos(session(), 'me@example.com', timed), (added: 0, moved: 1, removed: 0));
+      final event = google.events['me@example.com']![timed.single.id]!;
+      expect(event['start'], isNot(contains('date')));
+      expect(DateTime.parse((event['start'] as Map)['dateTime'] as String).isAtSameMomentAs(DateTime(2026, 10, 27, 10)), isTrue);
+      expect(await exportTodos(session(), 'me@example.com', allDay), (added: 0, moved: 1, removed: 0));
+      expect(google.events['me@example.com']![allDay.single.id]!['start'], {'date': '2026-10-27'});
+    });
+
+    test('one to-do Google turns away does not hold the others back, and is named', () async {
+      final first = todoEvents(library('- [ ] Tour the hospital 📅 2026-10-27\n- [ ] Pack the bag 📅 2026-10-28\n'));
+      await exportTodos(session(), 'me@example.com', first);
+      google.refuse.add(first.first.id);
+      final next = todoEvents(library('- [ ] Tour the hospital 📅 2026-10-29\n- [ ] Pack the bag 📅 2026-10-30\n- [ ] Call the midwife 📅 2026-10-31\n'));
+      await expectLater(
+        exportTodos(session(), 'me@example.com', next),
+        throwsA(isA<GoogleFailure>().having((f) => f.message, 'message', '“Tour the hospital”: Invalid start time.')),
+      );
+      expect(google.events['me@example.com']![next[1].id]!['start'], {'date': '2026-10-30'}, reason: 'the next one still moved');
+      expect(google.events['me@example.com']!.containsKey(next[2].id), isTrue, reason: 'and the new one was added');
+    });
+
     test('a changed date moves it, the same to-do stays put, and a ticked one is deleted', () async {
       final first = todoEvents(library('- [ ] Buy milk 📅 2026-10-20\n- [ ] Call Sam 📅 2026-10-21\n'));
       await exportTodos(session(), 'me@example.com', first);

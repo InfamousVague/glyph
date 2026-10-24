@@ -24,6 +24,9 @@ class FakeGoogle {
 
   final List<String> calls = [];
 
+  /// Events Google turns away whatever is sent for them, by id: as it refuses a form it will not take.
+  final Set<String> refuse = {};
+
   final List<Map<String, Object?>> calendars = [
     {'id': 'me@example.com', 'summary': 'Me', 'primary': true, 'accessRole': 'owner'},
     {'id': 'team@group.calendar.google.com', 'summary': 'Team', 'accessRole': 'reader'},
@@ -85,6 +88,7 @@ class FakeGoogle {
       if (parts.length == 3 && request.method == 'POST') {
         final body = (jsonDecode(request.text) as Map).cast<String, Object?>();
         final id = body['id'] as String;
+        if (refuse.contains(id)) return _json(400, {'error': {'message': 'Invalid start time.'}});
         if (kept.containsKey(id)) return _json(409, {'error': {'message': 'The requested identifier already exists.'}});
         kept[id] = body;
         return _json(200, body);
@@ -95,9 +99,29 @@ class FakeGoogle {
       switch (request.method) {
         case 'GET':
           return _json(200, item);
+        case 'PATCH' when refuse.contains(id):
+          return _json(400, {'error': {'message': 'Invalid start time.'}});
         case 'PATCH':
+          // As Google patches: field by field, an object's own fields too (`start`'s `date` stays unless the patch
+          // says null), and a start or end with both a day and a moment refused as Google refuses it.
           final body = (jsonDecode(request.text) as Map).cast<String, Object?>();
-          kept[id] = {...item, ...body};
+          final merged = <String, Object?>{...item};
+          for (final MapEntry(:key, :value) in body.entries) {
+            final was = merged[key];
+            if (value is Map && was is Map) {
+              merged[key] = {
+                for (final MapEntry(:key, :value) in {...was, ...value}.entries)
+                  if (value != null) key: value,
+              };
+            } else {
+              merged[key] = value;
+            }
+          }
+          for (final end in ['start', 'end']) {
+            final when = merged[end];
+            if (when is Map && when['date'] != null && when['dateTime'] != null) return _json(400, {'error': {'message': 'Invalid start time.'}});
+          }
+          kept[id] = merged;
           return _json(200, kept[id]);
         case 'DELETE':
           kept[id] = {...item, 'status': 'cancelled'};
