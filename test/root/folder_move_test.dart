@@ -46,7 +46,7 @@ void main() {
   late NoteFolders folders;
   late WorkspaceStore store;
 
-  Future<void> open(WidgetTester tester, {required String chosen, bool icons = false}) async {
+  Future<void> open(WidgetTester tester, {required String chosen, bool icons = false, Size size = const Size(900, 1000)}) async {
     core = FakeCore()
       ..seed('feeds', '# Feeds\n\nEvery three hours.', path: 'orgs/Family/Feeds.md')
       ..seed('naps', '# Naps\n\nTwo a day.', path: 'orgs/Family/Naps.md')
@@ -60,7 +60,7 @@ void main() {
     if (icons) kept.writeText(browseViewKey, 'icons');
     await pumpApp(
       tester,
-      size: const Size(900, 1000),
+      size: size,
       prefs: const Preferences(theme: 'light'),
       home: GhostRoot(launch: false, library: it.library, workspaces: store, stored: kept),
     );
@@ -210,8 +210,10 @@ void main() {
     await close(tester);
   });
 
+  // The tree is a narrow window's card since 2026-10-24 (a wide window's sidebar is simple mode's list, with no
+  // folders: there a note is carried onto a folder on All notes, above).
   testWidgets('the sidebar: a note’s row carried onto its organization’s folder is listed under the folder', (tester) async {
-    await open(tester, chosen: family);
+    await open(tester, chosen: family, size: const Size(600, 1000));
     await tester.tap(find.bySemanticsLabel('All your notes'));
     await settle(tester);
     Finder under(String folder, String id) => find.descendant(of: find.byKey(ValueKey('folder-$folder')), matching: find.byKey(ValueKey('note-row-$id')));
