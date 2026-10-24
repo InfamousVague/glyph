@@ -353,7 +353,7 @@ void main() {
       expect(tab(tester, 2), boxAt(469.69, 49.66, 267.31, 45.58));
       expect(named(tester, 'New note in a new tab'), boxAt(744.27, 56.65, 31.61, 31.61));
       // The row fits, so neither end fades.
-      expect(find.byType(WispSides), findsNothing);
+      expect(find.byType(BlurSides), findsNothing);
       await away(tester);
       // With nothing open the bar keeps its hairline and the air over it.
       await pumpBar(tester, atHome: true, size: const Size(1280, 800), split: true, fine: true);
@@ -658,29 +658,29 @@ void main() {
   });
 
   group('the outline of the tab being read', () {
-    // The ends go into smoke on a phone, as the page's do (art/wispSides.ts over NoteTabs.module.css's 12px fade):
-    // seen beside Ghost.md on the owner's phone, 2026-10-11, the last tab's letters bent and faded at the window's
-    // edge there ("HelloTr") and cut plain here ("HelloTra"), the row having worn the fade alone.
-    testWidgets('sends whichever end of the row has tabs past it into smoke, and never the start at the start', (tester) async {
-      List<WispSmokeStrip> smoke() => tester.renderObject<RenderWispStrips>(find.descendant(of: find.byType(WispSides), matching: find.byType(WispStrips))).strips.whereType<WispSmokeStrip>().toList();
+    // The ends go soft, where the page's go into smoke (art/wispSides.ts over NoteTabs.module.css's 12px fade): seen
+    // beside Ghost.md on the owner's phone, 2026-10-11, the last tab's letters faded at the window's edge there
+    // ("HelloTr") and cut plain here ("HelloTra"), the row having worn the fade alone. Since 2026-10-24 a gradient
+    // blur, where it was the wisp's smoke (Matt: "replace the smoke effect with a gradient blur on all places that
+    // use the wisp smoke").
+    testWidgets('blurs whichever end of the row has tabs past it, and never the start at the start', (tester) async {
+      List<EdgeBlurStrip> blurs() => tester.renderObject<RenderEdgeStrips>(find.descendant(of: find.byType(BlurSides), matching: find.byType(EdgeStrips))).strips.whereType<EdgeBlurStrip>().toList();
       await pumpBar(tester, open: three, active: 'groceries');
-      // Three tabs are more than a phone's width: the end smokes over a fade of twelve pixels under a finger.
-      expect(find.byType(WispSides), findsOneWidget);
+      // Three tabs are more than a phone's width: the end blurs over a fade of twelve pixels under a finger.
+      expect(find.byType(BlurSides), findsOneWidget);
       final row = tester.widget<TabRow>(find.byType(TabRow));
       expect(row.fade, 12);
-      expect(smoke(), isNotEmpty);
-      expect(smoke().first.smoke.lipA, isNull, reason: 'nothing is out of sight at the start');
-      expect(smoke().first.smoke.lipB, isNotNull);
-      expect(smoke().first.smoke.fade.clearFrom - smoke().first.smoke.fade.wholeUntil, 12);
+      expect(blurs(), hasLength(1));
+      expect(blurs().single.side, EdgeSide.right, reason: 'nothing is out of sight at the start');
+      expect(blurs().single.fade!.clearFrom - blurs().single.fade!.wholeUntil, 12);
       await tester.drag(find.bySemanticsLabel('Groceries, in Home'), const Offset(-2000, 0));
       await tester.pump(const Duration(milliseconds: 600));
-      expect(find.byType(WispSides), findsOneWidget);
-      expect(smoke().first.smoke.lipA, isNotNull, reason: 'scrolled to its end, the row goes on past its start');
-      expect(smoke().first.smoke.lipB, isNull);
+      expect(find.byType(BlurSides), findsOneWidget);
+      expect(blurs().single.side, EdgeSide.left, reason: 'scrolled to its end, the row goes on past its start');
       await away(tester);
       // A row that fits fades at neither end.
       await pumpBar(tester, open: const ['weekend']);
-      expect(find.byType(WispSides), findsNothing);
+      expect(find.byType(BlurSides), findsNothing);
       await away(tester);
     });
 

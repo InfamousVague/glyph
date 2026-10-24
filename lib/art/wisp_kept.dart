@@ -1,9 +1,21 @@
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter/painting.dart';
 import 'package:flutter/scheduler.dart';
 
 import '../perf/frame_log.dart' show Perf, ghostPerf;
+
+/// Whether a letter whose look is kept (a frosted one, lib/editor/marks/text_effects.dart) is laid down from its
+/// kept picture while frames follow one another ([WispKept]), where it is drawn by its own layers on every frame
+/// otherwise. What a build draws, since 2026-10-10; a build made with `--dart-define=GHOST_WISP_QUICK=false` draws
+/// every frame by the layers, and a test says which it gets ([debugWispQuick]).
+bool get wispQuick => debugWispQuick ?? _quick;
+const bool _quick = bool.fromEnvironment('GHOST_WISP_QUICK', defaultValue: true);
+
+/// Says which drawing a test gets, whatever the build was told.
+@visibleForTesting
+bool? debugWispQuick;
 
 /// Whether frames are following one another: asked while a frame paints.
 ///
@@ -11,7 +23,7 @@ import '../perf/frame_log.dart' show Perf, ghostPerf;
 /// drawn once (a note opened and left, a picture taken in a test) is drawn as it always was, each letter's own
 /// layers and blurs. A page whose frames follow one another, sixteen milliseconds apart or eight, draws the same
 /// letters hundreds of times, and there what a letter looks like is made once and laid down again
-/// ([WispKept], lib/art/wisp_letters.dart).
+/// ([WispKept]).
 abstract final class WispFlow {
   /// Frames this close together follow one another; further apart, the page stood still between them.
   static const Duration within = Duration(milliseconds: 50);

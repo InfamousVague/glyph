@@ -298,15 +298,16 @@ void main() {
   });
 
   group('Developer', () {
-    testWidgets('says what the window is, marks the benches that wait, and hides itself by its switch', (tester) async {
+    testWidgets('says what the window is, marks the bench that waits, and hides itself by its switch', (tester) async {
       await openPane(tester, 'developer', developer: true, size: const Size(390, 1800));
-      expect(cardTitles(tester), ['Window', 'Smoke', 'The phone at work', 'Developer mode', 'Reset', 'Work in progress']);
+      // No Smoke card: the smoke went, and its bench with it (2026-10-24).
+      expect(cardTitles(tester), ['Window', 'The phone at work', 'Developer mode', 'Reset', 'Work in progress']);
       expect(rowLabels(tester, 'Window'), ['Top inset', 'Page', 'Screen', 'Engine']);
       final facts = windowFacts(tester.element(find.byType(DeveloperPane)));
       expect((facts.inset, facts.page, facts.engine), ('0px', '390 × 1800 @2', 'Flutter on android'));
       expect(find.text('390 × 1800 @2'), findsOneWidget);
-      // The benches are not ported: their rows are there and cannot be pressed.
-      expect(tester.widget<SettingRow>(rowCalled('Smoke bench')).disabled, isTrue);
+      // The bench is not given here: its row is there and cannot be pressed.
+      expect(rowCalled('Smoke bench'), findsNothing);
       expect(tester.widget<SettingRow>(rowCalled('Play the scene')).disabled, isTrue);
       expect([for (final word in tester.widgetList<RowAction>(find.byType(RowAction))) word.disabled], [true, true]);
 
@@ -352,7 +353,7 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('plays the scene with the readings chosen, opens the bench, and resets on the second tap', (tester) async {
+    testWidgets('plays the scene with the readings chosen, and resets on the second tap; no smoke bench is left', (tester) async {
       final ran = <String>[];
       Object? fail;
       await openPane(
@@ -361,7 +362,6 @@ void main() {
         developer: true,
         size: const Size(390, 1800),
         features: SettingsFeatures(
-          onSmokeBench: () => ran.add('bench'),
           onPlayScene: (readings) => ran.add('scene $readings'),
           onReset: ({required bool models}) async {
             final failure = fail;
@@ -370,16 +370,16 @@ void main() {
           },
         ),
       );
-      await tapOn(tester, rowCalled('Smoke bench'));
+      expect(find.text('Smoke bench'), findsNothing, reason: 'the smoke went, and its bench with it');
       await tapOn(tester, rowCalled('Play the scene'));
       await tapOn(tester, find.text('No heat'));
       await tapOn(tester, rowCalled('Play the scene'));
-      expect(ran, ['bench', 'scene heat', 'scene cold']);
+      expect(ran, ['scene heat', 'scene cold']);
 
       final local = find.descendant(of: rowCalled('Reset local data'), matching: find.byType(RowAction));
       await tapOn(tester, local);
       expect(find.descendant(of: local, matching: find.text('Tap again')), findsOneWidget);
-      expect(ran, hasLength(3));
+      expect(ran, hasLength(2));
       await tapOn(tester, local);
       expect(ran.last, 'reset models=false');
       await tapOn(tester, find.descendant(of: rowCalled('Reset everything'), matching: find.byType(RowAction)));
@@ -442,7 +442,10 @@ void main() {
       expect(value.top, closeTo(231.39, 0.75));
       expect(value.height, closeTo(16, 0.5));
       expect(tester.getRect(find.text('Page')).top, closeTo(298.45, 0.75));
-      for (final (title, top) in [('SMOKE', 467.72), ('THE PHONE AT WORK', 666.97), ('DEVELOPER MODE', 1028.02), ('RESET', 1178.19)]) {
+      // The page's Smoke card stood at 467.72 and was 199.25 to the next; with the smoke gone it is not drawn, and
+      // every card after it stands that much higher.
+      expect(find.text('SMOKE', skipOffstage: false), findsNothing);
+      for (final (title, top) in [('THE PHONE AT WORK', 666.97 - 199.25), ('DEVELOPER MODE', 1028.02 - 199.25), ('RESET', 1178.19 - 199.25)]) {
         expect(tester.getRect(find.text(title, skipOffstage: false)).top, closeTo(top, 2), reason: title);
       }
       await endSettings(tester);

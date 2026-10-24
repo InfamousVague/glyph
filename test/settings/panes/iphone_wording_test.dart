@@ -163,7 +163,7 @@ void main() {
       expect(account, contains('Your notes and pictures stay on this device. Signed in, they sync encrypted on the device first'));
       expect(account, contains('Every note you make here starts with where you were. Off,'));
       expect(account, isNot(matches(RegExp(r'recording|voice|spoken|the model|microphone', caseSensitive: false))));
-      expect(appearance, contains('Smoke at the edges'));
+      expect(appearance, contains('Blur at the edges'));
       expect(appearance, isNot(contains('Ripples while recording')));
       expect(notifications, contains('A meeting written up on another of your devices.'));
       expect(notifications, isNot(contains('under Recording')));

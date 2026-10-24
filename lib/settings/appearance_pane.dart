@@ -51,8 +51,9 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       if (wide) const SettingsFindable('Sidebar', 'dock column popover notes list'),
       const SettingsFindable('Motion', 'movement animations'),
       const SettingsFindable('Animation speed', 'motion fast slow'),
-      const SettingsFindable('Ghostly typing', 'wisp letters'),
-      const SettingsFindable('Smoke at the edges', 'wisp fade scroll'),
+      const SettingsFindable('Ghostly typing', 'wisp letters blur'),
+      // Smoke at the edges until 2026-10-24, when the smoke gave way to a blur: still found by the word.
+      const SettingsFindable('Blur at the edges', 'wisp smoke fade scroll'),
       if (recordsVoice) const SettingsFindable('Ripples while recording', 'waves voice'),
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
     ];
@@ -277,13 +278,15 @@ class AppearancePane extends StatelessWidget {
                 ),
                 SettingRow(
                   label: 'Ghostly typing',
-                  hint: const Text('Words you say arrive as smoke, and words you delete leave as smoke. What you type appears at once.'),
+                  // Out of a blur, where the words came out of smoke until Matt, 2026-10-24: "replace the smoke effect with
+                  // a gradient blur on all places that use the wisp smoke". The switch is the same one.
+                  hint: const Text('Words you say come in out of a soft blur, and words you delete blur away. What you type appears at once.'),
                   control: GlacierSwitch(ariaLabel: 'Ghostly typing', checked: prefs.wisp, onCheckedChange: (wisp) => set((now) => now.copyWith(wisp: wisp))),
                 ),
                 SettingRow(
-                  label: 'Smoke at the edges',
-                  hint: const Text('A page turns to smoke as it passes under the header or the dock.'),
-                  control: GlacierSwitch(ariaLabel: 'Smoke at the edges', checked: prefs.wispEdge, onCheckedChange: (wispEdge) => set((now) => now.copyWith(wispEdge: wispEdge))),
+                  label: 'Blur at the edges',
+                  hint: const Text('A page blurs softly as it passes under the header or the dock.'),
+                  control: GlacierSwitch(ariaLabel: 'Blur at the edges', checked: prefs.wispEdge, onCheckedChange: (wispEdge) => set((now) => now.copyWith(wispEdge: wispEdge))),
                 ),
                 // Nothing is recorded on an iPhone ([recordsVoice]), so there is nothing to ripple.
                 if (recordsVoice) SettingRow(

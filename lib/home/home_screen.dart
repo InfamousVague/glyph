@@ -24,8 +24,8 @@
 ///   organization's (`home/NewOrganizationSheet.tsx`, [onNewOrganization]).
 /// - The smoke is not drawn here. The wisp under the header and at the foot (`art/wispEdge.ts`) and the halo round
 ///   the dock (`art/dockSmoke.ts`) are two seams, [headerEdge] and [dockHalo], shaped for `lib/art`'s widgets:
-///   `headerEdge: (context, edge, scroller) => WispEdge(under: edge.under, foot: true, child: scroller)` and
-///   `dockHalo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, scale: it.scale)`.
+///   `headerEdge: (context, edge, scroller) => BlurEdge(under: edge.under, foot: true, child: scroller)` and
+///   `dockHalo: (context, it) => DockBlur(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, scale: it.scale)`.
 /// - The ghosts of the empty pages (`art/Ghost.tsx`) are a third seam, [ghost]; without it the words stand alone.
 /// - Another workspace, filter or layout glides the page back to its top, as on the web, but from wherever the new,
 ///   shorter page left it: the web first gives the page room at its foot to hold its place (`core/glideToTop.ts`).

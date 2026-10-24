@@ -30,7 +30,7 @@ bool splitFits(Size window, {required bool mouse}) => window.width >= sidebarWid
 /// is, and the primary hover is none if any is). Asked of the Tauri app's own page on an emulator whose touch
 /// screens are styluses too, 2026-10-09 (WebView 133): `(any-pointer: fine)` true, `(pointer: fine)` false,
 /// `(pointer: coarse)` true, `(hover: hover)` false. So every rule the page guards with these (the header's blur
-/// strip in place of smoke, `wispHead`; the tab row's plain fade; a row's cross or a folder's More that waits to be
+/// strip in place of smoke, `wispHead`, which here is the blur on every platform since 2026-10-24; the tab row's plain fade; a row's cross or a folder's More that waits to be
 /// pointed at; the + in the gutter's and the + list's hover grounds; the fly-out submenu; a canvas's eight handles
 /// in place of a finger's four) is the finger's on a phone with a mouse, there and here. What a mouse does get on
 /// a phone, there and here, is what asks the EVENT and not the screen: an unguarded `:hover`, a right-click's menu

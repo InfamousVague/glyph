@@ -264,9 +264,7 @@ void main() {
           if (file.name != 'core/reset.dart')
             for (final m in RegExp(r'''['"](glyph-[a-z0-9-]+)['"]''').allMatches(file.text)) m.group(1)!,
       };
-      // `glyph-wisp-head` is read by nothing here yet (lib/art/wisp_settings.dart names it in words only): it is
-      // spared because the web app keeps it, for the day the override is read at launch.
-      for (final key in spared.difference({'glyph-wisp-head'})) {
+      for (final key in spared) {
         expect(elsewhere, contains(key));
       }
     });

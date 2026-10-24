@@ -24,8 +24,9 @@
 ///   long press: [AllNotesScreen.onNoteMenu] is told which note and where.
 /// - The cards' AI corner mark and where a note was written are the card's own gaps (see lib/home/note_card.dart).
 /// - The glide back to the top borrows more room than the page did (lib/core/glide_to_top.dart).
-/// - The smoke under the bar is [WispEdge], asked for with [AllNotesScreen.wisp] (the `wispEdge` preference); the
-///   page's hook also measured the bar, where here its height is worked out from the same rules that lay it out.
+/// - The page's smoke under the bar is a blur here, [BlurEdge], asked for with [AllNotesScreen.wisp] (the `wispEdge`
+///   preference); the page's hook also measured the bar, where here its height is worked out from the same rules
+///   that lay it out.
 /// - **The dock** (lib/shell/page_dock.dart, [AllNotesScreen.dock]) floats at the bottom end corner as the home
 ///   page's does: Claude, Search, +, Speak and Settings. The page has none; the cards' foot leaves it room.
 /// - **Folders, and the icon view** (GHST-107, 2026-10-19) are the port's own: with a pill chosen, the folders inside
@@ -164,7 +165,7 @@ class AllNotesScreen extends StatefulWidget {
   /// This device records voice (`recordsVoice`), for the empty page's hint.
   final bool speaks;
 
-  /// Whether the cards go to smoke under the bar (the `wispEdge` preference).
+  /// Whether the cards go soft under the bar (the `wispEdge` preference).
   final bool wisp;
 
   /// Keeps what the search holds as a smart notebook (lib/core/smart_notebooks.dart): the Save under the search.
@@ -733,7 +734,7 @@ class _AllNotesScreenState extends State<AllNotesScreen> {
         ),
       );
       // `useWispEdge(scroller, 'all-notes', topBar)`: smoke under the bar, and no foot.
-      return widget.wisp ? WispEdge(under: under, child: scroller) : scroller;
+      return widget.wisp ? BlurEdge(under: under, child: scroller) : scroller;
     }
 
     final onRefresh = widget.onRefresh;

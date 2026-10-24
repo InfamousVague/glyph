@@ -7,7 +7,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/wisp_sides.dart';
+import '../../art/blur_box.dart';
 import '../../core/tabs.dart';
 
 /// Which shape a tab takes (`data-shape`, notes/NoteTabs.tsx): a tab on a line (Classic and the Ledger), a word on an
@@ -387,11 +387,10 @@ class _TabRowState extends State<TabRow> with TickerProviderStateMixin {
     final frame = widget.frame;
     if (frame != null) row = frame(row);
     if (_fadeStart || _fadeEnd) {
-      // An end with tabs past it goes into smoke on a phone (art/wispSides.ts, set by notes/useTabOutline.ts), over
-      // the row's own short fade (`mask-image: linear-gradient(to right, transparent 0, #000 start, #000 calc(100%
-      // - end), transparent 100%)`); the fade alone, and longer, where there is no smoke: a desktop, reduced motion,
-      // the wisp switched off.
-      row = WispSides(start: _fadeStart, end: _fadeEnd, fade: widget.fade, plainFade: widget.fade, child: row);
+      // An end with tabs past it goes soft (art/blur_box.dart; on the page, smoke: art/wispSides.ts, set by
+      // notes/useTabOutline.ts), over the row's own short fade (`mask-image: linear-gradient(to right, transparent 0,
+      // #000 start, #000 calc(100% - end), transparent 100%)`); the fade alone with the edges' blur switched off.
+      row = BlurSides(start: _fadeStart, end: _fadeEnd, fade: widget.fade, plainFade: widget.fade, child: row);
     }
     return Semantics(
       container: true,

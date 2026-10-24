@@ -79,7 +79,7 @@ void main() {
     testWidgets('keeps the two size dials together in Type, beside the two faces', (tester) async {
       await _open(tester);
       expect(_labels(tester, 'Type'), ['Note font', 'Interface font', 'Text size', 'Scale']);
-      expect(_labels(tester, 'Motion'), ['Animation speed', 'Ghostly typing', 'Smoke at the edges', 'Ripples while recording']);
+      expect(_labels(tester, 'Motion'), ['Animation speed', 'Ghostly typing', 'Blur at the edges', 'Ripples while recording']);
       // The sample in the card's head, in the note's own face at the headings' size.
       final sample = tester.widget<Text>(find.byKey(const ValueKey('settings-sample')));
       expect(sample.data, 'Aa');
@@ -141,7 +141,7 @@ void main() {
     testWidgets('writes each switch to what the app reads', (tester) async {
       await _open(tester);
       Finder toggle(String row) => find.descendant(of: find.widgetWithText(SettingRow, row), matching: find.byType(GlacierSwitch));
-      for (final (row, read) in <(String, bool Function(Preferences))>[('Ghostly typing', (p) => p.wisp), ('Smoke at the edges', (p) => p.wispEdge), ('Ripples while recording', (p) => p.ripples)]) {
+      for (final (row, read) in <(String, bool Function(Preferences))>[('Ghostly typing', (p) => p.wisp), ('Blur at the edges', (p) => p.wispEdge), ('Ripples while recording', (p) => p.ripples)]) {
         expect(read(preferences.value), isTrue);
         await _tap(tester, toggle(row));
         expect(read(preferences.value), isFalse, reason: row);

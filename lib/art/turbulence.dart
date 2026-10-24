@@ -7,9 +7,10 @@ import 'dart:typed_data';
 /// art/wispFoot.ts, art/wispSides.ts, art/wispMask.ts, art/dockSmoke.ts), so the port carries the algorithm itself and
 /// not a noise that looks like it: the same seed gives the same cloud, lattice point for lattice point.
 ///
-/// Pure Dart, for three uses: the tables the fragment shaders read ([wispNoiseTable], shaders/wisp_noise.glsl), the
-/// pictures the web app makes once and keeps (the mask's bands, the dock's tile), and the tests that hold the shader
-/// to this and this to the browser.
+/// Pure Dart, for what is left of it here since the smoke gave way to a blur (2026-10-24): the table the bend reads
+/// ([wispNoiseTable], shaders/wisp_bend.frag) for the heat on words and the scene's haze, the frost's grain and the
+/// one point a voice's ripple carries a letter by (lib/editor/marks/text_effects.dart, lib/editor/ai/wisp_filters.dart),
+/// and the tests that hold the shader to this and this to the browser.
 ///
 /// What differs from the page: nothing in the numbers. Chromium works the noise out in whole device pixels (the
 /// point is `(x + 1, y + 1)` in the screen's own pixels, the frequency divided by the scale), which puts its cloud

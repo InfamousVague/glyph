@@ -30,7 +30,6 @@ import '../art/art.dart';
 import '../core/back.dart';
 import '../settings/kit/settings_type.dart';
 import 'frame_clock.dart';
-import 'wisp_bench.dart' show BenchBar;
 
 /// The bench's note (`BENCH_NOTE`): no note has this id, so the run touches nothing.
 const String benchNote = 'scene-bench';
@@ -337,6 +336,66 @@ class _NotPorted extends StatelessWidget {
                 ),
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The bench's bar (`.bar`, `.title`, `.close`), as the smoke bench had it too until that bench went with the smoke
+/// (2026-10-24): a name, whatever stands between, and a round X.
+class BenchBar extends StatelessWidget {
+  const BenchBar({super.key, required this.title, required this.onClose, required this.padding, required this.rule, required this.closeColor, this.pressedColor, this.between});
+
+  final String title;
+  final VoidCallback onClose;
+  final EdgeInsetsGeometry padding;
+
+  /// `border-block-end`.
+  final BorderSide rule;
+
+  /// The X at rest, and while pressed (the title's ink when not given).
+  final Color closeColor;
+  final Color? pressedColor;
+
+  /// What stands between the title and the X (the scene bench's Play again).
+  final Widget? between;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final ink = DefaultTextStyle.of(context).style.color ?? t.color('glacier-text');
+    final size = t.fontSize('md');
+    final side = t.lenOf('2.25rem');
+    return Container(
+      padding: padding,
+      decoration: BoxDecoration(border: Border(bottom: rule)),
+      child: Row(
+        children: [
+          Expanded(
+            child: Semantics(
+              header: true,
+              // `font-size: md; font-weight: semibold; letter-spacing: -0.01em`
+              child: Text(title, key: const ValueKey('bench-title'), style: pageText(t, size, weight: 'semibold', color: ink, tracking: -0.01 * size)),
+            ),
+          ),
+          SizedBox(width: t.space(3)),
+          if (between != null) ...[between!, SizedBox(width: t.space(3))],
+          GlacierPressable(
+            key: const ValueKey('bench-close'),
+            onPressed: onClose,
+            semanticLabel: 'Close',
+            builder: (context, state) {
+              final pressed = state.pressed || state.hovered;
+              return Container(
+                width: side,
+                height: side,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(shape: BoxShape.circle, color: pressed ? ink.withValues(alpha: 0.08) : null),
+                child: AppIcon(Lucide.x, size: 18, color: pressed ? (pressedColor ?? ink) : closeColor),
+              );
+            },
           ),
         ],
       ),

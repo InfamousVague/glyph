@@ -7,7 +7,7 @@
 // the other at once. The halo goes with it, and the home page's dock does the same.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_md/art/dock_smoke.dart';
+import 'package:ghost_md/art/dock_blur.dart';
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/shell/page_dock.dart';
 import 'package:glacier/glacier.dart';
@@ -196,13 +196,13 @@ void main() {
     testWidgets('the halo goes with it, round the dock as it is drawn', (tester) async {
       await pumpApp(
         tester,
-        home: page([], seam: PageDockSeam(halo: (context, it) => DockSmoke(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown, scale: it.scale), actions: notesDock([]).actions, foot: notesDock([]).foot)),
+        home: page([], seam: PageDockSeam(halo: (context, it) => DockBlur(behind: it.behind, dock: it.dock, alignment: it.alignment, padding: it.padding, shown: it.shown, scale: it.scale), actions: notesDock([]).actions, foot: notesDock([]).foot)),
       );
       await tester.pump(const Duration(milliseconds: 500));
       final rested = dock(tester);
-      DockHalo halo() => tester.widget<DockHalo>(find.byType(DockHalo));
+      DockBlurHalo halo() => tester.widget<DockBlurHalo>(find.byType(DockBlurHalo));
       expect(halo().dock, rested);
-      expect(halo().reach, dockSmokeReach);
+      expect(halo().reach, dockBlurReach);
       final gesture = await scrollHeld(tester);
       await tester.pump(const Duration(milliseconds: 300));
       await tester.pump();
@@ -212,7 +212,7 @@ void main() {
       expect(halo().dock!.top, closeTo(small.top, 0.05));
       expect(halo().dock!.size.width, closeTo(small.width, 0.05));
       expect(halo().dock!.size.height, closeTo(small.height, 0.05));
-      expect(halo().reach, closeTo(dockSmokeReach * dockScrolledScale, 0.01));
+      expect(halo().reach, closeTo(dockBlurReach * dockScrolledScale, 0.01));
       await gesture.up();
       await tester.pumpAndSettle();
       await dragToTop(tester);

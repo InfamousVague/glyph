@@ -10,7 +10,7 @@
 ///
 /// What is the ```board's own, used here and not written again (lib/editor/boards): the line under the board that
 /// sets its height ([BoardSplit], with this board's margins and em through [QuerySplitLook]); the physics that
-/// settle a swipe on a lane ([LaneSnapPhysics], [LaneSnap]); the smoke at a lane's foot ([WispFoot]); the carry
+/// settle a swipe on a lane ([LaneSnapPhysics], [LaneSnap]); the blur at a lane's foot ([BlurFoot]); the carry
 /// ([Carry]) and what rolls under it.
 ///
 /// What differs:
@@ -30,7 +30,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../../art/wisp_foot.dart';
+import '../../art/blur_box.dart';
 import '../../core/boards.dart' show boardHeight;
 import '../../core/hold_drag.dart';
 import '../../core/properties.dart' show StatusCategory;
@@ -240,7 +240,7 @@ class _QueryBoardState extends State<QueryBoard> {
         if (notification.depth == 0 && (notification is ScrollUpdateNotification || notification is ScrollEndNotification)) _checkSoon();
         return false;
       },
-      child: WispFoot(
+      child: BlurFoot(
         more: _more.contains(group.key),
         plainFade: 1.2 * look.em,
         child: SingleChildScrollView(

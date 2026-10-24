@@ -12,7 +12,7 @@
 ///   the mouse.
 ///
 /// It reads the view's scroll from the notifications that pass it, so it wraps whatever scrolls
-/// (lib/art/wisp_edge.dart puts it round every view with a header). A press on the thumb drags the view; a press
+/// (lib/art/blur_edge.dart puts it round every view with a header). A press on the thumb drags the view; a press
 /// on the bare track pages it, as the Mac's own does.
 library;
 

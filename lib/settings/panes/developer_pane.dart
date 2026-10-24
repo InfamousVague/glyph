@@ -19,7 +19,6 @@ import 'settings_host.dart';
 const List<SettingsFindable> developerFindable = [
   SettingsFindable('Voice assistant', 'work in progress side key record note shortcut'),
   SettingsFindable('Window', 'inset screen engine'),
-  SettingsFindable('Smoke bench', 'wisp performance frames'),
   SettingsFindable('Play the scene', 'scene bench thermal heat readings'),
   SettingsFindable('Developer settings', 'mode'),
   SettingsFindable('Reset local data', 'clear erase'),
@@ -45,16 +44,16 @@ const Map<String, String> _readings = {'heat': 'Heat', 'cold': 'No heat', 'none'
 }
 
 /// Port of `DeveloperPane` (src/app/settings/DeveloperPane.tsx), present only while developer mode is on (seven
-/// presses on the version in About): what the window is, the smoke bench, the scene after Done played from a script,
-/// the switch that hides the page, and the two resets.
+/// presses on the version in About): what the window is, the scene after Done played from a script, the switch that
+/// hides the page, and the two resets. The smoke bench went with the smoke (Matt, 2026-10-24: "remove the smoke on mac
+/// too so all versions get blur"): there is no wisp left to measure.
 ///
 /// What differs from the web original:
 /// - **Window** reads Flutter's own window: the top inset is the view's padding, and Engine says Flutter and the
 ///   platform, where the page named its browser engine.
-/// - **The benches are not ported** (diag/WispBench.tsx, diag/SceneBench.tsx, stages 8 and 9): "Smoke bench" and
-///   "Play the scene" are drawn and cannot be pressed until [SettingsFeatures.onSmokeBench] and
-///   [SettingsFeatures.onPlayScene] are given. The readings' choice is kept for the scene's row and changes nothing
-///   else.
+/// - **The bench** (diag/SceneBench.tsx): "Play the scene" is drawn and cannot be pressed until
+///   [SettingsFeatures.onPlayScene] is given. The readings' choice is kept for the scene's row and changes nothing
+///   else. The page's smoke bench (diag/WispBench.tsx) has no counterpart: the app draws no smoke.
 /// - **The resets** ask twice, as the page's do, and then run [SettingsFeatures.onReset] (core/reset.ts is the
 ///   library's to port); without it the word Reset is there and cannot be pressed.
 class DeveloperPane extends StatefulWidget {
@@ -82,7 +81,6 @@ class _DeveloperPaneState extends State<DeveloperPane> {
     final features = widget.features;
     final developer = widget.developer ?? developerMode;
     final facts = windowFacts(context);
-    final bench = features.onSmokeBench;
     final play = features.onPlayScene;
     return PaneBody(
       children: [
@@ -94,19 +92,6 @@ class _DeveloperPaneState extends State<DeveloperPane> {
             SettingRow(label: 'Page', hint: const Text('Its size, and pixels to the point.'), value: Text(facts.page)),
             SettingRow(label: 'Screen', value: Text(facts.screen)),
             SettingRow(label: 'Engine', value: Text(facts.engine)),
-          ],
-        ),
-        PaneSection(
-          title: 'Smoke',
-          description: const Text('The wisp edge costs the Mac app frames. This is where it is measured, on the screen it is drawn on.'),
-          children: [
-            SettingRow(
-              icon: const AppIcon(Lucide.gauge, size: 20),
-              label: 'Smoke bench',
-              hint: const Text('A page wearing the filter, the mask or nothing, with its frame times in its header and a run that fills a table.'),
-              onPress: bench ?? () {},
-              disabled: bench == null,
-            ),
           ],
         ),
         PaneSection(

@@ -20,17 +20,17 @@
 ///   Motion setting, a state field having neither a context nor a window to ask.
 /// - Arrivals (the recorder's words, the opening reveal) are decided here as on the web and drawn by the stage that
 ///   ports `wispArrivals.ts` with the recorder; [wispDepartures] draws the leaving half now: a ghost of the text
-///   that went, at the point it left, fading and lifting through the wisp's shader over its duration
-///   (`art/WispText.module.css` `wispOut`), then telling the field it has settled.
+///   that went, at the point it left, fading, lifting and going soft over its duration (`art/WispText.module.css`
+///   `wispOut`; lib/art/blur_letter.dart, where it went to smoke until Matt, 2026-10-24: "replace the smoke effect
+///   with a gradient blur on all places that use the wisp smoke"), then telling the field it has settled.
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/widgets.dart' hide Decoration;
 
-import '../../art/wisp_kit.dart';
-import '../../art/wisp_text.dart' show paintWispLetter, wispLetterBend, wispLetterFrequency, wispLetterSoft, wispSlotSeed;
+import '../../art/blur_letter.dart';
+import '../../art/wisp_text.dart' show wispLetterBend, wispLetterSoft;
 import '../editor.dart';
 import '../view/line.dart' show EditorRunScope;
 import 'run_paint.dart';
@@ -398,19 +398,7 @@ class _GhostPainter extends CustomPainter {
     canvas.save();
     // The widget stands on the line's baseline: the letters are set back on it.
     canvas.translate(0, lift - glyph.baseline);
-    final kit = WispKit.maybe;
-    final seed = wispSlotSeed(moving.id % 12);
-    final table = kit?.tableNow(seed);
-    if (kit == null || table == null || (bend < 0.05 && soft < 0.05)) {
-      final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity);
-      if (soft >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal);
-      canvas.saveLayer(Rect.fromLTWH(-24, -24, box.width + 48, box.height + 48), paint);
-      glyph.painter.paint(canvas, Offset.zero);
-      canvas.restore();
-    } else {
-      final image = glyph.image();
-      paintWispLetter(canvas, kit: kit, table: table, glyph: image, glyphRect: glyph.imageRect, box: box, smoke: WispSmoke.flat(seed: seed, frequency: wispLetterFrequency, bend: bend, blur: soft), opacity: opacity);
-    }
+    paintBlurLetter(canvas, box: box, sigma: letterBlur(bend, soft), opacity: opacity, draw: (canvas) => glyph.painter.paint(canvas, Offset.zero));
     canvas.restore();
   }
 

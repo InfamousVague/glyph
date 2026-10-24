@@ -9,8 +9,10 @@
 /// it into the wisp text; it should only make text that's fading in as I'm talking in the wisp look"): the ranges
 /// this draws on are the letters the arrivals report in motion, run together into stretches, and a word that has
 /// settled drops out of it as it sets. A few filters are shared round the stretches, each a slow, wide noise
-/// bending the words (low frequency across, higher down, so the wave runs along them) with a touch of blur, its
-/// bend scaled by the level. The noise sways a few pixels rather than sliding far, and the filter region is wide
+/// moving the words (low frequency across, higher down, so the wave runs along them) with a touch of blur, its
+/// throw scaled by the level. Each letter is carried whole by the wave and softened, where the page bends it
+/// through the noise (lib/editor/ai/wisp_filters.dart; Matt, 2026-10-24: "replace the smoke effect with a gradient
+/// blur on all places that use the wisp smoke"). The noise sways a few pixels rather than sliding far, and the filter region is wide
 /// around each letter, so a short word bent hard is never clipped. The level is followed with a quick rise and a
 /// slow fall, the way a needle moves, on the animation clock at about thirty steps a second, and the loop stops
 /// altogether once the voice has died away, so silence costs nothing. Reduced motion: no ripples.

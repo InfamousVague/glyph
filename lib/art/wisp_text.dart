@@ -1,16 +1,11 @@
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../perf/frame_log.dart' show Perf, ghostPerf;
+import 'blur_letter.dart';
 import 'wisp.dart';
-import 'wisp_kit.dart';
-import 'wisp_letters.dart';
-import 'wisp_probe.dart';
-import 'wisp_settings.dart';
 
 /// How long a letter takes to set, in ms (art/WispText.tsx `IN_MS`), the most that is added to it at random, and how
 /// much faster than the asked-for pace the letters come.
@@ -25,11 +20,13 @@ const double wispOutGapMs = 26;
 /// No more letters than this bend at once; past it the oldest simply sets.
 const int wispPoolMax = 48;
 
-/// A letter's bend and blur as it starts to arrive: `feDisplacementMap scale` and `feGaussianBlur stdDeviation`.
+/// A letter's bend and blur as it starts to arrive: `feDisplacementMap scale` and `feGaussianBlur stdDeviation` on
+/// the page, and here the two numbers its blur is worked out from (lib/art/blur_letter.dart `letterBlur`).
 const double wispLetterBend = 34;
 const double wispLetterSoft = 5;
 
-/// The noise every letter is bent by, and how long a change takes to fade in with reduced motion.
+/// The noise every letter was bent by (the editor's arriving words still name it in their filters), and how long a
+/// change takes to fade in with reduced motion.
 const Offset wispLetterFrequency = Offset(0.018, 0.06);
 const Duration wispFadeIn = Duration(milliseconds: 220);
 
@@ -37,19 +34,16 @@ const Duration wispFadeIn = Duration(milliseconds: 220);
 /// cloud.
 int wispSlotSeed(int slot) => slot * 7 + 1;
 
-/// One letter of the text as drawn: waiting unseen, arriving or leaving through its own smoke, or set.
+/// One letter of the text as drawn: waiting unseen, arriving or leaving through its own blur, or set.
 class WispLetter {
   WispLetter(this.ch, {this.hidden = false});
   final String ch;
   bool hidden;
   WispRun? run;
-
-  /// The letter as a picture, for the shader to bend; made when it starts to move and let go when it sets.
-  ui.Image? glyph;
-  Rect glyphRect = Rect.zero;
 }
 
-/// A letter's passage through the smoke.
+/// A letter's passage through the blur: [scale] and [blur] are the wisp's bend and blur at this moment, which the
+/// letter's softness is worked out from.
 class WispRun {
   WispRun({required this.slot, required this.at, required this.dur, required this.arriving, required this.scale, required this.blur});
   final int slot;
@@ -179,12 +173,10 @@ class WispEngine {
     onFrame();
   }
 
-  /// Lets go of everything it holds: the pictures of the letters in motion.
+  /// Lets go of everything it holds: the letters in motion.
   void dispose() {
     _phase = null;
     for (final letter in _active.keys) {
-      letter.glyph?.dispose();
-      letter.glyph = null;
       letter.run = null;
     }
     _active.clear();
@@ -286,7 +278,7 @@ class WispEngine {
     return step.char >= 0 && step.char < word.length ? word[step.char] : null;
   }
 
-  /// A letter arrives: seen, fading in, bent by its own filter until it sets.
+  /// A letter arrives: seen, fading in, soft until it sets.
   void _show(WispStep step) {
     final letter = _letter(step);
     if (letter == null) return;
@@ -296,7 +288,7 @@ class WispEngine {
     onLetter(letter.ch);
   }
 
-  /// A letter leaves: thinning as it bends, and gone at the end.
+  /// A letter leaves: thinning as it goes soft, and gone at the end.
   void _hide(WispStep step) {
     final letter = _letter(step);
     if (letter == null) return;
@@ -314,25 +306,25 @@ class WispEngine {
     if (_phase == null) onWake();
   }
 
-  /// Crisp before the filter comes off, so taking it away changes nothing on screen.
+  /// Crisp before the blur comes off, so taking it away changes nothing on screen.
   void _settle(WispLetter letter, WispRun run) {
     letter.run = null;
-    letter.glyph?.dispose();
-    letter.glyph = null;
     if (!run.arriving) letter.hidden = true;
     _pool[run.slot] = false;
     _active.remove(letter);
   }
 }
 
-/// Words that arrive from smoke, a letter at a time, and swap whole words when the text changes
+/// Words that arrive out of a blur, a letter at a time, and swap whole words when the text changes
 /// (art/WispText.tsx, with art/WispText.module.css for the fade and the lift).
 ///
 /// Give it a [text]; the first text types itself in at a hand's pace (or is simply there, with [still]), and every
 /// later text is worked out word by word (wisp.dart): the words that stay put stay, the words that go are untyped
-/// from their last letter, quicker and bending as they thin out, and then the new words type in. Each settling
-/// letter is bent by its own cloud of the specification's noise and blurred, the bend stilling as the letter sets
-/// and the blur lifting a beat later. With reduced motion the text is shown at rest and a change is a short fade.
+/// from their last letter, quicker and going soft as they thin out, and then the new words type in. Each settling
+/// letter comes in soft and faint and sharpens as it sets (lib/art/blur_letter.dart), where it came out of smoke,
+/// bent by its own cloud of noise (Matt, 2026-10-24: "replace the smoke effect with a gradient blur on all places
+/// that use the wisp smoke", on every platform). With reduced motion the text is shown at rest and a change is a
+/// short fade.
 ///
 /// The arguments are the component's: [pace] in letters a second, [still] for a first text shown at rest,
 /// [onSettled] called once the text on screen has fully settled. Its `as` and `className` are [style] here (take it
@@ -340,11 +332,10 @@ class WispEngine {
 /// A text that runs past [maxLines] lands its unseen tail at once, as a clamped title does on the page.
 ///
 /// What differs from the page: words are laid out by this widget, letter by letter, as the page's are (every letter
-/// there is a box of its own, so neither kerns across letters); a word too long for its line is not broken. The
-/// letter is bent by a fragment shader reading a picture of the glyph (shaders/wisp_bend.frag) where the page wears
-/// an SVG filter; until the shader has loaded a letter arrives with its fade and lift alone.
+/// there is a box of its own, so neither kerns across letters); a word too long for its line is not broken. Where
+/// the page bends a letter through an SVG filter, here it is blurred in a layer of its own.
 ///
-/// Cost: a picture and a shader pass for each settling letter is for a headline, not a note.
+/// Cost: a layer and a blur for each settling letter, and nothing for a letter once it has set.
 class WispText extends StatefulWidget {
   const WispText(this.text, {super.key, this.pace = 14, this.still = false, this.style, this.textAlign = TextAlign.start, this.maxLines, this.onSettled, this.random});
 
@@ -390,14 +381,6 @@ class WispTextState extends State<WispText> with TickerProviderStateMixin {
   bool get typing => _engine?.busy ?? false;
 
   double get _now => _base + _elapsed;
-
-  @override
-  void initState() {
-    super.initState();
-    WispKit.load(seeds: [for (var slot = 0; slot < 6; slot++) wispSlotSeed(slot)]).then((_) {
-      if (mounted) _frame.value += 1;
-    });
-  }
 
   @override
   void didChangeDependencies() {
@@ -495,7 +478,6 @@ class WispTextState extends State<WispText> with TickerProviderStateMixin {
         textDirection: Directionality.maybeOf(context) ?? TextDirection.ltr,
         textScaler: MediaQuery.textScalerOf(context),
         maxLines: widget.maxLines,
-        ratio: MediaQuery.devicePixelRatioOf(context),
         repaint: _frame,
       ),
     );
@@ -513,7 +495,6 @@ class _WispTextBox extends LeafRenderObjectWidget {
     required this.textDirection,
     required this.textScaler,
     required this.maxLines,
-    required this.ratio,
     required this.repaint,
   });
 
@@ -525,12 +506,11 @@ class _WispTextBox extends LeafRenderObjectWidget {
   final TextDirection textDirection;
   final TextScaler textScaler;
   final int? maxLines;
-  final double ratio;
   final Listenable repaint;
 
   @override
   RenderWispText createRenderObject(BuildContext context) =>
-      RenderWispText(engine: engine, layouts: layouts, label: text, style: style, textAlign: textAlign, textDirection: textDirection, textScaler: textScaler, maxLines: maxLines, ratio: ratio, repaint: repaint);
+      RenderWispText(engine: engine, layouts: layouts, label: text, style: style, textAlign: textAlign, textDirection: textDirection, textScaler: textScaler, maxLines: maxLines, repaint: repaint);
 
   @override
   void updateRenderObject(BuildContext context, RenderWispText renderObject) {
@@ -541,8 +521,7 @@ class _WispTextBox extends LeafRenderObjectWidget {
       ..textAlign = textAlign
       ..textDirection = textDirection
       ..textScaler = textScaler
-      ..maxLines = maxLines
-      ..ratio = ratio;
+      ..maxLines = maxLines;
   }
 }
 
@@ -565,7 +544,6 @@ class RenderWispText extends RenderBox {
     required TextDirection textDirection,
     required TextScaler textScaler,
     required int? maxLines,
-    required double ratio,
     required this.repaint,
   })  : _layouts = layouts,
         _label = label,
@@ -573,8 +551,7 @@ class RenderWispText extends RenderBox {
         _textAlign = textAlign,
         _textDirection = textDirection,
         _textScaler = textScaler,
-        _maxLines = maxLines,
-        _ratio = ratio;
+        _maxLines = maxLines;
 
   final WispEngine engine;
   final Listenable repaint;
@@ -626,13 +603,6 @@ class RenderWispText extends RenderBox {
     if (value == _maxLines) return;
     _maxLines = value;
     markNeedsLayout();
-  }
-
-  double _ratio;
-  set ratio(double value) {
-    if (value == _ratio) return;
-    _ratio = value;
-    markNeedsPaint();
   }
 
   final Map<String, TextPainter> _painters = {};
@@ -808,8 +778,8 @@ class RenderWispText extends RenderBox {
     }
   }
 
-  /// A letter on its way: the fade and the lift of art/WispText.module.css's keyframes, and through the smoke while
-  /// there is any bend or blur left.
+  /// A letter on its way: the fade and the lift of art/WispText.module.css's keyframes, and its blur while there is
+  /// any bend or blur left on its clock.
   void _paintRun(Canvas canvas, Offset at, _Placed placed, WispRun run) {
     final t = run.progress.clamp(0.0, 1.0);
     final double opacity, lift;
@@ -823,72 +793,9 @@ class RenderWispText extends RenderBox {
       lift = -5 * Curves.easeIn.transform(t);
     }
     if (opacity <= 0) return;
-    final kit = WispKit.maybe;
-    final seed = wispSlotSeed(run.slot);
-    final table = kit?.tableNow(seed);
-    final box = placed.painter.size;
-    final bounds = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
     canvas.save();
     canvas.translate(at.dx, at.dy + lift);
-    if (kit == null || table == null || (run.scale < 0.05 && run.blur < 0.05)) {
-      canvas.saveLayer(bounds, Paint()..color = Color.fromRGBO(0, 0, 0, opacity));
-      placed.painter.paint(canvas, Offset.zero);
-      canvas.restore();
-    } else {
-      final letter = placed.letter;
-      if (letter.glyph == null) _picture(letter, placed.painter);
-      paintWispLetter(
-        canvas,
-        kit: kit,
-        table: table,
-        glyph: letter.glyph!,
-        glyphRect: letter.glyphRect,
-        box: box,
-        smoke: WispSmoke.flat(seed: seed, frequency: wispLetterFrequency, bend: run.scale, blur: run.blur),
-        opacity: opacity,
-      );
-    }
+    paintBlurLetter(canvas, box: placed.painter.size, sigma: letterBlur(run.scale, run.blur), opacity: opacity, draw: (canvas) => placed.painter.paint(canvas, Offset.zero));
     canvas.restore();
   }
-
-  /// The letter as a picture of itself, with room round its box for ink that overhangs it.
-  void _picture(WispLetter letter, TextPainter painter) {
-    final pad = (painter.preferredLineHeight * 0.3).ceilToDouble();
-    final rect = Rect.fromLTWH(-pad, -pad, painter.width + 2 * pad, painter.height + 2 * pad);
-    final recorder = ui.PictureRecorder();
-    final canvas = Canvas(recorder);
-    canvas.scale(_ratio);
-    painter.paint(canvas, Offset(pad, pad));
-    final picture = recorder.endRecording();
-    letter.glyph = picture.toImageSync(math.max(1, (rect.width * _ratio).ceil()), math.max(1, (rect.height * _ratio).ceil()));
-    letter.glyphRect = Rect.fromLTWH(rect.left, rect.top, (rect.width * _ratio).ceil() / _ratio, (rect.height * _ratio).ceil() / _ratio);
-    picture.dispose();
-  }
-}
-
-/// One letter through its filter: the three primitives art/WispText.tsx gives each slot of its pool, drawn at the
-/// letter's own corner. [glyph] is the letter as a picture lying over [glyphRect]; [box] is the letter's box, which
-/// the filter's region is measured from (three widths to its left, one and a half heights above, seven widths by
-/// four heights in all); [smoke] is flat, with the run's bend and blur.
-///
-/// [at] is where the letter's corner is on its page, for a filter whose noise is the page's and not the letter's own
-/// (words arriving in a ripple, a line under heat: neighbours then bend together); left out, each letter has its
-/// own cloud, laid from its own corner.
-void paintWispLetter(Canvas canvas, {required WispKit kit, required ui.Image table, required ui.Image glyph, required Rect glyphRect, required Size box, required WispSmoke smoke, double opacity = 1, Offset at = Offset.zero}) {
-  if (ghostPerf) Perf.count('wisp.letters');
-  if (WispProbe.has('noletter')) {
-    // Measuring only: the letter as it is, at the smoke's opacity.
-    canvas.drawImageRect(glyph, Rect.fromLTWH(0, 0, glyph.width.toDouble(), glyph.height.toDouble()), glyphRect, Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0)));
-    return;
-  }
-  // From the sheet of every letter in smoke, where it holds this one (lib/art/wisp_letters.dart).
-  if (wispQuick && WispLetterSheet.instance.paint(canvas, kit: kit, table: table, glyph: glyph, glyphRect: glyphRect, box: box, smoke: smoke, opacity: opacity, at: at)) return;
-  final region = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
-  final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity.clamp(0.0, 1.0));
-  if (smoke.blur >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: smoke.blur, sigmaY: smoke.blur, tileMode: TileMode.decal);
-  canvas.saveLayer(region.inflate(smoke.blur * 3), paint);
-  canvas.translate(region.left, region.top);
-  final shader = kit.bend(source: glyph, sourceRect: glyphRect.shift(at), origin: at + region.topLeft, smoke: smoke, table: table);
-  canvas.drawRect(Offset.zero & region.size, Paint()..shader = shader);
-  canvas.restore();
 }

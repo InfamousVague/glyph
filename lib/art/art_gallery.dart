@@ -5,26 +5,26 @@ import 'package:glacier/glacier.dart';
 
 import '../app/widgets.dart';
 import 'app_icon.dart';
-import 'dock_smoke.dart';
+import 'blur_box.dart';
+import 'blur_edge.dart';
+import 'dock_blur.dart';
 import 'ghost.dart';
 import 'ghost_mark.dart';
 import 'icons.dart';
 import 'lucide.g.dart';
 import 'shapes.dart';
-import 'wisp_edge.dart';
-import 'wisp_foot.dart';
-import 'wisp_settings.dart';
-import 'wisp_sides.dart';
 import 'wisp_text.dart';
 import 'working_gears.dart';
 
-/// Every piece of the art layer, live, to be judged on a phone: each wisp as the web app wears it (a page under its
-/// header and at its foot, a column beside it, a board's lane, the tab row's ends, the dock's halo), words from
-/// smoke, the ghost in each of its scenes, the icons with their wash and without, the cogs and the lid.
+/// Every piece of the art layer, live, to be judged on a phone: each gradient blur where the web app wears its wisp
+/// (a page under its header and at its foot, a column beside it, a board's lane, the tab row's ends, the dock's
+/// halo), words out of a blur, the ghost in each of its scenes, the icons with their wash and without, the cogs and
+/// the lid.
 ///
-/// `flutter run -t lib/art/main.dart` opens it alone. The switches at the top are the wisp's own
-/// ([WispSettings]): the drawing asked for by name, and the smoke switched off as Settings › Appearance › Motion
-/// switches it.
+/// `flutter run -t lib/art/main.dart` opens it alone. The switch at the top is the edges' own
+/// ([BlurEdgeSettings]): the blur switched off as Settings › Appearance › Motion switches it. Until Matt, 2026-10-24
+/// ("replace the smoke effect with a gradient blur on all places that use the wisp smoke") it chose between the
+/// smoke's drawings as well; there is one drawing now, on every platform.
 class ArtGallery extends StatefulWidget {
   const ArtGallery({super.key});
 
@@ -48,7 +48,6 @@ const _lines = [
 ];
 
 class _ArtGalleryState extends State<ArtGallery> {
-  String _draw = 'platform';
   int _words = 0;
   Timer? _turn;
 
@@ -57,41 +56,18 @@ class _ArtGalleryState extends State<ArtGallery> {
   @override
   void initState() {
     super.initState();
-    WispSettings.instance.addListener(_changed);
+    BlurEdgeSettings.instance.addListener(_changed);
   }
 
   @override
   void dispose() {
-    WispSettings.instance.removeListener(_changed);
+    BlurEdgeSettings.instance.removeListener(_changed);
     _turn?.cancel();
     super.dispose();
   }
 
   void _changed() {
     if (mounted) setState(() {});
-  }
-
-  void _setDraw(String value) {
-    setState(() => _draw = value);
-    final settings = WispSettings.instance;
-    switch (value) {
-      case 'filter':
-        settings
-          ..head = WispHead.smoke
-          ..draw = WispDraw.filter;
-      case 'mask':
-        settings
-          ..head = WispHead.smoke
-          ..draw = WispDraw.mask;
-      case 'desktop':
-        settings
-          ..draw = null
-          ..head = WispHead.blur;
-      default:
-        settings
-          ..draw = null
-          ..head = null;
-    }
   }
 
   @override
@@ -110,28 +86,15 @@ class _ArtGalleryState extends State<ArtGallery> {
             children: [
               const AppEyebrow('Ghost Flutter · the art'),
               SizedBox(height: t.space(2)),
-              Text('Smoke, ghosts and icons', style: t.textAt(t.len('app-title'), weight: 'bold', height: 1.15, tracking: t.len('app-tracking-title', em: t.len('app-title')))),
+              Text('Blur, ghosts and icons', style: t.textAt(t.len('app-title'), weight: 'bold', height: 1.15, tracking: t.len('app-tracking-title', em: t.len('app-title')))),
               SizedBox(height: t.space(2)),
-              Text('Each piece of the web app’s art layer, drawn here by shaders and paths. Scroll inside a box to wake its smoke.', style: t.text('md', color: muted)),
+              Text('Each piece of the web app’s art layer, drawn here by blurs and paths. Scroll inside a box to blur its edge.', style: t.text('md', color: muted)),
 
-              _Section('How the smoke is drawn', [
-                GlacierSegmentedControl(
-                  ariaLabel: 'Drawing',
-                  fullWidth: true,
-                  value: _draw,
-                  onValueChange: _setDraw,
-                  options: const [
-                    GlacierSegmentedOption(value: 'platform', label: Text('This phone')),
-                    GlacierSegmentedOption(value: 'filter', label: Text('Filter')),
-                    GlacierSegmentedOption(value: 'mask', label: Text('Mask')),
-                    GlacierSegmentedOption(value: 'desktop', label: Text('Desktop')),
-                  ],
-                ),
-                SizedBox(height: t.space(3)),
+              _Section('The blur at the edges', [
                 Row(
                   children: [
-                    Expanded(child: Text('Smoke at a page’s edges', style: t.text('md'))),
-                    GlacierSwitch(checked: WispSettings.instance.wanted, onCheckedChange: (on) => WispSettings.instance.wanted = on, ariaLabel: 'Smoke at a page’s edges'),
+                    Expanded(child: Text('Blur at a page’s edges', style: t.text('md'))),
+                    GlacierSwitch(checked: BlurEdgeSettings.instance.wanted, onCheckedChange: (on) => BlurEdgeSettings.instance.wanted = on, ariaLabel: 'Blur at a page’s edges'),
                   ],
                 ),
               ]),
@@ -140,7 +103,7 @@ class _ArtGalleryState extends State<ArtGallery> {
                 _Framed(height: 340, child: _Page(under: 52, foot: true, title: 'Under a header')),
                 SizedBox(height: t.space(3)),
                 _Framed(height: 260, child: _Page(under: 0, foot: true, safeTop: 28, title: null)),
-                _Note('The second has no header: the band sits a drop under the status bar, 28px here, and the page fades into it.'),
+                _Note('The second has no header: the page fades into the status bar, 28px here, and is soft for a band below it.'),
               ]),
 
               _Section('A column beside a page', [
@@ -148,13 +111,13 @@ class _ArtGalleryState extends State<ArtGallery> {
                   height: 260,
                   child: Row(
                     children: [
-                      SizedBox(width: 140, child: _Page(under: 44, foot: false, band: WispBand.column, title: 'Column', short: true)),
+                      SizedBox(width: 140, child: _Page(under: 44, foot: false, title: 'Column', short: true)),
                       Container(width: t.len('app-line'), color: t.color('glacier-border')),
                       const Expanded(child: _Page(under: 0, foot: false, safeTop: 0, title: null)),
                     ],
                   ),
                 ),
-                _Note('Each drifts only while it is the one being scrolled, and the column’s lip eases down over its first 34px.'),
+                _Note('Each blurs only once it is scrolled off its top, and the blur turns in over a sixth of a second.'),
               ]),
 
               _Section('A board’s lane', [
@@ -167,12 +130,12 @@ class _ArtGalleryState extends State<ArtGallery> {
                     ],
                   ],
                 ),
-                _Note('A short lane carries the same band, made smaller. Scrolled to its end, a lane is drawn as it is.'),
+                _Note('A short lane’s blur runs half its height at most. Scrolled to its end, a lane is drawn as it is.'),
               ]),
 
               _Section('The tab row’s ends', [const _Tabs()]),
 
-              _Section('Words from smoke', [
+              _Section('Words out of a blur', [
                 SizedBox(
                   height: t.len('app-title') * 1.3 * 2,
                   child: Align(
@@ -327,13 +290,12 @@ class _Framed extends StatelessWidget {
   }
 }
 
-/// A page of words that scrolls under a header [under] px tall (none at 0), wearing the wisp edge.
+/// A page of words that scrolls under a header [under] px tall (none at 0), wearing the edge's blur.
 class _Page extends StatelessWidget {
-  const _Page({required this.under, required this.foot, this.title, this.band = WispBand.page, this.safeTop, this.short = false});
+  const _Page({required this.under, required this.foot, this.title, this.safeTop, this.short = false});
   final double under;
   final bool foot;
   final String? title;
-  final WispBand band;
   final double? safeTop;
   final bool short;
 
@@ -344,10 +306,9 @@ class _Page extends StatelessWidget {
     return Stack(
       children: [
         Positioned.fill(
-          child: WispEdge(
+          child: BlurEdge(
             under: under,
             foot: foot,
-            band: band,
             safeTop: safeTop,
             child: ListView(
               padding: EdgeInsets.fromLTRB(pad, under + (safeTop ?? 0) + t.space(3), pad, t.space(6)),
@@ -380,7 +341,7 @@ class _Page extends StatelessWidget {
   }
 }
 
-/// A board's lane: cards in a column that scrolls, its foot in smoke while there is more below.
+/// A board's lane: cards in a column that scrolls, its foot soft while there is more below.
 class _Lane extends StatefulWidget {
   const _Lane({required this.height});
   final double height;
@@ -401,7 +362,7 @@ class _LaneState extends State<_Lane> {
         onNotification: (n) => _look(n.metrics),
         child: NotificationListener<ScrollNotification>(
           onNotification: (n) => _look(n.metrics),
-          child: WispFoot(
+          child: BlurFoot(
             more: _more,
             plainFade: 1.2 * t.fontSize('sm'),
             child: ListView(
@@ -429,7 +390,7 @@ class _LaneState extends State<_Lane> {
   }
 }
 
-/// A row of tabs that scrolls sideways, each open end in smoke.
+/// A row of tabs that scrolls sideways, each open end soft.
 class _Tabs extends StatefulWidget {
   const _Tabs();
 
@@ -450,7 +411,7 @@ class _TabsState extends State<_Tabs> {
         onNotification: (n) => _look(n.metrics),
         child: NotificationListener<ScrollNotification>(
           onNotification: (n) => _look(n.metrics),
-          child: WispSides(
+          child: BlurSides(
             start: _start,
             end: _end,
             child: ListView(
@@ -505,9 +466,9 @@ class _Dock extends StatelessWidget {
           decoration: BoxDecoration(color: t.color('glacier-bg'), shape: BoxShape.circle, border: Border.all(color: t.color('glacier-border-strong'), width: t.len('app-line'))),
           child: icon,
         );
-    return DockSmoke(
+    return DockBlur(
       padding: EdgeInsets.only(bottom: t.space(6)),
-      behind: WispEdge(
+      behind: BlurEdge(
         foot: true,
         safeTop: 0,
         child: ListView(

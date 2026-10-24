@@ -1,4 +1,5 @@
-/// Frame times read off the app itself, for the smoke bench (lib/diag/wisp_bench.dart). A port of
+/// Frame times read off the app itself, for the scene bench (lib/diag/scene_bench.dart; the smoke bench it was made
+/// for went with the smoke, 2026-10-24). A port of
 /// `src/app/diag/frameClock.ts`.
 ///
 /// A run drives a surface one way for one cell (nothing, a repaint a frame, a scroll a frame) and keeps every

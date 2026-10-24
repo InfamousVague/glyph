@@ -1,9 +1,9 @@
-// The effects and the smoke as a page that moves draws them, beside the same page drawn once.
+// The effects as a page that moves draws them, beside the same page drawn once.
 //
-// A letter in an effect drawn by itself is a layer and a blur or two (lib/editor/marks/text_effects.dart,
-// lib/art/wisp_text.dart). While frames follow one another the same letters are laid down from what is kept of
-// them: every bent letter from one sheet (lib/art/wisp_letters.dart), a haunting's blur and a shimmer's glow from
-// pictures kept (lib/art/wisp_kept.dart). This draws the marks' note with its clock held, once (frames a quarter
+// A letter in an effect drawn by itself is a layer and a blur or two (lib/editor/marks/text_effects.dart). While
+// frames follow one another the same letters are laid down from what is kept of them: a haunting's blur and a
+// shimmer's glow from pictures kept (lib/art/wisp_kept.dart). The sheet every bent letter was laid from went with the
+// smoke (2026-10-24): a heated letter is its own layer on every frame, and a spoiler's is a blur. This draws the marks' note with its clock held, once (frames a quarter
 // of a second apart: each letter by itself) and then on frames sixteen milliseconds apart, and holds the second to
 // the first.
 //
@@ -17,8 +17,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/wisp_kept.dart';
-import 'package:ghost_md/art/wisp_letters.dart';
-import 'package:ghost_md/art/wisp_settings.dart';
 import 'package:ghost_md/editor/marks/marks.dart';
 import 'package:ghost_md/editor/state/state.dart' show Extension;
 
@@ -39,7 +37,6 @@ void main() {
   tearDown(() {
     debugWispQuick = null;
     WispKept.clear();
-    WispLetterSheet.instance.clear();
   });
 
   // Each as it stands, and the dark one again scrolled to between two of the screen's pixels (37.3 logical pixels
@@ -66,19 +63,16 @@ void main() {
       // Drawn once: frames far apart, so nothing is kept and each letter is its own layers.
       await tester.pump(const Duration(milliseconds: 250));
       WispKept.debugLaid = 0;
-      WispLetterSheet.instance.debugLaid = 0;
       for (var i = 0; i < 2; i++) {
         await tester.pump(const Duration(milliseconds: 250));
       }
       expect(WispKept.debugLaid, 0);
-      expect(WispLetterSheet.instance.debugLaid, 0);
       final once = await _picture(tester);
 
       // And moving: the marks' own clock has each line with a moving letter painted on every frame.
       for (var i = 0; i < 6; i++) {
         await tester.pump(const Duration(milliseconds: 16));
       }
-      expect(WispLetterSheet.instance.debugLaid, greaterThan(0), reason: 'no letter came off the sheet: nothing was compared');
       expect(WispKept.debugLaid, greaterThan(0), reason: 'no kept picture was laid: nothing was compared');
       final moving = await _picture(tester);
 
@@ -133,7 +127,7 @@ void main() {
       final sharp = sharpness(moving.data) / sharpness(once.data);
       final mean = total / (once.data.length / 4 * 3);
       // ignore: avoid_print
-      print('$name${scrolled > 0 ? ' scrolled $scrolled' : ''}: the page that moves against the page drawn once: mean ${mean.toStringAsFixed(3)} of 255, $differing pixels differ, worst $worst, as sharp by ${sharp.toStringAsFixed(4)}; laid ${WispLetterSheet.instance.debugLaid} from the sheet and ${WispKept.debugLaid} kept');
+      print('$name${scrolled > 0 ? ' scrolled $scrolled' : ''}: the page that moves against the page drawn once: mean ${mean.toStringAsFixed(3)} of 255, $differing pixels differ, worst $worst, as sharp by ${sharp.toStringAsFixed(4)}; laid ${WispKept.debugLaid} kept');
       expect(sharp, greaterThan(0.985), reason: 'the page that moves is softer than the page drawn once: something is laid between the screen\'s pixels');
       expect(mean, lessThan(0.25), reason: 'the letters laid down from what is kept have moved away from the letters drawn by themselves');
       // As a picture's test ends (test/support/render.dart `shot`): the shadows' switch back, and the page taken down.

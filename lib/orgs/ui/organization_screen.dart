@@ -619,7 +619,7 @@ class _OrganizationScreenState extends State<OrganizationScreen> {
           child: pull == null ? column : PullLowered(pull: pull, child: column),
         ),
       );
-      return widget.wisp ? WispEdge(under: under, child: scroller) : scroller;
+      return widget.wisp ? BlurEdge(under: under, child: scroller) : scroller;
     }
 
     Widget ring(LucideIcon mark, String label, VoidCallback onPressed, Key key) => GlacierPressable(

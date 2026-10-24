@@ -1,43 +1,38 @@
-/// The look of a plugin formatting whose look is smoke (`plugins/marks.dart` [WispLook]): the Spoiler mark's
-/// `||secret||`. Every letter between the delimiters is bent, blurred and half-there, without rest, so the words
-/// can't be read until the caret is put in them; then they settle to plain text for editing, and smoke over again
-/// when the caret leaves. The delimiters stay as they are, dimmed marks, so the secret can be found. Ports
-/// `src/app/editor/wispFormat.ts`.
+/// The look of a plugin formatting whose look is the wisp's (`plugins/marks.dart` [WispLook]): the Spoiler mark's
+/// `||secret||`. Every letter between the delimiters is blurred and half-there, breathing without rest, so the
+/// words can't be read until the caret is put in them; then they settle to plain text for editing, and blur over
+/// again when the caret leaves. Until Matt, 2026-10-24 ("replace the smoke effect with a gradient blur on all places
+/// that use the wisp smoke", and on the Mac too) the letters were bent through noise as well: smoke. The delimiters
+/// stay as they are, dimmed marks, so the secret can be found. Ports `src/app/editor/wispFormat.ts`.
 ///
 /// A whole line can be hidden the same way, written as a quote whose first character is a bar: `>| the answer`
 /// ([spoilerLineLetters]). It is the same spoiler, so it lives and dies with the Spoiler mark.
 ///
 /// The letters keep their places: each is a plain inline mark, so kerning and wrapping don't change. A dozen
-/// smokes are shared round the letters so neighbours never move alike, and moved together on the animation clock
-/// at about 30 steps a second while any smoke is on screen. With reduced motion the smoke stands still, and still
+/// poses are shared round the letters so neighbours never breathe alike, and moved together on the animation clock
+/// at about 30 steps a second while any spoiler is on screen. With reduced motion the blur stands still, and still
 /// hides. A view that can't be edited (a read-only note) never clears.
 ///
 /// What differs:
 /// - The page marks each letter `filter: url(#wispfmt-<n>-<slot>)` and keeps twelve SVG filters beside the editor,
 ///   whose attributes a frame loop rewrites. Here each letter's mark says its slot and its own text (`data-slot`,
-///   `data-text`, which a painter is not otherwise told), and the letter is drawn through the wisp's shader
-///   (`lib/art/wisp_kit.dart`: `feTurbulence` into `feDisplacementMap`, then the blur, the lift and the fade) with
-///   that slot's numbers at the clock's time: [smokePose] is `pose(t)` of the web file, number for number.
-/// - Until the shaders have loaded, and where they cannot (a test without them), a letter is its own blur at the
-///   pose's softness and fade: it hides the word as surely, without the bend.
+///   `data-text`, which a painter is not otherwise told), and the letter is drawn blurred (lib/art/blur_letter.dart)
+///   by that slot's numbers at the clock's time: [smokePose] is `pose(t)` of the web file, number for number, its
+///   bend taken into the blur (`letterBlur`), then lifted and faded. No noise and no shader.
 library;
 
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 
 import 'package:flutter/painting.dart' hide Decoration;
 
-import '../../art/wisp_kit.dart';
-import '../../art/wisp_text.dart' show paintWispLetter;
+import '../../art/blur_letter.dart';
 import '../../plugins/marks.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
-import '../view/editor_view.dart';
 import '../view/line_facts.dart';
 import '../view/syntax_tree.dart';
 import 'run_paint.dart';
-import 'wisp_tables.dart';
 
 /// A letter to smoke.
 typedef SmokeLetter = ({int from, int to});
@@ -137,9 +132,6 @@ class SmokePose {
   final Offset frequency;
 }
 
-/// The seed of slot `k`'s noise.
-int smokeSeed(int k) => k * 11 + 3;
-
 /// Slot `k`'s filter at time `t` seconds, each slot on its own phase, so no two letters breathe together. The
 /// numbers are rounded as the page writes them into its attributes.
 SmokePose smokePose(int k, double t) {
@@ -173,33 +165,8 @@ class _SmokeLetter extends LetterLayer {
     // The page's loop poses its filters every 33 ms.
     final t = still ? 0.0 : (MarkClock.now * 1000 / smokeStepMs).floorToDouble() * smokeStepMs / 1000;
     final pose = smokePose(slot, t);
-    final seed = smokeSeed(slot);
-    final kit = WispKit.maybe;
-    final table = kit?.tableNow(seed);
     canvas.translate(0, pose.lift);
-    if (kit == null || table == null) {
-      final region = Rect.fromLTWH(-3 * box.width, -1.5 * box.height, 7 * box.width, 4 * box.height);
-      canvas.saveLayer(
-        region,
-        Paint()
-          ..color = Color.fromRGBO(0, 0, 0, pose.shown.clamp(0.0, 1.0))
-          ..imageFilter = ui.ImageFilter.blur(sigmaX: pose.soft, sigmaY: pose.soft, tileMode: TileMode.decal),
-      );
-      glyph.painter.paint(canvas, Offset.zero);
-      canvas.restore();
-      return;
-    }
-    final image = glyph.image();
-    paintWispLetter(
-      canvas,
-      kit: kit,
-      table: table,
-      glyph: image,
-      glyphRect: glyph.imageRect,
-      box: box,
-      smoke: WispSmoke.flat(seed: seed, frequency: pose.frequency, bend: pose.bend, blur: pose.soft),
-      opacity: pose.shown,
-    );
+    paintBlurLetter(canvas, box: box, sigma: letterBlur(pose.bend, pose.soft), opacity: pose.shown, draw: (canvas) => glyph.painter.paint(canvas, Offset.zero));
   }
 }
 
@@ -227,7 +194,7 @@ final Extension _themed = baseTheme(_theme);
 
 class _WispFormat extends PluginValue {
   _WispFormat(this.view, this.names, this.marked) {
-    _redraw(first: true);
+    _redraw();
   }
 
   final EditorViewLike view;
@@ -236,26 +203,9 @@ class _WispFormat extends PluginValue {
   /// The lines with one of the smoked marks' delimiters: where the tree is walked.
   final LineFact<bool>? marked;
   DecorationSet decorations = Decoration.none;
-  bool _gone = false;
-
-  /// The shaders and each slot's noise, off the first frame; the letters are their own blur until then. Asked for
-  /// when the note first shows a smoked letter (wisp_tables.dart).
-  final WispTables _tables = WispTables(<int>[for (var i = 0; i < smokePool; i++) smokeSeed(i)]);
-
-  void _wantTables({required bool atOnce}) => _tables.want(
-    atOnce: atOnce,
-    gone: () => _gone,
-    ready: () {
-      final own = view;
-      if (own is! EditorView) return;
-      for (final line in own.lines) {
-        line.markNeedsPaint();
-      }
-    },
-  );
 
   @override
-  void destroy() => _gone = true;
+  void destroy() {}
 
   @override
   void update(ViewUpdate update) {
@@ -264,7 +214,7 @@ class _WispFormat extends PluginValue {
     }
   }
 
-  void _redraw({bool first = false}) {
+  void _redraw() {
     final ranges = view.visibleRanges;
     if (ranges.isEmpty) {
       decorations = Decoration.none;
@@ -274,7 +224,6 @@ class _WispFormat extends PluginValue {
     final clear = state.facet(EditorViewLike.editable) && view.hasFocus;
     final from = ranges.first.from, to = ranges.last.to;
     final letters = <SmokeLetter>[...smokeLetters(state, names, from, to, clear, marked), ...spoilerLineLetters(state, from, to, clear)]..sort((a, b) => a.from - b.from);
-    if (letters.isNotEmpty) _wantTables(atOnce: first);
     final builder = RangeSetBuilder<Decoration>();
     var i = 0, before = -1;
     for (final letter in letters) {

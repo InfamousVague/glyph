@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/ghost_app.dart';
-import 'package:ghost_md/art/wisp_foot.dart';
+import 'package:ghost_md/art/blur_box.dart';
 import 'package:ghost_md/editor/boards/boards.dart';
 import 'package:ghost_md/editor/items/field_chips.dart';
 import 'package:glacier/glacier.dart';
@@ -28,8 +28,6 @@ const Map<String, String> _notHeld = <String, String>{};
 const Map<String, Set<int>> _linesNotHeld = <String, Set<int>>{
   'cards-inter': <int>{107},
 };
-
-String _plain(double value) => value == value.roundToDouble() ? value.toStringAsFixed(0) : '$value';
 
 void main() {
   setUpAll(loadAppFonts);
@@ -164,13 +162,12 @@ void main() {
           if (fixture.hold == null && (lane.maxScrollExtent - pageRoom).abs() > 1) problems.add('[$at stack] scrolls ${lane.maxScrollExtent}, the page $pageRoom');
           if (fixture.hold == null && (lane.pixels - (wantStack['scrollTop'] as num)).abs() > 1) problems.add('[$at stack] at ${lane.pixels}, the page ${wantStack['scrollTop']}');
 
-          // More below than the lane shows: its foot fades, over the length the smoke's lip gives it.
-          final foot = find.descendant(of: keyed('stack$c'), matching: find.byType(WispFoot));
+          // More below than the lane shows: its foot blurs and fades. The page's fade is the length its smoke's lip
+          // gives it (`wantStack['fade']`); the smoke gave way to a blur here (2026-10-24), which fades over the lane's
+          // own `1.2em`, so only whether a lane says there is more below is held to the page.
+          final foot = find.descendant(of: keyed('stack$c'), matching: find.byType(BlurFoot));
           same('$at foot', foot.evaluate().isNotEmpty, want['sized']);
-          if (want['sized'] == true) {
-            same('$at more below', tester.widget<WispFoot>(foot).more, wantStack['more']);
-            if (wantStack['fade'] != null) same('$at fade', '${_plain(wispFootFade(boxOf(tester, keyed('stack$c')).height.roundToDouble()))}px', wantStack['fade']);
-          }
+          if (want['sized'] == true) same('$at more below', tester.widget<BlurFoot>(foot).more, wantStack['more']);
 
           // The cards, in the order the lane has them.
           final wantCards = (column['cards'] as List).cast<Map<String, dynamic>>();

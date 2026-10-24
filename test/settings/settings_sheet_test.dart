@@ -259,7 +259,7 @@ void main() {
       await _open(tester);
       await tester.enterText(find.byType(EditableText), 'smoke');
       await tester.pump();
-      expect(_rows(tester), {'Smoke at the edges': 'Appearance'});
+      expect(_rows(tester), {'Blur at the edges': 'Appearance'});
       await tester.enterText(find.byType(EditableText), 'sign');
       await tester.pump();
       // Account is found by its own words, so what on its page answers to them is listed after it.

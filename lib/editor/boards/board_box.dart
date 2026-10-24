@@ -56,7 +56,7 @@ import 'dart:math' as math;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../art/wisp_foot.dart';
+import '../../art/blur_box.dart';
 import '../../core/boards.dart';
 import '../../core/hold_drag.dart';
 import '../../core/task_fields.dart' show FieldSpan;
@@ -726,9 +726,9 @@ class _DrawnBoardBoxState extends State<DrawnBoardBox> with TickerProviderStateM
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: children),
       ),
     );
-    // More cards below than the lane shows: its foot fades, and goes to smoke where the app's wisp is on. Only a
+    // More cards below than the lane shows: its foot fades, and goes soft where the edges' blur is on. Only a
     // board with a set height has lanes that say so.
-    if (_sized != null) lane = WispFoot(more: _more.contains(column), plainFade: look.laneFade, child: lane);
+    if (_sized != null) lane = BlurFoot(more: _more.contains(column), plainFade: look.laneFade, child: lane);
     return SizedBox(key: _laneKey(column), height: height, child: KeyedSubtree(key: ValueKey<String>('stack$column'), child: lane));
   }
 

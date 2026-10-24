@@ -1671,7 +1671,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     // 36rem, or the gutter where it has less.
     final past = (pageWidth - t.lenOf('36rem')) / 2;
     final columnStart = look == Look.reading && MediaQuery.sizeOf(context).width >= 600 ? (gutter > past ? gutter : past) : null;
-    final smokes = footSmokes(prefs.wispEdge, still: t.reducedMotion);
+    final blurs = footBlurs(prefs.wispEdge);
     final authors = authorsOf(widget.note.body);
     final view = _view;
     final tag = _tag;
@@ -1705,8 +1705,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       pageWidth: pageWidth,
       headClear: headerHeight,
       pageHead: padTop + (seams.headRoom?.value ?? 0),
-      // The line being typed stays above the page's foot smoke, where there is smoke to keep clear of.
-      footClear: !_isCanvas && smokes ? wispEdgeFootClear : 0,
+      // The line being typed stays above the page's foot blur, where there is a blur to keep clear of.
+      footClear: !_isCanvas && blurs ? blurEdgeFootClear : 0,
       meHue: null,
       // Behind a canvas, a journal or an index the editor is kept and not drawn: its words are not read there.
       shown: _words,
@@ -1839,16 +1839,16 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
           onPointerUp: _pointerUp,
           onPointerCancel: _pointerUp,
           onPointerSignal: (_) => _keeper?.touched(),
-          // The note goes to smoke as it slips behind the header, and off the bottom where the dock is; not a
-          // canvas, which is not a page that scrolls off its foot.
+          // The note goes soft as it slips behind the header, and off the bottom where the dock is; not a canvas,
+          // which is not a page that scrolls off its foot.
           // The page ends where the keyboard begins, as the web's does (its activity lays the page out above the
-          // keyboard): the line being typed can always be scrolled clear of it, and the foot's smoke rests on it.
+          // keyboard): the line being typed can always be scrolled clear of it, and the foot's blur rests on it.
           child: _AboveKeyboard(
             foot: formatStrip,
-            child: WispEdge(
+            child: BlurEdge(
               under: under,
               foot: !_isCanvas,
-              // No scrollbar of a desktop's own on a note: the page's note has none (art/wisp_edge.dart).
+              // No scrollbar of a desktop's own on a note: the page's note has none (art/blur_edge.dart).
               scrollbar: false,
               // `.screen[data-unfolding] .body`: paper folded down its middle, foreshortened, flattening as the
               // hinge does. Only the note moves; the header and the app's own bar are the phone's.

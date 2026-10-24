@@ -4,8 +4,9 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
 
-/// Words from smoke, as the screen sees them: the letters the engine lays out, which of them are waiting, arriving
-/// through a smoke of their own, leaving, or set, and when it says the text has settled. Case for case with the web
+/// Words out of a blur, as the screen sees them: the letters the engine lays out, which of them are waiting, arriving
+/// through a blur of their own, leaving, or set, and when it says the text has settled. (Out of smoke on the page,
+/// and here until 2026-10-24: lib/art/blur_letter.dart.) Case for case with the web
 /// app's art/WispText.test.tsx. What the plan is - which words stay, move or go, and when each letter is due - is
 /// test/art/wisp_test.dart; this is the widget and the clock that carry it out.
 ///
@@ -38,8 +39,7 @@ void main() {
     }
   }
 
-  testWidgets('types its first text in a letter at a time, each bent by a smoke of its own until it sets', (tester) async {
-    await tester.runAsync(() => WispKit.load(seeds: [for (var slot = 0; slot < 8; slot++) wispSlotSeed(slot)]));
+  testWidgets('types its first text in a letter at a time, each soft on a clock of its own until it sets', (tester) async {
     final settled = <String>[];
     await tester.pumpWidget(host(WispText('Hello there', pace: 14, onSettled: settled.add, random: math.Random(1))));
     // The whole text is there for a screen reader from the start.
@@ -53,17 +53,18 @@ void main() {
     expect(partway.length, greaterThan(1));
     expect(partway.length, lessThan(10));
     expect(letters(tester).any(bending), isTrue);
-    // Two letters bending at once never share a smoke: sharing one made both flicker.
+    // Two letters arriving at once never share a clock: sharing one made both flicker.
     final slots = letters(tester).where(bending).map((l) => l.run!.slot).toList();
     expect(slots.toSet().length, slots.length);
-    // And each is drawn through a picture of itself, by the shader.
-    expect(letters(tester).where(bending).any((l) => l.glyph != null), isTrue);
+    // And each is drawn soft, the softer the newer: its clock's bend and blur are its blur.
+    final soft = [for (final l in letters(tester).where(bending)) letterBlur(l.run!.scale, l.run!.blur)];
+    expect(soft.any((sigma) => sigma > 1), isTrue);
+    expect(soft.every((sigma) => sigma <= letterBlurMost), isTrue);
     expect(settled, isEmpty);
 
     await run(tester, 5000);
     expect(drawn(tester), 'Hellothere');
     expect(letters(tester).any(bending), isFalse);
-    expect(letters(tester).any((l) => l.glyph != null), isFalse);
     expect(settled, ['Hello there']);
     expect(tester.state<WispTextState>(find.byType(WispText)).typing, isFalse);
     expect(tester.takeException(), isNull);
@@ -120,7 +121,7 @@ void main() {
     expect(opacity(), 1);
   });
 
-  testWidgets('keeps no more than 48 smokes however fast the letters come', (tester) async {
+  testWidgets('keeps no more than 48 clocks however fast the letters come', (tester) async {
     await tester.pumpWidget(host(WispText(List.filled(40, 'smoke').join(' '), pace: 2000)));
     var most = 0;
     for (var t = 0; t < 1500; t += 16) {
@@ -145,15 +146,14 @@ void main() {
   });
 
   testWidgets('takes what it holds away when it goes, and leaves nothing moving', (tester) async {
-    await tester.runAsync(() => WispKit.load(seeds: [for (var slot = 0; slot < 8; slot++) wispSlotSeed(slot)]));
     await tester.pumpWidget(host(const WispText('Gone soon')));
     await run(tester, 100);
-    final held = letters(tester).where((l) => l.glyph != null).toList();
+    final held = letters(tester).where(bending).toList();
     expect(held, isNotEmpty);
     await tester.pumpWidget(const SizedBox());
-    // The pictures of the letters in motion are let go, and nothing is left on the clock to run against a widget
-    // that is gone (the binding itself fails a test that leaves a ticker running).
-    expect(held.every((l) => l.glyph == null), isTrue);
+    // The letters in motion are let go, and nothing is left on the clock to run against a widget that is gone (the
+    // binding itself fails a test that leaves a ticker running).
+    expect(held.every((l) => l.run == null), isTrue);
     expect(tester.binding.transientCallbackCount, 0);
   });
 

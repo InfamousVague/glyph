@@ -392,7 +392,7 @@ class _OrganizationLogState extends State<OrganizationLog> {
         child: ClipRect(
           child: Stack(
             children: [
-              Positioned.fill(child: widget.wisp ? WispEdge(under: under, child: scroller) : scroller),
+              Positioned.fill(child: widget.wisp ? BlurEdge(under: under, child: scroller) : scroller),
               HeaderPane(
                 child: Padding(
                   key: const ValueKey('organization-log-bar'),

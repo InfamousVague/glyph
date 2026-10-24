@@ -8,7 +8,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/editor/boards/boards.dart';
-import 'package:ghost_md/art/wisp_foot.dart';
+import 'package:ghost_md/art/blur_box.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/view/drawn_block.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
@@ -656,7 +656,7 @@ void main() {
       await rest(tester);
       expect(docOf(view), matches(RegExp(r'```board height=1\d(\.5)?\n')));
       // A board with a set height has lanes that may say there is more below.
-      expect(find.byType(WispFoot), findsNWidgets(2));
+      expect(find.byType(BlurFoot), findsNWidgets(2));
     });
 
     testWidgets('does not answer in a note that cannot be changed', (tester) async {
@@ -894,8 +894,8 @@ void main() {
       addTearDown(scroll.dispose);
       await pumpBoards(tester, tall, scroll: scroll, height: 600);
       expect(lane(tester, 0).maxScrollExtent, greaterThan(200));
-      expect(tester.widget<WispFoot>(find.descendant(of: keyed('stack0'), matching: find.byType(WispFoot))).more, isTrue);
-      expect(tester.widget<WispFoot>(find.descendant(of: keyed('stack1'), matching: find.byType(WispFoot))).more, isFalse);
+      expect(tester.widget<BlurFoot>(find.descendant(of: keyed('stack0'), matching: find.byType(BlurFoot))).more, isTrue);
+      expect(tester.widget<BlurFoot>(find.descendant(of: keyed('stack1'), matching: find.byType(BlurFoot))).more, isFalse);
       await tester.dragFrom(boxOf(tester, keyed('stack0')).center, const Offset(0, -60));
       await tester.pump();
       await tester.pump();
@@ -905,7 +905,7 @@ void main() {
       lane(tester, 0).jumpTo(lane(tester, 0).maxScrollExtent);
       await tester.pump();
       await tester.pump();
-      expect(tester.widget<WispFoot>(find.descendant(of: keyed('stack0'), matching: find.byType(WispFoot))).more, isFalse);
+      expect(tester.widget<BlurFoot>(find.descendant(of: keyed('stack0'), matching: find.byType(BlurFoot))).more, isFalse);
     });
 
     testWidgets('at either end of a lane the finger goes on to the note', (tester) async {

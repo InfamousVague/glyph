@@ -7,14 +7,14 @@ import 'package:ghost_md/notes/pull_to_refresh.dart';
 
 import '../support/render.dart';
 
-/// A pull to refresh over the page as the home page builds it: the scroller under the wisp edge, in the pull's
+/// A pull to refresh over the page as the home page builds it: the scroller under the edge's blur, in the pull's
 /// builder (lib/home/home_screen.dart `page`, lib/root/root_parts.dart `_headerEdge`).
 ///
 /// Found beside Ghost.md on the emulator, 2026-10-11 (docs/AB_FINDINGS.json pull-1): after a quick pull the home
 /// page took no touch at all, no scroll and no press on Filters or a card, until the app was started again. A
 /// finger's first moves reach the app between two frames, so the scroller has begun its own drag by the time the
 /// pull takes its physics away; the framework then cancels that drag in the middle of the layout, the scroller says
-/// the scroll has ended, and the wisp edge, hearing it, read its own box's size, which a debug build refuses to
+/// the scroll has ended, and the edge (the wisp's then, a blur now), hearing it, read its own box's size, which a debug build refuses to
 /// anyone but the box's parent while a layout runs. The refusal came up through the cancel and left the scroller in
 /// its drag, ignoring every pointer, with no recognizer to begin another.
 void main() {
@@ -42,10 +42,9 @@ void main() {
           controller: controller,
           onRefresh: () async => refreshes += 1,
           top: 100,
-          builder: (context, pull) => WispEdge(
+          builder: (context, pull) => BlurEdge(
             under: 60,
             foot: true,
-            draw: WispDraw.filter,
             child: LayoutBuilder(
               builder: (context, box) => PageScroll(
                 key: const ValueKey('home-scroll'),

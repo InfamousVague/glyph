@@ -1,7 +1,7 @@
 /// Marks: the formatting Ghost.md adds to Markdown, all of it in one list. Ports `src/app/plugins/marks/index.tsx`
 /// and the part of `src/app/plugins/types.ts` a mark is made of (`InlineFormat`, `FormatLook`).
 ///
-/// Twelve marks, each its delimiter and its look: the spoiler goes to smoke (`lib/editor/marks/wisp_format.dart`),
+/// Twelve marks, each its delimiter and its look: the spoiler blurs (`lib/editor/marks/wisp_format.dart`),
 /// the five effects (heat, frost, wave, shimmer, haunt) are drawn by `lib/editor/marks/text_effects.dart`, each
 /// written as its emoji twice either side, and the rest are CSS on the words
 /// (`lib/editor/marks/format_looks.dart`), in ink and paper only. [marks] is the one list the parser
@@ -24,7 +24,8 @@ sealed class FormatLook {
   const FormatLook();
 }
 
-/// Smoke: every letter bent and blurred without rest, plain only while the caret is in the text.
+/// The wisp's look: every letter blurred and breathing without rest, plain only while the caret is in the text. It
+/// was smoke, every letter bent as well, until 2026-10-24.
 class WispLook extends FormatLook {
   const WispLook();
 }
@@ -91,7 +92,7 @@ String? _highlightTint(String name) {
 
 /// The marks, in the order the Style page and the guide show them.
 const List<GlyphFormat> marks = <GlyphFormat>[
-  GlyphFormat(name: 'Spoiler', delimiter: '||', look: WispLook(), cue: 'spoiler', about: 'The words go to smoke until you put the caret in them.', icon: 'eye-off'),
+  GlyphFormat(name: 'Spoiler', delimiter: '||', look: WispLook(), cue: 'spoiler', about: 'The words blur until you put the caret in them.', icon: 'eye-off'),
   GlyphFormat(
     name: 'Highlight',
     delimiter: '==',

@@ -320,8 +320,8 @@ class _DockTipState extends State<DockTip> {
   }
 }
 
-/// Where the dock stands over what is behind it, for whoever draws its halo (art/dock_smoke.dart `DockSmoke`): the
-/// halo softens and bends what is behind the dock, so it is handed both. [shown] is false while the dock has stepped
+/// Where the dock stands over what is behind it, for whoever draws its halo (art/dock_blur.dart `DockBlur`): the
+/// halo blurs what is behind the dock, so it is handed both. [shown] is false while the dock has stepped
 /// aside, when there is no halo either.
 @immutable
 class DockPlace {

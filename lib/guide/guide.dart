@@ -29,7 +29,7 @@ import 'package:glacier/glacier.dart';
 import '../app/widgets.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
-import '../art/wisp_edge.dart';
+import '../art/blur_edge.dart';
 import '../art/wisp_text.dart';
 import '../core/back.dart';
 import '../core/preferences.dart';
@@ -286,7 +286,7 @@ class _GuideState extends State<Guide> {
               style: t.textAt(16),
               child: Stack(
                 children: [
-                  // Content slipping behind the top bar goes to smoke, and into the fade over the buttons at the foot.
+                  // Content slipping behind the top bar goes soft, and into the fade over the buttons at the foot.
                   Positioned.fill(
                     child: NotificationListener<ScrollMetricsNotification>(
                       // Told once the frame that changed them is over: the page grew, or the window did.
@@ -299,7 +299,7 @@ class _GuideState extends State<Guide> {
                           _measure();
                           return false;
                         },
-                        child: WispEdge(under: under, foot: true, safeTop: t.len('app-inset-top'), child: page),
+                        child: BlurEdge(under: under, foot: true, safeTop: t.len('app-inset-top'), child: page),
                       ),
                     ),
                   ),

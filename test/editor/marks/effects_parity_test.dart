@@ -20,7 +20,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:ghost_md/art/wisp_settings.dart';
+import 'package:ghost_md/art/wisp_kept.dart' show debugWispQuick;
 import 'package:ghost_md/editor/marks/marks.dart';
 import 'package:ghost_md/editor/state/state.dart' show Extension;
 

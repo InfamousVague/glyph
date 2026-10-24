@@ -1,5 +1,7 @@
-/// Words arriving in the editor from smoke, and leaving into it: the Wisp treatment (`lib/art/wisp_text.dart`) for
-/// text the recorder writes into a note as it is understood and rewritten. Ports `src/app/editor/wispArrivals.ts`.
+/// Words arriving in the editor out of a blur, and leaving into one: the Wisp treatment (`lib/art/wisp_text.dart`)
+/// for text the recorder writes into a note as it is understood and rewritten. Ports `src/app/editor/wispArrivals.ts`,
+/// where the words come out of smoke; here, since Matt, 2026-10-24 ("replace the smoke effect with a gradient blur on
+/// all places that use the wisp smoke"), each letter comes in soft and faint and sharpens as it sets.
 ///
 /// Matt: text should "appear and disappear with the Wisp effect as it's understood and rewritten". The recorder
 /// dispatches its changes as ordinary transactions with the [wisp] annotation; this extension does the rest:
@@ -27,9 +29,10 @@
 ///
 /// What differs:
 /// - The page moved an SVG filter per word, which the browser drew the word's `<span>` through. Here a filter is a
-///   [Smoke] of numbers, and a moving word is drawn letter by letter through the wisp's shader by the letters' own
+///   [Smoke] of numbers, and a moving word is drawn letter by letter, blurred by those numbers, by the letters' own
 ///   painter (`wisp_filters.dart` [WispLetter], on `lib/editor/marks/run_paint.dart`'s `LetterLayer`): the same
-///   shader the departures and the recorder's page use, set with this file's numbers each frame. So the mark that
+///   blur the departures and the recorder's page use (lib/art/blur_letter.dart), set with this file's numbers each
+///   frame. So the mark that
 ///   wears a filter (`cm-wispCh`) is laid on each letter of the word, spaces aside, and not once on the word, and
 ///   each says its letter (`data-text`): a painter is told a run's rectangles and nothing else, and a run is cut
 ///   wherever another mark begins. A waiting word's mark (`cm-wispWait`) is still the word's. Both are given at the

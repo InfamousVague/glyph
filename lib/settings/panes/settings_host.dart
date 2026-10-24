@@ -176,7 +176,6 @@ class SettingsFeatures {
     this.oldTapes = 0,
     this.onCountTapes,
     this.onRemoveOldAudio,
-    this.onSmokeBench,
     this.onPlayScene,
     this.onReset,
     this.onLocate,
@@ -254,8 +253,7 @@ class SettingsFeatures {
   /// Removes the audio of the old ones, and answers how many went.
   final Future<int> Function()? onRemoveOldAudio;
 
-  /// Developer's benches and resets.
-  final VoidCallback? onSmokeBench;
+  /// Developer's bench and resets.
   final void Function(String readings)? onPlayScene;
   final Future<void> Function({required bool models})? onReset;
 

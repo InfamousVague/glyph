@@ -105,9 +105,8 @@ import '../ai/words.dart';
 import '../app/widgets.dart';
 import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
-import '../art/wisp_edge.dart' show withinWispBudget;
+import '../art/edge_strips.dart';
 import '../art/wisp_kit.dart';
-import '../art/wisp_strips.dart';
 import '../capture/refine.dart' show RefineState;
 import '../core/back.dart';
 import '../core/preferences.dart';
@@ -532,13 +531,13 @@ class AtWorkState extends State<AtWork> with WidgetsBindingObserver {
   }
 
   // After a layout: the current line kept at the anchor, under the die; and the haze held to the filter budget
-  // (art/wisp_edge.dart), asked again whenever the list's box may have changed - the Fold's unfold changes it.
+  // (art/edge_strips.dart), asked again whenever the list's box may have changed - the Fold's unfold changes it.
   void _afterLayout(int? currentAt, int index, bool streaming, bool still, double gap) {
     if (!mounted || !_seen.shown) return;
     final list = _list.currentContext?.findRenderObject();
     if (list is! RenderBox || !list.hasSize) return;
     if (!_seen.still) {
-      final fits = withinWispBudget(list.size.width * 1.1, list.size.height * 1.3, MediaQuery.devicePixelRatioOf(context));
+      final fits = withinPictureBudget(list.size.width * 1.1, list.size.height * 1.3, MediaQuery.devicePixelRatioOf(context));
       if (fits != _fits) setState(() => _fits = fits);
     }
     final anchored = (currentAt, _seen.key);
@@ -726,7 +725,7 @@ class AtWorkState extends State<AtWork> with WidgetsBindingObserver {
                   child: AnimatedBuilder(
                     animation: _scroll,
                     // The haze: on the pane's list, the part of it the pane shows.
-                    builder: (context, list) => WispStrips(
+                    builder: (context, list) => EdgeStrips(
                       strips: hazeOn && bend > 0
                           ? [HazeStrip(rect: Rect.fromLTWH(0, _scroll.hasClients ? _scroll.offset : 0, pane.maxWidth, pane.maxHeight), frequency: _frequency, bend: bend)]
                           : const [],
@@ -1180,7 +1179,7 @@ class AtWorkTile extends StatelessWidget {
 /// noise, as the page's filter did it (`feTurbulence` at `seed="7"` into `feDisplacementMap`, red across and green
 /// down). [frequency] is `baseFrequency`, [bend] is `scale`. The noise is read at the list's own coordinates, so a
 /// line carries its bend with it as the pane scrolls.
-class HazeStrip extends WispStrip {
+class HazeStrip extends EdgeStrip {
   const HazeStrip({required this.rect, required this.frequency, required this.bend});
 
   @override

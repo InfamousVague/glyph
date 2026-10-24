@@ -37,16 +37,14 @@ library;
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:glacier/glacier.dart';
 
-import '../../art/wisp_edge.dart';
+import '../../art/blur_edge.dart';
+import '../../art/blur_letter.dart';
 import '../../editor/ai/wisp_arrivals.dart' show wispArrivals;
 import '../../editor/ai/wisp_ripples.dart' show RippleSource, wispRipples;
-import '../../art/wisp_kit.dart';
-import '../../art/wisp_text.dart' show paintWispLetter, wispLetterBend, wispLetterFrequency, wispLetterSoft, wispSlotSeed;
+import '../../art/wisp_text.dart' show wispLetterBend, wispLetterSoft;
 import '../../editor/editor.dart';
 import '../../editor/looks/look.dart';
 import '../../editor/looks/sheets.dart' show baseTheme;
@@ -78,8 +76,9 @@ final RegExp _marksOnly = RegExp(r'^[*_~|=^%@+`]*$');
   return (start: core.start, end: core.end);
 }
 
-/// A word arriving, drawn in place of the paragraph's: unseen while it waits its turn, then out of the smoke, the
-/// bend and the blur easing off as it sets (`art/WispText.module.css` `wispIn`).
+/// A word arriving, drawn in place of the paragraph's: unseen while it waits its turn, then out of a blur, soft and
+/// faint and sharpening as it sets (`art/WispText.module.css` `wispIn`; lib/art/blur_letter.dart), where it came
+/// out of smoke.
 class _Arriving extends LetterLayer {
   const _Arriving(super.text, this.id, this.at, this.dur);
 
@@ -99,20 +98,8 @@ class _Arriving extends LetterLayer {
       return;
     }
     final eased = Curves.easeOut.transform(t);
-    final opacity = eased;
     final bend = wispLetterBend * (1 - eased), soft = wispLetterSoft * (1 - eased);
-    final kit = WispKit.maybe;
-    final seed = wispSlotSeed(id % 12);
-    final table = kit?.tableNow(seed);
-    if (kit == null || table == null || (bend < 0.05 && soft < 0.05)) {
-      final paint = Paint()..color = Color.fromRGBO(0, 0, 0, opacity);
-      if (soft >= 0.05) paint.imageFilter = ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal);
-      canvas.saveLayer(Rect.fromLTWH(-24, -24, box.width + 48, box.height + 48), paint);
-      glyph.painter.paint(canvas, Offset.zero);
-      canvas.restore();
-    } else {
-      paintWispLetter(canvas, kit: kit, table: table, glyph: glyph.image(), glyphRect: glyph.imageRect, box: box, smoke: WispSmoke.flat(seed: seed, frequency: wispLetterFrequency, bend: bend, blur: soft), opacity: opacity);
-    }
+    paintBlurLetter(canvas, box: box, sigma: letterBlur(bend, soft), opacity: eased, draw: (canvas) => glyph.painter.paint(canvas, Offset.zero));
   }
 }
 
@@ -221,7 +208,6 @@ class LivePageState extends State<LivePage> {
 
   /// The placeholder, drawn as a line of the note so it stands where the first word will.
   EditorView? _hint;
-  VoidCallback? _release;
   Timer? _settling;
 
   /// Where the page last followed the words to, for telling whether the person has scrolled away to read.
@@ -237,19 +223,11 @@ class LivePageState extends State<LivePage> {
           if (line.attached && line.hasSize) line.localToGlobal(Offset.zero) & line.size,
       ];
 
-  /// The words still arriving out of the smoke, and the ghosts of what left still fading: for a test, and for a
+  /// The words still arriving out of the blur, and the ghosts of what left still fading: for a test, and for a
   /// caller wondering whether to wait.
   List<Moving> get inMotion => _view == null ? const <Moving>[] : moving(_view!.state);
 
   String get _next => placeTake(widget.base, widget.markdown, widget.placing).body;
-
-  @override
-  void initState() {
-    super.initState();
-    // While the phone listens, the smoke holds still: each drift step redraws the page, next to the microphone and
-    // the voice model.
-    _release = WispDrift.instance.hold();
-  }
 
   @override
   void didChangeDependencies() {
@@ -376,7 +354,6 @@ class LivePageState extends State<LivePage> {
   @override
   void dispose() {
     _settling?.cancel();
-    _release?.call();
     _view?.destroy();
     _hint?.destroy();
     _scroll.dispose();
@@ -414,7 +391,7 @@ class LivePageState extends State<LivePage> {
         ],
       ),
     );
-    // The older text goes to smoke under the recorder's top line, like any page (art/wisp_edge.dart).
-    return WispEdge(under: widget.under, child: scroller);
+    // The older text goes soft under the recorder's top line, like any page (art/blur_edge.dart).
+    return BlurEdge(under: widget.under, child: scroller);
   }
 }

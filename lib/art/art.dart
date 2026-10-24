@@ -1,16 +1,20 @@
-/// The art layer of Ghost.md (the web app's `src/app/art/`): the wisp and its smoke as fragment shaders, words from
-/// smoke, the ghost, the icons and the cogs.
+/// The art layer of Ghost.md (the web app's `src/app/art/`): the gradient blur at a page's edges and round the
+/// dock, words that arrive out of a blur, the ghost, the icons and the cogs.
+///
+/// Where the web app wears the wisp, a smoke of fractal noise, this app has worn a gradient blur since Matt,
+/// 2026-10-24: "replace the smoke effect with a gradient blur on all places that use the wisp smoke", and then
+/// "remove the smoke on mac too so all versions get blur". The rows below say which of the page's names each stands
+/// for.
 ///
 /// | The web app | Here |
 /// | --- | --- |
-/// | `useWispEdge(scroller, key, under, { foot, footOver, draw, band })`, `<WispEdgeFilter />`, art/wisp.css | [WispEdge] |
-/// | `holdWispDrift()`, `followWispDrift()` | [WispDrift.hold], [WispDrift.follow] |
-/// | `footSmokes()`, `WISP_EDGE_FOOT_CLEAR`, `withinWispBudget()` | [footSmokes], [wispEdgeFootClear], [withinWispBudget] |
-/// | `wispFoot(height, width)`, `wispFootFade(height)` | [WispFoot], [wispFoot], [wispFootFade] |
-/// | `wispSides(width, height, start, end)` | [WispSides], [wispSides] |
-/// | `wispDraw()`, `wispHead()`, the `wispEdge` preference | [WispSettings], [wispDraw], [wispHead] |
-/// | `<WispText text pace still onSettled />`, art/wisp.ts | [WispText], wisp.dart |
-/// | `useDockSmoke(halo)`, `.dockHalo` | [DockSmoke], [DockHalo] |
+/// | `useWispEdge(scroller, key, under, { foot, footOver })`, art/wisp.css | [BlurEdge] |
+/// | `footSmokes()`, `WISP_EDGE_FOOT_CLEAR`, `withinWispBudget()` | [footBlurs], [blurEdgeFootClear], [withinPictureBudget] |
+/// | `wispFoot(height, width)` | [BlurFoot] |
+/// | `wispSides(width, height, start, end)` | [BlurSides] |
+/// | the `wispEdge` preference | [BlurEdgeSettings] |
+/// | `<WispText text pace still onSettled />`, art/wisp.ts | [WispText], wisp.dart, blur_letter.dart |
+/// | `useDockSmoke(halo)`, `.dockHalo` | [DockBlur], [DockBlurHalo] |
 /// | `<Ghost scene size align />` | [Ghost] |
 /// | `GHOST_MARK` | [GhostMark] |
 /// | art/Icons.tsx | [AppIcons] with [DrawnIconView], [HouseIcon], [placePath] |
@@ -21,7 +25,11 @@ library;
 
 export 'app_icon.dart';
 export 'art_gallery.dart';
-export 'dock_smoke.dart';
+export 'blur_box.dart';
+export 'blur_edge.dart';
+export 'blur_letter.dart';
+export 'dock_blur.dart';
+export 'edge_strips.dart';
 export 'gears.dart';
 export 'ghost.dart';
 export 'ghost_mark.dart';
@@ -32,14 +40,6 @@ export 'shapes.dart';
 export 'svg_path.dart';
 export 'turbulence.dart';
 export 'wisp.dart';
-export 'wisp_box.dart';
-export 'wisp_edge.dart';
-export 'wisp_foot.dart';
 export 'wisp_kit.dart';
-export 'wisp_mask.dart';
-export 'wisp_settings.dart';
-export 'wisp_sides.dart';
-export 'wisp_smoke.dart';
-export 'wisp_strips.dart';
 export 'wisp_text.dart';
 export 'working_gears.dart';

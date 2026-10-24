@@ -8,7 +8,7 @@
 /// What differs:
 /// - The other halves of height.ts are the board's own widget's (board_box.dart): the height it is held at while it
 ///   is on the screen (`pin`, `repin`), which is state there, and the smoke at a lane's foot (`laneFoot`), which is
-///   `WispFoot` of lib/art round each lane. `watch`/`unwatch` and their `ResizeObserver` have no counterpart: the
+///   a blur here, `BlurFoot` of lib/art round each lane. `watch`/`unwatch` and their `ResizeObserver` have no counterpart: the
 ///   widget remembers its height after each layout.
 /// - `drawnType`, the type a board was last drawn in, is given by whoever asks ([estimatedBoardHeight]'s `note`),
 ///   since a widget here is described before it is built and cannot read a stylesheet; the page's own default

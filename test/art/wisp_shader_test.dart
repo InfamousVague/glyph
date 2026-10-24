@@ -6,7 +6,6 @@ import 'package:flutter/painting.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/turbulence.dart';
 import 'package:ghost_md/art/wisp_kit.dart';
-import 'package:ghost_md/art/wisp_smoke.dart';
 
 /// The fragment shader's noise held to the Dart port of `feTurbulence` (which test/art/turbulence_test.dart holds to
 /// Chromium's own pixels): a picture whose colour says where each pixel came from is bent by the shader, and every
@@ -15,6 +14,19 @@ Future<ui.Image> _image(Uint8List pixels, int width, int height) {
   final done = Completer<ui.Image>();
   ui.decodeImageFromPixels(pixels, width, height, ui.PixelFormat.rgba8888, done.complete);
   return done.future;
+}
+
+/// [source] thrown about by [smoke]'s noise over [bentRect], as a picture of its own: the bend alone, as the heat
+/// draws it (lib/editor/marks/text_effects.dart).
+ui.Image _bent(WispKit kit, ui.Image source, Rect bentRect, WispSmoke smoke) {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final shader = kit.bend(source: source, sourceRect: const Rect.fromLTWH(0, 0, 256, 256), origin: bentRect.topLeft, smoke: smoke, table: kit.tableNow(smoke.seed)!);
+  canvas.drawRect(Offset.zero & bentRect.size, Paint()..shader = shader..isAntiAlias = false);
+  final picture = recorder.endRecording();
+  final image = picture.toImageSync(bentRect.width.round(), bentRect.height.round());
+  picture.dispose();
+  return image;
 }
 
 /// 256 by 256, red the column and green the row.
@@ -40,7 +52,7 @@ void main() {
         const bend = 120.0;
         const bentRect = Rect.fromLTWH(64, 64, 128, 128);
         final smoke = WispSmoke.flat(seed: seed, frequency: frequency, bend: bend, blur: 0);
-        final bent = wispBent(kit: kit, table: kit.tableNow(seed)!, source: source, sourceRect: const Rect.fromLTWH(0, 0, 256, 256), bentRect: bentRect, ratio: 1, smoke: smoke);
+        final bent = _bent(kit, source, bentRect, smoke);
         final data = (await bent.toByteData())!;
         final noise = Turbulence(seed);
         var exact = 0, near = 0, total = 0;

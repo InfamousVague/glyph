@@ -61,9 +61,6 @@ import 'package:flutter/scheduler.dart' show SchedulerBinding;
 import '../../art/turbulence.dart';
 import '../../art/wisp_kept.dart';
 import '../../art/wisp_kit.dart';
-import '../../art/wisp_probe.dart';
-import '../../art/wisp_settings.dart';
-import '../../art/wisp_text.dart' show paintWispLetter;
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../../plugins/marks.dart';
 import '../editor.dart';
@@ -599,21 +596,7 @@ class _EffectLetter extends LetterLayer {
     final paint = Paint();
     // A sheen over the frost is the sheen: the letter is one flat colour either way.
     if (frost || sheen != null) paint.colorFilter = sheen ?? _cold;
-    if (filter != null && kit != null && table != null && paint.colorFilter == null) {
-      // The heat alone: the wisp's own letter, its field laid from its stretch's box (lib/art/wisp_text.dart), which
-      // while frames follow one another comes off the one sheet every letter in smoke is drawn on, and is otherwise
-      // the layer and the blur below, line for line.
-      paintWispLetter(
-        canvas,
-        kit: kit,
-        table: table,
-        glyph: glyph.image(),
-        glyphRect: glyph.imageRect,
-        box: box,
-        smoke: WispSmoke.flat(seed: filter.seed, frequency: filter.frequency, bend: filter.bend, blur: soft),
-        at: hotAt,
-      );
-    } else if (filter != null && kit != null && table != null) {
+    if (filter != null && kit != null && table != null) {
       if (soft >= 0.05) paint.imageFilter = ui.ImageFilter.blur(sigmaX: soft, sigmaY: soft, tileMode: TileMode.decal);
       final image = glyph.image();
       canvas.saveLayer(region.inflate(soft * 3), paint);
@@ -694,8 +677,6 @@ extension on _EffectLetter {
       if (one.name == 'heat' || one.name == 'haze') return false;
     }
     if (coldAt != null) {
-      // Measuring only: the frost by its own layers on every frame, as it was before it was kept.
-      if (WispProbe.has('frostlayers')) return false;
       // A frost alone: the rime and the cooled letter over it, one picture for as long as the rime reaches as far
       // (its radius is whole pixels of the screen, as the engine's dilate rounds it), its grain is the same seed's,
       // and the letter stands where it did in its line. The page under it may scroll: the grain is the

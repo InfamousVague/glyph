@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
-import '../art/wisp_edge.dart';
+import '../art/blur_edge.dart';
 import '../core/back.dart';
 import '../perf/frame_log.dart';
 import '../shell/desktop/mac_drag_strip.dart';
@@ -697,7 +697,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
           whole: _target?.setting != null && _target!.id == shown.id && _shownTarget != _target!.nonce,
           child: Builder(
             // `useWispEdge(scroller, …)`, as the list: no header over the page, so it fades at its own top.
-            builder: (context) => WispEdge(child: SingleChildScrollView(
+            builder: (context) => BlurEdge(child: SingleChildScrollView(
               key: ValueKey('scroll ${shown.id}'),
               controller: _paneScroll,
               padding: padding,
@@ -793,10 +793,9 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
                       child: Semantics(
                         container: true,
                         label: looking ? '$title found' : '$title sections',
-                        // `useWispEdge(column, …, findBar, { band: 'column' })`: the sections smoke under the field.
-                        child: WispEdge(
+                        // `useWispEdge(column, …, findBar, { band: 'column' })`: the sections go soft under the field.
+                        child: BlurEdge(
                           under: columnTop,
-                          band: WispBand.column,
                           child: _scroller(
                           t,
                           key: const ValueKey('settings-list'),
@@ -844,8 +843,9 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
       final list = Semantics(
         container: true,
         label: looking ? '$title found' : '$title sections',
-        // `useWispEdge(scroller, …)` with no header: the list fades over its first `--app-safe-top + 8px` once scrolled.
-        child: WispEdge(
+        // `useWispEdge(scroller, …)` with no header: the list fades over its first `--app-safe-top + 8px` once scrolled,
+        // and is soft for a band below that (art/blur_edge.dart).
+        child: BlurEdge(
           child: _scroller(
             t,
             key: const ValueKey('settings-list'),

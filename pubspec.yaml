@@ -65,18 +65,11 @@ flutter:
     # What every test did the last time the whole suite was run (lib/diag/built_report.dart; Settings › Test
     # results): written by tool/test_report.mjs before a release is built, and the empty one in the repository.
     - assets/diag/test_report.json
-  # The wisp (lib/art/): feTurbulence and feDisplacementMap as fragment shaders.
+  # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
+  # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
+  # (2026-10-24).
   shaders:
     - shaders/wisp_bend.frag
-    - shaders/wisp_merge.frag
-    - shaders/wisp_small.frag
-    - shaders/wisp_field.frag
-    - shaders/wisp_haze.frag
-    - shaders/wisp_smoke.frag
-    - shaders/wisp_halo.frag
-    - shaders/wisp_back.frag
-    - shaders/wisp_through.frag
-    - shaders/wisp_soft.frag
   fonts:
     # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
     # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.

@@ -1,5 +1,6 @@
-/// The smoke's noise tables for the marks that are drawn with it, asked for when a note first shows such a mark and
-/// not when its editor is made.
+/// The bend's noise tables for the marks that are drawn with it (the heat, lib/editor/marks/text_effects.dart; the
+/// spoiler was one until it gave way to a blur, 2026-10-24), asked for when a note first shows such a mark and not
+/// when its editor is made.
 ///
 /// Each table is a turbulence worked out for a seed (lib/art/wisp_kit.dart), a few milliseconds each, on the UI
 /// thread. The smoked words and the text effects asked for all of theirs as their plugins were made, eighteen

@@ -5,7 +5,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
 import 'package:ghost_md/art/wisp_kit.dart';
-import 'package:ghost_md/editor/marks/wisp_format.dart' show smokePool, smokeSeed;
 import 'package:ghost_md/editor/markdown_view.dart';
 import 'package:ghost_md/editor/state/selection.dart';
 import 'package:ghost_md/editor/state/state.dart';
@@ -48,8 +47,8 @@ class Measured {
 Future<EditorView> pumpMeasured(WidgetTester tester, Measured fixture, {bool shaders = false, Iterable<InlineFormatSyntax> formats = const <InlineFormatSyntax>[], List<Extension> more = const <Extension>[], bool reducedMotion = false}) async {
   // Before the view is made: its plugins ask for the kit themselves, on the test's own clock, where a load never
   // ends.
-  // The wisp's shaders and the noise of every seed the marks use: a picture wants them, a rectangle does not.
-  if (shaders) await tester.runAsync(() => WispKit.load(seeds: <int>[for (var i = 0; i < smokePool; i++) smokeSeed(i), 7, 8, 9, 10, 11, 12]));
+  // The heat's shader and the noise of every seed it uses: a picture wants them, a rectangle does not.
+  if (shaders) await tester.runAsync(() => WispKit.load(seeds: const <int>[7, 8, 9, 10, 11, 12]));
   final view = EditorView(
     wholeDocument: true,
     state: EditorState.create(

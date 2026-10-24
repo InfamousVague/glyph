@@ -65,10 +65,11 @@ export '../capture/meeting.dart' show stopTheMeeting;
 /// The binary generation that has `reset_local_data` (`RESET_GENERATION`).
 const int resetGeneration = 11;
 
-/// What a reset leaves behind (`SPARED`): developer mode, and the two smoke overrides a developer sets from its
-/// bench or by hand (lib/art/wisp_settings.dart). Every other key goes, so a key added later is cleared without
-/// anybody remembering to list it; one that should survive has to be named here, on purpose.
-const Set<String> spared = {'glyph-developer', 'glyph-wip-assistant', 'glyph-wisp-draw', 'glyph-wisp-head'};
+/// What a reset leaves behind (`SPARED`): developer mode, and the voice assistant's flag. Every other key goes, so a
+/// key added later is cleared without anybody remembering to list it; one that should survive has to be named here,
+/// on purpose. The web app spares its two smoke overrides as well (`glyph-wisp-draw`, `glyph-wisp-head`); the smoke
+/// and its bench are gone from this app (2026-10-24), nothing here reads them, and a reset clears them.
+const Set<String> spared = {'glyph-developer', 'glyph-wip-assistant'};
 
 /// The name of the channel [ChannelResetNative] would speak on, for whoever writes the Kotlin side. See
 /// [ResetNative] for what each method must do.

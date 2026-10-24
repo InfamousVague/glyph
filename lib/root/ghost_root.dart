@@ -107,7 +107,6 @@ import '../core/versions_store.dart';
 import '../core/workspaces.dart';
 import '../diag/built_report.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
-import '../diag/wisp_bench.dart' show showWispBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../format/device_facts.dart' show DeviceFactsController;
 import '../format/gist.dart' show gistVisible, gistsCameBack, pauseGists, wakeGistsOn;
@@ -1508,9 +1507,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// When the trash last let go of the notes whose thirty days were up, in this run ([_purgeTrash]).
   int? _purgedAt;
 
-  /// The smoke at the edges is the art's own switch (lib/art/wisp_settings.dart), which follows the preference.
+  /// The blur at the edges is the art's own switch (lib/art/blur_edge.dart), which follows the preference.
   late final ValueListenable<bool> _wispEdge = preferences.select((prefs) => prefs.wispEdge);
-  void _smoke() => WispSettings.instance.wanted = _wispEdge.value;
+  void _smoke() => BlurEdgeSettings.instance.wanted = _wispEdge.value;
 
   @override
   void dispose() {

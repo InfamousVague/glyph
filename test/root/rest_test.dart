@@ -412,11 +412,10 @@ void main() {
     });
   });
 
-  group('Developer\'s benches', () {
+  group('Developer\'s bench', () {
     testWidgets('can be pressed', (tester) async {
       await open(tester);
       final features = tester.widget<SettingsSheet>(find.byType(SettingsSheet)).features;
-      expect(features.onSmokeBench, isNotNull);
       expect(features.onPlayScene, isNotNull);
       // Without the whole core, the three pages over it say what a build without them says.
       expect((features.libraryFolder, features.backup, features.export), (null, null, null));
