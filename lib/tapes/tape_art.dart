@@ -294,6 +294,9 @@ class _TapePainter extends CustomPainter {
       ..color = color.withValues(alpha: alpha);
     // The hue over the paper, so what is under the cassette never shows through it.
     Paint tinted(double alpha) => Paint()..color = Color.alphaBlend(hue.withValues(alpha: alpha), paper);
+    // Drawn on a layer of its own, so the screws and the guides can be cut out of it (Matt, 2026-10-24: "make the
+    // white dots on the cassetes cut outs"): what is behind the cassette shows through them.
+    canvas.saveLayer(const Rect.fromLTWH(0, 0, 320, 204), Paint());
 
     // The shell, solid; its rim in the shade, and its top edge caught by the light.
     final shell = RRect.fromRectAndRadius(const Rect.fromLTWH(2, 2, 316, 200), const Radius.circular(14));
@@ -319,12 +322,15 @@ class _TapePainter extends CustomPainter {
     );
     canvas.restore();
 
-    // The window: smoked glass, darker than the shell; the wound tape behind it darker still, with a lit hard edge.
+    // The window: glass, a pale wash of the hue with the light through it, so what is behind it reads (Matt,
+    // 2026-10-24: "work on the colors a bit for the tape part so we can see the reels and tape better"); the wound
+    // tape on it dark, the hue deep in the shade as tape is brown-black, with a lit edge.
     final window = RRect.fromRectAndRadius(const Rect.fromLTWH(62, 61, 196, 56), const Radius.circular(28));
-    canvas.drawRRect(window, fill(shade, 0.42 * m));
+    canvas.drawRRect(window, Paint()..color = Color.alphaBlend(light.withValues(alpha: dark ? 0.26 : 0.45), Color.alphaBlend(hue.withValues(alpha: muted ? 0.3 : (dark ? 0.6 : 0.4)), paper)));
+    final wound = Paint()..color = Color.alphaBlend(shade.withValues(alpha: muted ? 0.55 : (dark ? 0.86 : 0.78)), hue);
     for (final (x, r) in [(leftX, packs.supply), (rightX, packs.takeup)]) {
-      canvas.drawCircle(Offset(x, reelY), r, fill(shade, 0.62 * m));
-      canvas.drawCircle(Offset(x, reelY), r, stroke(light, 0.4, 1));
+      canvas.drawCircle(Offset(x, reelY), r, wound);
+      canvas.drawCircle(Offset(x, reelY), r, stroke(light, dark ? 0.5 : 0.6, 1));
     }
     final ring = fill(light, muted ? 0.8 : 0.92);
     final hole = Paint()..color = Color.alphaBlend(shade.withValues(alpha: 0.4 * m), hue);
@@ -342,10 +348,12 @@ class _TapePainter extends CustomPainter {
         ..lineTo(250, 170)
         ..lineTo(274, 156)
         ..lineTo(arrive.dx, arrive.dy),
-      stroke(shade, 0.72 * m, 1.4),
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.4
+        ..strokeJoin = StrokeJoin.round
+        ..color = wound.color,
     );
-    canvas.drawCircle(const Offset(50, 154), 3.5, fill(light, 0.85));
-    canvas.drawCircle(const Offset(270, 154), 3.5, fill(light, 0.85));
 
     // The label, raised: a shadow under it, then its paper with the faintest tint of the hue and a band of the hue
     // across it under the window. The title on it is ink on what is nearly paper.
@@ -397,10 +405,13 @@ class _TapePainter extends CustomPainter {
       canvas.drawCircle(Offset(x, 186), 5, recess);
       canvas.drawCircle(Offset(x, 186), 5, outline);
     }
-    for (final at in const [Offset(14, 14), Offset(306, 14), Offset(14, 190), Offset(306, 190), Offset(160, 194)]) {
-      canvas.drawCircle(at, 2.8, fill(light, 0.8));
-      canvas.drawCircle(at, 1, fill(shade, 0.35 * m));
+    // The screws and the tape's two guides, cut out: a shaded rim, then the hole through to what is behind.
+    final clear = Paint()..blendMode = BlendMode.clear;
+    for (final (at, r) in const [(Offset(14, 14), 2.8), (Offset(306, 14), 2.8), (Offset(14, 190), 2.8), (Offset(306, 190), 2.8), (Offset(160, 194), 2.8), (Offset(50, 154), 3.5), (Offset(270, 154), 3.5)]) {
+      canvas.drawCircle(at, r + 0.9, fill(shade, 0.3 * m));
+      canvas.drawCircle(at, r, clear);
     }
+    canvas.restore();
   }
 
   /// A hub: a paper ring, the spindle hole, and the six teeth that show it turning.
