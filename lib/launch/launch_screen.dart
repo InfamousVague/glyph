@@ -21,7 +21,7 @@ enum SyncPhase { off, idle, syncing, error }
 /// [apkVersion]). A Flutter app has no page to load, so nothing gives [readyBuild] yet; the lines and the hand-over
 /// are kept as the web has them for whatever stage 9 turns out to check.
 class LaunchUpdates {
-  const LaunchUpdates({this.readyBuild, this.apkVersion, this.checking = false, this.lastError, this.looks = true, required this.check, required this.reload});
+  const LaunchUpdates({this.readyBuild, this.apkVersion, this.updatedTo, this.checking = false, this.lastError, this.looks = true, required this.check, required this.reload});
 
   /// Whether this build looks for updates at all. Known before the first frame, so a build that never looks has no
   /// line from the start, as the page has none where it knows there is no check (`useState(!native)`). Without it
@@ -34,6 +34,10 @@ class LaunchUpdates {
 
   /// A newer app is out (`apk.kind === 'available'`), by its version.
   final String? apkVersion;
+
+  /// The Mac's: this is the first launch of a version the app put in place itself, by its version (core/updates.dart
+  /// `InstalledApp.justUpdated`). Said where "Up to date" would be.
+  final String? updatedTo;
   final bool checking;
   final String? lastError;
   final VoidCallback check;
@@ -209,7 +213,9 @@ class _LaunchScreenState extends State<LaunchScreen> {
                         ? (key: 'updates', state: _LineState.note, words: 'Ghost.md ${updates.apkVersion} is out')
                         : updates.lastError != null
                             ? (key: 'updates', state: _LineState.note, words: 'Couldn’t check for updates')
-                            : (key: 'updates', state: _LineState.done, words: 'Up to date'),
+                            : updates.updatedTo != null
+                                ? (key: 'updates', state: _LineState.done, words: 'Updated to Ghost.md ${updates.updatedTo}')
+                                : (key: 'updates', state: _LineState.done, words: 'Up to date'),
       if (widget.sync != SyncPhase.off)
         widget.sync == SyncPhase.syncing
             ? (key: 'sync', state: _LineState.working, words: 'Syncing your devices')

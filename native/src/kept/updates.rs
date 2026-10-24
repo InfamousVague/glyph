@@ -14,6 +14,12 @@
 //!   lets the description name an `http://` address, which only a test build asks (`TEST_SOURCE` there).
 //! - **`update_verify {path, sha256, bytes}`** is the end of `apk::fetch`: the file at `path` read through, and
 //!   refused ("the APK did not match its published checksum") unless it is `bytes` long and hashes to `sha256`.
+//! - **`update_read {…, kind: "mac"}`** is the same reading of the Mac's `mac.json` (the website's Mac build updates
+//!   itself since 2026-10-24: lib/core/updates.dart, macos/Runner/UpdatesChannel.swift): the same shape, the same
+//!   rules for the file it names (there the zip of the notarised app, `glyph-mac.zip`), over the context
+//!   [`CONTEXT_MAC`]. Without `kind`, or with `"apk"`, it is the APK's, as it always was; any other kind is refused.
+//!   A core older than this ignores the field and reads the Mac's description as an APK's, a context it was not
+//!   signed over, and so says the signature did not verify: a stale core refuses a Mac update, never accepts one.
 //!
 //! What differs from the Tauri app:
 //!
@@ -42,6 +48,20 @@ use crate::dispatch::read;
 
 /// The signature context of this app's `apk.json`. tool/release.md has it byte for byte.
 pub const CONTEXT_APK: &[u8] = b"ghost-flutter-apk\0";
+
+/// The signature context of the Mac's `mac.json` (scripts/deploy-flutter-mac.mjs `--prepare` signs it): another
+/// context from the APK's, so a description of the phone's release can never be read as the Mac's, nor the Mac's
+/// as the phone's, though the one key signs both.
+pub const CONTEXT_MAC: &[u8] = b"ghost-flutter-mac\0";
+
+/// The context a description of `kind` is signed over: the APK's when none is said.
+fn context_of(kind: Option<&str>) -> Result<&'static [u8], String> {
+    match kind {
+        None | Some("apk") => Ok(CONTEXT_APK),
+        Some("mac") => Ok(CONTEXT_MAC),
+        Some(other) => Err(format!("no update of the kind {other:?}")),
+    }
+}
 
 const COMMANDS: &[&str] = &["update_read", "update_verify"];
 
@@ -128,7 +148,12 @@ pub(super) fn hex(digest: &[u8]) -> String {
 /// The description in `body`, if one of `keys` signed exactly those bytes and what it says can be acted on.
 /// Parsing comes AFTER verifying on purpose (fetch.rs): a JSON parser never sees a byte an attacker chose.
 pub fn read_signed(body: &[u8], signature: &str, keys: &[String], http: bool) -> Result<ApkInfo, String> {
-    if !verify_with(keys.iter().map(String::as_str), CONTEXT_APK, body, signature) {
+    read_signed_as(CONTEXT_APK, body, signature, keys, http)
+}
+
+/// [`read_signed`] for a description signed over `context`: the APK's, or the Mac's ([`CONTEXT_MAC`]).
+pub fn read_signed_as(context: &[u8], body: &[u8], signature: &str, keys: &[String], http: bool) -> Result<ApkInfo, String> {
+    if !verify_with(keys.iter().map(String::as_str), context, body, signature) {
         return Err("the signature did not verify against any trusted key".to_string());
     }
     let info = serde_json::from_slice::<ApkInfo>(body).map_err(|e| e.to_string())?;
@@ -175,6 +200,9 @@ struct ReadArgs {
     keys: Vec<String>,
     #[serde(default)]
     http: bool,
+    /// `"mac"` for the Mac's description; none for the APK's.
+    #[serde(default)]
+    kind: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -189,9 +217,10 @@ pub fn call(command: &str, args: Value) -> Result<Value, String> {
     match command {
         "update_read" => {
             use base64::Engine;
-            let ReadArgs { body, signature, keys, http } = read(command, args)?;
+            let ReadArgs { body, signature, keys, http, kind } = read(command, args)?;
+            let context = context_of(kind.as_deref())?;
             let body = base64::engine::general_purpose::STANDARD.decode(body.trim()).map_err(|_| "the description was not base64".to_string())?;
-            let info = read_signed(&body, &signature, &keys, http)?;
+            let info = read_signed_as(context, &body, &signature, &keys, http)?;
             serde_json::to_value(info).map_err(|e| e.to_string())
         }
         "update_verify" => {
@@ -322,6 +351,46 @@ mod tests {
         assert!(call("update_read", json!({"body": b64(&body), "signature": signature, "keys": []})).is_err());
         assert!(call("update_read", json!({})).unwrap_err().starts_with("invalid args for command `update_read`"));
         assert!(call("update_verify", json!({"path": "/nowhere/ghost.apk", "sha256": "", "bytes": 0})).is_err());
+    }
+
+    /// The Mac's description: read only over its own context, and never over the APK's, nor the APK's over it.
+    #[test]
+    fn the_macs_description_is_signed_over_a_context_of_its_own() {
+        let body = json!({"version": "2.3.16", "versionCode": 2003016, "sha256": sha256_hex(b"a zip"), "bytes": 5, "url": "glyph-mac.zip"}).to_string().into_bytes();
+        let key = ed25519_dalek::SigningKey::from_bytes(&[9; 32]);
+        let public = b64(key.verifying_key().as_bytes());
+        let over = |context: &[u8]| {
+            let mut message = context.to_vec();
+            message.extend_from_slice(&body);
+            b64(&key.sign(&message).to_bytes())
+        };
+        let (mac, apk) = (over(CONTEXT_MAC), over(CONTEXT_APK));
+        let read = |signature: &str, kind: Option<&str>| {
+            let mut args = json!({"body": b64(&body), "signature": signature, "keys": [public.clone()]});
+            if let Some(kind) = kind {
+                args["kind"] = json!(kind);
+            }
+            call("update_read", args)
+        };
+        let info = read(&mac, Some("mac")).unwrap();
+        assert_eq!((info["version"].as_str(), info["versionCode"].as_u64(), info["url"].as_str()), (Some("2.3.16"), Some(2003016), Some("glyph-mac.zip")));
+        let refused = "the signature did not verify against any trusted key";
+        assert_eq!(read(&mac, None).unwrap_err(), refused, "the Mac's signature read as an APK's, as a core from before the Mac's reads it");
+        assert_eq!(read(&mac, Some("apk")).unwrap_err(), refused);
+        assert_eq!(read(&apk, Some("mac")).unwrap_err(), refused, "nor the APK's as the Mac's");
+        assert!(read(&apk, None).is_ok() && read(&apk, Some("apk")).is_ok());
+        assert_eq!(read(&mac, Some("ios")).unwrap_err(), "no update of the kind \"ios\"");
+    }
+
+    /// A vector made outside this crate, by Node as scripts/deploy-flutter-mac.mjs signs the Mac's description.
+    #[test]
+    fn a_mac_release_signed_as_the_deploy_script_signs_is_read() {
+        let body = include_bytes!("../../tests/fixtures/update/mac.json");
+        let signature = include_str!("../../tests/fixtures/update/mac.json.sig");
+        let trusted = include_str!("../../tests/fixtures/update/mac-public-key.txt").trim().to_string();
+        let info = read_signed_as(CONTEXT_MAC, body, signature, &[trusted.clone()], false).unwrap();
+        assert_eq!((info.version.as_str(), info.version_code, info.bytes, info.url.as_str()), ("9.9.2", 9009002, 5, "glyph-mac.zip"));
+        assert!(read_signed(body, signature, &[trusted], false).is_err(), "and not as an APK's");
     }
 
     /// fetch.rs's own, and that the two functions here are still its lines.

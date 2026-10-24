@@ -1644,10 +1644,12 @@ class _GhostRootState extends State<GhostRoot> {
       }
       services.engine?.status.addListener(_syncChanged);
     }
-    // The updates: drawn again as they change, not while a meeting records, and looked for from now (`useUpdates`).
+    // The updates: drawn again as they change, not while a meeting or a take records, and looked for from now
+    // (`useUpdates`).
     widget.updates
       ?..addListener(_updatesChanged)
       ..recording = (() => _voice?.live?.state?.recording ?? false)
+      ..taking = (() => _shell.currentState?.screen.isRecording ?? false)
       ..start();
     // The launch screen over the root, where there is one, reads the root from here on.
     widget.launchSeat?.sit(_launchFacts, _tick);

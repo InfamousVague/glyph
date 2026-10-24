@@ -25,6 +25,10 @@
 #   carries nothing from the app on the website (a sandboxed app cannot read that app's folder or its Keychain
 #   items) and starts as a new install; About says its updates are the App Store's; Settings has no Backup page
 #   and About offers no Guide book. Xcode is still told GHOST_CUTOVER=1, which is only the name and the id.
+# - It has NO UPDATER, which the store refuses in an app it sells (the website's build updates itself since
+#   2026-10-24): Xcode is told GHOST_MAC_STORE=1 too, which compiles macos/Runner/UpdatesChannel.swift out of the
+#   binary (Configs/AppInfo.xcconfig), and Dart's `macAppStore` makes no updates at all (lib/core/updates.dart
+#   `updateKindFor`). The check below refuses a binary in which the updater's channel or its helper is still found.
 # - The Info.plist is given `ITSAppUsesNonExemptEncryption` false, for the reason beside the iPhone's
 #   (ios/Runner/Info.plist; Matt, 2026-10-13: standard algorithms only, none proprietary, not sold in France), and
 #   the app is given a privacy manifest (macos/Runner/PrivacyInfo.xcprivacy).
@@ -109,7 +113,7 @@ tool/build-native.sh mac
 mode="--release"
 config="Release"
 [ -z "$tour" ] || { mode="--debug"; config="Debug"; }
-GHOST_CUTOVER=1 flutter build macos $mode --no-pub \
+GHOST_CUTOVER=1 GHOST_MAC_STORE=1 flutter build macos $mode --no-pub \
   --build-name="$version" \
   --build-number="$build" \
   --dart-define=GHOST_MAC_STORE=true \
@@ -181,6 +185,11 @@ check "the export-compliance answer" "$(value ITSAppUsesNonExemptEncryption)" "f
 [ -n "$(value NSMicrophoneUsageDescription)" ] || { echo "error: no microphone sentence in an app that records." >&2; failed=1; }
 [ -f "$app/Contents/Resources/PrivacyInfo.xcprivacy" ] || { echo "error: no privacy manifest in the app." >&2; failed=1; }
 [ -f "$app/Contents/Frameworks/libghost_core.dylib" ] || { echo "error: the app has no Rust core in it." >&2; failed=1; }
+# No updater: the website's build answers the channel `ghost_md/updates` and writes `update-install`; this one must
+# do neither (the header).
+if strings -a "$app/Contents/MacOS/Ghost.md" | grep -qE 'ghost_md/updates|update-install|renamex_np'; then
+  echo "error: the app has the website's updater in it (UpdatesChannel.swift): the store refuses an app that replaces itself." >&2; failed=1
+fi
 if [ -z "$local_run" ]; then check "the link scheme" "$(value CFBundleURLTypes:0:CFBundleURLSchemes:0)" "ghostmd"; fi
 has="$(codesign -d --entitlements - --xml "$app" 2>/dev/null | plutil -convert json -o - - 2>/dev/null || echo '{}')"
 for key in com.apple.security.app-sandbox com.apple.security.network.client com.apple.security.device.audio-input com.apple.security.files.user-selected.read-write com.apple.security.files.bookmarks.app-scope com.apple.security.personal-information.addressbook; do

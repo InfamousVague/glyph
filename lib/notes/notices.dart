@@ -75,10 +75,23 @@ class ApkInstalling extends ApkUpdate {
   final String version;
 }
 
+/// The Mac's: the new version is downloaded, checked and in place, and a restart swaps it in (core/updates.dart
+/// `ApkPhaseReady`).
+class ApkReady extends ApkUpdate {
+  const ApkReady(this.version);
+  final String version;
+}
+
+/// The Mac's: the app is quitting to open again as the new version (`ApkPhaseRestarting`).
+class ApkRestarting extends ApkUpdate {
+  const ApkRestarting(this.version);
+  final String version;
+}
+
 /// What the update card is told (`Updates`, core/ota.ts, the part the card reads).
 @immutable
 class AppUpdates {
-  const AppUpdates({this.ready = false, this.apk = const ApkNone(), this.onInstall, this.onReload});
+  const AppUpdates({this.ready = false, this.apk = const ApkNone(), this.onInstall, this.onReload, this.onRestart});
 
   /// A new version of the page is downloaded and waiting for a reload (`ready`).
   final bool ready;
@@ -89,6 +102,9 @@ class AppUpdates {
 
   /// Starts the app again on the version already downloaded (`reload`).
   final VoidCallback? onReload;
+
+  /// The Mac's "Restart to update": swaps in the version [ApkReady] stands for and opens it.
+  final VoidCallback? onRestart;
 }
 
 /// The update's card when there is something newer to run (`UpdateNotice`): white and holographic, the one piece of
@@ -113,6 +129,10 @@ class UpdateNotice extends StatelessWidget {
       case ApkInstalling(:final version):
         // Android's own dialog is on top now; this is what is left if it is dismissed.
         return _UpdateCard(text: 'Ghost.md $version is waiting on Android.', action: 'Open', onAction: updates.onInstall);
+      case ApkReady(:final version):
+        return _UpdateCard(text: 'Ghost.md $version is ready.', action: 'Restart to update', onAction: updates.onRestart, ghost: true);
+      case ApkRestarting(:final version):
+        return _UpdateCard(text: 'Restarting into Ghost.md $version.', working: true, workingLabel: 'Restarting');
       case ApkNone():
         if (updates.ready) return _UpdateCard(text: 'A new version of Ghost.md is ready.', action: 'Reload', onAction: updates.onReload, ghost: true);
         return const SizedBox.shrink();
@@ -122,7 +142,7 @@ class UpdateNotice extends StatelessWidget {
 
 /// `.update`: the update's card: its words, what to do about it, and while it downloads, how far it has got.
 class _UpdateCard extends StatefulWidget {
-  const _UpdateCard({required this.text, this.action, this.onAction, this.progress, this.working = false, this.ghost = false});
+  const _UpdateCard({required this.text, this.action, this.onAction, this.progress, this.working = false, this.workingLabel = 'Downloading', this.ghost = false});
 
   final String text;
   final String? action;
@@ -131,6 +151,9 @@ class _UpdateCard extends StatefulWidget {
 
   /// The update is coming down now: cogs turn beside the words while it does.
   final bool working;
+
+  /// What the cogs say they are doing, to a screen reader.
+  final String workingLabel;
 
   /// An update is waiting to be taken: the ghost with its parcel beside the words.
   final bool ghost;
@@ -205,7 +228,7 @@ class _UpdateCardState extends State<_UpdateCard> with SingleTickerProviderState
                               WidgetSpan(
                                 alignment: PlaceholderAlignment.baseline,
                                 baseline: TextBaseline.alphabetic,
-                                child: Transform.translate(offset: Offset(0, 0.2 * sm), child: WorkingGears(label: 'Downloading', size: sm, color: ink)),
+                                child: Transform.translate(offset: Offset(0, 0.2 * sm), child: WorkingGears(label: widget.workingLabel, size: sm, color: ink)),
                               ),
                             TextSpan(text: widget.text),
                           ],

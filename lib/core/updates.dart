@@ -33,6 +33,26 @@
 ///   `ota.json` was the check; here it is the whole of it.
 /// - **The phone's own notifier is not ported** (`UpdateCheckWorker.kt`): nothing looks while the app is closed.
 ///   README, "What stage 9's other pieces left open".
+///
+/// THE MAC (Matt, 2026-10-24: "Work on making the mac apps update OTA it's a pain to have to download the new
+/// version from the website every time"). The website's Mac build updates itself the same way, with [UpdateKind.mac]
+/// where the phone has [UpdateKind.apk]: the same address, the same key, the same rule.
+/// - **What it reads** is `mac.json` beside the APK's files, signed into `mac.json.sig` over a context of its own
+///   (`ghost-flutter-mac\0`; native/src/kept/updates.rs `CONTEXT_MAC`) by the key that signs the APK's, and naming
+///   `glyph-mac.zip`: the notarised, stapled app, zipped by `ditto` (scripts/deploy-flutter-mac.mjs `--prepare`
+///   writes all three). Its `versionCode` is the app's `CFBundleVersion`, made as the phone's code is (2.3.16 is
+///   2003016, tool/cutover-build-mac.sh), so newer is asked exactly as on Android.
+/// - **What installs it is the Mac's half** (macos/Runner/UpdatesChannel.swift, on the same channel the phone
+///   answers, `ghost_md/updates`). Handed the verified zip it unpacks it beside the running app, asks the Mac whether
+///   what came out is this app, newer, and signed by this app's team, and answers `ready`: the new version is in
+///   place to be swapped in ([ApkPhaseReady], "Restart to update"). [Updates.restart] swaps the two bundles and
+///   starts the new one, the old kept until the new one has opened; quitting does the swap too, and the next launch
+///   is the new version. Where the app cannot replace itself (run from its disk image, from where it was downloaded,
+///   or from a folder this account cannot write to) it answers `manual: <why>`, and the disk image is opened in the
+///   browser instead.
+/// - **Not the Mac App Store's build** ([updateKindFor]): the store updates what it sells, and refuses an app with
+///   an updater in it. The Swift half is not even compiled into that build (`GHOST_MAC_STORE`,
+///   macos/Runner/Configs/AppInfo.xcconfig).
 library;
 
 import 'dart:async';
@@ -47,7 +67,9 @@ import 'package:flutter/widgets.dart';
 import '../ai/support/failure.dart';
 import '../capture/meeting.dart' show stopTheMeeting;
 import 'locale_dates.dart';
+import 'mac_app.dart' show macAppStore, runsAsMacApp;
 import 'native/core.dart';
+import 'open_link.dart' as links;
 import 'update_keys.dart';
 
 // ---- what the build was told ----------------------------------------------------------------------------------------
@@ -65,6 +87,11 @@ const String ghostBuild = String.fromEnvironment('GHOST_BUILD');
 const bool _testing = bool.fromEnvironment('GHOST_UPDATES_TEST');
 const String _testKey = String.fromEnvironment('GHOST_UPDATES_TEST_KEY');
 
+/// AS FOR A TEST RUN, and read only beside `GHOST_UPDATES_TEST` by a debug build: the update presses its own
+/// buttons, Install eight seconds after one is found and Restart to update eight seconds after it is in place, so
+/// tool/mac-update-proof.sh can walk an update through the app's real screens with no hand on them.
+const bool _walk = bool.fromEnvironment('GHOST_UPDATES_TEST_WALK');
+
 /// Whether this is the build that replaces the Tauri app (`--dart-define=GHOST_CUTOVER=true`; the header).
 const bool _cutover = bool.fromEnvironment('GHOST_CUTOVER');
 
@@ -78,6 +105,45 @@ const Set<String> _theRealApps = <String>{tauriReleases, 'https://ghostmarkdown.
 
 /// The signature this app reads, beside `apk.json` (the header).
 const String updateSignatureName = 'apk.json.flutter.sig';
+
+/// What an install of this app updates itself from (the header): the phone's APK, or the Mac's zip of the app.
+enum UpdateKind {
+  apk(feed: 'apk.json', signature: updateSignatureName, extension: 'apk', file: 'APK', download: 'APK download'),
+  mac(feed: 'mac.json', signature: 'mac.json.sig', extension: 'zip', file: 'download', download: 'The download');
+
+  const UpdateKind({required this.feed, required this.signature, required this.extension, required this.file, required this.download});
+
+  /// The signed description, beside the file it names.
+  final String feed;
+
+  /// Its signature's file.
+  final String signature;
+
+  /// What a download is kept as (`ghost-<code>.<extension>`).
+  final String extension;
+
+  /// The file in a sentence: "the APK did not match its published checksum", "the download did not match …".
+  final String file;
+
+  /// What a failed download's words begin with: "APK download: Connection reset by peer".
+  final String download;
+}
+
+/// Which update a build makes itself ([Updates.forBuild]): the phone's on Android; the Mac's in the Mac app itself,
+/// never in the Mac App Store's build; nothing anywhere else (a test, an iPhone, whose updates are the store's).
+UpdateKind? updateKindFor({required bool android, required bool macApp, required bool macStore}) {
+  if (android) return UpdateKind.apk;
+  if (macApp && !macStore) return UpdateKind.mac;
+  return null;
+}
+
+/// Where the website's disk image is, beside the release's other files: what a Mac that cannot replace its own app
+/// is sent to (the header).
+const String macDiskImage = 'glyph.dmg';
+
+/// Said when an install that would end the process is asked for while a take is being recorded: the meeting's
+/// sentence ([stopTheMeeting]) for the recorder.
+const String stopTheRecording = 'Stop the recording first.';
 
 /// Where to look and whom to believe, or nothing: the rule in the header.
 @immutable
@@ -220,6 +286,17 @@ class ApkPhaseNeedsPermission extends ApkPhaseOf {
   const ApkPhaseNeedsPermission(super.info);
 }
 
+/// The Mac's: downloaded, verified, and unpacked beside the running app, which a restart (or a quit) swaps in.
+/// The page's `ready`, for an app rather than a page.
+class ApkPhaseReady extends ApkPhaseOf {
+  const ApkPhaseReady(super.info);
+}
+
+/// The Mac's: the new version is being swapped in, and the app is about to quit and open again as it.
+class ApkPhaseRestarting extends ApkPhaseOf {
+  const ApkPhaseRestarting(super.info);
+}
+
 /// It did not install, and why (`'failed'`).
 class ApkPhaseFailed extends ApkPhaseOf {
   const ApkPhaseFailed(super.info, this.message);
@@ -231,28 +308,44 @@ class ApkPhaseFailed extends ApkPhaseOf {
 /// The app as it is installed, and where a download is kept for the installer.
 @immutable
 class InstalledApp {
-  const InstalledApp({required this.version, required this.versionCode, required this.updatesDir});
+  const InstalledApp({required this.version, required this.versionCode, required this.updatesDir, this.justUpdated = false});
 
-  /// `versionName`, as Android's package manager has it (the page's `status.nativeVersion`).
+  /// `versionName`, as Android's package manager has it (the page's `status.nativeVersion`); on a Mac the bundle's
+  /// `CFBundleShortVersionString`.
   final String version;
+
+  /// `versionCode`; on a Mac `CFBundleVersion`, made the same way.
   final int versionCode;
 
   /// `<cacheDir>/updates`: the one directory the phone's installer is ever handed a file from (`UPDATES`, paths.rs).
   final String updatesDir;
+
+  /// The Mac's: this launch is the first of a version the app put in place itself (UpdatesChannel.swift `settle`),
+  /// which the launch screen says ("Updated to Ghost.md 2.3.16").
+  final bool justUpdated;
 }
 
-/// What the phone does for an update (android/…/ghost_md/UpdateInstaller.kt on Android; a test's own).
+/// What the phone does for an update (android/…/ghost_md/UpdateInstaller.kt on Android, macos/Runner/
+/// UpdatesChannel.swift on a Mac; a test's own).
 abstract class UpdatePhone {
   /// The installed app, or null where there is no phone half: then nothing is looked for.
   Future<InstalledApp?> installed();
 
   /// Hands the verified file at [path] to Android's installer (`GlyphHost.installApk`): `started`, `permission`
-  /// when the person must first let this app install apps (their page for it is opened), or a reason.
+  /// when the person must first let this app install apps (their page for it is opened), or a reason. A Mac
+  /// unpacks and checks the zip and answers `ready` once the new app is in place beside the running one, or
+  /// `manual: <why>` where it cannot replace itself.
   Future<String> install(String path);
 }
 
-/// The phone's half over the channel `ghost_md/updates`. Off Android there is none.
-class ChannelUpdatePhone implements UpdatePhone {
+/// The Mac's half has one thing more: to swap in the version [UpdatePhone.install] put in place, and start it.
+abstract class RestartingUpdatePhone implements UpdatePhone {
+  /// `restarting` as the app begins to quit, or a reason it will not.
+  Future<String> restart();
+}
+
+/// The phone's half over the channel `ghost_md/updates`, and the Mac's on the same one. Anywhere else there is none.
+class ChannelUpdatePhone implements RestartingUpdatePhone {
   const ChannelUpdatePhone([this.channel = const MethodChannel('ghost_md/updates')]);
 
   final MethodChannel channel;
@@ -262,7 +355,7 @@ class ChannelUpdatePhone implements UpdatePhone {
     try {
       final answer = await channel.invokeMapMethod<String, Object?>('installed');
       if (answer case {'version': final String version, 'versionCode': final int code, 'dir': final String dir}) {
-        return InstalledApp(version: version, versionCode: code, updatesDir: dir);
+        return InstalledApp(version: version, versionCode: code, updatesDir: dir, justUpdated: answer['updated'] == true);
       }
     } on MissingPluginException {
       // A desktop run, a test: no phone half.
@@ -276,6 +369,17 @@ class ChannelUpdatePhone implements UpdatePhone {
   Future<String> install(String path) async {
     try {
       return await channel.invokeMethod<String>('install', <String, Object?>{'path': path}) ?? 'no answer';
+    } on MissingPluginException {
+      return 'no installer';
+    } on PlatformException catch (error) {
+      return error.message ?? error.code;
+    }
+  }
+
+  @override
+  Future<String> restart() async {
+    try {
+      return await channel.invokeMethod<String>('restart') ?? 'no answer';
     } on MissingPluginException {
       return 'no installer';
     } on PlatformException catch (error) {
@@ -298,9 +402,12 @@ abstract class UpdateTransport {
 /// Over `HttpClient`, with the Tauri app's timeouts (fetch.rs `client`): fifteen seconds to connect, thirty of
 /// silence, and never a total one, since an APK over a slow connection is legitimately minutes.
 class HttpUpdateTransport implements UpdateTransport {
-  HttpUpdateTransport({HttpClient? client}) : _client = client ?? (HttpClient()..connectionTimeout = const Duration(seconds: 15));
+  HttpUpdateTransport({HttpClient? client, this.kind = UpdateKind.apk}) : _client = client ?? (HttpClient()..connectionTimeout = const Duration(seconds: 15));
 
   final HttpClient _client;
+
+  /// Whose download this is, for its words.
+  final UpdateKind kind;
   static const Duration _quiet = Duration(seconds: 30);
 
   /// A description and its signature are a few hundred bytes; anything past this is not one.
@@ -341,7 +448,7 @@ class HttpUpdateTransport implements UpdateTransport {
       var received = 0, nextReport = 0;
       await for (final chunk in response.timeout(_quiet)) {
         received += chunk.length;
-        if (received > limit) throw const UpdateFailure('the server sent more than the published APK size');
+        if (received > limit) throw UpdateFailure('the server sent more than the published ${kind.file} size');
         out.add(chunk);
         // Every half megabyte (apk.rs), not every chunk: each is a redraw.
         if (received >= nextReport) {
@@ -356,7 +463,7 @@ class HttpUpdateTransport implements UpdateTransport {
     } on UpdateFailure {
       rethrow;
     } catch (error) {
-      throw UpdateFailure('APK download: ${_words(error)}');
+      throw UpdateFailure('${kind.download}: ${_words(error)}');
     } finally {
       await out?.close().catchError((_) {});
     }
@@ -400,32 +507,75 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     required UpdatePhone phone,
     UpdateTransport? transport,
     bool Function()? recording,
+    bool Function()? taking,
     bool Function()? localOnly,
     DateTime Function()? now,
+    this.kind = UpdateKind.apk,
+    Future<void> Function(String url)? openLink,
   })  : _invoke = invoke,
         _phone = phone,
-        _transport = transport ?? HttpUpdateTransport(),
+        _transport = transport ?? HttpUpdateTransport(kind: kind),
         _recording = recording,
+        _taking = taking,
         _localOnly = localOnly,
+        _openLink = openLink ?? links.openLink,
         _now = now ?? DateTime.now;
 
   /// The app's own, or null where this build does not check (the header): then no screen says anything of updates.
+  /// On a phone the APK; in the Mac app the Mac's own, but never in the Mac App Store's build ([updateKindFor]).
   static Updates? forBuild({required CoreInvoke invoke, bool Function()? localOnly}) {
     final config = UpdatesConfig.fromBuild();
-    if (config == null || !Platform.isAndroid) return null;
-    return Updates(config: config, invoke: invoke, phone: const ChannelUpdatePhone(), localOnly: localOnly);
+    final kind = updateKindFor(android: Platform.isAndroid, macApp: runsAsMacApp, macStore: macAppStore);
+    if (config == null || kind == null) return null;
+    final updates = Updates(config: config, invoke: invoke, phone: const ChannelUpdatePhone(), localOnly: localOnly, kind: kind);
+    if (kDebugMode && _testing && _walk) updates._walkItself();
+    return updates;
+  }
+
+  /// [_walk]'s presses: each phase that waits on a person is moved on once, after a beat, if it still waits.
+  void _walkItself() {
+    ApkPhase? seen;
+    addListener(() {
+      final phase = _apk;
+      if (identical(phase, seen)) return;
+      seen = phase;
+      Future<void> Function()? press = switch (phase) {
+        ApkPhaseAvailable() => installApk,
+        ApkPhaseReady() => restart,
+        _ => null,
+      };
+      if (press == null) return;
+      Timer(const Duration(seconds: 8), () {
+        if (identical(_apk, phase)) unawaited(press());
+      });
+    });
   }
 
   final UpdatesConfig config;
+
+  /// What this install updates itself from: the phone's APK or the Mac's app.
+  final UpdateKind kind;
   final CoreInvoke _invoke;
   final UpdatePhone _phone;
   final UpdateTransport _transport;
   final bool Function()? _localOnly;
+  final Future<void> Function(String url) _openLink;
   final DateTime Function() _now;
   bool Function()? _recording;
+  bool Function()? _taking;
 
   /// Whether a meeting is being recorded (`meetingStateNow()?.recording`). The root says, once voice is up.
   set recording(bool Function()? asks) => _recording = asks;
+
+  /// Whether a take is being recorded (the recorder is on screen). The root says, as for [recording].
+  set taking(bool Function()? asks) => _taking = asks;
+
+  /// What stops an install that would end the process now, in words, or null: a meeting, then a take.
+  String? get _busy {
+    if (_recording?.call() ?? false) return stopTheMeeting;
+    if (_taking?.call() ?? false) return stopTheRecording;
+    return null;
+  }
 
   ApkPhase get apk => _apk;
   ApkPhase _apk = const ApkPhaseNone();
@@ -520,7 +670,9 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
         final prev = _apk;
         if (!newer) {
           _apk = const ApkPhaseNone();
-        } else if (prev is! ApkPhaseDownloading && prev is! ApkPhaseInstalling) {
+        } else if (prev is ApkPhaseReady && prev.info.versionCode >= offered.versionCode) {
+          // The Mac's: this version is already in place for a restart. A newer one still is offered over it.
+        } else if (prev is! ApkPhaseDownloading && prev is! ApkPhaseInstalling && prev is! ApkPhaseRestarting) {
           // A download or install in progress is not interrupted by a check.
           _apk = ApkPhaseAvailable(offered);
         }
@@ -531,13 +683,20 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     }
   }
 
-  /// `apk.json`, read only if a trusted key signed exactly its bytes (`fetch_signed`).
+  /// `apk.json` (the Mac's `mac.json`), read only if a trusted key signed exactly its bytes (`fetch_signed`), over
+  /// its kind's context.
   Future<ApkInfo> _described() async {
-    final url = '${config.source}/apk.json';
+    final url = '${config.source}/${kind.feed}';
     final body = await _transport.read(url);
-    final signature = await _transport.read('${config.source}/$updateSignatureName');
+    final signature = await _transport.read('${config.source}/${kind.signature}');
     try {
-      final answer = await _invoke('update_read', {'body': base64.encode(body), 'signature': utf8.decode(signature, allowMalformed: true), 'keys': config.keys, 'http': config.http});
+      final answer = await _invoke('update_read', {
+        'body': base64.encode(body),
+        'signature': utf8.decode(signature, allowMalformed: true),
+        'keys': config.keys,
+        'http': config.http,
+        if (kind != UpdateKind.apk) 'kind': kind.name,
+      });
       return ApkInfo.of(answer);
     } catch (error) {
       throw UpdateFailure('$url: ${failureText(error)}');
@@ -546,35 +705,68 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
 
   /// Brings the new version down and hands it to Android (`installApk`). Pressed again while Android's screen is
   /// up, or after it was put away, it hands the same file over again: the verified file is still in the cache.
+  ///
+  /// On a Mac it brings the zip down and hands it to the Mac's half, which puts the new app in place beside this
+  /// one ([ApkPhaseReady]); nothing is ended by that, so a recording does not stop it: [restart] is what ends the
+  /// process, and is what waits for one.
   Future<void> installApk() async {
     final phase = _apk;
-    if (phase is! ApkPhaseOf || phase is ApkPhaseDownloading) return;
+    if (phase is! ApkPhaseOf || phase is ApkPhaseDownloading || phase is ApkPhaseReady || phase is ApkPhaseRestarting) return;
     final info = phase.info;
+    final mac = kind == UpdateKind.mac;
     // The installer ends the process, and a meeting being recorded with it: stopped without a word, and written up
     // only at the next launch. So not while one records, as a reset is not (core/reset.dart).
-    if (_recording?.call() ?? false) {
-      _set(() => _apk = ApkPhaseFailed(info, stopTheMeeting));
+    final busy = mac ? null : _busy;
+    if (busy != null) {
+      _set(() => _apk = ApkPhaseFailed(info, busy));
       return;
     }
     _set(() => _apk = ApkPhaseDownloading(info, received: 0, total: info.bytes));
     try {
       final path = await _fetch((latest, received) => _set(() => _apk = ApkPhaseDownloading(info, received: received, total: latest.bytes)));
       // A meeting started while the download ran: the same answer, now that the file is here for a later tap.
-      if (_recording?.call() ?? false) {
-        _set(() => _apk = ApkPhaseFailed(info, stopTheMeeting));
+      final busy = mac ? null : _busy;
+      if (busy != null) {
+        _set(() => _apk = ApkPhaseFailed(info, busy));
         return;
       }
       final answer = await _phone.install(path);
+      if (mac && answer.startsWith('manual')) {
+        // The app cannot replace itself where it is: the disk image, as the download page gives it.
+        final why = answer.replaceFirst(RegExp(r'^manual:?\s*'), '');
+        unawaited(_openLink('${config.source}/$macDiskImage').catchError((_) {}));
+        _set(() => _apk = ApkPhaseFailed(info, '${why.isEmpty ? '' : '$why '}The disk image is opening in your browser instead.'));
+        return;
+      }
       _set(() {
         _apk = switch (answer) {
-          'permission' => ApkPhaseNeedsPermission(info),
-          'started' => ApkPhaseInstalling(info),
+          'permission' when !mac => ApkPhaseNeedsPermission(info),
+          'started' when !mac => ApkPhaseInstalling(info),
+          'ready' when mac => ApkPhaseReady(info),
+          _ when mac => ApkPhaseFailed(info, 'It could not be put in place ($answer).'),
           _ => ApkPhaseFailed(info, 'The installer did not start ($answer).'),
         };
       });
     } catch (error) {
       _set(() => _apk = ApkPhaseFailed(info, failureText(error)));
     }
+  }
+
+  /// The Mac's "Restart to update": the version [installApk] put in place is swapped in, and the app quits and opens
+  /// again as it (UpdatesChannel.swift `restart`). Not while a meeting or a take records, which quitting would end.
+  Future<void> restart() async {
+    final phase = _apk;
+    final phone = _phone;
+    if (phase is! ApkPhaseReady || phone is! RestartingUpdatePhone) return;
+    final info = phase.info;
+    final busy = _busy;
+    if (busy != null) {
+      _set(() => _apk = ApkPhaseFailed(info, busy));
+      return;
+    }
+    _set(() => _apk = ApkPhaseRestarting(info));
+    final answer = await phone.restart();
+    if (answer != 'restarting') _set(() => _apk = ApkPhaseFailed(info, 'Ghost.md could not restart into it ($answer).'));
   }
 
   /// Downloads the published APK, verified, and answers with its path (`ota_fetch_apk`, apk.rs `fetch`). The
@@ -588,7 +780,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     final download = info.url.contains('://') ? info.url : '${config.source}/${info.url}';
     final dir = Directory(app.updatesDir);
     await dir.create(recursive: true);
-    final target = File('${dir.path}/ghost-${info.versionCode}.apk');
+    final target = File('${dir.path}/ghost-${info.versionCode}.${kind.extension}');
     Future<bool> matches(File file) async {
       if (!file.existsSync()) return false;
       try {
@@ -616,7 +808,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     final part = File('${dir.path}/download.part');
     try {
       await _transport.download(download, part, limit: info.bytes, onProgress: (received) => progress(info, received));
-      if (!await matches(part)) throw const UpdateFailure('the APK did not match its published checksum');
+      if (!await matches(part)) throw UpdateFailure('the ${kind.file} did not match its published checksum');
     } catch (_) {
       try {
         if (part.existsSync()) part.deleteSync();
@@ -628,7 +820,7 @@ class Updates extends ChangeNotifier with WidgetsBindingObserver {
     try {
       await part.rename(target.path);
     } catch (error) {
-      throw UpdateFailure('cannot place the APK: ${failureText(error)}');
+      throw UpdateFailure('cannot place the ${kind.file}: ${failureText(error)}');
     }
     progress(info, info.bytes);
     return target.path;

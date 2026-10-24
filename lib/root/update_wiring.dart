@@ -10,7 +10,10 @@
 /// What differs from the web:
 /// - **Nothing here is ever `ready`.** A Flutter app has no page to download and reload into, so the card's Reload,
 ///   About's "A new version is downloaded" and the launch screen's "Updating Ghost.md" are never reached; the
-///   words stay in their screens, as ported.
+///   words stay in their screens, as ported. The Mac's app has a ready of its own instead (`ApkPhaseReady`: the new
+///   app in place beside the running one), and its words are the Mac's: "Ghost.md 2.3.16 is ready." with
+///   "Restart to update" on the card, the same in About, and "Updated to Ghost.md 2.3.16" on the launch screen of
+///   the version it restarted into.
 /// - **About has no alerts switch and no What's new**: the phone's own notifier (`UpdateCheckWorker.kt`) and the
 ///   list of releases (`releases.json`) are not ported. The page read both from where it took its updates.
 library;
@@ -36,6 +39,7 @@ LaunchUpdates launchUpdatesOf(Updates? updates) {
   final apk = updates.apk;
   return LaunchUpdates(
     apkVersion: apk is ApkPhaseAvailable ? apk.info.version : null,
+    updatedTo: (updates.installed?.justUpdated ?? false) ? updates.installed?.version : null,
     checking: updates.checking,
     lastError: updates.lastError,
     check: () => updates.check(),
@@ -61,9 +65,12 @@ notices.AppUpdates updateCardOf(Updates updates) => notices.AppUpdates(
         ApkPhaseDownloading(:final info, :final received, :final total) => notices.ApkDownloading(info.version, received: received, total: total),
         ApkPhaseInstalling(:final info) => notices.ApkInstalling(info.version),
         ApkPhaseNeedsPermission() => const notices.ApkNeedsPermission(),
+        ApkPhaseReady(:final info) => notices.ApkReady(info.version),
+        ApkPhaseRestarting(:final info) => notices.ApkRestarting(info.version),
         ApkPhaseFailed(:final info, :final message) => notices.ApkFailed(info.version, message),
       },
       onInstall: () => updates.installApk(),
+      onRestart: () => updates.restart(),
     );
 
 /// What Settings › About is told (`AboutPane`'s `updates`): the version as the phone has it, where its updates come
@@ -84,8 +91,11 @@ SettingsUpdates settingsUpdatesOf(Updates updates) {
     checked: updates.lastChecked != null,
     downloading: apk is ApkPhaseDownloading ? apk.info.version : null,
     installable: installable,
+    restartable: apk is ApkPhaseReady ? apk.info.version : null,
+    restarting: apk is ApkPhaseRestarting ? apk.info.version : null,
     onCheck: () => updates.check(),
     onInstall: () => updates.installApk(),
+    onRestart: () => updates.restart(),
   );
 }
 

@@ -94,6 +94,31 @@ class _Phone implements UpdatePhone {
   }
 }
 
+/// The Mac's half: `ready` once the new app is in place, and a count of restarts.
+class _Mac implements RestartingUpdatePhone {
+  _Mac(this.app);
+  InstalledApp? app;
+  String answer = 'ready';
+  String restartAnswer = 'restarting';
+  final List<String> handed = [];
+  int restarts = 0;
+
+  @override
+  Future<InstalledApp?> installed() async => app;
+
+  @override
+  Future<String> install(String path) async {
+    handed.add(path);
+    return answer;
+  }
+
+  @override
+  Future<String> restart() async {
+    if (restartAnswer == 'restarting') restarts += 1;
+    return restartAnswer;
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -499,6 +524,200 @@ void main() {
     });
   });
 
+  group('the Mac', () {
+    late _Mac mac;
+    late List<Map<String, Object?>> read;
+    late List<String> opened;
+    var taking = false;
+
+    setUp(() {
+      mac = _Mac(InstalledApp(version: '2.3.15', versionCode: 2003015, updatesDir: '${dir.path}/updates'));
+      read = [];
+      opened = [];
+      taking = false;
+    });
+
+    /// The core as for the phone, and what each `update_read` was asked with.
+    CoreInvoke asks() {
+      final inner = _core(core);
+      return (String command, [Map<String, Object?> args = const {}]) {
+        if (command == 'update_read') read.add(args);
+        return inner(command, args);
+      };
+    }
+
+    Updates makeMac() => Updates(
+          config: config,
+          invoke: asks(),
+          phone: mac,
+          transport: server,
+          recording: () => recording,
+          taking: () => taking,
+          localOnly: () => localOnly,
+          kind: UpdateKind.mac,
+          openLink: (url) async => opened.add(url),
+        );
+
+    Future<Updates> offered() async {
+      server.published = _info('2.3.16', 2003016, url: 'glyph-mac.zip');
+      final updates = makeMac();
+      await updates.check();
+      expect(updates.apk, isA<ApkPhaseAvailable>());
+      return updates;
+    }
+
+    test('is made in the Mac app alone, never in the Mac App Store\'s build, and the phone\'s on Android', () {
+      expect(updateKindFor(android: true, macApp: false, macStore: false), UpdateKind.apk);
+      expect(updateKindFor(android: false, macApp: true, macStore: false), UpdateKind.mac);
+      expect(updateKindFor(android: false, macApp: true, macStore: true), isNull, reason: 'the store updates what it sells');
+      expect(updateKindFor(android: false, macApp: false, macStore: false), isNull, reason: 'a test run, an iPhone');
+      // And this run, a test on a Mac, is neither: no build here makes one.
+      expect(Updates.forBuild(invoke: _core(core)), isNull);
+    });
+
+    test('reads mac.json and its own signature, and asks the core to read it as the Mac\'s', () async {
+      await offered();
+      expect(server.asked, ['$_base/mac.json', '$_base/mac.json.sig']);
+      expect(read.single['kind'], 'mac');
+      // The phone's description is asked as it always was, with no kind.
+      final phoneUpdates = Updates(config: config, invoke: asks(), phone: phone, transport: server);
+      server.published = _info('0.2.0', 2);
+      await phoneUpdates.check();
+      expect(server.asked.skip(2), ['$_base/apk.json', '$_base/$updateSignatureName']);
+      expect(read, hasLength(2));
+      expect(read.last.containsKey('kind'), isFalse);
+    });
+
+    test('is newer by the version or by the build, as on Android', () async {
+      final updates = makeMac();
+      for (final (version, code, newer) in [('2.3.16', 2003016, true), ('2.3.15', 2003015, false), ('2.3.14', 2003014, false), ('2.3.15', 2003016, true), ('2.4.0', 2004000, true)]) {
+        server.published = _info(version, code, url: 'glyph-mac.zip');
+        await updates.check();
+        expect(updates.apk is ApkPhaseAvailable, newer, reason: '$version ($code) over 2.3.15 (2003015)');
+      }
+    });
+
+    test('downloads the zip, has the Mac put it in place, and restarts into it when asked', () async {
+      final updates = await offered();
+      final seen = <String>[];
+      updates.addListener(() {
+        final line = updates.apk.runtimeType.toString();
+        if (seen.isEmpty || seen.last != line) seen.add(line);
+      });
+      await updates.installApk();
+      expect(seen, ['ApkPhaseDownloading', 'ApkPhaseReady']);
+      expect(server.asked.last, '$_base/glyph-mac.zip');
+      expect(mac.handed, ['${dir.path}/updates/ghost-2003016.zip']);
+      expect(File(mac.handed.single).readAsBytesSync(), server.file);
+      // A check leaves an update in place alone, and pressing Install again does nothing.
+      await updates.check();
+      expect(updates.apk, isA<ApkPhaseReady>());
+      await updates.installApk();
+      expect(mac.handed, hasLength(1));
+      // Restart to update.
+      await updates.restart();
+      expect(updates.apk, isA<ApkPhaseRestarting>());
+      expect(mac.restarts, 1);
+      await updates.check();
+      expect(updates.apk, isA<ApkPhaseRestarting>(), reason: 'nor while it quits');
+    });
+
+    test('a newer release than the one in place is offered over it', () async {
+      final updates = await offered();
+      await updates.installApk();
+      expect(updates.apk, isA<ApkPhaseReady>());
+      server.published = _info('2.3.17', 2003017, url: 'glyph-mac.zip');
+      await updates.check();
+      expect((updates.apk as ApkPhaseAvailable).info.version, '2.3.17');
+    });
+
+    test('is put in place while a meeting records, but not restarted into until it stops, nor during a take', () async {
+      final updates = await offered();
+      recording = true;
+      await updates.installApk();
+      expect(updates.apk, isA<ApkPhaseReady>(), reason: 'putting it in place ends nothing');
+      await updates.restart();
+      expect((updates.apk as ApkPhaseFailed).message, 'Stop the meeting first.');
+      expect(mac.restarts, 0);
+      recording = false;
+      taking = true;
+      await updates.installApk();
+      await updates.restart();
+      expect((updates.apk as ApkPhaseFailed).message, 'Stop the recording first.');
+      expect(mac.restarts, 0);
+      taking = false;
+      await updates.installApk();
+      await updates.restart();
+      expect(mac.restarts, 1);
+    });
+
+    test('an app that cannot replace itself is sent to the disk image instead', () async {
+      final updates = await offered();
+      mac.answer = 'manual: Ghost.md is running from its disk image.';
+      await updates.installApk();
+      expect((updates.apk as ApkPhaseFailed).message, 'Ghost.md is running from its disk image. The disk image is opening in your browser instead.');
+      expect(opened, ['$_base/glyph.dmg']);
+    });
+
+    test('says why, when the Mac refused what came out of the zip or would not restart', () async {
+      final updates = await offered();
+      mac.answer = 'the download is not signed by Ghost.md’s developer (a sealed resource is missing or invalid)';
+      await updates.installApk();
+      expect((updates.apk as ApkPhaseFailed).message, 'It could not be put in place (the download is not signed by Ghost.md’s developer (a sealed resource is missing or invalid)).');
+      mac.answer = 'ready';
+      await updates.installApk();
+      mac.restartAnswer = 'nothing is in place to restart into';
+      await updates.restart();
+      expect((updates.apk as ApkPhaseFailed).message, 'Ghost.md could not restart into it (nothing is in place to restart into).');
+    });
+
+    test('a zip that is not the one published is refused in the Mac\'s words, and never reaches the Mac', () async {
+      final updates = await offered();
+      server.file = const [1, 2, 3, 4, 5, 7];
+      await updates.installApk();
+      expect((updates.apk as ApkPhaseFailed).message, 'the download did not match its published checksum');
+      expect(mac.handed, isEmpty);
+    });
+
+    test('the Mac\'s half says on its channel whether this launch is a version it put in place, and restarts', () async {
+      final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      const channel = MethodChannel('ghost_md/updates');
+      addTearDown(() => messenger.setMockMethodCallHandler(channel, null));
+      final asked = <String>[];
+      messenger.setMockMethodCallHandler(channel, (call) async {
+        asked.add(call.method);
+        return switch (call.method) {
+          'installed' => {'version': '2.3.16', 'versionCode': 2003016, 'dir': '/cache/updates', 'updated': true},
+          'restart' => 'restarting',
+          _ => 'ready',
+        };
+      });
+      const phone = ChannelUpdatePhone();
+      final app = await phone.installed();
+      expect((app?.version, app?.versionCode, app?.justUpdated), ('2.3.16', 2003016, true));
+      expect(await phone.install('/cache/updates/ghost-2003016.zip'), 'ready');
+      expect(await phone.restart(), 'restarting');
+      expect(asked, ['installed', 'install', 'restart']);
+      messenger.setMockMethodCallHandler(channel, null);
+      expect(await phone.restart(), 'no installer', reason: 'no Mac half: a test, a phone');
+    });
+
+    test('the Swift answers that channel with those names, checks the team, and is compiled out of the store\'s build', () {
+      final swift = File('macos/Runner/UpdatesChannel.swift').readAsStringSync();
+      expect(swift, startsWith('#if !GHOST_MAC_STORE'));
+      expect(swift.trimRight(), endsWith('#endif'));
+      expect(swift, contains('FlutterMethodChannel(name: "ghost_md/updates"'));
+      expect(swift, allOf(contains('case "installed":'), contains('case "install":'), contains('case "restart":')));
+      expect(swift, allOf(contains('"version":'), contains('"versionCode":'), contains('"dir":'), contains('"updated":')));
+      expect(swift, contains(r'anchor apple generic and certificate leaf[subject.OU] = \"\(team)\"'));
+      expect(swift, contains('guard build > ownBuild else'));
+      expect(swift, contains('guard plist["CFBundleIdentifier"] as? String == Bundle.main.bundleIdentifier'));
+      expect(swift, contains('renamex_np(staged.app.path, target.path, UInt32(RENAME_SWAP))'));
+      final window = File('macos/Runner/MainFlutterWindow.swift').readAsStringSync();
+      expect(window, contains('#if !GHOST_MAC_STORE\n    updates = UpdatesChannel(messenger: messenger)\n    #endif'));
+    });
+  });
+
   group('the phone\'s half', () {
     final messenger = TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
     const channel = MethodChannel('ghost_md/updates');
@@ -566,6 +785,26 @@ void main() {
         core.invoke('update_verify', {'path': file.path, 'sha256': info.sha256, 'bytes': info.bytes}),
         throwsA(isA<CoreError>().having((e) => e.message, 'message', 'the APK did not match its published checksum')),
       );
+    }, skip: skip);
+
+    test('reads the Mac\'s release, signed as scripts/deploy-flutter-mac.mjs signs it, only as the Mac\'s', () async {
+      final core = await GhostCore.open(libraryPath: File(library).absolute.path);
+      addTearDown(core.close);
+      final body = File('$fixtures/mac.json').readAsBytesSync();
+      final signature = File('$fixtures/mac.json.sig').readAsStringSync();
+      final key = File('$fixtures/mac-public-key.txt').readAsStringSync().trim();
+      Map<String, Object?> args({String? kind}) => {'body': base64.encode(body), 'signature': signature, 'keys': [key], 'kind': ?kind};
+      final info = ApkInfo.of(await core.invoke('update_read', args(kind: 'mac')));
+      expect((info.version, info.versionCode, info.bytes, info.url), ('9.9.2', 9009002, 5, 'glyph-mac.zip'));
+      for (final kind in [null, 'apk']) {
+        await expectLater(
+          core.invoke('update_read', args(kind: kind)),
+          throwsA(isA<CoreError>().having((e) => e.message, 'message', 'the signature did not verify against any trusted key')),
+          reason: 'the Mac\'s description read as the phone\'s',
+        );
+      }
+      final zip = File('${dir.path}/glyph-mac.zip')..writeAsStringSync('a zip');
+      expect(await core.invoke('update_verify', {'path': zip.path, 'sha256': info.sha256, 'bytes': info.bytes}), isNull);
     }, skip: skip);
   });
 }

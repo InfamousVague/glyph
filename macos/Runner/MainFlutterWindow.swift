@@ -18,6 +18,9 @@ class MainFlutterWindow: NSWindow {
 
   private var channels: GhostChannels?
 
+  /// The app's own updates (UpdatesChannel.swift), in every build but the Mac App Store's, which has none.
+  private var updates: NSObject?
+
   /// A note's diagrams, drawn by a web view behind the app's own view (apple/DiagramRenderer.swift).
   private var diagrams: DiagramRenderer?
   private var windowChannel: FlutterMethodChannel?
@@ -50,6 +53,9 @@ class MainFlutterWindow: NSWindow {
     RegisterGeneratedPlugins(registry: flutterViewController)
     let messenger = flutterViewController.engine.binaryMessenger
     channels = GhostChannels(messenger: messenger, window: self)
+    #if !GHOST_MAC_STORE
+    updates = UpdatesChannel(messenger: messenger)
+    #endif
     // A ```mermaid fence drawn as its diagram (apple/DiagramRenderer.swift; lib/editor/diagrams/bridge.dart).
     diagrams = DiagramRenderer(messenger: messenger) { [weak flutterViewController] in flutterViewController?.view }
 

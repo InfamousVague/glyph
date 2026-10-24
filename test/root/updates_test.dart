@@ -65,6 +65,28 @@ class _Phone implements UpdatePhone {
   }
 }
 
+/// The Mac's half: the new app put in place at once, and restarts counted.
+class _MacPhone implements RestartingUpdatePhone {
+  _MacPhone(this.dir, {this.version = '0.1.0', this.code = 1, this.justUpdated = false});
+  final String dir;
+  final String version;
+  final int code;
+  final bool justUpdated;
+  int restarts = 0;
+
+  @override
+  Future<InstalledApp?> installed() async => InstalledApp(version: version, versionCode: code, updatesDir: dir, justUpdated: justUpdated);
+
+  @override
+  Future<String> install(String path) async => 'ready';
+
+  @override
+  Future<String> restart() async {
+    restarts += 1;
+    return 'restarting';
+  }
+}
+
 Future<Object?> _core(String command, [Map<String, Object?> args = const {}]) async =>
     command == 'update_read' ? jsonDecode(utf8.decode(base64.decode(args['body'] as String))) : null;
 
@@ -188,6 +210,53 @@ void main() {
     });
   });
 
+  group('the Mac\'s, as each screen is handed it', () {
+    Updates makeMac(_MacPhone mac) => Updates(
+          config: UpdatesConfig.of(source: _base, keys: const ['a-key'], debug: false)!,
+          invoke: _core,
+          phone: mac,
+          transport: server,
+          recording: () => recording,
+          kind: UpdateKind.mac,
+          openLink: (_) async {},
+        );
+
+    test('the card and About through an update put in place, in the Mac\'s words, and the launch after it', () async {
+      final mac = _MacPhone('${dir.path}/updates');
+      final updates = makeMac(mac);
+      await updates.check();
+      expect((updateCardOf(updates).apk as notices.ApkAvailable).version, '0.2.0');
+      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is ready to install.');
+
+      await updates.installApk();
+      expect((updateCardOf(updates).apk as notices.ApkReady).version, '0.2.0');
+      var about = settingsUpdatesOf(updates);
+      expect((about.restartable, about.installable), ('0.2.0', null));
+      expect(updatesStatus(about), 'Ghost.md 0.2.0 is downloaded. Restart to update.');
+      expect(aboutSummary(about), '0.1.0 · 0.2.0 ready, restart to update');
+      // A check while it waits says nothing new.
+      await updates.check();
+      expect(updatesStatus(settingsUpdatesOf(updates)), 'Ghost.md 0.2.0 is downloaded. Restart to update.');
+
+      // Restart to update, from About or from the card: the same.
+      settingsUpdatesOf(updates).onRestart!();
+      await pumpEventQueue();
+      expect((updateCardOf(updates).apk as notices.ApkRestarting).version, '0.2.0');
+      about = settingsUpdatesOf(updates);
+      expect((about.restarting, updatesStatus(about)), ('0.2.0', 'Restarting into Ghost.md 0.2.0.'));
+      expect(mac.restarts, 1);
+
+      // The next launch is the new version, and says so where "Up to date" would be.
+      final after = makeMac(_MacPhone('${dir.path}/updates', version: '0.2.0', code: 2, justUpdated: true));
+      server.published = {...server.published!, 'version': '0.2.0', 'versionCode': 2};
+      await after.check();
+      expect(launchUpdatesOf(after).updatedTo, '0.2.0');
+      expect(updatesStatus(settingsUpdatesOf(after)), 'Up to date.');
+      // And a launch that is not one says nothing of it.
+      expect(launchUpdatesOf(updates).updatedTo, isNull);
+    });
+  });
+
   group('in the app', () {
     Future<void> open(WidgetTester tester, Updates? updates) async {
       await pumpApp(
@@ -231,6 +300,24 @@ void main() {
       // The root goes, as at a reset; the updates are the process's and outlive it.
       await close(tester);
       expect(updates.apk, isA<ApkPhaseInstalling>());
+      updates.dispose();
+    });
+
+    testWidgets('on a Mac the card offers the version, then Restart to update once it is in place', (tester) async {
+      final mac = _MacPhone('${dir.path}/updates');
+      final updates = Updates(config: UpdatesConfig.of(source: _base, keys: const ['a-key'], debug: false)!, invoke: _core, phone: mac, transport: server, kind: UpdateKind.mac, openLink: (_) async {});
+      await open(tester, updates);
+      await tester.pump(const Duration(seconds: 4));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Ghost.md 0.2.0 is out.'), findsOneWidget);
+      await tester.runAsync(updates.installApk);
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Ghost.md 0.2.0 is ready.'), findsOneWidget);
+      await tester.tap(find.text('Restart to update'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(mac.restarts, 1);
+      expect(find.textContaining('Restarting into Ghost.md 0.2.0.', findRichText: true), findsOneWidget);
+      await close(tester);
       updates.dispose();
     });
 

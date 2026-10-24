@@ -51,6 +51,9 @@ List<SettingsFindable> aboutFindable({required bool updates, required bool alert
 
 /// The Updates card's one row in the app: the first of these that is true (settings/updateLines.ts `updatesStatus`).
 String updatesStatus(SettingsUpdates updates) {
+  // The Mac's two, above the ladder: an update in place is the one thing left to do, whatever a check says.
+  if (updates.restarting != null) return 'Restarting into Ghost.md ${updates.restarting}.';
+  if (updates.restartable != null) return 'Ghost.md ${updates.restartable} is downloaded. Restart to update.';
   if (updates.checking) return 'Checking for updates.';
   if (updates.downloading != null) return 'Downloading Ghost.md ${updates.downloading}.';
   if (updates.installable != null) return 'Ghost.md ${updates.installable} is ready to install.';
@@ -64,6 +67,8 @@ String updatesStatus(SettingsUpdates updates) {
 String updatesSummary(SettingsUpdates updates) {
   // An iPhone's copy checks nothing (Matt, 2026-10-13): its row says whose its updates are, as its page does.
   if (updates.store == 'appstore') return 'Updates through the App Store';
+  if (updates.restarting != null) return 'Restarting';
+  if (updates.restartable != null) return '${updates.restartable} ready, restart to update';
   if (updates.checking) return 'Checking';
   if (updates.installable != null) return '${updates.installable} ready to install';
   if (updates.ready) return 'New version downloaded';
@@ -217,6 +222,7 @@ List<Widget> updatesSection(SettingsUpdates updates) {
     PaneActions(
       children: [
         if (updates.ready) RowAction(onPress: updates.onReload ?? () {}, disabled: updates.onReload == null, child: const Text('Reload')),
+        if (updates.restartable != null) RowAction(onPress: updates.onRestart ?? () {}, disabled: updates.onRestart == null, child: const Text('Restart to update')),
         if (updates.installable != null) RowAction(onPress: updates.onInstall ?? () {}, disabled: updates.onInstall == null, child: Text('Install ${updates.installable}')),
         RowAction(onPress: updates.onCheck ?? () {}, disabled: updates.checking || updates.onCheck == null, child: const Text('Check for updates')),
       ],

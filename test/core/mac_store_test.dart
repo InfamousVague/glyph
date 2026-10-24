@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/canvas/how_canvas.dart';
 import 'package:ghost_md/core/mac_app.dart';
 import 'package:ghost_md/core/native/device_paths.dart';
+import 'package:ghost_md/core/updates.dart';
 import 'package:ghost_md/root/iphone_wiring.dart';
 import 'package:ghost_md/settings/panes/about_pane.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
@@ -167,6 +168,44 @@ void main() {
       for (final sends in ['altool', 'notarytool', 'iTMSTransporter', 'upload-app', 'scp ', 'curl ']) {
         expect(script, isNot(contains(sends)), reason: 'the script sends nothing: $sends');
       }
+    });
+
+    test('has no updater: Xcode compiles the Swift one out, Dart makes none, and the script refuses a binary with one', () {
+      // Xcode is told, and the target's settings turn that into a Swift condition.
+      expect(script, contains('GHOST_CUTOVER=1 GHOST_MAC_STORE=1 flutter build macos'));
+      final config = read('macos/Runner/Configs/AppInfo.xcconfig');
+      expect(config, contains('GHOST_STORE_SWIFT_1 = GHOST_MAC_STORE'));
+      expect(config, contains(r'SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(GHOST_STORE_SWIFT_$(GHOST_MAC_STORE))'));
+      // Every line of the updater is inside that condition, and so is the one line that makes it.
+      final swift = read('macos/Runner/UpdatesChannel.swift');
+      expect(swift, startsWith('#if !GHOST_MAC_STORE\n'));
+      expect(swift.trimRight(), endsWith('#endif'));
+      expect('#if'.allMatches(swift).length, '#endif'.allMatches(swift).length);
+      final window = read('macos/Runner/MainFlutterWindow.swift');
+      expect(window, contains('#if !GHOST_MAC_STORE\n    updates = UpdatesChannel(messenger: messenger)\n    #endif'));
+      expect(RegExp(r'UpdatesChannel\(').allMatches(window).length, 1);
+      for (final other in ['AppDelegate.swift', 'GhostChannels.swift', 'FilesChannel.swift', 'MicChannel.swift', 'TapeChannel.swift', 'MeetAudio.swift']) {
+        expect(read('macos/Runner/$other'), isNot(contains('UpdatesChannel')), reason: '$other names the updater outside the condition');
+      }
+      // Nothing else in the Runner is an updater: no Sparkle, no other framework that replaces the app.
+      final project = read('macos/Runner.xcodeproj/project.pbxproj');
+      expect(project.toLowerCase(), isNot(contains('sparkle')));
+      expect(read('pubspec.yaml'), isNot(contains('auto_updater')));
+      // Dart's half: the store's build makes no updates at all.
+      expect(updateKindFor(android: false, macApp: true, macStore: true), isNull);
+      expect(updateKindFor(android: false, macApp: true, macStore: false), UpdateKind.mac, reason: 'the website\'s build has one');
+      // And the script refuses a binary in which the updater is still found.
+      expect(script, contains("grep -qE 'ghost_md/updates|update-install|renamex_np'"));
+      expect(read('macos/Runner/UpdatesChannel.swift'), allOf(contains('"ghost_md/updates"'), contains('"update-install"'), contains('renamex_np')), reason: 'what the script looks for is what the updater has');
+    });
+
+    test('the website\'s build has the updater, and its build number rises with its version', () {
+      final website = read('tool/cutover-build-mac.sh');
+      expect(website, isNot(contains('GHOST_MAC_STORE')));
+      expect(website, contains('code=\$((major * 1000000 + minor * 1000 + patch))'));
+      expect(website, contains('--build-number="\$code"'));
+      expect(website, contains('[ "\$build" = "\$code" ]'));
+      expect(website, contains('tool/build-native.sh mac'), reason: 'a stale core cannot read the Mac\'s update');
     });
 
     test('a build to run here has another id, claims no link, and is never on the real service', () {

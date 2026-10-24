@@ -434,10 +434,55 @@ macos/Runner/Configs/AppInfo.xcconfig) and `--dart-define=GHOST_CUTOVER=true` (t
 `https://ghostmarkdown.com/api` by itself. The app is signed ad hoc, as every local build is;
 `node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app` signs and notarises it.
 
-**Updates: the Mac app has none of its own.** `Updates.forBuild` hands a Mac nothing (lib/core/updates.dart), the
-script gives the build no address, and About says "Updates from: Nowhere in this build". A new version reaches a
-Mac as a new download. The Tauri Mac app, for its part, offers its people the 2.x download
-(tauri/src/app/core/macSuccessor.ts); it migrates nothing itself.
+**Updates: the Mac app updates itself (2026-10-24**; Matt: "Work on making the mac apps update OTA it's a pain to
+have to download the new version from the website every time"). Before then it had none, and every version was a
+download from the site. **2.3.15 and every version before the first one with the updater must still be replaced
+by hand once**: download the disk image, drag the app over the old one. From that version on:
+
+- **What it looks for**: `mac.json` and `mac.json.sig` beside the APK's files, at the phone's address
+  (`https://attack.fm/glyph`, the box's `/opt/attackfm-site/glyph`, which ghostmarkdown.com serves too), four
+  seconds after launch, on every return to the app a minute or more after it last looked, and every two minutes
+  while it is in front (lib/core/updates.dart, `UpdateKind.mac`), never with "Nothing leaves the phone" on. The
+  description is read only once a key the app trusts signed exactly its bytes over the context
+  `ghost-flutter-mac\0` (native/src/kept/updates.rs `CONTEXT_MAC`). It is the APK's key, Ghost.md's update key
+  (`~/.config/glyph/ota-signing-key.pem`, public half in lib/core/update_keys.dart): one key, two contexts, so a
+  description of either platform's release can never pass for the other's.
+- **Newer is by the version or by the build**, as on Android: `CFBundleVersion` is made as the version code is
+  (2.3.16 is 2003016; tool/cutover-build-mac.sh refuses an app that says another), so it rises with every version.
+- **What it downloads**: `glyph-mac.zip`, the notarised, stapled app zipped by ditto, into
+  `~/Library/Caches/com.mattssoftware.glyph.v2/updates`, refused unless it is exactly the size and SHA-256 the
+  signed description gives.
+- **What puts it in place is the Mac's half** (macos/Runner/UpdatesChannel.swift): it unpacks the zip into a hidden
+  folder beside the app (`/Applications/.Ghost.md.app-update`) and asks the Mac whether what came out is one app,
+  this app's bundle id, a higher build, and signed whole by this app's team (`anchor apple generic and certificate
+  leaf[subject.OU] = "F6ZAL7ANAD"`). Then the card above the notes says "Ghost.md 2.3.16 is ready." with **Restart
+  to update**, and About says the same. Restarting swaps the two bundles in one step (`renamex_np` with
+  `RENAME_SWAP`), and a small helper waits for the app to quit, opens the new one, and removes the old one only once
+  the new one has said it opened; if it has not in two minutes, the old one is put back and opened. Quitting with
+  an update in place swaps it too: the next launch is the new version, and its launch screen says "Updated to
+  Ghost.md 2.3.16". Neither happens while a meeting or a take records ("Stop the meeting first.").
+- **Where it cannot replace itself** (run from the disk image, from where it was downloaded before being moved, or
+  from a folder this account cannot write to) the card says why, and the disk image opens in the browser.
+- **Not in the Mac App Store's build**, which the store updates (section 9): the Swift is compiled out of it
+  (`GHOST_MAC_STORE`), Dart makes no updates there, and tool/cutover-build-mac-store.sh refuses a binary in which
+  the updater is found; test/core/mac_store_test.dart holds all three.
+
+The Tauri Mac app, for its part, offers its people the 2.x download (tauri/src/app/core/macSuccessor.ts); it
+migrates nothing itself.
+
+**Tried end to end on this Mac (2026-10-24)** with tool/mac-update-proof.sh: two debug builds, 9.9.1 and 9.9.2,
+under a bundle id of their own (`com.mattssoftware.glyph.updateproof`, so no folder, preference or Keychain item of
+the real app's was touched), signed with the team's Developer ID, kept in a scratch folder, and pointed at a local
+server with a key made for the run (a debug build alone reads `GHOST_UPDATES_TEST`, and `GHOST_UPDATES_TEST_WALK`
+has it press Install and Restart to update itself, so no hand was on the screen). 9.9.1 found 9.9.2 on its launch
+screen, showed the card, downloaded and verified the 66 MB zip, put it in place ("Ghost.md 9.9.2 is ready.",
+Restart to update), swapped, quit, and was opened again by the helper as 9.9.2, whose launch screen said "Updated to
+Ghost.md 9.9.2"; the old version was removed once it had (eight seconds from Install to the new version, over
+localhost). The same 9.9.2 re-signed ad hoc was refused before anything moved: "the download is not signed by
+Ghost.md's developer". build/feature-shots/mac-updates/ has the pictures (not in git). Not tried: the real address, a notarised build (the proof's were not notarised), and `/Applications`
+itself, where macOS 13 and later let an app replace an app only when both are its own team's (App Management);
+the swap is the app's own process renaming its own bundle, which that rule allows, and the first real update shows
+it.
 
 ### Proven
 
@@ -511,13 +556,22 @@ Mac as a new download. The Tauri Mac app, for its part, offers its people the 2.
 
 ### To publish, in order
 
-1. `tool/cutover-build-mac.sh <version>` from a clean `main`.
-2. `node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app` (signs, notarises, makes the image).
+1. `tool/cutover-build-mac.sh <version>` from a clean `main`. It builds the Rust core first (both kinds of Mac) and
+   numbers the build from the version (2.3.16 is 2003016).
+2. `node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app` (signs, notarises, makes the image,
+   then the updater's three files: `glyph-mac.zip`, `mac.json`, `mac.json.sig`, signed with Ghost.md's update key,
+   which it refuses to do with a key the app does not trust). Logs in nowhere.
 3. **Before anything is uploaded**, on a Mac with the Tauri app's data and with the Tauri app quit: start the
    signed app from where `--prepare` left it and read `carry/tauri-carry.log`. This is the proof this section
    lacks. To try it without the real folders, `GHOST_CARRY_LIBRARY=<a copy of ~/Library>` makes the carry read from
    the copy; the app's own folder and preferences are still the real ones, so do that on a spare account.
-4. The way back for one Mac: quit, delete `~/Library/Application Support/com.mattssoftware.glyph.v2` and
+4. `node scripts/deploy-flutter-mac.mjs` (one box login): uploads the image, the zip and the three small files, checks
+   them against each other and the signature against the app's keys first, and places the image and the zip,
+   then `desktop.json`, then `mac.json.sig`, and `mac.json` last, so no installed app is told of a zip still
+   arriving. The five that were live are kept in `/opt/attackfm-site/glyph.dmg-before-<stamp>`. Installed Macs
+   with the updater see the version within a few minutes of being in front; Macs on 2.3.15 or before need the
+   download once.
+5. The way back for one Mac: quit, delete `~/Library/Application Support/com.mattssoftware.glyph.v2` and
    `~/Library/Preferences/com.mattssoftware.glyph.plist`, remove the Keychain items of the service
    `com.mattssoftware.glyph.secure`, and put 1.15.0 back. Its folder and its web view's storage were never touched.
 
@@ -939,7 +993,7 @@ past a quit).
 | Export, adding a picture | The Mac's own panels: unchanged. |
 | Recording, a meeting with the Mac's own sound | The microphone has its entitlement and its sentence. The tap on the Mac's sound (the core, CoreAudio) is unchanged and **not proven sandboxed**. |
 | Models | Downloaded by the core into the container (gigabytes, there); run in the app's own process. Nothing downloaded is executed. No process is started but `diskutil`, which only Backup called. |
-| Updates | None checked anywhere, as on every Mac build; About says "Ghost.md updates through the App Store." |
+| Updates | None: the website's build updates itself since 2026-10-24 (section 7), and this one has none of it (the Swift compiled out by `GHOST_MAC_STORE`, none made in Dart, the script refuses a binary with it); About says "Ghost.md updates through the App Store." |
 | Ghost.md: The Guide | Not offered (it is about the side key, the Fold and how the Android app is built). The example canvas says "Click the microphone" and "on your Mac". |
 | Links, `ghostmd://`, the Claude connector | Unchanged: links open through the system; the connector is the hosted one and starts nothing on the Mac. |
 

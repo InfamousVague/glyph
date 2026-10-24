@@ -25,3 +25,13 @@ PRODUCT_BUNDLE_IDENTIFIER = $(GHOST_APP_ID_$(GHOST_CUTOVER))
 
 // The copyright displayed in application information
 PRODUCT_COPYRIGHT = Copyright © 2026 MattsSoftware. All rights reserved.
+
+// THE MAC APP STORE'S BUILD is told GHOST_MAC_STORE=1 in its environment as well (tool/cutover-build-mac-store.sh),
+// which compiles the Swift with the condition GHOST_MAC_STORE: the app's own updater (UpdatesChannel.swift) is
+// then not in the binary at all, since the store updates what it sells and refuses an app that replaces itself
+// (lib/core/updates.dart says the same on Dart's side). Told nothing, or 0, a build has the updater, as the
+// website's does.
+GHOST_STORE_SWIFT_ =
+GHOST_STORE_SWIFT_0 =
+GHOST_STORE_SWIFT_1 = GHOST_MAC_STORE
+SWIFT_ACTIVE_COMPILATION_CONDITIONS = $(inherited) $(GHOST_STORE_SWIFT_$(GHOST_MAC_STORE))

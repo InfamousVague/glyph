@@ -58,9 +58,12 @@ class SettingsUpdates {
     this.checked = false,
     this.downloading,
     this.installable,
+    this.restartable,
+    this.restarting,
     this.onCheck,
     this.onReload,
     this.onInstall,
+    this.onRestart,
     this.alerts,
     this.releases = const [],
     this.readingReleases = false,
@@ -98,9 +101,18 @@ class SettingsUpdates {
 
   /// The version of an app that can be installed (`installable`).
   final String? installable;
+
+  /// The Mac's: the version downloaded and put in place, which a restart swaps in ("Restart to update").
+  final String? restartable;
+
+  /// The Mac's: the version the app is quitting to open again as.
+  final String? restarting;
   final VoidCallback? onCheck;
   final VoidCallback? onReload;
   final VoidCallback? onInstall;
+
+  /// The Mac's "Restart to update".
+  final VoidCallback? onRestart;
 
   /// Android's own alerts; null where there are none to switch.
   final SettingsUpdateAlerts? alerts;

@@ -5,20 +5,36 @@
  *
  *   node scripts/deploy-flutter-mac.mjs --prepare build/release-mac/Ghost.md.app   # sign, notarise, make the image
  *   node scripts/deploy-flutter-mac.mjs [--from build/cutover-mac] [--print]       # publish what --prepare left
+ *   node scripts/deploy-flutter-mac.mjs --test-feed <app> --key <throwaway pem> --out <dir>
+ *                                                                                  # the updater's files for a test
  *
- *   /glyph/glyph.dmg      the Mac app: universal, signed with the Developer ID, notarised and stapled (app and image)
- *   /glyph/desktop.json   what the download page says of it, placed last, after the image is whole
+ *   /glyph/glyph.dmg       the Mac app: universal, signed with the Developer ID, notarised and stapled (app and image)
+ *   /glyph/glyph-mac.zip   the same stapled app, zipped by ditto: what an installed app downloads to update itself
+ *   /glyph/desktop.json    what the download page says of it
+ *   /glyph/mac.json        what an installed app reads to know of the zip (lib/core/updates.dart `UpdateKind.mac`)
+ *   /glyph/mac.json.sig    Ed25519 over "ghost-flutter-mac\0" + mac.json, by Ghost.md's update key
  *
  * --prepare logs in nowhere. It signs the app inside out under the hardened runtime with the microphone's
  * entitlement, sends it to Apple with the shared MattsSoftware App Store Connect key, staples the ticket, makes the
  * disk image with hdiutil, signs, notarises and staples that too, checks all of it on the built files as
- * tauri/scripts/deploy-ota.mjs --desktop does, and writes glyph.dmg and desktop.json to build/cutover-mac.
+ * tauri/scripts/deploy-ota.mjs --desktop does, and writes glyph.dmg and desktop.json to build/cutover-mac. Then the
+ * updater's three: the stapled app zipped, `mac.json` describing it ({ version, versionCode, sha256, bytes, url,
+ * build, minimumSystemVersion }, versionCode being the app's CFBundleVersion), and its signature, made with the key
+ * that signs the APK's (`~/.config/glyph/ota-signing-key.pem`, or --key; tool/release_apk.mjs), which this reads,
+ * signs with, and prints nothing of. It refuses a key lib/core/update_keys.dart does not list, since no installed
+ * app would believe it. There are no release notes: the APK's description has none either.
  *
- * Publishing is one ssh session (the box counts logins): the image and the note that were live are kept beside the
- * release (`.dmg-before-<stamp>`), the image is placed by rename, then desktop.json.
+ * --test-feed writes the same three for any app (an ad hoc or locally signed build, for trying the updater on this
+ * Mac against a local server) with a key of the caller's, trusted or not, and never into build/cutover-mac, so what
+ * it writes cannot be published: publishing checks the signature against the app's own keys.
+ *
+ * Publishing is one ssh session (the box counts logins): the five files that were live are kept beside the release
+ * (`.dmg-before-<stamp>`), and the new ones are placed in the order that is the safety: the image and the zip first,
+ * each whole and by rename, then desktop.json, then mac.json.sig, and mac.json LAST, so no installed app is told of a
+ * zip that is still arriving (deploy-flutter-apk.mjs places the APK's the same way).
  */
 import { spawnSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { createHash, createPrivateKey, createPublicKey, sign as signBytes, verify as verifyBytes } from 'node:crypto';
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -35,6 +51,69 @@ const OUT = join(ROOT, 'build/cutover-mac');
 const args = process.argv.slice(2);
 const ok = (words) => console.log(`ok ${words}`);
 const step = (words) => console.log(`> ${words}`);
+const flag = (name) => {
+  const at = args.indexOf(`--${name}`);
+  return at < 0 ? undefined : args[at + 1];
+};
+
+/** The updater's files beside the image (the header), and the context its description is signed over. */
+const ZIP = 'glyph-mac.zip';
+const FEED = 'mac.json';
+const FEED_SIG = 'mac.json.sig';
+const CONTEXT_MAC = 'ghost-flutter-mac\0';
+const UPDATE_KEY = flag('key') ?? join(homedir(), '.config/glyph/ota-signing-key.pem');
+
+/** The keys the app believes (lib/core/update_keys.dart), raw and base64, as tool/release_apk.mjs reads them. */
+const trustedKeys = () => [...readFileSync(join(ROOT, 'lib/core/update_keys.dart'), 'utf8').matchAll(/^\s*'([A-Za-z0-9+/=]{43,44})'/gm)].map((m) => m[1]);
+const publicKeyOf = (raw) => createPublicKey({ key: { kty: 'OKP', crv: 'Ed25519', x: Buffer.from(raw, 'base64').toString('base64url') }, format: 'jwk' });
+const rawOf = (key) => createPublicKey(key).export({ type: 'spki', format: 'der' }).subarray(-32).toString('base64');
+
+/** The build number a version is given (tool/cutover-build-mac.sh): 2.3.16 is 2003016. */
+function buildOf(version) {
+  const [major, minor, patch] = version.split('.').map(Number);
+  return major * 1000000 + minor * 1000 + patch;
+}
+
+/** The signing key, or a stop: missing, or (unless [test]) not one the app trusts. */
+function updateKey(test) {
+  if (!existsSync(UPDATE_KEY)) fail(`No update signing key at ${UPDATE_KEY}.`);
+  const key = createPrivateKey(readFileSync(UPDATE_KEY));
+  if (!test && !trustedKeys().includes(rawOf(key))) fail('The update signing key is not one lib/core/update_keys.dart trusts: no installed app would believe what it signs.');
+  return key;
+}
+
+/**
+ * The updater's three files for [app] into [out]: the app zipped as it is (signature and stapled ticket inside),
+ * `mac.json`, and `mac.json.sig`. The description is signed exactly as written and checked back before it is kept.
+ */
+function writeFeed(app, out, key) {
+  const plist = JSON.parse(read('plutil', ['-convert', 'json', '-o', '-', join(app, 'Contents/Info.plist')]) || '{}');
+  const version = String(plist.CFBundleShortVersionString ?? '');
+  const build = Number(plist.CFBundleVersion);
+  if (!/^\d+\.\d+\.\d+$/.test(version)) fail(`The app says version ${version}.`);
+  if (build !== buildOf(version)) fail(`The app says build ${plist.CFBundleVersion}, not ${buildOf(version)}: the updater compares builds, and this one would not rise with its version (tool/cutover-build-mac.sh).`);
+  const zip = join(out, ZIP);
+  rmSync(zip, { force: true });
+  run('ditto', ['-c', '-k', '--keepParent', app, zip], 'ditto (the zip)');
+  const bytes = readFileSync(zip);
+  const info = {
+    version,
+    versionCode: build,
+    sha256: createHash('sha256').update(bytes).digest('hex'),
+    bytes: bytes.length,
+    url: ZIP,
+    build: new Date().toISOString().replace(/\D/g, '').slice(0, 14),
+    minimumSystemVersion: plist.LSMinimumSystemVersion,
+  };
+  const body = Buffer.from(`${JSON.stringify(info, null, 2)}\n`);
+  const message = Buffer.concat([Buffer.from(CONTEXT_MAC, 'utf8'), body]);
+  const signature = signBytes(null, message, key).toString('base64');
+  if (!verifyBytes(null, message, createPublicKey(key), Buffer.from(signature, 'base64'))) fail('The description\'s signature does not verify.');
+  writeFileSync(join(out, FEED), body);
+  writeFileSync(join(out, FEED_SIG), `${signature}\n`);
+  ok(`the updater's files: ${ZIP} (${(info.bytes / 1e6).toFixed(0)} MB, build ${build}), ${FEED}, ${FEED_SIG}`);
+  return info;
+}
 
 function run(command, commandArgs, what = command) {
   const done = spawnSync(command, commandArgs, { stdio: 'inherit' });
@@ -88,6 +167,8 @@ function prepare(given) {
   }
   const notary = notaryCredentials();
   if (!notary) fail('No notarisation key: set APPLE_API_ISSUER, APPLE_API_KEY and APPLE_API_KEY_PATH, or keep the shared one in ~/.config/mattssoftware/signing/asc-api.env.');
+  // Before anything is sent to Apple: a release whose description could not be signed is not one.
+  const key = updateKey(false);
 
   // A copy is signed, never the build's own output: a second run starts from the same bytes.
   rmSync(OUT, { recursive: true, force: true });
@@ -163,6 +244,9 @@ function prepare(given) {
     notarized: true,
   };
   writeFileSync(join(OUT, 'desktop.json'), `${JSON.stringify(info, null, 2)}\n`);
+  // What an installed app updates itself from: the same stapled app, zipped, and its signed description.
+  step('Writing the updater\'s files');
+  writeFeed(app, OUT, key);
   // The signed app is kept beside the image, for trying before it is published.
   rmSync(join(OUT, 'Ghost.md.app'), { recursive: true, force: true });
   cpSync(app, join(OUT, 'Ghost.md.app'), { recursive: true, verbatimSymlinks: true });
@@ -170,16 +254,45 @@ function prepare(given) {
   ok(`Ghost.md ${info.version} for Mac, ${(info.bytes / 1e6).toFixed(0)} MB, in ${OUT}. Nothing was uploaded.`);
 }
 
+/** --test-feed: the updater's three files for a build to try here (the header). Never for publishing. */
+function testFeed(given) {
+  const app = resolve(given ?? '');
+  if (!given || !existsSync(join(app, 'Contents/Info.plist'))) fail('Give the app: --test-feed <app> --key <pem> --out <dir>');
+  const out = resolve(flag('out') ?? '');
+  if (!flag('out')) fail('Say where the test feed goes: --out <dir>.');
+  if (out === OUT || out.startsWith(`${OUT}/`)) fail(`Not into ${OUT}: what is there is published.`);
+  if (!flag('key')) fail('A test feed is signed with a throwaway key: --key <pem>.');
+  mkdirSync(out, { recursive: true });
+  writeFeed(app, out, updateKey(true));
+  console.log(`A TEST, NOT FOR PUBLISHING: ${out}. Nothing was uploaded.`);
+}
+
+/** What the five files say, checked against each other and against the app's own keys, as an installed app would. */
+function checkFeed(from, desktop) {
+  const body = readFileSync(join(from, FEED));
+  const feed = JSON.parse(body);
+  const zip = readFileSync(join(from, ZIP));
+  if (createHash('sha256').update(zip).digest('hex') !== feed.sha256 || zip.length !== feed.bytes) fail(`${ZIP} is not the file ${FEED} describes.`);
+  if (feed.url !== ZIP) fail(`${FEED} names ${feed.url}, not ${ZIP}.`);
+  if (feed.version !== desktop.version) fail(`${FEED} says ${feed.version} where desktop.json says ${desktop.version}.`);
+  if (feed.versionCode !== buildOf(feed.version)) fail(`${FEED} says build ${feed.versionCode} for ${feed.version}.`);
+  const signature = Buffer.from(readFileSync(join(from, FEED_SIG), 'utf8').trim(), 'base64');
+  const message = Buffer.concat([Buffer.from(CONTEXT_MAC, 'utf8'), body]);
+  if (!trustedKeys().some((raw) => verifyBytes(null, message, publicKeyOf(raw), signature))) fail(`${FEED_SIG} is not signed by a key lib/core/update_keys.dart trusts: no installed app would believe it.`);
+  return feed;
+}
+
 function publish() {
   const at = args.indexOf('--from');
   const from = at >= 0 ? resolve(args[at + 1]) : OUT;
-  for (const name of ['glyph.dmg', 'desktop.json']) if (!existsSync(join(from, name))) fail(`No ${name} in ${from}: run --prepare first.`);
+  for (const name of ['glyph.dmg', 'desktop.json', ZIP, FEED, FEED_SIG]) if (!existsSync(join(from, name))) fail(`No ${name} in ${from}: run --prepare first.`);
   const info = JSON.parse(readFileSync(join(from, 'desktop.json'), 'utf8'));
   const dmg = readFileSync(join(from, 'glyph.dmg'));
   if (createHash('sha256').update(dmg).digest('hex') !== info.sha256 || dmg.length !== info.bytes) fail('glyph.dmg is not the file desktop.json describes.');
   if (!/^[2-9]\./.test(info.version) || info.notarized !== true) fail(`desktop.json says ${info.version}, notarized ${info.notarized}: not a notarised build above the Tauri app's.`);
   if (spawnSync('xcrun', ['stapler', 'validate', join(from, 'glyph.dmg')], { encoding: 'utf8' }).status !== 0) fail('The disk image has no notarisation ticket stapled to it.');
-  ok(`Ghost.md ${info.version} for Mac, ${(info.bytes / 1e6).toFixed(0)} MB`);
+  const feed = checkFeed(from, info);
+  ok(`Ghost.md ${info.version} for Mac, ${(info.bytes / 1e6).toFixed(0)} MB; the update ${feed.version} (build ${feed.versionCode}), ${(feed.bytes / 1e6).toFixed(0)} MB, signed by a trusted key`);
   if (args.includes('--print')) return;
 
   const env = loadEnv(BOX_ENV_KEYS);
@@ -190,20 +303,29 @@ function publish() {
   box.ssh(`rm -rf ${STAGE} && mkdir -p ${STAGE}`);
   step(`Uploading the disk image (${(info.bytes / 1e6).toFixed(0)} MB)`);
   box.rsync(['--progress'], join(from, 'glyph.dmg'), `${STAGE}/glyph.dmg`);
-  box.rsync([], join(from, 'desktop.json'), `${STAGE}/desktop.json`);
+  step(`Uploading the update (${(feed.bytes / 1e6).toFixed(0)} MB)`);
+  box.rsync(['--progress'], join(from, ZIP), `${STAGE}/${ZIP}`);
+  for (const name of ['desktop.json', FEED, FEED_SIG]) box.rsync([], join(from, name), `${STAGE}/${name}`);
   step('Publishing');
   box.ssh(`set -e
 SUDO=; [ "$(id -u)" -eq 0 ] || SUDO=sudo
 [ "$(sha256sum ${STAGE}/glyph.dmg | cut -d' ' -f1)" = "${info.sha256}" ] || { echo "x the image arrived changed"; exit 1; }
+[ "$(sha256sum ${STAGE}/${ZIP} | cut -d' ' -f1)" = "${feed.sha256}" ] || { echo "x the update's zip arrived changed"; exit 1; }
 stamp=$(date -u +%Y%m%d%H%M%S)
 $SUDO mkdir -p ${RELEASE}.dmg-before-$stamp
-for f in glyph.dmg desktop.json; do [ -f ${RELEASE}/$f ] && $SUDO cp -p ${RELEASE}/$f ${RELEASE}.dmg-before-$stamp/; done
-$SUDO install -m 644 -o root -g root ${STAGE}/glyph.dmg ${RELEASE}/.glyph.dmg.new
-$SUDO mv -f ${RELEASE}/.glyph.dmg.new ${RELEASE}/glyph.dmg
+for f in glyph.dmg ${ZIP} desktop.json ${FEED} ${FEED_SIG}; do [ -f ${RELEASE}/$f ] && $SUDO cp -p ${RELEASE}/$f ${RELEASE}.dmg-before-$stamp/; done
+for f in glyph.dmg ${ZIP}; do
+  $SUDO install -m 644 -o root -g root ${STAGE}/$f ${RELEASE}/.$f.new
+  $SUDO mv -f ${RELEASE}/.$f.new ${RELEASE}/$f
+done
 $SUDO install -m 644 -o root -g root ${STAGE}/desktop.json ${RELEASE}/.desktop.json.new
 $SUDO mv -f ${RELEASE}/.desktop.json.new ${RELEASE}/desktop.json
+$SUDO install -m 644 -o root -g root ${STAGE}/${FEED_SIG} ${RELEASE}/.${FEED_SIG}.new
+$SUDO install -m 644 -o root -g root ${STAGE}/${FEED} ${RELEASE}/.${FEED}.new
+$SUDO mv -f ${RELEASE}/.${FEED_SIG}.new ${RELEASE}/${FEED_SIG}
+$SUDO mv -f ${RELEASE}/.${FEED}.new ${RELEASE}/${FEED}
 rm -rf ${STAGE}
-echo "ok placed; the two before it are in ${RELEASE}.dmg-before-$stamp (login $stamp)"`);
+echo "ok placed; the five before them are in ${RELEASE}.dmg-before-$stamp (login $stamp)"`);
   if (!args.includes('--keep-connection')) box.close();
 
   const curl = (curlArgs) => spawnSync('curl', ['-s', '--max-time', '30', ...curlArgs], { encoding: 'utf8' }).stdout;
@@ -217,8 +339,20 @@ echo "ok placed; the two before it are in ${RELEASE}.dmg-before-$stamp (login $s
   if (said?.sha256 !== info.sha256) fail(`https://ghostmarkdown.com/desktop.json does not say this image yet:\n${live}`);
   const size = /content-length: (\d+)/i.exec(curl(['-I', 'https://ghostmarkdown.com/glyph.dmg']))?.[1];
   ok(`live: Ghost.md ${info.version} for Mac; glyph.dmg served at ${size} bytes (${info.bytes} expected)`);
+  // Where the installed apps look (lib/core/updates.dart `tauriReleases`): the same folder, by the other host.
+  let update = null;
+  try {
+    update = JSON.parse(curl(['https://attack.fm/glyph/mac.json']));
+  } catch {
+    update = null;
+  }
+  if (update?.sha256 !== feed.sha256) fail('https://attack.fm/glyph/mac.json does not describe this update yet.');
+  const zipSize = /content-length: (\d+)/i.exec(curl(['-I', `https://attack.fm/glyph/${ZIP}`]))?.[1];
+  ok(`live: the update ${feed.version} for installed Macs; ${ZIP} served at ${zipSize} bytes (${feed.bytes} expected)`);
 }
 
 const preparing = args.indexOf('--prepare');
+const testing = args.indexOf('--test-feed');
 if (preparing >= 0) prepare(args[preparing + 1]);
+else if (testing >= 0) testFeed(args[testing + 1]);
 else publish();
