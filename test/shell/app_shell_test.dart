@@ -425,33 +425,76 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('docks the notes in a column beside the note when Docked is chosen, hidden under a finger until asked for', (tester) async {
-      final app = await shell(tester, size: const Size(840, 900), sidebarStyle: SidebarStyle.docked);
-      expect(find.byType(PanePlaceholder), findsNothing);
-      await tester.tap(find.bySemanticsLabel('All your notes'));
+    // Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple but just hide it by default".
+    for (final style in SidebarStyle.values) {
+      testWidgets('docks the notes in simple mode\'s column beside the note with ${style.name} chosen, hidden under a finger and a mouse until asked for', (tester) async {
+        final app = await shell(tester, size: const Size(840, 900), sidebarStyle: style);
+        expect(find.byType(PanePlaceholder), findsNothing);
+        expect(find.bySemanticsLabel('Your notes'), findsNothing);
+        await tester.tap(find.bySemanticsLabel('All your notes'));
+        await settle(tester);
+        // The icon shows and hides the column; no card is drawn over it.
+        expect(app.drawerOpen, isFalse);
+        expect(kept, ['sidebar true']);
+        // Simple mode's column (`simpleListColumn`), with its rule at the end; the note takes the rest.
+        expect(tester.getRect(find.bySemanticsLabel('Your notes')), const Rect.fromLTWH(0, 0, 352.8, 900));
+        expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(352.8, 0, 840 - 352.8, 900));
+        // The bar is still the whole window's.
+        expect(tester.getSize(find.byType(AppTabBar)).width, 840);
+        await tester.tap(find.bySemanticsLabel('All your notes'));
+        await settle(tester);
+        expect(find.byType(PanePlaceholder), findsNothing);
+        expect(tester.getSize(find.byType(HomePlaceholder)).width, 840);
+        expect(kept, ['sidebar true', 'sidebar false']);
+        await away(tester);
+        // Under a mouse it starts hidden too, and opens at its widest.
+        await shell(tester, size: const Size(1280, 800), sidebarStyle: style, mobile: false, fine: true);
+        expect(find.bySemanticsLabel('Your notes'), findsNothing);
+        expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(0, 0, 1280, 800));
+        await away(tester);
+        // As the device left it, once it has been toggled.
+        await shell(tester, size: const Size(1280, 800), sidebarStyle: style, mobile: false, fine: true, sidebarShown: true);
+        expect(tester.getRect(find.bySemanticsLabel('Your notes')), const Rect.fromLTWH(0, 0, 360, 800));
+        expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(360, 0, 920, 800));
+        await away(tester);
+      });
+    }
+
+    testWidgets('opens the column without moving the bar, its controls, or the note, which is the same screen beside it', (tester) async {
+      final app = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true);
+      app.openNote('weekend');
       await settle(tester);
-      // The icon shows and hides the column; no card is drawn over it.
-      expect(app.drawerOpen, isFalse);
-      expect(kept, ['sidebar true']);
-      // `clamp(300px, 30vw, 380px)`, with its rule at the end; the note takes the rest.
-      expect(tester.getRect(find.bySemanticsLabel('All notes')), const Rect.fromLTWH(0, 0, 300, 900));
-      expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(300, 0, 540, 900));
-      // The bar is still the whole window's.
-      expect(tester.getSize(find.byType(AppTabBar)).width, 840);
-      await tester.tap(find.bySemanticsLabel('All your notes'));
+      final note = tester.element(find.byType(NotePlaceholder));
+      final barRect = tester.getRect(find.byType(AppTabBar));
+      final controls = {for (final label in ['All your notes', 'Home', 'Settings']) label: tester.getRect(bar(label))};
+      await tester.tap(bar('All your notes'));
       await settle(tester);
-      expect(find.byType(PanePlaceholder), findsNothing);
-      expect(tester.getSize(find.byType(HomePlaceholder)).width, 840);
+      expect(find.bySemanticsLabel('Your notes'), findsOneWidget);
+      expect(tester.element(find.byType(NotePlaceholder)), same(note), reason: 'the note is not made again');
+      expect(tester.getRect(find.byType(NotePlaceholder)).left, 360);
+      expect(tester.getRect(find.byType(AppTabBar)), barRect);
+      for (final MapEntry(:key, :value) in controls.entries) {
+        expect(tester.getRect(bar(key)), value, reason: key);
+      }
+      await tester.tap(bar('All your notes'));
+      await settle(tester);
+      expect(tester.element(find.byType(NotePlaceholder)), same(note));
+      expect(tester.getRect(find.byType(NotePlaceholder)).left, 0);
       await away(tester);
-      // Under a mouse it starts shown, at the stylesheet's widest.
-      await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true);
-      expect(tester.getRect(find.bySemanticsLabel('All notes')), const Rect.fromLTWH(0, 0, 380, 800));
-      expect(tester.getRect(find.byType(HomePlaceholder)), const Rect.fromLTWH(380, 0, 900, 800));
+    });
+
+    testWidgets('keeps a narrow window\'s card, whichever style is chosen', (tester) async {
+      final app = await shell(tester, size: const Size(600, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true);
+      await tester.tap(find.bySemanticsLabel('All your notes'));
+      await settle(tester);
+      expect(app.drawerOpen, isTrue);
+      expect(find.bySemanticsLabel('Your notes'), findsNothing);
+      expect(kept, isEmpty);
       await away(tester);
     });
 
     testWidgets('gives the aside a third column beside a docked sidebar, and a toggle only when it has something to hold', (tester) async {
-      final app = await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
+      final app = await shell(tester, size: const Size(1280, 800), sidebarStyle: SidebarStyle.docked, mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
       expect(find.bySemanticsLabel('Side panel'), findsNothing);
       app.openNote('weekend');
       await settle(tester);
@@ -462,7 +505,16 @@ void main() {
       final aside = tester.getRect(find.bySemanticsLabel('Side panel').first);
       expect(aside.right, 1280);
       expect(aside.width, closeTo(281.6, 0.01));
-      expect(tester.getRect(find.byType(NotePlaceholder)).width, closeTo(1280 - 380 - 281.6, 0.01));
+      expect(tester.getRect(find.byType(NotePlaceholder)).width, closeTo(1280 - 360 - 281.6, 0.01));
+      await away(tester);
+      // Popover chosen, the sidebar is the same column and the aside a card over the note, as it was.
+      final card = await shell(tester, size: const Size(1280, 800), mobile: false, fine: true, sidebarShown: true, asideBuilder: (context, shell) => shell.shown == null ? null : const Text('History'));
+      card.openNote('weekend');
+      await settle(tester);
+      await tester.tap(bar('Side panel'));
+      await settle(tester);
+      expect(find.text('History'), findsOneWidget);
+      expect(tester.getRect(find.byType(NotePlaceholder)).width, closeTo(1280 - 360, 0.01));
       await away(tester);
     });
 

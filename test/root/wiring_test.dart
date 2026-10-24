@@ -39,7 +39,7 @@ import 'package:ghost_md/note/note_place.dart' show placeOf;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/notes/all_notes_screen.dart';
 import 'package:ghost_md/notes/note_menu.dart';
-import 'package:ghost_md/notes/note_tree.dart';
+import 'package:ghost_md/simple/simple_home.dart';
 import 'package:ghost_md/notes/notes_drawer.dart';
 import 'package:ghost_md/notes/notifications_drawer.dart';
 import 'package:ghost_md/orgs/ui/organization_screen.dart';
@@ -385,7 +385,7 @@ void main() {
       final library = await open(tester);
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       final drawer = partOf<NotesDrawer>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).sidebarBuilder!(shell.context, shell, () {}));
-      final docked = partOf<NoteTree>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).dockedSidebarBuilder!(shell.context, shell));
+      final docked = partOf<SimpleHome>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).dockedSidebarBuilder!(shell.context, shell));
       expect(drawer.onNoteMenu, isNotNull);
       expect(docked.onNoteMenu, isNotNull);
       final controller = tester.widget<NoteMenuHost>(find.byType(NoteMenuHost)).controller;
@@ -616,11 +616,10 @@ void main() {
       final shell = tester.state<AppShellState>(find.byType(AppShell));
       OrganizationSheet? sheet() => tester.widgetList<OrganizationSheet>(find.byType(OrganizationSheet)).firstOrNull;
 
-      // The sidebar, as the root draws it floating and docked.
+      // The sidebar's card, as the root draws it on a narrow window (the wide window's is simple's list, which has
+      // no folders: an organization is reached from home and All notes there).
       final drawer = partOf<NotesDrawer>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).sidebarBuilder!(shell.context, shell, () {}));
-      final docked = partOf<NoteTree>(shell.context, tester.widget<AppShell>(find.byType(AppShell)).dockedSidebarBuilder!(shell.context, shell));
       expect(drawer.onOrganization, isNotNull);
-      expect(docked.onOrganization, isNotNull);
       drawer.onOrganization!(id);
       await tester.pump(const Duration(milliseconds: 400));
       expect((sheet()?.orgId, sheet()?.from, sheet()?.landOnMembers), (id, null, false));

@@ -89,18 +89,12 @@ void main() {
     expect(find.byKey(const ValueKey('simple-speak')), findsNothing);
     expect(find.byType(PageDock), findsNothing, reason: 'no dock of rings on the simple page');
 
-    // Both sidebars, though the plain shell draws neither: no Browse files, graph, Tags or smart notebooks, and the
-    // tree's own tools trimmed, for whoever asks the builders.
+    // The card's sidebar, though the plain shell draws it not: no Browse files, graph, Tags or smart notebooks, and
+    // the tree's own tools trimmed, for whoever asks the builder. (The wide window's is advanced mode's alone, and is
+    // simple's list itself: lib/root/root_parts.dart `_listColumn`.)
     final shell = shellOf(tester);
     expect(find.byType(NoteTree), findsNothing);
     expect(find.byType(NotesDrawer), findsNothing);
-    final docked = partOf<NoteTree>(shell.context, shellWidget(tester).dockedSidebarBuilder!(shell.context, shell));
-    expect(docked.simple, isTrue);
-    expect(docked.onTags, isNull);
-    expect(docked.onGraph, isNull);
-    expect(docked.onBrowseFiles, isNull);
-    expect(docked.smart, isNull);
-    expect(docked.onSmart, isNull);
     final drawer = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
     expect(drawer.simple, isTrue);
     expect(drawer.onTags, isNull);
@@ -154,10 +148,12 @@ void main() {
     expect(tester.widget<HomeScreen>(find.byType(HomeScreen)).simple, isFalse);
     expect(dockOrder(tester, within: find.byType(HomeScreen)).first, 'claude');
     final shell = shellOf(tester);
-    final docked = partOf<NoteTree>(shell.context, shellWidget(tester).dockedSidebarBuilder!(shell.context, shell));
-    expect(docked.simple, isFalse);
-    expect(docked.onTags, isNotNull);
-    expect(docked.onGraph, isNotNull);
+    // The sidebar on a wide window is simple's list (Matt, 2026-10-24), under the bar, with no gear of its own.
+    final docked = partOf<SimpleHome>(shell.context, shellWidget(tester).dockedSidebarBuilder!(shell.context, shell));
+    expect((docked.pane, docked.underBar, docked.onSettings), (true, true, null));
+    final drawer = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
+    expect(drawer.onTags, isNotNull);
+    expect(drawer.onGraph, isNotNull);
     expect(tester.widget<NewSheet>(find.byType(NewSheet)).simple, isFalse);
 
     // Simple chosen (Settings, the card): every surface hears it on the next frame.
@@ -175,7 +171,7 @@ void main() {
     expect(find.text('More…'), findsOneWidget);
     tester.widget<NewSheet>(find.byType(NewSheet)).onClose();
     await settle(tester);
-    final again = partOf<NoteTree>(shell.context, shellWidget(tester).dockedSidebarBuilder!(shell.context, shell));
+    final again = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
     expect(again.simple, isTrue);
     expect(again.onTags, isNull);
 
