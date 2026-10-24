@@ -199,6 +199,7 @@ class HomeScreen extends StatefulWidget {
     this.stored,
     this.meetings = const {},
     this.onAllTapes,
+    this.onOpenTape,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -316,6 +317,9 @@ class HomeScreen extends StatefulWidget {
 
   /// The shelf's See all: All notes with its Tapes word on. Absent, the shelf has none.
   final VoidCallback? onAllTapes;
+
+  /// A cassette on the shelf: its note opened at its tape, playing. Absent, the note opens as any other does.
+  final ValueChanged<String>? onOpenTape;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the filters are the Show radios
   /// alone and the search offers no operators ([HomeFilters.simple]), and the page draws no organization cards and
@@ -517,6 +521,7 @@ class _HomeScreenState extends State<HomeScreen> {
   // What the page's widgets call, whoever handed the page its callbacks at the build they were made in: the widgets
   // are kept from one build to the next, and the callbacks are made anew at each.
   void _open(String id) => widget.onOpen(id);
+  void _openTape(String id) => (widget.onOpenTape ?? widget.onOpen)(id);
   void _menu(String id, Offset at) => widget.onNoteMenu?.call(id, at);
   void _new() => widget.onNew();
 
@@ -988,7 +993,7 @@ class _HomeScreenState extends State<HomeScreen> {
           notes: widget.workspaces.inWorkspace(notes, workspace, (note) => note.id),
           meetings: drawn.meetings,
           live: recording,
-          onOpen: _open,
+          onOpen: _openTape,
           onSeeAll: widget.onAllTapes,
         ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.

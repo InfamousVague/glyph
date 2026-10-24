@@ -78,7 +78,7 @@ class Note {
   /// The body's version, counted up at each write.
   final int revision;
 
-  Note copyWith({String? body, int? updatedAt, bool? starred, int? Function()? archivedAt, String? Function()? path, int? revision}) => Note(
+  Note copyWith({String? body, int? updatedAt, bool? starred, int? Function()? archivedAt, String? Function()? path, int? revision, List<Segment>? segments}) => Note(
         id: id,
         body: body ?? this.body,
         createdAt: createdAt,
@@ -88,7 +88,7 @@ class Note {
         starred: starred ?? this.starred,
         archivedAt: archivedAt == null ? this.archivedAt : archivedAt(),
         recordingMs: recordingMs,
-        segments: segments,
+        segments: segments ?? this.segments,
         formatted: formatted,
         formattedFor: formattedFor,
         formattedModel: formattedModel,

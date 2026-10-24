@@ -574,6 +574,28 @@ void main() {
       expect(TeamSyncState.fromJson(mac.state.toJson()).cursor, stands);
     }, skip: skip);
 
+    // GHST-112; Matt, 2026-10-24: "tapes that have been transcribed on another device and summarized it should show
+    // the transcript still across all devices". A write-up moves none of a note's particulars.
+    test('phrases written after the row went put the row again, and land on the other member\'s device', () async {
+      final phone = device(), mac = device();
+      const live = [Segment(text: 'Go.', startMs: 0, endMs: 400)];
+      const written = [Segment(text: 'Okay, everyone is here.', startMs: 0, endMs: 200), Segment(text: 'First, the raise.', startMs: 200, endMs: 400)];
+      phone.notes['n1'] = Note(id: 'n1', body: 'Standup', createdAt: phone.clock, updatedAt: phone.clock, recordingMs: 400, segments: live);
+      phone.filed.add('n1');
+      await phone.sync();
+      await mac.sync();
+      expect(mac.notes['n1']?.segments, live);
+      phone.notes['n1'] = phone.notes['n1']!.copyWith(segments: written);
+      await phone.sync();
+      await mac.sync();
+      expect(mac.notes['n1']?.segments, written);
+      // Settled: the row is not put again.
+      final rev = service.teamNotes(orgId)['n1']!.rev;
+      await phone.sync();
+      await mac.sync();
+      expect(service.teamNotes(orgId)['n1']!.rev, rev);
+    }, skip: skip);
+
     test('a row is put with the note whole, and a row that says no phrases leaves the ones this device has', () async {
       final phone = device();
       const phrases = [Segment(text: 'hello', startMs: 0, endMs: 400)];

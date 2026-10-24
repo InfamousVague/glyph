@@ -582,6 +582,8 @@ extension _RootParts on _GhostRootState {
       // The meetings' tapes under the notices (GHST-112), and See all: All notes with its Tapes word on.
       meetings: preferences.value.meetings,
       onAllTapes: () => shell.showAllNotes(tapes: true),
+      // A cassette: the note at its tape, playing, its transcript on the page (Matt, 2026-10-24).
+      onOpenTape: (id) => _openTape(shell, id),
     );
   }
 
@@ -1054,6 +1056,7 @@ extension _RootParts on _GhostRootState {
         landing: screen.landing,
         ask: screen.ask,
         review: screen.review,
+        playTape: screen.at == atTape,
         say: (message) => _say(context, message),
         builder: (context, editor, seams) => noteScreenBuilder(
           library: _library,

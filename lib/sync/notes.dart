@@ -233,30 +233,64 @@ int stayedHere(Iterable<Note> notes, {required Map<String, num> meetings, requir
 
 // --- what a device remembers -----------------------------------------------------------------------------------------
 
-/// Per note: the revision last seen, and the note's fingerprint then.
+/// Per note: the revision last seen, the note's fingerprint then, and its recording's phrases then ([phrasesMark]).
+/// A recording's phrases are not in a list read, so they are not in [mark]: a write-up or a better pass that rewrites
+/// them after the note went changes nothing [mark] sees, and their own fingerprint is what tells.
 @immutable
 class NoteMark {
-  const NoteMark({required this.rev, required this.mark});
+  const NoteMark({required this.rev, required this.mark, this.phrases});
 
   static NoteMark? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final rev = raw['rev'], mark = raw['mark'];
-    return rev is num && mark is String ? NoteMark(rev: rev.toInt(), mark: mark) : null;
+    final rev = raw['rev'], mark = raw['mark'], phrases = raw['phrases'];
+    return rev is num && mark is String ? NoteMark(rev: rev.toInt(), mark: mark, phrases: phrases is String ? phrases : null) : null;
   }
 
   final int rev;
   final String mark;
+  final String? phrases;
 
-  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark};
-
-  @override
-  bool operator ==(Object other) => other is NoteMark && other.rev == rev && other.mark == mark;
+  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'phrases': ?phrases};
 
   @override
-  int get hashCode => Object.hash(rev, mark);
+  bool operator ==(Object other) => other is NoteMark && other.rev == rev && other.mark == mark && other.phrases == phrases;
+
+  @override
+  int get hashCode => Object.hash(rev, mark, phrases);
 
   @override
   String toString() => 'NoteMark($rev)';
+}
+
+/// A recording's phrases, as a fingerprint: how many, and an FNV-1a hash of their times and words. Null for a note
+/// with none, which has nothing of its own to send.
+String? phrasesMark(Note note) {
+  final segments = note.segments;
+  if ((note.recordingMs ?? 0) == 0 || segments == null || segments.isEmpty) return null;
+  var hash = 0x811c9dc5;
+  for (final unit in utf8.encode(jsonEncode([for (final s in segments) [s.startMs, s.endMs, s.text]]))) {
+    hash = ((hash ^ unit) * 0x01000193) & 0xffffffff;
+  }
+  return '${segments.length}-${hash.toRadixString(36)}';
+}
+
+/// How long after a note's last edit its phrases are still looked at for a change made since it went: a write-up
+/// or a better pass comes within hours of the take, and the take was an edit. Older notes are not read whole on
+/// every pass.
+const Duration phrasesWindow = Duration(days: 14);
+
+/// Whether [note]'s phrases may have changed since it went with [known]: a recording, edited within [phrasesWindow].
+bool phrasesMayMove(Note note, int now) => (note.recordingMs ?? 0) > 0 && now - note.updatedAt < phrasesWindow.inMilliseconds;
+
+/// [theirs] with the phrases to apply it with, over [whole] (this device's note, read whole), and whether those are
+/// this device's own: theirs, unless they have none for the same recording, or this device rewrote its own since
+/// they last went ([known]) and theirs are not those, when this device's stand and the push sends them.
+({Note note, bool mine}) withPhrases(Note theirs, Note? whole, String? known) {
+  if (whole == null || whole.recordingMs != theirs.recordingMs || whole.segments == null) return (note: theirs, mine: false);
+  final mine = phrasesMark(whole), their = phrasesMark(theirs);
+  final keep = theirs.segments == null || (mine != null && known != null && mine != known && their != mine);
+  if (!keep || listEquals(theirs.segments, whole.segments)) return (note: theirs, mine: false);
+  return (note: theirs.copyWith(segments: whole.segments), mine: true);
 }
 
 /// Per synced file: its revision, and for a recording the hash of what it held and the length it was hashed at
@@ -995,6 +1029,8 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
 
   final payload = NotePayload.fromJson(await ctx.crypto.open(ctx.key, blob, 'note:${item.id}'), item.id);
   final theirs = payload.note;
+  // This device's note read whole, for its phrases, where either side has a recording: the list's has none.
+  final whole = local != null && ((theirs.recordingMs ?? 0) > 0 || (local.recordingMs ?? 0) > 0) ? await ctx.notes.get(item.id) : null;
   // Only the words are worth keeping twice: a pin, the archive or a folder changed on both sides takes theirs.
   if (local != null && changedHere && local.body != theirs.body) {
     if (withoutSummary(local.body) == withoutSummary(theirs.body)) {
@@ -1003,9 +1039,9 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
       final mine = summarySection(local.body);
       final merged = _withBody(theirs, mine != null ? withSummary(theirs.body, mine.text, kept: summarySection(theirs.body)?.text) : withoutSummary(theirs.body));
       await _fetchFilesOf(ctx, payload);
-      await ctx.notes.apply(merged);
+      await ctx.notes.apply(withPhrases(merged, whole, known?.phrases).note);
       outcome.changed += 1;
-      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs));
+      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
       return;
     }
     final index = mergedIndex(local.body, theirs.body);
@@ -1014,9 +1050,9 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
       // has, and no copy. As with the summary above, the mark kept is theirs, so the push that follows sends the
       // merge.
       await _fetchFilesOf(ctx, payload);
-      await ctx.notes.apply(_withBody(theirs, index));
+      await ctx.notes.apply(withPhrases(_withBody(theirs, index), whole, known?.phrases).note);
       outcome.changed += 1;
-      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs));
+      ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(theirs), phrases: phrasesMark(theirs));
       return;
     }
     // Changed on both sides and not the same: this device's version is kept as a note of its own.
@@ -1028,10 +1064,15 @@ Future<void> _merge(SyncContext ctx, FeedItem item, Note? local, Outcome outcome
     ctx.onConflict?.call((noteId: copy.id, title: title.isEmpty ? 'Untitled' : title));
   }
   await _fetchFilesOf(ctx, payload);
-  final same = local != null && mark(local) == mark(theirs);
-  final applied = same ? local : await ctx.notes.apply(theirs);
+  // Their phrases too where only those moved: a write-up or a better pass made on another device after the words
+  // went (GHST-112). This device's own stand where it rewrote them since, and go with the push that follows.
+  final phrased = withPhrases(theirs, whole, known?.phrases);
+  final same = local != null && mark(local) == mark(theirs) && (whole == null || listEquals(phrased.note.segments, whole.segments));
+  final applied = same ? local : await ctx.notes.apply(phrased.note);
   if (!same) outcome.changed += 1;
-  ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(applied));
+  // Theirs are what the service has: where this device's own stood over them, the push that follows sends them, and
+  // a device that summarized a meeting it never had the phrases of gets them back.
+  ctx.state.notes[item.id] = NoteMark(rev: item.rev, mark: mark(applied), phrases: phrasesMark(theirs));
 }
 
 // --- the two halves --------------------------------------------------------------------------------------------------
@@ -1082,7 +1123,7 @@ Future<void> _send(SyncContext ctx, String id, Note? note, Outcome outcome, {boo
       final payload = await _sendFilesOf(ctx, full);
       final blob = await ctx.crypto.seal(ctx.key, payload.toJson(), 'note:$id');
       final answer = await ctx.api.call('PUT', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0, 'blob': blob});
-      ctx.state.notes[id] = NoteMark(rev: _revOf(answer), mark: mark(note));
+      ctx.state.notes[id] = NoteMark(rev: _revOf(answer), mark: mark(note), phrases: phrasesMark(full));
     } else {
       await ctx.api.call('DELETE', 'notes/${Uri.encodeComponent(id)}', token: ctx.token, body: {'base': known?.rev ?? 0});
       ctx.state.notes.remove(id);
@@ -1122,6 +1163,16 @@ bool _recordingOwed(SyncContext ctx, Note note) {
   return !recordingStaysHere(note.id, ms, ctx._meetings, syncMeetingRecordings: ctx._syncMeetings);
 }
 
+/// Whether the note's phrases changed here since it went: a meeting's write-up or a better pass rewrites them after
+/// the words were sent, and nothing in its [mark] moves (GHST-112; Matt, 2026-10-24: "tapes that have been
+/// transcribed on another device and summarized it should show the transcript still across all devices").
+Future<bool> _phrasesOwed(SyncContext ctx, Note note, NoteMark known) async {
+  if (!phrasesMayMove(note, (ctx.now ?? () => DateTime.now().millisecondsSinceEpoch)())) return false;
+  final whole = await ctx.notes.get(note.id);
+  final phrases = whole == null ? null : phrasesMark(whole);
+  return phrases != null && phrases != known.phrases;
+}
+
 Future<void> _push(SyncContext ctx, Outcome outcome) async {
   final here = await ctx.notes.list();
   final present = <String>{};
@@ -1134,7 +1185,7 @@ Future<void> _push(SyncContext ctx, Outcome outcome) async {
       if (known != null) await _sendCounted(ctx, note.id, null, outcome);
       continue;
     }
-    if (known != null && known.mark == mark(note) && !_recordingOwed(ctx, note)) continue;
+    if (known != null && known.mark == mark(note) && !_recordingOwed(ctx, note) && !await _phrasesOwed(ctx, note, known)) continue;
     // Live with another device: sent once the session ends, when both hold the same words (docs/LIVE.md).
     if (ctx._live(note.id)) continue;
     // A note opened and left empty is not a note yet: it is sent once it has words.

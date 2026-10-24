@@ -18,6 +18,15 @@ extension _RootCommands on _GhostRootState {
     _openWhereLeft(shell, id);
   }
 
+  /// A cassette on the home page's shelf (Matt, 2026-10-24: "make tapping a cassette open the note at its tape"): the
+  /// note at its top, where the tape is, and the tape playing, so the transcript has the page. The meeting being
+  /// recorded now opens its recorder, as from the list.
+  void _openTape(AppShellState shell, String id) {
+    final live = _voice?.live?.meetingStateNow();
+    if (live != null && live.recording && live.noteId == id) return _openFromHome(shell, id);
+    shell.openNote(id, at: atTape);
+  }
+
   /// A note opened from outside it (`openNoteWhereLeft`: the home page, All notes, the sidebar, a note's menu, a
   /// notification, an organization's page): a notebook goes back to the chapter it was left in
   /// (lib/book/book_spot.dart). A tab, Back and Forward show the note itself.

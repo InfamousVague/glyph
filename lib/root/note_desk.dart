@@ -523,7 +523,7 @@ typedef NoteDeskBuilder = Widget Function(BuildContext context, NoteEditorBuilde
 /// The editor and everything round it for one open note. Keyed by the note by whoever builds it, so each note
 /// has its own.
 class NoteDesk extends StatefulWidget {
-  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false, this.landing, this.ask, this.review});
+  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false, this.landing, this.ask, this.review, this.playTape = false});
 
   final String noteId;
 
@@ -548,6 +548,10 @@ class NoteDesk extends StatefulWidget {
   /// A spoken instruction about this note and the review a recording handed it, as the note was opened with them.
   final Keyed? ask;
   final Keyed? review;
+
+  /// Opened at its tape, from a cassette on the home page's shelf: the tape plays once it is here, and its transcript
+  /// has the page.
+  final bool playTape;
 
   @override
   State<NoteDesk> createState() => NoteDeskState();
@@ -947,6 +951,9 @@ class NoteDeskState extends State<NoteDesk> {
 
   /// The note's tape, once it has a recording and there is a player to play it.
   tape_player.Tape? _tape;
+
+  /// Whether the tape this note was opened at has been started ([NoteDesk.playTape]): once, so a pause stays.
+  bool _tapePlayed = false;
 
   /// `tape.length && tape.playing`: the tape is playing, so the transcript has the page.
   bool get _listening {
@@ -1995,6 +2002,13 @@ class NoteDeskState extends State<NoteDesk> {
       head: (context, openSettings) {
         final tape = _tapeNow();
         final speak = _world.onSpeak;
+        if (widget.playTape && !_tapePlayed && tape != null && tape.length > 0) {
+          _tapePlayed = true;
+          // After the frame: the tape is drawn first, and a press of Play is what starts it.
+          SchedulerBinding.instance.addPostFrameCallback((_) {
+            if (mounted && !tape.playing) unawaited(tape.toggle());
+          });
+        }
         return <Widget>[
           // Only a spoken note has a tape.
           if (tape != null && tape.length > 0)

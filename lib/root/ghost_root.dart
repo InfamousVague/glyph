@@ -122,6 +122,7 @@ import '../launch/launch_screen.dart';
 import '../links/graph_view.dart' show showGraph;
 import '../links/links_panel.dart' show linkMention, unlinkMention;
 import '../links/note_links.dart';
+import '../note/land_at.dart' show atTape;
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;

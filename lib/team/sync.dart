@@ -57,6 +57,8 @@ library;
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show listEquals;
+
 import '../account/api.dart';
 import '../account/crypto_api.dart';
 import '../core/attachment_refs.dart' show attachmentNames;
@@ -78,29 +80,31 @@ const int snapshotEvery = 200;
 /// Updates in one post (server/src/org_notes.rs `UPDATES_PER_POST`).
 const int _postAtMost = 100;
 
-/// Per note: the row's revision last seen, the note's particulars then ([particulars]), and the fingerprint of the
-/// recording the row named, where it named one (GHST-112).
+/// Per note: the row's revision last seen, the note's particulars then ([particulars]), the fingerprint of the
+/// recording the row named, where it named one (GHST-112), and the recording's phrases then ([phrasesMark]): a
+/// write-up made after the row went moves no particular, and the row is put again for it.
 class TeamMark {
-  const TeamMark({required this.rev, required this.mark, this.recording});
+  const TeamMark({required this.rev, required this.mark, this.recording, this.phrases});
 
   static TeamMark? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final rev = raw['rev'], mark = raw['mark'], recording = raw['recording'];
+    final rev = raw['rev'], mark = raw['mark'], recording = raw['recording'], phrases = raw['phrases'];
     if (rev is! num || mark is! String) return null;
-    return TeamMark(rev: rev.toInt(), mark: mark, recording: recording is String && recording.isNotEmpty ? recording : null);
+    return TeamMark(rev: rev.toInt(), mark: mark, recording: recording is String && recording.isNotEmpty ? recording : null, phrases: phrases is String ? phrases : null);
   }
 
   final int rev;
   final String mark;
   final String? recording;
+  final String? phrases;
 
-  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'recording': ?recording};
-
-  @override
-  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark && other.recording == recording;
+  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'recording': ?recording, 'phrases': ?phrases};
 
   @override
-  int get hashCode => Object.hash(rev, mark, recording);
+  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark && other.recording == recording && other.phrases == phrases;
+
+  @override
+  int get hashCode => Object.hash(rev, mark, recording, phrases);
 
   @override
   String toString() => 'TeamMark($rev, $mark${recording == null ? '' : ', $recording'})';
@@ -459,8 +463,13 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   });
   // The words are the document's; or, open in an editor bound to it, the ones the editor last saved.
   var theirs = _withWords(payload.note, doc.editing && local != null ? local.body : doc.words);
-  if (local == null || local.body != theirs.body || particulars(local) != particulars(theirs)) {
-    theirs = _over(theirs, local == null ? null : await ctx.notes.get(item.id));
+  // The phrases too, where only those moved: a write-up made on another member's device after the row last went.
+  final known = ctx.state.notes[item.id];
+  final whole = local == null ? null : await ctx.notes.get(item.id);
+  final phrased = withPhrases(theirs, whole, known?.phrases);
+  final phrasesMoved = whole != null && phrased.note.segments != null && !listEquals(phrased.note.segments, whole.segments);
+  if (local == null || local.body != theirs.body || particulars(local) != particulars(theirs) || phrasesMoved) {
+    theirs = _over(phrased.note, whole);
     await ctx.notes.apply(theirs);
     tally.changed += 1;
   }
@@ -471,7 +480,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   } else {
     ctx.file(item.id);
   }
-  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs), recording: payload.recording);
+  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs), recording: payload.recording, phrases: phrasesMark(payload.note));
   // Read under a generation before the turn: put again under the one in force, so every member can read it.
   if (older) await _putRow(ctx, await ctx.notes.get(item.id) ?? theirs, doc, tally);
 }
@@ -619,7 +628,7 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   final blob = await ctx.crypto.seal(ctx.key, payload, _noteContext(ctx.orgId, note.id));
   try {
     final answer = await ctx.api.call('PUT', ctx._route('notes/${Uri.encodeComponent(note.id)}'), token: ctx.token, body: ctx._body({'base': known?.rev ?? 0, 'blob': blob, 'upTo': doc.seq}));
-    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording);
+    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording, phrases: phrasesMark(whole));
     tally.sent += 1;
     doc.snapshotSeq = doc.seq;
     // The snapshot carried the updates pending when it was taken; what was typed since is still pending.
@@ -645,6 +654,15 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
 Future<bool> _recordingOwed(TeamSyncContext ctx, Note note, TeamMark known) async {
   if ((note.recordingMs ?? 0) == 0 || known.recording != null) return false;
   return await sendRecordingOf(ctx._files, note) != null;
+}
+
+/// Whether the note's phrases changed here since its row went (GHST-112): a meeting's write-up or a better pass,
+/// which moves none of its particulars.
+Future<bool> _phrasesOwed(TeamSyncContext ctx, Note note, TeamMark known) async {
+  if (!phrasesMayMove(note, (ctx.now ?? () => DateTime.now().millisecondsSinceEpoch)())) return false;
+  final whole = await ctx.notes.get(note.id);
+  final phrases = whole == null ? null : phrasesMark(whole);
+  return phrases != null && phrases != known.phrases;
 }
 
 /// What this device remembers of a note's recording, let go with the note (a team's deletion leaves the sealed
@@ -675,7 +693,8 @@ Future<void> _pushOne(TeamSyncContext ctx, Note note, _Tally tally) async {
       known.mark != particulars(note) ||
       doc.seq - doc.snapshotSeq >= snapshotEvery ||
       ctx.files.owed().contains(note.id) ||
-      await _recordingOwed(ctx, note, known);
+      await _recordingOwed(ctx, note, known) ||
+      await _phrasesOwed(ctx, note, known);
   if (due) {
     await _putRow(ctx, note, doc, tally);
   } else {

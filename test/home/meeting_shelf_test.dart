@@ -96,13 +96,14 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('a tap opens the note', (tester) async {
+    testWidgets('a tap opens the note at its tape (Matt, 2026-10-24)', (tester) async {
       final it = made();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings));
       await settle(tester);
       await tester.tap(find.byKey(const ValueKey('meeting-tape-mt-retro')));
       await settle(tester);
-      expect(it.asked.said, contains('open mt-retro'));
+      expect(it.asked.said, contains('open mt-retro at its tape'));
+      expect(it.asked.said, isNot(contains('open mt-retro')));
       await away(tester);
     });
 

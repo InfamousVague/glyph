@@ -135,6 +135,7 @@ class _HomeState extends State<Home> {
         claudeTalk: widget.talk ? const SizedBox(key: ValueKey('fake-talk'), width: 44, height: 44) : null,
         meetings: widget.meetings,
         onAllTapes: () => asked.add('all tapes'),
+        onOpenTape: (id) => asked.add('open $id at its tape'),
       ),
     );
   }

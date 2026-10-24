@@ -401,6 +401,96 @@ void main() {
     });
   });
 
+  // GHST-112; Matt, 2026-10-24: "tapes that have been transcribed on another device and summarized it should show the
+  // transcript still across all devices". A write-up or a better pass rewrites the phrases after the words went, and
+  // nothing a list read carries moves with them.
+  group('a recording’s phrases', () {
+    const live = [Segment(text: 'Go.', startMs: 0, endMs: 4060)];
+    const written = [Segment(text: 'Okay, everyone is here.', startMs: 0, endMs: 3000), Segment(text: 'First, the raise.', startMs: 3000, endMs: 6000)];
+
+    test('rewritten after the note went, go again and land on the other device', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['m'] = note('m', '# Meeting\n\n## Transcript\n\nGo.', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: live);
+      await phone.run();
+      await mac.run();
+      expect(mac.notes['m']?.segments, live);
+      // The write-up: the same words and length, better phrases.
+      phone.notes['m'] = phone.notes['m']!.copyWith(segments: written);
+      await phone.run();
+      await mac.run();
+      expect(mac.notes['m']?.segments, written);
+      // Settled: nothing goes again.
+      final before = phone.state.notes['m']!.rev;
+      await phone.run();
+      expect(phone.state.notes['m']!.rev, before);
+    });
+
+    test('a note that came with none keeps the ones this device has, and sends them', () async {
+      final (api: _, :phone, :mac) = await pair();
+      mac.notes['m'] = note('m', '# Meeting', createdAt: 1, updatedAt: 1, recordingMs: 60000);
+      await mac.run();
+      phone.notes['m'] = note('m', '# Meeting', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: written);
+      await phone.run();
+      expect(phone.notes['m']?.segments, written);
+      await phone.run();
+      await mac.run();
+      expect(mac.notes['m']?.segments, written);
+    });
+
+    test('summarized on a device that never had them, stay where they are and go back to it', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['m'] = note('m', '# Meeting\n\n## Transcript\n\nOkay.', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: written);
+      await phone.run();
+      // The Mac had the note from a build that sent it bare, and summarizes it.
+      mac.notes['m'] = note('m', '# Meeting\n\n## Summary\n\n- The raise.\n\n## Transcript\n\nOkay.', createdAt: 1, updatedAt: 2, recordingMs: 60000);
+      mac.state.notes['m'] = phone.state.notes['m']!;
+      await mac.run();
+      await phone.run();
+      expect(phone.notes['m']?.body, contains('## Summary'));
+      expect(phone.notes['m']?.segments, written, reason: 'a note that came with none keeps the phrases here');
+      await mac.run();
+      expect(mac.notes['m']?.segments, written, reason: 'and the device that summarized it has them now');
+    });
+
+    test('rewritten here and not sent yet, stand over older ones from the service', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['m'] = note('m', '# Meeting', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: live);
+      await phone.run();
+      await mac.run();
+      // The Mac edits the words; the phone rewrites the phrases before it hears of that.
+      mac.notes['m'] = edited(mac.notes['m']!, '# Meeting\n\nAgenda', 2);
+      await mac.run();
+      phone.notes['m'] = phone.notes['m']!.copyWith(segments: written);
+      await phone.run();
+      expect(phone.notes['m']?.body, '# Meeting\n\nAgenda');
+      expect(phone.notes['m']?.segments, written);
+      await mac.run();
+      expect(mac.notes['m']?.segments, written);
+    });
+
+    test('are not read again for a note edited longer ago than the window', () async {
+      final (api: _, :phone, mac: _) = await pair();
+      phone.notes['m'] = note('m', '# Meeting', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: live);
+      await phone.run();
+      final rev = phone.state.notes['m']!.rev;
+      phone.clock = 1 + phrasesWindow.inMilliseconds;
+      phone.notes['m'] = phone.notes['m']!.copyWith(segments: written);
+      await phone.run();
+      expect(phone.state.notes['m']!.rev, rev);
+    });
+
+    test('a fingerprint says how many and what, and nothing for a note with none', () {
+      expect(phrasesMark(note('a', '', recordingMs: 900)), isNull);
+      expect(phrasesMark(note('a', '', recordingMs: 900, segments: const [])), isNull);
+      expect(phrasesMark(note('a', '', segments: live)), isNull);
+      expect(phrasesMark(note('a', '', recordingMs: 900, segments: live)), startsWith('1-'));
+      expect(phrasesMark(note('a', '', recordingMs: 900, segments: written)), isNot(phrasesMark(note('b', 'other', recordingMs: 900, segments: live))));
+      expect(phrasesMark(note('a', '', recordingMs: 900, segments: written)), phrasesMark(note('b', 'other', recordingMs: 60000, segments: written)));
+      expect(NoteMark.fromJson(const NoteMark(rev: 3, mark: 'm', phrases: '2-x').toJson()), const NoteMark(rev: 3, mark: 'm', phrases: '2-x'));
+      expect(NoteMark.fromJson({'rev': 3, 'mark': 'm'}), const NoteMark(rev: 3, mark: 'm'));
+    });
+  });
+
   group('one note that cannot be sent', () {
     test('is counted with why, and the others still go; it is sent again next time', () async {
       final (:api, phone: _, mac: _) = await pair();

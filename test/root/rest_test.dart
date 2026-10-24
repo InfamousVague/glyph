@@ -27,6 +27,7 @@ import 'package:ghost_md/plugins/types.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/note_desk.dart';
 import 'package:ghost_md/root/plugin_ground.dart';
+import 'package:ghost_md/note/land_at.dart' show atTape;
 import 'package:ghost_md/settings/settings_sheet.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
@@ -301,6 +302,36 @@ void main() {
 
     // docs/PARITY.md, Differs 17. The page made an `<audio>` for a memo beside the tape's own (editor/clips.ts:91;
     // tapes/useTape.ts), so a memo played never moved the tape: Play afterwards went on from where the tape was.
+    // Matt, 2026-10-24: "make tapping a cassette open the note at its tape". The home page's shelf opens a meeting at
+    // [atTape]: its top, not its bookmark, with the tape playing and the transcript on the page.
+    testWidgets('opened at its tape, it plays from the top with the transcript on the page, once: a pause stays', (tester) async {
+      final lengths = <String, int>{};
+      final player = FakeTapePlayer(lengths: lengths);
+      final library = await open(tester, tapePlayer: player);
+      final taped = await tapedIn(tester, library, more: [for (var i = 0; i < 80; i++) '\n\nline $i of a note long enough to scroll${i == 40 ? ' §§' : ''}'].join());
+      lengths[taped.id] = 4000;
+      ScrollPosition page() => Scrollable.of(tester.element(find.byType(Editor, skipOffstage: false))).position;
+      // Its bookmark far down, as the test above leaves one.
+      shellOf(tester).openNote(taped.id);
+      await settle(tester);
+      expect(page().pixels, greaterThan(400));
+      shellOf(tester).backToList();
+      await settle(tester);
+
+      shellOf(tester).openNote(taped.id, at: atTape);
+      await settle(tester, 8);
+      expect(player.calls, containsAllInOrder(<String>['load ${taped.id}', 'play']));
+      expect(find.byType(TranscriptWords), findsOneWidget);
+      expect(find.text('Bring the long lens'), findsOneWidget);
+      expect(page().pixels, 0);
+      await tester.tap(find.bySemanticsLabel('Pause the recording'));
+      await settle(tester, 8);
+      expect(find.byType(TranscriptWords, skipOffstage: false), findsNothing);
+      expect(player.calls.where((call) => call == 'play'), hasLength(1), reason: 'started once, not again on every draw');
+      expect(page().pixels, lessThan(400), reason: 'at its tape, not back at its bookmark');
+      await close(tester);
+    });
+
     testWidgets('a voice memo played leaves the tape\'s playhead alone: Play afterwards starts where the tape was, not where the memo stopped', (tester) async {
       // The fakes are told the recording's length once the note has its id.
       final lengths = <String, int>{};

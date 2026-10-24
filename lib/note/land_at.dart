@@ -23,6 +23,10 @@ import '../editor/editor.dart';
 import '../editor/view/editor_view.dart';
 import 'note_place.dart';
 
+/// Where a note is opened at its tape (a cassette on the home page's shelf): no item, but the top of the page, where
+/// the tape is, and the tape playing (lib/root/note_desk.dart). Not a name a line could have.
+const String atTape = '@tape';
+
 /// How far below the header a note opened at an item sits (`LAND_ROOM`).
 const double landRoom = 12;
 
