@@ -384,6 +384,33 @@ class MeetIn extends ChangeNotifier {
     _reading = refresh().then<void>((_) {}, onError: (Object _) {}).whenComplete(() => _reading = null);
   }
 
+  bool _checking = false;
+  int? _checkedAt;
+
+  /// "Check now" is reading the meetings this moment.
+  bool get checking => _checking;
+
+  /// When the meetings were last read without fail, ms since the epoch; null before they have been.
+  int? get checkedAt => _checkedAt;
+
+  /// "Check now" (Matt, 2026-10-24: "add a \"check now\" button to check for new meetings"): the meetings read at
+  /// once, past the minute [readSoon] waits between reads, so an invite just sent shows as soon as the service has
+  /// booked it. Once at a time; a failure is said as [problem] is, and the list stays as it was.
+  Future<void> checkNow() async {
+    if (_checking || account.session == null) return;
+    _checking = true;
+    notifyListeners();
+    try {
+      _triedAt = DateTime.now().millisecondsSinceEpoch;
+      await refresh();
+    } catch (_) {
+      // [problem] says it.
+    } finally {
+      _checking = false;
+      notifyListeners();
+    }
+  }
+
   void _accountChanged() {
     final now = account.session?.accountId;
     if (now == _for) return;
@@ -425,6 +452,7 @@ class MeetIn extends ChangeNotifier {
       rethrow;
     }
     _problem = null;
+    _checkedAt = DateTime.now().millisecondsSinceEpoch;
     _available = said != null;
     _series = said?.series;
     _pages = said?.pages ?? false;

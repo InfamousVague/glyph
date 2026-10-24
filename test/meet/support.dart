@@ -54,6 +54,9 @@ class FakeMeet {
   /// A page after the first is refused, as a connection dropping does, while this is true.
   bool failMore = false;
 
+  /// The list itself is refused, as a connection dropping does, while this is true.
+  bool failList = false;
+
   /// What the service takes for now: which meetings are over.
   final int Function() now;
   final Map<String, ({String meeting, int at, String wrapped, Uint8List sealed})> takes = {};
@@ -73,6 +76,7 @@ class FakeMeet {
         calls.add('${request.method} $path');
         if (!routes) return FetchResponse.json(404, {'error': 'no such route'});
         if (path == 'meet' && request.method == 'GET') {
+          if (failList) return FetchResponse.json(503, {'error': 'The service is busy.'});
           if (!paging) return FetchResponse.json(200, {'meetings': meetings});
           return _page(request.url.queryParameters);
         }

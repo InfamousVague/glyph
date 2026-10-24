@@ -141,6 +141,33 @@ void main() {
     await endSettings(tester);
   });
 
+  testWidgets('Check now reads the meetings at once, past the minute\'s wait, and says when it last did', (tester) async {
+    // Matt, 2026-10-24: "add a \"check now\" button to check for new meetings".
+    final d = await made();
+    d.meet.meetings.add(meeting('a', 'Roadmap review', 'booked'));
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await settle(tester, 10);
+    final reads = d.meet.calls.where((c) => c == 'GET meet').length;
+    expect(find.text('Checked just now'), findsOneWidget);
+    // An invite booked a moment ago: the minute's read would not come for a while yet.
+    d.meet.meetings.add(meeting('b', 'Engineering Standup', 'booked'));
+    await bringIntoView(tester, find.byKey(const ValueKey('meet-check-now')));
+    await tester.tap(find.byKey(const ValueKey('meet-check-now')));
+    await settle(tester, 10);
+    expect(d.meet.calls.where((c) => c == 'GET meet').length, reads + 1);
+    expect(find.text('Engineering Standup'), findsOneWidget);
+    // Refused: said, and the list stays as it was.
+    d.meet.failList = true;
+    await tester.tap(find.byKey(const ValueKey('meet-check-now')));
+    await settle(tester, 10);
+    expect(find.text('Engineering Standup'), findsOneWidget);
+    expect(find.text('Your meetings could not be read just now.'), findsOneWidget, reason: 'said on the row, the list kept');
+    expect(meetCheckedSaid(null, now: 0), 'Ghost.md checks every minute while this page is open.');
+    expect(meetCheckedSaid(0, now: 3 * 60000 + 5), 'Checked 3 min ago');
+    expect(meetCheckedSaid(0, now: 2 * 3600000), 'Checked 2 hr ago');
+    await endSettings(tester);
+  });
+
   testWidgets('the address with Copy, the meetings in words, Don\'t join, and a link sent now', (tester) async {
     final d = await made();
     final copied = Clipped(tester);

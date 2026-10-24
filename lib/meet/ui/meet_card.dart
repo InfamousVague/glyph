@@ -573,6 +573,15 @@ class _MeetCardState extends State<MeetCard> {
           description: const Text('Ghost joins by itself, records the meeting, and files it as a note, written up with who said what.'),
           footer: Text(meet.pages ? '$meetCardFooter $meetHistoryKept' : meetCardFooter),
           children: [
+            // Check now: the list read at once rather than at the minute's read (MeetIn.checkNow), with when it was
+            // last read under it.
+            SettingRow(
+              key: const ValueKey('meet-check'),
+              icon: const AppIcon(Lucide.refreshCw, size: 20),
+              label: 'Check for new meetings',
+              hint: Text(meet.checking ? 'Checking…' : (meetings != null ? meet.problem : null) ?? meetCheckedSaid(meet.checkedAt, now: now)),
+              control: RowAction(key: const ValueKey('meet-check-now'), disabled: meet.checking, onPress: () => unawaited(meet.checkNow()), child: const Text('Check now')),
+            ),
             if (meetings == null)
               SettingRow(key: const ValueKey('meet-reading'), icon: const AppIcon(Lucide.clock, size: 20), label: meet.problem ?? 'Reading your meetings…')
             else if (meetings.isEmpty)
@@ -600,6 +609,16 @@ class _MeetCardState extends State<MeetCard> {
       },
     );
   }
+}
+
+/// When the meetings were last read, as the Check now row says it: "Checked just now", "Checked 3 min ago", or, before
+/// a read has come back, what the minute's read does.
+String meetCheckedSaid(int? at, {required int now}) {
+  if (at == null) return 'Ghost.md checks every minute while this page is open.';
+  final minutes = ((now - at) / 60000).floor();
+  if (minutes < 1) return 'Checked just now';
+  if (minutes < 60) return 'Checked $minutes min ago';
+  return 'Checked ${minutes ~/ 60} hr ago';
 }
 
 /// Where a meeting stands, as its row says it: [meetStateWords], but a meeting done is "Written up" only once its
