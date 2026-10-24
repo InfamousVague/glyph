@@ -12,6 +12,7 @@ import 'package:ghost_md/notes/workspace_swatch.dart';
 import 'package:ghost_md/settings/account_forms.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
 import 'package:ghost_md/settings/panes/account_pane.dart';
+import 'package:ghost_md/settings/panes/meetings_pane.dart' show meetingsFindable;
 import 'package:ghost_md/settings/panes/settings_host.dart';
 import 'package:ghost_md/settings/settings_sections.dart';
 import 'package:ghost_md/sync/engine.dart';
@@ -144,17 +145,20 @@ void main() {
   });
 
   group('Sync', () {
-    testWidgets('offers to sync meeting recordings, on by default, and writes the choice', (tester) async {
+    testWidgets('has no meeting recordings: their switch and their count are on Meetings (meet_card_test.dart)', (tester) async {
       final device = await Device.make();
+      Note taped(String id, String body, int ms) => device.notes.held[id] = Note(id: id, body: body, createdAt: 0, updatedAt: 0, source: NoteSource.capture, recordingMs: ms, segments: const []);
+      taped('m', '# Meeting, 26 Sep 14:05', 60000);
+      preferences.update((now) => now.copyWith(meetings: const {'m': 1}, syncMeetingRecordings: false, syncMeetingRecordingsChosen: true));
       await device.pump(tester, AccountPane(services: device.services));
-      expect(find.textContaining("A meeting is other people's voices: off, the words sync and the audio stays on the device it was made on."), findsOneWidget);
-      expect(find.textContaining('to everyone in the team'), findsOneWidget);
-      expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (true, false));
-      final toggle = find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Sync meeting recordings');
-      await tester.ensureVisible(toggle);
-      await tester.tap(toggle);
       await settle(tester);
-      expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (false, true));
+      final switches = tester.widgetList<GlacierSwitch>(find.byType(GlacierSwitch)).map((w) => w.ariaLabel).toList();
+      expect(switches, isNot(contains('Sync meeting recordings')));
+      expect(switches, contains('Live typing'));
+      expect(find.textContaining("A meeting is other people's voices"), findsNothing);
+      expect(find.textContaining('stayed on this phone'), findsNothing);
+      expect(find.text('Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.'), findsOneWidget);
+      expect(accountFindable(signedIn: true, ported: true).map((found) => found.name), isNot(contains('Sync meeting recordings')));
       await endSettings(tester);
     });
 
@@ -166,6 +170,7 @@ void main() {
       final footer = find.text('Notes, their pictures, and your settings. Developer settings stay on each device.').evaluate().length;
       final spoken = find.textContaining('The model you downloaded').evaluate().length;
       final listed = accountFindable(signedIn: true, ported: true).map((found) => found.name).toList();
+      final onMeetings = meetingsFindable(device.services).map((found) => found.name).toList();
       debugDefaultTargetPlatformOverride = null;
       expect(switches, isNot(contains('Sync meeting recordings')));
       expect(switches, contains('Live typing'));
@@ -173,23 +178,9 @@ void main() {
       expect(spoken, 0);
       expect(listed, isNot(contains('Sync meeting recordings')));
       expect(listed, contains('Sync now'));
-      expect(accountFindable(signedIn: true, ported: true).map((found) => found.name), contains('Sync meeting recordings'));
-      await endSettings(tester);
-    });
-
-    testWidgets('counts the recordings that stayed on this phone: a meeting’s while those stay, and any over the service’s limit', (tester) async {
-      final device = await Device.make();
-      Note taped(String id, String body, int ms) => device.notes.held[id] = Note(id: id, body: body, createdAt: 0, updatedAt: 0, source: NoteSource.capture, recordingMs: ms, segments: const []);
-      taped('m', '# Meeting, 26 Sep 14:05', 60000);
-      taped('big', '# Long', 150 * 60000);
-      taped('ok', '# Short', 60000);
-      preferences.update((now) => now.copyWith(meetings: const {'m': 1}, syncMeetingRecordings: false, syncMeetingRecordingsChosen: true));
-      await device.pump(tester, AccountPane(services: device.services));
-      await settle(tester);
-      expect(find.textContaining('2 recordings stayed on this phone: meetings, while their recordings stay'), findsOneWidget);
-      preferences.update((now) => now.copyWith(syncMeetingRecordings: true));
-      await settle(tester);
-      expect(find.textContaining('1 recording stayed on this phone: longer than the account takes'), findsOneWidget);
+      // Meetings, where the switch is now, lists it only where the device records.
+      expect(onMeetings, isNot(contains('Sync meeting recordings')));
+      expect(meetingsFindable(device.services).map((found) => found.name), contains('Sync meeting recordings'));
       await endSettings(tester);
     });
 

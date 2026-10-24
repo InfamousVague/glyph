@@ -9,10 +9,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/enc_key.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/meet/meet_api.dart' show MeetBooking;
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/meet_note.dart';
 import 'package:ghost_md/sync/engine.dart';
 import 'package:ghost_md/sync/notes.dart' show LocalNotes;
+import 'package:ghost_md/sync/prefs.dart' show pickSynced;
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -85,6 +87,9 @@ void main() {
     expect(phone.tapes[id], [1, 2, 3, 4]);
     expect(phone.writeUps, [id]);
     expect(preferences.value.meetings[id], 1792159200000);
+    // The meeting it was of, kept against it, so Settings › Meetings opens it (and every device, with the settings).
+    expect(meetingNotesOf(preferences.value), {'m1': id});
+    expect(pickSynced(preferences.value.toJson())[meetingNotesKey], {'m1': id});
     expect(d.device.kept.read<Object?>(pendingKey, null, (raw) => raw), [id]);
     expect(d.meet.takes, isEmpty);
     expect(d.meet.calls, ['GET meet/takes', 'GET meet/takes/$takeId', 'DELETE meet/takes/$takeId']);
@@ -102,6 +107,48 @@ void main() {
     expect(phone.writeUps, hasLength(1));
     expect(d.meet.takes, isEmpty);
     expect(d.meet.calls.where((c) => c.startsWith('GET meet/takes/')), hasLength(1), reason: 'a filed take is not fetched again');
+  });
+
+  test('a take filed by a build that kept no meeting against it has its meeting kept the next time it is seen', () async {
+    final d = await made();
+    await recorded(d);
+    final id = meetNoteId(takeId);
+    d.device.keep(id, '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n');
+    preferences.update((was) => was.copyWith(meetings: {id: 1792159200000}));
+    expect(await syncMeet(context(d, device: FakeMeetDevice())), 0);
+    expect(meetingNotesOf(preferences.value), {'m1': id});
+    expect(d.meet.takes, isEmpty);
+  });
+
+  group('which note a meeting became', () {
+    const start = 1792159200000;
+    MeetBooking booking(String id, String state, {int at = start}) => MeetBooking.fromJson({'id': id, 'title': 'T', 'startsAt': at, 'endsAt': at + 3600000, 'state': state})!;
+    Note ghost(String id) => Note(id: id, body: '# Retro\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n', createdAt: 0, updatedAt: 0);
+    Note mine(String id) => Note(id: id, body: '# Meeting, 18 Oct 14:02\n\nMy own recording.\n', createdAt: 0, updatedAt: 0);
+
+    test('the one kept against it, while it is still here', () {
+      final notes = {'n': ghost('n')};
+      expect(meetingNoteFor(booking('a', 'done'), filed: {'a': 'n'}, meetings: const {}, notes: notes), 'n');
+      expect(meetingNoteFor(booking('a', 'done'), filed: {'a': 'gone'}, meetings: const {}, notes: notes), isNull, reason: 'deleted, or in the trash');
+    });
+
+    test('kept against nothing, Ghost’s note whose recording began while a meeting done was on, the nearest', () {
+      final notes = {'early': ghost('early'), 'near': ghost('near'), 'own': mine('own'), 'later': ghost('later'), 'other': ghost('other')};
+      final meetings = {'early': start - 30 * 60000, 'near': start + 60000, 'own': start, 'later': start + 2 * 3600000, 'other': start + 30000};
+      expect(meetingNoteFor(booking('a', 'done'), filed: {'b': 'other'}, meetings: meetings, notes: notes), 'near', reason: 'a person’s own recording, and one kept against another meeting, are not it');
+      expect(meetingNoteFor(booking('a', 'in_call'), filed: const {}, meetings: meetings, notes: notes), isNull, reason: 'only a meeting that is done has a note');
+      expect(meetingNoteFor(booking('a', 'done', at: start + 10 * 3600000), filed: const {}, meetings: meetings, notes: notes), isNull, reason: 'none while it was on');
+    });
+
+    test('the map keeps only meetings whose notes are still meetings', () {
+      var prefs = const Preferences(meetings: {'n1': 1, 'n2': 2});
+      prefs = withMeetingNote(prefs, 'a', 'n1');
+      prefs = withMeetingNote(prefs, 'b', 'n2');
+      expect(meetingNotesOf(prefs), {'a': 'n1', 'b': 'n2'});
+      prefs = withMeetingNote(prefs.copyWith(meetings: const {'n2': 2, 'n3': 3}), 'c', 'n3');
+      expect(meetingNotesOf(prefs), {'b': 'n2', 'c': 'n3'});
+      expect(withMeetingNote(prefs, '', 'n9'), same(prefs));
+    });
   });
 
   test('the take stays on the service when its note could not be written', () async {

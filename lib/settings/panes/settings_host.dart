@@ -308,6 +308,7 @@ class SettingsHost extends InheritedWidget {
     this.onAcademy,
     this.onOrganization,
     this.onOpenLink,
+    this.onOpenNote,
     this.notesInWorkspace,
     this.onTrashNotes,
     required super.child,
@@ -329,6 +330,10 @@ class SettingsHost extends InheritedWidget {
 
   /// Opens a link outside the app (core/linkPreview.ts `openLink`).
   final void Function(String url)? onOpenLink;
+
+  /// Shuts Settings and opens note [id] where it was left, as the home page opens one: a meeting's note from
+  /// Settings › Meetings (Matt, 2026-10-24: "click a meeting to jump to the associated note").
+  final void Function(String id)? onOpenNote;
 
   /// The ids of the notes a workspace's delete would ask about, and the way to put them in the trash.
   final List<String> Function(String workspaceId)? notesInWorkspace;

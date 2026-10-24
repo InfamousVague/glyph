@@ -659,6 +659,11 @@ extension _RootParts on _GhostRootState {
       features: _features(services),
       onOrganization: services == null ? null : _organizationSettings,
       onOpenLink: widget.openLink == null ? null : (url) => unawaited(widget.openLink!(url)),
+      // A meeting's note, from Settings › Meetings: Settings shut, the note opened where it was left, as home opens it.
+      onOpenNote: (id) {
+        _closeSettings();
+        _afterFrame((shell) => _openWhereLeft(shell, id));
+      },
       onAcademy: () {
         _closeSettings();
         _shell.currentState?.show(const Screen.academy());

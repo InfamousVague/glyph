@@ -81,6 +81,9 @@ const List<String> syncedPrefs = [
   'trash',
   // Which notes are meetings: recorded on one device, a meeting on every one.
   'meetings',
+  // Which note each meeting Ghost was in became (lib/meet/meet_in.dart `meetingNotesKey`): filed on one device, opened
+  // from Settings › Meetings on every one.
+  'meetingNotes',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.

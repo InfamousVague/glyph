@@ -11,7 +11,6 @@ import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
-import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
 import '../account_forms.dart';
 import '../colour_card.dart';
 import '../kit/settings_kit.dart';
@@ -22,6 +21,7 @@ import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
 import 'ghostex_cards.dart';
+import 'meetings_pane.dart' show meetingsOffered;
 import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
@@ -53,8 +53,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
     ? (ported
         ? [
             const SettingsFindable('Sync now', 'devices'),
-            // An iPhone records nothing, so it has no such switch (the row below).
-            if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+            // Sync meeting recordings is Meetings' now (meetings_pane.dart `meetingsFindable`).
             const SettingsFindable('Live typing', 'realtime collaborate claude'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
@@ -90,10 +89,17 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 /// what leaves the phone: the Privacy card ([PrivacyCard]) and the Location card ([LocationCard]).
 ///
 /// **Signed in**: the hero (the handle, "End-to-end encrypted", where the sync stands), what the last sync kept
-/// twice or could not send, the Sync card (Sync now, Sync meeting recordings, Live typing, Password and recovery
-/// codes, Sign out), then Your colour ([ColourCard]), Shared links ([SharedLinks]), Privacy, Location, and Delete
-/// account. Password and recovery codes, and Delete account, each put a form where the Sync card was and take the
-/// cards after it off the page until it is done or cancelled.
+/// twice or could not send, the Sync card (Sync now, Live typing, Password and recovery codes, Sign out), then Your
+/// colour ([ColourCard]), Shared links ([SharedLinks]), Published sites, a line for Email to a note, Privacy,
+/// Location, and Delete account. Password and recovery codes, and Delete account, each put a form where the Sync card
+/// was and take the cards after it off the page until it is done or cancelled.
+///
+/// **Nothing of meetings** (Matt, 2026-10-24: "remove the meetings stuff from the account page the account settings
+/// page is overwhelming move all google meet related stuff to under the meet section"): Sync meeting recordings, how
+/// many recordings stayed on this phone, and the Email to a note card, whose address is also Ghost's invite, are on
+/// Settings › Meetings (meetings_pane.dart). Mail to a note is a feature of its own, so Account keeps one row that
+/// says where it went and goes there ([AccountPane.onOpenMeetings]). A service with no Ghost in meetings has no
+/// Meetings page, and its Email to a note card stays here whole.
 ///
 /// While Local only holds the sync off, a callout says so, signed in or out, and its "Local only" is a word that
 /// brings the card into view: a plain word while a form has the card off the page.
@@ -103,14 +109,13 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///   where the page reached for its modules. **Without one the page is as it was before there was an account**:
 ///   signed out, with the button running [SettingsFeatures.onWayIn] (or unpressable without it), and
 ///   [SettingsFeatures.signedIn] drawing the card that says the signed-in page waits.
-/// - How many recordings stayed on this phone is counted from [AccountServices.listNotes], and is none without it.
 /// - Live typing's switch writes [AccountServices.liveTyping], which the app's account keeps as this device's own
 ///   flag (the page's `glyph-live`; lib/root/account_wiring.dart): a note opened after it is on is live.
 /// - The form's fields are the kit's `GlacierInput`; a password manager is not told which is which
 ///   (`autocomplete`) beyond what the kit passes on.
 /// - There is no list of this account's devices: the web's page has none either.
 class AccountPane extends StatefulWidget {
-  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.services, this.onOpenPrivacy, this.onOpenLink});
+  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.services, this.onOpenPrivacy, this.onOpenLink, this.onOpenMeetings});
 
   /// The preferences to read and write; the services' when there are some, else the app's own.
   final PreferencesStore? store;
@@ -123,6 +128,9 @@ class AccountPane extends StatefulWidget {
   final VoidCallback? onOpenPrivacy;
   final void Function(String url)? onOpenLink;
 
+  /// Lands on Settings › Meetings, where Email to a note is; without it the row is a plain row.
+  final VoidCallback? onOpenMeetings;
+
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
     return AccountPane(
@@ -130,6 +138,7 @@ class AccountPane extends StatefulWidget {
       services: AccountScope.maybeOf(context),
       onOpenPrivacy: host == null ? null : () => host.go('account', setting: 'Privacy'),
       onOpenLink: host?.onOpenLink,
+      onOpenMeetings: host == null ? null : () => host.go('meetings'),
     );
   }
 
@@ -281,9 +290,6 @@ class _AccountPaneState extends State<AccountPane> {
   /// Said on the signed-out page that follows a deletion, so it is clear the account went and the notes didn't.
   bool _deleted = false;
 
-  /// How many recordings stayed on this phone, counted as the page opens and whenever the two rules change.
-  int _stayed = 0;
-  Object? _stayedFor;
   SharedLinksModel? _shared;
 
   PreferencesStore get _store => widget.store ?? widget.services?.prefs ?? preferences;
@@ -307,21 +313,6 @@ class _AccountPaneState extends State<AccountPane> {
     super.dispose();
   }
 
-  void _countStayed(Preferences prefs) {
-    final list = widget.services?.listNotes;
-    final rules = (prefs.meetings, prefs.syncMeetingRecordings);
-    if (list == null || rules == _stayedFor) return;
-    _stayedFor = rules;
-    unawaited(() async {
-      try {
-        final count = stayedHere(await list(), meetings: prefs.meetings, syncMeetingRecordings: prefs.syncMeetingRecordings);
-        if (mounted && rules == _stayedFor) setState(() => _stayed = count);
-      } catch (_) {
-        // The footer says nothing of them.
-      }
-    }());
-  }
-
   @override
   Widget build(BuildContext context) {
     final store = _store;
@@ -342,7 +333,6 @@ class _AccountPaneState extends State<AccountPane> {
             return PaneBody(children: [SettingsNotPortedCard(spec: settingsSections.firstWhere((spec) => spec.id == 'account')), privacy, ...location.parts(prefs), GhostexExportCard(ghostex: features.ghostex)]);
           }
           if (services == null || !services.signedIn) return _signedOut(prefs, privacy, location);
-          _countStayed(prefs);
           return _signedIn(services, store, prefs, privacy, location);
         },
       ),
@@ -396,8 +386,8 @@ class _AccountPaneState extends State<AccountPane> {
                     : 'Sign in again to sync';
     final form = _editing || _deleting;
     final shared = _shared;
-    final stayed = _stayed;
-    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md).
+    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md);
+    // whether it has Ghost in meetings decides where Email to a note is.
     services.sites?.readSoon();
     services.mailIn?.readSoon();
     services.meetIn?.readSoon();
@@ -441,19 +431,10 @@ class _AccountPaneState extends State<AccountPane> {
           PaneSection(
             title: 'Sync',
             footer: Text(
-              '${recordsVoice ? 'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.' : 'Notes, their pictures, and your settings. Developer settings stay on each device.'}${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone: ${prefs.syncMeetingRecordings ? 'longer than the account takes, over $longestSyncedSaid.' : 'meetings, while their recordings stay, and any over $longestSyncedSaid.'}' : ''}',
+              recordsVoice ? 'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.' : 'Notes, their pictures, and your settings. Developer settings stay on each device.',
             ),
             children: [
               SettingRow(icon: const AppIcon(Lucide.refreshCw, size: 20), label: 'Sync now', onPress: () => unawaited(services.syncNow()), disabled: status.phase == 'syncing'),
-              if (recordsVoice) SettingRow(
-                label: 'Sync meeting recordings',
-                hint: const Text("On, a meeting's audio goes to your other devices, and with a team's note to everyone in the team. A meeting is other people's voices: off, the words sync and the audio stays on the device it was made on."),
-                control: GlacierSwitch(
-                  ariaLabel: 'Sync meeting recordings',
-                  checked: prefs.syncMeetingRecordings,
-                  onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on, syncMeetingRecordingsChosen: true)),
-                ),
-              ),
               // Live sync (docs/LIVE.md), on unless turned off here (docs/CLAUDE_LIVE.md).
               SettingRow(
                 label: 'Live typing',
@@ -468,7 +449,22 @@ class _AccountPaneState extends State<AccountPane> {
           ColourCard(services: services),
           if (shared != null && shared.any) SharedLinks(services: services, model: shared),
           if (sites != null && publishedSitesShown(sites)) PublishedSites(services: services),
-          if (mail != null && mailCardShown(mail)) MailCard(services: services),
+          // Email to a note's address is Ghost's invite too, so it is on Meetings, and here only a word on where.
+          if (mail != null && mailCardShown(mail))
+            if (meetingsOffered(services))
+              PaneSection(
+                children: [
+                  SettingRow(
+                    key: const ValueKey('account-mail-moved'),
+                    icon: const AppIcon(Lucide.mail, size: 20),
+                    label: 'Email to a note',
+                    hint: const Text('Your address, which Ghost is invited by too, is under Meetings.'),
+                    onPress: widget.onOpenMeetings,
+                  ),
+                ],
+              )
+            else
+              MailCard(services: services),
           privacy,
           ...location.parts(prefs),
           GhostexExportCard(ghostex: widget.features.ghostex),

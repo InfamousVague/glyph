@@ -365,7 +365,7 @@ final List<SettingsSectionSpec> _sections = [
     webFile: 'settings/AccountPane.tsx',
     where: (facts) => meetingsOffered(facts.services),
     summary: (facts) => meetingsSummary(facts.services),
-    settings: (facts) => meetingsFindable,
+    settings: (facts) => meetingsFindable(facts.services),
     pane: MeetingsPane.hosted,
   ),
   // How much of the app there is and how it looks, moves and feels: on a card of its own under Account's (Matt,
