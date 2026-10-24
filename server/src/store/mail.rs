@@ -2,7 +2,12 @@
 //!
 //! An address is kept as its local part, lower-cased, in the clear: the service has to find the account a mail is for,
 //! as it finds one by its handle, and a person's devices read it back to show it. One address an account; making a new
-//! one puts it in place of the old, which takes no mail from then on.
+//! one, or choosing a name of one's own, puts it in place of the old, which takes no mail from then on.
+//!
+//! An address given up is not free again. The trigger on `mail_addresses` (store.rs) keeps each one that goes, by any
+//! door, in `mail_addresses_retired` against the account it was: that account may take it back, and nobody else may
+//! ever have it, so whoever still has it in a contact or on a Calendar invite is refused rather than heard by a
+//! stranger. A deleted account's addresses stay there as their local parts, linked to an id no account will have again.
 //!
 //! A mail is kept ONLY sealed: `wrapped` is a fresh key wrapped to the account's encryption public key, `blob` the mail
 //! as a note's words and files sealed under that key (src/mail/seal.rs). The service made both from the clear mail a
@@ -26,6 +31,30 @@ impl From<rusqlite::Error> for MailWrite {
     }
 }
 
+/// Why an address could not be the account's.
+#[derive(Debug, PartialEq, Eq)]
+pub enum MailClaim {
+    /// Another account's, live or given up.
+    Taken,
+    Failed,
+}
+
+impl From<rusqlite::Error> for MailClaim {
+    fn from(_: rusqlite::Error) -> Self {
+        MailClaim::Failed
+    }
+}
+
+/// Where an address stands for one account.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MailStanding {
+    Free,
+    /// The account's live address now.
+    Yours,
+    /// Another account's: live, given up, or a deleted account's.
+    Taken,
+}
+
 /// A sealed mail as a device reads it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SealedMail {
@@ -42,16 +71,53 @@ impl Store {
         self.one("SELECT address FROM mail_addresses WHERE account_id = ?1", params![account], |r| r.get(0))
     }
 
-    /// Gives the account `address`, in place of any it had: the old one is dead from this moment.
-    pub fn set_mail_address(&self, account: i64, address: &str, now: i64) -> rusqlite::Result<()> {
+    /// Gives the account `address`, in place of any it had: the old one is dead from this moment, and kept as the
+    /// account's (`mail_addresses_retired`, by the trigger) so it is never anyone else's. Refused as [`MailClaim::Taken`]
+    /// when the address is another account's, live or given up; the account's own given-up address it may take back,
+    /// and its live one is a change of nothing.
+    ///
+    /// The look and the write are one transaction on the one connection, and the address is the live table's key, so
+    /// two accounts asking for `matt` at once cannot both have it: the second finds the first's row, or, were the look
+    /// ever to miss it, the key refuses the insert and the transaction is undone with the old address still on.
+    pub fn set_mail_address(&self, account: i64, address: &str, now: i64) -> Result<(), MailClaim> {
         let mut conn = self.lock();
         let tx = conn.transaction()?;
+        match Self::standing(&tx, account, address)? {
+            MailStanding::Yours => return Ok(()),
+            MailStanding::Taken => return Err(MailClaim::Taken),
+            MailStanding::Free => {}
+        }
         tx.execute("DELETE FROM mail_addresses WHERE account_id = ?1", params![account])?;
-        tx.execute("INSERT INTO mail_addresses (address, account_id, created_at) VALUES (?1, ?2, ?3)", params![address, account, now])?;
-        tx.commit()
+        // The account's own, given up once and live again.
+        tx.execute("DELETE FROM mail_addresses_retired WHERE address = ?1 AND account_id = ?2", params![address, account])?;
+        match tx.execute("INSERT INTO mail_addresses (address, account_id, created_at) VALUES (?1, ?2, ?3)", params![address, account, now]) {
+            Ok(_) => {}
+            Err(rusqlite::Error::SqliteFailure(e, _)) if e.code == rusqlite::ErrorCode::ConstraintViolation => return Err(MailClaim::Taken),
+            Err(e) => return Err(e.into()),
+        }
+        tx.commit()?;
+        Ok(())
     }
 
-    /// Turns the account's address off. Mail already waiting stays until a device takes it.
+    /// Whether `address` could be the account's: free, its own already, or another's (live, or given up).
+    pub fn mail_address_standing(&self, account: i64, address: &str) -> Option<MailStanding> {
+        Self::standing(&self.lock(), account, address).ok()
+    }
+
+    fn standing(conn: &rusqlite::Connection, account: i64, address: &str) -> rusqlite::Result<MailStanding> {
+        let live: Option<i64> = conn.query_row("SELECT account_id FROM mail_addresses WHERE address = ?1", params![address], |r| r.get(0)).optional()?;
+        if let Some(holder) = live {
+            return Ok(if holder == account { MailStanding::Yours } else { MailStanding::Taken });
+        }
+        let retired: Option<i64> = conn.query_row("SELECT account_id FROM mail_addresses_retired WHERE address = ?1", params![address], |r| r.get(0)).optional()?;
+        Ok(match retired {
+            Some(holder) if holder != account => MailStanding::Taken,
+            _ => MailStanding::Free,
+        })
+    }
+
+    /// Turns the account's address off; it is kept as the account's, as a replaced one is. Mail already waiting
+    /// stays until a device takes it.
     pub fn clear_mail_address(&self, account: i64) -> bool {
         self.lock().execute("DELETE FROM mail_addresses WHERE account_id = ?1", params![account]).map(|n| n > 0).unwrap_or(false)
     }
@@ -146,5 +212,44 @@ mod tests {
         s.put_mail(a.id, "m", &sealed(1), 10).unwrap();
         s.lock().execute("DELETE FROM accounts WHERE id = ?1", params![a.id]).unwrap();
         assert_eq!((s.mail_account("gone"), s.mail(a.id, "m")), (None, None));
+    }
+
+    #[test]
+    fn an_address_given_up_any_way_is_never_another_account_s_and_its_own_may_take_it_back() {
+        let (s, a, _dir) = fixture();
+        let b = s.create_account("other", "", "", None, &[], 1).unwrap();
+        s.set_mail_address(a.id, "matt", 1).unwrap();
+        assert_eq!(s.set_mail_address(b.id, "matt", 2), Err(MailClaim::Taken), "live");
+        assert_eq!((s.mail_address_standing(a.id, "matt"), s.mail_address_standing(b.id, "matt")), (Some(MailStanding::Yours), Some(MailStanding::Taken)));
+        assert_eq!(s.set_mail_address(a.id, "matt", 3), Ok(()), "its own already: nothing changes");
+        // Replaced: given up, still not b's.
+        s.set_mail_address(a.id, "matthew", 4).unwrap();
+        assert_eq!(s.mail_account("matt"), None);
+        assert_eq!(s.set_mail_address(b.id, "matt", 5), Err(MailClaim::Taken), "given up");
+        assert_eq!(s.mail_address_of(b.id), None, "a refusal leaves b as it was");
+        // Turned off: the same.
+        assert!(s.clear_mail_address(a.id));
+        assert_eq!(s.mail_address_standing(b.id, "matthew"), Some(MailStanding::Taken));
+        // a may have either back.
+        assert_eq!(s.mail_address_standing(a.id, "matt"), Some(MailStanding::Free));
+        s.set_mail_address(a.id, "matt", 6).unwrap();
+        assert_eq!(s.mail_account("matt"), Some(a.id));
+        let retired: i64 = s.lock().query_row("SELECT COUNT(*) FROM mail_addresses_retired WHERE address = 'matt'", [], |r| r.get(0)).unwrap();
+        assert_eq!(retired, 0, "live again, not given up");
+    }
+
+    #[test]
+    fn a_deleted_account_s_address_is_nobody_s_for_good() {
+        let (s, a, _dir) = fixture();
+        s.set_mail_address(a.id, "sam", 1).unwrap();
+        s.set_mail_address(a.id, "sam.lee", 2).unwrap();
+        // The cascade takes the live row; the trigger keeps it.
+        assert_eq!(s.delete_account(a.id, 3).ok(), Some(true));
+        let b = s.create_account("other", "", "", None, &[], 4).unwrap();
+        assert_ne!(a.id, b.id);
+        for name in ["sam", "sam.lee"] {
+            assert_eq!(s.mail_address_standing(b.id, name), Some(MailStanding::Taken), "{name}");
+            assert_eq!(s.set_mail_address(b.id, name, 5), Err(MailClaim::Taken), "{name}");
+        }
     }
 }

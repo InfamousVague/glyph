@@ -8,7 +8,7 @@ it can be done is `meet/spike/README.md`.
 
 ## How a meeting is booked
 
-1. The person adds their mail-to-note address (`<16 letters and digits>@in.ghostmarkdown.com`, `tauri/docs/MAIL.md`)
+1. The person adds their mail-to-note address (`sneaky_siren33@in.ghostmarkdown.com`, or a name of their own such as `matt@…`, `tauri/docs/MAIL.md`)
    as a guest on a Google Calendar event. Nothing new to turn on: it is the address they already have.
 2. Google mails the invitation there. The mail becomes a note as any mail does, and in the same request the service
    reads its calendar part - the `text/calendar` alternative, or the `invite.ics` attachment; Google sends both, and

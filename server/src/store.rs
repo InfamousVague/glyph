@@ -48,7 +48,7 @@ pub use notifications::{NotificationRow, NotificationWrite, SERVER_KINDS};
 pub use org_ais::OrgAi;
 pub use org_links::{LinkPreview, OrgLink};
 pub use orgs::{InviteCaps, Member, Org, OrgRow, OrgWrite, Role};
-pub use mail::{MailWrite, SealedMail};
+pub use mail::{MailClaim, MailStanding, MailWrite, SealedMail};
 pub use meet::{MeetBooking, SERIES as MEET_SERIES};
 pub use shares::ShareWrite;
 pub use sites::SiteWrite;
@@ -301,6 +301,21 @@ CREATE TABLE IF NOT EXISTS mail_addresses (
     account_id INTEGER NOT NULL UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
     created_at INTEGER NOT NULL
 );
+-- Every address an account gave up - a new one made in its place, a name of its own chosen, the address turned off,
+-- the account deleted - kept by the trigger below, whichever way its row went, so that no address is ever given to a
+-- second account: mail meant for one person must never reach another (Matt, 2026-10-24, a name of one's own). Its
+-- local part and the account it was, which may take it back; `account_id` has no REFERENCES, so the row outlives a
+-- deleted account, whose id AUTOINCREMENT never hands out again, and its addresses are then nobody's for good. Kept
+-- since 2026-10-24: an address replaced before that was not, which is why a chosen name may not look made (names.rs).
+CREATE TABLE IF NOT EXISTS mail_addresses_retired (
+    address    TEXT PRIMARY KEY,
+    account_id INTEGER NOT NULL,
+    retired_at INTEGER NOT NULL
+);
+CREATE TRIGGER IF NOT EXISTS mail_address_retires AFTER DELETE ON mail_addresses
+BEGIN
+    INSERT OR REPLACE INTO mail_addresses_retired (address, account_id, retired_at) VALUES (OLD.address, OLD.account_id, CAST(strftime('%s', 'now') AS INTEGER));
+END;
 CREATE TABLE IF NOT EXISTS mail_in (
     id          TEXT PRIMARY KEY,
     account_id  INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,

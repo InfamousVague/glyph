@@ -20,7 +20,7 @@ use tower::ServiceExt;
 
 /// A Google Calendar invitation as it reaches a guest: the plain and HTML alternatives with the `text/calendar` part
 /// beside them, and the same calendar again as `invite.ics`.
-fn invite_mail(to: &str, ics: &str) -> String {
+pub(crate) fn invite_mail(to: &str, ics: &str) -> String {
     let attached = STANDARD.encode(ics.as_bytes()).as_bytes().chunks(76).map(|line| String::from_utf8_lossy(line).into_owned()).collect::<Vec<_>>().join("\r\n");
     format!(
         "From: Sam Lee <sam@example.com>\r\n\

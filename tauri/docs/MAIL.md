@@ -1,6 +1,6 @@
 # Email to a note
 
-Each account may turn on a private address. Mail sent to it becomes a note in the person's Inbox. Settings › Account › Email to a note (Flutter: `lib/mail/ui/mail_card.dart`); the service's side is `server/src/mail.rs`.
+Each account may turn on a private address. Mail sent to it becomes a note in the person's Inbox. Settings › Meetings › Email to a note (Flutter: `lib/mail/ui/mail_card.dart`; the address itself is shown on the Invite Ghost card, `lib/meet/ui/meet_card.dart`); the service's side is `server/src/mail.rs`.
 
 ## What the service sees, and keeps
 
@@ -15,7 +15,31 @@ The clear copy is never written to disk or to a log. The sealed copy waits until
 
 ## The address
 
-`<16 letters and digits>@in.ghostmarkdown.com`: RFC 4648's lower-case base32 alphabet, so eighty random bits, and nobody finds one by guessing. One address an account, kept as its local part in the clear (the service must find the account a mail is for, as it finds one by its handle). **Make a new address** puts a new one in place of the old in one transaction; the old one is dead at once. A `+tag` after the local part is ignored, so `x+receipts@…` reaches `x@…`.
+A made address is a readable name, `sneaky_siren33@in.ghostmarkdown.com` (GHST-109, `server/src/mail/names.rs`): an adjective, an underscore, a ghostly noun and two digits, about 2.3 million of them. Addresses made before 2026-10-23 were `<16 letters and digits>`, RFC 4648's lower-case base32 alphabet, eighty random bits; those still take mail. Or a name of the person's own, `matt@in.ghostmarkdown.com` (below). One address an account, kept as its local part, lower-cased, in the clear (the service must find the account a mail is for, as it finds one by its handle), and found however a mail program cases it. **Make a new address** puts a new one in place of the old in one transaction; the old one is dead at once. A `+tag` after the local part is ignored, so `x+receipts@…` reaches `x@…`.
+
+**An address given up is never anyone else's.** Since 2026-10-24 every address that leaves `mail_addresses` - replaced by a made one or a chosen one, turned off, or gone with a deleted account - is kept in `mail_addresses_retired` by a trigger on the table (`server/src/store.rs`), so no door forgets to. It is kept against the account it was: that account may take it back; no other account may ever have it, so a contact or a Calendar invite that still has it is refused with a bounce rather than read by a stranger. `account_id` there has no foreign key, so the row outlives a deleted account, whose id `AUTOINCREMENT` never hands out again: a deleted account's addresses stay, as their local parts linked to nothing left, and are nobody's for good. That is the one thing about a deleted account the service keeps. Addresses replaced before 2026-10-24 were not kept; that is why a chosen name may not have the shape of a made one.
+
+### A name of one's own
+
+Matt, 2026-10-24: "i'd like you to add the ability to create our own custom name for the email if the name is available like matt@in.ghostmarkdown.com". Settings › Meetings › Invite Ghost › **Choose a name…** (`lib/meet/ui/meet_card.dart`, `lib/mail/mail_name.dart`).
+
+A name is trimmed and lower-cased, then must be (`names.rs` `chosen`; the app checks the same before it asks):
+
+| | reason | the words |
+|---|---|---|
+| a to z, 0 to 9, `.`, `-`, `_` only | `characters` | Only letters, numbers, dots, dashes and underscores. |
+| at least 3 | `short` | At least 3 characters. |
+| at most 30 | `long` | At most 30 characters. |
+| a separator only between letters or digits, one at a time | `separators` | A dot, dash or underscore goes between letters or numbers, one at a time. |
+| not the shape of a made one: 16 of the base32 alphabet, or `<adjective>_<noun><nn>` from the lists | `generated` | That looks like a name Ghost.md makes up. Choose one of your own. |
+| not reserved, compared with its separators taken out (`no-reply` is `noreply`): postmaster, abuse, admin, root, hostmaster, webmaster, security, support, noreply, mailer-daemon, help, info, ghost, ghostmd, glyph, mail, calendar, meet, team, staff, billing and the rest of `RESERVED` | `reserved` | That name is reserved. |
+| nobody's, live or given up, but the account's own | `taken` | That name is taken. |
+
+The look and the claim are one transaction on the store's one connection, and the address is the live table's key, so two accounts asking for `matt` at once cannot both have it (`mail_tests.rs` `two_accounts_asking_for_one_name_at_once_one_has_it` races eight threads). Choosing a name turns the old address off exactly as a new one does.
+
+Asking whether a name is free is an answer about everyone's addresses, so asking and choosing are counted together: sixty an hour an account and a hundred and twenty an hour a client address (`NAMES_PER_HOUR`, `guard.rs`), enough to try names as one types and too few to walk the namespace. The name is posted in the body, not put in the query, so it stays out of the proxy's access log. (Writing this found the hourly buckets were forgotten after ten idle minutes and came back full; `guard.rs` now keeps a bucket until it has filled.)
+
+**The trade-off, said plainly:** a chosen name is a guessable one. Anyone can try mailing `matt@in.ghostmarkdown.com`, as anyone can try `matt@` any domain, where a made name has to be guessed out of millions. What reaches it is still sealed to the account the moment it arrives, the address still takes thirty mails an hour, and a person who starts getting mail they did not want makes a new address in its place (the old one bounces from then on).
 
 Why a random local part on a subdomain, rather than plus-addresses on one mailbox: one catch-all route on a subdomain of its own is the cheapest thing a provider sells, its MX records touch nothing else of ghostmarkdown.com (any mail Matt has on the root is untouched), and a revoked address is gone outright rather than living on as a plus-tag a provider might still route.
 
@@ -92,6 +116,8 @@ Its id is a UUID made from the mail's id (`lib/mail/mail_note.dart` `mailNoteId`
 |---|---|
 | `GET /api/v1/mail/address` | `{ address, available }`; `available` is false when the service has no signing key |
 | `POST /api/v1/mail/address` | a new address in place of any old one; 409 without the account's encryption key, 503 when not available |
+| `PUT /api/v1/mail/address` | `{ name }`: that name in place of any old one, `{ address }`; 400 `{ error, reason }` for a name nobody may have, 409 `{ error, reason: "taken" }`, 429 past the hour's names, and `POST`'s 409 and 503 |
+| `POST /api/v1/mail/address/available` | `{ name }` → `{ name, available, reason, message }`: `name` as it would be kept, `reason` a code from the table above or `yours`, both null when free; 429 past the hour's names |
 | `DELETE /api/v1/mail/address` | off |
 | `GET /api/v1/mail` | `{ mail: [{ id, size, at }] }`, oldest first |
 | `GET /api/v1/mail/{id}` | `{ id, wrapped, blob, at }` |

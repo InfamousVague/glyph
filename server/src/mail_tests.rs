@@ -1,6 +1,7 @@
 //! Email to a note, through the routes a device and the mail provider call (docs/MAIL.md): an address turned on, made
-//! anew and turned off; a mail posted with Mailgun's signature kept ONLY sealed, and opened with the account's private
-//! key alone; and every refusal - a forged or replayed post, a dead address, too much mail, too large a mail.
+//! anew and turned off; a name of the person's own asked about, chosen, refused, raced for and counted; a mail posted
+//! with Mailgun's signature kept ONLY sealed, and opened with the account's private key alone; and every refusal - a
+//! forged or replayed post, a dead address, too much mail, too large a mail.
 
 use crate::accounts::Accounts;
 use crate::mail::{mailgun_signature, message, seal, TEST_SIGNING_KEY};
@@ -263,6 +264,165 @@ async fn an_account_keeps_two_hundred_mails_waiting_and_the_two_hundred_and_firs
         (status, serde_json::from_slice::<Value>(&bytes).unwrap()["error"].as_str()),
         (StatusCode::NOT_ACCEPTABLE, Some("That mailbox is full: its owner's devices have not synced for a while."))
     );
+}
+
+// --- a name of one's own (Matt, 2026-10-24: "i'd like you to add the ability to create our own custom name for the
+// email if the name is available like matt@in.ghostmarkdown.com") ------------------------------------------------------
+
+/// What the service says of `name` for the account `token`.
+async fn available(h: &Harness, token: &str, name: &str) -> (StatusCode, Value) {
+    h.call(Method::POST, "/api/v1/mail/address/available", Some(token), Some(json!({ "name": name }))).await
+}
+
+async fn choose(h: &Harness, token: &str, name: &str) -> (StatusCode, Value) {
+    h.call(Method::PUT, "/api/v1/mail/address", Some(token), Some(json!({ "name": name }))).await
+}
+
+#[tokio::test]
+async fn a_name_is_asked_about_then_chosen_in_place_of_the_old_address_and_takes_mail_however_it_is_cased() {
+    let h = Harness::new("mail");
+    let (token, secret) = with_key(&h, "sam").await;
+    let made = turned_on(&h, &token).await;
+    let (status, body) = available(&h, &token, " Matt ").await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "name": "matt", "available": true, "reason": null, "message": null })));
+    let (status, body) = choose(&h, &token, "Matt").await;
+    assert_eq!((status, body), (StatusCode::OK, json!({ "address": "matt@in.ghostmarkdown.com" })));
+    let (_, body) = h.call(Method::GET, "/api/v1/mail/address", Some(&token), None).await;
+    assert_eq!(body["address"], "matt@in.ghostmarkdown.com");
+    let (_, body) = available(&h, &token, "matt").await;
+    assert_eq!((body["available"].as_bool(), body["reason"].as_str()), (Some(false), Some("yours")));
+    // The made one is off at once, as a new address turns it off, and the sender is told.
+    let (status, _, bytes) = h.send(post(&made, MAIL.as_bytes(), &token_n(1))).await;
+    assert_eq!((status, serde_json::from_slice::<Value>(&bytes).unwrap()["error"].as_str()), (StatusCode::NOT_ACCEPTABLE, Some("There is no such address.")));
+    // The name takes mail in any case a mail program writes it, with a +tag, and it is a note sealed as any is.
+    let (status, _, bytes) = h.send(post("Ghost <MATT+receipts@In.GhostMarkdown.com>", MAIL.as_bytes(), &token_n(2))).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
+    let (_, body) = h.call(Method::GET, "/api/v1/mail", Some(&token), None).await;
+    let id = body["mail"][0]["id"].as_str().unwrap().to_string();
+    let (_, sealed) = h.call(Method::GET, &format!("/api/v1/mail/{id}"), Some(&token), None).await;
+    let (head, _) = message::read(&seal::open_with(&secret, &id, sealed["wrapped"].as_str().unwrap(), sealed["blob"].as_str().unwrap()).unwrap());
+    assert_eq!((head["subject"].as_str(), head["to"].as_str()), (Some("Pomegranate jam"), Some("matt@in.ghostmarkdown.com")));
+    // Choosing it again changes nothing; a made one after it turns it off in its turn.
+    assert_eq!(choose(&h, &token, "matt").await.0, StatusCode::OK);
+    let again = turned_on(&h, &token).await;
+    assert_ne!(again, "matt@in.ghostmarkdown.com");
+    let (status, _, _) = h.send(post("matt@in.ghostmarkdown.com", MAIL.as_bytes(), &token_n(3))).await;
+    assert_eq!(status, StatusCode::NOT_ACCEPTABLE);
+}
+
+#[tokio::test]
+async fn a_name_unfit_for_anyone_is_refused_with_its_reason_and_the_address_stays() {
+    let h = Harness::new("mail");
+    let (token, _) = with_key(&h, "sam").await;
+    let made = turned_on(&h, &token).await;
+    for (name, reason, words) in [
+        ("ma", "short", "At least 3 characters."),
+        ("matt smith", "characters", "Only letters, numbers, dots, dashes and underscores."),
+        ("mätt", "characters", "Only letters, numbers, dots, dashes and underscores."),
+        ("matt..smith", "separators", "A dot, dash or underscore goes between letters or numbers, one at a time."),
+        ("-matt", "separators", "A dot, dash or underscore goes between letters or numbers, one at a time."),
+        ("abcdefghijklmnopqrstuvwxyz12345", "long", "At most 30 characters."),
+        ("k7m2q3xh4t5vbn6p", "generated", "That looks like a name Ghost.md makes up. Choose one of your own."),
+        ("sneaky_siren33", "generated", "That looks like a name Ghost.md makes up. Choose one of your own."),
+        ("Postmaster", "reserved", "That name is reserved."),
+        ("no-reply", "reserved", "That name is reserved."),
+        ("support", "reserved", "That name is reserved."),
+    ] {
+        let (status, body) = available(&h, &token, name).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!((body["available"].as_bool(), body["reason"].as_str(), body["message"].as_str()), (Some(false), Some(reason), Some(words)), "{name}");
+        let (status, body) = choose(&h, &token, name).await;
+        assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": words, "reason": reason })), "{name}");
+    }
+    let (_, body) = h.call(Method::GET, "/api/v1/mail/address", Some(&token), None).await;
+    assert_eq!(body["address"], made.as_str(), "every refusal left the address as it was");
+    let (status, _) = h.call(Method::POST, "/api/v1/mail/address/available", None, Some(json!({ "name": "matt" }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+    let (status, _) = h.call(Method::PUT, "/api/v1/mail/address", None, Some(json!({ "name": "matt" }))).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn a_name_another_account_has_or_ever_had_is_taken_and_its_own_may_have_it_back() {
+    let h = Harness::new("mail");
+    let (sam, _) = with_key(&h, "sam").await;
+    let (ali, _) = with_key(&h, "ali").await;
+    assert_eq!(choose(&h, &sam, "matt").await.0, StatusCode::OK);
+    let taken = |body: Value| (body["available"].as_bool(), body["reason"].as_str().map(String::from), body["message"].as_str().map(String::from));
+    assert_eq!(taken(available(&h, &ali, "MATT").await.1), (Some(false), Some("taken".into()), Some("That name is taken.".into())));
+    let (status, body) = choose(&h, &ali, "matt").await;
+    assert_eq!((status, body), (StatusCode::CONFLICT, json!({ "error": "That name is taken.", "reason": "taken" })));
+    // Given up for a made one: still nobody else's.
+    turned_on(&h, &sam).await;
+    assert_eq!(taken(available(&h, &ali, "matt").await.1).1.as_deref(), Some("taken"));
+    assert_eq!(choose(&h, &ali, "matt").await.0, StatusCode::CONFLICT);
+    // Turned off: the same.
+    h.call(Method::DELETE, "/api/v1/mail/address", Some(&sam), None).await;
+    assert_eq!(choose(&h, &ali, "matt").await.0, StatusCode::CONFLICT);
+    let (status, _, _) = h.send(post("matt@in.ghostmarkdown.com", MAIL.as_bytes(), &token_n(1))).await;
+    assert_eq!(status, StatusCode::NOT_ACCEPTABLE, "a name given up takes nothing");
+    // Its own account may have it back, and it takes mail again.
+    assert_eq!(available(&h, &sam, "matt").await.1["available"], true);
+    assert_eq!(choose(&h, &sam, "matt").await.0, StatusCode::OK);
+    let (status, _, _) = h.send(post("matt@in.ghostmarkdown.com", MAIL.as_bytes(), &token_n(2))).await;
+    assert_eq!(status, StatusCode::OK);
+    // A deleted account's name is nobody's, for good.
+    let id = h.accounts.store.account_by_handle("sam").unwrap().id;
+    assert_eq!(h.accounts.store.delete_account(id, now()).ok(), Some(true));
+    assert_eq!(choose(&h, &ali, "matt").await.0, StatusCode::CONFLICT);
+}
+
+#[tokio::test]
+async fn two_accounts_asking_for_one_name_at_once_one_has_it() {
+    let h = Harness::new("mail");
+    let (sam, _) = with_key(&h, "sam").await;
+    let (ali, _) = with_key(&h, "ali").await;
+    let (a, b) = tokio::join!(choose(&h, &sam, "matt"), choose(&h, &ali, "matt"));
+    let mut statuses = [a.0, b.0];
+    statuses.sort();
+    assert_eq!(statuses, [StatusCode::OK, StatusCode::CONFLICT]);
+    // And in earnest, on threads at once against the store, eight accounts for one name.
+    let store: &crate::store::Store = &h.accounts.store;
+    let ids: Vec<i64> = (0..8).map(|i| store.create_account(&format!("racer{i}"), "", "", None, &[], 1).unwrap().id).collect();
+    let won = std::thread::scope(|scope| {
+        let runs: Vec<_> = ids.iter().map(|&id| scope.spawn(move || store.set_mail_address(id, "racer", 1).is_ok())).collect();
+        runs.into_iter().map(|run| run.join().unwrap()).filter(|&ok| ok).count()
+    });
+    assert_eq!(won, 1);
+    let holders = ids.iter().filter(|&&id| store.mail_address_of(id).as_deref() == Some("racer")).count();
+    assert_eq!(holders, 1);
+}
+
+#[tokio::test]
+async fn an_invite_to_a_name_of_one_s_own_books_ghost() {
+    let h = Harness::new("mail");
+    let (token, _) = with_key(&h, "sam").await;
+    assert_eq!(choose(&h, &token, "sam.lee").await.0, StatusCode::OK);
+    let invite = crate::meet::ics::tests::google_invite("REQUEST", 0, "20300115T110000", "20300115T120000", "CONFIRMED");
+    let address = "Sam.Lee@in.ghostmarkdown.com";
+    let (status, _, bytes) = h.send(post(address, crate::meet_tests::invite_mail(address, &invite).as_bytes(), &token_n(1))).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
+    let (_, body) = h.call(Method::GET, "/api/v1/meet", Some(&token), None).await;
+    let meetings = body["meetings"].as_array().unwrap();
+    assert_eq!((meetings.len(), meetings[0]["title"].as_str()), (1, Some("Roadmap review, Q4")));
+}
+
+#[tokio::test]
+async fn names_are_counted_sixty_an_hour_an_account_asking_and_choosing_alike() {
+    let h = Harness::new("mail");
+    let (sam, _) = with_key(&h, "sam").await;
+    for i in 0..crate::mail::NAMES_PER_HOUR - 1 {
+        let (status, _) = available(&h, &sam, &format!("name{i}")).await;
+        assert_eq!(status, StatusCode::OK, "ask {i}");
+    }
+    assert_eq!(choose(&h, &sam, "sam.lee").await.0, StatusCode::OK, "the sixtieth, a choice");
+    let (status, body) = available(&h, &sam, "another").await;
+    assert_eq!((status, body), (StatusCode::TOO_MANY_REQUESTS, json!({ "error": "Too many names tried in an hour. Try again later." })));
+    assert_eq!(choose(&h, &sam, "another").await.0, StatusCode::TOO_MANY_REQUESTS);
+    // The bucket is the account's: another, from the same client address, has its own hour (and the address's is
+    // twice an account's).
+    let (ali, _) = with_key(&h, "ali").await;
+    assert_eq!(available(&h, &ali, "another").await.0, StatusCode::OK);
 }
 
 /// The sealed mail the app's own code opens (test/mail/sealed_mail_test.dart, over the Rust core's `unwrap_with`,

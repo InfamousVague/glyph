@@ -93,8 +93,10 @@ struct Held<K> {
     last_prune: Instant,
 }
 
-/// How long an address may go unseen before its bucket is forgotten. A bucket
-/// untouched this long is full again anyway, so forgetting it changes nothing.
+/// How long an address may go unseen before its bucket is forgotten, and how often the forgetting is done. A bucket
+/// untouched this long is full again anyway, so forgetting it changes nothing - for a minute's bucket. An hour's takes
+/// an hour to fill ([`RateLimiter::forget_after`]): forgotten at ten minutes, it came back full, and anyone could spend
+/// thirty, wait ten minutes and spend thirty again (found 2026-10-24 with the mail names' count, mail.rs).
 const FORGET_AFTER: Duration = Duration::from_secs(600);
 
 /// Keyed by anything, not only an address: sign-in is also limited per handle (src/accounts.rs), so a guesser
@@ -131,11 +133,18 @@ impl<K: Eq + std::hash::Hash> RateLimiter<K> {
     pub fn take(&self, key: K, now: Instant) -> bool {
         let Ok(mut held) = self.held.lock() else { return false };
         if now.duration_since(held.last_prune) > FORGET_AFTER {
-            held.buckets.retain(|_, b| now.duration_since(b.at) < FORGET_AFTER);
+            let forget = self.forget_after();
+            held.buckets.retain(|_, b| now.duration_since(b.at) < forget);
             held.last_prune = now;
         }
         let (capacity, per_second) = (self.capacity, self.per_second);
         held.buckets.entry(key).or_insert_with(|| Bucket::new(capacity, per_second, now)).take(now)
+    }
+
+    /// How long a bucket may go untouched before it is forgotten: [FORGET_AFTER], or as long as it takes an empty one
+    /// to fill, if longer, so a bucket is only ever forgotten full.
+    fn forget_after(&self) -> Duration {
+        FORGET_AFTER.max(Duration::from_secs_f64(self.capacity / self.per_second))
     }
 
     #[cfg(test)]
@@ -229,6 +238,26 @@ mod tests {
         let limiter = RateLimiter::<IpAddr>::new(20, start);
         limiter.take("203.0.113.9".parse().unwrap(), start);
         limiter.take("198.51.100.1".parse().unwrap(), start + Duration::from_secs(700));
+        assert_eq!(limiter.tracked(), 1);
+    }
+
+    #[test]
+    fn an_hourly_bucket_is_not_forgotten_before_it_has_filled() {
+        let start = Instant::now();
+        let limiter = RateLimiter::<i64>::per_hour(30, start);
+        for _ in 0..30 {
+            assert!(limiter.take(7, start));
+        }
+        // Another key past ten minutes runs the forgetting; 7's bucket, spent, is kept, with what 700 s earned it.
+        let later = start + Duration::from_secs(700);
+        assert!(limiter.take(8, later));
+        assert_eq!(limiter.tracked(), 2);
+        for i in 0..5 {
+            assert!(limiter.take(7, later), "{i} of the five 700 s buys");
+        }
+        assert!(!limiter.take(7, later), "not thirty again");
+        // An hour on it is full, and forgotten as it is.
+        limiter.take(9, start + Duration::from_secs(4400));
         assert_eq!(limiter.tracked(), 1);
     }
 }
