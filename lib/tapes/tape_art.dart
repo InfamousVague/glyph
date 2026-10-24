@@ -10,9 +10,9 @@
 /// ellipsis, and the rule under it steps down into the room above the window (the shelf of meetings,
 /// `home/meeting_shelf.dart`: Matt, 2026-10-23, "show the note title on the cassette"). At one, the drawing is the
 /// web's, unchanged. [centred] is the shelf's since 2026-10-24 (Matt: "make all cassete titles one line and center
-/// them in the open spot"): one line in the larger type, smaller for a long title down to [tapeTitleMinSize] and then
-/// cut, centred in the open spot right of the A mark, between the label's top and the rule over the window
-/// ([tapeCentredTitle]).
+/// them in the open spot"): one line in the larger type, every title the same size and a long one cut (Matt,
+/// 2026-10-24: "make the titles on the cassetes consistent sizes don't make them smaller to fit more text"), centred in
+/// the open spot right of the A mark, between the label's top and the rule over the window ([tapeCentredTitle]).
 ///
 /// Given a [hue], one of the kit's colour ramps ([tapeHues]; [tapeHue] picks one from a note's id, so a note's tape is
 /// the same colour on every device and every surface), the cassette is that hue at different strengths on different
@@ -465,19 +465,13 @@ const double tapeTitleLeft = 53, tapeTitleTop = 15, tapeTitleWidth = 237, tapeTi
 TextPainter tapeLabelTitle(String title, TextStyle font, {int lines = 2, Color? color}) => _titleAt(title, font, tapeTitleSize, lines: lines, color: color, width: tapeTitleWidth);
 
 /// The open spot on the label a centred title sits in: from the A mark's right ([tapeTitleLeft]) to the label's inner
-/// edge, [tapeCentredWidth] wide about [tapeMiddle], and from the label's top to the rule. [tapeTitleMinSize] is the
-/// smallest a long title is set at before it is cut.
-const double tapeLabelTop = 14, tapeCentredWidth = tapeTitleWidth, tapeMiddle = tapeTitleLeft + tapeTitleWidth / 2, tapeTitleMinSize = 13;
+/// edge, [tapeCentredWidth] wide about [tapeMiddle], and from the label's top to the rule.
+const double tapeLabelTop = 14, tapeCentredWidth = tapeTitleWidth, tapeMiddle = tapeTitleLeft + tapeTitleWidth / 2;
 
-/// The title on one line, centred ([TapeArt.centred]): at [tapeTitleSize] where it fits [tapeCentredWidth], else a
-/// size smaller each time down to [tapeTitleMinSize], and there cut with an ellipsis. The caller disposes of it.
-TextPainter tapeCentredTitle(String title, TextStyle font, {Color? color}) {
-  for (var size = tapeTitleSize;; size -= 1) {
-    final words = _titleAt(title, font, size, lines: 1, color: color, width: tapeCentredWidth);
-    if (!words.didExceedMaxLines || size <= tapeTitleMinSize) return words;
-    words.dispose();
-  }
-}
+/// The title on one line, centred ([TapeArt.centred]): always at [tapeTitleSize], so every cassette on the shelf says
+/// its title the same size, and one longer than [tapeCentredWidth] cut with an ellipsis. Until 2026-10-24 a long title
+/// was set smaller first, down to 13, to fit more of it. The caller disposes of it.
+TextPainter tapeCentredTitle(String title, TextStyle font, {Color? color}) => _titleAt(title, font, tapeTitleSize, lines: 1, color: color, width: tapeCentredWidth);
 
 TextPainter _titleAt(String title, TextStyle font, double size, {required int lines, required double width, Color? color}) {
   const weight = FontWeight.w800;

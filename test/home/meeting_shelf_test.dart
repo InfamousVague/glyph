@@ -446,7 +446,8 @@ void main() {
   });
 
   group('a long title', () {
-    testWidgets('stays inside the label: one line, smaller before it is cut, centred clear of the A mark', (tester) async {
+    testWidgets('stays inside the label: one line, the one size for every title, cut, centred clear of the A mark', (tester) async {
+      // Matt, 2026-10-24: "make the titles on the cassetes consistent sizes don't make them smaller to fit more text".
       // A face the tests have loaded, so the widths are a real face's.
       final font = Tokens.resized(const TextStyle(fontFamily: 'Maple Mono'), 13);
       // A short one at the full size, whole.
@@ -454,16 +455,15 @@ void main() {
       expect(short.didExceedMaxLines, isFalse);
       expect(short.text!.style!.fontSize, closeTo(tapeTitleSize, 0.01));
       short.dispose();
-      // A middling one smaller, still whole, on one line.
+      // A middling one at the same size, on one line.
       final middling = tapeCentredTitle('Meeting, Oct 23 11:09', font);
-      expect(middling.didExceedMaxLines, isFalse);
-      expect(middling.text!.style!.fontSize, lessThan(tapeTitleSize));
+      expect(middling.text!.style!.fontSize, closeTo(tapeTitleSize, 0.01));
       expect(middling.computeLineMetrics(), hasLength(1));
       middling.dispose();
-      // A long one at the smallest size and cut, no wider than its room either side of the middle.
+      // A long one at the same size and cut, no wider than its room either side of the middle.
       final words = tapeCentredTitle(longTitle, font);
       expect(words.didExceedMaxLines, isTrue);
-      expect(words.text!.style!.fontSize, closeTo(tapeTitleMinSize, 0.01));
+      expect(words.text!.style!.fontSize, closeTo(tapeTitleSize, 0.01));
       expect(words.width, lessThanOrEqualTo(tapeCentredWidth));
       expect(tapeMiddle - words.width / 2, greaterThanOrEqualTo(tapeTitleLeft));
       expect((tapeLabelTop + tapeTitleRule) / 2 + words.height / 2, lessThan(tapeTitleRule));
