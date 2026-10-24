@@ -193,6 +193,11 @@ class _UpdateCardState extends State<_UpdateCard> with SingleTickerProviderState
     final action = widget.action, onAction = widget.onAction, progress = widget.progress;
     final settle = t.transition('app-settle');
     final words = pageText(t, sm, weight: 'medium', color: ink, height: leading);
+    // The ghost's place, `tiny` (art/ghost.dart: three rems tall), and the card's one height: that, the button's
+    // `min-block-size: var(--glacier-space-10)`, or two lines of words, whichever is most.
+    final rem = t.lenOf('1rem');
+    final leadHeight = 3 * rem, leadWidth = leadHeight * GhostScene.update.ratio;
+    final body = math.max(leadHeight, math.max(t.space(10), 2 * sm * leading));
     final card = Container(
       key: const ValueKey('update-notice'),
       // `margin: 0 0 var(--glacier-space-5)`
@@ -212,32 +217,37 @@ class _UpdateCardState extends State<_UpdateCard> with SingleTickerProviderState
               Padding(
                 // `padding: var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-3) var(--glacier-space-4)`
                 padding: EdgeInsetsDirectional.fromSTEB(t.space(4), t.space(3), t.space(3), t.space(3)),
-                child: Row(
-                  // `display: flex; align-items: center; gap: var(--glacier-space-3)`
-                  spacing: t.space(3),
-                  children: [
-                    if (widget.ghost && !widget.working) Ghost(scene: GhostScene.update, size: GhostSize.tiny, color: ink),
-                    Expanded(
-                      // `.updateText { flex: 1; font-size: sm; line-height: leading-sm; font-weight: medium }`
-                      child: Text.rich(
-                        TextSpan(
-                          children: [
-                            // The cogs sit in the line, their foot a fifth of an em under the words' baseline
-                            // (WorkingGears.module.css `vertical-align: -0.2em`), with their own space after them.
-                            if (widget.working)
-                              WidgetSpan(
-                                alignment: PlaceholderAlignment.baseline,
-                                baseline: TextBaseline.alphabetic,
-                                child: Transform.translate(offset: Offset(0, 0.2 * sm), child: WorkingGears(label: widget.workingLabel, size: sm, color: ink)),
-                              ),
-                            TextSpan(text: widget.text),
-                          ],
+                // One size from the first word to the restart (Matt, 2026-10-24: "the ghost update banner shifts when
+                // updating pleaase make sure it always takes up the same space"): the card is as tall as the tallest
+                // of its states, the ghost, the button and two lines of words, whichever it is in; the ghost's place
+                // is always kept, the ghost in it while an update waits or the cogs while it works, and empty when it says why one did
+                // not go; and the words take two lines at most.
+                child: SizedBox(
+                  key: const ValueKey('update-body'),
+                  height: body,
+                  child: Row(
+                    // `display: flex; align-items: center; gap: var(--glacier-space-3)`
+                    spacing: t.space(3),
+                    children: [
+                      SizedBox(
+                        key: const ValueKey('update-lead'),
+                        width: leadWidth,
+                        height: leadHeight,
+                        child: Center(
+                          child: widget.working
+                              ? WorkingGears(label: widget.workingLabel, size: sm * 1.6, color: ink)
+                              : widget.ghost
+                              ? Ghost(scene: GhostScene.update, size: GhostSize.tiny, color: ink)
+                              : null,
                         ),
-                        style: words,
                       ),
-                    ),
-                    if (action != null && onAction != null) _Action(key: const ValueKey('update-action'), label: action, onPressed: onAction, background: ink, color: const Color(0xFFFFFFFF), ring: ink),
-                  ],
+                      Expanded(
+                        // `.updateText { flex: 1; font-size: sm; line-height: leading-sm; font-weight: medium }`
+                        child: Text(widget.text, maxLines: 2, overflow: TextOverflow.ellipsis, style: words),
+                      ),
+                      if (action != null && onAction != null) _Action(key: const ValueKey('update-action'), label: action, onPressed: onAction, background: ink, color: const Color(0xFFFFFFFF), ring: ink),
+                    ],
+                  ),
                 ),
               ),
               if (progress != null)
