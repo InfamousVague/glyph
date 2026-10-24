@@ -11,6 +11,16 @@
 /// `home/meeting_shelf.dart`: Matt, 2026-10-23, "show the note title on the cassette"). At one, the drawing is the
 /// web's, unchanged.
 ///
+/// Given a [hue], one of the kit's colour ramps ([tapeHues]; [tapeHue] picks one from a note's id, so a note's tape is
+/// the same colour on every device and every surface), the cassette is that hue at different strengths on different
+/// parts rather than two inks, for depth (Matt, 2026-10-24: "give the cassettes different colors from the color token
+/// palette as well with different opacities on different parts of the cassete to build depth"): the shell solid with
+/// a shaded rim and a lit top edge, the guard at its foot a step down, the label paper faintly tinted with a band of
+/// the hue across it and a shadow under it, the window smoked, the tape dark, the hubs lit. Lit and shaded are the
+/// lighter and darker of the paper and the ink, so the light comes from above in both themes. The title stays ink on
+/// a label that is nearly paper. In simple mode ([muted]) every strength is lower, a pastel of the hue. Without a
+/// hue it is the two inks, as the meeting being recorded draws it.
+///
 /// What differs: the web's home page drew these on a shelf of tapes (`home/TapeShelf.tsx`), which went with the
 /// dashboard (docs/DESIGN.md §147); today's home page draws them on the shelf of meetings (GHST-112,
 /// `home/meeting_shelf.dart`), each with its note's title on the label in two lines ([TapeArt.titleLines]). It is
@@ -23,11 +33,28 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../core/preferences.dart';
 import 'tape.dart';
+
+/// The kit's colour ramps a cassette can wear (`--glacier-<hue>-1` to `-12`, which turn over with the theme), set
+/// round the colour wheel so that the next one along is never the one before. Its grey is the two inks' business.
+const List<String> tapeHues = ['red', 'amber', 'green', 'teal', 'blue', 'purple'];
+
+/// The hue a note's cassette wears: one of [tapeHues], from a hash of its [id] (32-bit FNV-1a over its UTF-16 code
+/// units), so the same note is the same colour on every device, and two notes side by side usually differ.
+String tapeHue(String id) {
+  var hash = 0x811c9dc5;
+  for (final unit in id.codeUnits) {
+    // Times the FNV prime, 2^24 + 0x193, in two parts that stay under 2^53, so a web build gets the same answer.
+    final x = hash ^ unit;
+    hash = (x * 0x193 + ((x & 0xff) << 24)) & 0xffffffff;
+  }
+  return tapeHues[hash % tapeHues.length];
+}
 
 /// The cassette (`src/app/tapes/TapeArt.tsx`), painted from the same 320 by 204 drawing.
 class TapeArt extends StatefulWidget {
-  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false, this.titleLines = 1});
+  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false, this.titleLines = 1, this.hue, this.muted});
 
   /// Milliseconds of tape on the take-up reel: the note's length, or the playhead.
   final num positionMs;
@@ -50,6 +77,12 @@ class TapeArt extends StatefulWidget {
 
   /// How many lines the title may take. One is the web's label; more draws it as [tapeLabelTitle] lays it out.
   final int titleLines;
+
+  /// The colour ramp it is drawn in, one of [tapeHues] ([tapeHue] of its note); none is the two inks.
+  final String? hue;
+
+  /// The [hue] at lower strengths, calm: simple mode's unless said.
+  final bool? muted;
 
   @override
   State<TapeArt> createState() => _TapeArtState();
@@ -101,6 +134,7 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
+    final hue = widget.hue != null && tapeHues.contains(widget.hue) ? widget.hue : null;
     return ExcludeSemantics(
       child: AspectRatio(
         aspectRatio: 320 / 204,
@@ -116,6 +150,9 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
             side: widget.bare ? null : widget.side,
             counter: widget.bare ? null : widget.counter,
             titleLines: widget.titleLines,
+            hue: hue == null ? null : t.color('glacier-$hue-9'),
+            muted: widget.muted ?? preferences.value.simple,
+            dark: t.isDark,
           ),
         ),
       ),
@@ -124,7 +161,7 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
 }
 
 class _TapePainter extends CustomPainter {
-  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter, this.titleLines = 1}) : super(repaint: angles);
+  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter, this.titleLines = 1, this.hue, this.muted = false, this.dark = false}) : super(repaint: angles);
 
   final ({double supply, double takeup}) packs;
   final ValueNotifier<({double supply, double takeup})> angles;
@@ -133,10 +170,19 @@ class _TapePainter extends CustomPainter {
   final String? title, side, counter;
   final int titleLines;
 
+  /// The ramp's ninth step (`--glacier-<hue>-9`), the solid of the hue in either theme; null draws the two inks.
+  final Color? hue;
+  final bool muted, dark;
+
   @override
   void paint(Canvas canvas, Size size) {
     canvas.save();
     canvas.scale(size.width / 320, size.height / 204);
+    if (hue != null) {
+      _paintHued(canvas, hue!);
+      canvas.restore();
+      return;
+    }
     final inkFill = Paint()..color = ink;
     final paperFill = Paint()..color = paper;
     Paint stroke(Color color, double width) => Paint()
@@ -182,20 +228,7 @@ class _TapePainter extends CustomPainter {
     canvas.drawRect(const Rect.fromLTWH(20, 14, 280, 132), paperFill);
     canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(30, 22, 15, 15), const Radius.circular(2)), inkFill);
     _words(canvas, 'A', const Offset(37.5, 33.5), size: 11, color: paper, weight: FontWeight.w800, anchor: 0.5);
-    final tall = titleLines > 1;
-    if (title != null && title!.isNotEmpty) {
-      if (tall) {
-        final words = tapeLabelTitle(title!, font, lines: titleLines, color: ink);
-        words.paint(canvas, const Offset(tapeTitleLeft, tapeTitleTop));
-        words.dispose();
-      } else {
-        _words(canvas, title!, const Offset(53, 34), size: 13, color: ink, weight: FontWeight.w800, tracking: 0.06 * 13);
-      }
-    }
-    if (side != null && side!.isNotEmpty) _words(canvas, side!, const Offset(290, 33), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
-    canvas.drawLine(Offset(30, tall ? tapeTitleRule : 44), Offset(290, tall ? tapeTitleRule : 44), stroke(ink, 0.8));
-    canvas.drawLine(const Offset(20, 129), const Offset(300, 129), stroke(ink, 0.8));
-    if (counter != null && counter!.isNotEmpty) _words(canvas, counter!, const Offset(290, 142), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
+    _print(canvas, rule: stroke(ink, 0.8));
     canvas.restore();
 
     // The shell's own furniture, in a thinner paper line.
@@ -215,6 +248,146 @@ class _TapePainter extends CustomPainter {
       canvas.drawCircle(at, 2.8, paperFill);
     }
     canvas.restore();
+  }
+
+  /// What is printed on the label in ink: the title, the side, the counter, and the two rules in [rule].
+  void _print(Canvas canvas, {required Paint rule}) {
+    final tall = titleLines > 1;
+    if (title != null && title!.isNotEmpty) {
+      if (tall) {
+        final words = tapeLabelTitle(title!, font, lines: titleLines, color: ink);
+        words.paint(canvas, const Offset(tapeTitleLeft, tapeTitleTop));
+        words.dispose();
+      } else {
+        _words(canvas, title!, const Offset(53, 34), size: 13, color: ink, weight: FontWeight.w800, tracking: 0.06 * 13);
+      }
+    }
+    if (side != null && side!.isNotEmpty) _words(canvas, side!, const Offset(290, 33), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
+    canvas.drawLine(Offset(30, tall ? tapeTitleRule : 44), Offset(290, tall ? tapeTitleRule : 44), rule);
+    canvas.drawLine(const Offset(20, 129), const Offset(300, 129), rule);
+    if (counter != null && counter!.isNotEmpty) _words(canvas, counter!, const Offset(290, 142), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
+  }
+
+  /// The cassette in one hue at several strengths, for depth. Each part lays the hue over the paper at its own
+  /// opacity, then the light (the lighter of paper and ink) or the shade (the darker) over that, so the light falls
+  /// from above in either theme. Muted, for simple mode, the same parts at lower strengths.
+  void _paintHued(Canvas canvas, Color hue) {
+    final light = dark ? ink : paper, shade = dark ? paper : ink;
+    final m = muted ? 0.5 : 1.0;
+    Paint fill(Color color, double alpha) => Paint()..color = color.withValues(alpha: alpha);
+    Paint stroke(Color color, double alpha, double width) => Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = width
+      ..strokeJoin = StrokeJoin.round
+      ..color = color.withValues(alpha: alpha);
+    // The hue over the paper, so what is under the cassette never shows through it.
+    Paint tinted(double alpha) => Paint()..color = Color.alphaBlend(hue.withValues(alpha: alpha), paper);
+
+    // The shell, solid; its rim in the shade, and its top edge caught by the light.
+    final shell = RRect.fromRectAndRadius(const Rect.fromLTWH(2, 2, 316, 200), const Radius.circular(14));
+    canvas.drawRRect(shell, tinted(muted ? 0.42 : 1));
+    canvas.drawRRect(shell.deflate(2.5), stroke(shade, 0.2 * m, 5));
+    canvas.save();
+    canvas.clipRect(const Rect.fromLTWH(0, 0, 320, 18));
+    canvas.drawRRect(shell.deflate(1.4), stroke(light, 0.45 * m, 1.2));
+    canvas.restore();
+
+    // The guard at the foot, a step into the shade.
+    canvas.save();
+    canvas.clipRRect(shell);
+    canvas.drawPath(
+      Path()
+        ..moveTo(66, 204)
+        ..lineTo(84, 166)
+        ..lineTo(236, 166)
+        ..lineTo(254, 204)
+        ..close(),
+      fill(shade, 0.14 * m),
+    );
+    canvas.restore();
+
+    // The window: smoked glass, darker than the shell; the wound tape behind it darker still, with a lit hard edge.
+    final window = RRect.fromRectAndRadius(const Rect.fromLTWH(62, 61, 196, 56), const Radius.circular(28));
+    canvas.drawRRect(window, fill(shade, 0.42 * m));
+    for (final (x, r) in [(leftX, packs.supply), (rightX, packs.takeup)]) {
+      canvas.drawCircle(Offset(x, reelY), r, fill(shade, 0.62 * m));
+      canvas.drawCircle(Offset(x, reelY), r, stroke(light, 0.4, 1));
+    }
+    final ring = fill(light, muted ? 0.8 : 0.92);
+    final hole = Paint()..color = Color.alphaBlend(shade.withValues(alpha: 0.4 * m), hue);
+    _reel(canvas, leftX, angles.value.supply, hole, ring);
+    _reel(canvas, rightX, angles.value.takeup, hole, ring);
+
+    // The tape from pack to pack round the guides, dark, as tape is.
+    final leave = Offset(leftX - packs.supply * 0.62, reelY + packs.supply * 0.78);
+    final arrive = Offset(rightX + packs.takeup * 0.62, reelY + packs.takeup * 0.78);
+    canvas.drawPath(
+      Path()
+        ..moveTo(leave.dx, leave.dy)
+        ..lineTo(46, 156)
+        ..lineTo(70, 170)
+        ..lineTo(250, 170)
+        ..lineTo(274, 156)
+        ..lineTo(arrive.dx, arrive.dy),
+      stroke(shade, 0.72 * m, 1.4),
+    );
+    canvas.drawCircle(const Offset(50, 154), 3.5, fill(light, 0.85));
+    canvas.drawCircle(const Offset(270, 154), 3.5, fill(light, 0.85));
+
+    // The label, raised: a shadow under it, then its paper with the faintest tint of the hue and a band of the hue
+    // across it under the window. The title on it is ink on what is nearly paper.
+    const labelBox = Rect.fromLTWH(20, 14, 280, 132);
+    final edge = RRect.fromRectAndRadius(labelBox, const Radius.circular(8));
+    canvas.drawPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRRect(edge.shift(const Offset(0, 1.8)))
+        ..addRRect(window),
+      fill(shade, 0.22 * m),
+    );
+    canvas.save();
+    canvas.clipPath(
+      Path()
+        ..fillType = PathFillType.evenOdd
+        ..addRRect(edge)
+        ..addRRect(window),
+    );
+    // A touch more on the dark, whose paper drinks a tint that reads on white.
+    canvas.drawRect(labelBox, tinted(muted ? 0.06 : (dark ? 0.18 : 0.12)));
+    canvas.drawRect(const Rect.fromLTWH(20, 119, 280, 8), fill(hue, muted ? 0.3 : 0.7));
+    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(30, 22, 15, 15), const Radius.circular(2)), fill(hue, muted ? 0.55 : 1));
+    _words(canvas, 'A', const Offset(37.5, 33.5), size: 11, color: light, weight: FontWeight.w800, anchor: 0.5);
+    _print(canvas, rule: stroke(ink, 0.55, 0.8));
+    canvas.restore();
+    canvas.drawRRect(edge, stroke(hue, 0.5 * m, 0.8));
+    // The glass's rim in the shade along its top, where the label overhangs it.
+    canvas.save();
+    canvas.clipRect(const Rect.fromLTWH(0, 0, 320, reelY));
+    canvas.drawRRect(window.deflate(0.8), stroke(shade, 0.35 * m, 1.6));
+    canvas.restore();
+
+    // The shell's own furniture, recessed into the shade with a thin lit line, and its screws.
+    final outline = stroke(light, 0.1 + 0.4 * m, 1.2);
+    final recess = fill(shade, 0.3 * m);
+    canvas.drawPath(
+      Path()
+        ..moveTo(66, 202)
+        ..lineTo(84, 166)
+        ..lineTo(236, 166)
+        ..lineTo(254, 202),
+      outline,
+    );
+    final slot = RRect.fromRectAndRadius(const Rect.fromLTWH(146, 177, 28, 10), const Radius.circular(2));
+    canvas.drawRRect(slot, recess);
+    canvas.drawRRect(slot, outline);
+    for (final x in const [104.0, 216.0]) {
+      canvas.drawCircle(Offset(x, 186), 5, recess);
+      canvas.drawCircle(Offset(x, 186), 5, outline);
+    }
+    for (final at in const [Offset(14, 14), Offset(306, 14), Offset(14, 190), Offset(306, 190), Offset(160, 194)]) {
+      canvas.drawCircle(at, 2.8, fill(light, 0.8));
+      canvas.drawCircle(at, 1, fill(shade, 0.35 * m));
+    }
   }
 
   /// A hub: a paper ring, the spindle hole, and the six teeth that show it turning.
@@ -267,7 +440,10 @@ class _TapePainter extends CustomPainter {
       old.side != side ||
       old.counter != counter ||
       old.font != font ||
-      old.titleLines != titleLines;
+      old.titleLines != titleLines ||
+      old.hue != hue ||
+      old.muted != muted ||
+      old.dark != dark;
 }
 
 /// Where a title of more than one line sits on the label, in the drawing's units: from the A mark's right to the

@@ -9,6 +9,10 @@
 /// geometry (`tape.dart`), and the one case about the svg's own nodes is skipped.
 library;
 
+import 'dart:io';
+import 'dart:ui' as ui;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/app/preferences.dart';
@@ -348,4 +352,91 @@ void main() {
       await gone(tester);
     });
   });
+
+  // Matt, 2026-10-24: "give the cassettes different colors from the color token palette as well with different
+  // opacities on different parts of the cassete to build depth".
+  group('the cassette’s colour', () {
+    test('is one of the palette’s hues, the same for a note every time, from its id alone', () {
+      // FNV-1a of "a" is 0xe40c292c, which is 4 of six: so the hash is the same on a phone, a desktop and the web.
+      expect(tapeHue('a'), 'blue');
+      expect(tapeHue('mt-standup'), tapeHue('mt-standup'));
+      expect([for (var i = 0; i < 60; i += 1) tapeHue('note-$i')], everyElement(isIn(tapeHues)));
+    });
+
+    test('differs from note to note, most of the time', () {
+      final hues = [for (var i = 0; i < 600; i += 1) tapeHue('n${i * 7919}')];
+      for (final hue in tapeHues) {
+        expect(hues.where((h) => h == hue).length, inInclusiveRange(60, 140), reason: hue);
+      }
+      var same = 0;
+      for (var i = 1; i < hues.length; i += 1) {
+        if (hues[i] == hues[i - 1]) same += 1;
+      }
+      expect(same, lessThan(hues.length / 4));
+    });
+
+    testWidgets('the note’s tape wears its note’s hue', (tester) async {
+      tape = tapeOf(makeNote('t', '# Trip', recordingMs: 65000, segments: phrases));
+      await pumpApp(tester, home: NoteTape(note: makeNote('t', '# Trip'), title: 'Trip', tape: tape, onRemove: () {}, hasMemos: false));
+      expect(tester.widget<TapeArt>(find.byType(TapeArt)).hue, tapeHue('t'));
+      await away(tester);
+    });
+
+    // Pictures in light and dark, of the tape at the top of a note, every hue, and simple mode's muted ones, written
+    // to build/feature-shots/tapes/ to be looked at, not held as goldens.
+    for (final theme in ['light', 'dark']) {
+      testWidgets('pictures, $theme', (tester) async {
+        tape = tapeOf(makeNote('mt-standup', '# Standup', recordingMs: 4 * 60000, segments: phrases));
+        tape.seek(95000);
+        const titles = ['Standup', 'Sprint retro', 'Quarterly planning with the whole design team', 'Client call', 'Trip', 'Interview'];
+        Widget art(int i, {bool muted = false}) =>
+            TapeArt(positionMs: 40000 + i * 50000, title: titles[i], titleLines: 2, hue: tapeHues[i], muted: muted);
+        Widget pair(Widget a, Widget b) => Row(children: [Expanded(child: a), const SizedBox(width: 16), Expanded(child: b)]);
+        await pumpApp(
+          tester,
+          prefs: AppPreferences(theme: theme),
+          home: SafeArea(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                NoteTape(note: makeNote('mt-standup', '# Standup'), title: 'Standup', tape: tape, onRemove: () {}, hasMemos: false),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+                  child: Column(
+                    children: [
+                      for (var i = 0; i < 6; i += 2) ...[pair(art(i), art(i + 1)), const SizedBox(height: 12)],
+                      pair(art(0, muted: true), art(3, muted: true)),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+        tape.player.dispose();
+        await _snap(tester, 'tapes-$theme');
+        debugDisableShadows = true;
+        await tester.pumpWidget(const SizedBox.shrink());
+        await tester.pump(const Duration(seconds: 1));
+      });
+    }
+  });
+}
+
+/// The screen as it is, written to build/feature-shots/tapes/[name].png (test/home/meeting_shelf_test.dart `_snap`).
+Future<void> _snap(WidgetTester tester, String name) async {
+  for (var i = 0; i < 4; i++) {
+    await tester.pump(const Duration(milliseconds: 250));
+  }
+  final boundary = tester.binding.renderViews.first;
+  final bytes = await tester.runAsync(() async {
+    final layer = boundary.debugLayer! as OffsetLayer;
+    final image = await layer.toImage(boundary.paintBounds);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data!.buffer.asUint8List();
+  });
+  File('build/feature-shots/tapes/$name.png')
+    ..createSync(recursive: true)
+    ..writeAsBytesSync(bytes!);
 }

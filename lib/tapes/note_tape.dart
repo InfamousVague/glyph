@@ -256,6 +256,8 @@ class _NoteTapeState extends State<NoteTape> {
                         title: label,
                         side: tapeDate(widget.note.createdAt).toUpperCase(),
                         counter: counter(tape.length),
+                        // The note's own colour, as on the shelf of meetings.
+                        hue: tapeHue(widget.note.id),
                       ),
                     ),
                   ),
