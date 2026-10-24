@@ -29,7 +29,9 @@ Device deviceOf(FakeService service, {int clock = 0, Map<String, List<int>> pict
 
 /// One pass of the notes on a device: the one line the web's `syncDevice` has as its `sync`.
 extension NotesPassOnDevice on Device {
-  Future<Outcome> run({Map<String, num> meetings = const {}, bool syncMeetingRecordings = false, bool Function(String id)? teamNote, bool Function(String id)? sharedLive}) =>
+  /// [syncMeetingRecordings] left out is a context given no switch at all, which sends a meeting's audio as the
+  /// app's default does (GHST-112).
+  Future<Outcome> run({Map<String, num> meetings = const {}, bool? syncMeetingRecordings, bool Function(String id)? teamNote, bool Function(String id)? sharedLive}) =>
       sync((d) => syncNotes(SyncContext(
             token: d.token,
             key: d.key,
@@ -41,7 +43,7 @@ extension NotesPassOnDevice on Device {
             crypto: d.crypto,
             now: d.now,
             meetings: () => meetings,
-            syncMeetingRecordings: () => syncMeetingRecordings,
+            syncMeetingRecordings: syncMeetingRecordings == null ? null : () => syncMeetingRecordings,
             teamNote: teamNote,
             sharedLive: sharedLive,
           )));

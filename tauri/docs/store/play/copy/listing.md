@@ -52,7 +52,7 @@ TAPES
 Every spoken note keeps its recording as a tape at the top of the note, to play back or add to. Tap Summarize on the tape and the phone's language model writes a Summary under the title: one line on what it was about, what was decided, and the to-dos as boxes. The Tapes shelf on the home page keeps your recordings in a row, each with its summary's first line.
 
 MEETINGS
-Record a meeting and let the screen go off. When it ends, the phone transcribes it and writes it up in the background, on the charger if the battery is low. A notification says so, with none of it on the lock screen. The summary sits under the title, and the audio stays on the phone.
+Record a meeting and let the screen go off. When it ends, the phone transcribes it and writes it up in the background, on the charger if the battery is low. A notification says so, with none of it on the lock screen. The summary sits under the title, and the audio goes to your other devices end-to-end encrypted, or stays on the phone if you'd rather.
 
 THE MARKS
 Headings, lists, to-dos, tables, code, footnotes and links between notes are drawn as you type, the marks left dimmed. Then seven marks of Ghost.md's own: highlight, aside, unsure, redact, shout, added, and spoiler, which sits in smoke until you tap it. And five effects that move: heat, frost, a wave, a shimmer and a haunting, each written as an emoji twice, 🔥🔥like this🔥🔥, so the note still reads anywhere. A list can be a board with cards you drag between columns. Notes gather into a notebook with an index. A canvas puts cards on a page with lines between them, saved as JSON Canvas.

@@ -38,9 +38,11 @@ use std::sync::Arc;
 const NOTE_LIMIT: usize = 1_400_000;
 /// Settings, as base64.
 const PREFS_LIMIT: usize = 350_000;
-/// A recording's or a picture's ciphertext. A long voice note at 16 kHz mono is a few megabytes; this is well past
-/// any of them.
-const RECORDING_LIMIT: usize = 64 * 1024 * 1024;
+/// A recording's or a picture's ciphertext: 256 MiB of tape, two hours and nineteen minutes at 16 kHz mono 16-bit, so
+/// a two-hour meeting goes (GHST-112; 64 MiB, about 35 minutes, until 2026-10-23), and 64 KiB more for the sealing's
+/// own bytes (the app's `recordingSyncLimit` is the tape's 256 MiB). A team's files are held to the same
+/// (org_notes.rs `FILE_LIMIT`).
+pub const RECORDING_LIMIT: usize = 256 * 1024 * 1024 + 64 * 1024;
 /// The most notes one page of the feed carries.
 const PAGE_LIMIT: i64 = 500;
 /// How long a note's, a recording's or a picture's id may be.

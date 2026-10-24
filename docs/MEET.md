@@ -300,7 +300,9 @@ meeting routes. For each take in `GET meet/takes`:
    it from the captions alone. A take with no sound is filed from its captions at once.
 4. The note is written through the door a note from another device comes in by (`LocalNotes.apply`), with the
    recording's length; marked a meeting in `prefs.meetings` ({noteId: startedAt}), so Sync meeting recordings governs
-   its audio as it does a recorded meeting's; and its write-up asked for (`MeetDevice.writeUp`).
+   its audio as it does a recorded meeting's (on unless turned off, since 2026-10-23, GHST-112: the audio goes to
+   the account's other devices, and filed in a team's folder to every member); and its write-up asked for
+   (`MeetDevice.writeUp`).
 5. Only then `DELETE meet/takes/{id}`.
 
 Every pass also names the speakers of a meeting whose write-up has come (the list `glyph-meet-pending` in the

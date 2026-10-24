@@ -8,22 +8,30 @@
 ///
 /// 1. **Pull** every row written since the cursor: a deletion takes the note and its document; a row is adopted
 ///    into the document held here (merged, never doubled), its words written to the note, the note filed in the
-///    organization's workspace, and its files - the versions file merged, the pictures - fetched where this device
-///    lacks them. A note this device had of its own before the team did keeps its words: they are reconciled into
-///    the document as a change, so the team gets them. Filed, that is, by the path its row carries: in the folder
-///    of the organization's it names, found or made here (lib/team/folders.dart; GHST-107), or in the
-///    organization's workspace itself for a note at its own folder.
+///    organization's workspace, and its files - the versions file merged, the pictures, the recording - fetched
+///    where this device lacks them. A note this device had of its own before the team did keeps its words: they
+///    are reconciled into the document as a change, so the team gets them. Filed, that is, by the path its row
+///    carries: in the folder of the organization's it names, found or made here (lib/team/folders.dart; GHST-107),
+///    or in the organization's workspace itself for a note at its own folder.
 /// 2. **Updates** since each document's seq, applied, and the words written to the note when they changed.
 /// 3. **Push**: words that reached a note without the editor are reconciled into its document; the updates made
 ///    here are posted to the log; a note new to the team, or one whose particulars changed, or one whose document
-///    has gone [snapshotEvery] updates past its last snapshot, is put as a row - with its versions file and
-///    pictures sent first - and a row that lost the race is merged and put again. A note no longer here, or no
+///    has gone [snapshotEvery] updates past its last snapshot, is put as a row - with its versions file, pictures
+///    and recording sent first - and a row that lost the race is merged and put again. A note no longer here, or no
 ///    longer filed in the organization's workspace or a folder under it, is deleted from the team. A folder
 ///    the pass emptied, named by no team note's path any more, is dropped at the end ([TeamFolders.prune]).
 ///
 /// Two members who edited apart merge by the CRDT: nothing here keeps a copy. A note's send that fails is counted
 /// and the pass goes on, as the account's sync does; a lapsed session ends it, and so does the key turning under
 /// this device ([KeyTurned]).
+///
+/// **A note's recording travels with it** (GHST-112, Matt 2026-10-23: "even shared notes so people can listen
+/// back"): sealed under the organization key as `r-<note id>` in its files, beside the pictures, and named in the
+/// row by its fingerprint as the account's payload names it (lib/sync/notes.dart). It is sent before the row, only
+/// when it changed ([sendRecordingOf], hashed once per length), and not while the sender's meeting recordings stay
+/// on the device; every member's device fetches it when the row lands and it has none or an older one
+/// ([_settleRecordings]), and the tape plays there. A device that has not fetched it yet still names it when it
+/// puts the row, so no member's put takes it off the others ([_recordingFor]).
 ///
 /// What differs:
 /// - The context is made from what the engine hands the hook ([TeamPass]): [teamNotesPass] is the
@@ -70,29 +78,32 @@ const int snapshotEvery = 200;
 /// Updates in one post (server/src/org_notes.rs `UPDATES_PER_POST`).
 const int _postAtMost = 100;
 
-/// Per note: the row's revision last seen, and the note's particulars then ([particulars]).
+/// Per note: the row's revision last seen, the note's particulars then ([particulars]), and the fingerprint of the
+/// recording the row named, where it named one (GHST-112).
 class TeamMark {
-  const TeamMark({required this.rev, required this.mark});
+  const TeamMark({required this.rev, required this.mark, this.recording});
 
   static TeamMark? fromJson(Object? raw) {
     if (raw is! Map) return null;
-    final rev = raw['rev'], mark = raw['mark'];
-    return rev is num && mark is String ? TeamMark(rev: rev.toInt(), mark: mark) : null;
+    final rev = raw['rev'], mark = raw['mark'], recording = raw['recording'];
+    if (rev is! num || mark is! String) return null;
+    return TeamMark(rev: rev.toInt(), mark: mark, recording: recording is String && recording.isNotEmpty ? recording : null);
   }
 
   final int rev;
   final String mark;
+  final String? recording;
 
-  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark};
-
-  @override
-  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark;
+  Map<String, Object?> toJson() => {'rev': rev, 'mark': mark, 'recording': ?recording};
 
   @override
-  int get hashCode => Object.hash(rev, mark);
+  bool operator ==(Object other) => other is TeamMark && other.rev == rev && other.mark == mark && other.recording == recording;
 
   @override
-  String toString() => 'TeamMark($rev, $mark)';
+  int get hashCode => Object.hash(rev, mark, recording);
+
+  @override
+  String toString() => 'TeamMark($rev, $mark${recording == null ? '' : ', $recording'})';
 }
 
 /// What this build takes of a team's rows, kept with a channel's state ([TeamSyncState.toJson]'s `reads`). 1, or
@@ -174,6 +185,8 @@ class TeamSyncContext {
     this.pulled,
     this.generation,
     this.olderKey,
+    this.meetings,
+    this.syncMeetingRecordings,
   });
 
   final String token;
@@ -211,6 +224,12 @@ class TeamSyncContext {
   /// The key at an older generation, for a row or an update sealed before a turn and not re-sealed yet.
   final Future<SealKey?> Function(int generation)? olderKey;
 
+  /// Which notes are meetings, and whether their recordings go (the person's Sync meeting recordings), read as the
+  /// account's pass reads them: a meeting's recording on a team's note stays here while that is off. None given, it
+  /// goes.
+  final Map<String, num> Function()? meetings;
+  final bool Function()? syncMeetingRecordings;
+
   /// What this pass still owes the notes it has taken: their versions files and pictures, fetched once the notes
   /// are in.
   final List<Future<void> Function()> _later = [];
@@ -235,6 +254,8 @@ class TeamSyncContext {
     now: now,
     filesRoute: _route('files'),
     generation: _generation != 0 ? _generation : null,
+    meetings: meetings,
+    syncMeetingRecordings: syncMeetingRecordings,
   );
 }
 
@@ -250,12 +271,13 @@ class _Tally {
 /// A row's blob, opened (`TeamPayload`): the note as it stood, the document's whole state then, the seq it covered,
 /// and the files.
 class _Payload {
-  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions, this.files = const [], this.texts = const []});
+  const _Payload({required this.note, required this.state, required this.seq, this.images = const [], this.versions, this.recording, this.files = const [], this.texts = const []});
 
   factory _Payload.fromJson(Object? raw, String id) {
     final map = raw is Map ? raw : const <Object?, Object?>{};
     final note = noteFromJson(map['note']);
     final state = map['state'], seq = map['seq'], images = map['images'], versions = map['versions'], files = map['files'], texts = map['texts'];
+    final recording = map['recording'];
     if (note == null || state is! String) throw const FormatException('That note of the team’s could not be read.');
     return _Payload(
       note: withId(note, id),
@@ -263,6 +285,7 @@ class _Payload {
       seq: seq is num ? seq.toInt() : 0,
       images: images is List ? images.whereType<String>().toList() : const [],
       versions: versions is String && versions.isNotEmpty ? versions : null,
+      recording: recording is String && recording.isNotEmpty ? recording : null,
       files: files is List ? files.whereType<String>().toList() : const [],
       texts: texts is List ? texts.whereType<String>().toList() : const [],
     );
@@ -273,6 +296,9 @@ class _Payload {
   final int seq;
   final List<String> images;
   final String? versions;
+
+  /// The recording's fingerprint, where the note has one that travels.
+  final String? recording;
 
   /// The files the note links, and the things whose words were read (lib/sync/notes.dart's payload has the same).
   final List<String> files;
@@ -299,6 +325,27 @@ class _Row {
 /// A note's particulars, for telling whether its row needs putting again (`particulars`): everything but the words,
 /// which the document carries, and `updatedAt`, which every keystroke moves.
 String particulars(Note note) => jsonEncode([note.createdAt, note.sourceWord, note.starred, note.archivedAt, note.path, note.recordingMs]);
+
+/// The recording's length a mark of [particulars] was taken at; null for a mark that does not say.
+int? _recordingMsIn(String mark) {
+  try {
+    final said = jsonDecode(mark);
+    return said is List && said.isNotEmpty && said.last is num ? (said.last as num).toInt() : null;
+  } on FormatException {
+    return null;
+  }
+}
+
+/// The recording a row of [note] names (GHST-112): the one the row last named, while the note's tape is the length
+/// it was then, whichever member puts it, so a device that has not fetched it yet does not take it off the row for
+/// everyone; otherwise this device's own, sent first where the organization lacks it, or none where it stays here.
+Future<String?> _recordingFor(TeamSyncContext ctx, Note note, TeamMark? known) async {
+  final ms = note.recordingMs ?? 0;
+  if (ms == 0) return null;
+  final named = known?.recording;
+  if (named != null && _recordingMsIn(known!.mark) == ms) return named;
+  return sendRecordingOf(ctx._files, note);
+}
 
 String _noteContext(String orgId, String id) => 'org:$orgId:note:$id';
 String _updateContext(String orgId, String id) => 'org:$orgId:note:$id:update';
@@ -386,6 +433,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
     }
     await ctx.docs.drop(item.id);
     ctx.state.notes.remove(item.id);
+    _forgetRecording(ctx, item.id);
     return;
   }
   final (value: payload, :older) = await _opened(ctx, (key) async => _Payload.fromJson(await ctx.crypto.open(key, blob, _noteContext(ctx.orgId, item.id)), item.id));
@@ -423,7 +471,7 @@ Future<void> _takeRow(TeamSyncContext ctx, _Row item, Note? local, _Tally tally)
   } else {
     ctx.file(item.id);
   }
-  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs));
+  ctx.state.notes[item.id] = TeamMark(rev: item.rev, mark: particulars(theirs), recording: payload.recording);
   // Read under a generation before the turn: put again under the one in force, so every member can read it.
   if (older) await _putRow(ctx, await ctx.notes.get(item.id) ?? theirs, doc, tally);
 }
@@ -538,6 +586,7 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   final known = ctx.state.notes[note.id];
   final files = ctx._files;
   final versions = await sendVersionsOf(files, note.id);
+  final recording = await _recordingFor(ctx, note, known);
   final images = imageNames(note.body);
   for (final name in images) {
     final id = fileId(FileKind.image, name);
@@ -563,13 +612,14 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
     'seq': doc.seq,
     if (images.isNotEmpty) 'images': images,
     'versions': ?versions,
+    'recording': ?recording,
     if (linked.isNotEmpty) 'files': linked,
     if (texts.isNotEmpty) 'texts': texts,
   };
   final blob = await ctx.crypto.seal(ctx.key, payload, _noteContext(ctx.orgId, note.id));
   try {
     final answer = await ctx.api.call('PUT', ctx._route('notes/${Uri.encodeComponent(note.id)}'), token: ctx.token, body: ctx._body({'base': known?.rev ?? 0, 'blob': blob, 'upTo': doc.seq}));
-    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note));
+    ctx.state.notes[note.id] = TeamMark(rev: _numOf(answer, 'rev'), mark: particulars(note), recording: recording);
     tally.sent += 1;
     doc.snapshotSeq = doc.seq;
     // The snapshot carried the updates pending when it was taken; what was typed since is still pending.
@@ -588,12 +638,44 @@ Future<void> _putRow(TeamSyncContext ctx, Note note, TeamDoc doc, _Tally tally, 
   }
 }
 
+/// Whether a recording on this device is owed to a row that names none (GHST-112): a team's note from before
+/// recordings travelled, or a meeting's whose recordings were kept here until the switch said otherwise. Hashed once
+/// per length ([sendRecordingOf]), and sent here where the organization lacks it; a device without the tape owes
+/// nothing.
+Future<bool> _recordingOwed(TeamSyncContext ctx, Note note, TeamMark known) async {
+  if ((note.recordingMs ?? 0) == 0 || known.recording != null) return false;
+  return await sendRecordingOf(ctx._files, note) != null;
+}
+
+/// What this device remembers of a note's recording, let go with the note (a team's deletion leaves the sealed
+/// file on the service, as it leaves the pictures): the same note filed again sends it again.
+void _forgetRecording(TeamSyncContext ctx, String noteId) {
+  final id = fileId(FileKind.recording, noteId);
+  if (id != null) ctx.state.files.remove(id);
+}
+
+/// Every team note's recording this device lacks, or holds an older one of, fetched (GHST-112): the one its row
+/// names, once the rows are in. Not over a recording made here since the row (the note's particulars moved): that
+/// one is this device's, and the push sends it.
+Future<void> _settleRecordings(TeamSyncContext ctx, List<Note> team, _Tally tally) async {
+  for (final note in team) {
+    final known = ctx.state.notes[note.id];
+    final digest = known?.recording;
+    if (known == null || digest == null || (note.recordingMs ?? 0) == 0 || known.mark != particulars(note)) continue;
+    await _counted(tally, () => fetchRecordingOf(ctx._files, note.id, digest));
+  }
+}
+
 Future<void> _pushOne(TeamSyncContext ctx, Note note, _Tally tally) async {
   final doc = (await ctx.docs.doc(note.id, seedWords: note.body))!;
   await doc.reconcileKept(note.body);
   final known = ctx.state.notes[note.id];
   if (known != null) await _postPending(ctx, note, doc, tally);
-  final due = known == null || known.mark != particulars(note) || doc.seq - doc.snapshotSeq >= snapshotEvery || ctx.files.owed().contains(note.id);
+  final due = known == null ||
+      known.mark != particulars(note) ||
+      doc.seq - doc.snapshotSeq >= snapshotEvery ||
+      ctx.files.owed().contains(note.id) ||
+      await _recordingOwed(ctx, note, known);
   if (due) {
     await _putRow(ctx, note, doc, tally);
   } else {
@@ -637,6 +719,7 @@ Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
         if (!winner.deleted) await ctx.api.call('DELETE', path, token: ctx.token, body: ctx._body({'base': winner.rev}));
       }
       ctx.state.notes.remove(id);
+      _forgetRecording(ctx, id);
       await ctx.docs.drop(id);
     });
   }
@@ -661,11 +744,11 @@ Future<Map<String, int>?> _heads(TeamSyncContext ctx) async {
 }
 
 /// Every team note put again under the key in force, after a turn (docs/SHARED.md, S11; lib/orgs/org_keys.dart
-/// `turnOrgKey`; `resealTeamNotes`): the row with the document's whole state, its log cut to it, its versions file
-/// and its pictures sent again sealed afresh. Run by the engine right after the turn, on the device that made it,
-/// with the team's notes pulled first under the old key so nothing a member wrote is left behind. The service
-/// refuses what is still sealed under the old generation, so a device that slept through the turn re-seals its own
-/// next.
+/// `turnOrgKey`; `resealTeamNotes`): the row with the document's whole state, its log cut to it, its versions file,
+/// its pictures and its recording sent again sealed afresh. Run by the engine right after the turn, on the device
+/// that made it, with the team's notes pulled first under the old key so nothing a member wrote is left behind. The
+/// service refuses what is still sealed under the old generation, so a device that slept through the turn re-seals
+/// its own next.
 Future<TeamOutcome> resealTeamNotes(TeamSyncContext ctx) async {
   final tally = _Tally();
   for (final id in ctx.state.notes.keys.toList()) {
@@ -676,6 +759,11 @@ Future<TeamOutcome> resealTeamNotes(TeamSyncContext ctx) async {
       for (final name in imageNames(note.body)) {
         final bytes = await ctx.files.read(FileKind.image, name);
         if (bytes != null) await resendFile(ctx._files, FileKind.image, name, bytes);
+      }
+      // The recording the row names, where this device holds it (GHST-112).
+      if (ctx.state.notes[id]?.recording != null && (note.recordingMs ?? 0) > 0) {
+        final tape = await ctx.files.read(FileKind.recording, id);
+        if (tape != null) await resendFile(ctx._files, FileKind.recording, id, tape);
       }
       // The versions file goes with the row, sent again since its digest is forgotten here.
       final versions = fileId(FileKind.versions, id);
@@ -707,6 +795,7 @@ Future<TeamOutcome> syncTeamNotes(TeamSyncContext ctx) async {
     for (final note in await ctx.notes.list())
       if (ctx.isTeamNote(note.id)) note,
   ];
+  await _settleRecordings(ctx, team, tally);
   final moved = team.isNotEmpty ? await _heads(ctx) : null;
   for (final note in team) {
     final doc = await ctx.docs.doc(note.id);
@@ -745,6 +834,8 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       pulled: pass.pulled,
       generation: pass.generation,
       olderKey: pass.olderKey,
+      meetings: pass.meetings,
+      syncMeetingRecordings: pass.syncMeetingRecordings,
     );
 
 /// The engine's step-5 hook (lib/sync/engine.dart `teamNotes`): one pass of an organization's channel, or, when the

@@ -203,6 +203,8 @@ class TeamPass {
     required this.file,
     this.folders,
     required this.pulled,
+    this.meetings,
+    this.syncMeetingRecordings,
     this.reseal = false,
   });
 
@@ -241,6 +243,11 @@ class TeamPass {
 
   /// The rows are in, before their histories and pictures: the list may be drawn.
   final void Function() pulled;
+
+  /// Which notes are meetings, and whether their recordings go (the person's Sync meeting recordings): a team's
+  /// note's recording travels to every member unless it is a meeting's and that is off (GHST-112). None, it goes.
+  final Map<String, num> Function()? meetings;
+  final bool Function()? syncMeetingRecordings;
 
   /// False: one pass of the channel (`syncTeamNotes`). True: the key has just turned, [key] and [generation] are
   /// the new ones, and every note of the team's is to be sealed again under them (`resealTeamNotes`).
@@ -570,6 +577,9 @@ class SyncEngine {
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.
               pulled: () => unawaited(_changed()),
+              // A team's note's recording goes to every member (GHST-112), under the same switch as the account's.
+              meetings: () => prefs.value.meetings,
+              syncMeetingRecordings: () => prefs.value.syncMeetingRecordings,
               reseal: reseal,
             );
         try {

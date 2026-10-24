@@ -385,7 +385,8 @@ class Preferences {
     this.review = true,
     this.summaries = 'meetings',
     this.writeUp = 'charging',
-    this.syncMeetingRecordings = false,
+    this.syncMeetingRecordings = true,
+    this.syncMeetingRecordingsChosen = false,
     this.meetingSound = false,
     this.localOnly = false,
     this.formatModel = 'qwen3.5-4b',
@@ -437,6 +438,7 @@ class Preferences {
     final codeChosen = truthy('codeChosen');
     final homeLayoutChosen = truthy('homeLayoutChosen');
     final experienceChosen = truthy('experienceChosen');
+    final syncMeetingRecordingsChosen = truthy('syncMeetingRecordingsChosen');
     final experience = at('experience', d.experience);
     final codeLight = at('codeLight', d.codeLight), codeDark = at('codeDark', d.codeDark);
     final noteView = at('noteView', d.noteView), theme = at('theme', d.theme);
@@ -474,7 +476,11 @@ class Preferences {
       review: flag('review', d.review),
       summaries: isSummaries(summaries) ? summaries as String : d.summaries,
       writeUp: isWriteUp(writeUp) ? writeUp as String : d.writeUp,
-      syncMeetingRecordings: flag('syncMeetingRecordings', d.syncMeetingRecordings),
+      // On until it is chosen (GHST-112): every store from before 2026-10-23 holds the old default, off, that nobody
+      // picked, so a meeting's audio syncs for an account that never touched the switch, and stays put for one that
+      // turned it off since.
+      syncMeetingRecordings: syncMeetingRecordingsChosen ? flag('syncMeetingRecordings', d.syncMeetingRecordings) : d.syncMeetingRecordings,
+      syncMeetingRecordingsChosen: syncMeetingRecordingsChosen,
       meetingSound: flag('meetingSound', d.meetingSound),
       localOnly: flag('localOnly', d.localOnly),
       formatModel: word('formatModel', d.formatModel),
@@ -580,8 +586,12 @@ class Preferences {
   /// When a meeting is written up with the app closed ([writeUps]).
   final String writeUp;
 
-  /// Whether a meeting's audio goes to the account with its note.
+  /// Whether a meeting's audio goes to the account with its note, and to every member with a team's note (GHST-112).
+  /// On by default; read as on until [syncMeetingRecordingsChosen].
   final bool syncMeetingRecordings;
+
+  /// Whether the Sync meeting recordings switch was ever touched; until it is, [syncMeetingRecordings] is the default.
+  final bool syncMeetingRecordingsChosen;
 
   /// A meeting records the device's own sound beside the microphone. Kept on this device.
   final bool meetingSound;
@@ -662,7 +672,7 @@ class Preferences {
   static const Set<String> _keys = {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
-    'noteFace', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
+    'noteFace', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
@@ -689,6 +699,7 @@ class Preferences {
     String? summaries,
     String? writeUp,
     bool? syncMeetingRecordings,
+    bool? syncMeetingRecordingsChosen,
     bool? meetingSound,
     bool? localOnly,
     String? formatModel,
@@ -739,6 +750,7 @@ class Preferences {
         summaries: summaries ?? this.summaries,
         writeUp: writeUp ?? this.writeUp,
         syncMeetingRecordings: syncMeetingRecordings ?? this.syncMeetingRecordings,
+        syncMeetingRecordingsChosen: syncMeetingRecordingsChosen ?? this.syncMeetingRecordingsChosen,
         meetingSound: meetingSound ?? this.meetingSound,
         localOnly: localOnly ?? this.localOnly,
         formatModel: formatModel ?? this.formatModel,
@@ -792,6 +804,7 @@ class Preferences {
         'summaries': summaries,
         'writeUp': writeUp,
         'syncMeetingRecordings': syncMeetingRecordings,
+        'syncMeetingRecordingsChosen': syncMeetingRecordingsChosen,
         'meetingSound': meetingSound,
         'localOnly': localOnly,
         'formatModel': formatModel,

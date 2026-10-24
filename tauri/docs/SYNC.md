@@ -136,7 +136,8 @@ What is sealed, and under which associated data: a note as `{ v: 1, note, record
 file under `file:<its id>`; a notification the account makes for itself as `{ kind, ...details }` under
 `notification:<id>`, with the kind inside the seal so nothing outside it can relabel the row (docs/TEAMS.md).
 
-Limits: a note blob 1.4 MB and prefs 350 KB (as base64), a file 64 MB, 500 notes a page; sign-in 20 attempts a
+Limits: a note blob 1.4 MB and prefs 350 KB (as base64), a file 256 MiB and 64 KiB for its sealing (an account's or a
+team's: a two-hour meeting's recording; 64 MB until 2026-10-23, GHST-112), 500 notes a page; sign-in 20 attempts a
 minute per address and 10 per handle.
 
 ## The client
@@ -160,7 +161,11 @@ minute per address and 10 per handle.
   entry's line whose note is gone as nothing.
 - **Files follow their notes:** a recording is sent when its hash changes and fetched when a note arrives with a hash
   this device doesn't have; a picture is sent with the note that first names it. A browser syncs pictures but keeps
-  no recordings.
+  no recordings. A meeting's recording goes like any other unless Settings › Account › Sync meeting recordings is
+  turned off (on by default since 2026-10-23, GHST-112, and on for every account that never touched it:
+  `syncMeetingRecordingsChosen` says whether it was), and one up to 256 MiB travels, two hours and nineteen minutes
+  of the 16 kHz mono WAV (`recordingSyncLimit`; 64 MiB until then). A team's note's recording goes to every member
+  the same way, under the organization (SHARED.md, S4).
 - **And every pass settles the pictures** (`settlePictures`): each picture a note here names that this device holds
   and the account lacks is sent (the account asked first by a HEAD on its file, so one it has is not uploaded again),
   and each the account holds and this device lacks is fetched, asked again at most every four minutes while it is not

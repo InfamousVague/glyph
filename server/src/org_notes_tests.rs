@@ -110,6 +110,25 @@ async fn a_file_is_kept_whole_under_the_organization_and_read_by_any_member() {
     assert_eq!(missing, refusal(StatusCode::NOT_FOUND, "No file by that id."));
 }
 
+/// A team note's recording travels with it (GHST-112): a file is taken up to the account's recordings' limit, 256 MiB
+/// and the sealing's 64 KiB, past the 64 MiB it was, and refused at a byte more, nothing of it kept.
+#[tokio::test]
+async fn a_file_is_taken_up_to_a_two_hour_meeting_and_not_a_byte_past() {
+    let h = harness();
+    let matt = h.signup("matt", &device()).await;
+    let org = make(&h, &matt, "Ghost").await;
+    let most = 256 * 1024 * 1024 + 64 * 1024;
+    let put = |id: &str, bytes: Vec<u8>| {
+        Request::builder().method(Method::PUT).uri(format!("/api/v1/orgs/{org}/files/{id}?base=0")).header("Authorization", format!("Bearer {matt}")).header("Content-Type", "application/octet-stream").body(Body::from(bytes)).unwrap()
+    };
+    let (status, _, _) = h.send(put("r-n1", vec![7; most])).await;
+    assert_eq!(status, StatusCode::OK);
+    let (status, _, _) = h.send(put("r-n2", vec![7; most + 1])).await;
+    assert_eq!(status, StatusCode::PAYLOAD_TOO_LARGE);
+    let missing = h.call(Method::GET, &format!("/api/v1/orgs/{org}/files/r-n2"), Some(&matt), None).await;
+    assert_eq!(missing, refusal(StatusCode::NOT_FOUND, "No file by that id."));
+}
+
 #[tokio::test]
 async fn a_stranger_and_an_invitee_get_one_404_from_every_route() {
     let h = harness();

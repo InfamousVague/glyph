@@ -5857,6 +5857,9 @@ section 2 built it. No system notification from the page.
   device it was made on." A recording kept back on purpose is marked (`SyncState.files[id].stayed`), so switching the
   setting on sends it without the note having to change. The Sync section's footer counts what stayed: "3 recordings
   stayed on this phone" (`stayedHere`). Whether a meeting's audio should ever leave the phone stays his question.
+  Answered 2026-10-23 (GHST-112, "sync audio across all devices", then "even shared notes so people can listen
+  back"): on by default, and on for every account that never touched the switch (`syncMeetingRecordingsChosen`); a
+  team's note's recording goes to every member; and the limit is 256 MiB, two hours and nineteen minutes.
 - **The WAV is not re-read on every push.** `SyncState.files[id].forMs`: the file is read or hashed only when the
   tape's length has changed. On generation 20 the hash is `recording_digest(id)` (SHA-256 on the blocking pool; the
   page compares the first 32 hex characters, as it always hashed), the bytes read only for an upload, and a tape with

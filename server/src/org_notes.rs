@@ -37,8 +37,9 @@ const NOTE_LIMIT: usize = 1_400_000;
 const UPDATE_LIMIT: usize = 90_000;
 /// Updates in one post.
 const UPDATES_PER_POST: usize = 100;
-/// A file's ciphertext: a versions file or a picture; the account's recordings' limit (sync.rs).
-const FILE_LIMIT: usize = 64 * 1024 * 1024;
+/// A file's ciphertext: a versions file, a picture, or a team note's recording (GHST-112); the account's recordings'
+/// limit (sync.rs).
+const FILE_LIMIT: usize = crate::sync::RECORDING_LIMIT;
 /// The most rows one page of a feed or a log carries.
 const PAGE_LIMIT: i64 = 500;
 /// Team notes one organization may hold (SHARED.md, S11).

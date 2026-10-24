@@ -36,8 +36,8 @@ public key, itself included; two devices making one at once are settled by the s
 answers the second 409 with the generation it keeps, so the second throws its key away and reads its wrap. From then
 on any device holding the key wraps it for whoever the service says lacks one (`missing`: members without a wrap at
 the generation in force, with their public keys), so a member who joins reads their wrap on their next sync, made
-by whichever member's device synced first. Team notes, their versions files, their pictures and every live message
-in the organization's rooms are sealed under it, AES-256-GCM as everything else is (SYNC.md, Keys), with
+by whichever member's device synced first. Team notes, their versions files, their pictures, their recordings and
+every live message in the organization's rooms are sealed under it, AES-256-GCM as everything else is (SYNC.md, Keys), with
 `org:<org id>:` at the head of the associated data so nothing sealed for one organization opens in another.
 
 **S3. The account's encryption key pair.** Only signing keys existed (Ed25519, a device each). An account now has one
@@ -57,7 +57,16 @@ updated_at)` with the account feed's shape (`GET /api/v1/orgs/{id}/notes?since=&
 { base, blob }`, 409 with the winner; `DELETE` the same way), the CRDT's update log `org_note_updates(org, note, seq,
 blob, by, at)` (`GET …/notes/{nid}/updates?since=`, `POST …/notes/{nid}/updates { blobs }`; `GET …/heads` answers every live
 note's log head in one read, so a pass fetches only the logs that moved), and the note's sealed
-files - its versions file, its pictures - as `GET`/`PUT …/orgs/{id}/files/{fid}`. The organization has a write
+files - its versions file, its pictures, its recording - as `GET`/`PUT …/orgs/{id}/files/{fid}`. **A team note's
+recording travels with it** (GHST-112, Matt 2026-10-23: "even shared notes so people can listen back"): `r-<note
+id>` among the organization's files, sealed under the organization key with `file:r-<note id>` under the
+organization's context as a picture is, sent before the row only when its hash changed, and named in the row's
+payload by that hash (`recording`). Every member's device fetches it once the rows are in, where it has none or an
+older one, and keeps it as the note's recording, so the tape plays there; a member who has not fetched it yet still
+names it when it puts the row. A meeting's stays on the sender's device while their Sync meeting recordings is off.
+A file may be 256 MiB and the sealing's 64 KiB (`FILE_LIMIT`, the account's `RECORDING_LIMIT`): a two-hour meeting.
+The service holds these recordings sealed and cannot hear them; a team's deletion leaves the file there, as it leaves
+the pictures. The organization has a write
 counter of its own, as an account does, so a member's feed cursor is per organization. A member reads and writes;
 nobody else reaches them; the service checks membership, sizes and shapes, never content, and records who wrote
 (`by`), which the audit log does not need but a removal does.
@@ -142,7 +151,7 @@ hold at once. When a member leaves or is removed the key owes a turn: the servic
 says so (`stale` on the key and on every row's `keys`); the next member device to sync holding the generation in
 force pulls the team's notes under it, makes the generation after it (`POST keys { make }`), wrapped for every
 member who remains and has a public key, and puts every team note again under the new key - the row with the
-document's whole state and its log cut, its versions file and its pictures sent again sealed afresh
+document's whole state and its log cut, its versions file, its pictures and its recording sent again sealed afresh
 (`resealTeamNotes`). Every write names the generation its body is sealed under (`generation` on the row, the updates
 and a file), and the service refuses one that is not in force, 409 with the one that is, so a device that slept
 through the turn re-seals on its next pass rather than leaving words nobody can open. A row or an update still under
