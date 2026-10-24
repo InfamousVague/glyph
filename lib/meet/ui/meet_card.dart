@@ -184,6 +184,9 @@ class _MeetCardState extends State<MeetCard> {
   void initState() {
     super.initState();
     _listen();
+    // Read as the page opens, unless it was a moment ago: the build's [MeetIn.readSoon] waits a minute between reads,
+    // which showed a page just opened as it was up to a minute before.
+    widget.services.meetIn?.readNow(within: MeetIn.openFresh);
   }
 
   @override

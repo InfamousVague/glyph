@@ -45,6 +45,7 @@ pub mod seal;
 use crate::accounts::{Accounts, HasAccounts};
 use crate::guard;
 use crate::identity::Claims;
+use crate::live::Poke;
 use crate::store::{MailClaim, MailStanding, MailWrite, SealedMail};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::body::Bytes;
@@ -351,7 +352,10 @@ async fn inbound(State(mail): State<Arc<Mail>>, headers: HeaderMap, body: Bytes)
         let Some(public) = mail.accounts.store.account_key(*account).map(|k| k.pub_key) else { continue };
         // A calendar invite in the mail books Ghost into its Google Meet (src/meet.rs, docs/MEET.md); the mail is a
         // note all the same. Only for an account with a key, as Ghost's recording is sealed to it.
-        crate::meet::book_from_mail(&mail.accounts.store, *account, &post.mime, now * 1000);
+        if crate::meet::book_from_mail(&mail.accounts.store, *account, &post.mime, now * 1000) > 0 {
+            // Its devices' meetings lists show the booking now (live.rs, POKES).
+            mail.accounts.pokes.poke(*account, Poke::Meet);
+        }
         let Ok(mut payload) = message::payload(&post.mime, &mail.full(local), now * 1000) else {
             post.mime.zeroize();
             mail.remember(&post.token, now);
@@ -362,7 +366,11 @@ async fn inbound(State(mail): State<Arc<Mail>>, headers: HeaderMap, body: Bytes)
         payload.zeroize();
         let Ok((wrapped, blob)) = sealed else { continue };
         match mail.accounts.store.put_mail(*account, &id, &SealedMail { wrapped, blob, at: now }, WAITING) {
-            Ok(()) => kept += 1,
+            Ok(()) => {
+                kept += 1;
+                // Its devices fetch it now rather than at their next pass (live.rs, POKES).
+                mail.accounts.pokes.poke(*account, Poke::Mail);
+            }
             Err(MailWrite::Full) => full += 1,
             Err(MailWrite::Failed) => {}
         }

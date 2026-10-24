@@ -460,3 +460,37 @@ fn the_sealed_mail_the_app_opens() {
     assert_eq!(head["subject"], "Café plans");
     assert_eq!(files.len(), 2);
 }
+
+/// The pokes a test's socket (`Pokes::attach_for_test`) has been sent so far, by their word. Read without waiting: a
+/// route pokes before it answers, so what it sent is queued by the time its answer is in.
+pub(crate) fn heard_pokes(frames: &mut tokio::sync::mpsc::Receiver<axum::extract::ws::Message>) -> Vec<String> {
+    let mut heard = Vec::new();
+    while let Ok(frame) = frames.try_recv() {
+        let axum::extract::ws::Message::Text(text) = frame else { continue };
+        let value: Value = serde_json::from_str(&text).unwrap();
+        assert_eq!(value.as_object().map(|o| o.len()), Some(2), "a poke is its kind and its word alone: {value}");
+        assert_eq!(value["t"], "poke");
+        heard.push(value["what"].as_str().unwrap().to_string());
+    }
+    heard
+}
+
+#[tokio::test]
+async fn a_mail_filed_pokes_the_account_s_devices_and_nobody_else_s() {
+    let h = Harness::new("mail");
+    let (token_sam, _) = with_key(&h, "sam").await;
+    let (token_ali, _) = with_key(&h, "ali").await;
+    let address = turned_on(&h, &token_sam).await;
+    let sam = h.accounts.claims(&token_sam).unwrap().sub;
+    let ali = h.accounts.claims(&token_ali).unwrap().sub;
+    let mut phone = h.accounts.pokes.attach_for_test(sam, 1);
+    let mut other = h.accounts.pokes.attach_for_test(ali, 2);
+    let (status, _, _) = h.send(post(&address, MAIL.as_bytes(), &token(1))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(heard_pokes(&mut phone), vec!["mail"]);
+    assert!(heard_pokes(&mut other).is_empty());
+    // A mail refused (seen before) files nothing, and says nothing.
+    let (status, _, _) = h.send(post(&address, MAIL.as_bytes(), &token(1))).await;
+    assert_eq!(status, StatusCode::NOT_ACCEPTABLE);
+    assert!(heard_pokes(&mut phone).is_empty());
+}

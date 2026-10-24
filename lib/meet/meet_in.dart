@@ -375,14 +375,50 @@ class MeetIn extends ChangeNotifier {
   int _triedAt = 0;
   int? _for;
 
+  /// The time now, ms since the epoch, that the reads are spaced by; a test moves it on.
+  @visibleForTesting
+  int Function() clock = () => DateTime.now().millisecondsSinceEpoch;
+
   /// Reads the meetings soon, once a minute at the most however often the page is drawn.
   void readSoon() {
     if (_reading != null || account.session == null) return;
-    final now = DateTime.now().millisecondsSinceEpoch;
+    final now = clock();
     if (now - _triedAt < 60000) return;
-    _triedAt = now;
-    _reading = refresh().then<void>((_) {}, onError: (Object _) {}).whenComplete(() => _reading = null);
+    _read(now);
   }
+
+  /// A read asked for while one was under way that began before it was asked: one more after it.
+  bool _again = false;
+
+  void _read(int now) {
+    _triedAt = now;
+    _reading = refresh().then<void>((_) {}, onError: (Object _) {}).whenComplete(() {
+      _reading = null;
+      if (!_again) return;
+      _again = false;
+      readNow();
+    });
+  }
+
+  /// Reads the meetings now, past [readSoon]'s minute, unless the last read began within [within] (Matt, 2026-10-24:
+  /// "meetings don't load on the phone app right away I have to wait several minutes for them to sync"). With no
+  /// [within], as the service's word that the list changed asks it (lib/live/poke.dart): a read under way began
+  /// before the change, so one more follows it. With [openFresh], as Settings › Meetings asks as it opens: the minute's
+  /// throttle would show a list up to a minute old, while a page opened twice in a breath reads once. Quiet: no
+  /// "Checking" on the page, which is [checkNow]'s.
+  void readNow({Duration within = Duration.zero}) {
+    if (account.session == null) return;
+    final now = clock();
+    if (within > Duration.zero && now - _triedAt < within.inMilliseconds) return;
+    if (_reading != null) {
+      _again = true;
+      return;
+    }
+    _read(now);
+  }
+
+  /// How old a list may be and still be shown as the page opens ([readNow]).
+  static const Duration openFresh = Duration(seconds: 10);
 
   bool _checking = false;
   int? _checkedAt;
@@ -401,7 +437,7 @@ class MeetIn extends ChangeNotifier {
     _checking = true;
     notifyListeners();
     try {
-      _triedAt = DateTime.now().millisecondsSinceEpoch;
+      _triedAt = clock();
       await refresh();
     } catch (_) {
       // [problem] says it.
@@ -416,6 +452,7 @@ class MeetIn extends ChangeNotifier {
     if (now == _for) return;
     _for = now;
     _triedAt = 0;
+    _again = false;
     _series = null;
     _next = null;
     _pages = false;

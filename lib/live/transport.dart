@@ -21,7 +21,7 @@ import 'dart:math';
 
 /// What the relay says (`LiveEvents`).
 class LiveEvents {
-  const LiveEvents({required this.ready, required this.joined, required this.peers, required this.message, required this.down});
+  const LiveEvents({required this.ready, required this.joined, required this.peers, required this.message, required this.down, this.poke});
 
   /// Signed in: this socket's connection id, which is what `from` means on a message.
   final void Function(int id) ready;
@@ -39,6 +39,11 @@ class LiveEvents {
   /// The connection is gone. `signIn`: the relay refused the token, so there is no point trying again until it
   /// changes. `network` otherwise.
   final void Function(String why) down;
+
+  /// The service says something new has come for this account, of kind [what] (`take`, `meet`, `mail`; lib/live/poke.dart,
+  /// server/src/live.rs POKES): no id, nothing of it, only that there is something to fetch. An older service sends
+  /// none.
+  final void Function(String what)? poke;
 }
 
 /// The rooms, each the account's own or an organization's (docs/SHARED.md, S6: `org` names whose, and the relay
@@ -254,6 +259,9 @@ class WebSocketTransport implements LiveTransport {
       case 'msg':
         final data = frame['data'];
         if (where != null && data is String) events.message(where, number(frame['from']), data, whose);
+      case 'poke':
+        final what = frame['what'];
+        if (what is String && what.isNotEmpty) events.poke?.call(what);
       default:
         // `error` frames say a request was refused; the socket stays, and there is nothing a device can do about
         // one.

@@ -340,6 +340,12 @@ meeting routes. For each take in `GET meet/takes`:
    it; and its write-up asked for (`MeetDevice.writeUp`).
 5. Only then `DELETE meet/takes/{id}`.
 
+The pass runs at once when the service says a take was kept (Matt, 2026-10-24: "meetings don't load on the phone app
+right away I have to wait several minutes for them to sync"): the relay pokes every signed-in device of the account,
+`{ t: "poke", what: "take" }`, and the device syncs 400 ms later rather than at its next pass up to five minutes on;
+`meet` reads Settings › Meetings' list again, which also reads itself as the page opens when its last read is ten
+seconds old or more (tauri/docs/LIVE.md, "Pokes"; lib/live/poke.dart; server/src/live.rs, POKES).
+
 Every pass also names the speakers of a meeting whose write-up has come (the list `glyph-meet-pending` in the
 device's storage), below.
 

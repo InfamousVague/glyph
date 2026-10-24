@@ -4,7 +4,10 @@
 /// Made when the first room opens, closed when the last one does, and the relay's messages handed to whoever has
 /// the room: a note of the account's own ([LiveSession]), or a team's note, an organization's presence or its
 /// `sync` room (lib/live/team.dart, presence.dart, nudge.dart; docs/SHARED.md, S6), which have rooms of the
-/// organization's.
+/// organization's. And held with no room at all while [keepOpen] asks it to be (Matt, 2026-10-24: "meetings don't
+/// load on the phone app right away I have to wait several minutes for them to sync"): the service's word that
+/// something came for the account, a poke, reaches a signed-in socket in no room as well, and is handed to whoever
+/// [listenPokes] (lib/live/poke.dart).
 ///
 /// What differs:
 /// - The page's module state (one transport, a map of rooms) is a [LiveHub] made once with the account
@@ -86,17 +89,41 @@ class LiveHub {
   final Map<String, RoomListener> _rooms = {};
   bool _resting = false;
 
+  /// Held with no room ([keepOpen]).
+  bool _kept = false;
+
+  /// The connection went while the app was in front (not let go by [rest]): the next `ready` is a coming back, after
+  /// which whatever came meanwhile is fetched ([listenPokes]' `back`).
+  bool _dropped = false;
+
+  /// The relay turned the token away (it ran out, or the device was signed out): the transport knocks no more until
+  /// it is woken, which [keepOpen] does when the account is signed in again.
+  bool _refused = false;
+  void Function(String what)? _poked;
+  void Function()? _back;
+
   LiveTransport _connect() {
     final held = _transport;
     if (held != null) return held;
     final events = LiveEvents(
-      // The connection id means something to the relay, which stamps it on messages; nothing here needs it.
-      ready: (_) {},
+      // The connection id means something to the relay, which stamps it on messages; nothing here needs it. A coming
+      // back after a drop is told, for whatever the pokes missed meanwhile.
+      ready: (_) {
+        _refused = false;
+        if (!_dropped) return;
+        _dropped = false;
+        _back?.call();
+      },
       joined: (room, first, peers, org) => _rooms[roomKey(room, org)]?.joined(first, peers),
       peers: (room, peers, org, left) => _rooms[roomKey(room, org)]?.peersChanged(peers, left),
       message: (room, from, data, org) => _rooms[roomKey(room, org)]?.message(from, data),
-      // Nothing to do: the transport comes back by itself and rejoins, and each room catches up on `joined`.
-      down: (_) {},
+      // Nothing to do: the transport comes back by itself and rejoins, and each room catches up on `joined`. A drop in
+      // front is remembered for the pokes; the app going behind is not one (the resume's own sync fetches).
+      down: (why) {
+        if (why == 'network' && !_resting) _dropped = true;
+        if (why == 'signIn') _refused = true;
+      },
+      poke: (what) => _poked?.call(what),
     );
     final made = deps.connect?.call(events) ?? WebSocketTransport(url: deps.url, token: deps.token, events: events);
     if (_resting) made.rest();
@@ -104,7 +131,7 @@ class LiveHub {
   }
 
   void _lastGone() {
-    if (_rooms.isNotEmpty) return;
+    if (_rooms.isNotEmpty || _kept) return;
     _transport?.close();
     _transport = null;
   }
@@ -124,6 +151,51 @@ class LiveHub {
     if (_rooms.remove(roomKey(room, org)) == null) return;
     _transport?.leave(room, org);
     _lastGone();
+  }
+
+  /// Holds the connection with no room ([held] true), so the service's pokes reach this device while the app is in
+  /// front and signed in with nothing open, or lets it go with the last room ([held] false). The rooms are as they
+  /// were either way, and [rest] still lets the socket go while the app is behind.
+  ///
+  /// Asked again while held, as it is whenever the account changes: a connection the relay turned away for its token
+  /// tries again, with the token there is now.
+  void keepOpen(bool held) {
+    if (_kept == held) {
+      if (held && _refused && !_resting) {
+        _refused = false;
+        _transport?.wake();
+      }
+      return;
+    }
+    _kept = held;
+    if (!held) {
+      _lastGone();
+      return;
+    }
+    final had = _transport;
+    _connect();
+    // Held already, but given up on (signed out when it last tried): tried again now, unless the app is behind.
+    if (had != null && !_resting) {
+      _refused = false;
+      had.wake();
+    }
+  }
+
+  /// Whether the connection is held with no room, for tests.
+  bool get keptOpen => _kept;
+
+  /// Whether there is a connection at all, for tests.
+  bool get connected => _transport != null;
+
+  /// [poked] is told each poke's word as it comes; [back], that the connection came back after a drop in front, when
+  /// any poke meanwhile was missed. One listener; answers the way to stop.
+  void Function() listenPokes({required void Function(String what) poked, required void Function() back}) {
+    _poked = poked;
+    _back = back;
+    return () {
+      if (identical(_poked, poked)) _poked = null;
+      if (identical(_back, back)) _back = null;
+    };
   }
 
   /// The rooms held right now, for tests (`heldRooms`).
@@ -176,6 +248,9 @@ class LiveHub {
       if (held is LiveSession) held.close();
     }
     _rooms.clear();
+    _kept = false;
+    _poked = null;
+    _back = null;
     _transport?.close();
     _transport = null;
   }

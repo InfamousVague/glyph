@@ -6,7 +6,7 @@
 //! queued ahead of it. A quiet window would pass a relay that is merely slow.
 
 use crate::accounts::Accounts;
-use crate::live::{CLOSE_AUTH, CLOSE_BUSY, MAX_FRAME, ROOMS_PER_SOCKET, SOCKETS_PER_ACCOUNT};
+use crate::live::{Poke, CLOSE_AUTH, CLOSE_BUSY, MAX_FRAME, POKE_GAP_MS, ROOMS_PER_SOCKET, SOCKETS_PER_ACCOUNT};
 use crate::test_support::{accounts_in, routes, signup_body, TempDir};
 use crate::wire::now_secs;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
@@ -379,4 +379,97 @@ async fn an_organizations_room_reaches_its_members_across_accounts_and_nobody_el
     send(&mut sm, json!({ "t": "join", "room": "note-1", "org": "org-1" })).await;
     assert_eq!(next(&mut sm).await, json!({ "t": "error", "message": "No such organization." }));
     crate::live::RECHECK_SECS.store(60, Ordering::Relaxed);
+}
+
+// --- pokes (live.rs, POKES) ----------------------------------------------------------------------
+
+impl Server {
+    /// The account a token speaks for.
+    fn id_of(&self, token: &str) -> i64 {
+        self.accounts.claims(token).unwrap().sub
+    }
+}
+
+#[tokio::test]
+async fn a_poke_reaches_every_signed_in_socket_of_the_account_in_a_room_or_not_and_nobody_else() {
+    let s = server().await;
+    let matt = s.account("matt").await;
+    let ali = s.account("ali").await;
+    let (mut phone, _) = s.device(&matt).await;
+    let (mut mac, _) = s.device(&matt).await;
+    let (mut other, _) = s.device(&ali).await;
+    // One of the account's devices has a note open; the phone has nothing open at all, and is poked the same.
+    send(&mut mac, json!({ "t": "join", "room": "note-1" })).await;
+    assert_eq!(next(&mut mac).await["t"], "joined");
+    // And a socket that has not said who it is yet.
+    let (mut stranger, _) = connect_async(s.url()).await.unwrap();
+
+    s.accounts.pokes.poke(s.id_of(&matt), Poke::Take);
+    assert_eq!(next(&mut phone).await, json!({ "t": "poke", "what": "take" }));
+    assert_eq!(next(&mut mac).await, json!({ "t": "poke", "what": "take" }));
+    // The word and nothing else: no id, no size, nothing of what came.
+    hears_nothing(&mut phone).await;
+    hears_nothing(&mut other).await;
+    // The socket that never signed in heard nothing before it was turned away.
+    send(&mut stranger, json!({ "t": "auth", "token": "glyph1.not.ours" })).await;
+    assert_eq!(next(&mut stranger).await, json!({ "closed": CLOSE_AUTH }));
+}
+
+#[tokio::test]
+async fn a_socket_gone_is_poked_no_more_and_one_come_back_is_poked_again() {
+    let s = server().await;
+    let matt = s.account("matt").await;
+    let account = s.id_of(&matt);
+    let (mut phone, _) = s.device(&matt).await;
+    phone.close(None).await.unwrap();
+    // Gone from the relay's sockets once it has let the socket go. Waited for by asking, not by a fixed sleep.
+    for _ in 0..500 {
+        if s.accounts.pokes.sockets_of(account) == 0 {
+            break;
+        }
+        tokio::time::sleep(Duration::from_millis(10)).await;
+    }
+    assert_eq!(s.accounts.pokes.sockets_of(account), 0, "the closed socket is let go");
+    // Nothing open: a poke is nothing at all, and what came meanwhile is the pass's to fetch (the device syncs as it
+    // comes back).
+    s.accounts.pokes.poke(account, Poke::Mail);
+    let (mut again, _) = s.device(&matt).await;
+    hears_nothing(&mut again).await;
+    // The socket come back hears what comes from now on.
+    s.accounts.pokes.poke(account, Poke::Mail);
+    assert_eq!(next(&mut again).await, json!({ "t": "poke", "what": "mail" }));
+}
+
+#[tokio::test]
+async fn a_burst_is_one_poke_at_once_and_one_at_the_end_of_the_gap_and_each_kind_its_own() {
+    let s = server().await;
+    let matt = s.account("matt").await;
+    let account = s.id_of(&matt);
+    let (mut phone, _) = s.device(&matt).await;
+    let gap = Duration::from_millis(POKE_GAP_MS.load(std::sync::atomic::Ordering::Relaxed));
+    let began = tokio::time::Instant::now();
+    // The bot joining, in the call, out, and a skip from another device: four in a breath.
+    for _ in 0..4 {
+        s.accounts.pokes.poke(account, Poke::Meet);
+    }
+    // A mail in the same breath is its own kind, and said at once.
+    s.accounts.pokes.poke(account, Poke::Mail);
+    assert_eq!(next(&mut phone).await, json!({ "t": "poke", "what": "meet" }));
+    assert_eq!(next(&mut phone).await, json!({ "t": "poke", "what": "mail" }));
+    hears_nothing(&mut phone).await;
+    // The rest of the burst is one more, at the end of the gap, so the last change is never one the device misses.
+    let last = tokio::time::timeout(gap * 3, async {
+        loop {
+            let frame = next(&mut phone).await;
+            if frame["t"] == "poke" {
+                return frame;
+            }
+        }
+    })
+    .await
+    .expect("the burst's last poke");
+    assert_eq!(last, json!({ "t": "poke", "what": "meet" }));
+    assert!(began.elapsed() >= gap - Duration::from_millis(50), "held until the gap was over: {:?}", began.elapsed());
+    // And that was all of it.
+    hears_nothing(&mut phone).await;
 }

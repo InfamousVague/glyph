@@ -65,6 +65,13 @@
 //! is present (every request through Caddy comes from loopback too, carrying `X-Forwarded-For`) - that carries the
 //! bot's token, compared in constant time. Without the token in the environment they are not mounted at all.
 //!
+//! THE DEVICES ARE TOLD (Matt, 2026-10-24: "meetings don't load on the phone app right away I have to wait several
+//! minutes for them to sync"). The account's signed-in devices are poked over the relay (live.rs, POKES) the moment
+//! something here changes for them: `take` when a recording is kept (`put_take`), so a device fetches it now rather
+//! than at its next pass; `meet` when the list does - an invite booked, moved or called off (`book_from_mail`, through
+//! mail.rs), "join now", a skip, a series stopped, the bot moving a meeting on (`set_state`), and a series booking its
+//! next occurrence (`advance`). Only the word: the device reads the list and the takes as it always did.
+//!
 //! THE ENVIRONMENT: GLYPH_MEET_TOKEN (the bot's bearer token, 32 characters or more; unset, nothing joins a meeting,
 //! though invites are still booked and listed).
 
@@ -75,6 +82,7 @@ pub mod ics;
 
 use crate::accounts::Accounts;
 use crate::identity::Claims;
+use crate::live::Poke;
 use crate::mail::seal;
 use crate::store::{MeetBooking, Store, MEET_SERIES as SERIES};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
@@ -424,9 +432,25 @@ const LIVE: &[&str] = &["booked", "joining", "in_call", "leave"];
 /// called off on its own) is that booking's, and the series moves past it. A series with none to come is `done`, and
 /// the sweep forgets it as any meeting. Run whenever bookings are read: by `due` (the bot, every 20 seconds), the
 /// device's list, and the hourly sweep. At `now` (ms); answers how many occurrences it booked.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn advance(store: &Store, now: i64) -> usize {
+    advanced(store, now).0
+}
+
+/// `advance`, with each account it booked an occurrence for poked (`meet`), so its devices' lists show it.
+pub fn advance_poking(accounts: &Accounts, now: i64) -> usize {
+    let (booked, whose) = advanced(&accounts.store, now);
+    for account in whose {
+        accounts.pokes.poke(account, Poke::Meet);
+    }
+    booked
+}
+
+/// `advance`'s work: how many occurrences it booked, and the accounts they are of, each once.
+fn advanced(store: &Store, now: i64) -> (usize, Vec<i64>) {
     let secs = now.div_euclid(1000);
     let mut booked = 0;
+    let mut whose: Vec<i64> = Vec::new();
     for mut s in store.meet_series_to_advance(now) {
         let Some(series) = series_of(&s) else { continue };
         let before = s.clone();
@@ -467,6 +491,9 @@ pub fn advance(store: &Store, now: i64) -> usize {
             };
             if store.insert_meet_booking(&occurrence, secs).unwrap_or(false) {
                 booked += 1;
+                if !whose.contains(&s.account) {
+                    whose.push(s.account);
+                }
                 (s.starts_at, s.ends_at) = (start, end);
             }
             break;
@@ -485,7 +512,7 @@ pub fn advance(store: &Store, now: i64) -> usize {
         }
         let _ = store.update_meet_booking(&s, secs);
     }
-    booked
+    (booked, whose)
 }
 
 /// The series `s` stopped at `now` (ms), as a device asks ("Stop joining"): each of its occurrences still to come
@@ -514,9 +541,17 @@ pub fn stop(store: &Store, s: &MeetBooking, now: i64) -> Vec<MeetBooking> {
 
 /// The hourly sweep's part, at `now` (ms): see the header. Series are moved on first, so one with occurrences to
 /// come keeps its link. Answers how many bookings were blanked and how many deleted.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn sweep(store: &Store, now: i64) -> (usize, usize) {
     advance(store, now);
     store.sweep_meet(now, CLEAR_FOR, KEPT_FOR)
+}
+
+/// `sweep`, as the hourly one runs it: an occurrence it books is poked as `advance_poking`'s are. A title blanked is
+/// not: it is of a meeting an hour over, and the next read shows it.
+pub fn sweep_poking(accounts: &Accounts, now: i64) -> (usize, usize) {
+    advance_poking(accounts, now);
+    accounts.store.sweep_meet(now, CLEAR_FOR, KEPT_FOR)
 }
 
 // --- the device's routes -------------------------------------------------------------------------
@@ -582,7 +617,7 @@ struct ListQuery {
 async fn list(State(accounts): State<Arc<Accounts>>, who: Claims, Query(query): Query<ListQuery>) -> Response {
     let store = &accounts.store;
     let now = now_ms();
-    advance(store, now);
+    advance_poking(&accounts, now);
     let limit = match query.limit.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
         Some(l) => match l.parse::<usize>() {
             Ok(n) => Some(n.clamp(1, PAGE_MOST)),
@@ -661,7 +696,11 @@ async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body)
         series: None,
     };
     match accounts.store.insert_meet_booking(&booking, now_secs()) {
-        Ok(true) => Json(json!({ "meeting": meeting_json(&booking) })).into_response(),
+        Ok(true) => {
+            // The account's other devices list it now; this one has it in the answer, and reads the list once more.
+            accounts.pokes.poke(who.sub, Poke::Meet);
+            Json(json!({ "meeting": meeting_json(&booking) })).into_response()
+        }
         _ => error(StatusCode::INTERNAL_SERVER_ERROR, "Ghost could not be booked just now. Try again."),
     }
 }
@@ -689,6 +728,7 @@ async fn skip(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who
         if !accounts.store.set_meet_state(&b.id, &b.state, b.detail.as_deref(), now_secs()) {
             return error(StatusCode::INTERNAL_SERVER_ERROR, "That meeting could not be changed just now. Try again.");
         }
+        accounts.pokes.poke(who.sub, Poke::Meet);
     }
     Json(json!({ "meeting": meeting_json(&b) })).into_response()
 }
@@ -701,6 +741,7 @@ async fn stop_series(State(accounts): State<Arc<Accounts>>, Path(id): Path<Strin
         return error(StatusCode::NOT_FOUND, "No recurring meeting by that id.");
     };
     let changed = stop(&accounts.store, &s, now_ms());
+    accounts.pokes.poke(who.sub, Poke::Meet);
     Json(json!({ "series": { "id": s.id, "stopped": true }, "meetings": changed.iter().map(meeting_json).collect::<Vec<_>>() })).into_response()
 }
 
@@ -801,7 +842,7 @@ async fn bot_only(State(bot): State<Arc<Bot>>, peer: Result<ConnectInfo<SocketAd
 
 async fn due(State(bot): State<Arc<Bot>>) -> Response {
     let now = now_ms();
-    advance(&bot.accounts.store, now);
+    advance_poking(&bot.accounts, now);
     let meetings: Vec<Value> = bot
         .accounts
         .store
@@ -836,6 +877,10 @@ async fn set_state(State(bot): State<Arc<Bot>>, Path(id): Path<String>, Json(bod
     let detail = clip(body.detail.as_deref(), DETAIL_LIMIT);
     if !bot.accounts.store.set_meet_state(&b.id, &body.state, detail.as_deref(), now_secs()) {
         return error(StatusCode::INTERNAL_SERVER_ERROR, "That state could not be kept.");
+    }
+    // A state said again as it stands changes nothing on a device's list.
+    if b.state != body.state || b.detail != detail {
+        bot.accounts.pokes.poke(b.account, Poke::Meet);
     }
     Json(json!({ "id": b.id, "state": body.state })).into_response()
 }
@@ -956,6 +1001,8 @@ async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multi
         return error(StatusCode::INTERNAL_SERVER_ERROR, "That take could not be kept.");
     };
     bot.accounts.store.set_meet_state(&b.id, "done", b.detail.as_deref(), now_secs());
+    // The account's devices fetch it now, not at their next pass; the word covers the meeting being done as well.
+    bot.accounts.pokes.poke(b.account, Poke::Take);
     Json(json!({ "take": take, "size": size })).into_response()
 }
 

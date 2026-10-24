@@ -76,6 +76,8 @@ const ISSUER_SECRET_KEY: &str = "issuer_secret_b64";
 /// the sign-in limits. Sync, shares and the relay hold the same one, for its `claims` and its `store`.
 pub struct Accounts {
     pub store: Arc<Store>,
+    /// The relay's signed-in sockets by account, for the word that something came for one (live.rs, POKES).
+    pub pokes: Arc<crate::live::Pokes>,
     issuer: Issuer,
     challenges: Challenges,
     by_address: guard::RateLimiter<IpAddr>,
@@ -98,6 +100,7 @@ impl Accounts {
         let now = Instant::now();
         Arc::new(Self {
             store,
+            pokes: Arc::default(),
             issuer,
             challenges: Challenges::default(),
             by_address: guard::RateLimiter::new(SIGN_IN_PER_ADDRESS, now),

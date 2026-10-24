@@ -32,6 +32,7 @@ server -> client   { t: "joined", room, org?, first, peers }  first: this socket
 server -> client   { t: "peers",  room, org?, peers, left? }  someone came or went; left: the connection that went
 server -> client   { t: "msg",    room, org?, from, data }    from: the sending connection, never the account
 server -> client   { t: "error",  message }                   a frame refused, the socket kept
+server -> client   { t: "poke",   what }                      something came for this account: take, meet or mail ("Pokes")
 ```
 
 Rooms belong to an account: a socket only ever reaches its own account's devices - or, with `org` on the frame, to
@@ -124,11 +125,40 @@ dashboard reads it: a dot on a member's initial, "here now" or "editing Roadmap"
 puts the selection there once the document is bound - a caret whose words are gone is left alone. None of this is
 behind the live-typing trial switch: a team's notes are live by being the team's.
 
+## Pokes
+
+Matt, 2026-10-24: "meetings don't load on the phone app right away I have to wait several minutes for them to sync".
+What arrives for an account on the service - a meeting's recording from Ghost's Meet bot, a mail to its address, a
+change to its meetings - was fetched by the pass sync, which runs at launch, on resume, after a change made on the
+device, and otherwise five minutes apart. So the service now tells the account's own devices the moment one comes,
+over the relay's socket, which a device holds for this alone while the app is in front and signed in (with settings
+that let it sync), with no note open and no organization:
+
+```
+server -> client   { t: "poke", what: "take" }   a meeting's recording was kept (server/src/meet.rs put_take)
+server -> client   { t: "poke", what: "meet" }   the meetings' list changed: booked, moved, called off, skipped, the bot moving one on, a series booking its next
+server -> client   { t: "poke", what: "mail" }   a mail was filed (server/src/mail.rs inbound)
+```
+
+The device (lib/live/poke.dart) waits 400 ms for the rest of a burst, then: a `take` or a `mail` is a sync now (its
+Meetings and Mail steps fetch them), a `meet` or a `take` reads the meetings' list again (`MeetIn.readNow`), and a word
+it does not know is a sync. A drop with the app in front is made up for when the socket comes back, with one of each;
+the app going behind lets the socket go as it lets every room go, and the resume's own sync fetches what came
+meanwhile.
+
+A poke is the word and nothing else: no id, no title, no size. What is fetched is fetched by the routes it always was,
+with the device's own token, sealed as it always was. Only a signed-in socket is poked, and only the account's own;
+the service sends one of a kind per account per two seconds at most, the first at once and one more at the end of the
+gap if more came in it, so the last change of a burst is never missed. An older app ignores the frame; an older
+service sends none, and a device fetches at its passes as it did.
+
 ## What the relay learns
 
 Which account has a note open live, when, on how many devices, and the size and timing of messages. Room names are note
 ids, which the sync feed already shows it. For an organization's rooms, which member of which organization has which
-team note open, and that a member's device is in the app. Never a word, a title, or where a caret is.
+team note open, and that a member's device is in the app. Never a word, a title, or where a caret is. And that an
+account's device is in the app and signed in, which its socket for the pokes says; the pokes themselves tell the
+relay nothing the service did not already know, since the service is what filed the mail and kept the recording.
 
 ## Switched off until it works
 

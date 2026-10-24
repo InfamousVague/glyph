@@ -300,7 +300,7 @@ pub fn sweep_every_hour(accounts: Arc<Accounts>) {
             if swept > 0 {
                 eprintln!("glyph-api swept {swept} hook posts past thirty days");
             }
-            let (blanked, gone) = crate::meet::sweep(&accounts.store, now_secs() * 1000);
+            let (blanked, gone) = crate::meet::sweep_poking(&accounts, now_secs() * 1000);
             if blanked + gone > 0 {
                 eprintln!("glyph-api blanked {blanked} Meet bookings over for an hour and deleted {gone} past thirty days");
             }

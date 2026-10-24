@@ -46,6 +46,7 @@ import '../integrations/webhooks/plugin.dart' show hooksWhileOn;
 import '../live/live.dart';
 import '../live/nudge.dart';
 import '../live/open.dart';
+import '../live/poke.dart';
 import '../mail/mail_in.dart';
 import '../meet/meet_in.dart';
 import '../orgs/org_keys.dart';
@@ -292,8 +293,13 @@ class WiredAccount {
     // after notes changed by sync, every share that changed is written again; and once at launch.
     final saved = _saved ?? _changed;
     if (saved != null) services.shares?.follow(saved: saved, changed: identical(saved, _changed) ? null : _changed);
-    // The organizations' rooms, held from here on for as long as the account is in them.
-    live.start(NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow));
+    // The organizations' rooms, held from here on for as long as the account is in them; and the connection itself
+    // while signed in, so the service's word that a meeting's recording or a mail came is a fetch now, not at the
+    // next pass five minutes on (lib/live/poke.dart).
+    live.start(
+      NudgeHooks(keys: engine.syncNotificationsNow, notes: engine.syncTeamsNow),
+      PokeHooks(sync: engine.syncNow, meetings: services.meetIn?.readNow),
+    );
   }
 
   /// The app came back to the front.

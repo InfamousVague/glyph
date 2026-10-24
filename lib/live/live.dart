@@ -1,11 +1,13 @@
 /// Live sync for this device, made once with the account: the one connection (hub.dart), the notes live with
 /// another device (shared.dart), the switch for the account's own notes (enabled.dart), the organizations' rooms
 /// (team.dart), who is in each and where (presence.dart, the account's own room too), the editors bound now and
-/// Follow (editor_binding.dart, follow.dart), and the word that there is something to fetch (nudge.dart). What `App.tsx` gets by importing `core/live` and calling `watchPresence()` and `watchNudges()`.
+/// Follow (editor_binding.dart, follow.dart), the word that there is something to fetch (nudge.dart), and the
+/// service's word that something came for the account (poke.dart). What `App.tsx` gets by importing `core/live` and
+/// calling `watchPresence()` and `watchNudges()`.
 ///
-/// Nothing is connected by making it: the hub opens its socket with the first room held, which is an
-/// organization's own once [LiveServices.start] is watching and the account is in one, or a note's when it is
-/// opened. Signed out, or with settings that keep everything on the device, no room is held and there is no
+/// Nothing is connected by making it: the hub opens its socket once [LiveServices.start] is watching and the account
+/// is signed in, held for the pokes with no room at all (poke.dart), and its rooms come as an organization's own or a
+/// note's are held. Signed out, or with settings that keep everything on the device, no room is held and there is no
 /// socket.
 library;
 
@@ -23,6 +25,7 @@ import 'enabled.dart';
 import 'follow.dart';
 import 'hub.dart';
 import 'nudge.dart';
+import 'poke.dart';
 import 'presence.dart';
 import 'shared.dart';
 import 'team.dart';
@@ -70,6 +73,7 @@ class LiveServices {
     presence = Presence(rooms);
     follow = FollowAi(online: presence.aisOnline, changes: presence, bound: bound);
     nudges = Nudges(hub: hub, hasKey: (orgId) => orgKeys.orgKeyOf(orgId) != null);
+    pokes = Pokes(hub: hub);
   }
 
   final Account account;
@@ -82,6 +86,7 @@ class LiveServices {
   late final TeamRooms rooms;
   late final Presence presence;
   late final Nudges nudges;
+  late final Pokes pokes;
 
   /// The notes whose editors are bound on this device now (open.dart puts each).
   final BoundEditors bound = BoundEditors();
@@ -97,8 +102,9 @@ class LiveServices {
       ];
 
   /// The organizations' rooms held for as long as the account is in them (`watchPresence`, `watchNudges`), the
-  /// nudges asking [hooks] of the engine. Once.
-  void start(NudgeHooks hooks) {
+  /// nudges asking [hooks] of the engine; and the connection held while signed in, the service's pokes asking
+  /// [pokes] of the account (poke.dart). Once.
+  void start(NudgeHooks hooks, [PokeHooks? pokes]) {
     if (_stops.isNotEmpty) return;
     bool signedIn() => account.session != null;
     bool localOnly() => prefs.value.localOnly;
@@ -107,6 +113,7 @@ class LiveServices {
     _stops
       ..add(presence.watch(PresenceWatch(signedIn: signedIn, localOnly: localOnly, joined: _joined, hasKey: (orgId) => orgKeys.orgKeyOf(orgId) != null, changes: changes)))
       ..add(nudges.watch(hooks, NudgeWatch(signedIn: signedIn, localOnly: localOnly, joined: _joined, changes: changes)));
+    if (pokes != null) _stops.add(this.pokes.watch(pokes, PokeWatch(signedIn: signedIn, localOnly: localOnly, changes: changes)));
     follow.start();
   }
 

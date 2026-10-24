@@ -4,7 +4,7 @@
 //! the account's private key alone; and the sweep forgetting a meeting's title and link once it is over.
 
 use crate::mail::seal;
-use crate::mail_tests::{post, token, turned_on, with_key};
+use crate::mail_tests::{heard_pokes, post, token, turned_on, with_key};
 use crate::meet::ics::tests::{google_invite, utc};
 use crate::meet::{self, take_seal_context, take_wrap_context, unpack, TEST_BOT_TOKEN};
 use crate::store::MeetBooking;
@@ -1102,4 +1102,76 @@ async fn asked_with_no_page_the_list_is_what_it_always_was_with_next_for_the_old
     booking(&h, account, "week", real_now() - 2 * day, "done", None);
     let (_, next, body) = page(&h, &token, "").await;
     assert_eq!((next, body["next"].clone()), (None, Value::Null));
+}
+
+// --- the devices told (live.rs, POKES) -----------------------------------------------------------
+
+#[tokio::test]
+async fn a_take_kept_pokes_its_account_s_devices_and_no_one_else_s() {
+    let h = Harness::new("meet");
+    let (token, account) = sam(&h).await;
+    let (stranger, _) = with_key(&h, "ali").await;
+    let ali = h.accounts.claims(&stranger).unwrap().sub;
+    let mut phone = h.accounts.pokes.attach_for_test(account, 1);
+    let mut mac = h.accounts.pokes.attach_for_test(account, 2);
+    let mut other = h.accounts.pokes.attach_for_test(ali, 3);
+    // Booked from a device: its devices' lists hear of it.
+    let id = join_now(&h, &token, "Budget").await;
+    assert_eq!(heard_pokes(&mut phone), vec!["meet"]);
+    assert_eq!(heard_pokes(&mut mac), vec!["meet"]);
+    // Kept: a take to fetch, a kind of its own and so not held back by the gap the booking began.
+    let (status, _, _) = h.send(take_upload(&id, &[("audio", Some("audio/webm"), b"sound")])).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(heard_pokes(&mut phone), vec!["take"]);
+    assert_eq!(heard_pokes(&mut mac), vec!["take"]);
+    assert!(heard_pokes(&mut other).is_empty(), "another account hears nothing of it");
+    // A take refused (the meeting skipped) is kept by nobody, and nobody is told of one.
+    let skipped = join_now(&h, &stranger, "Not this").await;
+    h.call(Method::DELETE, &format!("/api/v1/meet/{skipped}"), Some(&stranger), None).await;
+    heard_pokes(&mut other);
+    let (status, _, _) = h.send(take_upload(&skipped, &[("audio", Some("audio/webm"), b"sound")])).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+    assert!(heard_pokes(&mut other).is_empty());
+}
+
+#[tokio::test]
+async fn an_invite_the_bot_and_a_series_moving_on_each_poke_the_meetings_list() {
+    let h = Harness::new("meet");
+    let (token_sam, account) = sam(&h).await;
+    let address = turned_on(&h, &token_sam).await;
+    let mut phone = h.accounts.pokes.attach_for_test(account, 1);
+    // The invite mailed: a booking, and a mail, each its own word.
+    let invite = google_invite("REQUEST", 0, "20300115T110000", "20300115T120000", "CONFIRMED");
+    let (status, _, _) = h.send(post(&address, invite_mail(&address, &invite).as_bytes(), &token(1))).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(heard_pokes(&mut phone), vec!["meet", "mail"]);
+    // The bot moving it on is said once the gap is over: the poke the invite began holds the next one back, and one
+    // is said at the gap's end however many came in it.
+    let id = meetings(&h, &token_sam).await[0]["id"].as_str().unwrap().to_string();
+    attended(&h, &id).await;
+    assert!(heard_pokes(&mut phone).is_empty(), "held for the gap");
+    let gap = std::time::Duration::from_millis(crate::live::POKE_GAP_MS.load(std::sync::atomic::Ordering::Relaxed));
+    let mut later = Vec::new();
+    for _ in 0..(gap.as_millis() / 10 * 3) {
+        later.extend(heard_pokes(&mut phone));
+        if !later.is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(later, vec!["meet"], "the bot's three states are one word at the end of the gap");
+
+    // A series' next occurrence booked by `advance`, with no mail: its account is told, once however many it books.
+    let other = Harness::new("meet");
+    let (_, sam_there) = sam(&other).await;
+    let mut there = other.accounts.pokes.attach_for_test(sam_there, 1);
+    let daily = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n");
+    assert_eq!(mailed(&other, sam_there, &daily, utc(2030, 1, 10, 12, 0)), 1);
+    let first = due_at(&other, utc(2030, 1, 15, 15, 59));
+    other.accounts.store.set_meet_state(&first[0].id, "done", None, utc(2030, 1, 15, 16, 16) / 1000);
+    assert_eq!(meet::advance_poking(&other.accounts, utc(2030, 1, 15, 16, 16)), 1);
+    assert_eq!(heard_pokes(&mut there), vec!["meet"]);
+    // Nothing more to book: nothing said.
+    assert_eq!(meet::advance_poking(&other.accounts, utc(2030, 1, 15, 16, 17)), 0);
+    assert!(heard_pokes(&mut there).is_empty());
 }

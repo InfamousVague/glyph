@@ -19,6 +19,7 @@
 //! server -> client   { t: "peers",  room, org?, peers, left? }  another device came or went; left: the connection that went
 //! server -> client   { t: "msg",    room, org?, from, data }
 //! server -> client   { t: "error",  message }              a frame refused, the socket kept
+//! server -> client   { t: "poke",   what }                 something new for this account to fetch: see POKES
 //! ```
 //!
 //! An organization's room is joined by its members alone, checked fresh at every join and again, on a message, once
@@ -27,6 +28,28 @@
 //!
 //! A browser cannot put an Authorization header on a WebSocket, so the token comes in the first frame rather than the
 //! URL, where access logs would keep it.
+//!
+//! POKES (Matt, 2026-10-24: "meetings don't load on the phone app right away I have to wait several minutes for them
+//! to sync"). A device fetches what arrived for its account - a meeting's recording, a mail, the meetings' list - by
+//! the sync's passes, which run at launch, on resume, after a change made here, and otherwise five minutes apart: a
+//! meeting that ended while the app was open waited up to five minutes before the phone even asked for it. So the
+//! service now says so the moment it happens, to every signed-in socket of the account, in or out of any room:
+//!
+//! ```text
+//! server -> client   { t: "poke", what: "take" }   a meeting's recording was uploaded for the account (meet.rs put_take)
+//! server -> client   { t: "poke", what: "meet" }   a meeting was booked, moved, called off, skipped, or changed state
+//! server -> client   { t: "poke", what: "mail" }   a mail was filed for the account (mail.rs inbound)
+//! ```
+//!
+//! A poke is a word and nothing else: no id, no title, no size, nothing the device could not learn by asking, and the
+//! device asks - by the routes it always used, with its own token - for what there is. So the relay still knows
+//! nothing it did not: the service filed the mail and kept the take itself, and a poke only tells the account's own
+//! devices that it did. A socket that has not signed in is never poked; another account's sockets never are.
+//!
+//! Cheap: a burst is one poke per kind per account per `POKE_GAP_MS` (two seconds), the first at once and, when more
+//! came in the gap, one more at its end, so the last change of a burst is never one a device misses. An account with no
+//! socket open costs a map lookup. An older app ignores a frame it does not know; an older service sends none, and the
+//! device fetches at its passes as it did.
 
 use crate::accounts::Accounts;
 use crate::guard::Bucket;
@@ -70,11 +93,149 @@ const ROOM_LENGTH: std::ops::RangeInclusive<usize> = 1..=64;
 /// a test sets it to 0 to see a removed member cut off at once.
 pub(crate) static RECHECK_SECS: AtomicU64 = AtomicU64::new(60);
 
+/// The least time between two pokes of one kind to one account (ms); a test sets it lower.
+pub(crate) static POKE_GAP_MS: AtomicU64 = AtomicU64::new(2000);
+
 /// Close codes. 4000-4999 are the application's own; a client reconnects after all of these but CLOSE_AUTH.
 pub const CLOSE_AUTH: u16 = 4401;
 pub const CLOSE_BUSY: u16 = 4429;
 pub const CLOSE_BAD: u16 = 4400;
 pub const CLOSE_BEHIND: u16 = 4408;
+
+/// What a poke says has come for the account: the word on the frame (see POKES in the header).
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum Poke {
+    /// A meeting's recording, waiting at `GET meet/takes`.
+    Take,
+    /// The meetings' list changed: a booking made, moved, called off or skipped, or the bot moved one on.
+    Meet,
+    /// A mail filed, waiting at `GET mail`.
+    Mail,
+}
+
+impl Poke {
+    pub fn word(self) -> &'static str {
+        match self {
+            Poke::Take => "take",
+            Poke::Meet => "meet",
+            Poke::Mail => "mail",
+        }
+    }
+}
+
+/// Every signed-in socket by its account, for pokes: kept on the accounts (`Accounts::pokes`), so the routes that file
+/// something - meet.rs, mail.rs - reach the relay's sockets without knowing the relay.
+#[derive(Default)]
+pub struct Pokes {
+    inner: Mutex<Poked>,
+}
+
+#[derive(Default)]
+struct Poked {
+    sockets: HashMap<i64, Vec<Member>>,
+    /// When each kind was last said to each account, and whether one more is waiting for the gap to end. Only for an
+    /// account with a socket: forgotten with its last one.
+    gates: HashMap<(i64, Poke), Gate>,
+}
+
+#[derive(Clone, Copy)]
+struct Gate {
+    last: Instant,
+    waiting: bool,
+}
+
+impl Poked {
+    fn tell(&self, account: i64, what: Poke) {
+        let Some(sockets) = self.sockets.get(&account) else { return };
+        let frame = text(json!({ "t": "poke", "what": what.word() }));
+        // A device whose queue is full is behind on the room's messages already, and fetches at its next pass: a poke is
+        // never worth a wait.
+        for socket in sockets {
+            let _ = socket.out.try_send(frame.clone());
+        }
+    }
+}
+
+impl Pokes {
+    fn lock(&self) -> std::sync::MutexGuard<'_, Poked> {
+        self.inner.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+    }
+
+    /// A socket signed in as `account`: poked from now on.
+    fn attach(&self, account: i64, id: u64, out: mpsc::Sender<Message>) {
+        self.lock().sockets.entry(account).or_default().push(Member { id, out });
+    }
+
+    /// A socket gone. With the account's last, its gates go too.
+    fn detach(&self, account: i64, id: u64) {
+        let mut poked = self.lock();
+        let Some(sockets) = poked.sockets.get_mut(&account) else { return };
+        sockets.retain(|m| m.id != id);
+        if sockets.is_empty() {
+            poked.sockets.remove(&account);
+            poked.gates.retain(|(a, _), _| *a != account);
+        }
+    }
+
+    /// How many sockets of the account are poked, for tests.
+    #[cfg(test)]
+    pub(crate) fn sockets_of(&self, account: i64) -> usize {
+        self.lock().sockets.get(&account).map_or(0, Vec::len)
+    }
+
+    /// A test's socket, as the relay attaches one: a channel it reads the frames from.
+    #[cfg(test)]
+    pub(crate) fn attach_for_test(&self, account: i64, id: u64) -> mpsc::Receiver<Message> {
+        let (out, frames) = mpsc::channel(QUEUE);
+        self.attach(account, id, out);
+        frames
+    }
+
+    /// Tells every socket of `account` that something of kind `what` has come: at once, or, when the same was said
+    /// within `POKE_GAP_MS`, once at the end of the gap however many more come in it. Nothing for an account with no
+    /// socket open.
+    pub fn poke(self: &Arc<Self>, account: i64, what: Poke) {
+        let now = Instant::now();
+        let gap = Duration::from_millis(POKE_GAP_MS.load(Ordering::Relaxed));
+        let wait = {
+            let mut poked = self.lock();
+            if !poked.sockets.contains_key(&account) {
+                return;
+            }
+            match poked.gates.get_mut(&(account, what)) {
+                Some(gate) if gate.waiting => return,
+                Some(gate) if now.duration_since(gate.last) < gap => {
+                    gate.waiting = true;
+                    gap - now.duration_since(gate.last)
+                }
+                _ => {
+                    poked.gates.insert((account, what), Gate { last: now, waiting: false });
+                    poked.tell(account, what);
+                    return;
+                }
+            }
+        };
+        match tokio::runtime::Handle::try_current() {
+            Ok(runtime) => {
+                let pokes = self.clone();
+                runtime.spawn(async move {
+                    tokio::time::sleep(wait).await;
+                    pokes.after_gap(account, what);
+                });
+            }
+            // Outside the runtime there is nothing to wait on: said now.
+            Err(_) => self.after_gap(account, what),
+        }
+    }
+
+    /// The poke a gap held back, said at its end, to whichever sockets the account has by then.
+    fn after_gap(&self, account: i64, what: Poke) {
+        let mut poked = self.lock();
+        let Some(gate) = poked.gates.get_mut(&(account, what)) else { return };
+        *gate = Gate { last: Instant::now(), waiting: false };
+        poked.tell(account, what);
+    }
+}
 
 pub struct Live {
     accounts: Arc<Accounts>,
@@ -334,6 +495,8 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
     });
 
     let _ = out.send(text(json!({ "t": "ready", "id": id }))).await;
+    // Signed in, so poked from here on: after `ready`, which a device reads first.
+    live.accounts.pokes.attach(account, id, out.clone());
     // The rooms this socket is in: the organization’s, or none for the account’s own, and the room.
     let mut rooms: HashSet<(Option<String>, String)> = HashSet::new();
     // When each organization’s membership was last confirmed for this socket.
@@ -431,6 +594,7 @@ async fn serve(live: Arc<Live>, mut socket: WebSocket) {
     for (org, room) in &rooms {
         live.leave(&scope_of(account, org.as_deref()), room, id);
     }
+    live.accounts.pokes.detach(account, id);
     live.release(account);
     // Let a close already queued go out before the writer is stopped.
     drop(out);

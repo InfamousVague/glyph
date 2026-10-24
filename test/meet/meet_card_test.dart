@@ -168,6 +168,58 @@ void main() {
     await endSettings(tester);
   });
 
+  testWidgets('the page opened reads the meetings at once past the minute\'s wait, unless it read a moment ago', (tester) async {
+    // Matt, 2026-10-24: "meetings don't load on the phone app right away I have to wait several minutes for them to
+    // sync".
+    final d = await made();
+    final meet = d.device.meetIn!;
+    var now = DateTime.now().millisecondsSinceEpoch;
+    meet.clock = () => now;
+    int reads() => d.meet.calls.where((c) => c == 'GET meet').length;
+    d.meet.meetings.add(meeting('a', 'Roadmap review', 'booked'));
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await settle(tester, 10);
+    final first = reads();
+    expect(first, greaterThan(0));
+    // Closed, and an invite booked meanwhile; opened again fifteen seconds on, well inside the minute the drawn page
+    // waits between reads: read as it opens, and the new one is there.
+    await tester.pumpWidget(const SizedBox.shrink());
+    d.meet.meetings.add(meeting('b', 'Engineering Standup', 'booked'));
+    now += 15000;
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await settle(tester, 10);
+    expect(reads(), first + 1);
+    expect(find.text('Engineering Standup'), findsOneWidget);
+    // Opened again a moment later: the list is that fresh, and not read again; nor by the page drawing itself.
+    await tester.pumpWidget(const SizedBox.shrink());
+    now += 3000;
+    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await settle(tester, 10);
+    expect(reads(), first + 1);
+    await endSettings(tester);
+  });
+
+  testWidgets('read now while a read is under way: one more after it, which has what changed meanwhile', (tester) async {
+    final d = await made();
+    final meet = d.device.meetIn!;
+    int reads() => d.meet.calls.where((c) => c == 'GET meet').length;
+    final before = reads();
+    // The service's word that the list changed (lib/live/poke.dart) comes twice while the first read is out.
+    meet.readNow();
+    meet.readNow();
+    meet.readNow();
+    d.meet.meetings.add(meeting('a', 'Roadmap review', 'booked'));
+    await tester.runAsync(() async {
+      for (var i = 0; i < 50 && reads() < before + 2; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      // Whatever else was to come has come.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    expect(reads(), before + 2, reason: 'the first, and one after it for what was asked meanwhile');
+    expect(meet.meetings?.map((m) => m.id), ['a']);
+  });
+
   testWidgets('the address with Copy, the meetings in words, Don\'t join, and a link sent now', (tester) async {
     final d = await made();
     final copied = Clipped(tester);
