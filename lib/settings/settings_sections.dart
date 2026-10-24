@@ -360,7 +360,7 @@ final List<SettingsSectionSpec> _sections = [
     id: 'meetings',
     label: 'Meetings',
     words: 'meet google meeting ghost bot invite join record transcribe calendar notetaker',
-    glyph: SettingsGlyph.ghost,
+    glyph: SettingsGlyph.users,
     group: 0,
     webFile: 'settings/AccountPane.tsx',
     where: (facts) => meetingsOffered(facts.services),

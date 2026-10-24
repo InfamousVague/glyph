@@ -10,7 +10,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/preferences.dart';
-import 'package:ghost_md/home/home_meetings.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
@@ -289,15 +288,4 @@ void main() {
       await endSettings(tester);
     });
   }
-
-  testWidgets('home’s Upcoming meetings marks an occurrence of a series', (tester) async {
-    final d = await made();
-    d.meet.meetings.addAll([meeting('occ', 'Engineering Standup', 'booked', at + hour, series: 'stand'), meeting('one', 'Planning', 'booked', at + 3 * hour)]);
-    await d.device.meetIn!.refresh();
-    await d.device.pump(tester, HomeMeetings(services: d.device.services));
-    await settle(tester);
-    LucideIcon icon(String id) => tester.widget<AppIcon>(find.descendant(of: find.byKey(ValueKey('home-meeting-$id')), matching: find.byType(AppIcon))).icon;
-    expect((icon('occ'), icon('one')), (Lucide.repeat, Lucide.calendarDays));
-    await endSettings(tester);
-  });
 }

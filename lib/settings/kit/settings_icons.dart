@@ -19,8 +19,6 @@ enum SettingsGlyph {
   folder,
   folderOpen,
   folderInput,
-  // Meetings' row: Ghost, who goes to the meeting (GHST-110).
-  ghost,
   hardDriveDownload,
   hardDriveUpload,
   info,
@@ -32,6 +30,9 @@ enum SettingsGlyph {
   sunMoon,
   terminal,
   userGroup,
+  // Meetings' row: the people in a meeting (Matt, 2026-10-24: "use a different icon for meetings"), where it was the
+  // ghost (GHST-110).
+  users,
   x,
 }
 
@@ -78,7 +79,6 @@ LucideIcon? _kit(SettingsGlyph glyph) => switch (glyph) {
       SettingsGlyph.folder => Lucide.folder,
       SettingsGlyph.folderOpen => Lucide.folderOpen,
       SettingsGlyph.folderInput => Lucide.folderInput,
-      SettingsGlyph.ghost => Lucide.ghost,
       SettingsGlyph.hardDriveDownload => Lucide.hardDriveDownload,
       SettingsGlyph.hardDriveUpload => Lucide.hardDriveUpload,
       SettingsGlyph.info => Lucide.info,
@@ -90,5 +90,6 @@ LucideIcon? _kit(SettingsGlyph glyph) => switch (glyph) {
       SettingsGlyph.sunMoon => Lucide.sunMoon,
       SettingsGlyph.terminal => Lucide.terminal,
       SettingsGlyph.userGroup => Lucide.userGroup,
+      SettingsGlyph.users => Lucide.users,
       SettingsGlyph.x => Lucide.x,
     };

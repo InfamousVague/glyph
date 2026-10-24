@@ -96,7 +96,7 @@ void main() {
         ('daily', 0, SettingsGlyph.calendarDays),
         ('notifications', 0, SettingsGlyph.bell),
         // The port's own (2026-10-23, GHST-110): Ghost in meetings, a card of Account's until then.
-        ('meetings', 0, SettingsGlyph.ghost),
+        ('meetings', 0, SettingsGlyph.users),
         // On a card of its own under Account's since 2026-10-24, with how much of the app there is as its first card
         // (GHST-103), which had a page heading the list, on a card over Account's, from 2026-10-18.
         ('theme', 6, SettingsGlyph.sunMoon),

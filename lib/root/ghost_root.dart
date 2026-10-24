@@ -115,7 +115,6 @@ import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
 import '../home/home_layout.dart';
-import '../home/home_meetings.dart' show HomeMeetings;
 import '../home/home_icons.dart' show HomeGlyph;
 import '../home/home_screen.dart';
 import '../home/note_peek.dart' show PeekPictures;
