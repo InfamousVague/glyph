@@ -50,6 +50,8 @@ final class GhostChannels: NSObject {
   private let files: FilesChannel
   private let tape: TapeChannel
   private let clips: TapeChannel
+  /// The home page shelf's, the cassettes in view loaded into them ahead (lib/tapes/previews.dart `tapePreviewsMost`).
+  private let previews: [TapeChannel]
   private let mic: MicChannel
   private var held: [FlutterMethodChannel] = []
   private weak var window: NSWindow?
@@ -61,6 +63,7 @@ final class GhostChannels: NSObject {
     files = FilesChannel(messenger: messenger, window: window)
     tape = TapeChannel(messenger: messenger)
     clips = TapeChannel(messenger: messenger, name: "ghost_md/clip")
+    previews = (0..<6).map { TapeChannel(messenger: messenger, name: "ghost_md/preview/\($0)") }
     mic = MicChannel(messenger: messenger)
     super.init()
 

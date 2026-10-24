@@ -58,6 +58,7 @@ import 'shell/desktop/mac_tour.dart';
 import 'shell/desktop/mac_window.dart';
 import 'shell/phone_tour.dart';
 import 'tapes/phone_player.dart';
+import 'tapes/previews.dart';
 
 Future<void> main() async {
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
@@ -119,6 +120,9 @@ Future<void> main() async {
   final tapes = PhoneTapePlayer();
   // And one more for the voice memos left in a note, so a memo never takes the tape's playhead.
   final clips = PhoneTapePlayer.clips();
+  // And on the Mac, a few for the home page's shelf, which loads the cassettes in view into them ahead so a
+  // resting mouse only presses Play (Matt, 2026-10-24). The other computers have no player of a recording yet.
+  final previews = defaultTargetPlatform == TargetPlatform.macOS ? TapePreviews.mac() : null;
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   // A place by its name, for Remind me at a place: asked as the app, a second apart, never under Local only.
@@ -146,6 +150,7 @@ Future<void> main() async {
         launchSeat: seat,
         tapePlayer: tapes,
         clipPlayer: clips,
+        tapePreviews: previews,
         // With no core there is nothing to read an update with, and none is looked for.
         updates: opened.core == null ? null : updates,
         locator: locator,

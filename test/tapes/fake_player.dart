@@ -28,7 +28,7 @@ class FakeTapePlayer implements TapePlayer {
   /// What [onDevice] answers.
   bool? here;
 
-  /// Every call made, in order: `load t`, `play`, `pause`, `seek 2000`, `dispose`.
+  /// Every call made, in order: `load t`, `play`, `pause`, `seek 2000`, `release`, `dispose`.
   final List<String> calls = [];
 
   /// The note whose recording is loaded.
@@ -90,6 +90,15 @@ class FakeTapePlayer implements TapePlayer {
 
   @override
   Future<bool?> onDevice(String noteId) async => here;
+
+  @override
+  Future<void> release() async {
+    calls.add('release');
+    _stop();
+    loaded = null;
+    _duration.value = null;
+    _position.value = 0;
+  }
 
   /// The recording breaks while it plays (the element's `error`).
   void fail() {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show TargetPlatform, debugDefaultTargetPlatformOverride;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
@@ -9,6 +10,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/home/meeting_shelf.dart';
+import 'package:ghost_md/tapes/previews.dart';
 import 'package:ghost_md/tapes/tape_art.dart';
 import 'package:glacier/glacier.dart';
 
@@ -188,6 +190,255 @@ void main() {
       expect(tapesShown(tester).first, 'mt-untaped');
       expect(find.textContaining('Recording now'), findsWidgets);
       await away(tester);
+    });
+  });
+
+  // Matt, 2026-10-24: "preload meeting audio on desktop for the visible cassets so hovering is instant to play".
+  group('loaded ahead on a computer', () {
+    final lengths = {for (final n in library()) if (n.recordingMs != null) n.id: n.recordingMs!};
+    final many = [for (var i = 0; i < 12; i += 1) makeNote('m$i', body: '# Meeting $i', createdAt: seedNow - i * hour, updatedAt: seedNow - i * hour, recordingMs: 60000 + i)];
+    final manyMeetings = <String, num>{for (final n in many) n.id: n.createdAt};
+    final manyLengths = {for (final n in many) n.id: n.recordingMs!};
+
+    /// The players kept for the shelf, each a fake that knows every recording in [known].
+    ({TapePreviews previews, List<FakeTapePlayer> players}) previewsOf(Map<String, int> known) {
+      final players = [for (var i = 0; i < tapePreviewsMost; i += 1) FakeTapePlayer(lengths: known)];
+      return (previews: TapePreviews(players), players: players);
+    }
+
+    List<String> callsOf(List<FakeTapePlayer> players) => [for (final p in players) ...p.calls];
+    int loads(List<FakeTapePlayer> players) => callsOf(players).where((c) => c.startsWith('load ')).length;
+
+    /// The cassettes any of whose width the row shows, left to right.
+    List<String> inView(WidgetTester tester) {
+      final row = tester.getRect(find.byKey(const ValueKey('meeting-shelf-row')));
+      return [
+        for (final id in tapesShown(tester))
+          if (tester.getRect(find.byKey(ValueKey('meeting-tape-$id'))).overlaps(row)) id,
+      ];
+    }
+
+    /// The row's scroll position.
+    ScrollPosition rowAt(WidgetTester tester) =>
+        tester.state<ScrollableState>(find.descendant(of: find.byKey(const ValueKey('meeting-shelf-row')), matching: find.byType(Scrollable))).position;
+
+    ({SampleLibrary library, WorkspaceStore workspaces, Asked asked}) madeMany() =>
+        (library: SampleLibrary(many, clock: () => seedNow), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(const WorkspaceSheet())), asked: Asked());
+
+    /// [body] on a Mac, the platform put back after it whatever happens.
+    Future<void> onMac(WidgetTester tester, Future<void> Function() body) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      try {
+        await body();
+        await away(tester);
+      } finally {
+        debugDefaultTargetPlatformOverride = null;
+      }
+    }
+
+    Future<TestGesture> mouseOn(WidgetTester tester) async {
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      return mouse;
+    }
+
+    testWidgets('the cassettes in view, and one past them, are loaded; the others are not', (tester) async {
+      await onMac(tester, () async {
+        final it = madeMany();
+        final kept = previewsOf(manyLengths);
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: manyMeetings, tapePreviews: kept.previews));
+        await settle(tester);
+        final seen = inView(tester);
+        expect(seen, isNotEmpty);
+        expect(seen.length, lessThan(meetingShelfMost - 1), reason: 'a phone-wide window shows a few');
+        final shown = tapesShown(tester);
+        final next = shown[shown.indexOf(seen.last) + 1];
+        expect(kept.previews.ready, {...seen, next});
+        expect(kept.previews.held, isNot(contains(shown.last)));
+        expect(loads(kept.players), seen.length + 1, reason: 'each once');
+      });
+    });
+
+    testWidgets('scrolling lets go of what left the view and loads what came into it, once the row keeps still', (tester) async {
+      await onMac(tester, () async {
+        final it = madeMany();
+        final kept = previewsOf(manyLengths);
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: manyMeetings, tapePreviews: kept.previews));
+        await settle(tester);
+        final before = kept.previews.ready;
+        expect(before, contains('m0'));
+        rowAt(tester).jumpTo(rowAt(tester).maxScrollExtent);
+        // Still moving: nothing yet.
+        await tester.pump(meetingPreviewSettle ~/ 2);
+        expect(kept.previews.ready, before);
+        await settle(tester);
+        final seen = inView(tester);
+        expect(seen, contains('m11'));
+        final shown = tapesShown(tester);
+        expect(kept.previews.ready, {...seen, shown[shown.indexOf(seen.first) - 1]});
+        expect(kept.previews.held, isNot(contains('m0')));
+        expect(callsOf(kept.players), contains('release'), reason: 'those scrolled away were let go');
+      });
+    });
+
+    testWidgets('a mouse resting on one loaded ahead plays it with nothing loaded, and leaves the memos’ player alone', (tester) async {
+      await onMac(tester, () async {
+        final it = made();
+        final kept = previewsOf(lengths);
+        // A note open beside the shelf, its memo paused part of the way through on the memos' player.
+        final memos = FakeTapePlayer(lengths: lengths);
+        await memos.load('mt-standup');
+        await memos.seek(5000);
+        final memosBefore = [...memos.calls];
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePlayer: memos, tapePreviews: kept.previews));
+        await settle(tester);
+        expect(kept.previews.ready, contains('mt-retro'));
+        final slot = kept.players.firstWhere((p) => p.loaded == 'mt-retro');
+        slot.calls.clear();
+        final loaded = loads(kept.players);
+        TapeArt art() => tester.widget<TapeArt>(find.descendant(of: find.byKey(const ValueKey('meeting-tape-mt-retro')), matching: find.byType(TapeArt)));
+        final mouse = await mouseOn(tester);
+        await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-retro'))));
+        // The rest is still the rest: nothing plays before it ends.
+        await tester.pump(meetingHoverDwell ~/ 2);
+        expect(slot.calls, isEmpty);
+        await tester.pump(meetingHoverDwell ~/ 2);
+        await tester.pump();
+        expect(slot.calls, ['play'], reason: 'played the moment the rest ended, with no load');
+        expect(loads(kept.players), loaded);
+        expect(art().playing, isTrue);
+        await tester.pump(const Duration(milliseconds: 300));
+        expect(art().positionMs, 300, reason: 'the tape winds with the player that plays');
+        await mouse.moveTo(Offset.zero);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(slot.calls, ['play', 'pause', 'seek 0'], reason: 'stopped, and at its start again for the next rest');
+        expect(art().playing, isFalse);
+        expect(kept.previews.ready, contains('mt-retro'), reason: 'still loaded');
+        // And again: played at once, from the start.
+        await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-retro'))));
+        await tester.pump(meetingHoverDwell);
+        await tester.pump();
+        expect(slot.calls.last, 'play');
+        expect(art().positionMs, 0);
+        expect(loads(kept.players), loaded);
+        await mouse.moveTo(Offset.zero);
+        await tester.pump(const Duration(milliseconds: 200));
+        expect(memos.calls, memosBefore, reason: 'the memos’ player was never asked a thing');
+        expect(memos.position.value, 5000);
+        expect(memos.loaded, 'mt-standup');
+      });
+    });
+
+    testWidgets('a recording that is not here is fetched from nowhere: its load fails once, and its hover loads as before', (tester) async {
+      await onMac(tester, () async {
+        final it = made();
+        // The retro's recording stayed on the laptop that made it (Sync meeting recordings off there): the shelf's
+        // players cannot load it. The memos' player can, standing for a copy that has come since.
+        final kept = previewsOf({...lengths}..remove('mt-retro'));
+        final memos = FakeTapePlayer(lengths: lengths);
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePlayer: memos, tapePreviews: kept.previews));
+        await settle(tester);
+        expect(kept.previews.held, isNot(contains('mt-retro')));
+        expect(kept.previews.ready, contains('mt-standup'));
+        int tries() => callsOf(kept.players).where((c) => c == 'load mt-retro').length;
+        expect(tries(), 1);
+        // The view settling again asks no more of it.
+        rowAt(tester).jumpTo(1);
+        await settle(tester);
+        rowAt(tester).jumpTo(0);
+        await settle(tester);
+        expect(tries(), 1);
+        final mouse = await mouseOn(tester);
+        await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-retro'))));
+        await tester.pump(meetingHoverDwell);
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+        await tester.pump();
+        expect(memos.calls, ['load mt-retro', 'play'], reason: 'loaded on the hover, as before');
+        expect(tester.takeException(), isNull);
+        await mouse.moveTo(Offset.zero);
+        await tester.pump(const Duration(milliseconds: 200));
+      });
+    });
+
+    testWidgets('nothing is loaded while the app is hidden, and what is in view again when it is back', (tester) async {
+      await onMac(tester, () async {
+        final it = made();
+        final kept = previewsOf(lengths);
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePreviews: kept.previews));
+        await settle(tester);
+        final before = kept.previews.ready;
+        expect(before, isNotEmpty);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+        await settle(tester);
+        expect(kept.previews.held, isEmpty);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+        tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+        await settle(tester);
+        expect(kept.previews.ready, before);
+      });
+    });
+
+    testWidgets('the shelf gone lets go of everything', (tester) async {
+      await onMac(tester, () async {
+        final it = made();
+        final kept = previewsOf(lengths);
+        await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePreviews: kept.previews));
+        await settle(tester);
+        expect(kept.previews.held, isNotEmpty);
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(kept.previews.held, isEmpty);
+        for (final p in kept.players) {
+          if (p.calls.isNotEmpty) expect(p.calls.last, 'release');
+        }
+      });
+    });
+
+    testWidgets('on a phone nothing is loaded ahead, and a hover loads as before', (tester) async {
+      final it = made();
+      final kept = previewsOf(lengths);
+      final memos = FakeTapePlayer(lengths: lengths);
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePlayer: memos, tapePreviews: kept.previews));
+      await settle(tester);
+      expect(kept.previews.held, isEmpty);
+      expect(callsOf(kept.players), isEmpty);
+      final mouse = await mouseOn(tester);
+      await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-retro'))));
+      await tester.pump(meetingHoverDwell);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+      expect(memos.calls, ['load mt-retro', 'play']);
+      await mouse.moveTo(Offset.zero);
+      await tester.pump(const Duration(milliseconds: 200));
+      await away(tester);
+    });
+
+    test('which cassettes are in view: those the row shows, then one past each end', () {
+      expect(meetingsInView(count: 12, offset: 0, viewport: 400, gap: 16), [0, 1, 2]);
+      expect(meetingsInView(count: 12, offset: 300, viewport: 400, gap: 16), [1, 2, 3, 4, 0]);
+      expect(meetingsInView(count: 3, offset: 0, viewport: 2000, gap: 16), [0, 1, 2]);
+      expect(meetingsInView(count: 0, offset: 0, viewport: 400), isEmpty);
+    });
+
+    test('the previews: as many as there are players, and one lent kept until it is handed back', () async {
+      final players = [for (var i = 0; i < 2; i += 1) FakeTapePlayer(lengths: const {'a': 1000, 'b': 1000, 'c': 1000})];
+      final previews = TapePreviews(players);
+      previews.want(['a', 'b', 'c']);
+      await Future<void>.delayed(Duration.zero);
+      expect(previews.ready, {'a', 'b'});
+      previews.want(['c', 'a']);
+      await Future<void>.delayed(Duration.zero);
+      expect(previews.ready, {'a', 'c'});
+      final lent = await previews.take('c');
+      expect(lent, isNotNull);
+      expect(await previews.take('c'), isNull, reason: 'lent already');
+      // Scrolled away while it plays: kept until it is handed back, then let go.
+      previews.want(['a']);
+      expect(previews.held, {'a', 'c'});
+      previews.done(lent!);
+      expect(previews.held, {'a'});
+      expect(await previews.take('zz'), isNull);
     });
   });
 

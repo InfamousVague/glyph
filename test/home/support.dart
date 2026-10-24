@@ -13,6 +13,7 @@ import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/app/style_sheets.dart';
 import 'package:ghost_md/shell/root_stamps.dart';
 import 'package:ghost_md/tapes/player.dart' show TapePlayer;
+import 'package:ghost_md/tapes/previews.dart' show TapePreviews;
 import 'package:glacier/glacier.dart';
 
 import '../support/render.dart';
@@ -45,6 +46,7 @@ class Home extends StatefulWidget {
     this.dockHalo,
     this.notices = const [],
     this.tapePlayer,
+    this.tapePreviews,
     this.events,
     this.simple = false,
     this.talk = false,
@@ -53,6 +55,9 @@ class Home extends StatefulWidget {
 
   /// What the shelf's cassettes play under a resting mouse.
   final TapePlayer? tapePlayer;
+
+  /// The players the shelf loads the cassettes in view into ahead.
+  final TapePreviews? tapePreviews;
 
   /// Which notes are meetings, as the root hands them from the preferences (GHST-112's shelf).
   final Map<String, num> meetings;
@@ -142,6 +147,7 @@ class _HomeState extends State<Home> {
         onAllTapes: () => asked.add('all tapes'),
         onOpenTape: (id) => asked.add('open $id at its tape'),
         tapePlayer: widget.tapePlayer,
+        tapePreviews: widget.tapePreviews,
       ),
     );
   }
