@@ -363,10 +363,11 @@ int _numOf(Object? answer, String field) {
 Note _withWords(Note note, String words, {int? updatedAt}) => note.body == words && updatedAt == null ? note : note.copyWith(body: words, updatedAt: updatedAt);
 
 /// A team's note as its row says it, with what the row does not say left as this device has it: the phrases of a
-/// recording that has not changed, and the formatted version of the same words.
+/// recording that has not changed, where the row has none (no list, or an empty one: lib/sync/notes.dart
+/// `withPhrases`), and the formatted version of the same words.
 Note _over(Note theirs, Note? whole) {
   if (whole == null) return theirs;
-  final segments = theirs.segments == null && whole.segments != null && whole.recordingMs == theirs.recordingMs ? whole.segments : theirs.segments;
+  final segments = (theirs.segments?.isEmpty ?? true) && (whole.segments?.isNotEmpty ?? false) && whole.recordingMs == theirs.recordingMs ? whole.segments : theirs.segments;
   final keepFormatted = theirs.formatted == null && whole.formatted != null && whole.formattedFor == theirs.formattedFor;
   if (identical(segments, theirs.segments) && !keepFormatted) return theirs;
   return Note(

@@ -915,6 +915,22 @@ void main() {
       expect(summaries.summariesNow().failed.contains('n1'), isFalse);
     });
 
+    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". The note's transcript place says
+    // "Writing up… 42%" while the phone's write-up runs (lib/root/note_desk.dart `_writeUpLine`).
+    summaryTest('says how far a write-up has got while it listens or summarizes, and nothing once it waits', (tester) async {
+      RecordingJobState at(String phase, num percent) => RecordingJobState.fromJson({'id': 'n1', 'title': 'Meeting', 'phase': phase, 'percent': percent, 'updatedAt': 1});
+      summaries.enqueueSummary('n1', SummaryKind.meeting, native: true);
+      phoneStates = [at('listening', 42)];
+      await tester.advance(0);
+      expect(summaries.summariesNow().writingUp, {'n1': 42});
+      phoneStates = [at('summarizing', 90)];
+      await tester.advance(15000);
+      expect(summaries.summariesNow().writingUp, {'n1': 90});
+      phoneStates = [state('waiting', 'battery')];
+      await tester.advance(15000);
+      expect(summaries.summariesNow().writingUp, isEmpty);
+    });
+
     summaryTest('sends Try again on a failed write-up and Write up now on a waiting one to the service, to run from the front', (tester) async {
       final asked = writeUp = [];
       summaries.enqueueSummary('n1', SummaryKind.meeting, native: true);

@@ -119,6 +119,61 @@ void main() {
     });
   });
 
+  // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". The transcript is read with the tape
+  // still, so it stands on what the note's words keep where the phrases do not carry the meeting.
+  group('the transcript, read', () {
+    const meet = '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Summary\n\n- Pricing is drafted.\n\n'
+        '## Transcript\n\n**Sam Lee:** Good morning everyone. Let\'s start with the launch checklist.\n\n**Daniel:** Thanks. The pricing page is drafted and the copy is with legal.';
+
+    test('the transcript a note keeps is its paragraphs under the heading, and phrases carry it when they are at least half its words', () {
+      expect(writtenTranscript(meet), ['**Sam Lee:** Good morning everyone. Let\'s start with the launch checklist.', '**Daniel:** Thanks. The pricing page is drafted and the copy is with legal.']);
+      expect(writtenTranscript('# Trip\n\nPack the tent.'), isNull);
+      expect(writtenTranscript('# Trip\n\n## Transcript\n'), isNull);
+      expect(captionsKept('# M\n\n## Captions\n\n**Sam (0:04):** Hi.\n\n## Later\n\nNo.'), ['**Sam (0:04):** Hi.']);
+      final written = writtenTranscript(meet);
+      expect(phrasesWhole(const [Segment(text: 'Go.', startMs: 0, endMs: 500)], written), isFalse, reason: 'a 13-minute meeting\'s one live phrase');
+      expect(phrasesWhole(const [Segment(text: 'Good morning everyone. Let\'s start with the launch checklist.', startMs: 0, endMs: 4000), Segment(text: 'Thanks. The pricing page is drafted.', startMs: 4000, endMs: 8000)], written), isTrue);
+      expect(phrasesWhole(const [], written), isFalse);
+      expect(phrasesWhole(phrases, null), isTrue, reason: 'nothing written to tell by');
+    });
+
+    testWidgets('shows the transcript the note keeps, named, where it has no phrases or only a live word', (tester) async {
+      for (final segments in [const <Segment>[], const [Segment(text: 'Go.', startMs: 0, endMs: 500)]]) {
+        await probe(tester, makeNote('t', meet, recordingMs: 780000, segments: segments));
+        expect(find.text('Sam Lee: Good morning everyone. Let\'s start with the launch checklist.', findRichText: true), findsOneWidget);
+        expect(find.text('Daniel: Thanks. The pricing page is drafted and the copy is with legal.', findRichText: true), findsOneWidget);
+        expect(find.text('Go.'), findsNothing);
+        expect(find.byType(TranscriptPhrase), findsNothing, reason: 'untimed: nothing to take the tape to');
+        await away(tester);
+      }
+    });
+
+    testWidgets('reads its phrases in the second ink until the tape moves, then lights them as they are heard', (tester) async {
+      await probe(tester, makeNote('t', '# Trip', recordingMs: 3000, segments: phrases));
+      expect(tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase)).map((p) => p.reading), everyElement(isTrue));
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase)).map((p) => p.reading), everyElement(isFalse));
+      await away(tester);
+    });
+
+    testWidgets('says the write-up is to come first, over Meet\'s captions where there are any, and a skeleton where there are none', (tester) async {
+      const waiting = '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.\n\n## Captions\n\n**Sam Lee (0:04):** Good morning everyone.\n';
+      tape = tapeOf(makeNote('t', waiting, recordingMs: 780000, segments: const []));
+      await pumpApp(tester, home: TranscriptWords(key: UniqueKey(), tape: tape, writeUp: 'Writing up… 42%'));
+      expect(find.text('Writing up… 42%'), findsOneWidget);
+      expect(find.text('Sam Lee (0:04): Good morning everyone.', findRichText: true), findsOneWidget);
+      expect(find.text('No words were kept with this recording.'), findsNothing);
+      await away(tester);
+      tape = tapeOf(makeNote('u', '# Launch sync', recordingMs: 780000, segments: const []));
+      await pumpApp(tester, home: TranscriptWords(key: UniqueKey(), tape: tape, writeUp: 'Writing up…'));
+      expect(find.text('Writing up…'), findsOneWidget);
+      expect(find.bySemanticsLabel('Loading the transcript'), findsWidgets);
+      expect(find.text('No words were kept with this recording.'), findsNothing);
+      await away(tester);
+    });
+  });
+
   group('the day a tape was recorded (tapes/tapeDate.ts)', () {
     tearDown(() => toldLocale = null);
 

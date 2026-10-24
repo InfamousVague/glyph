@@ -1036,6 +1036,7 @@ extension _RootParts on _GhostRootState {
         ask: screen.ask,
         review: screen.review,
         playTape: screen.at == atTape,
+        showTranscript: screen.at == atTranscript,
         say: (message) => _say(context, message),
         builder: (context, editor, seams) => noteScreenBuilder(
           library: _library,

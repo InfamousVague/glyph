@@ -284,11 +284,14 @@ bool phrasesMayMove(Note note, int now) => (note.recordingMs ?? 0) > 0 && now - 
 
 /// [theirs] with the phrases to apply it with, over [whole] (this device's note, read whole), and whether those are
 /// this device's own: theirs, unless they have none for the same recording, or this device rewrote its own since
-/// they last went ([known]) and theirs are not those, when this device's stand and the push sends them.
+/// they last went ([known]) and theirs are not those, when this device's stand and the push sends them. None is an
+/// empty list as much as no list (Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"): a
+/// Meet note is filed with `[]` while its write-up is to come, and a device that saved it so, with a summary or an
+/// edit, sent `[]` over the phrases the write-up had made elsewhere and took them from every device.
 ({Note note, bool mine}) withPhrases(Note theirs, Note? whole, String? known) {
   if (whole == null || whole.recordingMs != theirs.recordingMs || whole.segments == null) return (note: theirs, mine: false);
   final mine = phrasesMark(whole), their = phrasesMark(theirs);
-  final keep = theirs.segments == null || (mine != null && known != null && mine != known && their != mine);
+  final keep = (theirs.segments?.isEmpty ?? true) || (mine != null && known != null && mine != known && their != mine);
   if (!keep || listEquals(theirs.segments, whole.segments)) return (note: theirs, mine: false);
   return (note: theirs.copyWith(segments: whole.segments), mine: true);
 }

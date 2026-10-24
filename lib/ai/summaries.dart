@@ -240,7 +240,7 @@ class SummaryJob {
 /// What the shelf and the strip see of the queue (`SummariesState`).
 @immutable
 class SummariesState {
-  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel, this.claudeHeld = const <String>{}, this.reasons = const <String, String>{}});
+  const SummariesState({required this.pending, required this.native, required this.waiting, required this.failed, required this.needsModel, this.claudeHeld = const <String>{}, this.reasons = const <String, String>{}, this.writingUp = const <String, num>{}});
 
   /// Notes whose page summary is queued or running.
   final Set<String> pending;
@@ -262,6 +262,11 @@ class SummariesState {
 
   /// Why a failed job's last try failed, in Claude's words, for the caption beside Try again.
   final Map<String, String> reasons;
+
+  /// How far each of [native]'s write-ups has got, in percent, by the phone's own progress files, for the
+  /// transcript's place in an open note: "Writing up… 42%" (Matt, 2026-10-24: "when clicking on meetings it doesn't
+  /// load the transcript"). Only the ones listening or summarizing now; read as often as the files are.
+  final Map<String, num> writingUp;
 }
 
 /// What the service says when a write-up ends (`window.__glyph.recordingDone`) (`RecordingOutcome`); [name] is the
@@ -564,6 +569,10 @@ class Summaries {
           if (j.failed == true && _reasons.containsKey(j.id)) j.id: _reasons[j.id]!,
         for (final j in queue)
           if (j.failed != true && j.native != true && _claudeHeld.contains(j.id) && _heldWhy.containsKey(j.id)) j.id: _heldWhy[j.id]!,
+      },
+      writingUp: {
+        for (final j in nativeJobs)
+          if (stateOf(j.id) case final state? when state.phase == RecordingJobPhase.listening || state.phase == RecordingJobPhase.summarizing) j.id: state.percent,
       },
     ));
   }

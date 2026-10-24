@@ -122,7 +122,7 @@ import '../launch/launch_screen.dart';
 import '../links/graph_view.dart' show showGraph;
 import '../links/links_panel.dart' show linkMention, unlinkMention;
 import '../links/note_links.dart';
-import '../note/land_at.dart' show atTape;
+import '../note/land_at.dart' show atTape, atTranscript, opensAtTranscript;
 import '../note/note_builder.dart';
 import '../note/open_screen.dart';
 import '../note/note_screen.dart' show withFrontMatterTitle;
@@ -447,7 +447,11 @@ class _GhostRootState extends State<GhostRoot> {
           versions: _versionsStore,
           // Matched rather than promoted: a late field is not promoted by every Dart the app is built with (CI's).
           touched: switch (_library) { final CoreLibrary core => core.touched, _ => null },
-          refresh: _library.refresh,
+          // A pass that changed notes: the list read again, and an open tape its phrases (lib/root/note_desk.dart).
+          refresh: () {
+            _notesSynced.value += 1;
+            return _library.refresh();
+          },
           shownNotes: () => _shown,
           // A shared link follows the notes, by whichever hand they changed (lib/share/share.dart `follow`).
           notesChanged: _library,
@@ -1096,6 +1100,7 @@ class _GhostRootState extends State<GhostRoot> {
       _recordingHeard.add(listener);
       return () => _recordingHeard.remove(listener);
     },
+    notesSynced: _notesSynced,
     aiReady: _aiReady,
     // A note pulled down from its top syncs before it is read again.
     syncWithin: () => _services?.engine?.syncWithin() ?? Future<void>.value(),
@@ -1230,6 +1235,11 @@ class _GhostRootState extends State<GhostRoot> {
   /// Told by everything the root is told by. Each part of the app the root puts on screen listens to it and asks,
   /// each time, whether what it reads is another value: the part that reads it is built again, and no other.
   final RootTick _tick = RootTick();
+
+  /// Counted up each time a sync pass changed notes, for an open tape to read its phrases again: phrases that came
+  /// alone change nothing the list holds (Matt, 2026-10-24: "when clicking on meetings it doesn't load the
+  /// transcript").
+  final ValueNotifier<int> _notesSynced = ValueNotifier<int>(0);
 
   /// The root draws nothing that changes: what it puts on screen is made once ([_whole]) and each part of it is
   /// built again by itself. So a change to what the root holds (a sheet opened, voice made) is not a build of the
@@ -1580,6 +1590,7 @@ class _GhostRootState extends State<GhostRoot> {
     _menu.removeListener(_tick.tell);
     _menu.dispose();
     _tick.dispose();
+    _notesSynced.dispose();
     // What the root made that is listened to from outside it, or listens: let go, so a root started over (a reset)
     // does not leave the last one's library reading the notes at every return to the app, nor its trash and
     // workspaces following the preferences. Each is safe to ask after: a save still on its way when the root goes

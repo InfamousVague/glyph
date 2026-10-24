@@ -24,6 +24,7 @@ import 'package:flutter/foundation.dart';
 import 'package:glacier/glacier.dart' show HapticFn, HapticKind, fireMotor;
 
 import '../ai/support/failure.dart';
+import '../core/library.dart' show transcriptOf;
 import '../core/note.dart';
 import '../core/stored.dart';
 
@@ -147,9 +148,12 @@ class Tape extends ChangeNotifier {
   Note get note => _note;
 
   /// The note whose tape this is. The same note again with another length (its recording removed, or put back by
-  /// Undo) keeps the playhead and the phrases; another note stops the tape and starts over.
+  /// Undo) keeps the playhead, and its phrases are read again, as they are when its transcript section moved (a
+  /// write-up landed, here or by sync): what the phrases were then may not be what they are now. Another note stops
+  /// the tape and starts over.
   set note(Note next) {
-    final other = next.id != _note.id;
+    final was = _note;
+    final other = next.id != was.id;
     _note = next;
     if (other) {
       if (_loaded && player.playing.value) unawaited(player.pause().catchError((Object _) {}));
@@ -159,6 +163,8 @@ class Tape extends ChangeNotifier {
       _playing = false;
       _problem = null;
       _segments = next.segments;
+    } else if (!identical(next, was) && _segments != null && (next.recordingMs != was.recordingMs || transcriptOf(next.body) != transcriptOf(was.body))) {
+      reread();
     }
     _fetch();
     notifyListeners();
@@ -190,6 +196,41 @@ class Tape extends ChangeNotifier {
       _segments = full?.segments ?? const [];
       notifyListeners();
     }));
+  }
+
+  /// The phrases read again by id, kept where they are the same (Matt, 2026-10-24: "when clicking on meetings it
+  /// doesn't load the transcript"): a write-up that landed while the note is open, here or on another device and
+  /// brought by sync, rewrites them beside the note, and nothing the list holds says so. A read that fails, or
+  /// answers none, leaves the phrases there are.
+  void reread() {
+    final read = getNote;
+    if (read == null || length == 0 || _gone) return;
+    final id = _note.id;
+    unawaited(read(id).then<Note?>((full) => full, onError: (Object _) => null).then((full) {
+      final next = full?.segments;
+      if (_stale(id) || next == null) return;
+      final now = _segments;
+      if (now != null && listEquals(now, next)) return;
+      _segments = next;
+      notifyListeners();
+    }));
+  }
+
+  /// Says, ahead of any Play, where this device has no audio for the tape: the transcript is read without it, and
+  /// the strip says why Play will not sound ([audioRemovedLine], [notOnThisDevice]). Nothing where the audio is here,
+  /// or the player does not know.
+  Future<void> sayWhereAudioIs() async {
+    if (_loaded || _loading || _problem != null || length == 0 || _gone) return;
+    final id = _note.id;
+    if (audioRemoved(id)) {
+      _problem = audioRemovedLine;
+      notifyListeners();
+      return;
+    }
+    final here = await player.onDevice(id).then<bool?>((here) => here, onError: (Object _) => null);
+    if (_stale(id) || _loaded || _loading || _problem != null || here != false) return;
+    _problem = notOnThisDevice;
+    notifyListeners();
   }
 
   bool _stale(String id) => _gone || _note.id != id;

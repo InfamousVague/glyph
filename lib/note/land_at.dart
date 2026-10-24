@@ -19,6 +19,7 @@ import 'package:flutter/widgets.dart' hide Decoration;
 import '../core/block_ids.dart' show blockIdOf, blockLine, headingNamed;
 import '../core/boards/items.dart' show itemAt;
 import '../core/item_syntax.dart' show wordsEnd;
+import '../core/note.dart' show Note;
 import '../editor/editor.dart';
 import '../editor/view/editor_view.dart';
 import 'note_place.dart';
@@ -26,6 +27,18 @@ import 'note_place.dart';
 /// Where a note is opened at its tape (a cassette on the home page's shelf): no item, but the top of the page, where
 /// the tape is, and the tape playing (lib/root/note_desk.dart). Not a name a line could have.
 const String atTape = '@tape';
+
+/// Where a meeting is opened from anywhere else (Settings › Meetings, a list of notes, a search, a notification;
+/// Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"): the top of the page, as [atTape],
+/// with the transcript on the page under the tape, and the tape still. Not a name a line could have either.
+const String atTranscript = '@transcript';
+
+/// Whether a note opened at [at] is opened at its tape, the transcript on the page: [atTape] or [atTranscript].
+bool atItsTape(String? at) => at == atTape || at == atTranscript;
+
+/// Whether [note] is opened at [atTranscript] wherever it is pressed: one of the meetings ([meetings], `prefs.meetings`)
+/// with a tape. A meeting Meet's captions alone were filed from has none, and its words are its transcript already.
+bool opensAtTranscript(Note note, Map<String, num> meetings) => (note.recordingMs ?? 0) > 0 && meetings.containsKey(note.id);
 
 /// How far below the header a note opened at an item sits (`LAND_ROOM`).
 const double landRoom = 12;
