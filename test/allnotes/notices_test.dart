@@ -69,6 +69,31 @@ void main() {
       await away(tester);
     });
 
+    testWidgets('takes the same room in every state, its words where they were, from the first word to the restart', (tester) async {
+      // Matt, 2026-10-24: "the ghost update banner shifts when updating pleaase make sure it always takes up the same
+      // space".
+      for (final width in [390.0, 1000.0]) {
+        final states = <String, AppUpdates>{
+          'available': AppUpdates(apk: const ApkAvailable('2.3.23'), onInstall: () {}),
+          'downloading': const AppUpdates(apk: ApkDownloading('2.3.23', received: 12400000, total: 57000000)),
+          'ready': AppUpdates(apk: const ApkReady('2.3.23'), onRestart: () {}),
+          'restarting': const AppUpdates(apk: ApkRestarting('2.3.23')),
+          'failed': AppUpdates(apk: const ApkFailed('2.3.23', 'The download was cut short. Check the connection and try again.'), onInstall: () {}),
+          'waiting': AppUpdates(apk: const ApkInstalling('2.3.23'), onInstall: () {}),
+        };
+        final heights = <String, double>{}, starts = <String, double>{};
+        for (final MapEntry(key: name, value: updates) in states.entries) {
+          await show(tester, UpdateNotice(updates: updates), width: width);
+          heights[name] = tester.getSize(key('update-notice')).height;
+          starts[name] = tester.getTopLeft(find.descendant(of: key('update-body'), matching: find.byType(Text)).first).dx;
+          await tester.pump(const Duration(seconds: 1));
+        }
+        expect(heights.values.toSet(), hasLength(1), reason: 'at $width: $heights');
+        expect(starts.values.toSet(), hasLength(1), reason: 'the words start in one place at $width: $starts');
+      }
+      await away(tester);
+    });
+
     testWidgets('says why an install did not happen, and offers it again', (tester) async {
       await show(tester, UpdateNotice(updates: AppUpdates(apk: const ApkFailed('1.9.0', 'The file was damaged.'), onInstall: () {})));
       expect(said(tester, 'Ghost.md 1.9.0 didn’t install. The file was damaged.'), isTrue);
