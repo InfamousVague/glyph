@@ -198,6 +198,7 @@ import '../simple/simple_todos.dart';
 import '../core/query/tick.dart' show tickedBody;
 import '../simple/simple_pane.dart';
 import '../tapes/player.dart' show TapePlayer;
+import '../tapes/previews.dart' show TapePreviews;
 import '../watch/watch_link.dart' show WatchTake;
 import '../watch/watch_claude.dart' show RunnerWatchClaude, watchRunOutcome;
 import '../watch/watch_notes.dart' show WatchAskFailed, WatchAsked, WatchClaude;
@@ -256,7 +257,7 @@ part 'root_voice.dart';
 ///   one is opened by a recorder's screen that is on screen. Without a core (a test, a picture) there is no voice
 ///   unless one is given ([GhostRoot.voice]).
 class GhostRoot extends StatefulWidget {
-  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
+  const GhostRoot({super.key, this.sheet, this.core, this.library, this.workspaces, this.stored, this.clock, this.launch = true, this.launchSeat, this.account, this.services, this.untouched, this.links, this.openLink, this.voice, this.voiceMaking, this.previewFetch, this.embedFetch, this.embedPictures, this.native, this.restart, this.guide, this.tapePlayer, this.clipPlayer, this.tapePreviews, this.updates, this.locator, this.placeLookup, this.placeSearch, this.mapTiles, this.picturePicker, this.films, this.dayPicker, this.connection, this.presence, this.follow, this.voiceLater, this.voiceWhen, this.testReport, this.shares});
 
   /// The app's token sheet, which the shell stamps its layout over: the theme's own unless given.
   final TokenSheet? sheet;
@@ -320,6 +321,10 @@ class GhostRoot extends StatefulWidget {
   /// The player of the voice memos left in a note: one of their own beside the tape's, as the page made an
   /// `<audio>` for a memo (lib/tapes/phone_player.dart `PhoneTapePlayer.clips`). Absent, a memo is a quiet mark.
   final TapePlayer? clipPlayer;
+
+  /// The players the home page's shelf loads the cassettes in view into ahead, on the Mac (lib/tapes/previews.dart
+  /// `TapePreviews.mac`), so a resting mouse only presses Play. Absent, every hover loads on [clipPlayer].
+  final TapePreviews? tapePreviews;
 
   /// Where the phone is (lib/core/phone_position.dart on a phone), what names a place (lib/core/geocode.dart) and
   /// what draws a map's tiles (lib/editor/media/map_tiles.dart). With no [locator], as in a test, no note keeps a

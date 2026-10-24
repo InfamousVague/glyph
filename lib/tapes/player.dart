@@ -69,6 +69,10 @@ abstract class TapePlayer {
   /// over the sync limit, stayed on the device that made it), null is not knowing.
   Future<bool?> onDevice(String noteId);
 
+  /// Lets go of the recording loaded, keeping the player for another [load] (the channel's `release`): what the
+  /// shelf's previews do with a cassette scrolled away (lib/tapes/previews.dart). Never a [Tape]'s to call.
+  Future<void> release();
+
   /// Stops, and lets go of the phone's player. Whoever made the player calls this, never a [Tape].
   void dispose();
 }
@@ -114,8 +118,10 @@ Future<String> whyNotPlayed(({String id, int? recordingMs}) note, Future<int?> F
 /// A note's tape (`Tape`, and the hook that made it): a listenable a screen draws from.
 class Tape extends ChangeNotifier {
   /// [note]'s tape over [player]. [getNote] reads a note again by its id, for the phrases a list left out of the
-  /// notes it loaded (`getNote`, core/store.ts); without it a note that came without phrases has none.
-  Tape(Note note, {required this.player, this.getNote, this.haptic = fireMotor}) : _note = note, _segments = note.segments {
+  /// notes it loaded (`getNote`, core/store.ts); without it a note that came without phrases has none. [loaded]
+  /// says [player] holds this note's recording already, stopped at its start, so the first Play only plays: the
+  /// shelf's cassettes, loaded ahead under the mouse (lib/tapes/previews.dart).
+  Tape(Note note, {required this.player, this.getNote, this.haptic = fireMotor, bool loaded = false}) : _note = note, _segments = note.segments, _loaded = loaded {
     player.position.addListener(_moved);
     player.playing.addListener(_turned);
     _events = player.events.listen(_heard);
@@ -133,7 +139,7 @@ class Tape extends ChangeNotifier {
   int _at = 0;
   bool _playing = false;
   String? _problem;
-  bool _loaded = false;
+  bool _loaded;
   bool _loading = false;
   bool _gone = false;
   StreamSubscription<TapeEvent>? _events;

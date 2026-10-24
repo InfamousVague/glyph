@@ -586,6 +586,8 @@ extension _RootParts on _GhostRootState {
       onOpenTape: (id) => _openTape(shell, id),
       // A cassette under a resting mouse plays on the memos' player, so a note open beside it keeps its tape's place.
       tapePlayer: widget.clipPlayer,
+      // And on the Mac, the cassettes in view are loaded ahead on players of their own, so the rest ends in Play.
+      tapePreviews: widget.tapePreviews,
     );
   }
 

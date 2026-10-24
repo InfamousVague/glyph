@@ -11,6 +11,8 @@ import FlutterMacOS
 /// android/…/ghost_md/TapePlayer.kt is on the phone and the page's `<audio>` element over the `rec` scheme was in
 /// the Tauri app. Two for the whole app, each on a channel of its own name: the tape's (`ghost_md/tape`) and the
 /// voice memos' (`ghost_md/clip`, the `<audio>` the page made for a memo), so a memo takes nothing from the tape.
+/// The Mac has six more, `ghost_md/preview/0` to `/5`, which the home page's shelf loads the cassettes in view into
+/// ahead (lib/tapes/previews.dart), so a resting mouse only presses Play; the iPhone has none, with no mouse to rest.
 ///
 /// ONE FILE FOR BOTH: the iPhone's Runner compiles this very file (ios/Runner.xcodeproj names it by its path here),
 /// `AVAudioPlayer` being the same on each; what differs is the two imports above, the word for the device, and the

@@ -5,7 +5,8 @@
 /// Made by whoever wires the app and let go with it; a [Tape] loads its note's recording into it by the note's id,
 /// at the first Play, so a tape nobody plays asks the phone for nothing. The app makes two: the tape's, and with
 /// [PhoneTapePlayer.clips] the voice memos' own on a channel of its own (`ghost_md/clip`), as the page made an
-/// `<audio>` for a memo beside the tape's (`src/app/editor/clips.ts`).
+/// `<audio>` for a memo beside the tape's (`src/app/editor/clips.ts`). The Mac has a few more, with
+/// [PhoneTapePlayer.preview], for the cassettes on the home page's shelf (lib/tapes/previews.dart).
 ///
 /// What differs: the element's five events are the channel's four (`position`, `playing`, `ended`, `failed`); a
 /// file that is not on this device is the channel's `onDevice`, where the scheme answered a HEAD with 404. Off
@@ -26,6 +27,10 @@ class PhoneTapePlayer implements TapePlayer {
 
   /// The player a voice memo is played on: the phone's second, which the tape's knows nothing of.
   PhoneTapePlayer.clips() : this(channel: const MethodChannel('ghost_md/clip'), events: const EventChannel('ghost_md/clip/events'));
+
+  /// One of the Mac's players kept for the home page's shelf ([slot] 0 to `tapePreviewsMost` - 1;
+  /// lib/tapes/previews.dart): a cassette's tape loaded ahead, so a resting mouse only has to press Play.
+  PhoneTapePlayer.preview(int slot) : this(channel: MethodChannel('ghost_md/preview/$slot'), events: EventChannel('ghost_md/preview/$slot/events'));
 
   final MethodChannel _channel;
   StreamSubscription<Object?>? _heard;
@@ -92,6 +97,14 @@ class PhoneTapePlayer implements TapePlayer {
     } on PlatformException {
       return null;
     }
+  }
+
+  @override
+  Future<void> release() async {
+    _playing.value = false;
+    _position.value = 0;
+    _duration.value = null;
+    await _channel.invokeMethod<void>('release');
   }
 
   @override
