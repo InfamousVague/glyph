@@ -9,7 +9,10 @@
 /// With [titleLines] above one, the label's first line is a title in larger type over as many lines, cut with an
 /// ellipsis, and the rule under it steps down into the room above the window (the shelf of meetings,
 /// `home/meeting_shelf.dart`: Matt, 2026-10-23, "show the note title on the cassette"). At one, the drawing is the
-/// web's, unchanged.
+/// web's, unchanged. [centred] is the shelf's since 2026-10-24 (Matt: "make all cassete titles one line and center
+/// them in the open spot"): one line in the larger type, smaller for a long title down to [tapeTitleMinSize] and then
+/// cut, centred in the open spot right of the A mark, between the label's top and the rule over the window
+/// ([tapeCentredTitle]).
 ///
 /// Given a [hue], one of the kit's colour ramps ([tapeHues]; [tapeHue] picks one from a note's id, so a note's tape is
 /// the same colour on every device and every surface), the cassette is that hue at different strengths on different
@@ -54,7 +57,7 @@ String tapeHue(String id) {
 
 /// The cassette (`src/app/tapes/TapeArt.tsx`), painted from the same 320 by 204 drawing.
 class TapeArt extends StatefulWidget {
-  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false, this.titleLines = 1, this.hue, this.muted});
+  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false, this.titleLines = 1, this.centred = false, this.hue, this.muted});
 
   /// Milliseconds of tape on the take-up reel: the note's length, or the playhead.
   final num positionMs;
@@ -77,6 +80,9 @@ class TapeArt extends StatefulWidget {
 
   /// How many lines the title may take. One is the web's label; more draws it as [tapeLabelTitle] lays it out.
   final int titleLines;
+
+  /// The title on one line in the larger type, centred in the open band over the window ([tapeCentredTitle]).
+  final bool centred;
 
   /// The colour ramp it is drawn in, one of [tapeHues] ([tapeHue] of its note); none is the two inks.
   final String? hue;
@@ -150,6 +156,7 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
             side: widget.bare ? null : widget.side,
             counter: widget.bare ? null : widget.counter,
             titleLines: widget.titleLines,
+            centred: widget.centred,
             hue: hue == null ? null : t.color('glacier-$hue-9'),
             muted: widget.muted ?? preferences.value.simple,
             dark: t.isDark,
@@ -161,7 +168,7 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
 }
 
 class _TapePainter extends CustomPainter {
-  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter, this.titleLines = 1, this.hue, this.muted = false, this.dark = false}) : super(repaint: angles);
+  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter, this.titleLines = 1, this.centred = false, this.hue, this.muted = false, this.dark = false}) : super(repaint: angles);
 
   final ({double supply, double takeup}) packs;
   final ValueNotifier<({double supply, double takeup})> angles;
@@ -169,6 +176,7 @@ class _TapePainter extends CustomPainter {
   final TextStyle font;
   final String? title, side, counter;
   final int titleLines;
+  final bool centred;
 
   /// The ramp's ninth step (`--glacier-<hue>-9`), the solid of the hue in either theme; null draws the two inks.
   final Color? hue;
@@ -252,9 +260,13 @@ class _TapePainter extends CustomPainter {
 
   /// What is printed on the label in ink: the title, the side, the counter, and the two rules in [rule].
   void _print(Canvas canvas, {required Paint rule}) {
-    final tall = titleLines > 1;
+    final tall = titleLines > 1 || centred;
     if (title != null && title!.isNotEmpty) {
-      if (tall) {
+      if (centred) {
+        final words = tapeCentredTitle(title!, font, color: ink);
+        words.paint(canvas, Offset(tapeMiddle - words.width / 2, (tapeLabelTop + tapeTitleRule) / 2 - words.height / 2));
+        words.dispose();
+      } else if (tall) {
         final words = tapeLabelTitle(title!, font, lines: titleLines, color: ink);
         words.paint(canvas, const Offset(tapeTitleLeft, tapeTitleTop));
         words.dispose();
@@ -441,6 +453,7 @@ class _TapePainter extends CustomPainter {
       old.counter != counter ||
       old.font != font ||
       old.titleLines != titleLines ||
+      old.centred != centred ||
       old.hue != hue ||
       old.muted != muted ||
       old.dark != dark;
@@ -455,21 +468,38 @@ const double tapeTitleLeft = 53, tapeTitleTop = 15, tapeTitleWidth = 237, tapeTi
 /// The label's title over [lines] lines, laid out [tapeTitleWidth] wide in [font] at [tapeTitleSize], cut with an
 /// ellipsis on the last: what the painter draws at ([tapeTitleLeft], [tapeTitleTop]). A word longer than the line is
 /// broken where it meets the edge, so nothing runs off the label. The caller disposes of it.
-TextPainter tapeLabelTitle(String title, TextStyle font, {int lines = 2, Color? color}) {
+TextPainter tapeLabelTitle(String title, TextStyle font, {int lines = 2, Color? color}) => _titleAt(title, font, tapeTitleSize, lines: lines, color: color, width: tapeTitleWidth);
+
+/// The open spot on the label a centred title sits in: from the A mark's right ([tapeTitleLeft]) to the label's inner
+/// edge, [tapeCentredWidth] wide about [tapeMiddle], and from the label's top to the rule. [tapeTitleMinSize] is the
+/// smallest a long title is set at before it is cut.
+const double tapeLabelTop = 14, tapeCentredWidth = tapeTitleWidth, tapeMiddle = tapeTitleLeft + tapeTitleWidth / 2, tapeTitleMinSize = 13;
+
+/// The title on one line, centred ([TapeArt.centred]): at [tapeTitleSize] where it fits [tapeCentredWidth], else a
+/// size smaller each time down to [tapeTitleMinSize], and there cut with an ellipsis. The caller disposes of it.
+TextPainter tapeCentredTitle(String title, TextStyle font, {Color? color}) {
+  for (var size = tapeTitleSize;; size -= 1) {
+    final words = _titleAt(title, font, size, lines: 1, color: color, width: tapeCentredWidth);
+    if (!words.didExceedMaxLines || size <= tapeTitleMinSize) return words;
+    words.dispose();
+  }
+}
+
+TextPainter _titleAt(String title, TextStyle font, double size, {required int lines, required double width, Color? color}) {
   const weight = FontWeight.w800;
   return TextPainter(
     text: TextSpan(
       text: title,
-      style: Tokens.resized(font, tapeTitleSize).copyWith(
+      style: Tokens.resized(font, size).copyWith(
         color: color,
         fontWeight: weight,
-        letterSpacing: 0.02 * tapeTitleSize,
+        letterSpacing: 0.02 * size,
         height: 1.08,
-        fontVariations: [FontVariation('wght', weight.value.toDouble()), const FontVariation('opsz', tapeTitleSize)],
+        fontVariations: [FontVariation('wght', weight.value.toDouble()), FontVariation('opsz', size)],
       ),
     ),
     textDirection: TextDirection.ltr,
     maxLines: lines,
     ellipsis: '…',
-  )..layout(maxWidth: tapeTitleWidth);
+  )..layout(maxWidth: width);
 }

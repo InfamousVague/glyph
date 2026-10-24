@@ -1,6 +1,7 @@
 /// The meetings' tapes on the home page (GHST-112; Matt, 2026-10-23: "Add a shelf for meeting recordings and show
 /// the note title on the cassette"): under "Meetings" and how many, a row of cassettes that scrolls sideways, the
-/// newest meeting first, each with its note's title on its label in two lines and, under it, how long it is and the
+/// newest meeting first, each with its note's title on its label on one line, centred over the window (Matt, 2026-10-24: "make
+/// all cassete titles one line and center them in the open spot"), and, under it, how long it is and the
 /// day it was. A tap opens the note. The meeting being recorded now is first, its reels turning and "Recording now"
 /// under it. Nothing at all when there are no meetings with a tape.
 ///
@@ -11,7 +12,7 @@
 ///
 /// After the web's shelf of tapes (`src/app/home/TapeShelf.tsx`, gone with the dashboard, docs/DESIGN.md §147): a row
 /// that scrolls, the cassettes drawn against the longest tape on the shelf, so a short meeting is a thin ring beside
-/// an hour's full reel. What differs: the title is on the cassette's label (lib/tapes/tape_art.dart `titleLines`)
+/// an hour's full reel. What differs: the title is on the cassette's label (lib/tapes/tape_art.dart `centred`)
 /// rather than under it, there is no caption or Summarize, and the row stays a row on a wide page.
 library;
 
@@ -163,7 +164,7 @@ class _MeetingTape extends StatelessWidget {
                   scale: state.pressed ? 0.97 : 1,
                   duration: const Duration(milliseconds: 160),
                   curve: Curves.easeOut,
-                  child: TapeArt(positionMs: note.recordingMs ?? 0, lengthMs: lengthMs, playing: live, title: _title(note), titleLines: 2, hue: tapeHue(note.id)),
+                  child: TapeArt(positionMs: note.recordingMs ?? 0, lengthMs: lengthMs, playing: live, title: _title(note), centred: true, hue: tapeHue(note.id)),
                 ),
                 SizedBox(height: t.space(2)),
                 Text.rich(
