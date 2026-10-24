@@ -1161,7 +1161,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _landing?.dispose();
     _landing = null;
     final at = widget.at;
-    if (at == atTape) {
+    if (atItsTape(at)) {
       // Opened at its tape: the top of the page, where the tape is, rather than where it was left last time.
       if (page.hasPixels && page.pixels != 0) page.jumpTo(0);
     } else if (at != null && at.isNotEmpty) {

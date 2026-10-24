@@ -452,6 +452,24 @@ void main() {
       expect(mac.notes['m']?.segments, written, reason: 'and the device that summarized it has them now');
     });
 
+    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". A Meet note is filed with an
+    // empty list of phrases while its write-up is to come; a device that saved it so sent `[]`, which is none too.
+    test('summarized on a device whose copy had an empty list, stay where they are and go back to it', () async {
+      final (api: _, :phone, :mac) = await pair();
+      phone.notes['m'] = note('m', '# Meeting\n\n## Transcript\n\nOkay.', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: written);
+      await phone.run();
+      mac.notes['m'] = note('m', '# Meeting\n\n## Summary\n\n- The raise.\n\n## Transcript\n\nOkay.', createdAt: 1, updatedAt: 2, recordingMs: 60000, segments: const []);
+      mac.state.notes['m'] = phone.state.notes['m']!;
+      await mac.run();
+      await phone.run();
+      expect(phone.notes['m']?.body, contains('## Summary'));
+      expect(phone.notes['m']?.segments, written, reason: 'an empty list is no phrases, not phrases taken away');
+      await mac.run();
+      expect(mac.notes['m']?.segments, written);
+      // Taken away for real, the recording goes with them, and theirs are taken.
+      expect(withPhrases(note('m', '', recordingMs: null, segments: const []), phone.notes['m'], phone.state.notes['m']?.phrases).note.segments, isEmpty);
+    });
+
     test('rewritten here and not sent yet, stand over older ones from the service', () async {
       final (api: _, :phone, :mac) = await pair();
       phone.notes['m'] = note('m', '# Meeting', createdAt: 1, updatedAt: 1, recordingMs: 60000, segments: live);

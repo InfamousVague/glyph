@@ -14,6 +14,11 @@
 /// screen fills it. The transcript's words are `transcript_words.dart`. The summary word's `title` is its tooltip
 /// in semantics; nothing shows it on a phone, as nothing did on the page. Play's pill is drawn here, since
 /// `AppPill` is the pill at its own size and `.play` makes it smaller.
+///
+/// The port's own (Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"): on the page the
+/// transcript had the screen only while the tape played. Here a meeting opens with its transcript on the page and the
+/// tape still, and the strip's Note and Transcript words go between the two ([NoteTape.onTranscript]); while the tape
+/// plays the transcript has the page, as there, and neither word is offered.
 library;
 
 import 'dart:async';
@@ -87,7 +92,7 @@ class TapeQueue {
 
 /// The strip (`NoteTape`). Draws nothing for a tape with no length.
 class NoteTape extends StatefulWidget {
-  const NoteTape({super.key, required this.note, required this.title, required this.tape, this.onSpeak, required this.onRemove, required this.hasMemos, this.summary, this.queue = const TapeQueue()});
+  const NoteTape({super.key, required this.note, required this.title, required this.tape, this.onSpeak, required this.onRemove, required this.hasMemos, this.summary, this.queue = const TapeQueue(), this.onTranscript, this.transcriptShown = false});
 
   final Note note;
 
@@ -107,6 +112,13 @@ class NoteTape extends StatefulWidget {
   /// Null where there is no model, and Summarize with it.
   final TapeSummary? summary;
   final TapeQueue queue;
+
+  /// Shows the transcript in the note's place, or the note again ([transcriptShown]), while the tape is still: the
+  /// strip's Transcript and Note. Absent, neither word is offered.
+  final VoidCallback? onTranscript;
+
+  /// Whether the transcript has the page now, with the tape still.
+  final bool transcriptShown;
 
   @override
   State<NoteTape> createState() => _NoteTapeState();
@@ -170,6 +182,10 @@ class _NoteTapeState extends State<NoteTape> {
     final warning = t.text('sm', color: t.color('glacier-text-muted'));
 
     final edits = <Widget>[
+      if (widget.onTranscript != null && !tape.playing)
+        widget.transcriptShown
+            ? _Edit(label: "Show the note's words", icon: Lucide.fileText, word: 'Note', onPressed: widget.onTranscript)
+            : _Edit(label: "Show the recording's transcript", icon: Lucide.scrollText, word: 'Transcript', onPressed: widget.onTranscript),
       if (widget.onSpeak != null) _Edit(label: 'Record more into this note', icon: Lucide.mic, word: 'Add', onPressed: widget.onSpeak),
       if (_asking) _Edit(label: "Keep this note's recording", word: 'Keep', onPressed: () => _setAsking(false)),
       _Edit(

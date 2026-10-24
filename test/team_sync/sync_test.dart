@@ -619,5 +619,25 @@ void main() {
       expect(phone.notes['n1']!.formatted, 'Hello.');
       expect(await phone.files.read(FileKind.image, 'none.png'), isNull);
     }, skip: skip);
+
+    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". A Meet note is filed with `[]`
+    // while its write-up is to come, and a member's device that saved it so put a row with `[]`: none, too.
+    test('a row that says an empty list of phrases leaves the ones this device has', () async {
+      final phone = device();
+      const phrases = [Segment(text: 'hello', startMs: 0, endMs: 400)];
+      phone.notes['n1'] = Note(id: 'n1', body: 'hello', createdAt: 1, updatedAt: 1, recordingMs: 400, segments: phrases);
+      phone.filed.add('n1');
+      await phone.sync();
+      final mac = device();
+      await mac.sync();
+      mac.notes['n1'] = Note(id: 'n1', body: 'hello there', createdAt: 1, updatedAt: 2, recordingMs: 400, segments: const []);
+      final doc = (await mac.docs.doc('n1'))!;
+      await doc.reconcile('hello there');
+      final bare = await service.crypto.seal(orgKey, {'v': 1, 'note': noteToJson(mac.notes['n1']!), 'state': toBase64Url(await doc.snapshot()), 'seq': 0}, 'org:$orgId:note:n1');
+      await apiOf(service).call('PUT', 'orgs/$orgId/notes/n1', token: service.signedIn(), body: {'base': service.teamNotes(orgId)['n1']!.rev, 'blob': bare});
+      await phone.sync();
+      expect(phone.notes['n1']!.body, 'hello there');
+      expect(phone.notes['n1']!.segments, phrases);
+    }, skip: skip);
   });
 }

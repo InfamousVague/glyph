@@ -128,5 +128,61 @@ void main() {
       expect(player.calls.sublist(player.calls.length - 2), ['load u', 'play']);
       tape.dispose();
     });
+
+    // Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript". Phrases a write-up made, here or
+    // on another device, arrive beside the note while it is open: the tape reads them again rather than keeping the
+    // ones it was opened with.
+    test('reads its phrases again when asked, and when the note\'s transcript section moves, keeping them where a read fails', () async {
+      final player = FakeTapePlayer(lengths: {'t': 2000});
+      var kept = _note('t', recordingMs: 2000, segments: const []);
+      var fails = false;
+      final tape = Tape(kept, player: player, haptic: quiet, getNote: (id) async => fails ? throw StateError('busy') : kept);
+      var told = 0;
+      tape.addListener(() => told += 1);
+      expect(tape.segments, isEmpty);
+      // Phrases that came alone (a sync): the list's note is the same, so the desk asks.
+      kept = _note('t', recordingMs: 2000, segments: phrases);
+      tape.reread();
+      await pumpEventQueue();
+      expect(tape.segments, phrases);
+      expect(told, 1);
+      // The same phrases again tell nobody.
+      tape.reread();
+      await pumpEventQueue();
+      expect(told, 1);
+      // A read that fails, or answers none, keeps what there is.
+      fails = true;
+      tape.reread();
+      await pumpEventQueue();
+      expect(tape.segments, phrases);
+      fails = false;
+      // The write-up's words landing in the note: its transcript section moved, and the phrases are read again.
+      const better = [Segment(text: 'Pack the tent, then the stove.', startMs: 0, endMs: 2000)];
+      kept = Note(id: 't', body: '# Trip\n\n## Transcript\n\nPack the tent, then the stove.', createdAt: 0, updatedAt: 1, recordingMs: 2000, segments: better);
+      tape.note = Note(id: 't', body: kept.body, createdAt: 0, updatedAt: 1, recordingMs: 2000);
+      await pumpEventQueue();
+      expect(tape.segments, better);
+      tape.dispose();
+    });
+
+    test('says ahead of any Play where the audio is not on this device, and nothing where it is or nobody knows', () async {
+      final away = FakeTapePlayer(lengths: const {}, here: false);
+      final tape = Tape(_note('t', recordingMs: 2000, segments: phrases), player: away, haptic: quiet);
+      await tape.sayWhereAudioIs();
+      expect(tape.problem, notOnThisDevice);
+      expect(away.calls, isEmpty, reason: 'asked, not loaded');
+      tape.dispose();
+      for (final here in [true, null]) {
+        final tape = Tape(_note('t', recordingMs: 2000, segments: phrases), player: FakeTapePlayer(lengths: const {}, here: here), haptic: quiet);
+        await tape.sayWhereAudioIs();
+        expect(tape.problem, isNull);
+        tape.dispose();
+      }
+      markAudioRemoved(['r']);
+      final removed = Tape(_note('r', recordingMs: 2000, segments: phrases), player: FakeTapePlayer(lengths: const {}), haptic: quiet);
+      await removed.sayWhereAudioIs();
+      expect(removed.problem, audioRemovedLine);
+      removed.dispose();
+    });
   });
 }

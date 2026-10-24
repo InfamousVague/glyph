@@ -156,6 +156,7 @@ import '../editor/media/media.dart';
 import '../editor/media/note_embeds.dart';
 import '../editor/media/source_line.dart';
 import '../links/note_links.dart' show NoteLinksHere;
+import '../meet/meet_note.dart' show awaitsWriteUp;
 import '../editor/plus/plus.dart';
 import '../integrations/contacts/contact_card.dart' show PersonCardAction, showPersonCard;
 import '../integrations/contacts/contact_match.dart' show mentionOf;
@@ -315,6 +316,7 @@ class NoteDeskWorld {
     this.summaries,
     this.refining,
     this.onRecordingChanged,
+    this.notesSynced,
     this.shareVersionsFile,
     this.syncWithin,
     this.links,
@@ -467,6 +469,10 @@ class NoteDeskWorld {
   /// the way to stop: the open note takes its transcript the moment it lands.
   final VoidCallback Function(void Function(String noteId) listener)? onRecordingChanged;
 
+  /// Told when a sync pass changed notes (lib/sync/engine.dart `onNotesChanged`): an open tape reads its phrases
+  /// again, since phrases that came alone change nothing the list holds (lib/core/core_library.dart `_put`).
+  final Listenable? notesSynced;
+
   /// Hands a note's versions file to the person and answers what to say (lib/core/versions_share.dart); absent, the
   /// history's row is off.
   final Future<String?> Function(String noteId, String title)? shareVersionsFile;
@@ -523,7 +529,7 @@ typedef NoteDeskBuilder = Widget Function(BuildContext context, NoteEditorBuilde
 /// The editor and everything round it for one open note. Keyed by the note by whoever builds it, so each note
 /// has its own.
 class NoteDesk extends StatefulWidget {
-  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false, this.landing, this.ask, this.review, this.playTape = false});
+  const NoteDesk({super.key, required this.noteId, required this.title, required this.world, required this.say, required this.builder, this.prefs, this.readOnly = false, this.landing, this.ask, this.review, this.playTape = false, this.showTranscript = false});
 
   final String noteId;
 
@@ -552,6 +558,11 @@ class NoteDesk extends StatefulWidget {
   /// Opened at its tape, from a cassette on the home page's shelf: the tape plays once it is here, and its transcript
   /// has the page.
   final bool playTape;
+
+  /// Opened at its transcript, a meeting from anywhere but the shelf (lib/note/land_at.dart `atTranscript`): the
+  /// transcript has the page under the tape, which stays still (Matt, 2026-10-24: "when clicking on meetings it
+  /// doesn't load the transcript"). [playTape] shows it too.
+  final bool showTranscript;
 
   @override
   State<NoteDesk> createState() => NoteDeskState();
@@ -923,6 +934,8 @@ class NoteDeskState extends State<NoteDesk> {
   void initState() {
     super.initState();
     _world.changes?.addListener(_libraryChanged);
+    _world.notesSynced?.addListener(_phrasesMayHaveMoved);
+    _unhearRecording = _world.onRecordingChanged?.call(_recordingHeard);
     _world.eventsChanged?.addListener(_eventsChanged);
     plugins.addListener(_pluginsChanged);
     // While the note is open the better words wait to write it: the editor is its one writer.
@@ -955,10 +968,47 @@ class NoteDeskState extends State<NoteDesk> {
   /// Whether the tape this note was opened at has been started ([NoteDesk.playTape]): once, so a pause stays.
   bool _tapePlayed = false;
 
-  /// `tape.length && tape.playing`: the tape is playing, so the transcript has the page.
+  /// The transcript has the page with the tape still: the note was opened at it ([NoteDesk.showTranscript],
+  /// [NoteDesk.playTape]), or the strip's Transcript was pressed; its Note puts the words back.
+  late bool _reading = widget.showTranscript || widget.playTape;
+
+  /// Whether the strip has said where this device has no audio for the tape, once the transcript is read.
+  bool _audioLooked = false;
+
+  /// `tape.length && tape.playing`: the tape is playing, so the transcript has the page; or it is being read.
   bool get _listening {
     final tape = _tape;
-    return tape != null && tape.length > 0 && tape.playing;
+    return tape != null && tape.length > 0 && (tape.playing || _reading);
+  }
+
+  /// The strip's Transcript and Note.
+  void _toggleTranscript() => setState(() => _reading = !_reading);
+
+  /// Whether the note is one of the meetings (`prefs.meetings`), whose strip offers its transcript.
+  bool get _meeting => _prefs.value.meetings.containsKey(widget.noteId);
+
+  /// The phrases read again, where the note has a tape: a sync pass changed notes, or the phone's write-up this one.
+  void _phrasesMayHaveMoved() => _tape?.reread();
+  void _recordingHeard(String id) {
+    if (id == widget.noteId) _phrasesMayHaveMoved();
+  }
+
+  VoidCallback? _unhearRecording;
+
+  /// Where the note's write-up is, for the transcript's place while it is still to come (Matt, 2026-10-24): this
+  /// device's own, with how far it has got ("Writing up… 42%") or what it waits for; or, with none here, the note's
+  /// first line still saying it is to come (lib/meet/meet_note.dart `awaitsWriteUp`), another device's.
+  String? _writeUpLine(Note note) {
+    final id = widget.noteId;
+    final summaries = _heardSummaries?.value;
+    if (summaries != null && summaries.native.contains(id)) {
+      final percent = summaries.writingUp[id];
+      return percent == null || percent <= 0 ? 'Writing up…' : 'Writing up… ${percent.clamp(0, 100).round()}%';
+    }
+    if (summaries != null && summaries.waiting.contains(id)) return 'The write-up waits for the phone to charge.';
+    if (summaries != null && summaries.needsModel.contains(id)) return 'The write-up needs a model.';
+    if (awaitsWriteUp(note.body)) return 'Being written up on another device.';
+    return null;
   }
 
   tape_player.Tape? _tapeNow() {
@@ -1143,6 +1193,12 @@ class NoteDeskState extends State<NoteDesk> {
   void didUpdateWidget(NoteDesk oldWidget) {
     super.didUpdateWidget(oldWidget);
     _land();
+    // Opened at its transcript again while it was open with its words: the transcript has the page.
+    if ((widget.showTranscript && !oldWidget.showTranscript) || (widget.playTape && !oldWidget.playTape)) _reading = true;
+    if (!identical(oldWidget.world.notesSynced, _world.notesSynced)) {
+      oldWidget.world.notesSynced?.removeListener(_phrasesMayHaveMoved);
+      _world.notesSynced?.addListener(_phrasesMayHaveMoved);
+    }
     // After the frame, as the page's effect is: a run started on a note already open (the palette's) tells the scene
     // over the window, which may not be told while the tree is being built.
     if (oldWidget.ask?.key != widget.ask?.key || oldWidget.review?.key != widget.review?.key) {
@@ -1383,6 +1439,8 @@ class NoteDeskState extends State<NoteDesk> {
     if (_saidLanding) _toasts?.dismiss();
     _world.changes?.removeListener(_libraryChanged);
     _world.eventsChanged?.removeListener(_eventsChanged);
+    _world.notesSynced?.removeListener(_phrasesMayHaveMoved);
+    _unhearRecording?.call();
     plugins.removeListener(_pluginsChanged);
     _bookmark?.dispose();
     _stripRoom.dispose();
@@ -1921,6 +1979,15 @@ class NoteDeskState extends State<NoteDesk> {
     final services = _world.services;
     final ai = _ai;
     _aiDrawn = (ai?.runningKind, ai?.canSummarize ?? false);
+    // The tape first, so a note opened at its transcript has it on the page from its first frame.
+    final taped = _tapeNow();
+    if (_reading && !widget.playTape && !_audioLooked && taped != null && taped.length > 0) {
+      _audioLooked = true;
+      // Read without Play: the strip says now where the audio is not on this device, not at a Play that fails.
+      SchedulerBinding.instance.addPostFrameCallback((_) {
+        if (mounted) unawaited(taped.sayWhereAudioIs());
+      });
+    }
     final seams = NoteSeams(
       links: _links?.seam,
       saving: (flush) => _flush = flush,
@@ -2028,6 +2095,9 @@ class NoteDeskState extends State<NoteDesk> {
                 onRemove: () => unawaited(_removeRecording()),
                 hasMemos: hasClips(_view?.state.doc.toString() ?? ''),
                 queue: _tapeQueue(),
+                // A meeting's, or one opened at its transcript: Transcript and Note, while the tape is still.
+                onTranscript: _meeting || _reading ? _toggleTranscript : null,
+                transcriptShown: _reading,
                 // The recording's summary: queued from here, and landed in this editor as a run. Only where the AI
                 // can run.
                 summary: (_ai?.canSummarize ?? false) && _aiWorld?.summarize != null
@@ -2046,8 +2116,14 @@ class NoteDeskState extends State<NoteDesk> {
           LinkMarks(noteId: widget.noteId, onPress: openSettings),
         ];
       },
-      // Playing takes the screen for the transcript; the note waits under it (NoteScreen.tsx `shown`).
-      transcript: _listening ? (context) => TranscriptWords(tape: _tape!) : null,
+      // Playing takes the screen for the transcript; the note waits under it (NoteScreen.tsx `shown`). So does a
+      // meeting opened at it, with its tape still; and while its write-up is to come, the place says how far it is.
+      transcript: _listening
+          ? (context) => ListenableBuilder(
+                listenable: _queues(),
+                builder: (context, _) => TranscriptWords(tape: _tape!, writeUp: _writeUpLine(_tape!.note)),
+              )
+          : null,
       mapCard: _world.tags != null ? _mapCard : null,
       book: _book,
       journal: _journal,
