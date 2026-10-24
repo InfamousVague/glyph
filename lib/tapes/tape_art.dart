@@ -297,7 +297,8 @@ class _TapePainter extends CustomPainter {
 
     // The shell, solid; its rim in the shade, and its top edge caught by the light.
     final shell = RRect.fromRectAndRadius(const Rect.fromLTWH(2, 2, 316, 200), const Radius.circular(14));
-    canvas.drawRRect(shell, tinted(muted ? 0.42 : 1));
+    // Half strength and a little more over the paper (Matt, 2026-10-24: "make the colors on the cassetes more subtle").
+    canvas.drawRRect(shell, tinted(muted ? 0.3 : 0.55));
     canvas.drawRRect(shell.deflate(2.5), stroke(shade, 0.2 * m, 5));
     canvas.save();
     canvas.clipRect(const Rect.fromLTWH(0, 0, 320, 18));
@@ -365,13 +366,13 @@ class _TapePainter extends CustomPainter {
         ..addRRect(window),
     );
     // A touch more on the dark, whose paper drinks a tint that reads on white.
-    canvas.drawRect(labelBox, tinted(muted ? 0.06 : (dark ? 0.18 : 0.12)));
-    canvas.drawRect(const Rect.fromLTWH(20, 119, 280, 8), fill(hue, muted ? 0.3 : 0.7));
-    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(30, 22, 15, 15), const Radius.circular(2)), fill(hue, muted ? 0.55 : 1));
+    canvas.drawRect(labelBox, tinted(muted ? 0.04 : (dark ? 0.1 : 0.07)));
+    canvas.drawRect(const Rect.fromLTWH(20, 119, 280, 8), fill(hue, muted ? 0.2 : 0.4));
+    canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(30, 22, 15, 15), const Radius.circular(2)), fill(hue, muted ? 0.45 : 0.75));
     _words(canvas, 'A', const Offset(37.5, 33.5), size: 11, color: light, weight: FontWeight.w800, anchor: 0.5);
     _print(canvas, rule: stroke(ink, 0.55, 0.8));
     canvas.restore();
-    canvas.drawRRect(edge, stroke(hue, 0.5 * m, 0.8));
+    canvas.drawRRect(edge, stroke(hue, 0.35 * m, 0.8));
     // The glass's rim in the shade along its top, where the label overhangs it.
     canvas.save();
     canvas.clipRect(const Rect.fromLTWH(0, 0, 320, reelY));
