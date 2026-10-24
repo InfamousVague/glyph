@@ -17,10 +17,10 @@
 /// Given a [hue], one of the kit's colour ramps ([tapeHues]; [tapeHue] picks one from a note's id, so a note's tape is
 /// the same colour on every device and every surface), the cassette is that hue at different strengths on different
 /// parts rather than two inks, for depth (Matt, 2026-10-24: "give the cassettes different colors from the color token
-/// palette as well with different opacities on different parts of the cassete to build depth"): the shell solid with
-/// a shaded rim and a lit top edge, the guard at its foot a step down, the label paper faintly tinted with a band of
-/// the hue across it and a shadow under it, the window smoked, the tape dark, the hubs lit. Lit and shaded are the
-/// lighter and darker of the paper and the ink, so the light comes from above in both themes. The title stays ink on
+/// palette as well with different opacities on different parts of the cassete to build depth"), flat, with no shine
+/// ("we want them to be more 2d"): the shell a wash of the hue, the guard at its foot a step down, the label paper
+/// faintly tinted with a band of the hue across it, the window a pale glass, the tape dark, the hubs light, the screws
+/// and guides cut through. Light and shade are the lighter and darker of the paper and the ink. The title stays ink on
 /// a label that is nearly paper. In simple mode ([muted]) every strength is lower, a pastel of the hue. Without a
 /// hue it is the two inks.
 ///
@@ -298,15 +298,10 @@ class _TapePainter extends CustomPainter {
     // white dots on the cassetes cut outs"): what is behind the cassette shows through them.
     canvas.saveLayer(const Rect.fromLTWH(0, 0, 320, 204), Paint());
 
-    // The shell, solid; its rim in the shade, and its top edge caught by the light.
+    // The shell, flat: no rim, no lit edge (Matt, 2026-10-24: "remove the top shine from the cassete and other shines
+    // we want them to be more 2d"). Half strength and a little more over the paper ("more subtle").
     final shell = RRect.fromRectAndRadius(const Rect.fromLTWH(2, 2, 316, 200), const Radius.circular(14));
-    // Half strength and a little more over the paper (Matt, 2026-10-24: "make the colors on the cassetes more subtle").
     canvas.drawRRect(shell, tinted(muted ? 0.3 : 0.55));
-    canvas.drawRRect(shell.deflate(2.5), stroke(shade, 0.2 * m, 5));
-    canvas.save();
-    canvas.clipRect(const Rect.fromLTWH(0, 0, 320, 18));
-    canvas.drawRRect(shell.deflate(1.4), stroke(light, 0.45 * m, 1.2));
-    canvas.restore();
 
     // The guard at the foot, a step into the shade.
     canvas.save();
@@ -324,13 +319,12 @@ class _TapePainter extends CustomPainter {
 
     // The window: glass, a pale wash of the hue with the light through it, so what is behind it reads (Matt,
     // 2026-10-24: "work on the colors a bit for the tape part so we can see the reels and tape better"); the wound
-    // tape on it dark, the hue deep in the shade as tape is brown-black, with a lit edge.
+    // tape on it dark, the hue deep in the shade as tape is brown-black.
     final window = RRect.fromRectAndRadius(const Rect.fromLTWH(62, 61, 196, 56), const Radius.circular(28));
     canvas.drawRRect(window, Paint()..color = Color.alphaBlend(light.withValues(alpha: dark ? 0.26 : 0.45), Color.alphaBlend(hue.withValues(alpha: muted ? 0.3 : (dark ? 0.6 : 0.4)), paper)));
     final wound = Paint()..color = Color.alphaBlend(shade.withValues(alpha: muted ? 0.55 : (dark ? 0.86 : 0.78)), hue);
     for (final (x, r) in [(leftX, packs.supply), (rightX, packs.takeup)]) {
       canvas.drawCircle(Offset(x, reelY), r, wound);
-      canvas.drawCircle(Offset(x, reelY), r, stroke(light, dark ? 0.5 : 0.6, 1));
     }
     final ring = fill(light, muted ? 0.8 : 0.92);
     final hole = Paint()..color = Color.alphaBlend(shade.withValues(alpha: 0.4 * m), hue);
@@ -355,17 +349,10 @@ class _TapePainter extends CustomPainter {
         ..color = wound.color,
     );
 
-    // The label, raised: a shadow under it, then its paper with the faintest tint of the hue and a band of the hue
-    // across it under the window. The title on it is ink on what is nearly paper.
+    // The label, flat on the shell: its paper with the faintest tint of the hue and a band of the hue across it under
+    // the window. The title on it is ink on what is nearly paper.
     const labelBox = Rect.fromLTWH(20, 14, 280, 132);
     final edge = RRect.fromRectAndRadius(labelBox, const Radius.circular(8));
-    canvas.drawPath(
-      Path()
-        ..fillType = PathFillType.evenOdd
-        ..addRRect(edge.shift(const Offset(0, 1.8)))
-        ..addRRect(window),
-      fill(shade, 0.22 * m),
-    );
     canvas.save();
     canvas.clipPath(
       Path()
@@ -381,14 +368,9 @@ class _TapePainter extends CustomPainter {
     _print(canvas, rule: stroke(ink, 0.55, 0.8));
     canvas.restore();
     canvas.drawRRect(edge, stroke(hue, 0.35 * m, 0.8));
-    // The glass's rim in the shade along its top, where the label overhangs it.
-    canvas.save();
-    canvas.clipRect(const Rect.fromLTWH(0, 0, 320, reelY));
-    canvas.drawRRect(window.deflate(0.8), stroke(shade, 0.35 * m, 1.6));
-    canvas.restore();
 
-    // The shell's own furniture, recessed into the shade with a thin lit line, and its screws.
-    final outline = stroke(light, 0.1 + 0.4 * m, 1.2);
+    // The shell's own furniture, recessed into the shade and outlined in it, and its screws.
+    final outline = stroke(shade, 0.3 * m, 1.2);
     final recess = fill(shade, 0.3 * m);
     canvas.drawPath(
       Path()
