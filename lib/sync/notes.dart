@@ -22,9 +22,10 @@
 /// Three rules keep one tape from stopping the whole sync. A note whose send fails is counted and the loop goes on
 /// ([Outcome.unsent], with the first reason); only a lapsed session (401) still ends the pass. A recording over the
 /// service's limit ([recordingSyncLimit]) is never sent, decided from its length without reading a byte, and a
-/// meeting's recording is not sent while `syncMeetingRecordings` is off. And a tape is hashed only when its length
-/// changed ([FileMark.forMs]), through the device's own digest where it has one. A note changed on both sides that
-/// differs only by the app's own summary section, or only by the lines of a notebook's index, is not kept twice.
+/// meeting's recording is not sent while `syncMeetingRecordings` is off (it is on unless the person turned it off:
+/// GHST-112). And a tape is hashed only when its length changed ([FileMark.forMs]), through the device's own digest
+/// where it has one. A note changed on both sides that differs only by the app's own summary section, or only by the
+/// lines of a notebook's index, is not kept twice.
 ///
 /// What differs:
 /// - The page's `fetch` and WebCrypto are the [Api] and the [AccountCrypto] the context is given; nothing has a
@@ -150,7 +151,7 @@ class SyncContext {
   final int Function()? now;
 
   /// Which notes are meetings (`preferences().meetings`), read when each recording is decided, not when the pass
-  /// began: their audio stays here unless [syncMeetingRecordings].
+  /// began: their audio stays here when [syncMeetingRecordings] says so. None given, it goes.
   final Map<String, num> Function()? meetings;
   final bool Function()? syncMeetingRecordings;
 
@@ -173,7 +174,7 @@ class SyncContext {
   final int? generation;
 
   Map<String, num> get _meetings => meetings?.call() ?? const {};
-  bool get _syncMeetings => syncMeetingRecordings?.call() ?? false;
+  bool get _syncMeetings => syncMeetingRecordings?.call() ?? true;
   bool _live(String id) => sharedLive?.call(id) ?? false;
   bool _team(String id) => teamNote?.call(id) ?? false;
   String get _route => filesRoute ?? 'recordings';
@@ -208,6 +209,12 @@ const int recordingSyncLimit = 64 * 1024 * 1024;
 
 /// The bytes a recording of [ms] takes: 16 kHz, 16-bit, mono, and the WAV header (`recordingBytes`).
 int recordingBytes(int ms) => ms * 32 + 44;
+
+/// The longest recording that travels, as the Account page says it: `2 h 19 min`, `34 min`.
+String get longestSyncedSaid {
+  final minutes = (recordingSyncLimit - 44) ~/ 32 ~/ 60000;
+  return minutes < 60 ? '$minutes min' : '${minutes ~/ 60} h ${minutes % 60} min';
+}
 
 /// Whether a note's recording stays on this device: too big for the service, or a meeting's while those are kept
 /// here (`recordingStaysHere`).
@@ -574,8 +581,9 @@ Future<int?> _heldRev(SyncContext ctx, String id) async {
 
 /// A note's recording sent where the service lacks it, and its fingerprint for the note to carry: read and hashed
 /// only when the tape's length has moved since it was last hashed, through the device's own digest where there is
-/// one, and never for a recording that stays on this device (`sendRecordingOf`).
-Future<String?> _sendRecordingOf(SyncContext ctx, Note note) async {
+/// one, and never for a recording that stays on this device (`sendRecordingOf`). A team's note's goes the same way,
+/// under the organization's context (lib/team/sync.dart).
+Future<String?> sendRecordingOf(SyncContext ctx, Note note) async {
   final id = fileId(FileKind.recording, note.id);
   final ms = note.recordingMs ?? 0;
   if (ms == 0 || id == null) return null;
@@ -680,7 +688,7 @@ Future<void> fetchVersionsOf(SyncContext ctx, String noteId, String digest) asyn
 /// What a note needs sent before it: its recording, pictures and versions, where the service lacks them
 /// (`sendFilesOf`). Answers the payload that names them.
 Future<NotePayload> _sendFilesOf(SyncContext ctx, Note note) async {
-  final recording = await _sendRecordingOf(ctx, note);
+  final recording = await sendRecordingOf(ctx, note);
   final versions = await sendVersionsOf(ctx, note.id);
   final images = imageNames(note.body);
   for (final name in images) {
@@ -739,16 +747,21 @@ List<String> readKeysIn(String body) => <String>{
       for (final name in attachmentNames(body)) 'file/$name',
     }.toList();
 
+/// Note [noteId]'s recording fetched where this device has none, or another than the one with fingerprint [digest]
+/// (`fetchRecordingOf`); false where it was not fetched, there already or not on the service yet.
+Future<bool> fetchRecordingOf(SyncContext ctx, String noteId, String digest) async {
+  final id = fileId(FileKind.recording, noteId);
+  if (id == null || ctx.state.files[id]?.sha == digest) return false;
+  return fetchFile(ctx, FileKind.recording, noteId, digest);
+}
+
 /// What a note from another device needs fetched: its recording, pictures and versions, where this device lacks
 /// them (`fetchFilesOf`).
 Future<void> _fetchFilesOf(SyncContext ctx, NotePayload payload) async {
   final versions = payload.versions;
   if (versions != null) await fetchVersionsOf(ctx, payload.note.id, versions);
   final recording = payload.recording;
-  if (recording != null) {
-    final id = fileId(FileKind.recording, payload.note.id);
-    if (id != null && ctx.state.files[id]?.sha != recording) await fetchFile(ctx, FileKind.recording, payload.note.id, recording);
-  }
+  if (recording != null) await fetchRecordingOf(ctx, payload.note.id, recording);
   for (final name in payload.images) {
     final id = fileId(FileKind.image, name);
     if (id == null || ctx.state.files.containsKey(id)) continue;

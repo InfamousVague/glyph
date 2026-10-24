@@ -11,7 +11,7 @@ import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
-import '../../sync/notes.dart' show stayedHere;
+import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
 import '../account_forms.dart';
 import '../colour_card.dart';
 import '../kit/settings_kit.dart';
@@ -441,14 +441,18 @@ class _AccountPaneState extends State<AccountPane> {
           PaneSection(
             title: 'Sync',
             footer: Text(
-              '${recordsVoice ? 'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.' : 'Notes, their pictures, and your settings. Developer settings stay on each device.'}${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone.' : ''}',
+              '${recordsVoice ? 'Notes, their recordings and pictures, and your settings. The model you downloaded and Developer settings stay on each device.' : 'Notes, their pictures, and your settings. Developer settings stay on each device.'}${stayed != 0 ? ' ${stayed == 1 ? '1 recording' : '$stayed recordings'} stayed on this phone: ${prefs.syncMeetingRecordings ? 'longer than the account takes, over $longestSyncedSaid.' : 'meetings, while their recordings stay, and any over $longestSyncedSaid.'}' : ''}',
             ),
             children: [
               SettingRow(icon: const AppIcon(Lucide.refreshCw, size: 20), label: 'Sync now', onPress: () => unawaited(services.syncNow()), disabled: status.phase == 'syncing'),
               if (recordsVoice) SettingRow(
                 label: 'Sync meeting recordings',
-                hint: const Text("A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."),
-                control: GlacierSwitch(ariaLabel: 'Sync meeting recordings', checked: prefs.syncMeetingRecordings, onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on))),
+                hint: const Text("On, a meeting's audio goes to your other devices, and with a team's note to everyone in the team. A meeting is other people's voices: off, the words sync and the audio stays on the device it was made on."),
+                control: GlacierSwitch(
+                  ariaLabel: 'Sync meeting recordings',
+                  checked: prefs.syncMeetingRecordings,
+                  onCheckedChange: (on) => store.update((now) => now.copyWith(syncMeetingRecordings: on, syncMeetingRecordingsChosen: true)),
+                ),
               ),
               // Live sync (docs/LIVE.md), on unless turned off here (docs/CLAUDE_LIVE.md).
               SettingRow(

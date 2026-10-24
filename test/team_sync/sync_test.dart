@@ -222,6 +222,137 @@ void main() {
     }, skip: skip);
   });
 
+  group('a team note\'s recording (GHST-112: "even shared notes so people can listen back")', () {
+    final tape = Uint8List.fromList([82, 73, 70, 70, 1, 2, 3]);
+
+    /// The recording's id among the organization's files, and the row's payload's fingerprint of it.
+    String recordingId(String noteId) => 'r-$noteId';
+    Future<String?> named(String noteId) async => (await opened(orgKey, noteId))['recording'] as String?;
+
+    test('goes up with the row, sealed under the organization, and plays on the other member\'s device after a pass', () async {
+      final phone = device();
+      phone.put('n1', 'Standup');
+      phone.tape('n1', tape, ms: 1200);
+      await phone.sync();
+      expect(service.teamFiles(orgId).keys, contains(recordingId('n1')));
+      expect(await named('n1'), isNotNull);
+      // Sealed under the organization key with the organization's file context, as a picture is: the service holds
+      // bytes it cannot read.
+      final sealed = Uint8List.fromList(service.teamFiles(orgId)[recordingId('n1')]!.bytes);
+      expect(sealed, isNot(tape));
+      expect(await service.crypto.openBytes(orgKey, sealed, 'file:${recordingId('n1')}'), tape);
+      final mac = device();
+      await mac.sync();
+      expect(mac.notes['n1']?.recordingMs, 1200);
+      expect(mac.tapes['n1'], tape);
+      // Fetched once: another pass asks nothing more of it.
+      final before = service.teamFiles(orgId)[recordingId('n1')]!.rev;
+      await mac.sync();
+      expect(service.teamFiles(orgId)[recordingId('n1')]!.rev, before);
+    }, skip: skip);
+
+    test('taken again replaces the one the other member has, and a member who changes something else leaves it on the row', () async {
+      final phone = device(), mac = device();
+      phone.put('n1', 'Standup');
+      phone.tape('n1', tape, ms: 1200);
+      await phone.sync();
+      await mac.sync();
+      expect(mac.tapes['n1'], tape);
+      final again = Uint8List.fromList([82, 73, 70, 70, 4, 5, 6, 7]);
+      phone.clock += 10;
+      phone.tape('n1', again, ms: 2400);
+      await phone.sync();
+      await mac.sync();
+      expect(mac.notes['n1']?.recordingMs, 2400);
+      expect(mac.tapes['n1'], again);
+      // The Mac pins it: its row goes again, naming the same recording, and the Mac sends no tape of its own.
+      final sent = service.teamFiles(orgId)[recordingId('n1')]!.rev;
+      final digest = await named('n1');
+      mac.notes['n1'] = mac.notes['n1']!.copyWith(starred: true);
+      await mac.sync();
+      expect(service.teamFiles(orgId)[recordingId('n1')]!.rev, sent);
+      expect(await named('n1'), digest);
+      // A third member, who joins now, gets the newest.
+      final laptop = device();
+      await laptop.sync();
+      expect(laptop.tapes['n1'], again);
+    }, skip: skip);
+
+    test('a member whose device has not fetched it yet does not take it off the row, and fetches it on a later pass', () async {
+      final phone = device(), mac = device();
+      phone.put('n1', 'Standup');
+      phone.tape('n1', tape, ms: 1200);
+      await phone.sync();
+      final digest = await named('n1');
+      // The Mac cannot reach the files for now: the note arrives without its tape.
+      Future<FetchResponse> noFiles(FetchRequest request) async {
+        if (request.url.path.contains('/files/')) return FetchResponse.json(503, {'error': 'The files are away.'});
+        return service.fetcher(request);
+      }
+
+      final away = await mac.sync(through: apiOf(service, noFiles));
+      expect(away.unsent, 1);
+      expect(mac.tapes, isEmpty);
+      // It pins the note meanwhile: the row it puts still names the phone's recording.
+      mac.notes['n1'] = mac.notes['n1']!.copyWith(starred: true);
+      await mac.sync(through: apiOf(service, noFiles));
+      expect(service.teamNotes(orgId)['n1']!.rev, greaterThan(0));
+      expect((await opened(orgKey, 'n1'))['note'], containsPair('starred', true));
+      expect(await named('n1'), digest);
+      // Back in reach, the next pass fetches it.
+      await mac.sync();
+      expect(mac.tapes['n1'], tape);
+    }, skip: skip);
+
+    test('a note without one sends none, and its row names none', () async {
+      final phone = device();
+      phone.put('n2', 'just words');
+      await phone.sync();
+      expect(service.teamFiles(orgId).keys.where((id) => id.startsWith('r-')), isEmpty);
+      expect((await opened(orgKey, 'n2')).containsKey('recording'), isFalse);
+      final mac = device();
+      await mac.sync();
+      expect(mac.tapes, isEmpty);
+    }, skip: skip);
+
+    test('a meeting\'s stays on the phone while the switch is off, and goes to the team once it is on, the row put again for it', () async {
+      final phone = device(), mac = device();
+      phone.put('m1', '# Meeting, 23 Oct 10:00');
+      phone.tape('m1', tape, ms: 60000);
+      phone.meetings = {'m1': 1};
+      phone.syncMeetingRecordings = false;
+      await phone.sync();
+      expect(service.teamFiles(orgId).keys, isNot(contains(recordingId('m1'))));
+      expect(await named('m1'), isNull);
+      await mac.sync();
+      expect(mac.notes['m1']?.recordingMs, 60000);
+      expect(mac.tapes, isEmpty);
+      // The Mac, which has no tape, owes nothing and puts nothing.
+      final row = service.teamNotes(orgId)['m1']!.rev;
+      await mac.sync();
+      expect(service.teamNotes(orgId)['m1']!.rev, row);
+      // Switched on: the next pass sends it, though nothing else about the note changed.
+      phone.syncMeetingRecordings = true;
+      await phone.sync();
+      expect(service.teamFiles(orgId).keys, contains(recordingId('m1')));
+      expect(await named('m1'), isNotNull);
+      await mac.sync();
+      expect(mac.tapes['m1'], tape);
+    }, skip: skip);
+
+    test('is let go with the note: a deletion forgets what this device sent, so the note filed again sends it again', () async {
+      final phone = device();
+      phone.put('n1', 'Standup');
+      phone.tape('n1', tape, ms: 1200);
+      await phone.sync();
+      expect(phone.state.files.keys, contains(recordingId('n1')));
+      phone.filed.remove('n1');
+      await phone.sync();
+      expect(service.teamNotes(orgId)['n1']!.deleted, isTrue);
+      expect(phone.state.files.keys, isNot(contains(recordingId('n1'))));
+    }, skip: skip);
+  });
+
   group('the key turning under the team (docs/SHARED.md, S11)', () {
     // The organization with its key at generation `at`, as the service keeps it: what a device's writes are checked
     // against.
@@ -234,6 +365,7 @@ void main() {
       phone.pictures['photo.png'] = Uint8List.fromList([1, 2, 3]);
       phone.versions['n1'] = 'v1\n';
       phone.owed.add('n1');
+      phone.tape('n1', Uint8List.fromList([82, 73, 70, 70, 8]), ms: 900);
       await phone.sync(generation: 1);
       for (var i = 0; i < 3; i += 1) {
         phone.write('n1', 'words $i ![](image/photo.png)');
@@ -257,6 +389,8 @@ void main() {
       expect(laptop.notes['n1']?.body, 'words 2 ![](image/photo.png)');
       expect(laptop.pictures['photo.png'], [1, 2, 3]);
       expect(laptop.versions['n1'], 'v1\n');
+      // And the recording (GHST-112), sealed afresh too.
+      expect(laptop.tapes['n1'], [82, 73, 70, 70, 8]);
     }, skip: skip);
 
     test('refuses a write under a generation no longer in force, and the channel stops with the turn rather than counting it unsent', () async {

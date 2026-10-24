@@ -144,16 +144,17 @@ void main() {
   });
 
   group('Sync', () {
-    testWidgets('offers to sync meeting recordings, off by default, and writes the choice', (tester) async {
+    testWidgets('offers to sync meeting recordings, on by default, and writes the choice', (tester) async {
       final device = await Device.make();
       await device.pump(tester, AccountPane(services: device.services));
-      expect(find.text("A meeting is other people's voices. Off, the words sync and the audio stays on the device it was made on."), findsOneWidget);
-      expect(preferences.value.syncMeetingRecordings, isFalse);
+      expect(find.textContaining("A meeting is other people's voices: off, the words sync and the audio stays on the device it was made on."), findsOneWidget);
+      expect(find.textContaining('to everyone in the team'), findsOneWidget);
+      expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (true, false));
       final toggle = find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Sync meeting recordings');
       await tester.ensureVisible(toggle);
       await tester.tap(toggle);
       await settle(tester);
-      expect(preferences.value.syncMeetingRecordings, isTrue);
+      expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (false, true));
       await endSettings(tester);
     });
 
@@ -180,15 +181,15 @@ void main() {
       final device = await Device.make();
       Note taped(String id, String body, int ms) => device.notes.held[id] = Note(id: id, body: body, createdAt: 0, updatedAt: 0, source: NoteSource.capture, recordingMs: ms, segments: const []);
       taped('m', '# Meeting, 26 Sep 14:05', 60000);
-      taped('big', '# Long', 40 * 60000);
+      taped('big', '# Long', 150 * 60000);
       taped('ok', '# Short', 60000);
-      preferences.update((now) => now.copyWith(meetings: const {'m': 1}));
+      preferences.update((now) => now.copyWith(meetings: const {'m': 1}, syncMeetingRecordings: false, syncMeetingRecordingsChosen: true));
       await device.pump(tester, AccountPane(services: device.services));
       await settle(tester);
-      expect(find.textContaining('2 recordings stayed on this phone.'), findsOneWidget);
+      expect(find.textContaining('2 recordings stayed on this phone: meetings, while their recordings stay'), findsOneWidget);
       preferences.update((now) => now.copyWith(syncMeetingRecordings: true));
       await settle(tester);
-      expect(find.textContaining('1 recording stayed on this phone.'), findsOneWidget);
+      expect(find.textContaining('1 recording stayed on this phone: longer than the account takes'), findsOneWidget);
       await endSettings(tester);
     });
 

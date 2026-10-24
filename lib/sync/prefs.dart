@@ -54,6 +54,9 @@ const List<String> syncedPrefs = [
   // When a meeting is written up, and whether its audio syncs: the person's choices, whichever device made it.
   'writeUp',
   'syncMeetingRecordings',
+  // Whether that switch was ever touched: until it is, a meeting's audio syncs (GHST-112), whatever an older build
+  // wrote.
+  'syncMeetingRecordingsChosen',
   'codeLight',
   'codeDark',
   'codeChosen',

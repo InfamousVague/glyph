@@ -146,7 +146,22 @@ class TeamDevice {
         folders: folders,
         generation: generation,
         olderKey: olderKey,
+        meetings: () => meetings,
+        syncMeetingRecordings: () => syncMeetingRecordings,
       );
+
+  /// Which of this device's notes are meetings, and the person's Sync meeting recordings (on, as the app's default).
+  Map<String, num> meetings = const {};
+  bool syncMeetingRecordings = true;
+
+  /// A recording on note [id]: its tape on this device, and its length on the note.
+  void tape(String id, Uint8List bytes, {required int ms}) {
+    final was = notes[id]!;
+    notes[id] = Note(id: id, body: was.body, createdAt: was.createdAt, updatedAt: clock, starred: was.starred, archivedAt: was.archivedAt, recordingMs: ms, path: was.path);
+    files.tapes[id] = bytes;
+  }
+
+  Map<String, Uint8List> get tapes => files.tapes;
 
   Future<TeamOutcome> sync({SealKey? key, int? generation, Future<SealKey?> Function(int generation)? olderKey, Api? through}) =>
       syncTeamNotes(context(key: key, generation: generation, olderKey: olderKey, through: through));

@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/account/api.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart' show Preferences;
 import 'package:ghost_md/core/summary_text.dart';
 import 'package:ghost_md/core/versions_file.dart';
 import 'package:ghost_md/sync/notes.dart';
@@ -272,7 +273,7 @@ void main() {
 
     test('is one over the service’s limit, decided from its length without reading a byte: the note goes with its phrases and no digest', () async {
       final (:api, :phone, :mac) = await pair();
-      const forty = 40 * 60000;
+      const forty = 150 * 60000;
       expect(recordingBytes(forty), greaterThan(recordingSyncLimit));
       expect(recordingStaysHere('a', forty, const {}, syncMeetingRecordings: false), isTrue);
       expect(recordingStaysHere('a', 30 * 60000, const {}, syncMeetingRecordings: false), isFalse);
@@ -292,7 +293,7 @@ void main() {
       final (:api, :phone, :mac) = await pair();
       phone.notes['m'] = note('m', '# Meeting, 26 Sep 14:05', createdAt: 1, updatedAt: 1, recordingMs: 60000);
       phone.tapes['m'] = tape;
-      await phone.run(meetings: {'m': 1});
+      await phone.run(meetings: {'m': 1}, syncMeetingRecordings: false);
       expect(api.files.containsKey(fileId(FileKind.recording, 'm')), isFalse);
       await mac.run();
       expect(mac.notes['m']?.recordingMs, 60000);
@@ -304,9 +305,38 @@ void main() {
       expect(mac.tapes['m'], tape);
       // A recording that is not a meeting's goes as it always did, setting or no setting.
       expect(
-        stayedHere([note('m', '', recordingMs: 60000), note('r', '', recordingMs: 60000), note('big', '', recordingMs: 40 * 60000)], meetings: {'m': 1}, syncMeetingRecordings: false),
+        stayedHere([note('m', '', recordingMs: 60000), note('r', '', recordingMs: 60000), note('big', '', recordingMs: 150 * 60000)], meetings: {'m': 1}, syncMeetingRecordings: false),
         2,
       );
+    });
+
+    test('is not a meeting’s by default: a meeting’s audio goes to the other devices unless the switch is off (GHST-112)', () async {
+      final (:api, :phone, :mac) = await pair();
+      phone.notes['m'] = note('m', '# Meeting, 23 Oct 10:00', createdAt: 1, updatedAt: 1, recordingMs: 60000);
+      phone.tapes['m'] = tape;
+      // The app's own default, and a context handed no switch at all, alike.
+      expect(Preferences.defaults.syncMeetingRecordings, isTrue);
+      await phone.run(meetings: {'m': 1});
+      expect(api.files.containsKey(fileId(FileKind.recording, 'm')), isTrue);
+      await mac.run();
+      expect(mac.tapes['m'], tape);
+      expect(stayedHere([note('m', '', recordingMs: 60000)], meetings: {'m': 1}, syncMeetingRecordings: true), 0);
+    });
+
+    test('is a meeting’s, held back only while the switch is off, and the next meeting after it goes once it is on again', () async {
+      final (:api, :phone, :mac) = await pair();
+      phone.notes['m1'] = note('m1', '# Meeting one', createdAt: 1, updatedAt: 1, recordingMs: 60000);
+      phone.tapes['m1'] = tape;
+      await phone.run(meetings: {'m1': 1}, syncMeetingRecordings: false);
+      expect(api.files.keys.where((id) => id.startsWith('r-')), isEmpty);
+      final two = Uint8List.fromList([82, 73, 70, 70, 9, 9]);
+      phone.notes['m2'] = note('m2', '# Meeting two', createdAt: 2, updatedAt: 2, recordingMs: 30000);
+      phone.tapes['m2'] = two;
+      await phone.run(meetings: {'m1': 1, 'm2': 2}, syncMeetingRecordings: true);
+      expect(api.files.keys.where((id) => id.startsWith('r-')).toList()..sort(), [fileId(FileKind.recording, 'm1'), fileId(FileKind.recording, 'm2')]);
+      await mac.run();
+      expect(mac.tapes['m1'], tape);
+      expect(mac.tapes['m2'], two);
     });
 
     test('is hashed once per length, not on every push: a ticked to-do no longer costs an hour’s audio read three times', () async {
