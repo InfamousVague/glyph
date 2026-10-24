@@ -6,10 +6,15 @@
 /// [lengthMs], the whole tape. While [playing], the reels turn at tape speed over their own radii (`tape.dart`
 /// `reelTurn`). Drawn [bare], the label is its paper and its A mark and no words.
 ///
+/// With [titleLines] above one, the label's first line is a title in larger type over as many lines, cut with an
+/// ellipsis, and the rule under it steps down into the room above the window (the shelf of meetings,
+/// `home/meeting_shelf.dart`: Matt, 2026-10-23, "show the note title on the cassette"). At one, the drawing is the
+/// web's, unchanged.
+///
 /// What differs: the web's home page drew these on a shelf of tapes (`home/TapeShelf.tsx`), which went with the
-/// dashboard (docs/DESIGN.md §147): a recording is a row with a cassette's mark and its length now, so nothing on
-/// today's home page draws this. It is here for the tape at the top of a spoken note (`tapes/NoteTape.tsx`) and the
-/// meeting's screen, which are not ported yet, as `useTape.ts` (the player) is not.
+/// dashboard (docs/DESIGN.md §147); today's home page draws them on the shelf of meetings (GHST-112,
+/// `home/meeting_shelf.dart`), each with its note's title on the label in two lines ([TapeArt.titleLines]). It is
+/// here too for the tape at the top of a spoken note (`tapes/NoteTape.tsx`) and the meeting's screen.
 library;
 
 import 'dart:math' as math;
@@ -20,10 +25,9 @@ import 'package:glacier/glacier.dart';
 
 import 'tape.dart';
 
-/// The cassette (`src/app/tapes/TapeArt.tsx`), painted from the same 320 by 204 drawing. Nothing on today's home
-/// page draws it: the shelf of tapes went with the dashboard.
+/// The cassette (`src/app/tapes/TapeArt.tsx`), painted from the same 320 by 204 drawing.
 class TapeArt extends StatefulWidget {
-  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false});
+  const TapeArt({super.key, required this.positionMs, this.lengthMs = tapeMs, this.playing = false, this.title, this.side, this.counter, this.bare = false, this.titleLines = 1});
 
   /// Milliseconds of tape on the take-up reel: the note's length, or the playhead.
   final num positionMs;
@@ -43,6 +47,9 @@ class TapeArt extends StatefulWidget {
 
   /// The label paper and its A mark, and no words.
   final bool bare;
+
+  /// How many lines the title may take. One is the web's label; more draws it as [tapeLabelTitle] lays it out.
+  final int titleLines;
 
   @override
   State<TapeArt> createState() => _TapeArtState();
@@ -108,6 +115,7 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
             title: widget.bare ? null : widget.title,
             side: widget.bare ? null : widget.side,
             counter: widget.bare ? null : widget.counter,
+            titleLines: widget.titleLines,
           ),
         ),
       ),
@@ -116,13 +124,14 @@ class _TapeArtState extends State<TapeArt> with SingleTickerProviderStateMixin {
 }
 
 class _TapePainter extends CustomPainter {
-  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter}) : super(repaint: angles);
+  _TapePainter({required this.packs, required this.angles, required this.ink, required this.paper, required this.pack, required this.font, this.title, this.side, this.counter, this.titleLines = 1}) : super(repaint: angles);
 
   final ({double supply, double takeup}) packs;
   final ValueNotifier<({double supply, double takeup})> angles;
   final Color ink, paper, pack;
   final TextStyle font;
   final String? title, side, counter;
+  final int titleLines;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -173,9 +182,18 @@ class _TapePainter extends CustomPainter {
     canvas.drawRect(const Rect.fromLTWH(20, 14, 280, 132), paperFill);
     canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(30, 22, 15, 15), const Radius.circular(2)), inkFill);
     _words(canvas, 'A', const Offset(37.5, 33.5), size: 11, color: paper, weight: FontWeight.w800, anchor: 0.5);
-    if (title != null && title!.isNotEmpty) _words(canvas, title!, const Offset(53, 34), size: 13, color: ink, weight: FontWeight.w800, tracking: 0.06 * 13);
+    final tall = titleLines > 1;
+    if (title != null && title!.isNotEmpty) {
+      if (tall) {
+        final words = tapeLabelTitle(title!, font, lines: titleLines, color: ink);
+        words.paint(canvas, const Offset(tapeTitleLeft, tapeTitleTop));
+        words.dispose();
+      } else {
+        _words(canvas, title!, const Offset(53, 34), size: 13, color: ink, weight: FontWeight.w800, tracking: 0.06 * 13);
+      }
+    }
     if (side != null && side!.isNotEmpty) _words(canvas, side!, const Offset(290, 33), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
-    canvas.drawLine(const Offset(30, 44), const Offset(290, 44), stroke(ink, 0.8));
+    canvas.drawLine(Offset(30, tall ? tapeTitleRule : 44), Offset(290, tall ? tapeTitleRule : 44), stroke(ink, 0.8));
     canvas.drawLine(const Offset(20, 129), const Offset(300, 129), stroke(ink, 0.8));
     if (counter != null && counter!.isNotEmpty) _words(canvas, counter!, const Offset(290, 142), size: 7, color: ink, weight: FontWeight.w600, tracking: 0.14 * 7, anchor: 1, tabular: true);
     canvas.restore();
@@ -241,5 +259,41 @@ class _TapePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TapePainter old) =>
-      old.packs != packs || old.ink != ink || old.paper != paper || old.pack != pack || old.title != title || old.side != side || old.counter != counter || old.font != font;
+      old.packs != packs ||
+      old.ink != ink ||
+      old.paper != paper ||
+      old.pack != pack ||
+      old.title != title ||
+      old.side != side ||
+      old.counter != counter ||
+      old.font != font ||
+      old.titleLines != titleLines;
+}
+
+/// Where a title of more than one line sits on the label, in the drawing's units: from the A mark's right to the
+/// label's inner edge, from just under the label's top to the rule, which steps down from 44 to just over the window
+/// (at 61). [tapeTitleSize] is the type's size there, half as large again as the one line's 13, so a cassette 190
+/// pixels wide still says its title at about eleven.
+const double tapeTitleLeft = 53, tapeTitleTop = 15, tapeTitleWidth = 237, tapeTitleRule = 58, tapeTitleSize = 19;
+
+/// The label's title over [lines] lines, laid out [tapeTitleWidth] wide in [font] at [tapeTitleSize], cut with an
+/// ellipsis on the last: what the painter draws at ([tapeTitleLeft], [tapeTitleTop]). A word longer than the line is
+/// broken where it meets the edge, so nothing runs off the label. The caller disposes of it.
+TextPainter tapeLabelTitle(String title, TextStyle font, {int lines = 2, Color? color}) {
+  const weight = FontWeight.w800;
+  return TextPainter(
+    text: TextSpan(
+      text: title,
+      style: Tokens.resized(font, tapeTitleSize).copyWith(
+        color: color,
+        fontWeight: weight,
+        letterSpacing: 0.02 * tapeTitleSize,
+        height: 1.08,
+        fontVariations: [FontVariation('wght', weight.value.toDouble()), const FontVariation('opsz', tapeTitleSize)],
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    maxLines: lines,
+    ellipsis: '…',
+  )..layout(maxWidth: tapeTitleWidth);
 }

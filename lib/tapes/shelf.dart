@@ -6,7 +6,8 @@
 /// What differs: there is no shelf to port. The web's shelf of cassettes (`home/TapeShelf.tsx`) went with the
 /// dashboard (docs/DESIGN.md §147) and the file is gone: a recording is a note's row with this mark and this length
 /// now, and All notes' Tapes switch is the list of them (`home/dashboard.dart` `tapedNotes` still says which notes
-/// those are, and in what order). So this file is the row's two parts and the date, not a shelf. The home page's
+/// those are, and in what order). So this file is the row's two parts and the date, not a shelf; the meetings have a
+/// shelf of their own since GHST-112 (`home/meeting_shelf.dart`), which draws its cassettes with these. The home page's
 /// rows (`home/home_rows.dart`) draw the same two from private copies of their own, written before this file; they
 /// should take these. `tapeDate` asked the device's language for its order ("26 Sept", "Sep 26"): it is in English
 /// in the phone's own order once the phone has said which (core/locale_dates.dart), and the day and then the month
