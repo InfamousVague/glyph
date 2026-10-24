@@ -424,8 +424,11 @@ class _MeetingTapeState extends State<_MeetingTape> {
                       duration: const Duration(milliseconds: 180),
                       curve: Curves.easeOut,
                       child: TapeArt(
-                        // Playing, the tape winds with the playhead; else it is the whole recording on the right reel.
-                        positionMs: tape != null ? tape.at : note.recordingMs ?? 0,
+                        // Playing, the tape winds with the playhead. At rest it is rewound, all on the left reel, where
+                        // a resting mouse starts it (Matt, 2026-10-24: "when hovering tapes the size of the reels jumps
+                        // when the tape starts playing"): drawn wound to its end, the reels swapped sizes the moment it
+                        // played from the start. The one recording now grows on the right reel as it is made.
+                        positionMs: tape != null ? tape.at : (live ? note.recordingMs ?? 0 : 0),
                         lengthMs: widget.lengthMs,
                         playing: live || playing,
                         title: _title(note),

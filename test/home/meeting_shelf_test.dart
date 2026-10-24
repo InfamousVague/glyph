@@ -121,6 +121,9 @@ void main() {
       final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
       await mouse.addPointer(location: Offset.zero);
       addTearDown(mouse.removePointer);
+      // At rest it is rewound, where a hover starts it, so its reels keep their sizes when it plays (Matt,
+      // 2026-10-24: "when hovering tapes the size of the reels jumps when the tape starts playing").
+      expect(art('mt-retro').positionMs, 0);
       // Passing over the standup on the way: shorter than the dwell, so nothing loads.
       await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-standup'))));
       await tester.pump(meetingHoverDwell ~/ 2);
@@ -132,12 +135,12 @@ void main() {
       expect(art('mt-retro').playing, isTrue, reason: 'its reels turn');
       expect(art('mt-retro').positionMs, 0, reason: 'the tape winds from the start with the playhead');
       expect(art('mt-standup').playing, isFalse);
-      // Away: it stops, and is the whole recording again.
+      // Away: it stops, rewound again.
       await mouse.moveTo(Offset.zero);
       await tester.pump(const Duration(milliseconds: 200));
       expect(player.calls.last, 'pause');
       expect(art('mt-retro').playing, isFalse);
-      expect(art('mt-retro').positionMs, 48 * 60000);
+      expect(art('mt-retro').positionMs, 0);
       await away(tester);
     });
 
