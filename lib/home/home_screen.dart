@@ -78,6 +78,7 @@ import 'home_layout.dart';
 import 'home_org_events.dart';
 import 'home_organizations.dart';
 import 'home_parts.dart';
+import 'meeting_shelf.dart';
 import 'home_rows.dart';
 import 'home_text.dart';
 import 'lazy_page.dart';
@@ -196,6 +197,8 @@ class HomeScreen extends StatefulWidget {
     this.onNewFolder,
     this.onNewNote,
     this.stored,
+    this.meetings = const {},
+    this.onAllTapes,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -307,6 +310,13 @@ class HomeScreen extends StatefulWidget {
   final ValueChanged<String>? onSaveSearch;
 
 
+  /// Which notes are meetings, and when each was started (`prefs.meetings`): their tapes are the shelf of meetings
+  /// under the notices (GHST-112, lib/home/meeting_shelf.dart). None, and there is no shelf.
+  final Map<String, num> meetings;
+
+  /// The shelf's See all: All notes with its Tapes word on. Absent, the shelf has none.
+  final VoidCallback? onAllTapes;
+
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the filters are the Show radios
   /// alone and the search offers no operators ([HomeFilters.simple]), and the page draws no organization cards and
   /// no events of the day. The dock is the root's to trim (no Claude; lib/root/root_parts.dart).
@@ -367,6 +377,7 @@ class _Drawn {
     required this.orgNews,
     required this.sideKey,
     required this.seams,
+    this.meetings = const {},
     this.view = BrowseView.cards,
     this.cover = 0,
   });
@@ -386,6 +397,9 @@ class _Drawn {
   /// drawn, and a seam left out is a page drawn without it.
   final int seams;
 
+  /// Which notes are meetings, for the shelf of their tapes.
+  final Map<String, num> meetings;
+
   /// Cards or icons at the workspace chosen (lib/notes/icon_browser.dart): the sections as the layout draws them, or
   /// the level's folders and notes as tiles.
   final BrowseView view;
@@ -404,6 +418,7 @@ class _Drawn {
       (identical(orgNews, other.orgNews) || listEquals(orgNews, other.orgNews)) &&
       sideKey == other.sideKey &&
       seams == other.seams &&
+      (identical(meetings, other.meetings) || mapEquals(meetings, other.meetings)) &&
       view == other.view &&
       cover == other.cover;
 }
@@ -630,7 +645,9 @@ class _HomeScreenState extends State<HomeScreen> {
           (widget.onSaveSearch != null ? 32768 : 0) |
           (widget.simple ? 65536 : 0) |
           (widget.onNewFolder != null ? 131072 : 0) |
-          (widget.onNewNote != null ? 262144 : 0),
+          (widget.onNewNote != null ? 262144 : 0) |
+          (widget.onAllTapes != null ? 524288 : 0),
+      meetings: widget.meetings,
       // Cards or icons where a workspace is chosen: its own choice, or the nearest one above it. Not in simple mode.
       view: workspace == null || widget.simple ? BrowseView.cards : browseViewAt(spaces.list, workspace, widget.stored),
       cover: windowEndCover.value,
@@ -964,6 +981,16 @@ class _HomeScreenState extends State<HomeScreen> {
         valueListenable: _notices,
         builder: (context, notices, _) => notices.isEmpty ? const SizedBox.shrink() : GappedColumn(gap: gap, children: notices),
       ),
+      // The meetings' tapes, under the notices and the upcoming meetings among them (GHST-112): the workspace
+      // chosen's, not while searching, and not in simple mode. Nothing when no meeting has a tape.
+      if (!widget.simple && !searched && drawn.meetings.isNotEmpty)
+        MeetingShelf(
+          notes: widget.workspaces.inWorkspace(notes, workspace, (note) => note.id),
+          meetings: drawn.meetings,
+          live: recording,
+          onOpen: _open,
+          onSeeAll: widget.onAllTapes,
+        ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
       if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, spaces: spaces.list, onOpen: _organization),
     ];

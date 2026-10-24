@@ -459,6 +459,8 @@ extension _RootParts on _GhostRootState {
           _claudeShown,
           // Simple or advanced (GHST-103).
           preferences.value.simple,
+          // Which notes are meetings, for the shelf of their tapes (GHST-112).
+          preferences.value.meetings,
           // Simple mode's Academy card (GHST-103): whether it is due now.
           _academyCardDue,
           // Simple mode's page (GHST-105): which list it is on, whether it is a column, and whose microphone.
@@ -577,6 +579,9 @@ extension _RootParts on _GhostRootState {
       // Today's events at the head of the page (docs/CALENDAR.md).
       // None while the Calendar plugin is off (lib/plugins/calendar): the service holds none then.
       simple: simple,
+      // The meetings' tapes under the notices (GHST-112), and See all: All notes with its Tapes word on.
+      meetings: preferences.value.meetings,
+      onAllTapes: () => shell.showAllNotes(tapes: true),
     );
   }
 
