@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:ui' as ui;
 
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -13,6 +14,7 @@ import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
 import '../support/render.dart';
+import '../tapes/fake_player.dart';
 import 'support.dart';
 
 /// The shelf of meetings on the home page (GHST-112; Matt, 2026-10-23: "Add a shelf for meeting recordings and show
@@ -104,6 +106,36 @@ void main() {
       await settle(tester);
       expect(it.asked.said, contains('open mt-retro at its tape'));
       expect(it.asked.said, isNot(contains('open mt-retro')));
+      await away(tester);
+    });
+
+    // Matt, 2026-10-24: "when we hover a tape, start playing it's audio and animate the cassete on desktop".
+    testWidgets('a mouse resting on a cassette plays its tape and turns its reels; passing over plays nothing; leaving stops it', (tester) async {
+      final it = made();
+      final player = FakeTapePlayer(lengths: const {'mt-retro': 48 * 60000});
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings, tapePlayer: player));
+      await settle(tester);
+      TapeArt art(String id) => tester.widget<TapeArt>(find.descendant(of: find.byKey(ValueKey('meeting-tape-$id')), matching: find.byType(TapeArt)));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      // Passing over the standup on the way: shorter than the dwell, so nothing loads.
+      await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-standup'))));
+      await tester.pump(meetingHoverDwell ~/ 2);
+      await mouse.moveTo(tester.getCenter(find.byKey(const ValueKey('meeting-tape-mt-retro'))));
+      await tester.pump(meetingHoverDwell);
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 10)));
+      await tester.pump();
+      expect(player.calls, ['load mt-retro', 'play']);
+      expect(art('mt-retro').playing, isTrue, reason: 'its reels turn');
+      expect(art('mt-retro').positionMs, 0, reason: 'the tape winds from the start with the playhead');
+      expect(art('mt-standup').playing, isFalse);
+      // Away: it stops, and is the whole recording again.
+      await mouse.moveTo(Offset.zero);
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(player.calls.last, 'pause');
+      expect(art('mt-retro').playing, isFalse);
+      expect(art('mt-retro').positionMs, 48 * 60000);
       await away(tester);
     });
 

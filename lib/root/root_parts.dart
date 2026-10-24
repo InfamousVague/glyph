@@ -584,6 +584,8 @@ extension _RootParts on _GhostRootState {
       onAllTapes: () => shell.showAllNotes(tapes: true),
       // A cassette: the note at its tape, playing, its transcript on the page (Matt, 2026-10-24).
       onOpenTape: (id) => _openTape(shell, id),
+      // A cassette under a resting mouse plays on the memos' player, so a note open beside it keeps its tape's place.
+      tapePlayer: widget.clipPlayer,
     );
   }
 

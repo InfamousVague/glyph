@@ -72,6 +72,7 @@ import '../perf/frame_log.dart';
 import '../art/art.dart' show Lucide;
 import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
+import '../tapes/player.dart' show TapePlayer;
 import 'home_filters.dart';
 import 'home_icons.dart';
 import 'home_layout.dart';
@@ -200,6 +201,7 @@ class HomeScreen extends StatefulWidget {
     this.meetings = const {},
     this.onAllTapes,
     this.onOpenTape,
+    this.tapePlayer,
   });
 
   /// Every note of the library, the archive included (the page leaves it out).
@@ -320,6 +322,9 @@ class HomeScreen extends StatefulWidget {
 
   /// A cassette on the shelf: its note opened at its tape, playing. Absent, the note opens as any other does.
   final ValueChanged<String>? onOpenTape;
+
+  /// What a cassette on the shelf plays while a mouse rests on it (lib/home/meeting_shelf.dart `player`).
+  final TapePlayer? tapePlayer;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the filters are the Show radios
   /// alone and the search offers no operators ([HomeFilters.simple]), and the page draws no organization cards and
@@ -995,6 +1000,7 @@ class _HomeScreenState extends State<HomeScreen> {
           live: recording,
           onOpen: _openTape,
           onSeeAll: widget.onAllTapes,
+          player: widget.tapePlayer,
         ),
       // The organizations joined, a card each; not while searching, nor inside one workspace, nor in simple mode.
       if (hasOrganization && !widget.simple && !searched && workspace == null && organizations.isNotEmpty) HomeOrganizations(orgs: organizations, notes: notes, filed: spaces.of, spaces: spaces.list, onOpen: _organization),

@@ -18,6 +18,8 @@ library;
 
 import 'dart:math' as math;
 
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -25,6 +27,7 @@ import '../app/widgets.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart' show hasTape;
+import '../tapes/player.dart';
 import '../tapes/shelf.dart';
 import '../tapes/tape.dart';
 import '../tapes/tape_art.dart';
@@ -36,6 +39,12 @@ const int meetingShelfMost = 12;
 
 /// A cassette's width on the shelf, in logical pixels: its title reads at about eleven.
 const double meetingTapeWidth = 188;
+
+/// A tape played by a hover makes no touch: there is no finger.
+void _quiet([HapticKind? _]) {}
+
+/// How long the pointer rests on a cassette before its tape plays: a pointer passing over the shelf plays nothing.
+const Duration meetingHoverDwell = Duration(milliseconds: 300);
 
 /// When a meeting was: when it was started, as the meetings say, or when its note was made.
 int meetingStart(Note note, Map<String, num> meetings) => meetings[note.id]?.toInt() ?? note.createdAt;
@@ -68,7 +77,7 @@ String _title(Note note) {
 }
 
 class MeetingShelf extends StatelessWidget {
-  const MeetingShelf({super.key, required this.notes, required this.meetings, required this.onOpen, this.live, this.onSeeAll});
+  const MeetingShelf({super.key, required this.notes, required this.meetings, required this.onOpen, this.live, this.onSeeAll, this.player});
 
   /// The notes to look through: the page's, the workspace chosen's.
   final List<Note> notes;
@@ -83,6 +92,11 @@ class MeetingShelf extends StatelessWidget {
 
   /// All notes with its Tapes word on: shown when the shelf holds fewer than there are.
   final VoidCallback? onSeeAll;
+
+  /// What a cassette plays while a mouse rests on it (Matt, 2026-10-24: "when we hover a tape, start playing it's
+  /// audio and animate the cassete on desktop"): the memos' player, not the tape's, so a note open beside the shelf
+  /// keeps its playhead. None, and a hover only lights the cassette.
+  final TapePlayer? player;
 
   @override
   Widget build(BuildContext context) {
@@ -120,7 +134,7 @@ class MeetingShelf extends StatelessWidget {
               children: [
                 for (final (i, note) in shown.indexed) ...[
                   if (i > 0) SizedBox(width: gap),
-                  _MeetingTape(key: ValueKey('meeting-tape-${note.id}'), note: note, meetings: meetings, lengthMs: lengthMs, live: note.id == live, onOpen: onOpen),
+                  _MeetingTape(key: ValueKey('meeting-tape-${note.id}'), note: note, meetings: meetings, lengthMs: lengthMs, live: note.id == live, onOpen: onOpen, player: player),
                 ],
               ],
             ),
@@ -131,54 +145,134 @@ class MeetingShelf extends StatelessWidget {
   }
 }
 
-/// One cassette: the note's title on its label, its length and its day under it; a tap opens it.
-class _MeetingTape extends StatelessWidget {
-  const _MeetingTape({super.key, required this.note, required this.meetings, required this.lengthMs, required this.live, required this.onOpen});
+/// One cassette: the note's title on its label, its length and its day under it; a tap opens it. A mouse resting on
+/// it plays its tape from the start on [player], the reels turning and the tape winding with the playhead, the
+/// cassette lifted a little; the mouse leaving stops it. Not the meeting being recorded, nor a tape with no player.
+class _MeetingTape extends StatefulWidget {
+  const _MeetingTape({super.key, required this.note, required this.meetings, required this.lengthMs, required this.live, required this.onOpen, this.player});
 
   final Note note;
   final Map<String, num> meetings;
   final int lengthMs;
   final bool live;
   final ValueChanged<String> onOpen;
+  final TapePlayer? player;
+
+  @override
+  State<_MeetingTape> createState() => _MeetingTapeState();
+}
+
+class _MeetingTapeState extends State<_MeetingTape> {
+  Timer? _dwell;
+  Tape? _tape;
+  bool _hovered = false;
+
+  void _enter() {
+    final player = widget.player;
+    setState(() => _hovered = true);
+    if (player == null || widget.live || (widget.note.recordingMs ?? 0) <= 0) return;
+    _dwell?.cancel();
+    _dwell = Timer(meetingHoverDwell, () {
+      if (!mounted || !_hovered) return;
+      final tape = _tape = Tape(widget.note, player: player, haptic: _quiet)..addListener(_redraw);
+      unawaited(tape.toggle());
+    });
+  }
+
+  void _leave() {
+    _dwell?.cancel();
+    _dwell = null;
+    _stop();
+    if (mounted) setState(() => _hovered = false);
+  }
+
+  /// A tape stopped is let go: disposing of it pauses the player, which is not its own.
+  void _stop() {
+    final tape = _tape;
+    _tape = null;
+    tape?..removeListener(_redraw)..dispose();
+  }
+
+  void _redraw() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  void didUpdateWidget(_MeetingTape old) {
+    super.didUpdateWidget(old);
+    if (old.note.id != widget.note.id || old.player != widget.player) _stop();
+  }
+
+  @override
+  void dispose() {
+    _dwell?.cancel();
+    _stop();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final note = widget.note, live = widget.live;
     final t = context.tokens;
     final xs = t.fontSize('xs');
     final radius = t.radius('md');
-    return GlacierPressable(
-      onPressed: () => onOpen(note.id),
-      semanticLabel: meetingSaid(note, meetings, live: live),
-      builder: (context, state) => GlacierFocusRing(
-        visible: state.focused,
-        radius: radius,
-        child: SizedBox(
-          width: meetingTapeWidth,
-          child: ExcludeSemantics(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // `.cassette:active`: it gives a little when pressed, as the web's did.
-                AnimatedScale(
-                  scale: state.pressed ? 0.97 : 1,
-                  duration: const Duration(milliseconds: 160),
-                  curve: Curves.easeOut,
-                  child: TapeArt(positionMs: note.recordingMs ?? 0, lengthMs: lengthMs, playing: live, title: _title(note), centred: true, hue: tapeHue(note.id)),
-                ),
-                SizedBox(height: t.space(2)),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      ...tapeWordSpans(t, note, live: live, em: xs, dot: !live),
-                      TextSpan(text: tapeDate(meetingStart(note, meetings)), style: tabular(pageText(t, xs, color: t.color('glacier-text-subtle')))),
-                    ],
+    final tape = _tape;
+    final playing = tape != null && tape.playing;
+    return MouseRegion(
+      onEnter: (_) => _enter(),
+      onExit: (_) => _leave(),
+      child: GlacierPressable(
+        onPressed: () {
+          // The note's own tape takes it from here.
+          _leave();
+          widget.onOpen(note.id);
+        },
+        semanticLabel: meetingSaid(note, widget.meetings, live: live),
+        builder: (context, state) => GlacierFocusRing(
+          visible: state.focused,
+          radius: radius,
+          child: SizedBox(
+            width: meetingTapeWidth,
+            child: ExcludeSemantics(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // `.cassette:active`: it gives a little when pressed, as the web's did; and is lifted a little under
+                  // a resting mouse.
+                  AnimatedSlide(
+                    offset: Offset(0, _hovered && !state.pressed ? -0.03 : 0),
+                    duration: const Duration(milliseconds: 180),
+                    curve: Curves.easeOut,
+                    child: AnimatedScale(
+                      scale: state.pressed ? 0.97 : (_hovered ? 1.03 : 1),
+                      duration: const Duration(milliseconds: 180),
+                      curve: Curves.easeOut,
+                      child: TapeArt(
+                        // Playing, the tape winds with the playhead; else it is the whole recording on the right reel.
+                        positionMs: tape != null ? tape.at : note.recordingMs ?? 0,
+                        lengthMs: widget.lengthMs,
+                        playing: live || playing,
+                        title: _title(note),
+                        centred: true,
+                        hue: tapeHue(note.id),
+                      ),
+                    ),
                   ),
-                  maxLines: 1,
-                  softWrap: false,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  SizedBox(height: t.space(2)),
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        ...tapeWordSpans(t, note, live: live, em: xs, dot: !live),
+                        TextSpan(text: tapeDate(meetingStart(note, widget.meetings)), style: tabular(pageText(t, xs, color: t.color('glacier-text-subtle')))),
+                      ],
+                    ),
+                    maxLines: 1,
+                    softWrap: false,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
             ),
           ),
         ),
