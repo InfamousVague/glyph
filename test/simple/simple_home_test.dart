@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/note.dart';
@@ -164,6 +165,36 @@ void main() {
     await settle(tester);
     expect(find.text('Your open to-dos will show here.'), findsOneWidget);
     await away(tester);
+  });
+
+  // Matt, 2026-10-24: "in simple mode we need to move the title under the traffic lights there is a bunch of empty
+  // white space on the left".
+  testWidgets('on the Mac gives the window buttons a row of their own, and starts the title, the switch, the search and the rows at one edge under it', (tester) async {
+    final it = SampleLibrary.seeded(clock: () => seedNow);
+    for (final mac in [true, false]) {
+      if (mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await pumpApp(tester, size: const Size(360, 800), home: _Page(library: it, asked: [], pane: true));
+      tester.view.padding = FakeViewPadding.zero;
+      tester.view.viewPadding = FakeViewPadding.zero;
+      await settle(tester);
+      final title = find.text('Notes').first;
+      final edge = tester.getTopLeft(row('weekend')).dx;
+      for (final what in [title, find.byKey(const ValueKey('simple-switch')), find.bySemanticsLabel('Search')]) {
+        expect(tester.getTopLeft(what).dx, mac ? closeTo(edge, 0.5) : greaterThanOrEqualTo(edge - 0.5), reason: '$what starts at the rows\' edge');
+      }
+      final lights = find.byKey(const ValueKey('simple-lights'));
+      if (mac) {
+        expect(lights, findsOneWidget);
+        expect(tester.getTopLeft(lights), Offset.zero);
+        expect(tester.getSize(lights).width, 360, reason: 'the row is the column\'s whole width, the ground to drag by');
+        expect(tester.getTopLeft(title).dy, greaterThanOrEqualTo(tester.getBottomLeft(lights).dy), reason: 'the title is under the buttons, not beside them');
+        expect(tester.getTopRight(find.byKey(const ValueKey('simple-settings'))).dy, greaterThanOrEqualTo(tester.getBottomLeft(lights).dy), reason: 'the gear stays at the end of the title\'s row');
+      } else {
+        expect(lights, findsNothing, reason: 'off the Mac the page is as it was');
+      }
+      await away(tester);
+      debugDefaultTargetPlatformOverride = null;
+    }
   });
 }
 

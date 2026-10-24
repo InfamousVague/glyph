@@ -44,6 +44,8 @@ import '../notes/note_menu.dart' show NoteMenuArea;
 import '../notes/pull_to_refresh.dart';
 import '../notes/swipe_row.dart';
 import '../notes/when.dart';
+import '../shell/desktop/mac_drag_strip.dart';
+import '../shell/desktop/mac_lights.dart';
 import '../shell/header_pane.dart' show StatusScrim;
 import 'simple_bar.dart';
 
@@ -213,8 +215,10 @@ class _SimpleHomeState extends State<SimpleHome> {
     final safeTop = t.len('app-safe-top');
     final safeBottom = t.len('app-safe-bottom');
     final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
-    // The Mac's window buttons stand over the top start corner of a window with no bar to hold them.
-    final lights = t.attrs['titlebar'] == 'overlay' ? t.len('app-traffic-lights') : 0.0;
+    // On the Mac the window's buttons have a row of their own over the page ([_LightsRow]), and the title starts
+    // just under it, as Settings' head does under theirs; elsewhere the page starts under the notch.
+    final overlay = titlebarOverlay(t);
+    final headTop = overlay ? t.space(1) : safeTop + t.space(3);
     final gap = t.space(3);
     final hairline = t.len('glacier-hairline');
     final rule = BorderSide(color: t.color('app-rule'), width: hairline);
@@ -233,7 +237,7 @@ class _SimpleHomeState extends State<SimpleHome> {
 
     final slivers = <Widget>[
       SliverPadding(
-        padding: EdgeInsetsDirectional.fromSTEB(gutterStart + lights, safeTop + t.space(3), gutterEnd, 0),
+        padding: EdgeInsetsDirectional.fromSTEB(gutterStart, headTop, gutterEnd, 0),
         sliver: SliverToBoxAdapter(child: GappedColumn(gap: gap, after: gap, children: head)),
       ),
       if (!notesTab)
@@ -291,7 +295,7 @@ class _SimpleHomeState extends State<SimpleHome> {
           behavior: const _Still(),
           child: PageScroll(key: const ValueKey('simple-scroll'), controller: _scroller, pull: pull, slivers: slivers),
         );
-    final scroller = widget.onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: widget.onRefresh!, top: safeTop + t.space(3), builder: (context, pull) => page(pull));
+    final scroller = widget.onRefresh == null ? page(null) : PullToRefresh(controller: _scroller, onRefresh: widget.onRefresh!, top: headTop, builder: (context, pull) => page(pull));
 
     final Widget body;
     if (pane) {
@@ -327,7 +331,7 @@ class _SimpleHomeState extends State<SimpleHome> {
       child: _AboveKeyboard(
         child: Stack(
           children: [
-            Positioned.fill(child: body),
+            Positioned.fill(child: overlay ? Column(children: [const _LightsRow(), Expanded(child: body)]) : body),
             // The phone's clock stands on paper, not on the rows scrolling under it.
             const StatusScrim(),
           ],
@@ -335,6 +339,25 @@ class _SimpleHomeState extends State<SimpleHome> {
       ),
     );
   }
+}
+
+/// The Mac app's row for its three window buttons, over the page and nothing else in it (Matt, 2026-10-24: "in
+/// simple mode we need to move the title under the traffic lights there is a bunch of empty white space on the
+/// left"). Simple mode has no bar to set them into, and the page used to make room for them beside the title by
+/// pushing the whole head in by `--app-traffic-lights`: the title, the switch, the search and the notices all began
+/// 72px in while the rows under them began at the gutter, an empty column down the start of the list. Now the
+/// buttons have this row to themselves, as Settings' head starts below theirs (lib/settings/settings_screen.dart
+/// `_head`, the same 2.25rem), and says where its centre is so they sit on it (lib/shell/desktop/mac_lights.dart);
+/// the title starts the page under it at the gutter, the gear at its end, and everything under them is as wide as
+/// the rows. Its empty ground drags the window and zooms it on a double click, as the tab bar's does. Not drawn off
+/// the Mac (`data-titlebar`), so a phone, a Fold and every other window keep the page as it was.
+class _LightsRow extends StatelessWidget {
+  const _LightsRow();
+
+  @override
+  Widget build(BuildContext context) => MacLightsRow(
+        child: SizedBox(key: const ValueKey('simple-lights'), width: double.infinity, height: context.tokens.lenOf('2.25rem'), child: const MacDragStrip()),
+      );
 }
 
 /// The page's window ends at the keyboard, less the phone's home bar, which the page always stands clear of

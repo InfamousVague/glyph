@@ -46,7 +46,11 @@ class Home extends StatefulWidget {
     this.events,
     this.simple = false,
     this.talk = false,
+    this.meetings = const {},
   });
+
+  /// Which notes are meetings, as the root hands them from the preferences (GHST-112's shelf).
+  final Map<String, num> meetings;
 
   /// Talk to Claude on the dock, as the root hands it where Claude is on and the build can hear (GHST-104).
   final bool talk;
@@ -129,6 +133,8 @@ class _HomeState extends State<Home> {
         dockHalo: widget.dockHalo,
         simple: widget.simple,
         claudeTalk: widget.talk ? const SizedBox(key: ValueKey('fake-talk'), width: 44, height: 44) : null,
+        meetings: widget.meetings,
+        onAllTapes: () => asked.add('all tapes'),
       ),
     );
   }
