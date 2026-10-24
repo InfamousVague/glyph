@@ -112,11 +112,12 @@ void main() {
       expect(it.store.value.list.firstWhere((w) => w.id == clients.id), Workspace(id: clients.id, name: 'Customers', hue: 'rose', parent: root));
       expect(it.filed, ['n1 to orgs/Ghost.md/Customers', 'n2 to orgs/Ghost.md/Customers/Acme']);
       it.filed.clear();
-      // Removed, the folder inside it goes a level up: still the organization's.
+      // Removed, the folder inside it goes a level up, and so do its notes: still the organization's (Matt,
+      // 2026-10-23), where unfiling them took them out of the team.
       it.store.removeWorkspace(clients.id);
       expect(it.store.value.list.firstWhere((w) => w.id == acme.id).parent, root);
-      expect(it.store.workspaceOf('n1'), isNull);
-      expect(it.filed, ['n1 to Inbox', 'n2 to orgs/Ghost.md/Acme']);
+      expect(it.store.workspaceOf('n1')?.id, root);
+      expect(it.filed, ['n1 to orgs/Ghost.md', 'n2 to orgs/Ghost.md/Acme']);
       it.store.renameWorkspace(root, 'Mine');
       it.store.removeWorkspace(root);
       expect(it.store.value.list.firstWhere((w) => w.id == root).name, 'Ghost.md');

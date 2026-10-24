@@ -489,7 +489,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
   /// one. Not the note's: [workspaceOf] finds a note's workspace first.
   String? orgOf(String workspaceId) => orgOfWorkspace(_current.list, workspaceId);
 
-  /// Deletes the workspace, asked each time what becomes of its notes: kept, and only unfiled, as [removeWorkspace]
+  /// Deletes the workspace, asked each time what becomes of its notes: kept, in its parent or unfiled, as [removeWorkspace]
   /// leaves them, or put in the trash with it, where they wait to be restored or emptied like any deleted note
   /// (`deleteWorkspace`). Nothing is deleted for good here. Not an organization's, which goes when the person leaves.
   void deleteWorkspace(String id, {required bool trashNotes}) {
@@ -503,7 +503,8 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
     _remove(id);
   }
 
-  /// Removes the workspace; its notes are simply not filed any more, and the list shows all notes if it was chosen.
+  /// Removes the workspace; its notes go into its parent, or at the top are simply not filed any more, and the list
+  /// shows all notes if it was chosen.
   /// Not an organization's, which goes when the person leaves it.
   void removeWorkspace(String id) {
     if (isOrgWorkspace(id)) return;
@@ -512,9 +513,13 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
 
   void _remove(String id) {
     final sheet = _current;
-    // Its notes are not filed any more, so their files go back to the inbox.
-    onFiled?.call(_filedIn(sheet.notes, id), null);
     final gone = sheet.list.where((w) => w.id == id).firstOrNull;
+    // Its notes go a level up with the folders inside it: into its parent, where it has one (Matt, 2026-10-23: a
+    // folder of an organization's deleted keeps its notes the team's, where unfiling them took them out of the
+    // organization and so from every other member); at the top, they are not filed any more and their files go back to
+    // the inbox.
+    final parent = gone?.parent == null ? null : sheet.list.where((w) => w.id == gone!.parent).firstOrNull;
+    onFiled?.call(_filedIn(sheet.notes, id), parent);
     if (gone == null) return;
     // The folders inside it are kept, one level up: inside its parent, or at the top.
     final inside = [for (final w in sheet.list) if (w.parent == id) w.id];
@@ -525,7 +530,7 @@ class WorkspaceStore extends ChangeNotifier implements ValueListenable<Workspace
       ],
       notes: {
         for (final entry in sheet.notes.entries)
-          if (entry.value != id) entry.key: entry.value,
+          if (entry.value != id) entry.key: entry.value else if (parent != null) entry.key: parent.id,
       },
       current: sheet.current == id ? null : sheet.current,
     ));

@@ -89,6 +89,13 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
     }
   }
 
+  /// Where "keep the notes" leaves them: in the folder's parent where it has one, so an organization's stay the team's;
+  /// at the top, unfiled.
+  String _keptHint(Workspace folder) {
+    final parent = widget.store.value.list.where((w) => w.id == folder.parent).firstOrNull;
+    return parent == null ? 'They stay, just not filed in a workspace.' : 'They move to ${parent.name}.';
+  }
+
   List<String> _notesIn(String id) {
     final asked = widget.notesIn;
     if (asked != null) return asked(id);
@@ -210,7 +217,7 @@ class _WorkspaceManageSheetState extends State<WorkspaceManageSheet> {
           SheetGroup(
             children: [
               if (notes.isNotEmpty) ...[
-                SheetRow(label: 'Delete, keep the notes', hint: 'They stay, just not filed in a workspace.', onPress: () => _delete(editing, notes, trashNotes: false)),
+                SheetRow(label: 'Delete, keep the notes', hint: _keptHint(editing), onPress: () => _delete(editing, notes, trashNotes: false)),
                 SheetRow(
                   label: 'Delete, and move the notes to Trash',
                   hint: 'They can be restored from the Trash until it is emptied.',

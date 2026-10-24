@@ -106,8 +106,9 @@ void main() {
     it.store.removeWorkspace(clients.id);
     expect(it.store.value.list.map((w) => w.name), ['Work', 'Acme']);
     expect(it.store.value.list.firstWhere((w) => w.id == acme.id).parent, work.id);
+    // Its own notes go a level up with them (Matt, 2026-10-23).
     expect(it.filed, [
-      'n1 to Inbox',
+      'n1 to workspaces/Work',
       'n2 to workspaces/Work/Acme',
     ]);
   });
