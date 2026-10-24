@@ -17,6 +17,22 @@
 //! or called off on its own (RECURRENCE-ID) has that same UID, so its invite finds the booking the series made, or makes
 //! it, and the series passes over it.
 //!
+//! A SERIES ON THE DEVICE (Matt, 2026-10-24: "show recurring meetings in the meetings UI and paginate the meeting
+//! history"). The device's list carries the account's running series beside the meetings (`series_json`): the title,
+//! the rule in words (`ics::rule_words`: "Every weekday at 9:30"), the time of day on the series' own clock and its
+//! zone, the next occurrence and whether Ghost will join it, and how the series ends. "Stop joining" (`stop`) calls
+//! off every occurrence still to come, or has Ghost leave the one it is in, and keeps the past ones and their takes;
+//! the series' row is then STOPPED (store/meet.rs), kept with no title or link while its rule runs, so an update of
+//! the invite (a higher SEQUENCE, or one occurrence changed) books nothing of it again. Invited afresh - a new event,
+//! which is a new UID - it is a new series, and booked.
+//!
+//! THE HISTORY, IN PAGES. With `limit` the list is every meeting still to come, soonest first, then the first
+//! `limit` of those over, the latest ended first, and `next`, a cursor (`<its end, ms>:<its id>`) for the page after
+//! it, `GET ?before=<next>`, while there are more; ties in the end are broken by id, so a page never repeats or drops
+//! one. Without `limit` or `before`, as an app from before pages asks, the list is what it always was (still to come
+//! and the last seven days', soonest first), with `next` beside it for the older ones. Either reaches back as far as
+//! bookings are kept, thirty days.
+//!
 //! HOW GHOST JOINS. A separate bot service on the same box (Node, a signed-in Chrome; meet/spike/README.md) polls the
 //! internal routes over loopback, joins what is due, says in the chat what it is, records, and uploads the recording
 //! with the captions it read. This service seals that upload to the account's encryption PUBLIC key in the same
@@ -31,9 +47,12 @@
 //! as any booking once it is over (COUNT, UNTIL) or called off. The recording and its captions are never kept in the
 //! clear, on disk or in a log.
 //!
-//!   GET    /api/v1/meet                 the account's meetings: still to come, and the last seven days'
+//!   GET    /api/v1/meet                 the account's meetings: still to come, and the last seven days'; the series
+//!   GET    /api/v1/meet?limit=20        still to come, then the first page of those over; the series; `next`
+//!   GET    /api/v1/meet?before=<next>   the page of those over after it, and `next`
 //!   POST   /api/v1/meet                 { url, title? } Ghost joins this Meet now (for two hours at most)
 //!   DELETE /api/v1/meet/{id}            not this one: skipped before it starts, left if Ghost is in it
+//!   DELETE /api/v1/meet/series/{id}     not this series any more: stopped, the past kept
 //!   GET    /api/v1/meet/takes           the recordings waiting, sealed: id, meeting, size, when, the wrapped key
 //!   GET    /api/v1/meet/takes/{id}      one recording's sealed bytes, raw; the wrapped key in `x-glyph-wrapped`
 //!   DELETE /api/v1/meet/takes/{id}      taken: a device has it
@@ -61,7 +80,7 @@ use crate::store::{MeetBooking, Store, MEET_SERIES as SERIES};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::multipart::Field;
 use axum::extract::rejection::ExtensionRejection;
-use axum::extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Request, State};
+use axum::extract::{ConnectInfo, DefaultBodyLimit, Multipart, Path, Query, Request, State};
 use axum::http::{header, HeaderValue, StatusCode};
 use axum::middleware::{self, Next};
 use axum::response::{IntoResponse, Response};
@@ -88,8 +107,11 @@ const STAY_LATE: i64 = 15 * 60 * 1000;
 pub const CLEAR_FOR: i64 = 3600 * 1000;
 /// A booking is deleted this long after its meeting ended.
 pub const KEPT_FOR: i64 = 30 * 24 * 3600 * 1000;
-/// How far back the device's list reaches.
+/// How far back the device's list reaches, asked with no page.
 const LISTED_FOR: i64 = 7 * 24 * 3600 * 1000;
+/// A page of meetings over, as a device asks with no `limit` of its own, and the most it may ask.
+const PAGE: usize = 20;
+const PAGE_MOST: usize = 100;
 /// The most meetings an account has booked and still to come: an address anyone may mail cannot fill the bot's day.
 const UPCOMING: i64 = 100;
 /// The most a recording may be, and its captions. Opus at 32 kbit/s is 15 MB an hour; this is ten hours and more.
@@ -214,6 +236,10 @@ fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
     // One occurrence moved or called off, where a v1 booking of the series (one occurrence at a time, under the
     // series' UID, before series were kept) is that very occurrence: that booking follows it.
     let series_uid = invite.recurrence_id.and(invite.uid.rsplit_once('#')).map(|(uid, _)| uid);
+    // An occurrence of a series the person stopped: nothing of it is booked, moved or booked again.
+    if series_uid.and_then(|uid| store.meet_booking_by_uid(account, uid)).is_some_and(|s| s.series.is_some() && store.meet_stopped(&s.id)) {
+        return false;
+    }
     let existing = store.meet_booking_by_uid(account, &invite.uid).or_else(|| {
         let at = invite.recurrence_id?;
         store.meet_booking_by_uid(account, series_uid?).filter(|b| b.series.is_none() && b.starts_at == at)
@@ -337,6 +363,17 @@ fn apply_series(store: &Store, account: i64, invite: &Invite, series: &Series, n
     }
     let applied = s.sequence;
     s.sequence = invite.sequence;
+    // Stopped by the person: the update keeps the rule the row is moved along (and ended by), and nothing else - no
+    // link, no title, nothing booked.
+    if store.meet_stopped(&s.id) {
+        s.series = Some(rule);
+        if invite.cancelled || invite.over {
+            s.state = if invite.cancelled { "cancelled".into() } else { "done".into() };
+            s.ends_at = s.ends_at.min(now);
+        }
+        let _ = store.update_meet_booking(&s, secs);
+        return false;
+    }
     let Some(url) = invite.url.clone().filter(|_| !invite.cancelled) else {
         let why = called_off(invite);
         for o in store.meet_occurrences(account, &invite.uid).into_iter().filter(|o| o.ends_at > now) {
@@ -438,7 +475,41 @@ pub fn advance(store: &Store, now: i64) -> usize {
             let _ = store.update_meet_booking(&s, secs);
         }
     }
+    // A stopped series is moved along its rule all the same, booking nothing, so its row lasts as long as an invite of
+    // it may come; `done` when the rule is.
+    for mut s in store.meet_stopped_to_advance(now) {
+        let Some(series) = series_of(&s) else { continue };
+        match series.next(Some(s.starts_at), now) {
+            Some((start, end)) => (s.starts_at, s.ends_at) = (start, end),
+            None => s.state = "done".into(),
+        }
+        let _ = store.update_meet_booking(&s, secs);
+    }
     booked
+}
+
+/// The series `s` stopped at `now` (ms), as a device asks ("Stop joining"): each of its occurrences still to come
+/// called off, Ghost told to leave the one it is joining or in, the past ones and their takes left as they are, and
+/// the series' row stopped (store/meet.rs: no title or link, and no invite books it again). Answers the occurrences it
+/// changed.
+pub fn stop(store: &Store, s: &MeetBooking, now: i64) -> Vec<MeetBooking> {
+    let secs = now.div_euclid(1000);
+    let why = "You asked Ghost to stop joining this meeting.";
+    let mut changed = Vec::new();
+    for mut o in store.meet_occurrences(s.account, &s.uid).into_iter().filter(|o| o.ends_at > now) {
+        let next = match o.state.as_str() {
+            "booked" => "cancelled",
+            "joining" | "in_call" => "leave",
+            _ => continue,
+        };
+        if store.set_meet_state(&o.id, next, Some(why), secs) {
+            o.state = next.into();
+            o.detail = Some(why.into());
+            changed.push(o);
+        }
+    }
+    store.stop_meet_series(&s.id, secs);
+    changed
 }
 
 /// The hourly sweep's part, at `now` (ms): see the header. Series are moved on first, so one with occurrences to
@@ -450,11 +521,110 @@ pub fn sweep(store: &Store, now: i64) -> (usize, usize) {
 
 // --- the device's routes -------------------------------------------------------------------------
 
-async fn list(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
+/// A running series as the device lists it: its id (for `DELETE meet/series/{id}`), its title, its rule in words, the
+/// time of day on its own clock (`HH:MM`) and its zone's name, with how many minutes that clock is ahead of UTC at the
+/// next occurrence (the device names the zone only where its own clock differs), the next occurrence not yet over -
+/// the booking's id, its times and state, and whether Ghost will join it (`joins`: live, so not skipped or called
+/// off) - and how the series ends (`until`, ms; `count`), if it does. The next has no booking only while a series
+/// waits for room under the limit: it is then the rule's next, with no id, `waiting`.
+fn series_json(store: &Store, s: &MeetBooking, now: i64) -> Option<Value> {
+    let rule = series_of(s)?;
+    let booked = store.meet_occurrences(s.account, &s.uid).into_iter().find(|o| o.ends_at > now);
+    let next = match &booked {
+        Some(o) => Some(json!({ "id": o.id, "startsAt": o.starts_at, "endsAt": o.ends_at, "state": o.state, "joins": LIVE.contains(&o.state.as_str()) })),
+        None => rule.next(None, now).map(|(start, end)| json!({ "id": null, "startsAt": start, "endsAt": end, "state": "waiting", "joins": false })),
+    };
+    let at = next.as_ref().and_then(|n| n["startsAt"].as_i64()).unwrap_or(now);
+    let (hour, minute) = rule.time_of_day();
+    Some(json!({
+        "id": s.id,
+        "title": s.title,
+        "rule": rule.words(),
+        "time": format!("{hour:02}:{minute:02}"),
+        "zone": rule.zone_name(),
+        "offset": rule.offset_minutes(at),
+        "next": next,
+        "until": rule.until(),
+        "count": rule.count(),
+    }))
+}
+
+/// A page's cursor read back: `<end, ms>:<id>`, the id base64url or empty (before every id that ended then).
+fn cursor(given: &str) -> Option<(i64, String)> {
+    let (end, id) = given.trim().split_once(':')?;
+    let end = end.parse::<i64>().ok()?;
+    (id.is_empty() || base64url(id, 1..=64)).then(|| (end, id.to_string()))
+}
+
+/// The cursor for the page after `b`, the last of this one.
+fn cursor_after(b: &MeetBooking) -> String {
+    format!("{}:{}", b.ends_at, b.id)
+}
+
+/// `page` cut to `limit` (it was asked for one more), and the cursor after it when there was more.
+fn paged(mut page: Vec<MeetBooking>, limit: usize) -> (Vec<MeetBooking>, Option<String>) {
+    if page.len() <= limit {
+        return (page, None);
+    }
+    page.truncate(limit);
+    let next = page.last().map(cursor_after);
+    (page, next)
+}
+
+#[derive(Deserialize)]
+struct ListQuery {
+    #[serde(default)]
+    limit: Option<String>,
+    #[serde(default)]
+    before: Option<String>,
+}
+
+async fn list(State(accounts): State<Arc<Accounts>>, who: Claims, Query(query): Query<ListQuery>) -> Response {
+    let store = &accounts.store;
     let now = now_ms();
-    advance(&accounts.store, now);
-    let meetings: Vec<Value> = accounts.store.meet_bookings(who.sub, now - LISTED_FOR).iter().map(meeting_json).collect();
-    Json(json!({ "meetings": meetings })).into_response()
+    advance(store, now);
+    let limit = match query.limit.as_deref().map(str::trim).filter(|l| !l.is_empty()) {
+        Some(l) => match l.parse::<usize>() {
+            Ok(n) => Some(n.clamp(1, PAGE_MOST)),
+            Err(_) => return error(StatusCode::BAD_REQUEST, "A page's limit is a number."),
+        },
+        None => None,
+    };
+    let before = match query.before.as_deref().map(str::trim).filter(|b| !b.is_empty()) {
+        Some(b) => match cursor(b) {
+            Some(c) => Some(c),
+            None => return error(StatusCode::BAD_REQUEST, "That is not a cursor this list gave."),
+        },
+        None => None,
+    };
+    // Which series each occurrence is of, so the device can mark it.
+    let series_ids: std::collections::HashMap<String, String> = store.meet_series_uids(who.sub).into_iter().collect();
+    let shown = |b: &MeetBooking| {
+        let mut m = meeting_json(b);
+        if let Some(id) = b.uid.rsplit_once('#').and_then(|(uid, _)| series_ids.get(uid)) {
+            m["series"] = json!(id);
+        }
+        m
+    };
+    // A page after the first: those over, alone.
+    if let Some((end, id)) = &before {
+        let limit = limit.unwrap_or(PAGE);
+        let (page, next) = paged(store.meet_history(who.sub, now, Some((*end, id)), limit + 1), limit);
+        return Json(json!({ "meetings": page.iter().map(shown).collect::<Vec<_>>(), "next": next })).into_response();
+    }
+    let series: Vec<Value> = store.meet_series(who.sub).iter().filter_map(|s| series_json(store, s, now)).collect();
+    let Some(limit) = limit else {
+        // As an app from before pages asks: what it always had, and where the older ones go on from.
+        let since = now - LISTED_FOR;
+        let meetings: Vec<Value> = store.meet_bookings(who.sub, since).iter().map(shown).collect();
+        let older = !store.meet_history(who.sub, now, Some((since, "")), 1).is_empty();
+        return Json(json!({ "meetings": meetings, "series": series, "next": older.then(|| format!("{since}:")) })).into_response();
+    };
+    // The first page: every one still to come, then the latest over.
+    let mut meetings: Vec<Value> = store.meet_bookings(who.sub, now + 1).iter().map(shown).collect();
+    let (past, next) = paged(store.meet_history(who.sub, now, None, limit + 1), limit);
+    meetings.extend(past.iter().map(shown));
+    Json(json!({ "meetings": meetings, "series": series, "next": next })).into_response()
 }
 
 #[derive(Deserialize)]
@@ -521,6 +691,17 @@ async fn skip(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who
         }
     }
     Json(json!({ "meeting": meeting_json(&b) })).into_response()
+}
+
+/// "Stop joining" a series (`stop`), the account's own; another's, an occurrence's id or a meeting's is 404. A series
+/// stopped already is answered as it is.
+async fn stop_series(State(accounts): State<Arc<Accounts>>, Path(id): Path<String>, who: Claims) -> Response {
+    let found = if base64url(&id, 1..=64) { accounts.store.meet_booking(&id).filter(|b| b.account == who.sub && b.series.is_some()) } else { None };
+    let Some(s) = found else {
+        return error(StatusCode::NOT_FOUND, "No recurring meeting by that id.");
+    };
+    let changed = stop(&accounts.store, &s, now_ms());
+    Json(json!({ "series": { "id": s.id, "stopped": true }, "meetings": changed.iter().map(meeting_json).collect::<Vec<_>>() })).into_response()
 }
 
 async fn takes(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
@@ -784,6 +965,7 @@ pub fn router(accounts: Arc<Accounts>, bot_token: Option<String>) -> Router {
         .route("/api/v1/meet", get(list).post(book_now))
         .route("/api/v1/meet/takes", get(takes))
         .route("/api/v1/meet/takes/{id}", get(get_take).delete(delete_take))
+        .route("/api/v1/meet/series/{id}", delete(stop_series))
         .route("/api/v1/meet/{id}", delete(skip))
         .with_state(accounts.clone());
     if let Some(token) = bot_token {

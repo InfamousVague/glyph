@@ -68,6 +68,15 @@ BYMONTHDAY and BYMONTH are read; any other rule books only its first occurrence.
 - **Called off** (`METHOD:CANCEL`, `STATUS:CANCELLED`, or no Meet link any more): the series is `cancelled`, and each
   of its occurrences still to come is `cancelled`, or `leave` if Ghost is in it.
 - **Over** (COUNT, UNTIL): the series is `done`.
+- **Stopped by the person** ("Stop joining" on Settings › Meetings, `DELETE /api/v1/meet/series/{id}`; Matt,
+  2026-10-24: "show recurring meetings in the meetings UI"): each occurrence still to come is `cancelled` ("You asked
+  Ghost to stop joining this meeting."), the one Ghost is joining or in is `leave`, and the past ones and their takes
+  are left as they are. The series' row is marked `stopped` (`meet_bookings.stopped`) and loses its title and link at
+  once, and is kept for as long as its rule runs, moved along the rule booking nothing, so that an update of the invite
+  - a higher SEQUENCE, one occurrence changed on its own, the event moved or given a new link - finds it stopped and
+  books nothing. Such an update still brings the rule up to date (it is what the row is moved along and ended by), and
+  a cancellation or an end (COUNT, UNTIL) makes it `cancelled` or `done`, swept as any series. Invited afresh - a new
+  Calendar event, so a new UID - it is a new series, and booked.
 - **The limit** holds: a new series needs room for its first occurrence, and a series with no room waits, its link
   kept, until there is.
 
@@ -101,16 +110,41 @@ All times are ms since the epoch. Ids are base64url.
 
 | | Request | Answer |
 |---|---|---|
-| `GET /api/v1/meet` | | `{ meetings: [Meeting] }`: those not over, and the last 7 days', soonest first |
+| `GET /api/v1/meet` | | `{ meetings: [Meeting], series: [Series], next }`: those not over, and the last 7 days', soonest first, as before pages; `next` the cursor for those older, or null |
+| `GET /api/v1/meet?limit=20` | | `{ meetings, series, next }`: every one not over (`endsAt` after now), soonest first, then the first `limit` (1 to 100) of those over, the latest ended first; `next` the cursor for the page after, or null on the last |
+| `GET /api/v1/meet?before=<next>&limit=20` | | `{ meetings, next }`: the page of those over after the cursor, in the same order; `limit` 20 when not given. 400 a cursor this list did not give |
 | `POST /api/v1/meet` | `{ url, title? }` | `{ meeting: Meeting }`, booked now for 2 h. 400 not a Meet link, 409 no encryption key yet, 429 100 already to come |
 | `DELETE /api/v1/meet/{id}` | | `{ meeting: Meeting }`: `skipped` if it had not started, `leave` if Ghost is joining or in it, as it was otherwise. 404 not the account's |
+| `DELETE /api/v1/meet/series/{id}` | | `{ series: { id, stopped: true }, meetings: [Meeting] }`: the series stopped (above), with the occurrences that changed. 404 not the account's, or not a series; a series stopped already answers with none changed |
 | `GET /api/v1/meet/takes` | | `{ takes: [{ id, meeting, size, at, wrapped }] }`, oldest first |
 | `GET /api/v1/meet/takes/{id}` | | the sealed take, raw `application/octet-stream`; headers `x-glyph-wrapped` (the wrapped key) and `x-glyph-meeting`. 404 not waiting |
 | `DELETE /api/v1/meet/takes/{id}` | | 204: taken |
 
-`Meeting` is `{ id, title, url, startsAt, endsAt, state, detail }`; `title`, `url` and `detail` may be null (`title` and
-`url` are null once swept). `state` is one of `booked`, `joining`, `in_call`, `leave`, `done`, `failed`, `skipped`,
-`cancelled`.
+`Meeting` is `{ id, title, url, startsAt, endsAt, state, detail, series? }`; `title`, `url` and `detail` may be null
+(`title` and `url` are null once swept, and the app says "A meeting"). `state` is one of `booked`, `joining`,
+`in_call`, `leave`, `done`, `failed`, `skipped`, `cancelled`. `series`, in the list only, is the id of the series an
+occurrence is of.
+
+`Series` is a series running and not stopped: `{ id, title, rule, time, zone, offset, next, until, count }`. `rule` is
+the rule in words, made on the server (`ics::rule_words`): "Daily at 9:30", "Every 3 days at 9:30", "Every weekday at
+9:30", "Weekly on Tue and Thu at 11:00", "Every 2 weeks on Mon at 9:30", "Monthly on the 2nd Tuesday at 9:30",
+"Monthly on the last Friday at 9:30", "Monthly on the 1st and 15th at 9:30", "Yearly on 15 Jan at 9:30", and
+"Repeats" for a rule it cannot say shortly (BYSETPOS, BYHOUR and other parts it does not read, every Tuesday of a
+month, ...). The time is DTSTART's wall-clock time, in the 24-hour clock. `time` is that time (`HH:MM`), `zone` the
+invite's TZID (null for UTC), `offset` how many minutes that zone is ahead of UTC at the next occurrence: the app names
+the zone ("New York time") only where its own clock differs then. `next` is `{ id, startsAt, endsAt, state, joins }`,
+the next occurrence not yet over (`joins` false once skipped or called off; `id` null and `state` `waiting` while the
+series waits for room under the limit). `until` (ms) and `count` are the rule's, or null.
+
+**Pages.** A cursor is `<its end, ms>:<its id>` of the last meeting of a page; the next page is the meetings over that
+come after it in the order (latest end first, then the larger id first), so a meeting ending meanwhile does not move
+a page, and two that ended together are neither repeated nor dropped where a page ends between them. The history
+reaches back as far as bookings are kept: thirty days. The answer with no `limit` and no `before` is the one an app
+from before pages reads, unchanged but for `series` and `next`, which it does not read.
+
+**Which first.** The new app asks `?limit=20`; an older service, which reads no query, answers its one list (no
+`series`, no `next`), and the app shows that list as it is, with no recurring group and no Show more. An older app asks
+with no query, and the new service answers what it always did.
 
 A take is answered raw, not as base64 in JSON: a meeting is tens of megabytes (Opus at 32 kbit/s is about 15 MB an
 hour), which base64 would make a third larger and the phone would hold twice. The headers are exposed to a browser
@@ -390,14 +424,26 @@ one:
   "add a refresh button next to the email so i can regeenrate the email"), which asks "Make a new address?" in the
   card, with Make it and Cancel, then runs `POST mail/address` (the old address takes no more invites or mail) and
   draws the new one. The only place the address is shown. What a press did, or why it failed, is said under it.
+- **Recurring** (Matt, 2026-10-24: "show recurring meetings in the meetings UI"), above the meetings, where the
+  service lists series: a row a series, its title, its rule in words with its zone where the phone's clock differs
+  ("Every weekday at 9:30, New York time") and how it ends, and "Next: Mon 27 Oct" (", skipped" where Ghost will not
+  join it). "Stop joining" asks first, in the card ("Ghost won’t join Engineering Standup any more. Past recordings
+  stay.", Stop joining and Cancel), then runs `DELETE meet/series/{id}`. Skipping only the next one stays on its
+  occurrence's row, Don't join. Not drawn at all against a service without series. In Simple too.
 - **Ghost in meetings**: what Ghost does; the meetings from `GET meet` with their state in words (Booked, Joining, In
   the meeting, Leaving, Written up / Being written up / Not written up yet, Couldn't join: Ghost was signed out of
   Google / nobody let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and
   Leave now on one Ghost is in (`DELETE meet/{id}`). A meeting whose note is here is pressed to open it (Settings
   shuts; Matt, 2026-10-24: "add the ability to click a meeting to jump to the associated note"): the note kept
   against it (`meetingNotes`), or, for one filed before that was kept, Ghost's note whose recording began while the
-  meeting was on (`meetingNoteFor`). Its footer: "The meeting's sound passes through Ghost.md's server while it
-  records, sealed to your account as it arrives; it is written up on your device."
+  meeting was on (`meetingNoteFor`). Those to come first, under Coming up, then those over by day, the latest first,
+  under Today, Yesterday, Mon 20 Oct, each with its time; a meeting of a series has the repeat mark. Twenty of those
+  over at first (`GET meet?limit=20`), and "Show more" at the end loads the next twenty (`?before=<next>`) below them,
+  the page staying where it is; while it loads the row says "Loading…" in the same place, and a failure is said in it
+  with Retry. A meeting read since the page was drawn is folded in by id, so a page loaded keeps its place. Its
+  footer: "The meeting's sound passes through Ghost.md's server while it records, sealed to your account as it
+  arrives; it is written up on your device.", and, against a service that pages, "Meetings are kept here for 30 days
+  after they end."
 - **Email to a note**: what a mail to the address becomes, Turn off, and what the server sees (mail_card.dart).
   Account keeps a single row pointing here. A service with no meeting routes has no Meetings, and keeps the whole card
   on Account.
@@ -411,4 +457,6 @@ lib/home/home_meetings.dart (Matt, 2026-10-23: "adding a home page section for u
 notices, on the advanced page and Simple's, listing the meetings still to come or going on (`booked`, `joining`,
 `in_call`, not yet past their end), the soonest first, four at most: a booked one with when it is ("Today, 14:00"),
 one Ghost is joining or in with where it stands ("In the meeting"). Nothing at all when there are none or the service
-has no meeting routes. Its foot, **Meetings**, opens Settings › Meetings. Tests: test/meet/home_meetings_test.dart.
+has no meeting routes. Its foot, **Meetings**, opens Settings › Meetings. A booked occurrence of a recurring meeting
+(the list's `series`) has the repeat mark for its calendar, as on Settings › Meetings. Tests:
+test/meet/home_meetings_test.dart, test/meet/meet_recurring_test.dart.

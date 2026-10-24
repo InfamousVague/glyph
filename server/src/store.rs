@@ -354,7 +354,8 @@ CREATE INDEX IF NOT EXISTS hook_inbox_by_age ON hook_inbox(received_at);
 -- joins has no key, and only until the meeting is over: the hourly sweep blanks `title` and `url` an hour after
 -- `ends_at` and deletes the row thirty days after. `starts_at` and `ends_at` are ms. A recurring meeting is a row of
 -- its own with `series` (ADDED_COLUMNS) - what expanding it needs, as JSON - beside a row for each occurrence it has
--- booked; it keeps its link while occurrences are to come. A take: a recording and its
+-- booked; it keeps its link while occurrences are to come. `stopped` (ADDED_COLUMNS) is 1 on a series the person told
+-- Ghost to stop joining from a device: its link and title are gone, and no invite books it again. A take: a recording and its
 -- captions ONLY sealed to the account's encryption public key - the key `wrapped` here, the sealed bytes a file under
 -- recordings/<account>/meet/ - until a device of the account takes it. Both go with the account.
 CREATE TABLE IF NOT EXISTS meet_bookings (
@@ -371,6 +372,7 @@ CREATE TABLE IF NOT EXISTS meet_bookings (
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL,
     series     TEXT,
+    stopped    INTEGER NOT NULL DEFAULT 0,
     UNIQUE (account_id, uid)
 );
 CREATE INDEX IF NOT EXISTS meet_bookings_by_start ON meet_bookings(starts_at);
@@ -421,7 +423,13 @@ pub struct Store {
 ///
 /// - `meet_bookings.series`: a recurring meeting's rule, DTSTART and zone, length and skipped starts, as JSON
 ///   (`meet::ics::Series`), on the series' own row; NULL on every occurrence's and every other meeting's (2026-10-21).
-const ADDED_COLUMNS: &[(&str, &str, &str)] = &[("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT")];
+/// - `meet_bookings.stopped`: 1 on a series' own row once a device has said "Stop joining" (`DELETE
+///   /api/v1/meet/series/{id}`), so a later invite of the same series (a higher SEQUENCE) does not book it again; 0 on
+///   every other row (2026-10-24).
+const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
+    ("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT"),
+    ("meet_bookings", "stopped", "ALTER TABLE meet_bookings ADD COLUMN stopped INTEGER NOT NULL DEFAULT 0"),
+];
 
 /// Each of ADDED_COLUMNS its table does not have yet, added. Two starts racing to add one: the second's "duplicate
 /// column" is the column being there.

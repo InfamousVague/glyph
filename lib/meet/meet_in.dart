@@ -40,6 +40,7 @@ import '../account/crypto_api.dart';
 import '../account/enc_key.dart';
 import '../account/keystore.dart';
 import '../account/session.dart';
+import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
@@ -277,6 +278,40 @@ String meetStateWords(MeetBooking meeting) {
   }
 }
 
+/// A zone's name as a person says it: the city of `America/New_York`, "New York"; `UTC` as it is.
+String meetZoneWords(String? zone) {
+  if (zone == null || zone.trim().isEmpty) return 'UTC';
+  return zone.trim().split('/').last.replaceAll('_', ' ');
+}
+
+/// A series' rule as its row says it (Matt, 2026-10-24: "show recurring meetings in the meetings UI"): the
+/// service's words ("Every weekday at 9:30"), the zone named where its clock differs from this device's at the next
+/// occurrence ("Every weekday at 9:30, New York time"), and how it ends where it does ("until 12 Dec", "10 times").
+/// "Repeats", which has no time in it, names no zone.
+String meetSeriesRule(MeetSeries series, {required int now}) {
+  final at = series.next?.startsAt ?? now;
+  final here = DateTime.fromMillisecondsSinceEpoch(at).timeZoneOffset.inMinutes;
+  final parts = [
+    if (series.rule != 'Repeats' && series.offset != here) '${series.rule}, ${meetZoneWords(series.zone)} time' else series.rule,
+    if (series.until != null) 'until ${localeDayMonth(DateTime.fromMillisecondsSinceEpoch(series.until!), DateForm.MMMd)}' else if (series.count != null) '${series.count} times',
+  ];
+  return parts.join(', ');
+}
+
+/// When a series' next occurrence is, as its row says it: "Next: Mon 27 Oct", and ", skipped" where Ghost will not
+/// join that one (it was skipped on its own row, or called off).
+String meetSeriesNext(MeetSeries series) {
+  final next = series.next;
+  if (next == null) return 'Nothing more to come';
+  final at = DateTime.fromMillisecondsSinceEpoch(next.startsAt);
+  final day = '${localeDate(at, DateForm.E)} ${localeDayMonth(at, DateForm.MMMd)}';
+  if (next.joins || next.state == MeetState.other) return 'Next: $day';
+  return 'Next: $day, ${next.state == MeetState.cancelled ? 'cancelled' : 'skipped'}';
+}
+
+/// What "Stop joining" asks first: the series named, and that its past stays.
+String meetStopWarning(MeetSeries series) => 'Ghost won’t join ${series.title ?? 'this meeting'} any more. Past recordings stay.';
+
 /// A Google Meet link, as a person pastes one: `https://meet.google.com/abc-defg-hij`, with or without the scheme.
 String? meetLink(String typed) {
   final text = typed.trim();
@@ -299,9 +334,33 @@ class MeetIn extends ChangeNotifier {
 
   List<MeetBooking>? _meetings;
   bool _available = true;
+  List<MeetSeries>? _series;
+  String? _next;
+  bool _pages = false;
+  bool _paged = false;
 
-  /// The meetings as last read, soonest first; null until they have been.
+  /// The meetings as last read, soonest first; null until they have been. Those to come, the first page of those
+  /// over, and every page loaded since ([more]).
   List<MeetBooking>? get meetings => _meetings;
+
+  /// The account's recurring meetings, running and not stopped; null from a service that does not list them, which
+  /// draws no Recurring group.
+  List<MeetSeries>? get series => _series;
+
+  /// Whether the service pages its history: one from before answers one list, and nothing comes after it.
+  bool get pages => _pages;
+
+  /// Whether there are meetings over older than those read, for "Show more".
+  bool get hasMore => _next != null;
+
+  bool _loadingMore = false;
+  String? _moreProblem;
+
+  /// The next page is on its way.
+  bool get loadingMore => _loadingMore;
+
+  /// Why the last "Show more" failed, said where it was pressed; null once one has not.
+  String? get moreProblem => _moreProblem;
 
   /// Whether the service books meetings at all: an older one does not.
   bool get available => _available;
@@ -330,6 +389,11 @@ class MeetIn extends ChangeNotifier {
     if (now == _for) return;
     _for = now;
     _triedAt = 0;
+    _series = null;
+    _next = null;
+    _pages = false;
+    _paged = false;
+    _moreProblem = null;
     if (_meetings != null) {
       _meetings = null;
       notifyListeners();
@@ -347,11 +411,14 @@ class MeetIn extends ChangeNotifier {
   /// Why the meetings could not be read, the last time they were not; null once they were.
   String? get problem => _problem;
 
-  /// What the service says now.
+  /// What the service says now: the list's first page. Pages loaded since ([more]) are kept below it - the meetings
+  /// older than the first page's last, by when they ended - so a page read again a minute on (the card reads every
+  /// minute it is drawn) does not take away what "Show more" brought; a meeting that has ended since moves into the
+  /// first page and out of the rest by its id.
   Future<List<MeetBooking>> refresh() async {
-    final List<MeetBooking>? said;
+    final MeetPage? said;
     try {
-      said = await MeetApi(api).meetings(_token());
+      said = await MeetApi(api).page(_token());
     } catch (failure) {
       _problem = 'Your meetings could not be read just now.';
       notifyListeners();
@@ -359,9 +426,56 @@ class MeetIn extends ChangeNotifier {
     }
     _problem = null;
     _available = said != null;
-    _meetings = said ?? const [];
+    _series = said?.series;
+    _pages = said?.pages ?? false;
+    final first = said?.meetings ?? const <MeetBooking>[];
+    final kept = {for (final m in _meetings ?? const <MeetBooking>[]) m.id: m};
+    if (!_paged || said?.next == null) {
+      _meetings = _sorted([for (final m in first) kept[m.id]?.followedBy(m) ?? m]);
+      _next = said?.next;
+      _paged = false;
+    } else {
+      // The first page's last meeting over (the one that ended soonest of all it has, those to come ending later):
+      // those older than it are the pages loaded since, kept, and the cursor stays theirs.
+      final edge = first.isEmpty ? null : first.reduce((a, b) => _older(a, b) ? a : b);
+      final ids = {for (final m in first) m.id};
+      final below = [for (final m in kept.values) if (!ids.contains(m.id) && edge != null && _older(m, edge)) m];
+      _meetings = _sorted([for (final m in first) kept[m.id]?.followedBy(m) ?? m, ...below]);
+    }
     notifyListeners();
     return _meetings!;
+  }
+
+  /// Whether [a] comes after [b] in the history's order: it ended sooner, or with it and has the smaller id (the
+  /// service's `ORDER BY ends_at DESC, id DESC`).
+  static bool _older(MeetBooking a, MeetBooking b) => a.endsAt < b.endsAt || (a.endsAt == b.endsAt && a.id.compareTo(b.id) < 0);
+
+  static List<MeetBooking> _sorted(List<MeetBooking> list) => list..sort((a, b) => a.startsAt != b.startsAt ? a.startsAt.compareTo(b.startsAt) : a.id.compareTo(b.id));
+
+  /// "Show more": the page of meetings over after those read, put below them. Once at a time; a failure is kept in
+  /// [moreProblem] for the row to say, with Retry, and the cursor kept to try again with.
+  Future<void> more() async {
+    final cursor = _next;
+    if (cursor == null || _loadingMore) return;
+    _loadingMore = true;
+    _moreProblem = null;
+    notifyListeners();
+    try {
+      final said = await MeetApi(api).page(_token(), before: cursor);
+      if (said != null && cursor == _next) {
+        final kept = {for (final m in _meetings ?? const <MeetBooking>[]) m.id: m};
+        for (final m in said.meetings) {
+          kept[m.id] = kept[m.id]?.followedBy(m) ?? m;
+        }
+        _meetings = _sorted(kept.values.toList());
+        _next = said.next;
+        _paged = true;
+      }
+    } catch (_) {
+      _moreProblem = 'Older meetings could not be read just now.';
+    }
+    _loadingMore = false;
+    notifyListeners();
   }
 
   void _put(MeetBooking? meeting) {
@@ -369,7 +483,7 @@ class MeetIn extends ChangeNotifier {
     final list = [...?_meetings];
     final at = list.indexWhere((m) => m.id == meeting.id);
     if (at >= 0) {
-      list[at] = meeting;
+      list[at] = list[at].followedBy(meeting);
     } else {
       list.add(meeting);
       list.sort((a, b) => a.startsAt.compareTo(b.startsAt));
@@ -394,4 +508,16 @@ class MeetIn extends ChangeNotifier {
 
   /// Ghost does not join [id], or leaves it now.
   Future<void> skip(String id) async => _put(await MeetApi(api).skip(_token(), id));
+
+  /// Ghost stops joining the series [id] (see the header of server/src/meet.rs): its occurrences to come called off,
+  /// the one it is in left, the past kept. The series leaves [series] at once, and each occurrence changed takes its
+  /// new state.
+  Future<void> stopSeries(String id) async {
+    final changed = await MeetApi(api).stopSeries(_token(), id);
+    _series = [...?_series?.where((s) => s.id != id)];
+    for (final meeting in changed) {
+      _put(meeting);
+    }
+    notifyListeners();
+  }
 }

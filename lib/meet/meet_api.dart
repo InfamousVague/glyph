@@ -2,7 +2,13 @@
 /// change on the service's side is a change here alone. Under the account's API base with the session's bearer, as
 /// the mail routes are (lib/mail/mail_in.dart).
 ///
-/// - `GET meet` → `{meetings: [Meeting]}`; `POST meet {url, title?}` → `{meeting}`; `DELETE meet/{id}` → `{meeting}`.
+/// - `GET meet?limit=20` → `{meetings: [Meeting], series: [Series], next}`: every meeting to come, then the first
+///   twenty over, the latest first ([MeetPage]); `GET meet?before=<next>` → `{meetings, next}`, the page after
+///   (Matt, 2026-10-24: "show recurring meetings in the meetings UI and paginate the meeting history"). A service from
+///   before pages reads no query and answers `{meetings}` alone: the list as it always was, with no series and no
+///   next ([MeetPage.pages] false).
+/// - `POST meet {url, title?}` → `{meeting}`; `DELETE meet/{id}` → `{meeting}`; `DELETE meet/series/{id}` →
+///   `{series, meetings}`, a series stopped ([MeetApi.stopSeries]).
 /// - `GET meet/takes` → `{takes: [{id, meeting, size, at, wrapped}]}`; `GET meet/takes/{id}` → the sealed take, raw;
 ///   `DELETE meet/takes/{id}` → 204.
 ///
@@ -63,7 +69,7 @@ enum MeetState {
 /// One meeting Ghost is booked for, or was.
 @immutable
 class MeetBooking {
-  const MeetBooking({required this.id, this.title, this.url, required this.startsAt, required this.endsAt, required this.state, this.detail});
+  const MeetBooking({required this.id, this.title, this.url, required this.startsAt, required this.endsAt, required this.state, this.detail, this.series});
 
   final String id;
 
@@ -77,12 +83,101 @@ class MeetBooking {
   /// Why, for a meeting Ghost could not join: `signed_out`, `refused`, `not_admitted`, `busy`, `upload`, `missed`.
   final String? detail;
 
+  /// The id of the recurring meeting this is an occurrence of ([MeetSeries.id]), as the list says it; null for a
+  /// meeting of its own, and in the answers to a skip or a booking, which do not say.
+  final String? series;
+
   static MeetBooking? fromJson(Object? raw) {
     if (raw is! Map || raw['id'] is! String) return null;
     String? text(String key) => raw[key] is String && (raw[key] as String).trim().isNotEmpty ? (raw[key] as String).trim() : null;
     int whole(String key) => raw[key] is num ? (raw[key] as num).toInt() : 0;
-    return MeetBooking(id: raw['id'] as String, title: text('title'), url: text('url'), startsAt: whole('startsAt'), endsAt: whole('endsAt'), state: MeetState.of(raw['state']), detail: text('detail'));
+    return MeetBooking(id: raw['id'] as String, title: text('title'), url: text('url'), startsAt: whole('startsAt'), endsAt: whole('endsAt'), state: MeetState.of(raw['state']), detail: text('detail'), series: text('series'));
   }
+
+  /// This booking as [next] says it now, keeping which series it is of where [next] does not say.
+  MeetBooking followedBy(MeetBooking next) => next.series != null || series == null
+      ? next
+      : MeetBooking(id: next.id, title: next.title, url: next.url, startsAt: next.startsAt, endsAt: next.endsAt, state: next.state, detail: next.detail, series: series);
+}
+
+/// A recurring meeting Ghost joins every time (server/src/meet.rs `series_json`): its rule in words made on the
+/// service ("Every weekday at 9:30", "Monthly on the 2nd Tuesday at 11:00", or "Repeats"), the time of day on its own
+/// clock and that clock's zone, the next occurrence, and how it ends.
+@immutable
+class MeetSeries {
+  const MeetSeries({required this.id, this.title, required this.rule, this.zone, this.offset = 0, this.next, this.until, this.count});
+
+  /// The series' own id, for "Stop joining" ([MeetApi.stopSeries]).
+  final String id;
+  final String? title;
+
+  /// The rule in words, the time in it on the series' own clock.
+  final String rule;
+
+  /// The invite's name for that clock's zone (`America/New_York`); null for UTC.
+  final String? zone;
+
+  /// How many minutes the series' clock is ahead of UTC at the next occurrence: beside this device's own then, it
+  /// says whether the zone needs naming ([meetSeriesRule]).
+  final int offset;
+
+  /// The next occurrence not yet over; null where the service said none.
+  final MeetSeriesNext? next;
+
+  /// The rule's last day (UNTIL, ms), or how many meetings it makes (COUNT), where it ends.
+  final int? until;
+  final int? count;
+
+  static MeetSeries? fromJson(Object? raw) {
+    if (raw is! Map || raw['id'] is! String) return null;
+    String? text(String key) => raw[key] is String && (raw[key] as String).trim().isNotEmpty ? (raw[key] as String).trim() : null;
+    int? whole(String key) => raw[key] is num ? (raw[key] as num).toInt() : null;
+    return MeetSeries(
+      id: raw['id'] as String,
+      title: text('title'),
+      rule: text('rule') ?? 'Repeats',
+      zone: text('zone'),
+      offset: whole('offset') ?? 0,
+      next: MeetSeriesNext.fromJson(raw['next']),
+      until: whole('until'),
+      count: whole('count'),
+    );
+  }
+}
+
+/// A series' next occurrence: the booking's id (null while the series waits for room), when, and whether Ghost will
+/// join it (false once it is skipped or called off).
+@immutable
+class MeetSeriesNext {
+  const MeetSeriesNext({this.id, required this.startsAt, required this.endsAt, required this.state, required this.joins});
+  final String? id;
+  final int startsAt;
+  final int endsAt;
+  final MeetState state;
+  final bool joins;
+
+  static MeetSeriesNext? fromJson(Object? raw) {
+    if (raw is! Map || raw['startsAt'] is! num) return null;
+    return MeetSeriesNext(
+      id: raw['id'] is String ? raw['id'] as String : null,
+      startsAt: (raw['startsAt'] as num).toInt(),
+      endsAt: raw['endsAt'] is num ? (raw['endsAt'] as num).toInt() : (raw['startsAt'] as num).toInt(),
+      state: MeetState.of(raw['state']),
+      joins: raw['joins'] == true,
+    );
+  }
+}
+
+/// One answer of the meetings' list: its meetings; the series, on the first page of a service that lists them (null
+/// from one before series); and the cursor for the page after, null on the last. [pages] says whether the service
+/// pages at all: one from before answers its one list, and there is nothing after it.
+@immutable
+class MeetPage {
+  const MeetPage({required this.meetings, this.series, this.next, this.pages = false});
+  final List<MeetBooking> meetings;
+  final List<MeetSeries>? series;
+  final String? next;
+  final bool pages;
 }
 
 /// A recording waiting on the service for a device to take it.
@@ -111,18 +206,31 @@ class MeetApi {
   /// How long a take may take to come: tens of megabytes on a phone's connection.
   static const Duration takeTimeout = Duration(minutes: 10);
 
-  /// The account's meetings, soonest first; null from a service with no meeting routes.
-  Future<List<MeetBooking>?> meetings(String token) async {
+  /// How many meetings over a page holds.
+  static const int pageSize = 20;
+
+  /// The account's meetings as the list's first page has them (every one to come, soonest first, then the first
+  /// [pageSize] over), or the page after [before]; null from a service with no meeting routes.
+  Future<MeetPage?> page(String token, {String? before, int limit = pageSize}) async {
     final Map<String, Object?> said;
     try {
-      said = await api.callMap('GET', 'meet', token: token);
+      said = await api.callMap('GET', 'meet?limit=$limit${before == null ? '' : '&before=${Uri.encodeQueryComponent(before)}'}', token: token);
     } catch (failure) {
       if (meetNoRoute(failure)) return null;
       rethrow;
     }
     final list = said['meetings'];
-    return [if (list is List) for (final raw in list) ?MeetBooking.fromJson(raw)];
+    final series = said['series'];
+    return MeetPage(
+      meetings: [if (list is List) for (final raw in list) ?MeetBooking.fromJson(raw)],
+      series: series is List ? [for (final raw in series) ?MeetSeries.fromJson(raw)] : null,
+      next: said['next'] is String && (said['next'] as String).isNotEmpty ? said['next'] as String : null,
+      pages: said.containsKey('next'),
+    );
   }
+
+  /// The account's meetings, the first page's; null from a service with no meeting routes.
+  Future<List<MeetBooking>?> meetings(String token) async => (await page(token))?.meetings;
 
   /// Ghost joins the Meet at [url] now.
   Future<MeetBooking?> book(String token, String url, {String? title}) async {
@@ -134,6 +242,14 @@ class MeetApi {
   Future<MeetBooking?> skip(String token, String id) async {
     final said = await api.callMap('DELETE', 'meet/${Uri.encodeComponent(id)}', token: token);
     return MeetBooking.fromJson(said['meeting']);
+  }
+
+  /// Ghost stops joining the series [id]: what is to come called off, the one Ghost is in left, the past kept.
+  /// Answers the occurrences that changed.
+  Future<List<MeetBooking>> stopSeries(String token, String id) async {
+    final said = await api.callMap('DELETE', 'meet/series/${Uri.encodeComponent(id)}', token: token);
+    final list = said['meetings'];
+    return [if (list is List) for (final raw in list) ?MeetBooking.fromJson(raw)];
   }
 
   /// The recordings waiting, oldest first; null from a service with no meeting routes.

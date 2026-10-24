@@ -36,9 +36,26 @@ Future<({String wrapped, Uint8List sealed})> sealedTake(AccountCrypto crypto, St
   return (wrapped: wrapped, sealed: await crypto.sealBytes(key, payload, takeSealContext(id)));
 }
 
-/// The service's meeting routes in memory (docs/MEET.md, "Routes"), in front of another fetcher for the rest.
+/// The service's meeting routes in memory (docs/MEET.md, "Routes"), in front of another fetcher for the rest. As a
+/// service from before pages (the default) it reads no query and answers `{meetings}` alone; with [paging] it is
+/// today's: `GET meet?limit=` the meetings to come and the first page of those over, with the [series] and `next`,
+/// `?before=` the page after, and `DELETE meet/series/{id}`.
 class FakeMeet {
+  FakeMeet({int Function()? now}) : now = now ?? (() => DateTime.now().millisecondsSinceEpoch);
+
   final List<Map<String, Object?>> meetings = [];
+
+  /// The account's running series, as `GET meet` lists them, with [paging].
+  final List<Map<String, Object?>> series = [];
+
+  /// Today's service: pages and series. Off, one from before them.
+  bool paging = false;
+
+  /// A page after the first is refused, as a connection dropping does, while this is true.
+  bool failMore = false;
+
+  /// What the service takes for now: which meetings are over.
+  final int Function() now;
   final Map<String, ({String meeting, int at, String wrapped, Uint8List sealed})> takes = {};
 
   /// Every meeting route asked, as `METHOD path`.
@@ -55,7 +72,25 @@ class FakeMeet {
         if (!path.startsWith('meet')) return rest(request);
         calls.add('${request.method} $path');
         if (!routes) return FetchResponse.json(404, {'error': 'no such route'});
-        if (path == 'meet' && request.method == 'GET') return FetchResponse.json(200, {'meetings': meetings});
+        if (path == 'meet' && request.method == 'GET') {
+          if (!paging) return FetchResponse.json(200, {'meetings': meetings});
+          return _page(request.url.queryParameters);
+        }
+        if (path.startsWith('meet/series/') && request.method == 'DELETE') {
+          final id = Uri.decodeComponent(path.substring('meet/series/'.length));
+          final at = series.indexWhere((s) => s['id'] == id);
+          if (!paging || at < 0) return FetchResponse.json(404, {'error': 'No recurring meeting by that id.'});
+          series.removeAt(at);
+          final changed = <Map<String, Object?>>[];
+          for (final (i, m) in meetings.indexed.toList()) {
+            if (m['series'] != id || (m['endsAt'] as int) <= now()) continue;
+            final next = switch (m['state']) { 'booked' => 'cancelled', 'joining' || 'in_call' => 'leave', _ => null };
+            if (next == null) continue;
+            meetings[i] = {...m, 'state': next, 'detail': 'You asked Ghost to stop joining this meeting.'};
+            changed.add({...meetings[i]}..remove('series'));
+          }
+          return FetchResponse.json(200, {'series': {'id': id, 'stopped': true}, 'meetings': changed});
+        }
         if (path == 'meet' && request.method == 'POST') {
           final body = jsonDecode(utf8.decode(request.body!)) as Map<String, Object?>;
           booked = body;
@@ -90,4 +125,30 @@ class FakeMeet {
         }
         return FetchResponse.json(404, {'error': 'No route ${request.method} $path'});
       };
+
+  /// The history's order: the latest ended first, then the larger id.
+  static int _latestFirst(Map<String, Object?> a, Map<String, Object?> b) {
+    final ends = (b['endsAt'] as int).compareTo(a['endsAt'] as int);
+    return ends != 0 ? ends : (b['id'] as String).compareTo(a['id'] as String);
+  }
+
+  FetchResponse _page(Map<String, String> query) {
+    final limit = int.tryParse(query['limit'] ?? '') ?? 20;
+    final at = now();
+    final over = [for (final m in meetings) if ((m['endsAt'] as int) <= at) m]..sort(_latestFirst);
+    final before = query['before'];
+    var from = 0;
+    if (before != null) {
+      if (failMore) return FetchResponse.json(503, {'error': 'The service is busy.'});
+      final (end, id) = (int.parse(before.split(':').first), before.split(':').last);
+      from = over.indexWhere((m) => (m['endsAt'] as int) < end || ((m['endsAt'] as int) == end && (m['id'] as String).compareTo(id) < 0));
+      if (from < 0) from = over.length;
+    }
+    final page = over.skip(from).take(limit).toList();
+    final more = from + limit < over.length;
+    final next = more ? '${page.last['endsAt']}:${page.last['id']}' : null;
+    if (before != null) return FetchResponse.json(200, {'meetings': page, 'next': next});
+    final ahead = [for (final m in meetings) if ((m['endsAt'] as int) > at) m]..sort((a, b) => (a['startsAt'] as int).compareTo(b['startsAt'] as int));
+    return FetchResponse.json(200, {'meetings': [...ahead, ...page], 'series': series, 'next': next});
+  }
 }

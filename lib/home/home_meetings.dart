@@ -5,6 +5,8 @@
 /// skipped or Ghost sent to one (lib/settings/panes/meetings_pane.dart).
 ///
 /// Drawn as the organization's card beside it is (home_org_events.dart): a tinted box, a heading, a line a meeting.
+/// A booked occurrence of a recurring meeting has the repeat mark for its calendar, as on Settings › Meetings
+/// (2026-10-24).
 library;
 
 import 'package:flutter/widgets.dart';
@@ -83,7 +85,7 @@ class HomeMeetings extends StatelessWidget {
                         SizedBox(
                           width: t.lenOf('1.1rem'),
                           child: Center(
-                            child: AppIcon(meeting.state == MeetState.booked ? Lucide.calendarDays : Lucide.ghost, size: 15, color: meeting.state == MeetState.booked ? ink3 : t.color('app-ink')),
+                            child: AppIcon(meeting.state != MeetState.booked ? Lucide.ghost : (meeting.series != null ? Lucide.repeat : Lucide.calendarDays), size: 15, color: meeting.state == MeetState.booked ? ink3 : t.color('app-ink')),
                           ),
                         ),
                         SizedBox(width: t.space(2)),

@@ -12,6 +12,11 @@
 //! Each OCCURRENCE is a booking like any other (uid `<UID>#<its start as the rule makes it, ms>`, the uid a changed
 //! occurrence's RECURRENCE-ID gives it too), with its own id, state and takes, and is swept like any other.
 //!
+//! A series the person STOPPED from a device (`stopped`, Matt, 2026-10-24: "show recurring meetings in the meetings UI")
+//! keeps its row, with no title and no link, for as long as its rule runs: it is moved along the rule as any series is,
+//! booking nothing, so a later invite of it (a higher SEQUENCE) finds it stopped rather than finding nothing and booking
+//! it anew. Once the rule is over it is `done`, and swept as any series.
+//!
 //! A take is kept ONLY sealed: its key wrapped to the account's encryption public key (`wrapped`), and the recording
 //! with its captions sealed under that key, as a file under `<data>/recordings/<account id>/meet/<take id>.take`
 //! beside the account's recordings (megabytes, so not a column), which goes with the account's folder. A take waits
@@ -144,11 +149,65 @@ impl Store {
     pub fn meet_series_to_advance(&self, now: i64) -> Vec<MeetBooking> {
         self.all(
             &format!(
-                "SELECT {BOOKING_COLUMNS} FROM meet_bookings s WHERE s.state = '{SERIES}' AND s.series IS NOT NULL AND (s.ends_at <= ?1 OR NOT EXISTS (
+                "SELECT {BOOKING_COLUMNS} FROM meet_bookings s WHERE s.state = '{SERIES}' AND s.series IS NOT NULL AND s.stopped = 0 AND (s.ends_at <= ?1 OR NOT EXISTS (
                      SELECT 1 FROM meet_bookings o WHERE o.account_id = s.account_id AND o.uid = s.uid || '#' || s.starts_at AND o.state IN {LIVE}))
                  ORDER BY s.starts_at, s.id"
             ),
             params![now],
+            booking,
+        )
+    }
+
+    /// The stopped series, of every account, whose occurrence they were moved to last is over at `now` (ms): to be moved
+    /// on along their rule, booking nothing (meet.rs `advance`).
+    pub fn meet_stopped_to_advance(&self, now: i64) -> Vec<MeetBooking> {
+        self.all(
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state = '{SERIES}' AND series IS NOT NULL AND stopped = 1 AND ends_at <= ?1 ORDER BY starts_at, id"),
+            params![now],
+            booking,
+        )
+    }
+
+    /// The account's series still running and not stopped, soonest occurrence first: what the device lists as
+    /// recurring.
+    pub fn meet_series(&self, account: i64) -> Vec<MeetBooking> {
+        self.all(
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND state = '{SERIES}' AND series IS NOT NULL AND stopped = 0 ORDER BY starts_at, id"),
+            params![account],
+            booking,
+        )
+    }
+
+    /// Every series' own row the account has, running or not, as (UID, id): which series each occurrence is of.
+    pub fn meet_series_uids(&self, account: i64) -> Vec<(String, String)> {
+        self.all("SELECT uid, id FROM meet_bookings WHERE account_id = ?1 AND series IS NOT NULL", params![account], |r| Ok((r.get(0)?, r.get(1)?)))
+    }
+
+    /// Whether the series' row `id` was stopped by the person.
+    pub fn meet_stopped(&self, id: &str) -> bool {
+        self.one("SELECT stopped FROM meet_bookings WHERE id = ?1", params![id], |r| r.get::<_, i64>(0)).is_some_and(|s| s != 0)
+    }
+
+    /// A series stopped by the person: kept so its invites find it so, with its title and its link gone at once, since
+    /// nothing will join it. Answers whether there was such a row.
+    pub fn stop_meet_series(&self, id: &str, now: i64) -> bool {
+        self.lock()
+            .execute("UPDATE meet_bookings SET stopped = 1, title = NULL, url = '', updated_at = ?2 WHERE id = ?1 AND series IS NOT NULL", params![id, now])
+            .map(|n| n > 0)
+            .unwrap_or(false)
+    }
+
+    /// A page of the account's meetings that are over at `now` (ms): ended then or before, the latest ended first,
+    /// and, at one end, by id, so two that ended together keep their order from page to page. `before` is where the
+    /// page before ended, as (its last's end, its id): only what comes after it in that order. At most `limit`.
+    pub fn meet_history(&self, account: i64, now: i64, before: Option<(i64, &str)>, limit: usize) -> Vec<MeetBooking> {
+        let (end, id) = before.map_or((None, ""), |(end, id)| (Some(end), id));
+        self.all(
+            &format!(
+                "SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND series IS NULL AND ends_at <= ?2
+                 AND (?3 IS NULL OR ends_at < ?3 OR (ends_at = ?3 AND id < ?4)) ORDER BY ends_at DESC, id DESC LIMIT ?5"
+            ),
+            params![account, now, end, id, limit as i64],
             booking,
         )
     }

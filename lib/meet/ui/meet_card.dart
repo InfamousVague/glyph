@@ -50,6 +50,25 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// page opens one. Which note is [meetingNoteFor]'s, read against this device's notes ([AccountServices.listNotes]).
 /// A meeting done whose note has not come yet (the take waits on the service for a device to file it) says "Not
 /// written up yet" and is not pressed; one booked, in the call, skipped or failed has no note to open.
+///
+/// Recurring meetings and the history in pages (Matt, 2026-10-24: "show recurring meetings in the meetings UI and
+/// paginate the meeting history"):
+///
+/// - **Recurring**, a card of its own between the two, where the service lists series ([MeetIn.series]; none from a
+///   service before them, and then no card, and nothing said): a row a series, its title over its rule in words
+///   ([meetSeriesRule]: "Every weekday at 9:30", the zone named where the phone's clock differs, how it ends) and
+///   "Next: Mon 27 Oct" ([meetSeriesNext]). Its one word, "Stop joining", asks first, in the card, as a new address
+///   does: "Ghost won’t join Engineering Standup any more. Past recordings stay.", with Stop joining and Cancel; then
+///   [MeetIn.stopSeries]. A refusal is said under the card. Skipping only the next one is that occurrence's own Don't
+///   join, in the list, as before.
+/// - **The list in two parts**: those to come or going on, soonest first, under "Coming up"; then those over, the
+///   latest first, under a heading for each day ("Today", "Yesterday", "Mon 20 Oct": a small muted line in the card,
+///   not a card each), each with its time. A row's words are as they were; a meeting the sweep has forgotten the title
+///   of is "A meeting", and an occurrence of a series has the repeat mark for its calendar.
+/// - **Show more**, the card's last row while there are older meetings ([MeetIn.hasMore]): the next page comes in
+///   below those shown, so nothing above it moves; while it comes the row says "Loading…" in the word's own place, and
+///   a failure is said in the row beside Retry. The footer adds how far back the list goes, against a service that
+///   pages ([meetHistoryKept]). The same in Simple: nothing here is a fancy thing.
 bool meetCardShown(AccountServices services) => services.meetIn != null && services.meetIn!.available && services.mailIn?.address?.address != null;
 
 /// What the question before a new address, made or chosen, warns of.
@@ -61,7 +80,48 @@ const Duration meetNameSettle = Duration(milliseconds: 400);
 /// What the card says under itself: where a meeting's sound goes.
 const String meetCardFooter = 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.';
 
+/// What the footer adds against a service that pages: how far back the list goes (bookings are kept thirty days,
+/// server/src/meet.rs `KEPT_FOR`).
+const String meetHistoryKept = 'Meetings are kept here for 30 days after they end.';
+
 String _two(int n) => n.toString().padLeft(2, '0');
+
+/// A day of meetings over, as its heading says it: "Today", "Yesterday", or "Mon 20 Oct".
+String meetDay(int ms, {required int now}) {
+  final at = DateTime.fromMillisecondsSinceEpoch(ms);
+  final today = DateTime.fromMillisecondsSinceEpoch(now);
+  final days = DateTime(today.year, today.month, today.day).difference(DateTime(at.year, at.month, at.day)).inDays;
+  return switch (days) {
+    0 => 'Today',
+    1 => 'Yesterday',
+    _ => '${localeDate(at, DateForm.E)} ${localeDayMonth(at, DateForm.MMMd)}',
+  };
+}
+
+/// Whether [meeting] is among those to come: not yet past its end, or Ghost still in it (a meeting runs over).
+bool meetAhead(MeetBooking meeting, {required int now}) =>
+    meeting.endsAt > now || meeting.state == MeetState.joining || meeting.state == MeetState.inCall || meeting.state == MeetState.leave;
+
+/// The meetings as the list draws them: those to come, soonest first, then those over, the latest first, each
+/// under the day it was on ([meetDay]). A day's heading comes before the first meeting of it.
+List<({String? day, MeetBooking meeting})> meetListed(List<MeetBooking> meetings, {required int now}) {
+  final ahead = [for (final m in meetings) if (meetAhead(m, now: now)) m]..sort((a, b) => a.startsAt != b.startsAt ? a.startsAt.compareTo(b.startsAt) : a.id.compareTo(b.id));
+  final over = [for (final m in meetings) if (!meetAhead(m, now: now)) m]..sort((a, b) => a.startsAt != b.startsAt ? b.startsAt.compareTo(a.startsAt) : b.id.compareTo(a.id));
+  String? last;
+  return [
+    for (final (at, m) in ahead.indexed) (day: at == 0 && over.isNotEmpty ? 'Coming up' : null, meeting: m),
+    for (final m in over)
+      (
+        day: () {
+          final day = meetDay(m.startsAt, now: now);
+          if (day == last) return null;
+          last = day;
+          return day;
+        }(),
+        meeting: m,
+      ),
+  ];
+}
 
 /// When a meeting is, as the card says it: "Today, 14:00", "Tomorrow, 09:30", "18 Oct, 14:00".
 String meetWhen(int ms, {required int now}) {
@@ -98,6 +158,10 @@ class _MeetCardState extends State<MeetCard> {
 
   /// The question a new address asks first is showing.
   bool _asking = false;
+
+  /// The series whose "Stop joining" is asking first, and what the Recurring card says under itself.
+  String? _stopping;
+  String? _seriesSaid;
 
   /// A name of one's own: the field is open, what is typed in it, what is said under it, whether the service said
   /// the name as typed is free, and whether the question before switching to it is showing. [_nameAsked] counts the
@@ -339,6 +403,76 @@ class _MeetCardState extends State<MeetCard> {
     ];
   }
 
+  /// "Stop joining", once asked: the series goes from the card; a refusal is said under it.
+  Future<void> _stop(MeetIn meet, MeetSeries series) async {
+    setState(() {
+      _busy = true;
+      _stopping = null;
+      _seriesSaid = null;
+    });
+    try {
+      await meet.stopSeries(series.id);
+      if (mounted) setState(() => _seriesSaid = 'Ghost won’t join ${series.title ?? 'that meeting'} any more.');
+    } catch (failure) {
+      if (mounted) setState(() => _seriesSaid = accountFailureText(failure));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  /// One meeting's row: [when] the hint's first words ("Today, 14:00" for one to come, the time alone under a day).
+  Widget _meetingRow(MeetIn meet, MeetBooking meeting, String? noteId, String when, void Function(String id)? open) => SettingRow(
+        key: ValueKey('meet-${meeting.id}'),
+        icon: AppIcon(switch (meeting.state) {
+          MeetState.done => Lucide.circleCheck,
+          MeetState.failed => Lucide.circleAlert,
+          MeetState.skipped || MeetState.cancelled => Lucide.ban,
+          MeetState.joining || MeetState.inCall || MeetState.leave => Lucide.ghost,
+          _ => meeting.series != null ? Lucide.repeat : Lucide.calendarDays,
+        }, size: 20),
+        label: meeting.title ?? 'A meeting',
+        hint: Text('$when · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId])}'),
+        onPress: noteId == null || open == null ? null : () => open(noteId),
+        control: meeting.state.open
+            ? RowAction(
+                disabled: _busy,
+                onPress: () => unawaited(_run(() => meet.skip(meeting.id))),
+                child: Text(meeting.state == MeetState.booked ? 'Don’t join' : 'Leave now'),
+              )
+            : null,
+      );
+
+  /// The Recurring card's rows: a series each, and under the one asking, the question.
+  List<Widget> _seriesRows(BuildContext context, MeetIn meet, List<MeetSeries> series, int now) => [
+        for (final s in series) ...[
+          SettingRow(
+            key: ValueKey('meet-series-${s.id}'),
+            icon: const AppIcon(Lucide.repeat, size: 20),
+            label: s.title ?? 'A meeting',
+            hint: Text('${meetSeriesRule(s, now: now)}\n${meetSeriesNext(s)}'),
+            control: RowAction(
+              key: ValueKey('meet-series-stop-${s.id}'),
+              disabled: _busy,
+              onPress: () => setState(() => _stopping = _stopping == s.id ? null : s.id),
+              child: const Text('Stop joining'),
+            ),
+          ),
+          if (_stopping == s.id)
+            SettingRow(
+              key: ValueKey('meet-series-ask-${s.id}'),
+              label: 'Stop joining ${s.title ?? 'this meeting'}?',
+              hint: Text(meetStopWarning(s)),
+              layout: MediaQuery.sizeOf(context).width < 600 ? SettingRowLayout.stacked : SettingRowLayout.trailing,
+              control: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RowAction(key: ValueKey('meet-series-yes-${s.id}'), disabled: _busy, onPress: () => unawaited(_stop(meet, s)), child: const Text('Stop joining')),
+                  RowAction(onPress: () => setState(() => _stopping = null), child: const Text('Cancel')),
+                ],
+              ),
+            ),
+        ],
+      ];
+
   Future<void> _send(MeetIn meet) => _run(() async {
         final booked = await meet.sendNow(_link);
         if (!mounted) return;
@@ -424,44 +558,44 @@ class _MeetCardState extends State<MeetCard> {
               ),
           ],
         );
+        final series = meet.series;
+        final recurring = series == null || (series.isEmpty && _seriesSaid == null)
+            ? null
+            : PaneSection(
+                title: 'Recurring',
+                footer: _seriesSaid == null ? null : Text(_seriesSaid!, key: const ValueKey('meet-series-said')),
+                children: series.isEmpty
+                    ? [const SettingRow(key: ValueKey('meet-series-none'), icon: AppIcon(Lucide.repeat, size: 20), label: 'No recurring meetings')]
+                    : _seriesRows(context, meet, series, now),
+              );
         final list = PaneSection(
           title: 'Ghost in meetings',
           description: const Text('Ghost joins by itself, records the meeting, and files it as a note, written up with who said what.'),
-          footer: const Text(meetCardFooter),
+          footer: Text(meet.pages ? '$meetCardFooter $meetHistoryKept' : meetCardFooter),
           children: [
             if (meetings == null)
               SettingRow(key: const ValueKey('meet-reading'), icon: const AppIcon(Lucide.clock, size: 20), label: meet.problem ?? 'Reading your meetings…')
             else if (meetings.isEmpty)
               const SettingRow(key: ValueKey('meet-none'), icon: AppIcon(Lucide.ghost, size: 20), label: 'No meetings yet', hint: Text('A meeting Ghost is invited to shows here, with where it stands.'))
             else
-              for (final (meeting, noteId) in [for (final m in meetings) (m, meetingNoteFor(m, filed: filed, meetings: prefs.meetings, notes: _notes))])
-                SettingRow(
-                  key: ValueKey('meet-${meeting.id}'),
-                  icon: AppIcon(switch (meeting.state) {
-                    MeetState.done => Lucide.circleCheck,
-                    MeetState.failed => Lucide.circleAlert,
-                    MeetState.skipped || MeetState.cancelled => Lucide.ban,
-                    MeetState.joining || MeetState.inCall || MeetState.leave => Lucide.ghost,
-                    _ => Lucide.calendarDays,
-                  }, size: 20),
-                  label: meeting.title ?? 'A meeting',
-                  hint: Text('${meetWhen(meeting.startsAt, now: now)} · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId])}'),
-                  onPress: noteId == null || open == null ? null : () => open(noteId),
-                  control: meeting.state.open
-                      ? RowAction(
-                          disabled: _busy,
-                          onPress: () => unawaited(_run(() => meet.skip(meeting.id))),
-                          child: Text(meeting.state == MeetState.booked ? 'Don’t join' : 'Leave now'),
-                        )
-                      : null,
+              for (final (at, (:day, :meeting)) in meetListed(meetings, now: now).indexed) ...[
+                if (day != null) _DayHeading(key: ValueKey('meet-day-$day'), words: day, first: at == 0),
+                _meetingRow(
+                  meet,
+                  meeting,
+                  meetingNoteFor(meeting, filed: filed, meetings: prefs.meetings, notes: _notes),
+                  meetAhead(meeting, now: now) ? meetWhen(meeting.startsAt, now: now) : _hm(meeting.startsAt),
+                  open,
                 ),
+              ],
+            if (meetings != null && (meet.hasMore || meet.moreProblem != null)) _MoreRow(meet: meet),
           ],
         );
-        // Two cards with the gap a pane puts between its own (PaneBody).
+        // The cards with the gap a pane puts between its own (PaneBody).
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
-          children: [invite, SizedBox(height: t.space(4)), list],
+          children: [invite, SizedBox(height: t.space(4)), if (recurring != null) ...[recurring, SizedBox(height: t.space(4))], list],
         );
       },
     );
@@ -475,6 +609,69 @@ String _whereItStands(MeetBooking meeting, Note? note) {
   if (meeting.state != MeetState.done) return meetStateWords(meeting);
   if (note == null) return 'Not written up yet';
   return awaitsWriteUp(note.body) ? 'Being written up' : meetStateWords(meeting);
+}
+
+/// A meeting's time of day, "14:00", under its day's heading.
+String _hm(int ms) {
+  final at = DateTime.fromMillisecondsSinceEpoch(ms);
+  return '${_two(at.hour)}:${_two(at.minute)}';
+}
+
+/// A day's heading among the meetings over: a small muted line in the card, a hairline over it where rows come
+/// before. Not a row of the card's ([PaneRow]), so the card draws no line between it and its first meeting.
+class _DayHeading extends StatelessWidget {
+  const _DayHeading({super.key, required this.words, required this.first});
+
+  final String words;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = t.lenOf('0.72rem');
+    return Semantics(
+      header: true,
+      child: Container(
+        decoration: first ? null : BoxDecoration(border: Border(top: BorderSide(color: t.color('app-rule'), width: t.len('glacier-hairline')))),
+        padding: EdgeInsets.fromLTRB(t.space(3), t.space(3), t.space(3), t.space(1)),
+        child: Text(words, style: pageText(t, size, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size))),
+      ),
+    );
+  }
+}
+
+/// "Show more", the list's last row: the next page loaded below those shown ([MeetIn.more]). While it loads the word
+/// says "Loading…" where it stood, and a failure is said beside Retry, so the row keeps its height.
+class _MoreRow extends StatelessWidget implements PaneRow {
+  const _MoreRow({required this.meet});
+
+  final MeetIn meet;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final problem = meet.moreProblem;
+    final loading = meet.loadingMore;
+    return Padding(
+      key: const ValueKey('meet-more-row'),
+      padding: EdgeInsets.symmetric(horizontal: t.space(3), vertical: t.space(1)),
+      child: Row(
+        children: [
+          Expanded(
+            child: problem == null || loading
+                ? const SizedBox.shrink()
+                : Text(problem, key: const ValueKey('meet-more-problem'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
+          ),
+          RowAction(
+            key: const ValueKey('meet-more'),
+            disabled: loading,
+            onPress: () => unawaited(meet.more()),
+            child: Text(loading ? 'Loading…' : (problem != null ? 'Retry' : 'Show more')),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 /// The refresh beside Copy: a round button with the turning arrows, named "Make a new address" to a screen reader and

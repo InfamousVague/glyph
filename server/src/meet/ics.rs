@@ -532,6 +532,15 @@ fn when<'z>(prop: &Prop, zones: &'z HashMap<String, Zone>) -> Option<When<'z>> {
     Some(When::At(Moment { wall, zone }))
 }
 
+/// A rule's UNTIL as UTC seconds: a UTC time as it is, a wall-clock one in the series' zone, a date as its last second.
+fn until_of(parts: &HashMap<String, String>, zone: Option<&Zone>) -> Option<i64> {
+    parts.get("UNTIL").and_then(|u| match date_time(u) {
+        Some((t, true)) => Some(t),
+        Some((t, false)) => Some(to_utc(t, zone)),
+        None => date_value(u).map(|d| to_utc(d * DAY + DAY - 1, zone)),
+    })
+}
+
 /// The next occurrence of a recurring meeting that starts after `after` (when given) and has not ended at `now` (UTC
 /// seconds, both), as UTC seconds, skipping `skip` (the starts the invite removes or books separately); none when the
 /// rule is done. The header says what is read.
@@ -547,11 +556,7 @@ fn next_occurrence(start: Moment<'_>, length: i64, rule: &str, skip: &[i64], aft
     }
     let interval = parts.get("INTERVAL").and_then(|i| i.parse::<i64>().ok()).filter(|i| *i > 0).unwrap_or(1);
     let count = parts.get("COUNT").and_then(|c| c.parse::<i64>().ok());
-    let until = parts.get("UNTIL").and_then(|u| match date_time(u) {
-        Some((t, true)) => Some(t),
-        Some((t, false)) => Some(to_utc(t, start.zone)),
-        None => date_value(u).map(|d| to_utc(d * DAY + DAY - 1, start.zone)),
-    });
+    let until = until_of(&parts, start.zone);
     let days: Vec<(i64, i64)> = parts.get("BYDAY").map(|d| d.split(',').filter_map(by_day).collect()).unwrap_or_default();
     let month_days: Vec<i64> = parts.get("BYMONTHDAY").map(|d| d.split(',').filter_map(|x| x.trim().parse().ok()).collect()).unwrap_or_default();
     let months: Vec<i64> = parts.get("BYMONTH").map(|d| d.split(',').filter_map(|x| x.trim().parse().ok()).collect()).unwrap_or_default();
@@ -654,6 +659,11 @@ pub struct Series {
     /// The starts the series does not book, UTC seconds: its EXDATEs, and the RECURRENCE-IDs of the occurrences the
     /// invite changed separately.
     skip: Vec<i64>,
+    /// DTSTART's TZID (`America/New_York`), where its zone was found, for the device to name the zone by when its own
+    /// clock differs (meet.rs `series_json`). None for UTC, floating, a zone not found, and a series kept before it
+    /// was (2026-10-24), which reads back with none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    tzid: Option<String>,
 }
 
 impl Series {
@@ -668,6 +678,202 @@ impl Series {
     /// Whether an occurrence of the series starts at `at` (ms).
     pub fn occurs(&self, at: i64) -> bool {
         self.next(Some(at - 1000), i64::MIN / 2).is_some_and(|(s, _)| s == at)
+    }
+
+    /// The zone its meetings keep their time of day in, by the invite's name for it; none for UTC.
+    pub fn zone_name(&self) -> Option<&str> {
+        self.tzid.as_deref()
+    }
+
+    /// Its meetings' time of day on the series' own clock, as hours and minutes: DTSTART's wall-clock time.
+    pub fn time_of_day(&self) -> (i64, i64) {
+        let seconds = self.start.rem_euclid(DAY);
+        (seconds / 3600, seconds % 3600 / 60)
+    }
+
+    /// How many minutes the series' clock is ahead of UTC at `at` (ms): the device sets it beside its own, to say the
+    /// zone only where the two differ.
+    pub fn offset_minutes(&self, at: i64) -> i64 {
+        offset_at(at.div_euclid(1000), self.zone.as_ref()) / 60
+    }
+
+    /// The rule's UNTIL, in ms, when it has one.
+    pub fn until(&self) -> Option<i64> {
+        until_of(&rule_parts(&self.rule), self.zone.as_ref()).map(|u| u * 1000)
+    }
+
+    /// The rule's COUNT, when it has one.
+    pub fn count(&self) -> Option<i64> {
+        rule_parts(&self.rule).get("COUNT").and_then(|c| c.parse().ok()).filter(|c| *c > 0)
+    }
+
+    /// The rule in a person's words (`rule_words`).
+    pub fn words(&self) -> String {
+        rule_words(&self.rule, self.start)
+    }
+}
+
+/// The offset of `zone` at the moment `utc` (UTC seconds), in seconds: the latest onset at or before it, as `to_utc`
+/// reads the onsets the other way. Before every onset the invite gives, the earliest observance's offset from before
+/// it began; no zone is UTC.
+fn offset_at(utc: i64, zone: Option<&Zone>) -> i64 {
+    let Some(zone) = zone.filter(|z| !z.is_empty()) else { return 0 };
+    let year = civil_from_days(utc.div_euclid(DAY)).0;
+    let mut all = Vec::new();
+    for observance in zone {
+        onsets(observance, year, &mut all);
+    }
+    match all.iter().filter(|(at, _)| *at <= utc).max_by_key(|(at, _)| *at) {
+        Some((_, to)) => *to,
+        None => zone.iter().min_by_key(|o| o.onset).map_or(0, |o| o.from),
+    }
+}
+
+// --- a rule in words -----------------------------------------------------------------------------
+
+/// The weekdays as `weekday` counts them, Sunday first.
+const SHORT_DAYS: [&str; 7] = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const LONG_DAYS: [&str; 7] = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+const SHORT_MONTHS: [&str; 12] = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/// `1st`, `2nd`, `3rd`, `4th`, `11th`, `21st`.
+fn ordinal(n: i64) -> String {
+    let suffix = match (n % 10, n % 100) {
+        (_, 11..=13) => "th",
+        (1, _) => "st",
+        (2, _) => "nd",
+        (3, _) => "rd",
+        _ => "th",
+    };
+    format!("{n}{suffix}")
+}
+
+/// `a`, `a and b`, `a, b and c`.
+fn listed(items: &[String]) -> String {
+    match items {
+        [] => String::new(),
+        [one] => one.clone(),
+        [rest @ .., last] => format!("{} and {last}", rest.join(", ")),
+    }
+}
+
+/// A recurring meeting's rule as the Meetings page says it (Matt, 2026-10-24: "show recurring meetings in the
+/// meetings UI"), at DTSTART's wall-clock time of day (`start`, seconds as though UTC), in 24-hour time without a
+/// leading zero, as the examples he was given have it ("Every weekday at 9:30"):
+///
+/// | RRULE | words |
+/// |---|---|
+/// | `FREQ=DAILY` | Daily at 9:30 |
+/// | `FREQ=DAILY;INTERVAL=3` | Every 3 days at 9:30 |
+/// | `FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR` (or DAILY on those days) | Every weekday at 9:30 |
+/// | `FREQ=WEEKLY;BYDAY=TU,TH` | Weekly on Tue and Thu at 11:00 |
+/// | `FREQ=WEEKLY` | Weekly on Tue at 11:00 (DTSTART's day) |
+/// | `FREQ=WEEKLY;BYDAY=SU,MO,TU,WE,TH,FR,SA` | Daily at 9:30 |
+/// | `FREQ=WEEKLY;INTERVAL=2;BYDAY=MO` | Every 2 weeks on Mon at 9:30 |
+/// | `FREQ=MONTHLY;BYDAY=2TU` | Monthly on the 2nd Tuesday at 9:30 |
+/// | `FREQ=MONTHLY;BYDAY=-1FR` | Monthly on the last Friday at 9:30 |
+/// | `FREQ=MONTHLY;BYMONTHDAY=1,15` | Monthly on the 1st and 15th at 9:30 |
+/// | `FREQ=MONTHLY;BYMONTHDAY=-1` | Monthly on the last day at 9:30 |
+/// | `FREQ=MONTHLY` | Monthly on the 15th at 9:30 (DTSTART's day) |
+/// | `FREQ=MONTHLY;INTERVAL=3;BYDAY=1MO` | Every 3 months on the 1st Monday at 9:30 |
+/// | `FREQ=YEARLY` | Yearly on 15 Jan at 9:30 |
+///
+/// Anything else is "Repeats", with no time: a rule part this does not read (BYSETPOS, BYHOUR, ...), which may put the
+/// meeting at another time of day; BYMONTH but on a yearly rule in DTSTART's month; every Tuesday of a month; an
+/// ordinal past the 5th or before the last; a daily rule on some days every few days. How the series ends (COUNT,
+/// UNTIL) is not in the words: the device says it from `until` and `count`.
+pub fn rule_words(rule: &str, start: i64) -> String {
+    said_rule(&rule_parts(rule), start).unwrap_or_else(|| "Repeats".into())
+}
+
+fn said_rule(parts: &HashMap<String, String>, start: i64) -> Option<String> {
+    let known = ["FREQ", "INTERVAL", "COUNT", "UNTIL", "BYDAY", "BYMONTHDAY", "BYMONTH", "WKST"];
+    if parts.keys().any(|k| !known.contains(&k.as_str())) {
+        return None;
+    }
+    let interval = match parts.get("INTERVAL") {
+        Some(i) => i.parse::<i64>().ok().filter(|i| *i > 0)?,
+        None => 1,
+    };
+    let days: Vec<(i64, i64)> = match parts.get("BYDAY") {
+        Some(d) => d.split(',').map(by_day).collect::<Option<_>>()?,
+        None => Vec::new(),
+    };
+    let month_days: Vec<i64> = match parts.get("BYMONTHDAY") {
+        Some(d) => d.split(',').map(|x| x.trim().parse::<i64>().ok().filter(|n| *n != 0 && (-31..=31).contains(n))).collect::<Option<_>>()?,
+        None => Vec::new(),
+    };
+    let months: Vec<i64> = match parts.get("BYMONTH") {
+        Some(m) => m.split(',').map(|x| x.trim().parse::<i64>().ok()).collect::<Option<_>>()?,
+        None => Vec::new(),
+    };
+    let day = start.div_euclid(DAY);
+    let seconds = start.rem_euclid(DAY);
+    let at = format!("at {}:{:02}", seconds / 3600, seconds % 3600 / 60);
+    let (_, month, month_day) = civil_from_days(day);
+    let every = |one: &str, many: &str| if interval == 1 { one.to_string() } else { format!("Every {interval} {many}") };
+    match parts.get("FREQ").map(String::as_str)? {
+        freq @ ("DAILY" | "WEEKLY") => {
+            if !months.is_empty() || !month_days.is_empty() || days.iter().any(|(nth, _)| *nth != 0) {
+                return None;
+            }
+            // Monday first, as a week is said.
+            let mut on: Vec<i64> = days.iter().map(|(_, wd)| *wd).collect();
+            on.sort_by_key(|wd| (wd + 6) % 7);
+            on.dedup();
+            if freq == "DAILY" {
+                if on.is_empty() {
+                    return Some(format!("{} {at}", every("Daily", "days")));
+                }
+                // Every few days, but only on some of them: nothing short says it.
+                if interval > 1 {
+                    return None;
+                }
+            } else if on.is_empty() {
+                on.push(weekday(day));
+            }
+            if interval == 1 && on.len() == 7 {
+                return Some(format!("Daily {at}"));
+            }
+            if interval == 1 && on == [1, 2, 3, 4, 5] {
+                return Some(format!("Every weekday {at}"));
+            }
+            let names: Vec<String> = on.iter().map(|wd| SHORT_DAYS[*wd as usize].to_string()).collect();
+            Some(format!("{} on {} {at}", every("Weekly", "weeks"), listed(&names)))
+        }
+        "MONTHLY" => {
+            if !months.is_empty() {
+                return None;
+            }
+            let which = match (&days[..], &month_days[..]) {
+                ([], []) => ordinal(month_day),
+                ([(nth, wd)], []) => {
+                    let position = match nth {
+                        1..=5 => ordinal(*nth),
+                        -1 => "last".into(),
+                        _ => return None,
+                    };
+                    format!("{position} {}", LONG_DAYS[*wd as usize])
+                }
+                ([], list) => {
+                    let mut list = list.to_vec();
+                    // The last day after the others.
+                    list.sort_by_key(|d| if *d < 0 { 100 - d } else { *d });
+                    list.dedup();
+                    let said: Vec<String> = list.iter().map(|d| if *d > 0 { Some(ordinal(*d)) } else if *d == -1 { Some("last day".into()) } else { None }).collect::<Option<_>>()?;
+                    listed(&said)
+                }
+                _ => return None,
+            };
+            Some(format!("{} on the {which} {at}", every("Monthly", "months")))
+        }
+        "YEARLY" => {
+            if !days.is_empty() || !month_days.is_empty() || months.iter().any(|m| *m != month) {
+                return None;
+            }
+            Some(format!("{} on {month_day} {} {at}", every("Yearly", "years"), SHORT_MONTHS[(month - 1) as usize]))
+        }
+        _ => None,
     }
 }
 
@@ -756,7 +962,8 @@ pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
                             skip.push(at.utc());
                         }
                     }
-                    let series = Series { rule: rule.to_string(), start: start.wall, zone: start.zone.cloned(), length, skip };
+                    let tzid = event.prop("DTSTART").and_then(|p| p.param("TZID")).filter(|_| start.zone.is_some()).map(|t| t.trim().trim_start_matches('/').to_string());
+                    let series = Series { rule: rule.to_string(), start: start.wall, zone: start.zone.cloned(), length, skip, tzid };
                     // None to come: read all the same, so a booking of the series hears that it is over.
                     let (occurrence, over) = match next_occurrence(start, length, rule, &series.skip, None, now_secs) {
                         Some(found) => (found, false),
