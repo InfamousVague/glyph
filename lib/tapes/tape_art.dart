@@ -19,7 +19,7 @@
 /// the hue across it and a shadow under it, the window smoked, the tape dark, the hubs lit. Lit and shaded are the
 /// lighter and darker of the paper and the ink, so the light comes from above in both themes. The title stays ink on
 /// a label that is nearly paper. In simple mode ([muted]) every strength is lower, a pastel of the hue. Without a
-/// hue it is the two inks, as the meeting being recorded draws it.
+/// hue it is the two inks.
 ///
 /// What differs: the web's home page drew these on a shelf of tapes (`home/TapeShelf.tsx`), which went with the
 /// dashboard (docs/DESIGN.md §147); today's home page draws them on the shelf of meetings (GHST-112,

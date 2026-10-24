@@ -251,7 +251,8 @@ class _MeetingScreenState extends State<MeetingScreen> {
       // .tape { inline-size: min(100%, 22rem); block-size: auto; }
       ConstrainedBox(
         constraints: BoxConstraints(maxWidth: t.lenOf('22rem')),
-        child: TapeArt(bare: true, playing: mine, positionMs: elapsedMs, lengthMs: math.max(tapeMs, elapsedMs)),
+        // The note's own hue, as the shelf and the note's tape wear it (Matt, 2026-10-24: "the cassetes are not different colors").
+        child: TapeArt(bare: true, playing: mine, positionMs: elapsedMs, lengthMs: math.max(tapeMs, elapsedMs), hue: tapeHue(widget.noteId)),
       ),
       line(const TextSpan(text: 'Recording. The screen can go off and you can leave. Stop here or from the notification.')),
       if (mine && live.otherApps == true)
