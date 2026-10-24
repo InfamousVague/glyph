@@ -28,7 +28,7 @@ import 'item_syntax.dart' show jsTrim, lineWords;
 
 /// The most a file may be to travel with its note to the account's other devices: the pictures' own limit (the
 /// core's `kept/images.rs` `MAX_BYTES`, 25 MB). A larger one is kept on the device it was added on, and its card
-/// says so everywhere else. The service's own limit for one sealed file is 64 MB (server/src/sync.rs
+/// says so everywhere else. The service's own limit for one sealed file is 256 MiB (server/src/sync.rs
 /// `RECORDING_LIMIT`), well past it.
 const int attachmentSyncLimit = 25 * 1024 * 1024;
 

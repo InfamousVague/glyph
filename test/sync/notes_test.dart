@@ -273,10 +273,15 @@ void main() {
 
     test('is one over the service’s limit, decided from its length without reading a byte: the note goes with its phrases and no digest', () async {
       final (:api, :phone, :mac) = await pair();
+      // Two hours and a half is over it; a two-hour meeting is not (GHST-112: 35 minutes was, until 2026-10-23).
       const forty = 150 * 60000;
       expect(recordingBytes(forty), greaterThan(recordingSyncLimit));
       expect(recordingStaysHere('a', forty, const {}, syncMeetingRecordings: false), isTrue);
-      expect(recordingStaysHere('a', 30 * 60000, const {}, syncMeetingRecordings: false), isFalse);
+      expect(recordingStaysHere('a', 120 * 60000, const {}, syncMeetingRecordings: false), isFalse);
+      expect(recordingStaysHere('a', 40 * 60000, const {}, syncMeetingRecordings: false), isFalse);
+      expect(longestSyncedSaid, '2 h 19 min');
+      // And given the time a two-hour meeting takes at a megabit a second, where five minutes gave up on it.
+      expect(fileWaitFor(recordingBytes(120 * 60000)), greaterThan(const Duration(minutes: 30)));
       const segments = [Segment(text: 'a long one', startMs: 0, endMs: 900)];
       phone.notes['a'] = note('a', 'a long one', createdAt: 1, updatedAt: 1, recordingMs: forty, segments: segments);
       phone.tapes['a'] = tape;
