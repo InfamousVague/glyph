@@ -10,8 +10,10 @@ import '../../core/locale_dates.dart';
 import '../../core/note.dart';
 import '../../editor/band/menu_band.dart' show BandTip;
 import '../../mail/mail_in.dart' show MailIn;
+import '../../mail/mail_name.dart';
 import '../../settings/account_forms.dart';
 import '../../settings/kit/settings_kit.dart';
+import '../../settings/kit/settings_type.dart' show pageText;
 import '../meet_api.dart';
 import '../meet_in.dart';
 import '../meet_note.dart' show awaitsWriteUp;
@@ -33,12 +35,28 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// Simple too, as an icon beside Copy: making a new address is what a person needs once an old one is given out too
 /// widely, not a fancy thing.
 ///
+/// Or a name of one's own (Matt, 2026-10-24: "i'd like you to add the ability to create our own custom name for the
+/// email if the name is available like matt@in.ghostmarkdown.com"): "Choose a name…" beside Copy opens a field under
+/// the address, in the card, with the domain after it, and says as one types - once a pause in typing is 400 ms long
+/// - "Available", "Taken", or what is wrong with the name in plain words (lib/mail/mail_name.dart checks the rules
+/// first, and asks the service only about a name that keeps them). "Use this name" then asks as the refresh asks,
+/// with the same warning, and Switch puts it in the old one's place ([MailIn.chooseAddress]). A refusal is said under
+/// the field, and the old address stays. It is a word of its own beside Copy rather than a choice behind the refresh,
+/// so the refresh stays the one press it was, and a name, which is what most people will want once, is in sight
+/// rather than a step down; also in Simple, as the refresh is.
+///
 /// A meeting that became a note opens it (Matt, 2026-10-24: "add the ability to click a meeting to jump to the
 /// associated note"): the row is pressed, and [MeetCard.onOpenNote] shuts Settings and opens the note, as the home
 /// page opens one. Which note is [meetingNoteFor]'s, read against this device's notes ([AccountServices.listNotes]).
 /// A meeting done whose note has not come yet (the take waits on the service for a device to file it) says "Not
 /// written up yet" and is not pressed; one booked, in the call, skipped or failed has no note to open.
 bool meetCardShown(AccountServices services) => services.meetIn != null && services.meetIn!.available && services.mailIn?.address?.address != null;
+
+/// What the question before a new address, made or chosen, warns of.
+const String meetNewAddressWarning = 'Invites and mail sent to the old one are turned away from then on. A Calendar invite with it as a guest needs the new one.';
+
+/// How long a pause in typing a name is before the service is asked about it.
+const Duration meetNameSettle = Duration(milliseconds: 400);
 
 /// What the card says under itself: where a meeting's sound goes.
 const String meetCardFooter = 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.';
@@ -81,6 +99,17 @@ class _MeetCardState extends State<MeetCard> {
   /// The question a new address asks first is showing.
   bool _asking = false;
 
+  /// A name of one's own: the field is open, what is typed in it, what is said under it, whether the service said
+  /// the name as typed is free, and whether the question before switching to it is showing. [_nameAsked] counts the
+  /// asks, so an answer to a name since typed over is dropped.
+  bool _naming = false;
+  String _name = '';
+  String? _nameSaid;
+  bool _nameFree = false;
+  bool _nameAsking = false;
+  Timer? _nameWait;
+  int _nameAsked = 0;
+
   /// This device's notes, by id, for which meeting became which; empty until read, or where nothing reads them.
   Map<String, Note> _notes = const {};
   Object? _notesFor;
@@ -105,6 +134,7 @@ class _MeetCardState extends State<MeetCard> {
   @override
   void dispose() {
     _heard?.removeListener(_readNotes);
+    _nameWait?.cancel();
     super.dispose();
   }
 
@@ -161,6 +191,153 @@ class _MeetCardState extends State<MeetCard> {
         final next = await mail.newAddress();
         if (mounted) setState(() => _said = 'A new address: $next. The old one takes no more invites or mail.');
       });
+
+  /// The name field opened or shut; shut, it forgets what was typed. Either question is put away.
+  void _toggleNaming() {
+    _nameWait?.cancel();
+    _nameAsked++;
+    setState(() {
+      _naming = !_naming;
+      _asking = false;
+      _name = '';
+      _nameSaid = null;
+      _nameFree = false;
+      _nameAsking = false;
+    });
+  }
+
+  /// A name typed: said nothing of until a pause in typing ([meetNameSettle]), then checked here, and asked about
+  /// only if it keeps the rules.
+  void _typed(MailIn mail, String text) {
+    _nameWait?.cancel();
+    _nameAsked++;
+    setState(() {
+      _name = text;
+      _nameSaid = null;
+      _nameFree = false;
+      _nameAsking = false;
+    });
+    if (text.trim().isEmpty) return;
+    _nameWait = Timer(meetNameSettle, () => unawaited(_checkName(mail)));
+  }
+
+  Future<void> _checkName(MailIn mail) async {
+    final name = mailNameNormal(_name);
+    final unfit = mailNameUnfit(name);
+    if (unfit != null) {
+      setState(() => _nameSaid = unfit.words);
+      return;
+    }
+    final asked = ++_nameAsked;
+    setState(() => _nameSaid = 'Checking…');
+    String said;
+    var free = false;
+    try {
+      final check = await mail.checkName(name);
+      said = check.words;
+      free = check.available;
+    } catch (failure) {
+      said = accountFailureText(failure);
+    }
+    if (!mounted || asked != _nameAsked) return;
+    setState(() {
+      _nameSaid = said;
+      _nameFree = free;
+    });
+  }
+
+  /// The name in the old address's place, once asked; a refusal said under the field, the old address kept.
+  Future<void> _switchName(MailIn mail) async {
+    final name = mailNameNormal(_name);
+    setState(() {
+      _busy = true;
+      _said = null;
+      _nameAsking = false;
+    });
+    try {
+      final next = await mail.chooseAddress(name);
+      if (!mounted) return;
+      _nameAsked++;
+      setState(() {
+        _naming = false;
+        _name = '';
+        _nameSaid = null;
+        _nameFree = false;
+        _said = 'Your address is now $next. The old one takes no more invites or mail.';
+      });
+    } catch (failure) {
+      if (mounted) {
+        setState(() {
+          _nameSaid = accountFailureText(failure);
+          _nameFree = false;
+        });
+      }
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
+  /// The field, what is said of the name, and Use this name; or, once that is pressed, the question.
+  List<Widget> _namingRows(BuildContext context, MailIn mail, String address) {
+    final t = context.tokens;
+    final domain = '@${address.split('@').last}';
+    final whole = '${mailNameNormal(_name)}$domain';
+    return [
+      SettingsForm(
+        key: const ValueKey('meet-name'),
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: GlacierInput(
+                  key: const ValueKey('meet-name-field'),
+                  ariaLabel: 'A name of your own for the address',
+                  placeholder: 'yourname',
+                  value: _name,
+                  autoFocus: true,
+                  autoCapitalize: TextCapitalization.none,
+                  autoCorrect: false,
+                  spellCheck: false,
+                  maxLength: mailNameMost + 8,
+                  type: GlacierInputType.email,
+                  onChange: (text) => _typed(mail, text),
+                  onSubmitted: (_) {
+                    if (_nameFree && !_busy) setState(() => _nameAsking = true);
+                  },
+                ),
+              ),
+              SizedBox(width: t.space(2)),
+              Text(domain, key: const ValueKey('meet-name-domain'), style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-2'))),
+            ],
+          ),
+          FormProblem(key: const ValueKey('meet-name-said'), _nameSaid ?? 'Anyone who guesses a name can send mail to it. What arrives is still sealed to your account.'),
+          if (!_nameAsking)
+            Row(
+              children: [
+                FormSubmit(wordKey: const ValueKey('meet-name-use'), 'Use this name', onPressed: _nameFree && !_busy ? () => setState(() => _nameAsking = true) : null),
+                SizedBox(width: t.space(3)),
+                RowAction(onPress: _toggleNaming, child: const Text('Cancel')),
+              ],
+            ),
+        ],
+      ),
+      if (_nameAsking)
+        SettingRow(
+          key: const ValueKey('meet-name-ask'),
+          label: 'Switch to ${whole.replaceFirst('@', '@​')}?',
+          hint: const Text(meetNewAddressWarning),
+          // On a phone, Switch and Cancel under the words, as Copy is under the address: beside them the address
+          // broke into three lines.
+          layout: MediaQuery.sizeOf(context).width < 600 ? SettingRowLayout.stacked : SettingRowLayout.trailing,
+          control: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              RowAction(disabled: _busy, onPress: () => unawaited(_switchName(mail)), child: const Text('Switch')),
+              RowAction(onPress: () => setState(() => _nameAsking = false), child: const Text('Cancel')),
+            ],
+          ),
+        ),
+    ];
+  }
 
   Future<void> _send(MeetIn meet) => _run(() async {
         final booked = await meet.sendNow(_link);
@@ -220,15 +397,23 @@ class _MeetCardState extends State<MeetCard> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   RowAction(onPress: () => unawaited(_copy(address)), child: const Text('Copy')),
-                  _NewAddressButton(disabled: _busy, onPressed: () => setState(() => _asking = !_asking)),
+                  RowAction(key: const ValueKey('meet-name-open'), disabled: _busy, onPress: _toggleNaming, child: const Text('Choose a name…')),
+                  _NewAddressButton(
+                    disabled: _busy,
+                    onPressed: () {
+                      if (_naming) _toggleNaming();
+                      setState(() => _asking = !_asking);
+                    },
+                  ),
                 ],
               ),
             ),
+            if (_naming) ..._namingRows(context, mail, address),
             if (_asking)
               SettingRow(
                 key: const ValueKey('meet-new-ask'),
                 label: 'Make a new address?',
-                hint: const Text('Invites and mail sent to the old one are turned away from then on. A Calendar invite with it as a guest needs the new one.'),
+                hint: const Text(meetNewAddressWarning),
                 control: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [

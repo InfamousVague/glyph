@@ -14,7 +14,8 @@
 /// notes step of the same pass then sends the note to the account's other devices as any new note. A note's id is
 /// made from the mail's ([mailNoteId]), so a pass cut short, or two devices at once, file one note and not two.
 ///
-/// [MailIn] is the setting (Settings › Account › Email to a note): the address, a new one in its place, off.
+/// [MailIn] is the setting (Settings › Meetings): the address, a new one in its place or a name of one's own
+/// (lib/mail/mail_name.dart), off.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -27,7 +28,9 @@ import '../account/session.dart';
 import '../core/bytes.dart';
 import '../core/note.dart';
 import '../sync/notes.dart' show FileKind, LocalFiles, LocalNotes;
+import 'mail_name.dart';
 import 'mail_note.dart';
+
 
 /// The context a mail's key is wrapped in (server/src/mail/seal.rs `wrap_context`).
 String mailWrapContext(String id) => 'inbound-mail:$id';
@@ -224,6 +227,48 @@ class MailIn extends ChangeNotifier {
     _set(MailAddress(address: address, available: true));
     return address;
   }
+
+  /// What the service says of [name] as the account's address (`POST mail/address/available`, lib/mail/mail_name.dart):
+  /// the name in the body, not the query, so it is not in the proxy's log. An older service, with no names yet, is
+  /// said as [mailNamesNotYet].
+  Future<MailNameCheck> checkName(String name) async {
+    final Map<String, Object?> said;
+    try {
+      said = await api.callMap('POST', 'mail/address/available', token: _token(), body: {'name': name});
+    } catch (failure) {
+      if (_noNames(failure)) throw const ApiError(404, mailNamesNotYet);
+      rethrow;
+    }
+    final reason = said['reason'], message = said['message'], kept = said['name'];
+    return MailNameCheck(name: kept is String ? kept : mailNameNormal(name), available: said['available'] == true, reason: reason is String ? reason : null, message: message is String ? message : null);
+  }
+
+  /// [name] in place of the address, as [newAddress] puts a made one (`PUT mail/address`): the old one takes no mail
+  /// from then on. A name refused comes back as an [ApiError] whose words are the field's ([MailNameCheck.words]).
+  Future<String> chooseAddress(String name) async {
+    final token = _token();
+    final accountKey = await account.accountKey();
+    if (accountKey == null) throw const ApiError(409, 'Sign in again on this device first: its key is not here.');
+    await ensureEncryptionKey(EncryptionKeyContext(token: token, accountKey: accountKey, keys: keys, api: api, crypto: crypto));
+    final Map<String, Object?> said;
+    try {
+      said = await api.callMap('PUT', 'mail/address', token: token, body: {'name': name});
+    } on ApiError catch (failure) {
+      if (_noNames(failure)) throw const ApiError(404, mailNamesNotYet);
+      final body = failure.body;
+      final reason = body is Map ? body['reason'] : null;
+      if (reason is String) throw ApiError(failure.status, MailNameCheck(name: name, available: false, reason: reason, message: failure.message).words, body);
+      rethrow;
+    }
+    final address = said['address'];
+    if (address is! String) throw const ApiError(500, 'The service answered without an address.');
+    _set(MailAddress(address: address, available: true));
+    return address;
+  }
+
+  /// A service from before the names: `POST mail/address/available` is no route, and `PUT mail/address` a method
+  /// the route does not take.
+  static bool _noNames(Object failure) => _noRoute(failure) || (failure is ApiError && failure.status == 405);
 
   /// The address off. Mail already on its way is still filed.
   Future<void> turnOff() async {

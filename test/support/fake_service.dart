@@ -45,6 +45,7 @@ import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/note_json.dart';
 import 'package:ghost_md/core/notifications.dart';
 import 'package:ghost_md/core/workspaces.dart' show workspaceHues;
+import 'package:ghost_md/mail/mail_name.dart' show mailNameNormal, mailNameUnfit;
 
 import 'fake_crypto.dart';
 
@@ -276,6 +277,14 @@ class FakeService {
   String? mailAddress;
   bool takesMail = true;
   final Map<String, ({String wrapped, String blob, int at})> mail = {};
+
+  /// A name of one's own (`PUT mail/address`, `POST mail/address/available`): the names other accounts have or had,
+  /// which are taken; [mailNames] false plays a service from before names (no route, and a method the address route
+  /// does not take); [mailNameRefusal], when set, is what the next choice is refused with, as a name taken in the
+  /// moment between the check and the press is.
+  final Set<String> mailNamesTaken = {};
+  bool mailNames = true;
+  ({int status, String error, String? reason})? mailNameRefusal;
 
   /// The organizations as stored, by id, with their rows by handle.
   final Map<String, StoredOrg> orgs = {};
@@ -645,10 +654,33 @@ class FakeService {
         mailAddress = 'k7m2q9xh4t3v${(++_issued).toString().padLeft(4, '0')}@in.ghostmarkdown.com';
         return _json(200, {'address': mailAddress});
       }
+      if (method == 'PUT') {
+        if (!mailNames) return _refuse(405, 'method not allowed');
+        if (!takesMail) return _refuse(503, 'Email to a note is not set up on this service yet.');
+        if (mine.encryption == null) return _refuse(409, 'Your account needs its encryption key first. Sync once, then try again.');
+        final name = mailNameNormal(_str(body['name']));
+        final unfit = mailNameUnfit(name);
+        if (unfit != null) return _json(400, {'error': '${unfit.words}.', 'reason': unfit.name});
+        final refusal = mailNameRefusal;
+        if (refusal != null) {
+          mailNameRefusal = null;
+          return _json(refusal.status, {'error': refusal.error, 'reason': refusal.reason});
+        }
+        if (mailNamesTaken.contains(name)) return _json(409, {'error': 'That name is taken.', 'reason': 'taken'});
+        mailAddress = '$name@in.ghostmarkdown.com';
+        return _json(200, {'address': mailAddress});
+      }
       if (method == 'DELETE') {
         mailAddress = null;
         return _json(204, null);
       }
+    }
+    if (path == 'mail/address/available' && method == 'POST') {
+      if (!mailNames) return _refuse(404, noSuchRoute);
+      final name = mailNameNormal(_str(body['name']));
+      final unfit = mailNameUnfit(name);
+      final reason = unfit?.name ?? (mailAddress?.split('@').first == name ? 'yours' : (mailNamesTaken.contains(name) ? 'taken' : null));
+      return _json(200, {'name': name, 'available': reason == null, 'reason': reason, 'message': null});
     }
     if (path == 'mail' && method == 'GET') {
       final waiting = mail.entries.toList()..sort((a, b) => a.value.at.compareTo(b.value.at));
