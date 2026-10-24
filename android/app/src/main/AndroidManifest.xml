@@ -95,9 +95,9 @@
         android:dataExtractionRules="@xml/ghost_data_extraction_rules">
         <!-- The backup rules keep the library's index (Library/.glyph/index.sqlite, a cache) out of a backup;
              the notes themselves go. res/xml/ghost_backup_rules.xml says why. -->
-        <!-- ONE WINDOW, singleTask as Ghost.md's own activity is (docs/PARITY.md, Differs 1): a link, the side key,
-             the launcher's shortcut or a notification's tap always reaches the one activity (onNewIntent) in the one
-             task, wherever it was sent from. It was singleTop, which makes a second activity, and with it a second
+        <!-- ONE WINDOW, singleTask as Ghost.md's own activity is (docs/PARITY.md, Differs 1): a link (by way of the
+             door, LinkDoor below), the side key, the launcher's shortcut or a notification's tap always reaches the one
+             activity (onNewIntent) in the one task, wherever it was sent from. It was singleTop, which makes a second activity, and with it a second
              engine over the one core, when an intent arrives from another app's task without NEW_TASK. The empty
              taskAffinity is Flutter's own, kept: no other app's activity can be put into this task. -->
         <activity
@@ -123,22 +123,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="${ghostOwnLauncher}"/>
             </intent-filter>
-            <!--
-              Links that open the app (AppLinks.kt; lib/share/app_links.dart says what each means): an invitation,
-              `ghostmd://join/<code>`; something shared, `ghostmd://fork#<id>.<key>`, the reader page's "Open in the
-              Ghost.md app"; a note, `ghostmd://note/<id>`, the tap on "written up"; and two places,
-              `ghostmd://notifications` and `ghostmd://org/<id>`. The whole scheme, as the Tauri app's filter takes
-              it, and BROWSABLE so a web page's link reaches it. The scheme is the real app's too: on a phone with
-              both installed Android asks which one opens the link.
-            -->
-            <intent-filter>
-                <action android:name="android.intent.action.VIEW" />
-                <!-- ChromeOS's ARC++ sends a link by another action; the Tauri app's filter took both. -->
-                <action android:name="org.chromium.arc.intent.action.VIEW" />
-                <category android:name="android.intent.category.DEFAULT" />
-                <category android:name="android.intent.category.BROWSABLE" />
-                <data android:scheme="ghostmd" />
-            </intent-filter>
+            <!-- The `ghostmd` links are the door's (LinkDoor, below), never this activity's own: see there. -->
             <!--
               Something shared from another app's share sheet (ShareIn.kt; lib/share/share_in.dart): text, a link, a
               picture or any file, one or several. The app's sheet asks whether it is a new note or goes onto one, and
@@ -190,6 +175,39 @@
             <meta-data
                 android:name="android.app.shortcuts"
                 android:resource="${ghostShortcuts}" />
+        </activity>
+
+        <!--
+          THE DOOR EVERY `ghostmd://` LINK COMES IN BY (LinkDoor.kt; Matt, 2026-10-24: "when i restart the app after an
+          update the notifications always opens"). The links that open the app (AppLinks.kt; lib/share/app_links.dart
+          says what each means): an invitation, `ghostmd://join/<code>`; something shared, `ghostmd://fork#<id>.<key>`,
+          the reader page's "Open in the Ghost.md app"; a note, `ghostmd://note/<id>`, the tap on "written up", a
+          reminder's, a widget's row; the widgets' and the icon's own (`ghostmd://new`, `ghostmd://voice`, …, home/Doors.kt);
+          and two places, `ghostmd://notifications` and `ghostmd://org/<id>`. The whole scheme, as the Tauri app's
+          filter takes it, and BROWSABLE so a web page's link reaches it. The scheme is the real app's too: on a phone
+          with both installed Android asks which one opens the link.
+
+          The filter was the activity's until then, and a link that started the app was the intent its task was made
+          with, which Android can make the activity with again when it brings the task back after an update. The door
+          keeps the link and opens the activity with a plain launch, so the task's intent is never a link. No window
+          (it finishes in onCreate), no place in the recents list or the back stack, and no affinity, so its moment is a
+          task of its own and never the app's.
+        -->
+        <activity
+            android:name=".LinkDoor"
+            android:exported="true"
+            android:theme="@android:style/Theme.NoDisplay"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <!-- ChromeOS's ARC++ sends a link by another action; the Tauri app's filter took both. -->
+                <action android:name="org.chromium.arc.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="ghostmd" />
+            </intent-filter>
         </activity>
 
         <!--

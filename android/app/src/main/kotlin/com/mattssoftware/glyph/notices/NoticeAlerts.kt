@@ -27,7 +27,7 @@ import androidx.work.NetworkType
 import androidx.work.OneTimeWorkRequestBuilder
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
-import com.mattssoftware.ghost_md.MainActivity
+import com.mattssoftware.ghost_md.LinkDoor
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
@@ -177,7 +177,9 @@ object NoticeAlerts {
 
   /**
    * A row as a notification, once: "posted", "seen" when it was posted before, or "blocked" when Android would not
-   * show it. `link` is a `ghostmd://` place; anything else opens the drawer.
+   * show it. `link` is a `ghostmd://` place; anything else opens the drawer. The tap goes in by the door
+   * (LinkDoor.kt), never to the activity itself: a tap that started the app left the drawer's link as its task's
+   * intent, and the drawer opened again when the task came back after an update (Matt, 2026-10-24).
    */
   @Synchronized
   fun post(context: Context, id: String, title: String, text: String?, link: String): String {
@@ -188,7 +190,7 @@ object NoticeAlerts {
     val place = if (link.startsWith("ghostmd://")) link else "ghostmd://notifications"
     val open = Intent(Intent.ACTION_VIEW, Uri.parse(place))
       .setPackage(context.packageName)
-      .setClass(context, MainActivity::class.java)
+      .setClass(context, LinkDoor::class.java)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pending = PendingIntent.getActivity(context, id.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
     val public = NotificationCompat.Builder(context, CHANNEL_ID)

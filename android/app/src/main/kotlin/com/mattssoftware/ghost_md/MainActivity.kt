@@ -57,7 +57,7 @@ class MainActivity : FlutterActivity() {
 
     private var meeting: MeetingBridge? = null
 
-    /** Links that open the app, kept until Dart asks (AppLinks.kt). */
+    /** Links that open the app, each in by the door (LinkDoor.kt) and kept until Dart asks (AppLinks.kt). */
     private val links = AppLinks()
 
     /** The player of a note's recording, let go with the activity (TapePlayer.kt). */
