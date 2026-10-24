@@ -13,6 +13,7 @@ import '../aside/aside_panel.dart';
 import '../ai/available.dart' show AvailabilityController, modelFor, presentIds;
 import '../ai/backend.dart' as engine show aiBackend, readDevice;
 import '../ai/fills/queue.dart' show resumeParked, startFills;
+import '../ai/meeting_sort.dart' show MeetingSorter, askMeetingSort, sortTitlesEach;
 import '../ai/note_ai.dart' show NoteAi;
 import '../ai/note_review.dart' show ReviewHost;
 import '../ai/start.dart' as ai_start;

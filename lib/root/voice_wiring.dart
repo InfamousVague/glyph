@@ -323,11 +323,12 @@ class Voice {
   /// words' queue is wired to the notes, the models on the phone are read, and whether a meeting can be recorded
   /// here. Opens no microphone.
   ///
-  /// [summarized] is told once a summary has landed in a note with the app on screen.
-  Future<void> start({VoidCallback? notesChanged, void Function(({String id, String title}) done)? summarized}) async {
+  /// [summarized] is told once a summary has landed in a note with the app on screen; [meetingSummarized] once a
+  /// meeting's has, on the screen or not (lib/ai/meeting_sort.dart).
+  Future<void> start({VoidCallback? notesChanged, void Function(({String id, String title}) done)? summarized, void Function(String id, String body)? meetingSummarized}) async {
     recorder.start(notesChanged: notesChanged);
     // The summary queue, wired to the notes, and the write-up's configuration kept current for the phone's service.
-    _stopSummaries = summaries?.startSummaries(notesChanged ?? () {}, summarized ?? (_) {});
+    _stopSummaries = summaries?.startSummaries(notesChanged ?? () {}, summarized ?? (_) {}, meetingSummarized: meetingSummarized);
     final claude = summaries?.claude;
     if (summaries != null) {
       _stopJobConfig = keepJobConfigCurrent(

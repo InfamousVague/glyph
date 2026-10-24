@@ -84,6 +84,11 @@ const List<String> syncedPrefs = [
   // Which note each meeting Ghost was in became (lib/meet/meet_in.dart `meetingNotesKey`): filed on one device, opened
   // from Settings › Meetings on every one.
   'meetingNotes',
+  // Whether a meeting written up is sorted into a workspace's Meetings folder by the AI, and which meetings the app
+  // filed and which have been sorted (lib/ai/meeting_sort.dart): the person's, so a meeting is sorted once, on
+  // whichever device writes it up.
+  'sortMeetings',
+  'meetingSorts',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.

@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
+import '../../ai/meeting_sort.dart' show sortsMeetings, withSortMeetings;
 import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
@@ -29,6 +30,7 @@ List<SettingsFindable> meetingsFindable(AccountServices? services) {
     ],
     if (mail != null && mailCardShown(mail)) const SettingsFindable('Email to a note', 'mail inbox address turn off'),
     if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+    if (services != null) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox'),
   ];
 }
 
@@ -50,6 +52,8 @@ String meetingsSummary(AccountServices? services) {
 ///   kept in one place, the invite card, with Copy and a new one, and this card says what a mail becomes and turns
 ///   the address off. With no address yet, this card is where one is turned on, and the invite card waits for it.
 /// - **Recordings** ([MeetingRecordings]): Sync meeting recordings, and how many recordings stayed on this phone.
+/// - **Sorting** ([MeetingSorting]): whether a meeting written up is filed into its workspace's Meetings folder by
+///   the AI (lib/ai/meeting_sort.dart; Matt, 2026-10-24), on unless turned off here. In Simple too.
 ///
 /// A meeting that became a note opens it ([onOpenNote], the host's: Settings shuts and the note opens).
 class MeetingsPane extends StatelessWidget {
@@ -80,6 +84,7 @@ class MeetingsPane extends StatelessWidget {
             ),
           if (services != null && mail != null && mailCardShown(mail)) MailCard(services: services, addressAbove: true),
           if (services != null && recordsVoice) MeetingRecordings(services: services),
+          if (services != null) MeetingSorting(prefs: services.prefs),
         ],
       ),
     );
@@ -143,6 +148,36 @@ class _MeetingRecordingsState extends State<MeetingRecordings> {
           ],
         );
       },
+    );
+  }
+}
+
+/// Sort meetings into workspaces (lib/ai/meeting_sort.dart): a meeting written up is filed by the AI into the
+/// Meetings folder of the workspace it is about, an organization's included. On unless turned off; the key is
+/// `sortMeetings` in the synced preferences.
+class MeetingSorting extends StatelessWidget {
+  const MeetingSorting({super.key, required this.prefs});
+
+  final PreferencesStore prefs;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Preferences>(
+      valueListenable: prefs,
+      builder: (context, now, _) => PaneSection(
+        title: 'Sorting',
+        children: [
+          SettingRow(
+            label: 'Sort meetings into workspaces',
+            hint: const Text("Once a meeting is written up, the AI files it in the Meetings folder of the workspace it's about. Meetings you've filed yourself stay where they are."),
+            control: GlacierSwitch(
+              ariaLabel: 'Sort meetings into workspaces',
+              checked: sortsMeetings(now),
+              onCheckedChange: (on) => prefs.update((was) => withSortMeetings(was, on)),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

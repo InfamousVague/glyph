@@ -965,4 +965,34 @@ void main() {
       expect(phoneTaken, ['n1', 'n1', 'n1']);
     });
   });
+
+  group('a meeting written up, for the meetings\' sorting (lib/ai/meeting_sort.dart)', () {
+    summaryTest('is told for a meeting\'s job, with the note as it was left, though the app is off the screen', (tester) async {
+      final heard = <(String, String)>[];
+      stop?.call();
+      stop = summaries.startSummaries(() => changed += 1, summarized.add, meetingSummarized: (id, body) => heard.add((id, body)));
+      summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await tester.advance(0);
+      // The app goes off the screen while the model writes.
+      isVisible = false;
+      fakes[0].finish(answer);
+      await tester.advance(0);
+      expect(heard, [('n1', notes['n1']!.body)]);
+      expect(heard.single.$2, contains('## Summary'));
+      // Off the screen, nothing is said in a toast.
+      expect(summarized, isEmpty);
+    });
+
+    summaryTest('is never told for a recording\'s', (tester) async {
+      final heard = <String>[];
+      stop?.call();
+      stop = summaries.startSummaries(() => changed += 1, summarized.add, meetingSummarized: (id, body) => heard.add(id));
+      summaries.enqueueSummary('n1', SummaryKind.recording);
+      await tester.advance(0);
+      fakes[0].finish(answer);
+      await tester.advance(0);
+      expect(summarized, contains((id: 'n1', title: 'March launch')));
+      expect(heard, isEmpty);
+    });
+  });
 }

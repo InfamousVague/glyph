@@ -36,6 +36,7 @@ import 'dart:async';
 
 import 'package:flutter/foundation.dart';
 
+import '../ai/meeting_sort.dart' show withAppFiled;
 import '../ai/summaries.dart' show SummaryKind;
 import '../capture/landing.dart';
 import '../capture/launch.dart';
@@ -87,6 +88,7 @@ class CaptureRouteWorld {
     required this.deleteNote,
     required this.fileNewNote,
     required this.untouched,
+    this.filedIn,
     this.prefs,
     this.tooSoon,
     this.sayTooSoon,
@@ -121,6 +123,11 @@ class CaptureRouteWorld {
   final Future<Note> Function(String body, {required NoteSource source}) createNote;
   final Future<void> Function(String id) deleteNote;
   final void Function(String id) fileNewNote;
+
+  /// The workspace a note is filed in, by id, or null: read after [fileNewNote] files a meeting, so the meetings'
+  /// sorting knows the app filed it there and not the person (lib/ai/meeting_sort.dart `withAppFiled`). None, and a
+  /// meeting filed so is the person's.
+  final String? Function(String id)? filedIn;
 
   /// The records of the notes nobody has written in (core/untouched.dart).
   final UntouchedNotes untouched;
@@ -309,6 +316,15 @@ class CaptureRoute {
     await _undo(id, answer);
   }
 
+  /// A note a take made, filed where the list is looking; a meeting so filed (the Mac's, whose note is made at its
+  /// Done) is remembered as the app's filing, for the meetings' sorting (lib/ai/meeting_sort.dart).
+  void _fileNew(String id) {
+    world.fileNewNote(id);
+    if (!_prefs.value.meetings.containsKey(id)) return;
+    final filed = world.filedIn?.call(id);
+    if (filed != null) _prefs.update((now) => withAppFiled(now, id, filed));
+  }
+
   /// A press of Meeting while one is being made is the same press.
   bool _making = false;
 
@@ -331,7 +347,8 @@ class CaptureRoute {
       final note = await world.createNote('# $title\n', source: NoteSource.capture);
       world.fileNewNote(note.id);
       voice.recorder.tapes?.setTapeId(note.id, voice.recorder.newTapeId());
-      _prefs.update((now) => now.copyWith(meetings: {...now.meetings, note.id: startedAt}));
+      final filed = world.filedIn?.call(note.id);
+      _prefs.update((now) => withAppFiled(now.copyWith(meetings: {...now.meetings, note.id: startedAt}), note.id, filed));
       // Its write-up queued as the phone's own (`enqueueSummary(id, 'meeting', {native: true})`).
       if (_prefs.value.summaries != 'off') voice.summaries?.enqueueSummary(note.id, SummaryKind.meeting, native: true);
       await _ask(note.id, title, fromAssistant);
@@ -415,9 +432,9 @@ class CaptureRoute {
       world.setScreen(locked ? const Screen.list() : where);
       return;
     }
-    if (note != null && !existed) world.fileNewNote(note.id);
+    if (note != null && !existed) _fileNew(note.id);
     for (final made in landing?.made ?? const <String>[]) {
-      world.fileNewNote(made);
+      _fileNew(made);
     }
     await world.refresh();
     final entryTag = kept ? aim.tag : null;

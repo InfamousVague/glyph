@@ -586,6 +586,7 @@ class Summaries {
   Timer? _timer;
   VoidCallback? _onChanged;
   void Function(({String id, String title}) done)? _onSummarized;
+  void Function(String id, String body)? _onMeetingSummarized;
 
   /// The generation or run in flight, so the recorder can cancel it.
   Run? _activeRun;
@@ -700,10 +701,12 @@ class Summaries {
   }
 
   /// Wire the runner to the app: called once, with what to do when a note's words changed, and what to say once a
-  /// summary has landed with the page visible.
-  VoidCallback startSummaries(VoidCallback changed, void Function(({String id, String title}) done) summarized) {
+  /// summary has landed with the page visible; and [meetingSummarized], told of every meeting's summary that landed,
+  /// on the screen or not, with the note as it was left (ai/meeting_sort.dart sorts the meeting into a workspace).
+  VoidCallback startSummaries(VoidCallback changed, void Function(({String id, String title}) done) summarized, {void Function(String id, String body)? meetingSummarized}) {
     _onChanged = changed;
     _onSummarized = summarized;
+    _onMeetingSummarized = meetingSummarized;
     // A job found started was running when the app stopped: that run counts as a try, and its third fails the job.
     final queue = _readQueue();
     if (queue.any((j) => j.started == true)) {
@@ -735,6 +738,7 @@ class Summaries {
       _timer?.cancel();
       _onChanged = null;
       _onSummarized = null;
+      _onMeetingSummarized = null;
     };
   }
 
@@ -1277,11 +1281,20 @@ class Summaries {
 
   /// A summary landed in its note: a row in the feed, on every device, for a person who was not looking
   /// (docs/TEAMS.md, "Kinds"); and "Summarized" with Open, when the page is visible - for the page's jobs, and for
-  /// a native one only where the phone could not say it itself.
+  /// a native one only where the phone could not say it itself. A meeting's is told to [startSummaries]'
+  /// `meetingSummarized` whatever is on the screen, never let fail the queue.
   void _said(SummaryJob job, String body) {
     final title = noteTitle(body);
     final done = (id: job.id, title: title.isNotEmpty ? title : 'Untitled');
     unawaited(Future<void>.sync(() => record('summary-written', {'noteId': done.id, 'title': done.title})).then((_) {}, onError: (Object _) {}));
+    final meeting = _onMeetingSummarized;
+    if (job.kind == SummaryKind.meeting && meeting != null) {
+      try {
+        meeting(job.id, body);
+      } catch (failure) {
+        warn('[glyph] after a meeting\'s summary: $failure');
+      }
+    }
     if (!visible()) return;
     if (job.native == true && canNotifyNow()) return;
     _onSummarized?.call(done);

@@ -70,6 +70,7 @@ extension _RootVoice on _GhostRootState {
         createNote: (body, {required source}) => _library.createNote(body, source: source),
         deleteNote: _library.destroy,
         fileNewNote: _workspaces.fileNewNote,
+        filedIn: (id) => _workspaces.workspaceOf(id)?.id,
         untouched: _untouched,
         tooSoon: () => _guide?.onReadingPage() ?? false,
         // The phone's assistant talks to Claude where Claude can answer here (lib/root/root_claude.dart).
@@ -112,6 +113,24 @@ extension _RootVoice on _GhostRootState {
       }
     });
     await _aiUp(voice);
+    // A meeting written up is filed into the workspace the AI says it is about, in its Meetings folder
+    // (lib/ai/meeting_sort.dart; Matt, 2026-10-24), and said where with the app on screen.
+    final sorter = MeetingSorter(
+      workspaces: _workspaces,
+      preferences: () => preferences.value,
+      setPreferences: preferences.update,
+      getNote: _library.get,
+      ask: askMeetingSort(claude: voice.summaries?.claude, formatModel: () => preferences.value.formatModel),
+      titlesIn: (id) {
+        final of = _workspaces.value.of;
+        final inIt = [for (final n in _library.value) if (of[n.id] == id) n]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+        return [for (final n in inIt.take(sortTitlesEach)) noteTitle(n.body)];
+      },
+      filed: (title, where) {
+        if (mounted) _say(context, 'Filed “$title” in $where');
+      },
+      warn: debugPrint,
+    );
     await voice.start(
       // A better-words pass landed: a tag that waited for it may land too.
       notesChanged: () {
@@ -134,6 +153,7 @@ extension _RootVoice on _GhostRootState {
           ),
         );
       },
+      meetingSummarized: (id, body) => unawaited(sorter.meetingSummarized(id, body).then<void>((_) {}, onError: (Object failure) => debugPrint('[ghost] the meeting was not sorted: $failure'))),
     );
     // Voice has started: what it can do here (a meeting, the computer's sound) is read again.
     _voiceChanged();
