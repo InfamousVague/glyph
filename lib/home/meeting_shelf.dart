@@ -163,7 +163,7 @@ class _MeetingTape extends StatelessWidget {
                   scale: state.pressed ? 0.97 : 1,
                   duration: const Duration(milliseconds: 160),
                   curve: Curves.easeOut,
-                  child: TapeArt(positionMs: note.recordingMs ?? 0, lengthMs: lengthMs, playing: live, title: _title(note), titleLines: 2),
+                  child: TapeArt(positionMs: note.recordingMs ?? 0, lengthMs: lengthMs, playing: live, title: _title(note), titleLines: 2, hue: tapeHue(note.id)),
                 ),
                 SizedBox(height: t.space(2)),
                 Text.rich(
