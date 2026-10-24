@@ -876,7 +876,7 @@ recovery codes, the password and delete forms was compared and is the same.
 | What travels: 34 settings | core/sync/prefs.ts:16-64 | sync/prefs.dart:36-82 | match | The same 34 keys in the same order. |
 | Settings merged a key at a time; a newer build's unknown settings | core/sync/prefs.ts:75-126 | sync/prefs.dart:106-171,355-469 | differs | The port carries what it cannot read back to the account; the original drops it. Kinder. Re-checked 2026-10-11: kept on purpose (Differs 38). |
 | A note changed on two devices is kept twice; deleted there and changed here comes back | core/sync/notes.ts:540-586 | sync/notes.dart:808-856 | match | |
-| Recordings, pictures, versions files, the trash, tabs and groups; Sync meeting recordings; a recording over 64 MB stays | core/sync/notes.ts:136-151; core/sync/engine.ts:184-202 | sync/notes.dart:194-210; sync/device.dart:28-48; sync/local.dart | match | |
+| Recordings, pictures, versions files, the trash, tabs and groups; Sync meeting recordings (on by default since GHST-112); a recording over 256 MiB stays | core/sync/notes.ts:136-151; core/sync/engine.ts:184-202 | sync/notes.dart:194-210; sync/device.dart:28-48; sync/local.dart | match | |
 | Local only holds the pass off | core/sync/engine.ts:301-304 | sync/engine.dart:484-487 | match | |
 | "Sync needs the newest Ghost.md." | core/sync/engine.ts:423-426 | sync/engine.dart:615-617 | n/a | The core is built with the app. |
 | Live typing (trial): the switch, this device only, from the next note opened | core/live/enabled.ts:13; editor/useLiveNote.ts:15-37 | live/enabled.dart:9; live/open.dart:216-246; root/account_wiring.dart:191-193 | match | |

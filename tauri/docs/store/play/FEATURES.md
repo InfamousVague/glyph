@@ -118,7 +118,8 @@ Discard; "Muted by another app" when a call takes the microphone; after two hour
 at four. The dictation features are off during a meeting: no live reader, no Hey Ghost, no review. Afterwards the
 write-up runs on the phone with the app closed ("Listening to the recording, 40%", "Summarizing"), when charging or
 above half by default, and a notification says "Written up: Meeting, 26 Sep 14:05" with the summary's first sentence,
-private on the lock screen. Meeting audio does not sync unless Sync meeting recordings is switched on.
+private on the lock screen. Meeting audio syncs to your other devices, end-to-end encrypted, unless Sync meeting
+recordings is switched off.
 
 ## 5. Plain Markdown, and the marks
 
