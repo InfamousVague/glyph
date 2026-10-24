@@ -201,6 +201,71 @@ void main() {
       }))!;
     }
 
+    /// Bars 8 px wide with 8 px between, drawn at [ratio] through [strip] (a [height] tall strip whose edge is its
+    /// top), and read back row by row: how far apart the row's lightest and darkest pixels are (its contrast, 0 to
+    /// 1), and how steep its steepest step across one logical pixel is, as a share of that contrast (1 a hard edge,
+    /// near 0 a soft one). A strip that only fades the bars keeps every edge hard, however faint; a blur softens them.
+    Future<List<({double contrast, double steep})>> edgesDown(WidgetTester tester, EdgeStrip strip, double height, {double ratio = 1}) async {
+      return (await tester.runAsync(() async {
+        const width = 240.0;
+        final across = (width * ratio).round(), rows = (height * ratio).round();
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder)..scale(ratio);
+        for (var x = 0.0; x < width; x += 16) {
+          canvas.drawRect(Rect.fromLTWH(x, -40, 8, height + 80), Paint()..color = const Color(0xFF000000));
+        }
+        final view = await recorder.endRecording().toImage(across, ((height + 80) * ratio).round());
+        final out = ui.PictureRecorder();
+        final drawn = Canvas(out)..scale(ratio);
+        strip.paint(drawn, Rect.fromLTWH(0, 0, width, height), view, Rect.fromLTWH(0, -40, width, height + 80), ratio);
+        final image = await out.endRecording().toImage(across, rows);
+        final data = (await image.toByteData())!;
+        return [
+          for (var y = 0; y < rows; y++)
+            () {
+              // The middle of the strip: at its two ends the blur gathers what its clamped edge repeats.
+              var low = 255, high = 0, step = 0;
+              final pixel = ratio.round();
+              int alpha(int x) => data.getUint8((y * across + x) * 4 + 3);
+              for (var x = across ~/ 4; x < across * 3 ~/ 4; x++) {
+                final a = alpha(x), d = (a - alpha(x + pixel)).abs();
+                if (a < low) low = a;
+                if (a > high) high = a;
+                if (d > step) step = d;
+              }
+              final contrast = (high - low) / 255;
+              return (contrast: contrast, steep: high > low ? step / (high - low) : 0.0);
+            }(),
+        ];
+      }))!;
+    }
+
+    // Matt, 2026-10-24, on the Fold: "on android the blur is a gradient instead of a gradient blur". The view was
+    // drawn sharp at a share falling evenly from the inner end to the edge, so halfway down half of every word was
+    // there sharp over its own haze, and it read as words fading, not blurring. Measured on the emulator's Impeller
+    // the same as here: each row's contrast fell in a straight line to the edge and every edge left stayed hard.
+    for (final ratio in [1.0, 2.625]) {
+      testWidgets('blurs what it shows, and does not merely fade it: past its first third no hard edge is left (at $ratio x)', (tester) async {
+        const height = 48.0;
+        final rows = await edgesDown(tester, const EdgeBlurStrip(rect: Rect.fromLTWH(0, 0, 240, height), side: EdgeSide.top, sigma: blurEdgeSigma), height, ratio: ratio);
+        final inner = rows.last;
+        expect(inner.contrast, greaterThan(0.9), reason: 'at the inner end the bars are as they were');
+        expect(inner.steep, greaterThan(0.9), reason: 'and their edges are hard');
+        for (var y = 0; y < rows.length * 2 ~/ 3; y++) {
+          final row = rows[y];
+          // Too faint to tell an edge from the steps between two shades of a byte.
+          if (row.contrast < 0.06) continue;
+          expect(row.steep, lessThan(0.35), reason: 'row $y of ${rows.length} (contrast ${row.contrast.toStringAsFixed(2)}): an edge this near the strip\'s own edge is soft, not a hard one faded');
+        }
+        // Halfway down the bars are still there to be seen, softened: a blur, not a wash of the page's ground.
+        expect(rows[rows.length ~/ 2].contrast, greaterThan(0.08));
+
+        // The measure can fail: the same bars only faded keep their hard edges all the way to the edge.
+        final faded = await edgesDown(tester, const EdgeFadeStrip(rect: Rect.fromLTWH(0, 0, 240, height), fade: EdgeFade(clearUntil: 0, wholeFrom: height)), height, ratio: ratio);
+        expect(faded[faded.length ~/ 3].steep, greaterThan(0.9));
+      });
+    }
+
     testWidgets('is softest at its edge and sharp at its inner end, softening all the way with no step', (tester) async {
       final contrast = await contrastDown(tester, 40);
       expect(contrast.first, lessThan(0.25), reason: 'at the edge the stripes are near blurred away');

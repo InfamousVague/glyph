@@ -140,6 +140,17 @@ const int edgeBlurLevels = 3;
 /// halo, since a word's ground is clear and its blur is mostly clear too. Each is weighed instead, the weights adding
 /// to one at every point, and the pictures added (`BlendMode.plus`): at each row the view is a mix of the two
 /// softnesses either side of it, and nothing of the sharp view is left at the edge.
+///
+/// Each softness is whole at a place of its own, evenly along the strip (the sharp view at the inner end, the
+/// softest at the edge), and shares a row only with the next softer or sharper one, so the sharp view is gone a
+/// third of the way in (Matt, 2026-10-24, on the Fold: "on android the blur is a gradient instead of a gradient
+/// blur"). Until then every softness came in from its own place and stayed to the edge, which left the sharp view's
+/// share falling in a straight line over the whole strip: halfway down, half of every word was still there sharp,
+/// over a haze too faint to see, and the strip read as the words fading under a wash, not blurring. Nothing about
+/// Android drew it so: the emulator's Impeller (OpenGL ES) drew every part of it as the test's engine does, the
+/// blurs, the pictures, the cut and the weights, and each row's contrast fell in that same straight line. A word
+/// part sharp reads as a sharp word however faint (test/art/blur_edge_test.dart measures the hardness of the edges
+/// left, not only how much is left).
 class EdgeBlurStrip extends EdgeStrip {
   const EdgeBlurStrip({required this.rect, required this.side, required this.sigma, this.wash, this.opacity = 1, this.fade});
 
@@ -164,15 +175,14 @@ class EdgeBlurStrip extends EdgeStrip {
         EdgeSide.right => (at.centerLeft, at.centerRight),
       };
 
-  /// Where softness [level] (1 the least) starts to come in, as a share of the way from the inner end to the edge:
-  /// the first at the inner end itself, the last a little past the middle. It is whole at the edge.
-  static double _from(int level) => (level - 1) / edgeBlurLevels * 0.8;
+  /// Where softness [level] (0 the sharp view, [edgeBlurLevels] the softest) is whole, as a share of the way from
+  /// the inner end to the edge: evenly along the strip, the sharp view at the inner end and the softest at the edge.
+  static double _place(int level) => level / edgeBlurLevels;
 
-  /// How much softness [level] has come in at [t] of the way to the edge, 0 to 1.
-  static double _ramp(int level, double t) {
-    final from = _from(level);
-    return ((t - from) / (1 - from)).clamp(0.0, 1.0);
-  }
+  /// How much of softness [level] shows at [t] of the way to the edge, 0 to 1: all of it at its own place, none at
+  /// the places of the softnesses either side of it, and a straight line between. At every point the two that show
+  /// add to one.
+  static double _share(int level, double t) => (1 - (t * edgeBlurLevels - level).abs()).clamp(0.0, 1.0);
 
   @override
   void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
@@ -187,15 +197,13 @@ class EdgeBlurStrip extends EdgeStrip {
       final (inner, edge) = _ends(at);
       canvas.saveLayer(at, Paint());
       // Level 0 is the view as it is; level k is the view at k of the levels' share of the sigma. Each is weighed by
-      // what its own ramp has come in less what the next one's has, which is a line through the stops where the two
-      // ramps begin and end; the sharp view's is what the first has not.
+      // its share along the strip, a line through the levels' places, which are the gradient's stops.
+      final stops = [for (var k = 0; k <= edgeBlurLevels; k++) _place(k)];
       for (var level = 0; level <= edgeBlurLevels; level++) {
-        final stops = <double>{0, 1, for (var k = 1; k <= edgeBlurLevels; k++) _from(k)}.toList()..sort();
         double weight(double t) {
-          final mine = level == 0 ? 1.0 : _ramp(level, t);
-          final next = level == edgeBlurLevels ? 0.0 : _ramp(level + 1, t);
+          final mine = _share(level, t);
           // With the blur only partly shown, the sharp view keeps the rest.
-          return level == 0 ? 1 - shown * (1 - (mine - next)) : shown * (mine - next);
+          return level == 0 ? 1 - shown * (1 - mine) : shown * mine;
         }
 
         canvas.saveLayer(at, Paint()..blendMode = level == 0 ? BlendMode.srcOver : BlendMode.plus);
