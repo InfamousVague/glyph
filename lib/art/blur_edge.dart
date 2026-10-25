@@ -290,14 +290,23 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
                   EdgeLook.fade => CustomPaint(foregroundPainter: strips.isEmpty ? null : EdgeShade(strips: strips, ground: _ground), child: child),
                   // The blur as a backdrop filter, a band for each strip, under the strips' wash and fades
                   // (edge_backdrop.dart).
-                  EdgeLook.backdrop => Stack(
+                  // A group of its own, so the bands read the backdrop as it is when this view is drawn: in the app's
+                  // one group a view laid over another page (Settings over home, a sheet over a note) read it once
+                  // with the first band of the page beneath, and showed that page, blurred, under its own header
+                  // (Matt, 2026-10-25: "Scrolling on the meetings section of settings shows the hole page behind
+                  // it"). And the page's ground under the view first, so nothing behind it shows where it paints
+                  // none of its own.
+                  EdgeLook.backdrop => BackdropGroup(
+                      child: Stack(
                       fit: StackFit.expand,
                       children: [
+                        Positioned.fill(child: ColoredBox(key: const ValueKey('edge-ground'), color: _ground)),
                         child!,
                         for (final strip in strips.whereType<EdgeBlurStrip>())
                           Positioned.fromRect(rect: strip.rect, child: IgnorePointer(child: EdgeBackdropBand(side: strip.side, sigma: strip.sigma * strip.opacity, bleed: strip.bleed))),
                         if (strips.isNotEmpty) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: EdgeShade(strips: strips, ground: _ground, wash: blurEdgeWash)))),
                       ],
+                    ),
                     ),
                 };
               },

@@ -228,6 +228,22 @@ void main() {
       debugDefaultTargetPlatformOverride = null;
     });
 
+    // Matt, 2026-10-25: "Scrolling on the meetings section of settings shows the hole page behind it". In the app's
+    // one group the bands of a view laid over another page read the backdrop once, with that page's first band, and
+    // showed it under their own header.
+    testWidgets('reads its own backdrop: the bands are a group of the view\'s own, over the page\'s ground, not the app\'s', (tester) async {
+      debugEdgeLook = EdgeLook.backdrop;
+      final scroll = await view(tester, header: 60, foot: true);
+      await scrolled(tester, scroll);
+      final groups = {for (final band in bands(tester)) tester.widget<BackdropGroup>(find.ancestor(of: find.byWidgetPredicate((w) => w is EdgeBackdropBand && w.side == band.side), matching: find.byType(BackdropGroup)).first).backdropKey};
+      expect(groups, hasLength(1), reason: 'the view\'s two bands share one read');
+      final view0 = tester.element(find.byKey(const ValueKey('page')));
+      final outer = find.ancestor(of: find.byType(Stack).first, matching: find.byType(BackdropGroup));
+      expect(outer, findsOneWidget, reason: 'the group is the view\'s, under any group above it');
+      expect(view0.mounted, isTrue);
+      expect(find.byKey(const ValueKey('edge-ground')), findsOneWidget, reason: 'the page\'s ground under the view, so nothing behind it shows through the band');
+    });
+
     testWidgets('turns its bands in with the blur, at once with reduced motion, and has none with the switch off', (tester) async {
       debugEdgeLook = EdgeLook.backdrop;
       final scroll = await view(tester, header: 60);
