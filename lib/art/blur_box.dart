@@ -58,7 +58,11 @@ class _BlurBoxedState extends State<BlurBoxed> {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) return widget.child;
+        // A box as tall as what it holds (a row of cassettes, lib/home/meeting_shelf.dart) is not a size to build
+        // strips for here: its strips are made once it is laid out ([_LaidStrips]).
+        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+          return RepaintBoundary(child: _LaidStrips(build: (size) => widget.build(size, BlurEdgeSettings.instance.wanted), child: widget.child));
+        }
         // A box keeps its own picture: a row of tabs is painted again when a tab changes, not on every frame the
         // page under it scrolls, and a strip that was not painted again makes no pictures. Its strips know where
         // they were laid: edge_strips.dart.
@@ -68,6 +72,63 @@ class _BlurBoxedState extends State<BlurBoxed> {
         return RepaintBoundary(child: edgeLook == EdgeLook.blur ? EdgeStrips(strips: strips, child: widget.child) : EdgeMasked(strips: strips, child: widget.child));
       },
     );
+  }
+}
+
+/// [child] drawn through the strips [build] gives for the size it is laid out at, where the box's size is its own
+/// and a [LayoutBuilder] above it is told no height: the strips are made as the box is laid out, and again when
+/// [build] changes. The rest is [BlurBoxed]'s: [EdgeStrips] where the edges are the strips, [EdgeMasked] elsewhere.
+class _LaidStrips extends SingleChildRenderObjectWidget {
+  const _LaidStrips({required this.build, super.child});
+
+  final List<EdgeStrip> Function(Size size) build;
+
+  @override
+  RenderBox createRenderObject(BuildContext context) =>
+      edgeLook == EdgeLook.blur ? _RenderLaidStrips(build: build, ratio: MediaQuery.devicePixelRatioOf(context)) : _RenderLaidMask(build: build);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderBox renderObject) {
+    switch (renderObject) {
+      case _RenderLaidStrips strips:
+        strips
+          ..ratio = MediaQuery.devicePixelRatioOf(context)
+          ..build = build;
+      case _RenderLaidMask mask:
+        mask.build = build;
+    }
+  }
+}
+
+class _RenderLaidStrips extends RenderEdgeStrips {
+  _RenderLaidStrips({required List<EdgeStrip> Function(Size size) build, required super.ratio}) : _build = build, super(strips: const []);
+
+  List<EdgeStrip> Function(Size size) _build;
+  set build(List<EdgeStrip> Function(Size size) value) {
+    _build = value;
+    if (hasSize) strips = value(size);
+  }
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    strips = _build(size);
+  }
+}
+
+class _RenderLaidMask extends RenderEdgeMasked {
+  _RenderLaidMask({required List<EdgeStrip> Function(Size size) build}) : _build = build, super(strips: const []);
+
+  List<EdgeStrip> Function(Size size) _build;
+  set build(List<EdgeStrip> Function(Size size) value) {
+    _build = value;
+    if (hasSize) strips = value(size);
+  }
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    strips = _build(size);
   }
 }
 
@@ -104,35 +165,53 @@ class BlurFoot extends StatelessWidget {
 /// (notes/useTabOutline.ts, which marks the ends; notes/NoteTabs.module.css, which fades them).
 ///
 /// An open end goes soft over [blurSidesDepth] and fades out over [fade]; with the edges' switch off, it fades over
-/// [plainFade] alone.
+/// [plainFade] alone. [startShown] and [endShown] are how much of each end shows, 0 to 1, for a row whose ends go
+/// as it nears them ([sideShown]): the fade that much of its length, the blur that much of itself.
 class BlurSides extends StatelessWidget {
-  const BlurSides({super.key, required this.start, required this.end, this.fade = blurSidesFade, this.plainFade = blurSidesFade, required this.child});
+  const BlurSides({
+    super.key,
+    required this.start,
+    required this.end,
+    this.fade = blurSidesFade,
+    this.plainFade = blurSidesFade,
+    this.startShown = 1,
+    this.endShown = 1,
+    required this.child,
+  });
 
   final bool start, end;
   final double fade, plainFade;
+  final double startShown, endShown;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return BlurBoxed(
       build: (size, wanted) {
-        if (!start && !end) return const [];
+        final starts = start && startShown > 0, ends = end && endShown > 0;
+        if (!starts && !ends) return const [];
         final wide = size.width;
         final length = wanted ? fade : plainFade;
-        final mask = EdgeFade(clearUntil: start ? 0 : -1e9, wholeFrom: start ? length : -1e9, wholeUntil: end ? wide - length : 1e9, clearFrom: end ? wide : 1e9);
+        final first = length * startShown.clamp(0.0, 1.0), last = length * endShown.clamp(0.0, 1.0);
+        final mask = EdgeFade(clearUntil: starts ? 0 : -1e9, wholeFrom: starts ? first : -1e9, wholeUntil: ends ? wide - last : 1e9, clearFrom: ends ? wide : 1e9);
         if (!wanted || wide <= blurSidesDepth * 2) {
           return [
-            if (start) EdgeFadeStrip(rect: Rect.fromLTWH(0, 0, math.min(length, wide), size.height), fade: mask, axis: Axis.horizontal),
-            if (end) EdgeFadeStrip(rect: Rect.fromLTWH(math.max(0, wide - length), 0, math.min(length, wide), size.height), fade: mask, axis: Axis.horizontal),
+            if (starts) EdgeFadeStrip(rect: Rect.fromLTWH(0, 0, math.min(length, wide), size.height), fade: mask, axis: Axis.horizontal),
+            if (ends) EdgeFadeStrip(rect: Rect.fromLTWH(math.max(0, wide - length), 0, math.min(length, wide), size.height), fade: mask, axis: Axis.horizontal),
           ];
         }
         final depth = math.max(blurSidesDepth, length);
         return [
-          if (start) EdgeBlurStrip(rect: Rect.fromLTWH(0, 0, depth, size.height), side: EdgeSide.left, sigma: blurSidesSigma, fade: mask),
-          if (end) EdgeBlurStrip(rect: Rect.fromLTWH(wide - depth, 0, depth, size.height), side: EdgeSide.right, sigma: blurSidesSigma, fade: mask),
+          if (starts) EdgeBlurStrip(rect: Rect.fromLTWH(0, 0, depth, size.height), side: EdgeSide.left, sigma: blurSidesSigma, fade: mask, opacity: startShown.clamp(0.0, 1.0)),
+          if (ends) EdgeBlurStrip(rect: Rect.fromLTWH(wide - depth, 0, depth, size.height), side: EdgeSide.right, sigma: blurSidesSigma, fade: mask, opacity: endShown.clamp(0.0, 1.0)),
         ];
       },
       child: child,
     );
   }
 }
+
+/// How much of a row's end shows with [past] logical pixels of the row past it, 0 to 1: all of it with a whole
+/// [blurSidesDepth] or more to come, none with nothing, and a straight line between, so an end goes as the row is
+/// scrolled to it and is gone when it gets there (a fling that ends there takes it out as it slows).
+double sideShown(double past) => (past / blurSidesDepth).clamp(0.0, 1.0);

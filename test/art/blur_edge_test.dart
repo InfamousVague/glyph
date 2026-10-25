@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
@@ -296,10 +297,134 @@ void main() {
     test('the backdrop\'s shader is the one pubspec.yaml ships, with the uniforms the band sets', () {
       final shader = File('shaders/edge_blur.frag').readAsStringSync();
       final uniforms = RegExp(r'^uniform (\w+) (\w+);', multiLine: true).allMatches(shader).map((m) => '${m.group(1)} ${m.group(2)}').toList();
-      // The engine's size first, then the band (floats 2 to 5), the softness (6), the side (7) and the axis (8).
-      expect(uniforms, ['vec2 uSize', 'vec4 uBand', 'float uSigma', 'float uSide', 'float uAxis', 'sampler2D uTexture']);
+      // The engine's size first, then the band (floats 2 to 5), the softness (6), the side (7), the axis (8) and the
+      // gradient mask's feather (9).
+      expect(uniforms, ['vec2 uSize', 'vec4 uBand', 'float uSigma', 'float uSide', 'float uAxis', 'float uFeather', 'sampler2D uTexture']);
+      // The mask is the down pass's alpha, a smoothstep over the feather (edgeBlurMask is the same curve), and the
+      // across pass is whole: the engine lays the layer over the sharp view it read. The test's engine cannot run the
+      // shader; how it looks was seen on the ghostflutter2 emulator (build/feature-shots/blur-feather/).
+      expect(shader, contains('float shown = down ? smoothstep(0.0, max(uFeather, 1e-3), t) : 1.0;'));
+      expect(shader, contains('fragColor = sum / weights * shown;'));
+      expect(edgeBlurFeather, 1 / edgeBlurLevels, reason: 'whole where the strips\' sharp view is gone');
+      expect(edgeBlurMask(0), 0);
+      expect(edgeBlurMask(edgeBlurFeather / 2), closeTo(0.5, 1e-9));
+      expect(edgeBlurMask(edgeBlurFeather), 1);
+      expect(edgeBlurMask(0.9), 1);
       expect(EdgeSide.values, [EdgeSide.top, EdgeSide.bottom, EdgeSide.left, EdgeSide.right], reason: 'the shader reads a side by its index');
       expect(shader.contains('IMPELLER_TARGET_OPENGLES'), isFalse, reason: 'since Flutter 3.47 GLES keeps a texture top down, as Vulkan and Metal do');
+    });
+  });
+
+  // Matt, 2026-10-25: "the top blur on the scrolling list on the home page has 1px visible above the blur". A page
+  // is told its header's height as a whole pixel where the header ends between two: on the ghostflutter2 emulator at
+  // 2.625 the home page's header ended a row short of its blur, and that row was the list, sharp.
+  group('under a header', () {
+    /// The device rows of a page of upright bars between the foot of a header [headerFoot] tall and its blur hung
+    /// at a whole [under], drawn at [ratio] through a strip that reaches [bleed] past its edge: each row's contrast,
+    /// how far apart its lightest and darkest pixels are (0 to 1). The bars are 2 px every 4, which the blur at its
+    /// edge (sigma 8) makes one grey: a row that is the blur's is flat, one that is the page's is striped.
+    Future<List<double>> between(WidgetTester tester, {required double ratio, required double bleed, double headerFoot = 59.4, double under = 60}) async {
+      const width = 200.0, height = 200.0;
+      final boundary = GlobalKey();
+      await tester.pumpWidget(
+        MediaQuery(
+          data: MediaQueryData(size: const Size(width, height), devicePixelRatio: ratio),
+          child: Directionality(
+            textDirection: TextDirection.ltr,
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: RepaintBoundary(
+                key: boundary,
+                child: SizedBox(
+                  width: width,
+                  height: height,
+                  child: Stack(
+                    children: [
+                      EdgeStrips(
+                        strips: [EdgeBlurStrip(rect: Rect.fromLTWH(0, under, width, blurEdgeDepth), side: EdgeSide.top, sigma: blurEdgeSigma, bleed: bleed)],
+                        child: const CustomPaint(size: Size(width, height), painter: _Bars()),
+                      ),
+                      // The header, painted over the page as the app's is, its foot between two pixels.
+                      Positioned(left: 0, top: 0, right: 0, height: headerFoot, child: const ColoredBox(color: Color(0xFF808080))),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      return (await tester.runAsync(() async {
+        final render = boundary.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final image = await render.toImage(pixelRatio: ratio);
+        final data = (await image.toByteData())!;
+        final across = image.width;
+        final rows = <double>[];
+        for (var y = (headerFoot * ratio).floor(); y < (under * ratio).floor(); y++) {
+          var low = 255, high = 0;
+          for (var x = across ~/ 4; x < across * 3 ~/ 4; x++) {
+            final a = data.getUint8((y * across + x) * 4);
+            if (a < low) low = a;
+            if (a > high) high = a;
+          }
+          rows.add((high - low) / 255);
+        }
+        image.dispose();
+        return rows;
+      }))!;
+    }
+
+    for (final ratio in [1.0, 2.625]) {
+      testWidgets('leaves no row of the page sharp between the header\'s foot and the blur (at $ratio x)', variant: onMac, (tester) async {
+        final soft = await between(tester, ratio: ratio, bleed: edgeBlurBleed);
+        expect(soft, isNotEmpty, reason: 'a row lies between the header\'s foot and the whole pixel the page was told');
+        for (final contrast in soft) {
+          expect(contrast, lessThan(0.05), reason: 'a row the header leaves is the blur\'s: $soft');
+        }
+        // The measure can fail: with no bleed that row is the page itself, striped.
+        final sharp = await between(tester, ratio: ratio, bleed: 0);
+        expect(sharp.reduce((a, b) => a > b ? a : b), greaterThan(0.3), reason: '$sharp');
+      });
+    }
+
+    testWidgets('a page under a header has its blur reach a pixel up under it; a foot and a page with no header do not', variant: onMac, (tester) async {
+      final scroll = await view(tester, header: 60, foot: true);
+      scroll.jumpTo(100);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(top(tester)!.bleed, edgeBlurBleed);
+      expect(top(tester)!.drawn, const Rect.fromLTRB(0, 60 - edgeBlurBleed, 400, 60 + blurEdgeDepth));
+      expect(top(tester)!.rect, const Rect.fromLTWH(0, 60, 400, blurEdgeDepth), reason: 'its gradient and wash are where they were');
+      expect(foot(tester)!.bleed, 0);
+      await tester.pumpWidget(const SizedBox());
+      final bare = await view(tester, safeTop: 36);
+      bare.jumpTo(100);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(top(tester)!.bleed, 0, reason: 'nothing stands over a view with no header to hide it');
+    });
+
+    testWidgets('on Android the band\'s filter reaches as far under the header, at 1x and the Fold\'s 2.625', (tester) async {
+      debugEdgeLook = EdgeLook.backdrop;
+      final scroll = await view(tester, header: 60, foot: true);
+      for (var y = 100.0; y <= 300; y += 50) {
+        scroll.jumpTo(y);
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+      final bands = tester.renderObjectList<RenderEdgeBackdropBand>(find.byType(EdgeBackdropBand)).toList();
+      final under = bands.firstWhere((b) => b.side == EdgeSide.top), foot = bands.firstWhere((b) => b.side == EdgeSide.bottom);
+      expect(under.debugClip, const Rect.fromLTRB(0, -edgeBlurBleed, 400, blurEdgeDepth));
+      expect(foot.debugClip, Offset.zero & foot.size, reason: 'a foot\'s edge is the page\'s ground');
+      // A header that ends anywhere in the half pixel its height was rounded by is met: the filter's first device
+      // row is at or above the header's last.
+      final top = under.localToGlobal(Offset.zero).dy + under.debugClip.top;
+      for (final ratio in [1.0, 2.625]) {
+        for (final headerFoot in [59.5, 59.75, 60.0]) {
+          expect((top * ratio).floor(), lessThanOrEqualTo((headerFoot * ratio).floor()), reason: 'a header ending at $headerFoot at $ratio x');
+        }
+      }
     });
   });
 
@@ -403,6 +528,25 @@ void main() {
       });
     }
 
+    // Matt, 2026-10-25: "put a small gradient mask over it so the edge doesn't look like it's clipped so hard". The
+    // first softness comes in over the sharp view as Android's mask does: by a smoothstep, with no corner.
+    testWidgets('brings its first softness in over the sharp view by the gradient mask\'s smoothstep', (tester) async {
+      const height = 96.0;
+      final contrast = await contrastDown(tester, height);
+      // Each row is the sharp stripes and the first softness's, weighed: its contrast is 1 less the mask's share of
+      // what the first softness takes away, which is whole where the mask is.
+      final whole = (height * (1 - edgeBlurFeather)).round();
+      final lost = 1 - contrast[whole];
+      expect(lost, greaterThan(0.2), reason: 'the first softness softens the stripes');
+      for (final y in [whole + 8, whole + 16, whole + 24, height.round() - 4]) {
+        final t = (height - y - 0.5) / height;
+        expect(contrast[y], closeTo(1 - edgeBlurMask(t) * lost, 0.03), reason: 'row $y, ${(t / edgeBlurFeather).toStringAsFixed(2)} of the feather');
+      }
+      // The measure can fail: a straight line in its place is a quarter in where the smoothstep is a sixth.
+      final y = height.round() - 8, t = (height - y - 0.5) / height;
+      expect((1 - (t / edgeBlurFeather) * lost - contrast[y]).abs(), greaterThan(0.03));
+    });
+
     testWidgets('is softest at its edge and sharp at its inner end, softening all the way with no step', (tester) async {
       final contrast = await contrastDown(tester, 40);
       expect(contrast.first, lessThan(0.25), reason: 'at the edge the stripes are near blurred away');
@@ -434,4 +578,20 @@ void main() {
       expect(users..sort(), ['art/wisp_kit.dart', 'editor/marks/text_effects.dart', 'editor/marks/wisp_tables.dart', 'scene/at_work.dart']);
     });
   });
+}
+
+/// Upright bars two pixels wide, black on white, every four: sharp, every row is as hard as an edge gets.
+class _Bars extends CustomPainter {
+  const _Bars();
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFFFFFFFF));
+    for (var x = 0.0; x < size.width; x += 4) {
+      canvas.drawRect(Rect.fromLTWH(x, 0, 2, size.height), Paint()..color = const Color(0xFF000000));
+    }
+  }
+
+  @override
+  bool shouldRepaint(_Bars old) => false;
 }

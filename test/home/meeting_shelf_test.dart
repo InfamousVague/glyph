@@ -6,6 +6,7 @@ import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/art/art.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
@@ -15,6 +16,7 @@ import 'package:ghost_md/tapes/tape_art.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
+import '../support/edges.dart';
 import '../support/render.dart';
 import '../tapes/fake_player.dart';
 import 'support.dart';
@@ -97,6 +99,66 @@ void main() {
       expect(find.byKey(const ValueKey('meeting-tape-mt-untaped')), findsNothing);
       // Twelve or fewer: no See all.
       expect(find.byKey(const ValueKey('meeting-shelf-all')), findsNothing);
+      await away(tester);
+    });
+
+    // Matt, 2026-10-25: "when scrolled all the way to the right the blur over the cassettes should disappear from
+    // the right". The row's ends are the tab row's: soft while there are cassettes past them, and only then.
+    testWidgets('the row\'s ends are soft only with cassettes past them: the right one goes as the row reaches its end, the left one comes', (tester) async {
+      final it = made();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings), size: const Size(390, 844));
+      await settle(tester);
+      final shelf = find.byKey(const ValueKey('meeting-shelf'));
+      final row = tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('meeting-shelf-row'))).controller!;
+      BlurSides sides() => tester.widget<BlurSides>(find.descendant(of: shelf, matching: find.byType(BlurSides)));
+      // The ends as drawn: the strips' masks, at the row's two ends.
+      List<EdgeSide> ends() => [
+            for (final strip in edgeStripsUnder(tester, shelf))
+              if (strip case EdgeBlurStrip(:final side)) side else if (strip case EdgeFadeStrip(:final rect)) rect.left <= 0 ? EdgeSide.left : EdgeSide.right,
+          ];
+      final width = tester.getSize(find.byKey(const ValueKey('meeting-shelf-row'))).width;
+      List<EdgeFade> fades() => [for (final strip in edgeStripsUnder(tester, shelf)) if (strip case EdgeFadeStrip(:final fade)) fade else if (strip case EdgeBlurStrip(:final fade?)) fade];
+
+      // At its start: more to the right, none to the left.
+      expect(row.position.maxScrollExtent, greaterThan(blurSidesDepth * 2), reason: 'four cassettes are wider than a phone');
+      expect((sides().start, sides().end, sides().endShown), (false, true, 1.0));
+      expect(ends(), [EdgeSide.right]);
+      expect(fades().first.at(width - 0.5), lessThan(0.1), reason: 'the last cassette in view fades out at the row\'s right end');
+
+      // Between: both.
+      row.jumpTo(row.position.maxScrollExtent / 2);
+      await tester.pump();
+      expect((sides().start, sides().end, sides().startShown, sides().endShown), (true, true, 1.0, 1.0));
+      expect(ends()..sort((a, b) => a.index - b.index), [EdgeSide.left, EdgeSide.right]);
+
+      // Nearly there: the right end on its way out.
+      row.jumpTo(row.position.maxScrollExtent - blurSidesDepth / 2);
+      await tester.pump();
+      expect(sides().endShown, closeTo(0.5, 1e-6));
+      expect(fades().first.at(width - 0.5), greaterThan(0), reason: 'half the fade, its edge less clear');
+
+      // At the end: the right end gone, the left one there.
+      row.jumpTo(row.position.maxScrollExtent);
+      await tester.pump();
+      expect((sides().start, sides().end, sides().startShown), (true, false, 1.0));
+      expect(ends(), [EdgeSide.left]);
+      expect(fades().single.at(width - 0.5), 1, reason: 'the last cassette whole to the row\'s end');
+
+      // And back at the start, the left one gone again.
+      row.jumpTo(0);
+      await tester.pump();
+      expect(ends(), [EdgeSide.right]);
+      expect(tester.takeException(), isNull);
+      await away(tester);
+    });
+
+    testWidgets('a row that fits has no ends at all', (tester) async {
+      final it = made();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings), size: const Size(1200, 800));
+      await settle(tester);
+      final shelf = find.byKey(const ValueKey('meeting-shelf'));
+      expect(tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('meeting-shelf-row'))).controller!.position.maxScrollExtent, 0);
+      expect(edgeStripsUnder(tester, shelf), isEmpty);
       await away(tester);
     });
 

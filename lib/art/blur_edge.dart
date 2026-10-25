@@ -238,7 +238,9 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
       if (widget.under > 0) {
         // Under a header the header hides the top; the blur hangs from its foot.
         final rect = Rect.fromLTWH(0, widget.under, width, math.min(blurEdgeDepth, math.max(0, height - widget.under)));
-        if (_turn.value > 0) strips.add(EdgeBlurStrip(rect: rect, side: EdgeSide.top, sigma: blurEdgeSigma, wash: wash, opacity: shown));
+        // And reaches a pixel up under the header, which may end between two of the screen's (edge_strips.dart
+        // [edgeBlurBleed]).
+        if (_turn.value > 0) strips.add(EdgeBlurStrip(rect: rect, side: EdgeSide.top, sigma: blurEdgeSigma, wash: wash, opacity: shown, bleed: edgeBlurBleed));
       } else {
         // With none the view dissolves into the status bar's own ground, and is soft for a band below that.
         final topFade = _safeTop + 8;
@@ -293,7 +295,7 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
                       children: [
                         child!,
                         for (final strip in strips.whereType<EdgeBlurStrip>())
-                          Positioned.fromRect(rect: strip.rect, child: IgnorePointer(child: EdgeBackdropBand(side: strip.side, sigma: strip.sigma * strip.opacity))),
+                          Positioned.fromRect(rect: strip.rect, child: IgnorePointer(child: EdgeBackdropBand(side: strip.side, sigma: strip.sigma * strip.opacity, bleed: strip.bleed))),
                         if (strips.isNotEmpty) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: EdgeShade(strips: strips, ground: _ground, wash: blurEdgeWash)))),
                       ],
                     ),

@@ -168,6 +168,31 @@ enum EdgeSide { top, bottom, left, right }
 /// How many softnesses a gradient blur is drawn at, the softest reaching furthest in from the edge.
 const int edgeBlurLevels = 3;
 
+/// How far in from a gradient blur's inner end its gradient mask is whole, as a share of the strip: the blur is laid
+/// over the sharp view through the mask, none of it at the inner end, all of it from here to the edge, and a
+/// smoothstep between (Matt, 2026-10-25, on the Fold: "put a small gradient mask over it so the edge doesn't look
+/// like it's clipped so hard", and "the mask should be a clipping mask"). The same on every platform: Android's
+/// backdrop sets it as its shader's (lib/art/edge_backdrop.dart), and the strips' sharp view gives way to their
+/// first softness over it ([EdgeBlurStrip]), which is whole at its own place, a third of the way in.
+const double edgeBlurFeather = 1 / edgeBlurLevels;
+
+/// How far past its edge a gradient blur under a header is drawn, in logical pixels ([EdgeBlurStrip.bleed]): under
+/// the header, which is painted over the page and hides it. A page is told its header's height as a whole pixel
+/// (`--wisp-under`, the web's `offsetHeight`: lib/note/note_screen.dart rounds it, and the home page's header is
+/// laid out on its own) where the header itself ends between two of the screen's pixels, and the row between the
+/// header's foot and the blur was the page itself, sharp: a line of the words' tops glinting under the header as
+/// they passed (Matt, 2026-10-25: "the top blur on the scrolling list on the home page has 1px visible above the
+/// blur"; on the ghostflutter2 emulator at 2.625, row 233 under the home page's header and row 353 under a note's
+/// tab row). One logical pixel covers a rounding of up to half of one at any density.
+const double edgeBlurBleed = 1;
+
+/// The mask's share at [t] of the way from a gradient blur's inner end to its edge, 0 to 1: GLSL's
+/// `smoothstep(0, edgeBlurFeather, t)`, as shaders/edge_blur.frag has it.
+double edgeBlurMask(double t) {
+  final u = (t / edgeBlurFeather).clamp(0.0, 1.0);
+  return u * u * (3 - 2 * u);
+}
+
 /// A gradient blur: the strip of the view at [edgeBlurLevels] softnesses up to [sigma] and sharp, each shown over
 /// a band of its own along the strip and the bands crossing into one another, so the view goes from sharp at the
 /// strip's inner end to [sigma] at its edge with no step between. [wash] is the page's ground laid over the blur, as
@@ -190,8 +215,14 @@ const int edgeBlurLevels = 3;
 /// blurs, the pictures, the cut and the weights, and each row's contrast fell in that same straight line. A word
 /// part sharp reads as a sharp word however faint (test/art/blur_edge_test.dart measures the hardness of the edges
 /// left, not only how much is left).
+///
+/// The first softness comes in over the sharp view as the gradient mask does on Android ([edgeBlurFeather], Matt,
+/// 2026-10-25: "put a small gradient mask over it so the edge doesn't look like it's clipped so hard"): by a
+/// smoothstep rather than a straight line, so the blur starts with no corner at the inner end, and the two
+/// platforms' edges come in alike. The strips had no hard start of Android's kind (each softness is a whole blur,
+/// with no pass gathering rows less blurred than itself); the curve is the one change.
 class EdgeBlurStrip extends EdgeStrip {
-  const EdgeBlurStrip({required this.rect, required this.side, required this.sigma, this.wash, this.opacity = 1, this.fade});
+  const EdgeBlurStrip({required this.rect, required this.side, required this.sigma, this.wash, this.opacity = 1, this.fade, this.bleed = 0});
 
   @override
   final Rect rect;
@@ -200,6 +231,22 @@ class EdgeBlurStrip extends EdgeStrip {
   final Color? wash;
   final double opacity;
   final EdgeFade? fade;
+
+  /// How far past its edge the strip is drawn, under a header ([edgeBlurBleed]); none where nothing stands over
+  /// its edge. Its [rect] is as it is: the wash over it and Android's band keep to it (the band's filter reaches the
+  /// bleed past it, at the edge's softness), and where the strips draw it, its gradient runs over [drawn], a pixel
+  /// longer.
+  final double bleed;
+
+  /// The strip as drawn: its [rect], and [bleed] past its edge.
+  Rect get drawn => bleed <= 0
+      ? rect
+      : switch (side) {
+          EdgeSide.top => Rect.fromLTRB(rect.left, rect.top - bleed, rect.right, rect.bottom),
+          EdgeSide.bottom => Rect.fromLTRB(rect.left, rect.top, rect.right, rect.bottom + bleed),
+          EdgeSide.left => Rect.fromLTRB(rect.left - bleed, rect.top, rect.right, rect.bottom),
+          EdgeSide.right => Rect.fromLTRB(rect.left, rect.top, rect.right + bleed, rect.bottom),
+        };
 
   Axis get _axis => side == EdgeSide.top || side == EdgeSide.bottom ? Axis.vertical : Axis.horizontal;
 
@@ -219,9 +266,24 @@ class EdgeBlurStrip extends EdgeStrip {
   static double _place(int level) => level / edgeBlurLevels;
 
   /// How much of softness [level] shows at [t] of the way to the edge, 0 to 1: all of it at its own place, none at
-  /// the places of the softnesses either side of it, and a straight line between. At every point the two that show
-  /// add to one.
-  static double _share(int level, double t) => (1 - (t * edgeBlurLevels - level).abs()).clamp(0.0, 1.0);
+  /// the places of the softnesses either side of it, and a straight line between, but for the first softness coming
+  /// in over the sharp view, which is the gradient mask's smoothstep ([edgeBlurMask]). At every point the two that
+  /// show add to one.
+  static double _share(int level, double t) {
+    if (level <= 1 && t < edgeBlurFeather) {
+      final mask = edgeBlurMask(t);
+      return level == 0 ? 1 - mask : mask;
+    }
+    return (1 - (t * edgeBlurLevels - level).abs()).clamp(0.0, 1.0);
+  }
+
+  /// The gradient's stops: each softness's place, and between the sharp view's and the first softness's as many
+  /// more as draw the mask's curve with no corner to be seen (a gradient is straight between two stops).
+  static final List<double> _stops = [
+    for (var k = 0; k < _maskSteps; k++) edgeBlurFeather * k / _maskSteps,
+    for (var level = 1; level <= edgeBlurLevels; level++) _place(level),
+  ];
+  static const int _maskSteps = 8;
 
   @override
   void paint(Canvas canvas, Rect at, ui.Image view, Rect viewRect, double ratio) {
@@ -236,8 +298,8 @@ class EdgeBlurStrip extends EdgeStrip {
       final (inner, edge) = _ends(at);
       canvas.saveLayer(at, Paint());
       // Level 0 is the view as it is; level k is the view at k of the levels' share of the sigma. Each is weighed by
-      // its share along the strip, a line through the levels' places, which are the gradient's stops.
-      final stops = [for (var k = 0; k <= edgeBlurLevels; k++) _place(k)];
+      // its share along the strip, a line through the gradient's stops.
+      final stops = _stops;
       for (var level = 0; level <= edgeBlurLevels; level++) {
         double weight(double t) {
           final mine = _share(level, t);
@@ -274,10 +336,17 @@ class EdgeBlurStrip extends EdgeStrip {
 
   @override
   bool operator ==(Object other) =>
-      other is EdgeBlurStrip && other.rect == rect && other.side == side && other.sigma == sigma && other.wash == wash && other.opacity == opacity && other.fade == fade;
+      other is EdgeBlurStrip &&
+      other.rect == rect &&
+      other.side == side &&
+      other.sigma == sigma &&
+      other.wash == wash &&
+      other.opacity == opacity &&
+      other.fade == fade &&
+      other.bleed == bleed;
 
   @override
-  int get hashCode => Object.hash(rect, side, sigma, wash, opacity, fade);
+  int get hashCode => Object.hash(rect, side, sigma, wash, opacity, fade, bleed);
 }
 
 /// How much of the page's ground a faded edge ([EdgeLook.fade]) lays at its very edge, where a blur's wash is
@@ -612,7 +681,8 @@ class _EdgeStripLayer extends OffsetLayer {
   @override
   void addToScene(ui.SceneBuilder builder) {
     // Each strip on the screen's pixels, and none over another: where two meet, each keeps its own side.
-    final at = [for (final strip in _strips) snapOut(strip.rect, _corner, _ratio)];
+    // A strip under a header reaches past its edge under the header ([EdgeBlurStrip.bleed]), which hides it.
+    final at = [for (final strip in _strips) snapOut(strip is EdgeBlurStrip ? strip.drawn : strip.rect, _corner, _ratio)];
     for (var i = 0; i < at.length; i++) {
       for (var j = i + 1; j < at.length; j++) {
         final over = at[i].intersect(at[j]);

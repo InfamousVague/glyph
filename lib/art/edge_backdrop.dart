@@ -18,6 +18,19 @@ import 'edge_strips.dart';
 /// liquid_glass_widgets 1.15.0's ProgressiveBlur, both MIT: a backdrop filter of two one-axis passes of
 /// `ImageFilter.shader`, Impeller's, since Flutter 3.29); the rest take a picture of the view as the strips did, or
 /// stack hard bands of blurs. It is written here rather than taken in: one shader and one render object.
+///
+/// The blur is laid over the sharp view through a gradient mask, a clipping mask on the blurred layer (Matt,
+/// 2026-10-25, on the Fold with 2.3.28: "this is really close on the blur! the only thing I'd like to change is put
+/// a small gradient mask over it so the edge doesn't look like it's clipped so hard", and then "the mask should be a
+/// clipping mask"): none of the blur at the band's inner end, all of it from [edgeBlurFeather] of the way in, a
+/// smoothstep between. What looked clipped was the band's inner end. Its blur was whole from the first row, only
+/// faint, and the two passes are one axis each: the down pass gathers rows nearer the inner end, which the across
+/// pass had hardly blurred, so a word lying across the inner end kept its sharp half and grew streaks of its sharp
+/// strokes toward the edge, a word cut along a line with its ink running (on the ghostflutter2 emulator at the Fold's
+/// 2.625: "## Words" at a note's foot had hard tops and long drips, build/feature-shots/blur-feather/). Under the mask
+/// those rows are the sharp view, the streaks are as faint as the blur they are in, and the blur comes in as the
+/// strips' does (their sharp view is gone at the same place, [EdgeBlurStrip]). The mask is the down pass's alpha,
+/// and the layer is laid over the sharp view as any backdrop filter's is: no pass, tap or picture more.
 abstract final class EdgeBackdropProgram {
   /// The program once it is loaded, and null until then (or where the engine cannot filter by a shader, where the
   /// edges fade instead, [edgeLook]). A band waiting for it draws nothing, and is drawn again when it comes.
@@ -32,31 +45,35 @@ abstract final class EdgeBackdropProgram {
   }
 }
 
-/// One band of what is behind it, blurred toward [side] up to [sigma] at the band's edge.
+/// One band of what is behind it, blurred toward [side] up to [sigma] at the band's edge, and [bleed] past its
+/// edge under a header ([EdgeBlurStrip.bleed]).
 class EdgeBackdropBand extends LeafRenderObjectWidget {
-  const EdgeBackdropBand({super.key, required this.side, required this.sigma});
+  const EdgeBackdropBand({super.key, required this.side, required this.sigma, this.bleed = 0});
 
   final EdgeSide side;
   final double sigma;
+  final double bleed;
 
   @override
   RenderEdgeBackdropBand createRenderObject(BuildContext context) =>
-      RenderEdgeBackdropBand(side: side, sigma: sigma, ratio: MediaQuery.devicePixelRatioOf(context), group: BackdropGroup.of(context)?.backdropKey);
+      RenderEdgeBackdropBand(side: side, sigma: sigma, bleed: bleed, ratio: MediaQuery.devicePixelRatioOf(context), group: BackdropGroup.of(context)?.backdropKey);
 
   @override
   void updateRenderObject(BuildContext context, RenderEdgeBackdropBand renderObject) {
     renderObject
       ..side = side
       ..sigma = sigma
+      ..bleed = bleed
       ..ratio = MediaQuery.devicePixelRatioOf(context)
       ..group = BackdropGroup.of(context)?.backdropKey;
   }
 }
 
 class RenderEdgeBackdropBand extends RenderBox {
-  RenderEdgeBackdropBand({required EdgeSide side, required double sigma, required double ratio, BackdropKey? group})
+  RenderEdgeBackdropBand({required EdgeSide side, required double sigma, double bleed = 0, required double ratio, BackdropKey? group})
       : _side = side,
         _sigma = sigma,
+        _bleed = bleed,
         _ratio = ratio,
         _group = group;
 
@@ -73,6 +90,14 @@ class RenderEdgeBackdropBand extends RenderBox {
   set sigma(double value) {
     if (value == _sigma) return;
     _sigma = value;
+    markNeedsPaint();
+  }
+
+  double _bleed;
+  double get bleed => _bleed;
+  set bleed(double value) {
+    if (value == _bleed) return;
+    _bleed = value;
     markNeedsPaint();
   }
 
@@ -152,6 +177,19 @@ class RenderEdgeBackdropBand extends RenderBox {
     });
   }
 
+  /// What the band blurs, in its own pixels: itself, and [bleed] past its edge. The shader's band is the band's own
+  /// rectangle, so the bleed is as soft as the edge.
+  Rect get _clip => switch (_side) {
+        EdgeSide.top => Rect.fromLTRB(0, -_bleed, size.width, size.height),
+        EdgeSide.bottom => Rect.fromLTRB(0, 0, size.width, size.height + _bleed),
+        EdgeSide.left => Rect.fromLTRB(-_bleed, 0, size.width, size.height),
+        EdgeSide.right => Rect.fromLTRB(0, 0, size.width + _bleed, size.height),
+      };
+
+  /// For a test: the rectangle the band's filter is drawn in, in its own pixels.
+  @visibleForTesting
+  Rect get debugClip => _clip;
+
   @override
   void paint(PaintingContext context, Offset offset) {
     final program = EdgeBackdropProgram.program.value;
@@ -171,12 +209,13 @@ class RenderEdgeBackdropBand extends RenderBox {
         ..setFloat(5, band.bottom)
         ..setFloat(6, _sigma * _ratio)
         ..setFloat(7, _side.index.toDouble())
-        ..setFloat(8, axis);
+        ..setFloat(8, axis)
+        ..setFloat(9, edgeBlurFeather);
     }
     // The engine copies a shader's floats when the filter is added to the scene, later in this frame, so the same
     // two shaders serve every paint.
     final filter = ui.ImageFilter.compose(outer: ui.ImageFilter.shader(down), inner: ui.ImageFilter.shader(across));
-    context.pushClipRect(true, offset, Offset.zero & size, (context, offset) {
+    context.pushClipRect(true, offset, _clip, (context, offset) {
       context.pushLayer(BackdropFilterLayer(filter: filter)..backdropKey = _group, (context, offset) {}, offset);
     });
   }

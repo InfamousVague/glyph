@@ -20,6 +20,12 @@
 /// and one either side, again as it scrolls and settles, none while the shelf is scrolled off the page, the page is
 /// not the one shown, or the app is hidden, and all let go with the shelf. A cassette loaded ahead plays on its own
 /// player the moment the rest ends; one that is not, loads on the memos' player as before.
+///
+/// The row's ends are the tab row's ([BlurSides], lib/notes/tabs/tab_row.dart): an end with cassettes past it goes
+/// soft and fades out, and only while there are (Matt, 2026-10-25: "when scrolled all the way to the right the blur
+/// over the cassettes should disappear from the right"): the left end once the row is scrolled from its start, the
+/// right end until it is at its end, each going over the last [blurSidesDepth] of the way ([sideShown]) so it is
+/// gone as the row arrives.
 library;
 
 import 'dart:math' as math;
@@ -31,6 +37,7 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../app/widgets.dart';
+import '../art/blur_box.dart';
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import '../core/note_text.dart' show hasTape;
@@ -142,6 +149,10 @@ class _MeetingShelfState extends State<MeetingShelf> {
   late final AppLifecycleListener _life;
   ScrollPosition? _page;
   Timer? _settling;
+
+  /// How much of the row's two ends shows, 0 to 1 each ([sideShown]): from how far the row is scrolled from its
+  /// start, and how far it has still to go. Told by the row's scrolling and by its size changing.
+  final ValueNotifier<(double, double)> _ends = ValueNotifier((0, 0));
   bool _shown = true;
 
   /// The cassettes on the shelf, and the room in front of and between them, as last built.
@@ -152,6 +163,7 @@ class _MeetingShelfState extends State<MeetingShelf> {
   void initState() {
     super.initState();
     _row.addListener(_settle);
+    _row.addListener(_measure);
     // Hidden, nothing is loaded; back, what is in view is again.
     _life = AppLifecycleListener(onStateChange: (_) => _settle(at: Duration.zero));
   }
@@ -181,10 +193,17 @@ class _MeetingShelfState extends State<MeetingShelf> {
   void dispose() {
     _settling?.cancel();
     _row.dispose();
+    _ends.dispose();
     _page?.removeListener(_settle);
     _life.dispose();
     widget.previews?.releaseAll();
     super.dispose();
+  }
+
+  void _measure() {
+    if (!_row.hasClients || !_row.position.hasContentDimensions || !_row.position.hasPixels) return;
+    final position = _row.position;
+    _ends.value = (sideShown(position.extentBefore), sideShown(position.extentAfter));
   }
 
   /// Load what is in view once the row and the page keep still ([at] after the last move; at once after a build).
@@ -267,21 +286,32 @@ class _MeetingShelfState extends State<MeetingShelf> {
             ],
           ),
           SizedBox(height: t.space(2)),
-          SingleChildScrollView(
-            key: const ValueKey('meeting-shelf-row'),
-            controller: _row,
-            scrollDirection: Axis.horizontal,
-            // Room for the focus ring, which the row would clip at its edges.
-            padding: EdgeInsets.symmetric(vertical: t.space(1), horizontal: t.space(1)),
-            clipBehavior: Clip.hardEdge,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final (i, note) in shown.indexed) ...[
-                  if (i > 0) SizedBox(width: gap),
-                  _MeetingTape(key: ValueKey('meeting-tape-${note.id}'), note: note, meetings: meetings, lengthMs: lengthMs, live: note.id == live, onOpen: widget.onOpen, player: widget.player, previews: widget.previews),
-                ],
-              ],
+          // The ends: soft, and fading out, while there are cassettes past them.
+          NotificationListener<ScrollMetricsNotification>(
+            onNotification: (notification) {
+              if (notification.depth == 0) _measure();
+              return false;
+            },
+            child: ValueListenableBuilder<(double, double)>(
+              valueListenable: _ends,
+              builder: (context, ends, row) => BlurSides(start: ends.$1 > 0, end: ends.$2 > 0, startShown: ends.$1, endShown: ends.$2, child: row!),
+              child: SingleChildScrollView(
+                key: const ValueKey('meeting-shelf-row'),
+                controller: _row,
+                scrollDirection: Axis.horizontal,
+                // Room for the focus ring, which the row would clip at its edges.
+                padding: EdgeInsets.symmetric(vertical: t.space(1), horizontal: t.space(1)),
+                clipBehavior: Clip.hardEdge,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final (i, note) in shown.indexed) ...[
+                      if (i > 0) SizedBox(width: gap),
+                      _MeetingTape(key: ValueKey('meeting-tape-${note.id}'), note: note, meetings: meetings, lengthMs: lengthMs, live: note.id == live, onOpen: widget.onOpen, player: widget.player, previews: widget.previews),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ],

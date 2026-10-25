@@ -1,5 +1,13 @@
 // A gradient blur of what is behind a band, one axis at a time (lib/art/edge_backdrop.dart): two of these, across
-// then down, are one backdrop filter. The softness grows from none at the band's inner end to uSigma at its edge.
+// then down, are one backdrop filter. The softness grows from none at the band's inner end to uSigma at its edge,
+// and the blur is laid over the sharp view through a gradient mask that comes in over uFeather of the band.
+//
+// The mask is a clipping mask, the blurred layer's own opacity: the down pass, the last, gives each pixel the
+// mask's share as its alpha (premultiplied), and the backdrop filter lays what it draws over the sharp view it read
+// (a backdrop filter's layer goes onto what is behind it as srcOver), so a pixel is mix(sharp, blurred, mask). The
+// across pass leaves its blur whole: had each pass mixed in the sharp view by the mask, the down pass would blur
+// the across pass's own mix, and a row half in would be a quarter sharp, a quarter blurred across only and half a
+// blur of the two, with words smeared down from the sharp rows under them.
 #version 460 core
 #include <flutter/runtime_effect.glsl>
 
@@ -15,6 +23,9 @@ uniform float uSigma;
 uniform float uSide;
 // Which way this pass blurs: 0 across, 1 down.
 uniform float uAxis;
+// How far in from the band's inner end the mask is whole, as a share of the band: none of the blur shows at the
+// inner end, all of it from here to the edge, and a smoothstep between.
+uniform float uFeather;
 
 uniform sampler2D uTexture;
 
@@ -29,11 +40,18 @@ void main() {
   float t = uSide < 0.5 ? 1.0 - along.y : (uSide < 1.5 ? along.y : (uSide < 2.5 ? 1.0 - along.x : along.x));
   float sigma = uSigma * t;
   vec2 uv = p / uSize;
-  if (sigma < 0.5) {
-    fragColor = texture(uTexture, uv);
+  bool down = uAxis > 0.5;
+  // The across pass is whole; the down pass is the blurred layer seen through the mask.
+  float shown = down ? smoothstep(0.0, max(uFeather, 1e-3), t) : 1.0;
+  if (shown <= 0.0) {
+    fragColor = vec4(0.0);
     return;
   }
-  vec2 dir = (uAxis < 0.5 ? vec2(1.0, 0.0) : vec2(0.0, 1.0)) / uSize;
+  if (sigma < 0.5) {
+    fragColor = texture(uTexture, uv) * shown;
+    return;
+  }
+  vec2 dir = (down ? vec2(0.0, 1.0) : vec2(1.0, 0.0)) / uSize;
   float stride = max(1.0, 3.0 * sigma / float(kHalf));
   vec4 sum = texture(uTexture, uv);
   float weights = 1.0;
@@ -44,5 +62,5 @@ void main() {
     sum += (texture(uTexture, uv + dir * d) + texture(uTexture, uv - dir * d)) * w;
     weights += 2.0 * w;
   }
-  fragColor = sum / weights;
+  fragColor = sum / weights * shown;
 }
