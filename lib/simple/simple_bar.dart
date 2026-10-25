@@ -108,8 +108,12 @@ class SimpleActions extends StatelessWidget {
   final VoidCallback? onNewLong;
   final VoidCallback? onSpeak;
 
-  /// How tall the pair stands: the +'s own height.
-  static double heightOf(Tokens t) => t.space(12);
+  /// How tall the pair stands: the +'s own height. The + is the app's one round control (`--app-ring`), the size of
+  /// the dock's and the gear's, and the microphone a step under it (Matt, 2026-10-25: "on simple mode the + and
+  /// microphone buttons are far too large"; they were `--glacier-space-12` and `-10`, the ring is `-10` × 0.88).
+  static double heightOf(Tokens t) => _plusOf(t);
+  static double _plusOf(Tokens t) => t.len('app-ring');
+  static double _micOf(Tokens t) => t.len('app-ring') * 0.85;
 
   @override
   Widget build(BuildContext context) {
@@ -119,8 +123,8 @@ class SimpleActions extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       spacing: t.space(3),
       children: [
-        if (onSpeak != null) _Round(key: const ValueKey('simple-speak'), label: 'Speak a note', icon: Lucide.mic, size: t.space(10), filled: false, onPressed: onSpeak!),
-        _Round(key: const ValueKey('simple-new'), label: 'New note', icon: Lucide.plus, size: t.space(12), filled: true, onPressed: onNew, onLongPress: onNewLong),
+        if (onSpeak != null) _Round(key: const ValueKey('simple-speak'), label: 'Speak a note', icon: Lucide.mic, size: _micOf(t), filled: false, onPressed: onSpeak!),
+        _Round(key: const ValueKey('simple-new'), label: 'New note', icon: Lucide.plus, size: _plusOf(t), filled: true, onPressed: onNew, onLongPress: onNewLong),
       ],
     );
   }
