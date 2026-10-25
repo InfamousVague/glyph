@@ -47,6 +47,7 @@
         <ul class="bar-links">
           <li><a href="#claude">Claude</a></li>
           <li><a href="#calendar">Calendar</a></li>
+          <li><a href="#meetings">Meetings</a></li>
           <li><a href="#plugins">Plugins</a></li>
           <li><a href="#organize">Markdown</a></li>
           <li><a href="#teams">Teams</a></li>
@@ -166,6 +167,32 @@ show: calendar
             <p class="fine">In the app on Android, iPhone and the Mac.</p>
           </div>
           <figure class="phone"><img src="shots/calendar.webp" width="390" height="844" loading="lazy" alt="A note drawing a month calendar of to-dos with a day, beside the day's meetings from Google Calendar: coffee at 10:30 and a run at 5." /></figure>
+        </div>
+      </section>
+
+      <!-- Meetings (docs/MEET.md, GHST-106 to GHST-112; Matt, 2026-10-25: "add a meetings section to the website"): Ghost
+           in a Google Meet, invited by the account's address or a link, every occurrence of a series, the take sealed
+           to the account and written up on the device, sent to every device as it lands, sorted into a workspace's
+           Meetings folder. Only what the app does today: Google Meet alone, and Ghost waits in the lobby. -->
+      <section class="band" id="meetings" aria-labelledby="meetings-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-users"/></svg>Meetings</p>
+              <h2 id="meetings-title">Ghost goes to your meetings.</h2>
+              <p>Invite Ghost to a Google Meet call and it joins by itself, records the meeting, and files it as a note: the transcript with who said what, and a summary of what was decided and who does what next.</p>
+            </header>
+            <ul class="points points-stack">
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-calendar-check"/></svg>Invite it like anyone else.</b> Add your Ghost address, a name of your own like <code>you@in.ghostmarkdown.com</code>, as a guest on a Google Calendar invite. Or paste a Meet link and press Join.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-refresh-cw"/></svg>Every standup, not just the first.</b> A recurring meeting is joined every time it comes round. Skip one, or stop joining the series, from Settings › Meetings.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-message-square-text"/></svg>Who said what.</b> The transcript comes with the speakers' names, and the summary is written on your device, with the to-dos as to-dos.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-smartphone"/></svg>On every device, as soon as it ends.</b> The recording reaches your phone and computer the moment Ghost leaves the call, and sits on a shelf of tapes on your home page.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-folder-tree"/></svg>Filed where it belongs.</b> Each meeting is sorted into the right workspace's Meetings folder, by what was said in it.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Sealed as it records.</b> The meeting's sound passes through Ghost.md's server while it records, sealed to your account as it arrives. It is written up on your device.</li>
+            </ul>
+            <p class="fine">Google Meet for now. Ghost joins from its own account, so someone in the call lets it in.</p>
+          </div>
+          <figure class="phone"><img src="shots/meetings.webp" width="390" height="844" loading="lazy" alt="A meeting's note on a phone: its tape at the top, then the transcript, each line led by the speaker's name in bold." /></figure>
         </div>
       </section>
 
