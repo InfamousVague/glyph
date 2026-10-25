@@ -18,6 +18,7 @@ import 'package:ghost_md/shell/top_bar.dart';
 import 'package:glacier/glacier.dart';
 
 import '../core/make_note.dart';
+import '../support/edges.dart';
 import '../support/render.dart';
 import 'bar_support.dart';
 
@@ -664,7 +665,7 @@ void main() {
     // blur, where it was the wisp's smoke (Matt: "replace the smoke effect with a gradient blur on all places that
     // use the wisp smoke").
     testWidgets('blurs whichever end of the row has tabs past it, and never the start at the start', (tester) async {
-      List<EdgeBlurStrip> blurs() => tester.renderObject<RenderEdgeStrips>(find.descendant(of: find.byType(BlurSides), matching: find.byType(EdgeStrips))).strips.whereType<EdgeBlurStrip>().toList();
+      List<EdgeBlurStrip> blurs() => edgeStripsUnder(tester, find.byType(BlurSides)).whereType<EdgeBlurStrip>().toList();
       await pumpBar(tester, open: three, active: 'groceries');
       // Three tabs are more than a phone's width: the end blurs over a fade of twelve pixels under a finger.
       expect(find.byType(BlurSides), findsOneWidget);

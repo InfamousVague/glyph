@@ -11,6 +11,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 
+import '../support/edges.dart';
 import '../support/render.dart';
 
 void main() {
@@ -49,7 +50,7 @@ void main() {
     scroller.position.jumpTo(200);
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 400));
-    return tester.renderObject<RenderEdgeStrips>(find.descendant(of: edge, matching: find.byType(EdgeStrips)).first).strips;
+    return edgeStripsUnder(tester, edge);
   }
 
   testWidgets('the edges blur with it on, and the art\'s switch follows it as it changes', (tester) async {
@@ -60,7 +61,7 @@ void main() {
     await tester.pump();
     await tester.pump();
     expect(BlurEdgeSettings.instance.wanted, isFalse);
-    expect(tester.renderObject<RenderEdgeStrips>(find.descendant(of: find.byType(BlurEdge).first, matching: find.byType(EdgeStrips)).first).strips, isEmpty);
+    expect(edgeStripsUnder(tester, find.byType(BlurEdge).first), isEmpty);
     await close(tester);
   });
 

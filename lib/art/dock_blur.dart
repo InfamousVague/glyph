@@ -14,7 +14,8 @@ import 'edge_strips.dart';
 /// wisp's smoke was, torn into tendrils by a tile of noise and bending what scrolled behind it (Matt, 2026-10-24:
 /// "replace the smoke effect with a gradient blur on all places that use the wisp smoke", and "remove the smoke on
 /// mac too so all versions get blur"), it is now a plain gradient: a blur of the page behind the halo, shown
-/// through a soft pill the dock's shape. Nothing in it moves, so a page at rest is painted once.
+/// through a soft pill the dock's shape. Nothing in it moves, so a page at rest is painted once. On Android it is
+/// the page's ground through the same pill, with nothing blurred and no picture taken ([edgeLook], [DockFadeHalo]).
 
 /// How far past the pill the blur reaches, in px: the halo's inset.
 const double dockBlurReach = 48;
@@ -115,8 +116,44 @@ class DockBlurHalo extends StatelessWidget {
       final tokens = GlacierTheme.maybeOf(context);
       strips.add(DockBlurStrip(rect: dock.inflate(reach), ground: tokens?.color('glacier-bg') ?? const Color(0xFF000000), haloReach: reach));
     }
+    if (edgeLook != EdgeLook.blur) {
+      // Where the edges are not the strips' (Android, [edgeLook]), the halo is the page's ground through the same
+      // soft pill, laid over what scrolls behind the dock: no picture of it is taken, and a backdrop's blur cannot
+      // be shown through a soft pill.
+      final halo = strips.whereType<DockBlurStrip>().firstOrNull;
+      return CustomPaint(foregroundPainter: halo == null ? null : DockFadeHalo(rect: halo.rect, ground: halo.ground, haloReach: halo.haloReach), child: child);
+    }
     return EdgeStrips(strips: strips, child: child);
   }
+}
+
+/// How much of the page's ground the faded halo lays at the dock, where the blur's is [dockBlurWash]: with nothing
+/// blurred under it, the words have to go further into the ground.
+const double dockFadeWash = 0.85;
+
+/// The halo where the edges are not the strips' ([edgeLook], Android): the page's ground at [dockFadeWash] through
+/// [dockBlurPill], whole at the dock and gone by the halo's edge. One blurred rounded rectangle, which the engine draws by its
+/// shape, with no layer.
+class DockFadeHalo extends CustomPainter {
+  const DockFadeHalo({required this.rect, required this.ground, this.haloReach = dockBlurReach});
+
+  final Rect rect;
+  final Color ground;
+  final double haloReach;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final shape = dockBlurPill(rect.width, rect.height, haloReach);
+    canvas.drawRRect(
+      shape.pill.shift(rect.topLeft),
+      Paint()
+        ..color = ground.withValues(alpha: dockFadeWash)
+        ..maskFilter = MaskFilter.blur(BlurStyle.normal, shape.soft),
+    );
+  }
+
+  @override
+  bool shouldRepaint(DockFadeHalo old) => old.rect != rect || old.ground != ground || old.haloReach != haloReach;
 }
 
 /// A dock floating over what scrolls behind it, with the blur round it: [behind] fills the box, [dock] is laid over

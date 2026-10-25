@@ -7,6 +7,7 @@ import 'package:glacier/glacier.dart';
 
 import '../app/plain.dart';
 import '../shell/desktop/desktop_scrollbar.dart';
+import 'edge_backdrop.dart';
 import 'edge_strips.dart';
 
 // ---- the numbers ---------------------------------------------------------------------------------------------------
@@ -68,7 +69,14 @@ bool footBlurs(bool wanted) => wanted;
 /// wisp smoke", and then "remove the smoke on mac too so all versions get blur"). Content slipping up behind the
 /// header goes soft over [blurEdgeDepth] below the header's foot, softest at the header, and is washed toward the
 /// page's ground; words scrolling off the foot go soft over [blurEdgeFootDepth] and fade out at the edge. The same
-/// on every platform: a phone, the Fold opened out, a Mac.
+/// on a Mac, an iPhone and every desktop.
+///
+/// On Android the same strips are blurred as a backdrop filter, a band of the screen whose shader grows the
+/// softness toward the edge, under the same wash, and the view is cleared by laying the page's ground over it where
+/// a strip's mask would clear it (Matt, 2026-10-25, on the Fold: "the blur works now but it's super laggy";
+/// [edgeLook], [EdgeBackdropBand], [EdgeShade]). Where the engine cannot filter by a shader the strips only fade:
+/// the page's ground from none at each strip's inner end to [edgeFadeWash] at its edge. Neither takes a picture of
+/// the view, and the switch, the turn in and reduced motion are as they are for the blur.
 ///
 /// Wrap the thing that scrolls: `BlurEdge(under: headerHeight, foot: true, child: ListView(...))`. The scroller is
 /// found by the notifications it sends, so [child] must hold one vertical scroller, the outermost.
@@ -124,6 +132,8 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
   void initState() {
     super.initState();
     BlurEdgeSettings.instance.addListener(_settingsChanged);
+    // The backdrop's shader is loaded as the first page with soft edges is made, to be there by its first scroll.
+    if (edgeLook == EdgeLook.backdrop) EdgeBackdropProgram.load();
   }
 
   @override
@@ -262,14 +272,33 @@ class _BlurEdgeState extends State<BlurEdge> with SingleTickerProviderStateMixin
             return ListenableBuilder(
               listenable: _turn,
               // A plain build shades the page's two edges with its own ground, and takes no picture of the view.
-              builder: (context, child) => ghostPlain
-                  ? CustomPaint(
-                      foregroundPainter: _wanted && (_worn || _footWorn)
-                          ? PlainShade(ground: _ground, top: _worn ? widget.under : null, foot: _footWorn ? size.height - widget.footOver : null)
-                          : null,
-                      child: child,
-                    )
-                  : EdgeStrips(strips: _strips(size), child: child),
+              builder: (context, child) {
+                if (ghostPlain) {
+                  return CustomPaint(
+                    foregroundPainter: _wanted && (_worn || _footWorn)
+                        ? PlainShade(ground: _ground, top: _worn ? widget.under : null, foot: _footWorn ? size.height - widget.footOver : null)
+                        : null,
+                    child: child,
+                  );
+                }
+                final strips = _strips(size);
+                return switch (edgeLook) {
+                  EdgeLook.blur => EdgeStrips(strips: strips, child: child),
+                  // The page's ground over the edges, and nothing taken of the view (edge_strips.dart [EdgeShade]).
+                  EdgeLook.fade => CustomPaint(foregroundPainter: strips.isEmpty ? null : EdgeShade(strips: strips, ground: _ground), child: child),
+                  // The blur as a backdrop filter, a band for each strip, under the strips' wash and fades
+                  // (edge_backdrop.dart).
+                  EdgeLook.backdrop => Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        child!,
+                        for (final strip in strips.whereType<EdgeBlurStrip>())
+                          Positioned.fromRect(rect: strip.rect, child: IgnorePointer(child: EdgeBackdropBand(side: strip.side, sigma: strip.sigma * strip.opacity))),
+                        if (strips.isNotEmpty) Positioned.fill(child: IgnorePointer(child: CustomPaint(painter: EdgeShade(strips: strips, ground: _ground, wash: blurEdgeWash)))),
+                      ],
+                    ),
+                };
+              },
               // Where there is a mouse, a view under a header wears the page's own scrollbar, from the header's
               // foot down (app.css `[data-under-header]`); nothing on a phone.
               child: widget.scrollbar ? DesktopScrollbar(under: widget.under, child: widget.child) : widget.child,

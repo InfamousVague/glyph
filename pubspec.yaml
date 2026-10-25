@@ -67,9 +67,11 @@ flutter:
     - assets/diag/test_report.json
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
-  # (2026-10-24).
+  # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness
+  # growing toward the edge (lib/art/edge_backdrop.dart; 2026-10-25, where pictures of the view were too slow).
   shaders:
     - shaders/wisp_bend.frag
+    - shaders/edge_blur.frag
   fonts:
     # The faces the web app ships (@fontsource-variable/inter, @fontsource/maple-mono), converted from their woff2
     # by tool/fonts.py. Inter comes in subsets, as it does on the page: Latin is the family, the rest fall back.

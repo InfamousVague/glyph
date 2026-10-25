@@ -6,16 +6,28 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
 
+import '../support/edges.dart';
+
 /// The gradient blur on a view, where the wisp's smoke was (Matt, 2026-10-24: "replace the smoke effect with a
 /// gradient blur on all places that use the wisp smoke", then "remove the smoke on mac too so all versions get
 /// blur"): when a view wears it, where its bands are, what the switch and reduced motion do, that every platform
 /// draws the same, and that the blur is a blur, the softest at the edge. Case for case with what
 /// test/art/wisp_edge_test.dart said of the smoke, where the smoke's numbers allow.
+///
+/// Android draws the same strips in the same places as a backdrop filter, or as the page's ground alone where the
+/// engine cannot filter by a shader, and takes no picture of the view (Matt, 2026-10-25: "the blur works now but it's
+/// super laggy, research if there is a library or something we can use for cleaner blurs, if not use simple
+/// gradients on android"). A test's platform is Android unless it says otherwise, so what is said here of the
+/// strips' blur is said on a Mac.
 void main() {
   tearDown(() {
     BlurEdgeSettings.instance.reset();
     debugDefaultTargetPlatformOverride = null;
+    debugEdgeLook = null;
   });
+
+  /// The strips' blur is said of a Mac: a test's platform is Android unless it says otherwise.
+  final onMac = TargetPlatformVariant.only(TargetPlatform.macOS);
 
   /// A screen with room for the views: a test's own is 800 by 600.
   void room(WidgetTester tester) {
@@ -62,12 +74,12 @@ void main() {
     return controller;
   }
 
-  List<EdgeStrip> strips(WidgetTester tester) => tester.renderObject<RenderEdgeStrips>(find.descendant(of: find.byKey(const ValueKey('page')), matching: find.byType(EdgeStrips))).strips;
+  List<EdgeStrip> strips(WidgetTester tester) => edgeStripsUnder(tester, find.byKey(const ValueKey('page')));
   EdgeBlurStrip? top(WidgetTester tester) => strips(tester).whereType<EdgeBlurStrip>().where((s) => s.side == EdgeSide.top).firstOrNull;
   EdgeBlurStrip? foot(WidgetTester tester) => strips(tester).whereType<EdgeBlurStrip>().where((s) => s.side == EdgeSide.bottom).firstOrNull;
 
   group('BlurEdge', () {
-    testWidgets('blurs under the header once the view is scrolled off its top, turning in, and lets go at the top', (tester) async {
+    testWidgets('blurs under the header once the view is scrolled off its top, turning in, and lets go at the top', variant: onMac, (tester) async {
       final said = <bool>[];
       final scroll = await view(tester, header: 60, onChanged: said.add);
       expect(strips(tester), isEmpty, reason: 'at its top a view wears nothing');
@@ -88,12 +100,12 @@ void main() {
       expect(said, [true, false]);
     });
 
-    testWidgets('never blurs a view that cannot scroll, whatever its place says', (tester) async {
+    testWidgets('never blurs a view that cannot scroll, whatever its place says', variant: onMac, (tester) async {
       await view(tester, header: 60, more: 2, foot: true);
       expect(strips(tester), isEmpty);
     });
 
-    testWidgets('with no header, fades over the status bar\'s height and 8px more, and is soft for a band past it', (tester) async {
+    testWidgets('with no header, fades over the status bar\'s height and 8px more, and is soft for a band past it', variant: onMac, (tester) async {
       final scroll = await view(tester, safeTop: 36);
       scroll.jumpTo(100);
       await tester.pump();
@@ -103,7 +115,7 @@ void main() {
       expect(strip.fade, const EdgeFade(clearUntil: 0, wholeFrom: 44));
     });
 
-    testWidgets('blurs the foot while there is more below, and not at the end', (tester) async {
+    testWidgets('blurs the foot while there is more below, and not at the end', variant: onMac, (tester) async {
       final scroll = await view(tester, foot: true);
       expect(foot(tester)!.rect, const Rect.fromLTRB(0, 800 - blurEdgeFootDepth, 400, 800));
       expect(foot(tester)!.fade, const EdgeFade(wholeUntil: 800 - blurEdgeFootFade, clearFrom: 800));
@@ -112,7 +124,7 @@ void main() {
       expect(foot(tester), isNull);
     });
 
-    testWidgets('blurs the foot at a dock\'s top edge, and is gone below it', (tester) async {
+    testWidgets('blurs the foot at a dock\'s top edge, and is gone below it', variant: onMac, (tester) async {
       await view(tester, foot: true, footOver: 100);
       expect(foot(tester)!.rect, const Rect.fromLTRB(0, 700 - blurEdgeFootDepth, 400, 700));
       final below = strips(tester).whereType<EdgeFadeStrip>().single;
@@ -120,7 +132,7 @@ void main() {
       expect(below.fade.at(701), 0, reason: 'beside and under the dock the view is clear');
     });
 
-    testWidgets('draws nothing at all with the blur switched off in Settings, and comes back with it', (tester) async {
+    testWidgets('draws nothing at all with the blur switched off in Settings, and comes back with it', variant: onMac, (tester) async {
       final scroll = await view(tester, header: 60, foot: true);
       scroll.jumpTo(100);
       await tester.pump();
@@ -136,7 +148,7 @@ void main() {
       expect(strips(tester), hasLength(2));
     });
 
-    testWidgets('with reduced motion keeps the blur, which does not move, and loses only its turn', (tester) async {
+    testWidgets('with reduced motion keeps the blur, which does not move, and loses only its turn', variant: onMac, (tester) async {
       final scroll = await view(tester, header: 60, foot: true, still: true);
       scroll.jumpTo(100);
       await tester.pump();
@@ -151,13 +163,15 @@ void main() {
       expect(top(tester), isNull, reason: 'and gone at once at the top');
     });
 
-    for (final platform in TargetPlatform.values) {
+    for (final platform in TargetPlatform.values.where((p) => p != TargetPlatform.android)) {
       testWidgets('draws the same blur on ${platform.name}, and asks for no frame of its own while it rests', (tester) async {
         debugDefaultTargetPlatformOverride = platform;
         final scroll = await view(tester, header: 60, foot: true);
         scroll.jumpTo(100);
         await tester.pump();
         await tester.pump(const Duration(milliseconds: 400));
+        expect(edgeLook, EdgeLook.blur);
+        expect(takesEdgePictures(tester, find.byKey(const ValueKey('page'))), isTrue);
         expect(strips(tester).map((s) => s.runtimeType), [EdgeBlurStrip, EdgeBlurStrip]);
         expect(top(tester)!.rect, const Rect.fromLTWH(0, 60, 400, blurEdgeDepth));
         expect(foot(tester)!.rect, const Rect.fromLTRB(0, 800 - blurEdgeFootDepth, 400, 800));
@@ -167,6 +181,129 @@ void main() {
     }
   });
 
+  // A test's own platform, which needs no saying.
+  group('on Android', () {
+    /// Scrolls the view a frame at a time, as a finger does.
+    Future<void> scrolled(WidgetTester tester, ScrollController scroll) async {
+      for (var y = 100.0; y <= 300; y += 20) {
+        scroll.jumpTo(y);
+        await tester.pump(const Duration(milliseconds: 40));
+      }
+      await tester.pump(const Duration(milliseconds: 400));
+    }
+
+    Iterable<RenderEdgeBackdropBand> bands(WidgetTester tester) => tester.renderObjectList<RenderEdgeBackdropBand>(find.byType(EdgeBackdropBand));
+
+    test('blurs as a backdrop filter where the engine filters by a shader, and fades where it cannot', () {
+      expect(edgeLook, ui.ImageFilter.isShaderFilterSupported ? EdgeLook.backdrop : EdgeLook.fade);
+      debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
+      expect(edgeLook, EdgeLook.blur, reason: 'the iPhone, the Mac and every desktop keep the strips');
+    });
+
+    // Matt, 2026-10-25, on the Fold with 2.3.27: "the blur works now but it's super laggy". The strips took three or
+    // four pictures of the view at every frame a page scrolled (build/feature-shots/blur-perf/).
+    testWidgets('blurs the same strips as backdrop bands under the same wash, and takes no picture of the view however far it scrolls', (tester) async {
+      debugEdgeLook = EdgeLook.backdrop;
+      final scroll = await view(tester, header: 60, foot: true);
+      debugEdgePictures = 0;
+      await scrolled(tester, scroll);
+      expect(strips(tester).map((s) => s.runtimeType), [EdgeBlurStrip, EdgeBlurStrip], reason: 'the strips are the blur\'s own');
+      expect([for (final band in bands(tester)) (band.localToGlobal(Offset.zero) & band.size, band.side, band.sigma)], [
+        (const Rect.fromLTWH(0, 60, 400, blurEdgeDepth), EdgeSide.top, blurEdgeSigma),
+        (const Rect.fromLTRB(0, 800 - blurEdgeFootDepth, 400, 800), EdgeSide.bottom, blurEdgeSigma),
+      ]);
+      final shade = tester.widgetList<CustomPaint>(find.byType(CustomPaint)).map((p) => p.painter).whereType<EdgeShade>().single;
+      expect(shade.wash, blurEdgeWash, reason: 'the blur\'s own wash over it, and the foot cleared to the page\'s ground');
+      expect(takesEdgePictures(tester, find.byKey(const ValueKey('page'))), isFalse);
+      expect(debugEdgePictures, 0);
+      expect(tester.binding.hasScheduledFrame, isFalse, reason: 'a band with no program yet draws nothing, and asks for no frame');
+
+      // The count can fail: the same scroll on a Mac takes pictures at every frame.
+      debugEdgeLook = null;
+      debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
+      await tester.pumpWidget(const SizedBox());
+      await scrolled(tester, await view(tester, header: 60, foot: true));
+      expect(debugEdgePictures, greaterThan(10));
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('turns its bands in with the blur, at once with reduced motion, and has none with the switch off', (tester) async {
+      debugEdgeLook = EdgeLook.backdrop;
+      final scroll = await view(tester, header: 60);
+      scroll.jumpTo(100);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 80));
+      expect(bands(tester).single.sigma, inExclusiveRange(0, blurEdgeSigma), reason: 'softer while it turns in');
+      await tester.pumpWidget(const SizedBox());
+      final still = await view(tester, header: 60, still: true);
+      still.jumpTo(100);
+      await tester.pump();
+      await tester.pump();
+      expect(bands(tester).single.sigma, blurEdgeSigma, reason: 'there at once, with no turn in');
+      BlurEdgeSettings.instance.wanted = false;
+      await tester.pump();
+      await tester.pump();
+      expect(bands(tester), isEmpty);
+      expect(strips(tester), isEmpty);
+    });
+
+    testWidgets('where the engine cannot filter by a shader, fades the same strips with the page\'s ground, and takes no picture', (tester) async {
+      debugEdgeLook = EdgeLook.fade;
+      final scroll = await view(tester, header: 60, foot: true);
+      debugEdgePictures = 0;
+      await scrolled(tester, scroll);
+      expect(strips(tester).map((s) => s.runtimeType), [EdgeBlurStrip, EdgeBlurStrip], reason: 'where the blur would be, the fade is');
+      expect(top(tester)!.rect, const Rect.fromLTWH(0, 60, 400, blurEdgeDepth));
+      expect(foot(tester)!.rect, const Rect.fromLTRB(0, 800 - blurEdgeFootDepth, 400, 800));
+      expect(bands(tester), isEmpty);
+      expect(takesEdgePictures(tester, find.byKey(const ValueKey('page'))), isFalse);
+      expect(debugEdgePictures, 0);
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      BlurEdgeSettings.instance.wanted = false;
+      await tester.pump();
+      await tester.pump();
+      expect(strips(tester), isEmpty);
+      expect(find.descendant(of: find.byKey(const ValueKey('page')), matching: find.byWidgetPredicate((w) => w is CustomPaint && w.foregroundPainter is EdgeShade)), findsNothing);
+    });
+
+    testWidgets('lays the ground over the edge: none at a strip\'s inner end, most at its edge, whole where the view is cleared', (tester) async {
+      const ground = Color(0xFFFFFFFF);
+      final alphas = (await tester.runAsync(() async {
+        // A page 400 by 800 under a header 60 tall, with a dock 100 tall over its foot: the strips BlurEdge gives it.
+        const strips = <EdgeStrip>[
+          EdgeBlurStrip(rect: Rect.fromLTWH(0, 60, 400, blurEdgeDepth), side: EdgeSide.top, sigma: blurEdgeSigma),
+          EdgeBlurStrip(rect: Rect.fromLTRB(0, 700 - blurEdgeFootDepth, 400, 700), side: EdgeSide.bottom, sigma: blurEdgeSigma, fade: EdgeFade(wholeUntil: 700 - blurEdgeFootFade, clearFrom: 700)),
+          EdgeFadeStrip(rect: Rect.fromLTRB(0, 700, 400, 800), fade: EdgeFade(wholeUntil: 700, clearFrom: 700)),
+        ];
+        final recorder = ui.PictureRecorder();
+        const EdgeShade(strips: strips, ground: ground).paint(Canvas(recorder), const Size(400, 800));
+        final image = await recorder.endRecording().toImage(400, 800);
+        final data = (await image.toByteData())!;
+        return [for (var y = 0; y < 800; y++) data.getUint8((y * 400 + 200) * 4 + 3) / 255];
+      }))!;
+      expect(alphas[30], 0, reason: 'nothing over the header, which is the header\'s');
+      expect(alphas[60], closeTo(edgeFadeWash, 0.03), reason: 'most of the ground at the header\'s foot');
+      expect(alphas[60 + blurEdgeDepth.round() - 1], lessThan(0.05), reason: 'and none at the strip\'s inner end');
+      for (var y = 61; y < 100; y++) {
+        expect(alphas[y], lessThanOrEqualTo(alphas[y - 1] + 0.01), reason: 'row $y: less of the ground going in from the edge');
+      }
+      expect(alphas[400], 0, reason: 'the page between its edges is as it is');
+      expect(alphas[700 - blurEdgeFootDepth.round() + 1], lessThan(0.05));
+      expect(alphas[699], greaterThan(0.95), reason: 'gone into the ground at the dock\'s top edge');
+      expect(alphas[750], 1, reason: 'beside and under the dock the view is gone');
+    });
+
+    test('the backdrop\'s shader is the one pubspec.yaml ships, with the uniforms the band sets', () {
+      final shader = File('shaders/edge_blur.frag').readAsStringSync();
+      final uniforms = RegExp(r'^uniform (\w+) (\w+);', multiLine: true).allMatches(shader).map((m) => '${m.group(1)} ${m.group(2)}').toList();
+      // The engine's size first, then the band (floats 2 to 5), the softness (6), the side (7) and the axis (8).
+      expect(uniforms, ['vec2 uSize', 'vec4 uBand', 'float uSigma', 'float uSide', 'float uAxis', 'sampler2D uTexture']);
+      expect(EdgeSide.values, [EdgeSide.top, EdgeSide.bottom, EdgeSide.left, EdgeSide.right], reason: 'the shader reads a side by its index');
+      expect(shader.contains('IMPELLER_TARGET_OPENGLES'), isFalse, reason: 'since Flutter 3.47 GLES keeps a texture top down, as Vulkan and Metal do');
+    });
+  });
+
+  // Where the blur is drawn (every platform but Android), it is a blur.
   group('a gradient blur', () {
     /// Rows of black and white across a strip [height] tall, drawn through an [EdgeBlurStrip] whose edge is its top.
     Future<List<double>> contrastDown(WidgetTester tester, double height) async {
@@ -280,9 +417,9 @@ void main() {
   group('the wisp', () {
     test('is drawn nowhere: no smoke widget, shader or bench is left, and the bend alone stays, for the heat and the haze', () {
       final shaders = Directory('shaders').listSync().map((f) => f.uri.pathSegments.last).toList();
-      expect(shaders, ['wisp_bend.frag']);
+      expect(shaders..sort(), ['edge_blur.frag', 'wisp_bend.frag'], reason: 'the bend, and the backdrop\'s blur on Android');
       final pubspec = File('pubspec.yaml').readAsStringSync();
-      expect(RegExp(r'shaders/\w+\.frag').allMatches(pubspec).map((m) => m.group(0)), ['shaders/wisp_bend.frag']);
+      expect(RegExp(r'shaders/\w+\.frag').allMatches(pubspec).map((m) => m.group(0)), ['shaders/wisp_bend.frag', 'shaders/edge_blur.frag']);
       const gone = ['wisp_edge', 'wisp_smoke', 'wisp_strips', 'wisp_mask', 'wisp_foot', 'wisp_sides', 'wisp_box', 'wisp_letters', 'wisp_probe', 'wisp_settings', 'dock_smoke', 'wisp_bench'];
       final users = <String>[];
       for (final file in Directory('lib').listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.dart'))) {

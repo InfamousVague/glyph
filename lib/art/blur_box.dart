@@ -9,7 +9,9 @@ import 'edge_strips.dart';
 /// ([BlurFoot]) and the tab row's ends ([BlurSides]). Where the wisp's smoke was (Matt, 2026-10-24: "replace the
 /// smoke effect with a gradient blur on all places that use the wisp smoke", on every platform): what slides off the
 /// box's open edge goes soft toward it and fades out at it. Nothing about it moves, so a box at rest costs nothing
-/// after the paint that drew it.
+/// after the paint that drew it. On Android a box's ends are their fades alone, as with the edges' switch off
+/// ([edgeLook], [EdgeMasked]): a lane scrolled took a picture of its foot at every frame, and a backdrop's blur
+/// cannot be faded out to a box's own ground.
 
 /// A lane's foot: how deep its blur runs at most (half the lane, on a short one), and how soft at the edge.
 const double blurFootDepth = 32;
@@ -60,7 +62,10 @@ class _BlurBoxedState extends State<BlurBoxed> {
         // A box keeps its own picture: a row of tabs is painted again when a tab changes, not on every frame the
         // page under it scrolls, and a strip that was not painted again makes no pictures. Its strips know where
         // they were laid: edge_strips.dart.
-        return RepaintBoundary(child: EdgeStrips(strips: widget.build(constraints.biggest, BlurEdgeSettings.instance.wanted), child: widget.child));
+        final strips = widget.build(constraints.biggest, BlurEdgeSettings.instance.wanted);
+        // Where the edges are not the strips' (Android, [edgeLook]), a box's ends are its mask alone: no picture of
+        // the box is taken, and a lane scrolled inside its mask paints nothing of the mask again.
+        return RepaintBoundary(child: edgeLook == EdgeLook.blur ? EdgeStrips(strips: strips, child: widget.child) : EdgeMasked(strips: strips, child: widget.child));
       },
     );
   }

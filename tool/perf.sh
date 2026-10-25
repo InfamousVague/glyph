@@ -8,6 +8,8 @@
 #   tool/perf.sh mac 'wait:2000;mark:x;taptext:Bench long;wait:2000;mark:end'     a walk of your own
 #   PERF_TOP=50 PERF_ONLY=note-type tool/perf.sh mac note      more of the profile, for one stretch
 #   PERF_BUILD=0 tool/perf.sh mac note    walk the build that is there, without building again
+#   PERF_DEFINES='--dart-define=GHOST_EDGE=fade' tool/perf.sh mac note
+#                                         the walk of a build made with more defines, to tell two ways apart
 #   PERF_DEVICE=<adb serial> tool/perf.sh android [note+settings]
 #                                         the same walk on a phone or an emulator: frames by stretch, where the
 #                                         raster half is the phone's own GPU. The device is always named, never
@@ -81,7 +83,7 @@ if [ "$what" = "android" ]; then
   if [ "${PERF_BUILD:-1}" != "0" ]; then
     # The walk is compiled in: a phone's app has no environment to read it from.
     GHOST_PERF_ID=1 flutter build apk --profile --no-pub --target-platform android-arm64 \
-      --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 "--dart-define=GHOST_PERF_TOUR=$walk" 2>&1 | tail -2
+      --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 "--dart-define=GHOST_PERF_TOUR=$walk" ${PERF_DEFINES:-} 2>&1 | tail -2
     cp "$root/build/app/outputs/flutter-apk/app-profile.apk" "$dir/perf.apk"
   fi
   # The lock is let go once the build is done: what the walk measures is the phone, not this Mac.
@@ -117,7 +119,7 @@ fi
 dir="$root/build/perf/mac"
 mkdir -p "$dir"
 if [ "${PERF_BUILD:-1}" != "0" ]; then
-  flutter build macos --profile --no-pub --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 2>&1 | tail -2
+  flutter build macos --profile --no-pub --dart-define=GHOST_PERF=true --dart-define=GHOST_PERF_SEED=350 ${PERF_DEFINES:-} 2>&1 | tail -2
 fi
 app="$root/build/macos/Build/Products/Profile/Ghost Flutter.app/Contents/MacOS/Ghost Flutter"
 rm -f "$dir/cache/perf/report.json" "$dir/cache/perf/vm.txt" "$dir/cache/perf/done" "$dir/cache/perf/samples.json"

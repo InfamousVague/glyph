@@ -24,7 +24,46 @@ import '../perf/frame_log.dart' show Perf, ghostPerf;
 /// What it costs: one picture of the strip (and as far round it as the strongest blur gathers from) when the view
 /// under it is painted, and three blurs of that picture, a band 20 to 64 pixels deep, the softest two of which the
 /// engine draws at a fraction of the screen's pixels. Nothing moves in it, so it
-/// asks for no frame of its own, and a view at rest is painted once.
+/// asks for no frame of its own, and a view at rest is painted once. A view that scrolls is painted at every frame,
+/// though, and so is every picture: too much for Android, which draws the blur as a backdrop filter instead, its
+/// softness grown by a shader rather than by bands ([edgeLook], lib/art/edge_backdrop.dart).
+
+/// How a platform draws a view's soft edges: the gradient blur through pictures of the view ([blur]); the same blur
+/// as a backdrop filter whose shader grows its softness toward the edge, with no picture taken ([backdrop],
+/// lib/art/edge_backdrop.dart); or the page's ground laid over the edge and nothing blurred ([fade]).
+enum EdgeLook { blur, backdrop, fade }
+
+/// A build's own choice of [EdgeLook], for measuring one against another on the same device
+/// (`--dart-define=GHOST_EDGE=fade`, `backdrop` or `blur`, with tool/perf.sh's `PERF_DEFINES`); the platform's own
+/// when left out.
+const String ghostEdge = String.fromEnvironment('GHOST_EDGE');
+
+/// For a test: the look the edges wear whatever the platform and the engine say.
+@visibleForTesting
+EdgeLook? debugEdgeLook;
+
+/// The look this platform's edges wear ([EdgeLook]).
+///
+/// Android draws the blur as a backdrop filter (Matt, 2026-10-25, on the Fold with 2.3.27: "the blur works now but
+/// it's super laggy, research if there is a library or something we can use for cleaner blurs, if not use simple
+/// gradients on android"). The strips took a picture of the view for every strip at every frame a page scrolled,
+/// three or four a frame, and drew each at three softnesses: walked on the ghostflutter2 emulator, a fling down the
+/// home page spent 11 ms of each frame's raster on them (a note's 12, a board's 11.5), where the backdrop spent 2.8
+/// and the page's ground alone, no blur at all, 2.5 to 2.8; a fling down a long note dropped 70 frames with the
+/// strips, 15 with the backdrop and 5 with the fade (build/feature-shots/blur-perf/). The emulator's GPU is the
+/// Mac's, not the Fold's: what it tells is the cost of each way against the others. An engine that cannot filter by
+/// a shader (Skia, which a test runs on) fades. The Mac, the iPhone and every desktop keep the strips: Impeller on
+/// Metal draws them inside a frame, and their look is the one the tests measure (test/art/blur_edge_test.dart).
+EdgeLook get edgeLook {
+  if (debugEdgeLook case final look?) return look;
+  final asked = switch (ghostEdge) {
+    'fade' => EdgeLook.fade,
+    'blur' => EdgeLook.blur,
+    'backdrop' => EdgeLook.backdrop,
+    _ => defaultTargetPlatform == TargetPlatform.android ? EdgeLook.backdrop : EdgeLook.blur,
+  };
+  return asked == EdgeLook.backdrop && !ui.ImageFilter.isShaderFilterSupported ? EdgeLook.fade : asked;
+}
 
 /// What one strip of a view is drawn through, in place of the view itself: its blur, or a plain fade. [rect] is the
 /// strip in the view's own pixels; [reach] is how much further the picture of the view has to run for what the
@@ -239,6 +278,142 @@ class EdgeBlurStrip extends EdgeStrip {
 
   @override
   int get hashCode => Object.hash(rect, side, sigma, wash, opacity, fade);
+}
+
+/// How much of the page's ground a faded edge ([EdgeLook.fade]) lays at its very edge, where a blur's wash is
+/// [EdgeBlurStrip.wash]: with nothing blurred under it, the words have to go further into the ground to be gone
+/// (a plain build's shade, lib/art/blur_edge.dart `PlainShade`, is as much).
+const double edgeFadeWash = 0.92;
+
+/// The strips of a view laid over it as the page's [ground] alone, where [EdgeLook.fade] has them, and over the
+/// backdrop's blur ([EdgeLook.backdrop], with the blur's own [wash]): no picture of the view and no layer, two or
+/// three gradients a frame. Each [EdgeBlurStrip] is its wash, from none at its inner end
+/// to [wash] of the ground at its edge (as much of it as the strip's opacity), and wherever a strip's own mask
+/// ([EdgeFade]) would clear the view, the ground stands in its place: what is behind the view is the page's ground.
+class EdgeShade extends CustomPainter {
+  const EdgeShade({required this.strips, required this.ground, this.wash = edgeFadeWash});
+
+  final List<EdgeStrip> strips;
+  final Color ground;
+  final double wash;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    for (final strip in strips) {
+      final rect = strip.rect;
+      if (rect.isEmpty) continue;
+      canvas.save();
+      canvas.clipRect(rect, doAntiAlias: false);
+      if (strip is EdgeBlurStrip) {
+        final (inner, edge) = strip._ends(rect);
+        final most = wash * strip.opacity.clamp(0.0, 1.0);
+        if (most > 0) canvas.drawRect(rect, Paint()..shader = ui.Gradient.linear(inner, edge, [ground.withValues(alpha: 0), ground.withValues(alpha: most)]));
+      }
+      final (fade, axis) = switch (strip) {
+        EdgeBlurStrip(:final fade, :final side) => (fade, side == EdgeSide.top || side == EdgeSide.bottom ? Axis.vertical : Axis.horizontal),
+        EdgeFadeStrip(:final fade, :final axis) => (fade, axis),
+        _ => (null, Axis.vertical),
+      };
+      if (fade != null) _cleared(canvas, rect, fade, axis);
+      canvas.restore();
+    }
+  }
+
+  /// The ground where [fade] clears the view over [rect]: whole where the view is gone, none where it is whole.
+  void _cleared(Canvas canvas, Rect rect, EdgeFade fade, Axis axis) {
+    const nowhere = 1e8;
+    Offset on(double value) => axis == Axis.vertical ? Offset(rect.left, value) : Offset(value, rect.top);
+    final start = axis == Axis.vertical ? rect.top : rect.left, end = axis == Axis.vertical ? rect.bottom : rect.right;
+    Rect span(double from, double to) => axis == Axis.vertical ? Rect.fromLTRB(rect.left, from, rect.right, to) : Rect.fromLTRB(from, rect.top, to, rect.bottom);
+    final whole = ground, none = ground.withValues(alpha: 0);
+    if (fade.wholeFrom > -nowhere && fade.wholeFrom > start) {
+      final until = math.max(start, fade.clearUntil);
+      if (until > start) canvas.drawRect(span(start, until), Paint()..color = whole);
+      canvas.drawRect(span(until, math.min(end, fade.wholeFrom)), Paint()..shader = ui.Gradient.linear(on(fade.clearUntil), on(math.max(fade.wholeFrom, fade.clearUntil + 0.01)), [whole, none]));
+    }
+    if (fade.wholeUntil < nowhere && fade.wholeUntil < end) {
+      final from = math.min(end, fade.clearFrom);
+      canvas.drawRect(span(math.max(start, fade.wholeUntil), from), Paint()..shader = ui.Gradient.linear(on(fade.wholeUntil), on(math.max(fade.clearFrom, fade.wholeUntil + 0.01)), [none, whole]));
+      if (from < end) canvas.drawRect(span(from, end), Paint()..color = whole);
+    }
+  }
+
+  @override
+  bool shouldRepaint(EdgeShade old) => old.ground != ground || old.wash != wash || !listEquals(old.strips, strips);
+}
+
+/// [child] seen through the masks of [strips] alone ([EdgeFade], the stylesheet's `mask-image`), with nothing
+/// blurred: where the edges are not the strips' ([EdgeLook.backdrop], [EdgeLook.fade]), a box's ends (a board lane's
+/// foot, the tab row's ends), whose ground is not the page's to lay over them and whose fade to clear no backdrop
+/// filter can be drawn through. A mask layer for each ramp of each mask (fadeRamps: one gradient for both ends of a
+/// box is drawn from too coarse a table on the Mac), pushed as the box paints, so an end that opens or shuts builds
+/// nothing again; no picture is taken of the box, and a scroller inside it moves under the masks without painting
+/// them again.
+class EdgeMasked extends SingleChildRenderObjectWidget {
+  const EdgeMasked({super.key, required this.strips, super.child});
+
+  final List<EdgeStrip> strips;
+
+  @override
+  RenderEdgeMasked createRenderObject(BuildContext context) => RenderEdgeMasked(strips: strips);
+
+  @override
+  void updateRenderObject(BuildContext context, RenderEdgeMasked renderObject) => renderObject.strips = strips;
+}
+
+class RenderEdgeMasked extends RenderProxyBox {
+  RenderEdgeMasked({required List<EdgeStrip> strips}) : _strips = strips;
+
+  List<EdgeStrip> _strips;
+  List<EdgeStrip> get strips => _strips;
+  set strips(List<EdgeStrip> value) {
+    if (listEquals(value, _strips)) return;
+    final had = _strips.isNotEmpty;
+    _strips = value;
+    if (had != value.isNotEmpty) markNeedsCompositingBitsUpdate();
+    markNeedsPaint();
+  }
+
+  /// Each mask's ramps, in the box's own pixels: two strips of one mask (a row's two ends) are one mask.
+  List<ui.Gradient> get _ramps {
+    final masks = <(EdgeFade, Axis)>{
+      for (final strip in _strips)
+        if (strip case EdgeBlurStrip(:final fade?, :final side))
+          (fade, side == EdgeSide.top || side == EdgeSide.bottom ? Axis.vertical : Axis.horizontal)
+        else if (strip case EdgeFadeStrip(:final fade, :final axis))
+          (fade, axis),
+    };
+    return [for (final (fade, axis) in masks) ...fadeRamps(fade, axis)];
+  }
+
+  @override
+  bool get alwaysNeedsCompositing => _strips.isNotEmpty;
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    final ramps = _ramps;
+    if (child == null || ramps.isEmpty) {
+      layer = null;
+      super.paint(context, offset);
+      return;
+    }
+    void masked(PaintingContext context, Offset offset, int index) {
+      if (index == ramps.length) {
+        context.paintChild(child!, offset);
+        return;
+      }
+      context.pushLayer(
+        ShaderMaskLayer()
+          ..shader = ramps[index]
+          ..maskRect = offset & size
+          ..blendMode = BlendMode.dstIn,
+        (context, offset) => masked(context, offset, index + 1),
+        offset,
+      );
+    }
+
+    masked(context, offset, 0);
+  }
 }
 
 /// The budget a strip's picture is held to, in the screen's own pixels: a region past it keeps its plain edge.

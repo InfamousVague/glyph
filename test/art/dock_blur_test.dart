@@ -8,9 +8,15 @@ import 'package:ghost_md/art/art.dart';
 /// The halo round the dock, a gradient blur where the wisp's smoke was (Matt, 2026-10-24: "replace the smoke effect
 /// with a gradient blur on all places that use the wisp smoke", and on the Mac too): where it is drawn, that it
 /// follows the dock, that it is the same on every platform and with reduced motion, and that it is softest at the
-/// dock and nothing at its own edge. Case for case with what test/art/dock_smoke_test.dart said of the smoke.
+/// dock and nothing at its own edge. Case for case with what test/art/dock_smoke_test.dart said of the smoke. On
+/// Android the halo is the page's ground through the same pill, and no picture is taken (Matt, 2026-10-25: "if not
+/// use simple gradients on android"); a test's platform is Android unless it says otherwise, so the blur is said of a
+/// Mac.
 void main() {
   tearDown(() => debugDefaultTargetPlatformOverride = null);
+
+  /// The strips' blur is said of a Mac: a test's platform is Android unless it says otherwise.
+  final onMac = TargetPlatformVariant.only(TargetPlatform.macOS);
 
   DockBlurStrip? halo(WidgetTester tester) => tester.renderObject<RenderEdgeStrips>(find.byType(EdgeStrips).first).strips.whereType<DockBlurStrip>().firstOrNull;
 
@@ -48,7 +54,7 @@ void main() {
       expect(shape.soft, greaterThan(1));
     });
 
-    testWidgets('is given to the halo once the dock is measured', (tester) async {
+    testWidgets('is given to the halo once the dock is measured', variant: onMac, (tester) async {
       await dock(tester);
       final strip = halo(tester)!;
       // The dock at the foot's middle, 20 up; the halo its box and the reach on every side.
@@ -58,7 +64,7 @@ void main() {
       expect(tester.takeException(), isNull);
     });
 
-    for (final platform in [TargetPlatform.android, TargetPlatform.iOS, TargetPlatform.macOS, TargetPlatform.windows]) {
+    for (final platform in [TargetPlatform.iOS, TargetPlatform.macOS, TargetPlatform.windows]) {
       testWidgets('is the same blur on ${platform.name}, and with reduced motion', (tester) async {
         debugDefaultTargetPlatformOverride = platform;
         await dock(tester);
@@ -71,13 +77,27 @@ void main() {
       });
     }
 
-    testWidgets('follows the dock when it changes size', (tester) async {
+    testWidgets('is the page\'s ground through the same pill on Android, and no picture of the page', (tester) async {
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
+      DockFadeHalo? faded() => tester.widgetList<CustomPaint>(find.byType(CustomPaint)).map((p) => p.foregroundPainter).whereType<DockFadeHalo>().firstOrNull;
+      await dock(tester);
+      expect(find.byType(EdgeStrips), findsNothing);
+      expect(faded()!.rect, const Rect.fromLTWH(120, 436, 160, 44).inflate(dockBlurReach), reason: 'round the dock as the blur is');
+      final moving = faded();
+      await tester.pumpWidget(const SizedBox());
+      await dock(tester, still: true);
+      expect(faded()!.rect, moving!.rect, reason: 'the same with reduced motion');
+      expect(tester.binding.hasScheduledFrame, isFalse);
+      debugDefaultTargetPlatformOverride = null;
+    });
+
+    testWidgets('follows the dock when it changes size', variant: onMac, (tester) async {
       await dock(tester);
       await dock(tester, size: const Size(240, 44));
       expect(halo(tester)!.rect, const Rect.fromLTWH(80, 436, 240, 44).inflate(dockBlurReach));
     });
 
-    testWidgets('draws nothing where there is no dock to draw round', (tester) async {
+    testWidgets('draws nothing where there is no dock to draw round', variant: onMac, (tester) async {
       await tester.pumpWidget(const Directionality(textDirection: TextDirection.ltr, child: DockBlurHalo(dock: null, child: SizedBox(width: 100, height: 100))));
       expect(tester.renderObject<RenderEdgeStrips>(find.byType(EdgeStrips)).strips, isEmpty);
     });

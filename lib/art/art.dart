@@ -29,6 +29,7 @@ export 'blur_box.dart';
 export 'blur_edge.dart';
 export 'blur_letter.dart';
 export 'dock_blur.dart';
+export 'edge_backdrop.dart';
 export 'edge_strips.dart';
 export 'gears.dart';
 export 'ghost.dart';
