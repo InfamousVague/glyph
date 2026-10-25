@@ -1,6 +1,7 @@
 // A gradient blur of what is behind a band, one axis at a time (lib/art/edge_backdrop.dart): two of these, across
 // then down, are one backdrop filter. The softness grows from none at the band's inner end to uSigma at its edge,
-// and the blur is laid over the sharp view through a gradient mask that comes in over uFeather of the band.
+// and the blur is laid over the sharp view through a gradient mask that comes in over uFeather of the band (and, at a
+// box's end, goes out again over uClear at its edge).
 //
 // The mask is a clipping mask, the blurred layer's own opacity: the down pass, the last, gives each pixel the
 // mask's share as its alpha (premultiplied), and the backdrop filter lays what it draws over the sharp view it read
@@ -26,6 +27,9 @@ uniform float uAxis;
 // How far in from the band's inner end the mask is whole, as a share of the band: none of the blur shows at the
 // inner end, all of it from here to the edge, and a smoothstep between.
 uniform float uFeather;
+// How far in from the band's edge the mask falls again to none, as a share of the band: a box's end, whose own mask
+// has cleared the view toward its edge before the band read it (lib/art/blur_box.dart). None for a page's edge.
+uniform float uClear;
 
 uniform sampler2D uTexture;
 
@@ -43,6 +47,8 @@ void main() {
   bool down = uAxis > 0.5;
   // The across pass is whole; the down pass is the blurred layer seen through the mask.
   float shown = down ? smoothstep(0.0, max(uFeather, 1e-3), t) : 1.0;
+  // And at a box's edge, out again: what the blur gathered from inside spreads no further than the box's own fade.
+  if (down && uClear > 0.0) shown *= 1.0 - smoothstep(1.0 - uClear, 1.0, t);
   if (shown <= 0.0) {
     fragColor = vec4(0.0);
     return;

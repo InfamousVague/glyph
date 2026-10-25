@@ -152,6 +152,48 @@ void main() {
       await away(tester);
     });
 
+    // Matt, 2026-10-25, on the Fold: "the cassette area needs to have a blur not a gradient". On Android the ends are
+    // backdrop bands over the row's fade, as soft as each end shows; the test's engine cannot run their shader.
+    testWidgets('on Android the row\'s ends are blurred by a band each, going with the end, in a group of the shelf\'s own', (tester) async {
+      debugEdgeLook = EdgeLook.backdrop;
+      addTearDown(() => debugEdgeLook = null);
+      debugEdgePictures = 0;
+      final it = made();
+      await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings), size: const Size(390, 844));
+      await settle(tester);
+      final shelf = find.byKey(const ValueKey('meeting-shelf'));
+      final row = tester.widget<SingleChildScrollView>(find.byKey(const ValueKey('meeting-shelf-row'))).controller!;
+      final rowBox = tester.getRect(find.byKey(const ValueKey('meeting-shelf-row')));
+      List<(EdgeSide, double, double)> bands() => [
+            for (final band in tester.renderObjectList<RenderEdgeBackdropBand>(find.descendant(of: shelf, matching: find.byType(EdgeBackdropBand))))
+              (band.side, band.sigma, band.clear),
+          ];
+
+      expect(bands(), [(EdgeSide.right, blurSidesSigma, blurSidesFade)], reason: 'at its start, the right end alone');
+      final band = find.descendant(of: shelf, matching: find.byType(EdgeBackdropBand));
+      expect(tester.getRect(band), Rect.fromLTRB(rowBox.right - blurSidesDepth, rowBox.top, rowBox.right, rowBox.bottom), reason: 'the row\'s height, laid out with it');
+      final group = find.ancestor(of: band, matching: find.byType(BackdropGroup)).first;
+      expect(find.descendant(of: shelf, matching: group), findsOneWidget, reason: 'the shelf\'s own group, read as the shelf is drawn');
+
+      row.jumpTo(row.position.maxScrollExtent / 2);
+      await tester.pump();
+      expect(bands(), [(EdgeSide.left, blurSidesSigma, blurSidesFade), (EdgeSide.right, blurSidesSigma, blurSidesFade)]);
+
+      row.jumpTo(row.position.maxScrollExtent - blurSidesDepth / 2);
+      await tester.pump();
+      expect(bands().last.$1, EdgeSide.right);
+      expect(bands().last.$2, closeTo(blurSidesSigma / 2, 1e-6), reason: 'half there, half as soft');
+      expect(bands().last.$3, closeTo(blurSidesFade / 2, 1e-6));
+
+      row.jumpTo(row.position.maxScrollExtent);
+      await tester.pump();
+      expect(bands(), [(EdgeSide.left, blurSidesSigma, blurSidesFade)], reason: 'at its end, the right end gone');
+      expect(debugEdgePictures, 0);
+      expect(takesEdgePictures(tester, shelf), isFalse);
+      expect(tester.takeException(), isNull);
+      await away(tester);
+    });
+
     testWidgets('a row that fits has no ends at all', (tester) async {
       final it = made();
       await pumpHome(tester, Home(library: it.library, workspaces: it.workspaces, asked: it.asked, meetings: meetings), size: const Size(1200, 800));

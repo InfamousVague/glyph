@@ -417,7 +417,8 @@ class EdgeShade extends CustomPainter {
 /// filter can be drawn through. A mask layer for each ramp of each mask (fadeRamps: one gradient for both ends of a
 /// box is drawn from too coarse a table on the Mac), pushed as the box paints, so an end that opens or shuts builds
 /// nothing again; no picture is taken of the box, and a scroller inside it moves under the masks without painting
-/// them again.
+/// them again. Where the engine filters by a shader ([EdgeLook.backdrop]) the box's blur is laid over this, as
+/// backdrop bands that clear toward the edge as the mask does (blur_box.dart).
 class EdgeMasked extends SingleChildRenderObjectWidget {
   const EdgeMasked({super.key, required this.strips, super.child});
 

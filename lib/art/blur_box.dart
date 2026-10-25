@@ -3,15 +3,24 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import 'blur_edge.dart';
+import 'edge_backdrop.dart';
 import 'edge_strips.dart';
 
 /// The gradient blur for a small box that scrolls inside a page: a board's lane with more cards than it shows
 /// ([BlurFoot]) and the tab row's ends ([BlurSides]). Where the wisp's smoke was (Matt, 2026-10-24: "replace the
 /// smoke effect with a gradient blur on all places that use the wisp smoke", on every platform): what slides off the
 /// box's open edge goes soft toward it and fades out at it. Nothing about it moves, so a box at rest costs nothing
-/// after the paint that drew it. On Android a box's ends are their fades alone, as with the edges' switch off
-/// ([edgeLook], [EdgeMasked]): a lane scrolled took a picture of its foot at every frame, and a backdrop's blur
-/// cannot be faded out to a box's own ground.
+/// after the paint that drew it.
+///
+/// On Android a box's ends are blurred as a page's are, by a backdrop band of the screen for each end
+/// (lib/art/edge_backdrop.dart), over the box's own fade (Matt, 2026-10-25, on the Fold: "the cassette area needs to
+/// have a blur not a gradient"). They were the fades alone ([EdgeMasked]): a lane scrolled took a picture of its foot
+/// at every frame, and a backdrop's blur cannot be faded out to a box's own ground. Now the box is drawn through its
+/// fade as it was, clear at its edge, and the bands are laid over it in a [BackdropGroup] of the box's own, so they
+/// read the box as it was just drawn and not a backdrop a page around it read before; each band's softness is its
+/// strip's as much as the end shows, and its blur clears again toward the edge over the fade's length
+/// ([EdgeBackdropBand.clear]), so nothing the blur gathered stands past the fade. Two bands at most, no picture. Where
+/// the engine cannot filter by a shader ([EdgeLook.fade]) the ends are their fades alone.
 
 /// A lane's foot: how deep its blur runs at most (half the lane, on a short one), and how soft at the edge.
 const double blurFootDepth = 32;
@@ -42,6 +51,8 @@ class _BlurBoxedState extends State<BlurBoxed> {
   void initState() {
     super.initState();
     BlurEdgeSettings.instance.addListener(_changed);
+    // The bands' shader, as a page with soft edges loads it: a box may be the first thing on the screen to blur.
+    if (edgeLook == EdgeLook.backdrop) EdgeBackdropProgram.load();
   }
 
   @override
@@ -56,21 +67,80 @@ class _BlurBoxedState extends State<BlurBoxed> {
 
   @override
   Widget build(BuildContext context) {
+    List<EdgeStrip> strips(Size size) => widget.build(size, BlurEdgeSettings.instance.wanted);
     return LayoutBuilder(
       builder: (context, constraints) {
-        // A box as tall as what it holds (a row of cassettes, lib/home/meeting_shelf.dart) is not a size to build
-        // strips for here: its strips are made once it is laid out ([_LaidStrips]).
+        final Widget drawn;
         if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
-          return RepaintBoundary(child: _LaidStrips(build: (size) => widget.build(size, BlurEdgeSettings.instance.wanted), child: widget.child));
+          // A box as tall as what it holds (a row of cassettes, lib/home/meeting_shelf.dart) is not a size to build
+          // strips for here: its strips are made once it is laid out ([_LaidStrips]).
+          drawn = _LaidStrips(build: strips, child: widget.child);
+        } else if (edgeLook == EdgeLook.blur) {
+          // A box keeps its own picture: a row of tabs is painted again when a tab changes, not on every frame the
+          // page under it scrolls, and a strip that was not painted again makes no pictures. Its strips know where
+          // they were laid: edge_strips.dart.
+          drawn = EdgeStrips(strips: strips(constraints.biggest), child: widget.child);
+        } else {
+          // Where the edges are not the strips' (Android, [edgeLook]), a box's ends are its mask: no picture of the
+          // box is taken, and a lane scrolled inside its mask paints nothing of the mask again.
+          drawn = EdgeMasked(strips: strips(constraints.biggest), child: widget.child);
         }
-        // A box keeps its own picture: a row of tabs is painted again when a tab changes, not on every frame the
-        // page under it scrolls, and a strip that was not painted again makes no pictures. Its strips know where
-        // they were laid: edge_strips.dart.
-        final strips = widget.build(constraints.biggest, BlurEdgeSettings.instance.wanted);
-        // Where the edges are not the strips' (Android, [edgeLook]), a box's ends are its mask alone: no picture of
-        // the box is taken, and a lane scrolled inside its mask paints nothing of the mask again.
-        return RepaintBoundary(child: edgeLook == EdgeLook.blur ? EdgeStrips(strips: strips, child: widget.child) : EdgeMasked(strips: strips, child: widget.child));
+        if (edgeLook != EdgeLook.backdrop) return RepaintBoundary(child: drawn);
+        // And over the mask, a band for each end that blurs, read in a group of the box's own. The bands are laid
+        // out at the box's own size once it has one, which a box as tall as what it holds has only then.
+        return RepaintBoundary(
+          child: BackdropGroup(
+            child: Stack(
+              fit: StackFit.passthrough,
+              children: [
+                drawn,
+                Positioned.fill(child: IgnorePointer(child: LayoutBuilder(builder: (context, box) => BoxBands(strips: strips(box.biggest))))),
+              ],
+            ),
+          ),
+        );
       },
+    );
+  }
+}
+
+/// How much of a box's fade its band's blur clears over again at the edge ([EdgeBackdropBand.clear]): all of it. On
+/// the ghostflutter2 emulator with none, a sixth of a cassette's colour stood at the shelf's edge and stopped there;
+/// over half the fade, the glow the blur draws above and below a cassette still stopped in a line at the edge
+/// (build/feature-shots/shelf-blur/edge-clear-*.png).
+const double blurBoxClear = 1;
+
+/// A box's ends as backdrop bands (Android, [EdgeLook.backdrop]): a band where each [EdgeBlurStrip] lies, as soft as
+/// the strip as much as it shows ([EdgeBlurStrip.opacity]), its blur clearing again toward the edge over the strip's
+/// fade ([blurBoxClear]). A fade alone has no band.
+class BoxBands extends StatelessWidget {
+  const BoxBands({super.key, required this.strips});
+
+  final List<EdgeStrip> strips;
+
+  /// How long [strip]'s fade is at its edge, the ramp from whole to clear, or none.
+  static double fadeAt(EdgeBlurStrip strip) {
+    final fade = strip.fade;
+    if (fade == null) return 0;
+    const nowhere = 1e8;
+    final length = switch (strip.side) {
+      EdgeSide.top || EdgeSide.left => fade.wholeFrom > -nowhere ? fade.wholeFrom - fade.clearUntil : 0.0,
+      EdgeSide.bottom || EdgeSide.right => fade.wholeUntil < nowhere ? fade.clearFrom - fade.wholeUntil : 0.0,
+    };
+    return math.max(0, length);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final blurs = strips.whereType<EdgeBlurStrip>().where((strip) => strip.sigma * strip.opacity > 0).toList();
+    return Stack(
+      children: [
+        for (final strip in blurs)
+          Positioned.fromRect(
+            rect: strip.rect,
+            child: EdgeBackdropBand(side: strip.side, sigma: strip.sigma * strip.opacity.clamp(0.0, 1.0), clear: fadeAt(strip) * blurBoxClear),
+          ),
+      ],
     );
   }
 }

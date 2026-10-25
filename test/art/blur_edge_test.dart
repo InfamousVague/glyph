@@ -313,14 +313,16 @@ void main() {
     test('the backdrop\'s shader is the one pubspec.yaml ships, with the uniforms the band sets', () {
       final shader = File('shaders/edge_blur.frag').readAsStringSync();
       final uniforms = RegExp(r'^uniform (\w+) (\w+);', multiLine: true).allMatches(shader).map((m) => '${m.group(1)} ${m.group(2)}').toList();
-      // The engine's size first, then the band (floats 2 to 5), the softness (6), the side (7), the axis (8) and the
-      // gradient mask's feather (9).
-      expect(uniforms, ['vec2 uSize', 'vec4 uBand', 'float uSigma', 'float uSide', 'float uAxis', 'float uFeather', 'sampler2D uTexture']);
+      // The engine's size first, then the band (floats 2 to 5), the softness (6), the side (7), the axis (8), the
+      // gradient mask's feather (9) and where it clears again at a box's edge (10).
+      expect(uniforms, ['vec2 uSize', 'vec4 uBand', 'float uSigma', 'float uSide', 'float uAxis', 'float uFeather', 'float uClear', 'sampler2D uTexture']);
       // The mask is the down pass's alpha, a smoothstep over the feather (edgeBlurMask is the same curve), and the
       // across pass is whole: the engine lays the layer over the sharp view it read. The test's engine cannot run the
       // shader; how it looks was seen on the ghostflutter2 emulator (build/feature-shots/blur-feather/).
       expect(shader, contains('float shown = down ? smoothstep(0.0, max(uFeather, 1e-3), t) : 1.0;'));
       expect(shader, contains('fragColor = sum / weights * shown;'));
+      // A box's end (lib/art/blur_box.dart): the mask out again over uClear at the edge, and nothing of it for a page.
+      expect(shader, contains('if (down && uClear > 0.0) shown *= 1.0 - smoothstep(1.0 - uClear, 1.0, t);'));
       expect(edgeBlurFeather, 1 / edgeBlurLevels, reason: 'whole where the strips\' sharp view is gone');
       expect(edgeBlurMask(0), 0);
       expect(edgeBlurMask(edgeBlurFeather / 2), closeTo(0.5, 1e-9));
