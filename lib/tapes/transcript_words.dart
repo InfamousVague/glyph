@@ -1,26 +1,53 @@
-/// The words as they were spoken, lit as they are heard. The phrase under the playhead is in ink, the ones already
-/// heard in grey, the ones still to come lighter still, and the page keeps the lit one in view while the tape plays.
-/// Tapping a phrase takes the tape there. A port of `TranscriptWords` in `src/app/tapes/NoteTape.tsx`, with
-/// `.transcript`, `.words`, `.phrase` and `.phraseSkeleton` of NoteTape.module.css.
+/// The words as they were spoken, lit as they are heard. The phrase under the playhead is in the first ink on the
+/// wash, the ones already heard in the transcript's own ink, the ones still to come a step lighter, and the page keeps
+/// the lit one in view while the tape plays. Tapping a phrase takes the tape there. A port of `TranscriptWords` in
+/// `src/app/tapes/NoteTape.tsx`, with `.transcript`, `.words`, `.phrase` and `.phraseSkeleton` of
+/// NoteTape.module.css.
 ///
 /// What differs: on the page it shared a file with the tape's strip; it is split out here. A phrase's two
 /// attributes (`data-current`, `data-past`) are [TranscriptPhrase]'s `current` and `past`. The page's
-/// `scrollIntoView({ block: 'center', behavior: 'smooth' })` is `Scrollable.ensureVisible` at the middle over the
-/// kit's normal duration, since a browser's smooth scroll has no length of its own to copy.
+/// `scrollIntoView({ block: 'center', behavior: 'smooth' })` is the transcript's own scroll taken to put the lit line
+/// in its middle over the kit's normal duration, since a browser's smooth scroll has no length of its own to copy;
+/// the note's page around it is left where it is, so the tape and its Play stay in sight.
 ///
 /// The port's own (Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"): a meeting opened
 /// anywhere shows this with its tape still (lib/note/land_at.dart `atTranscript`), so the words are read here and not
 /// only heard. Where the phrases do not carry the meeting's words, the words the note keeps under `## Transcript` do,
-/// untimed, a paragraph each ([writtenTranscript]): a meeting whose phrases have not come to this device, one whose
-/// only phrase is the live recognizer's first word ([phrasesWhole]), a Meet note whose transcript is Meet's captions.
+/// a paragraph each ([writtenTranscript]): a meeting whose phrases have not come to this device, one whose only
+/// phrase is the live recognizer's first word ([phrasesWhole]), a Meet note whose transcript is Meet's captions.
 /// While its write-up is still to come the place says so first ([TranscriptWords.writeUp], "Writing up… 42%"), over
-/// the captions where Meet gave any, rather than standing empty. And until a Play the phrases are all in the second
-/// ink, to be read; the fourth is for the ones still to be heard once the tape has moved.
+/// the captions where Meet gave any, rather than standing empty.
+///
+/// And lit, whichever words are shown (Matt, 2026-10-25: "the transcript for the meeting should highlight the
+/// section of audio that's playing"):
+///
+/// - **What is lit** is the last line begun at the playhead ([litAt]), found by halves over the lines' starts, so
+///   an hour's thousands of phrases cost a dozen looks a tick. It stays lit through the quiet after it until the
+///   next one begins, and while the tape is paused; nothing is lit on a tape that has not moved since it rested at
+///   its start ([Tape.started]): never played, or played to its end.
+/// - **Paragraphs** are lit by the time they were written with: Meet's captions keep when each turn began,
+///   `**Sam Lee (0:04):** …` (lib/meet/speakers.dart `captionsSection`), and a paragraph is current from that
+///   moment to the next one's ([paragraphStartMs]). A paragraph with no time of its own after one that has is more
+///   words of it, as `turnsOf` reads them, and is lit with it. The transcript a write-up leaves, `**Sam Lee:** …`,
+///   and the captions a note was filed from where no sound was kept, say no time, and nothing here makes one up:
+///   they stay as they were, not lit and not buttons. The phrases beside a written-up meeting are what is timed.
+/// - **Only what changed is built again.** The lines are made once for the words shown and kept; each asks the
+///   transcript's light ([_Lit], an [InheritedModel] by line) for its own, so a tick builds nothing, and a new line
+///   lit builds the two whose light moved, not the meeting.
+/// - **Following.** While the tape plays the lit line is kept in the middle of the transcript. Scrolling it oneself
+///   stops that, and a Follow pill over its foot takes it back, as does tapping a line, which takes the tape there.
+/// - Phrases are lit whole: a phrase keeps no times for its words ([Segment] has its start and end alone).
 library;
 
+import 'dart:async';
+import 'dart:math' as math;
+
+import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/app_icon.dart';
+import '../art/lucide.g.dart';
 import '../core/library.dart' show transcriptOf;
 import '../core/note.dart';
 import 'player.dart';
@@ -73,6 +100,57 @@ bool phrasesWhole(List<Segment> segments, List<String>? written) {
   return _words(segments.map((s) => s.text)) * 2 >= _words(written);
 }
 
+/// `**Sam Lee (0:04):** words`: a turn of Meet's captions as the note keeps it, named.
+final RegExp _timedNamed = RegExp(r'^\*\*(.+?) \((\d+(?::\d{2}){1,2})\):\*\*\s*(.*)$', dotAll: true);
+
+/// `(0:04) words`: one Meet showed no name over.
+final RegExp _timedBare = RegExp(r'^\((\d+(?::\d{2}){1,2})\)\s*(.*)$', dotAll: true);
+
+/// `**Sam Lee:** words`: named, with no time.
+final RegExp _named = RegExp(r'^\*\*(.+?)\*\*\s*(.*)$', dotAll: true);
+
+int _clockMs(String clock) => clock.split(':').fold(0, (total, part) => total * 60 + int.parse(part)) * 1000;
+
+/// When [paragraph] of a meeting's transcript or captions began, in ms into the recording, by the time it was
+/// written with (`**Sam Lee (0:04):** …`, `(1:02:03) …`: lib/meet/speakers.dart `captionsSection`); null for one
+/// written with none.
+int? paragraphStartMs(String paragraph) {
+  final named = _timedNamed.firstMatch(paragraph);
+  if (named != null) return _clockMs(named.group(2)!);
+  final bare = _timedBare.firstMatch(paragraph);
+  return bare == null ? null : _clockMs(bare.group(1)!);
+}
+
+/// The last of [starts] begun at [at] (each a line's start in ms, in the order spoken, never falling), or -1 before
+/// the first: the line being heard. By halves, so it costs a dozen looks over an hour's phrases.
+int litAt(List<int> starts, int at) {
+  var low = 0, high = starts.length;
+  while (low < high) {
+    final mid = (low + high) >> 1;
+    if (starts[mid] <= at) {
+      low = mid + 1;
+    } else {
+      high = mid;
+    }
+  }
+  return low - 1;
+}
+
+/// How a line of the transcript stands against the playhead.
+enum TranscriptLight {
+  /// There to be read: the tape has not moved, or the line has no moment of the tape to be lit at. The second ink.
+  reading,
+
+  /// Heard already: the second ink, as read.
+  past,
+
+  /// Being heard: the first ink, on the wash.
+  current,
+
+  /// Still to come, once the tape has moved: the third ink.
+  coming,
+}
+
 /// The recording's phrases, following [tape] (`TranscriptWords`). It scrolls in the place it is given.
 class TranscriptWords extends StatefulWidget {
   const TranscriptWords({super.key, required this.tape, this.writeUp});
@@ -87,187 +165,486 @@ class TranscriptWords extends StatefulWidget {
   State<TranscriptWords> createState() => _TranscriptWordsState();
 }
 
+/// The lines made for the words a tape's note shows, kept while those words stay: what [TranscriptWords] draws, the
+/// start of each lit line (a unit: a phrase, or a timed paragraph with the untimed ones after it), and a key on each
+/// unit's first line to find it on the page by.
+class _Shown {
+  _Shown({required this.segments, required this.body, required this.waiting, required this.lines, required this.starts, required this.keys});
+
+  final List<Segment>? segments;
+  final String body;
+  final bool waiting;
+  final List<Widget> lines;
+  final List<int> starts;
+  final List<GlobalKey> keys;
+
+  bool shows(List<Segment>? segments, String body) => identical(segments, this.segments) && (identical(body, this.body) || body == this.body);
+}
+
 class _TranscriptWordsState extends State<TranscriptWords> {
-  final Map<int, GlobalKey> _keys = {};
-  int _current = -1;
+  final ScrollController _scroll = ScrollController();
+  _Shown? _shown;
+  int _lit = -1;
+  bool _started = false;
   bool _playing = false;
+
+  /// Whether the lit line is kept in view while the tape plays: until the transcript is scrolled by hand, and again
+  /// from Follow or a tapped line.
+  bool _following = true;
 
   @override
   void initState() {
     super.initState();
-    widget.tape.addListener(_follow);
-    _current = widget.tape.current;
-    _playing = widget.tape.playing;
+    widget.tape.addListener(_heard);
   }
 
   @override
   void didUpdateWidget(TranscriptWords old) {
     super.didUpdateWidget(old);
     if (old.tape == widget.tape) return;
-    old.tape.removeListener(_follow);
-    widget.tape.addListener(_follow);
-    _keys.clear();
+    old.tape.removeListener(_heard);
+    widget.tape.addListener(_heard);
+    _shown = null;
   }
 
   @override
   void dispose() {
-    widget.tape.removeListener(_follow);
+    widget.tape.removeListener(_heard);
+    _scroll.dispose();
     super.dispose();
   }
 
-  /// While the tape plays, the phrase being heard is kept in the middle of the page.
-  void _follow() {
+  /// The tape told something. Built again only where what it said moves the transcript: its words, which line is
+  /// lit, or whether it is playing; the playhead moving inside one line is ten ticks a second of nothing to draw.
+  void _heard() {
     if (!mounted) return;
     final tape = widget.tape;
-    final changed = tape.current != _current || tape.playing != _playing;
-    _current = tape.current;
-    _playing = tape.playing;
-    setState(() {});
-    if (!changed || !_playing || _current < 0) return;
-    final lit = _current;
+    final shown = _shown;
+    if (shown == null || !shown.shows(tape.segments, tape.note.body)) {
+      setState(() {});
+      return;
+    }
+    final lit = tape.started ? litAt(shown.starts, tape.at) : -1;
+    if (lit == _lit && tape.started == _started && tape.playing == _playing) return;
+    final follow = tape.playing && _following && lit >= 0 && (lit != _lit || !_playing);
+    setState(() {
+      _lit = lit;
+      _started = tape.started;
+      _playing = tape.playing;
+    });
+    if (follow) _reveal();
+  }
+
+  /// Takes the tape to [ms], from a tapped line, and follows it again.
+  void _seek(int ms) {
+    if (!_following) setState(() => _following = true);
+    widget.tape.seek(ms);
+  }
+
+  /// Follow: the lit line in view again, and kept there.
+  void _follow() {
+    setState(() => _following = true);
+    _reveal();
+  }
+
+  /// The transcript scrolled by hand: it is no longer kept on the lit line.
+  bool _scrolled(UserScrollNotification note) {
+    if (note.direction != ScrollDirection.idle && _following) setState(() => _following = false);
+    return false;
+  }
+
+  /// Whether the lit line is to be brought into view after the next frame.
+  bool _revealing = false;
+
+  /// The lit line in the middle of the transcript, once the frame it is lit in is drawn: the transcript's own
+  /// scroll, not the page's. Asked any number of times before that frame, it goes once, to the line lit then.
+  void _reveal() {
+    if (_revealing) return;
+    _revealing = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final at = _keys[lit]?.currentContext;
-      if (!mounted || at == null) return;
+      _revealing = false;
+      final keys = _shown?.keys;
+      final unit = _lit;
+      if (!mounted || !_scroll.hasClients || keys == null || unit < 0 || unit >= keys.length) return;
+      final line = keys[unit].currentContext?.findRenderObject();
+      if (line == null || !line.attached) return;
+      final viewport = RenderAbstractViewport.maybeOf(line);
+      if (viewport == null) return;
+      final position = _scroll.position;
+      final to = viewport.getOffsetToReveal(line, 0.5).offset.clamp(position.minScrollExtent, position.maxScrollExtent);
+      if ((to - position.pixels).abs() < 1) return;
       final t = context.tokens;
-      Scrollable.ensureVisible(at, alignment: 0.5, duration: t.reducedMotion ? Duration.zero : t.duration('glacier-duration-normal'), curve: t.curve('glacier-ease-out'));
+      if (t.reducedMotion) {
+        _scroll.jumpTo(to);
+      } else {
+        unawaited(_scroll.animateTo(to, duration: t.duration('glacier-duration-normal'), curve: t.curve('glacier-ease-out')));
+      }
     });
   }
 
+  /// The lines for the words [tape]'s note shows (see the header), made once for them.
+  _Shown _make(Tape tape, bool waiting) {
+    final segments = tape.segments;
+    final body = tape.note.body;
+    final written = writtenTranscript(body);
+    _Shown shown(List<Widget> lines, [List<int> starts = const [], List<GlobalKey> keys = const []]) =>
+        _Shown(segments: segments, body: body, waiting: waiting, lines: lines, starts: starts, keys: keys);
+
+    if (segments != null && phrasesWhole(segments, written)) {
+      final keys = [for (final _ in segments) GlobalKey()];
+      var latest = 0;
+      return shown(
+        [
+          for (final (i, segment) in segments.indexed) ...[
+            if (i > 0) const _Gap(),
+            _PhraseLine(key: keys[i], unit: i, segment: segment, onSeek: _seek),
+          ],
+        ],
+        // Never falling, so the halves hold where two phrases came out of order.
+        [for (final segment in segments) latest = math.max(latest, segment.startMs)],
+        keys,
+      );
+    }
+    final paragraphs = written ?? captionsKept(body);
+    if (paragraphs != null) {
+      final starts = <int>[];
+      final keys = <GlobalKey>[];
+      final lines = <Widget>[];
+      var unit = -1;
+      for (final (i, paragraph) in paragraphs.indexed) {
+        if (i > 0) lines.add(const _Gap());
+        final at = paragraphStartMs(paragraph);
+        if (at != null) {
+          unit += 1;
+          starts.add(math.max(at, starts.isEmpty ? 0 : starts.last));
+          keys.add(GlobalKey());
+        }
+        lines.add(unit < 0
+            // Before the first time, or a transcript with none: the words alone, as the note keeps them.
+            ? WrittenParagraph(text: paragraph)
+            : _ParagraphLine(key: at != null ? keys[unit] : null, unit: unit, text: paragraph, startMs: starts[unit], onSeek: _seek));
+      }
+      return shown(lines, starts, keys);
+    }
+    if (waiting || segments == null) return shown(const [_Skeleton()]);
+    return shown(const [_NoWords()]);
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
     final tape = widget.tape;
-    final segments = tape.segments;
-    final body = tape.note.body;
     final writeUp = widget.writeUp;
-    final written = writtenTranscript(body);
-    final padding = EdgeInsetsDirectional.fromSTEB(t.len('app-gutter-start'), t.space(5), t.len('app-gutter-end'), t.space(24));
-    final quiet = t.textAt(t.fontSize('sm'), color: t.color('app-ink-3'));
+    final was = _shown;
+    final shown = _shown = was != null && was.waiting == (writeUp != null) && was.shows(tape.segments, tape.note.body) ? was : _make(tape, writeUp != null);
+    _started = tape.started;
+    _playing = tape.playing;
+    _lit = _started ? litAt(shown.starts, tape.at) : -1;
+    // The lines stand out from the gutter by the wash's own room, so their words are where the page's are.
+    final room = t.space(2);
+    final padding = EdgeInsetsDirectional.fromSTEB(math.max(0, t.len('app-gutter-start') - room), t.space(5), math.max(0, t.len('app-gutter-end') - room), t.space(24));
+    final follow = !_following && _lit >= 0;
 
-    Widget page(List<Widget> children) => SingleChildScrollView(
-          padding: padding,
-          child: SizedBox(
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                for (final (i, child) in children.indexed) ...[if (i > 0) SizedBox(height: t.space(3)), child],
+    final page = NotificationListener<UserScrollNotification>(
+      onNotification: _scrolled,
+      child: SingleChildScrollView(
+        controller: _scroll,
+        padding: padding,
+        child: SizedBox(
+          width: double.infinity,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (writeUp != null) ...[
+                Padding(
+                  padding: EdgeInsets.symmetric(horizontal: room),
+                  child: Semantics(liveRegion: true, child: Text(writeUp, key: const ValueKey('transcript-write-up'), style: t.textAt(t.fontSize('sm'), color: t.color('app-ink-3')))),
+                ),
+                SizedBox(height: t.space(3)),
               ],
+              ...shown.lines,
+            ],
+          ),
+        ),
+      ),
+    );
+    return _Lit(
+      lit: _lit,
+      started: _started,
+      child: Stack(
+        children: [
+          page,
+          PositionedDirectional(
+            start: 0,
+            end: 0,
+            bottom: t.space(6),
+            child: Center(
+              child: AnimatedSwitcher(
+                duration: t.reducedMotion ? Duration.zero : t.duration('glacier-duration-fast'),
+                child: follow ? _FollowPill(onPressed: _follow) : const SizedBox.shrink(),
+              ),
             ),
           ),
-        );
-
-    final said = <Widget>[
-      if (writeUp != null) Semantics(liveRegion: true, child: Text(writeUp, key: const ValueKey('transcript-write-up'), style: quiet)),
-    ];
-    final skeleton = Semantics(
-      label: 'Loading the transcript',
-      liveRegion: true,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (final (i, width) in const [0.88, 0.62, 0.74].indexed) ...[
-            if (i > 0) SizedBox(height: t.space(3)),
-            FractionallySizedBox(widthFactor: width, child: const _PhraseSkeleton()),
-          ],
         ],
       ),
     );
-
-    if (segments != null && phrasesWhole(segments, written)) {
-      // Before the tape has moved, every phrase is there to be read; once it has, the ones to come are lighter.
-      final still = !tape.playing && tape.at == 0;
-      return page([
-        ...said,
-        for (final (i, segment) in segments.indexed)
-          TranscriptPhrase(
-            key: _keys.putIfAbsent(i, GlobalKey.new),
-            segment: segment,
-            // Not the first phrase lit as if heard, for a tape nobody has played.
-            current: !still && i == tape.current,
-            past: i < tape.current || (tape.current == -1 && tape.at >= segment.endMs && tape.at > 0),
-            reading: still,
-            onPressed: () => tape.seek(segment.startMs),
-          ),
-      ]);
-    }
-    if (written != null) {
-      return page([...said, for (final paragraph in written) WrittenParagraph(text: paragraph)]);
-    }
-    if (writeUp != null) {
-      // Meet's captions, where it gave any, are what there is until the write-up comes.
-      final captions = captionsKept(body);
-      return page([...said, if (captions == null) skeleton else for (final paragraph in captions) WrittenParagraph(text: paragraph)]);
-    }
-    if (segments == null) return page([skeleton]);
-    return page([Text('No words were kept with this recording.', style: quiet)]);
   }
 }
 
-/// One paragraph of the transcript the note's words keep, untimed: not a button, since there is no moment of the
-/// tape to take it to. A speaker's name in bold before it (`**Sam Lee:**`) is drawn bold, and the stars go.
-class WrittenParagraph extends StatelessWidget {
-  const WrittenParagraph({super.key, required this.text});
+/// Which line of the transcript is lit, and whether anything is: told to each line by its unit, so a line is built
+/// again only when its own light moves.
+class _Lit extends InheritedModel<int> {
+  const _Lit({required this.lit, required this.started, required super.child});
 
+  /// The unit being heard, or -1.
+  final int lit;
+
+  /// Whether the tape has moved ([Tape.started]); until it has, every line is to be read.
+  final bool started;
+
+  TranscriptLight _of(int unit) {
+    if (unit < 0 || !started) return TranscriptLight.reading;
+    if (unit == lit) return TranscriptLight.current;
+    return unit < lit ? TranscriptLight.past : TranscriptLight.coming;
+  }
+
+  static TranscriptLight of(BuildContext context, int unit) => InheritedModel.inheritFrom<_Lit>(context, aspect: unit)?._of(unit) ?? TranscriptLight.reading;
+
+  @override
+  bool updateShouldNotify(_Lit old) => old.lit != lit || old.started != started;
+
+  @override
+  bool updateShouldNotifyDependent(_Lit old, Set<int> units) => units.any((unit) => old._of(unit) != _of(unit));
+}
+
+/// The room between two lines, the wash's own taken off it.
+class _Gap extends StatelessWidget {
+  const _Gap();
+
+  @override
+  Widget build(BuildContext context) => SizedBox(height: context.tokens.space(1));
+}
+
+/// A phrase, with its light.
+class _PhraseLine extends StatelessWidget {
+  const _PhraseLine({super.key, required this.unit, required this.segment, required this.onSeek});
+
+  final int unit;
+  final Segment segment;
+  final ValueChanged<int> onSeek;
+
+  @override
+  Widget build(BuildContext context) => TranscriptPhrase(segment: segment, light: _Lit.of(context, unit), onPressed: () => onSeek(segment.startMs));
+}
+
+/// A timed paragraph, or one of the untimed after it, with its light: a press takes the tape to its unit's start.
+class _ParagraphLine extends StatelessWidget {
+  const _ParagraphLine({super.key, required this.unit, required this.text, required this.startMs, required this.onSeek});
+
+  final int unit;
   final String text;
+  final int startMs;
+  final ValueChanged<int> onSeek;
 
-  static final RegExp _named = RegExp(r'^\*\*(.+?)\*\*\s*(.*)$', dotAll: true);
+  @override
+  Widget build(BuildContext context) => WrittenParagraph(text: text, light: _Lit.of(context, unit), onPressed: () => onSeek(startMs));
+}
+
+/// The ink of a line's words in its [light].
+String _inkOf(TranscriptLight light) => switch (light) {
+      TranscriptLight.current => 'app-ink',
+      TranscriptLight.coming => 'app-ink-3',
+      TranscriptLight.reading || TranscriptLight.past => 'app-ink-2',
+    };
+
+/// A line's ground: the wash while it is heard, none otherwise, with the wash's room round it either way so a line
+/// lit does not move; a button the width of the page where there is a moment to take the tape to.
+class _Line extends StatefulWidget {
+  const _Line({required this.light, required this.onPressed, required this.child});
+
+  final TranscriptLight light;
+  final VoidCallback? onPressed;
+  final Widget child;
+
+  @override
+  State<_Line> createState() => _LineState();
+}
+
+class _LineState extends State<_Line> {
+  /// Whether this change of light fades: to or from the line being heard. The rest change at once, so a first Play
+  /// or a seek across an hour does not draw thousands of lines for every frame of a fade nobody sees.
+  bool _fades = false;
+
+  @override
+  void didUpdateWidget(_Line old) {
+    super.didUpdateWidget(old);
+    if (old.light != widget.light) _fades = old.light == TranscriptLight.current || widget.light == TranscriptLight.current;
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final style = t.textAt(t.len('app-body'), height: 1.4, color: t.color('app-ink-2'));
-    final named = _named.firstMatch(text);
-    if (named == null) return Text(text, style: style);
-    return Text.rich(
-      TextSpan(
-        style: style,
-        children: [
-          TextSpan(text: named.group(1), style: t.textAt(t.len('app-body'), height: 1.4, weight: 'semibold', color: t.color('app-ink'))),
-          TextSpan(text: ' ${named.group(2)}'),
-        ],
+    final motion = t.reducedMotion || !_fades ? Duration.zero : const Duration(milliseconds: 160);
+    final wash = t.color('app-wash');
+    final light = widget.light;
+    final lit = light == TranscriptLight.current;
+    final ground = Semantics(
+      selected: lit,
+      child: AnimatedContainer(
+        duration: motion,
+        curve: t.curve('glacier-ease-out'),
+        padding: EdgeInsets.symmetric(horizontal: t.space(2), vertical: t.space(1)),
+        decoration: BoxDecoration(color: lit ? wash : wash.withValues(alpha: 0), borderRadius: BorderRadius.circular(t.radius('md'))),
+        child: Align(
+          alignment: AlignmentDirectional.centerStart,
+          // `transition: color 160ms var(--glacier-ease-out)`.
+          child: AnimatedDefaultTextStyle(
+            style: t.textAt(t.len('app-body'), height: 1.4, color: t.color(_inkOf(light))),
+            duration: motion,
+            curve: t.curve('glacier-ease-out'),
+            child: widget.child,
+          ),
+        ),
       ),
+    );
+    if (widget.onPressed == null) return ground;
+    return GlacierPressable(
+      onPressed: widget.onPressed,
+      haptic: null,
+      builder: (context, state) => GlacierFocusRing(visible: state.focused, radius: t.radius('md'), child: ground),
     );
   }
 }
 
-/// One phrase, as a button the width of the page (`.phrase`): the fourth ink until it is heard, the third once it
-/// has been ([past]), and the first while it is ([current]).
+/// One paragraph of the transcript the note's words keep. A speaker's name in bold before it (`**Sam Lee:**`) is
+/// drawn bold, and the stars go; a time it was written with (`**Sam Lee (0:04):**`) is drawn after the name in the
+/// lighter ink. Lit, and a button to its moment of the tape, where it has one ([onPressed]); otherwise there to be
+/// read.
+class WrittenParagraph extends StatelessWidget {
+  const WrittenParagraph({super.key, required this.text, this.light = TranscriptLight.reading, this.onPressed});
+
+  final String text;
+  final TranscriptLight light;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final name = t.textAt(t.len('app-body'), height: 1.4, weight: 'semibold', color: t.color(light == TranscriptLight.coming ? 'app-ink-2' : 'app-ink'));
+    final time = t.textAt(t.len('app-body'), height: 1.4, color: t.color(light == TranscriptLight.coming ? 'app-ink-4' : 'app-ink-3')).copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+    final timed = _timedNamed.firstMatch(text);
+    final bare = timed == null ? _timedBare.firstMatch(text) : null;
+    final named = timed == null && bare == null ? _named.firstMatch(text) : null;
+    final Widget words = timed != null
+        ? Text.rich(TextSpan(children: [TextSpan(text: timed.group(1), style: name), TextSpan(text: ' (${timed.group(2)}):', style: time), TextSpan(text: ' ${timed.group(3)}')]))
+        : bare != null
+            ? Text.rich(TextSpan(children: [TextSpan(text: '(${bare.group(1)})', style: time), TextSpan(text: ' ${bare.group(2)}')]))
+            : named != null
+                ? Text.rich(TextSpan(children: [TextSpan(text: named.group(1), style: name), TextSpan(text: ' ${named.group(2)}')]))
+                : Text(text);
+    return _Line(light: light, onPressed: onPressed, child: words);
+  }
+}
+
+/// One phrase, as a button the width of the page (`.phrase`): in the second ink to be read and once heard, the
+/// first on the wash while it is ([current]), and the third while it is still to come.
 class TranscriptPhrase extends StatelessWidget {
-  const TranscriptPhrase({super.key, required this.segment, required this.current, required this.past, required this.onPressed, this.reading = false});
+  const TranscriptPhrase({super.key, required this.segment, required this.light, required this.onPressed});
 
   final Segment segment;
+  final TranscriptLight light;
+  final VoidCallback onPressed;
 
   /// `data-current`: the phrase under the playhead.
-  final bool current;
+  bool get current => light == TranscriptLight.current;
 
   /// `data-past`: a phrase already heard.
-  final bool past;
+  bool get past => light == TranscriptLight.past;
 
-  /// The tape has not moved: the phrase is there to be read, in the second ink, not waiting to be heard. The port's
-  /// own.
-  final bool reading;
+  /// The tape has not moved: the phrase is there to be read, not waiting to be heard. The port's own.
+  bool get reading => light == TranscriptLight.reading;
+
+  @override
+  Widget build(BuildContext context) => _Line(light: light, onPressed: onPressed, child: Text(segment.text));
+}
+
+/// Follow, over the transcript's foot once it has been scrolled away from the line being heard: takes it back there,
+/// and keeps it there.
+class _FollowPill extends StatelessWidget {
+  const _FollowPill({required this.onPressed});
+
   final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
-    final color = t.color(current ? 'app-ink' : past ? 'app-ink-3' : reading ? 'app-ink-2' : 'app-ink-4');
+    final ink = t.color('app-paper');
     return GlacierPressable(
       onPressed: onPressed,
-      haptic: null,
+      semanticLabel: 'Follow the tape',
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
-        radius: t.radius('sm'),
-        child: Align(
-          alignment: AlignmentDirectional.centerStart,
-          // `transition: color 160ms var(--glacier-ease-out)`.
-          child: AnimatedDefaultTextStyle(
-            style: t.textAt(t.len('app-body'), height: 1.4, color: color),
-            duration: t.reducedMotion ? Duration.zero : const Duration(milliseconds: 160),
-            curve: t.curve('glacier-ease-out'),
-            child: Text(segment.text),
+        offset: 3,
+        color: t.color('app-ink'),
+        child: AnimatedScale(
+          scale: state.pressed ? 0.98 : 1,
+          duration: t.duration('glacier-duration-fast'),
+          curve: t.curve('glacier-ease-out'),
+          child: Container(
+            constraints: BoxConstraints(minHeight: t.space(8)),
+            padding: EdgeInsets.symmetric(horizontal: t.space(4)),
+            decoration: BoxDecoration(color: t.color('app-ink'), borderRadius: BorderRadius.circular(t.radius('full'))),
+            child: ExcludeSemantics(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AppIcon(Lucide.audioLines, size: 15, strokeWidth: 2.2, color: ink),
+                  SizedBox(width: t.space(2)),
+                  Text('Follow', style: t.text('sm', weight: 'semibold', color: ink)),
+                ],
+              ),
+            ),
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Said where a recording kept no words.
+class _NoWords extends StatelessWidget {
+  const _NoWords();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: t.space(2)),
+      child: Text('No words were kept with this recording.', style: t.textAt(t.fontSize('sm'), color: t.color('app-ink-3'))),
+    );
+  }
+}
+
+/// The phrases' shapes while the recording's words are still being read.
+class _Skeleton extends StatelessWidget {
+  const _Skeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Semantics(
+      label: 'Loading the transcript',
+      liveRegion: true,
+      child: Padding(
+        padding: EdgeInsets.symmetric(horizontal: t.space(2)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final (i, width) in const [0.88, 0.62, 0.74].indexed) ...[
+              if (i > 0) SizedBox(height: t.space(3)),
+              FractionallySizedBox(widthFactor: width, child: const _PhraseSkeleton()),
+            ],
+          ],
         ),
       ),
     );

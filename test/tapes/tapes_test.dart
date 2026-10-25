@@ -174,6 +174,214 @@ void main() {
     });
   });
 
+  // Matt, 2026-10-25: "the transcript for the meeting should highlight the section of audio that's playing". Lit by
+  // the phrases where they carry the meeting, by the captions' own times where they do not, and never by a time
+  // made up.
+  group('the transcript, lit as it is heard', () {
+    List<TranscriptLight> phraseLights(WidgetTester tester) => [for (final phrase in tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase))) phrase.light];
+    List<TranscriptLight> paragraphLights(WidgetTester tester) => [for (final paragraph in tester.widgetList<WrittenParagraph>(find.byType(WrittenParagraph))) paragraph.light];
+    const r = TranscriptLight.reading, p = TranscriptLight.past, c = TranscriptLight.current, n = TranscriptLight.coming;
+
+    // Three timed turns, and a paragraph that is more words of the second.
+    const captions = '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. It is being written up on your device.\n\n## Captions\n\n'
+        '**Sam Lee (0:00):** Good morning everyone.\n\n**Daniel (0:02):** The pricing page is drafted.\n\nAnd the copy is with legal.\n\n(0:04) Who has the press note?\n';
+
+    /// [ms] of the tape played, a frame for each of the clock's ticks, as a phone draws them.
+    Future<void> run(WidgetTester tester, int ms) async {
+      for (var i = 0; i < ms ~/ 100; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    ScrollPosition scrolled(WidgetTester tester) => tester.state<ScrollableState>(find.descendant(of: find.byType(TranscriptWords), matching: find.byType(Scrollable))).position;
+
+    /// [count] phrases of a second each, enough to scroll.
+    List<Segment> many(int count) => [for (var i = 0; i < count; i++) Segment(text: 'Phrase number $i of the meeting, said aloud.', startMs: i * 1000, endMs: (i + 1) * 1000)];
+
+    test('the line lit is the last begun at the playhead, by halves, and stays lit through the quiet after it', () {
+      const starts = [0, 1000, 2000, 5000];
+      expect(litAt(starts, 0), 0);
+      expect(litAt(starts, 999), 0);
+      expect(litAt(starts, 1000), 1);
+      expect(litAt(starts, 4999), 2, reason: 'a silence after the third phrase: it stays lit');
+      expect(litAt(starts, 90000), 3);
+      expect(litAt(const [500], 100), -1, reason: 'before the first');
+      expect(litAt(const [], 100), -1);
+      final hour = [for (var i = 0; i < 3600; i++) i * 1000];
+      expect(litAt(hour, 1234567), 1234);
+      expect(paragraphStartMs('**Sam Lee (0:04):** Hi.'), 4000);
+      expect(paragraphStartMs('**Sam Lee (1:02:03):** Hi.'), 3723000);
+      expect(paragraphStartMs('(12:40) Hi.'), 760000);
+      expect(paragraphStartMs('**Sam Lee:** Hi.'), isNull);
+      expect(paragraphStartMs('Hi (0:04).'), isNull);
+    });
+
+    testWidgets('lights nothing before the tape has moved, follows the playhead through the phrases, and nothing once it has played to its end', (tester) async {
+      await probe(tester, makeNote('t', '# Trip', recordingMs: 3000, segments: phrases));
+      expect(phraseLights(tester), [r, r, r], reason: 'never played: the first phrase is not lit as if heard');
+      expect(tester.widget<TranscriptPhrase>(find.byType(TranscriptPhrase).first).current, isFalse);
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(phraseLights(tester), [c, n, n]);
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(phraseLights(tester), [p, c, n]);
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(phraseLights(tester), [p, p, c]);
+      await tester.pump(const Duration(milliseconds: 1000));
+      expect(tape.playing, isFalse);
+      expect(phraseLights(tester), [r, r, r], reason: 'played to its end, it rests at its start');
+      await away(tester);
+    });
+
+    testWidgets('keeps the line lit while paused, and through a quiet between phrases', (tester) async {
+      const gaps = [Segment(text: 'Pack the tent.', startMs: 0, endMs: 800), Segment(text: 'And the stove.', startMs: 1000, endMs: 1400), Segment(text: 'Leave at six.', startMs: 2500, endMs: 3000)];
+      await probe(tester, makeNote('t', '# Trip', recordingMs: 3000, segments: gaps));
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 1800));
+      expect(tape.current, -1, reason: 'no phrase is under the playhead');
+      expect(phraseLights(tester), [p, c, n], reason: 'the one last begun stays lit');
+      await tape.toggle();
+      await tester.pump(const Duration(seconds: 2));
+      expect(tape.playing, isFalse);
+      expect(tape.at, greaterThan(0));
+      expect(phraseLights(tester), [p, c, n]);
+      await away(tester);
+    });
+
+    testWidgets('lights the captions by the times they were kept with, a paragraph without one with the turn before it', (tester) async {
+      tape = tapeOf(makeNote('t', captions, recordingMs: 6000, segments: const []));
+      await pumpApp(tester, home: TranscriptWords(key: UniqueKey(), tape: tape, writeUp: 'Writing up… 42%'));
+      expect(paragraphLights(tester), [r, r, r, r]);
+      expect(find.text('Sam Lee (0:00): Good morning everyone.', findRichText: true), findsOneWidget);
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(paragraphLights(tester), [c, n, n, n]);
+      await tester.pump(const Duration(milliseconds: 2000));
+      expect(paragraphLights(tester), [p, c, c, n], reason: 'from 0:02 to 0:04, the turn and the words after it');
+      await tester.pump(const Duration(milliseconds: 2000));
+      expect(paragraphLights(tester), [p, p, p, c]);
+      await tape.toggle();
+      await tester.pump(const Duration(seconds: 1));
+      expect(paragraphLights(tester), [p, p, p, c], reason: 'paused: the last stays lit');
+      await away(tester);
+    });
+
+    testWidgets('takes the tape to a timed paragraph that is tapped, and lights it', (tester) async {
+      tape = tapeOf(makeNote('t', captions, recordingMs: 6000, segments: const []));
+      await pumpApp(tester, home: TranscriptWords(key: UniqueKey(), tape: tape, writeUp: 'Writing up…'));
+      await tester.tap(find.text('And the copy is with legal.'));
+      await tester.pump();
+      expect(tape.at, 2000, reason: 'the start of the turn it is part of');
+      expect(paragraphLights(tester), [p, c, c, n]);
+      await tester.tap(find.text('(0:04) Who has the press note?', findRichText: true));
+      await tester.pump();
+      expect(tape.at, 4000);
+      await away(tester);
+    });
+
+    testWidgets('leaves a transcript written with no times unlit, and not to be tapped, while the tape plays', (tester) async {
+      const untimed = '# Launch sync\n\n## Transcript\n\n**Sam Lee:** Good morning everyone.\n\n**Daniel:** The pricing page is drafted.\n';
+      await probe(tester, makeNote('t', untimed, recordingMs: 6000, segments: const []));
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 2500));
+      expect(tape.playing, isTrue);
+      expect(paragraphLights(tester), [r, r]);
+      expect(tester.widgetList<WrittenParagraph>(find.byType(WrittenParagraph)).map((w) => w.onPressed), everyElement(isNull));
+      await tester.tap(find.text('Daniel: The pricing page is drafted.', findRichText: true));
+      await tester.pump();
+      expect(tape.at, inInclusiveRange(2500, 2600), reason: 'nothing to take the tape to');
+      await away(tester);
+    });
+
+    testWidgets('keeps the line being heard in view while it plays, stops when scrolled by hand, and follows again from Follow or a tapped line', (tester) async {
+      await probe(tester, makeNote('t', '# Meeting', recordingMs: 200000, segments: many(200)));
+      expect(find.text('Follow'), findsNothing);
+      await tape.toggle();
+      await run(tester, 30000);
+      await run(tester, 600);
+      final lit = find.text('Phrase number ${tape.at ~/ 1000} of the meeting, said aloud.');
+      final view = tester.getRect(find.byType(TranscriptWords));
+      expect(scrolled(tester).pixels, greaterThan(0), reason: 'followed');
+      expect((tester.getCenter(lit).dy - view.center.dy).abs(), lessThan(view.height / 4), reason: 'the lit line about the middle');
+      expect(find.text('Follow'), findsNothing);
+
+      // Scrolled back up by hand: the line being heard is left to go on without the view.
+      await tester.drag(find.byType(TranscriptWords), const Offset(0, 400));
+      await run(tester, 600);
+      final left = scrolled(tester).pixels;
+      await run(tester, 5000);
+      await run(tester, 600);
+      expect(scrolled(tester).pixels, left, reason: 'not followed while it is read elsewhere');
+      expect(find.text('Follow'), findsOneWidget);
+      expect(find.bySemanticsLabel('Follow the tape'), findsOneWidget);
+
+      // Follow: back to the line being heard, and kept there.
+      await tester.tap(find.text('Follow'));
+      await tester.pump();
+      await run(tester, 600);
+      expect(find.text('Follow'), findsNothing);
+      final now = find.text('Phrase number ${tape.at ~/ 1000} of the meeting, said aloud.');
+      expect((tester.getCenter(now).dy - view.center.dy).abs(), lessThan(view.height / 4));
+      final following = scrolled(tester).pixels;
+      await run(tester, 3000);
+      await run(tester, 600);
+      expect(scrolled(tester).pixels, greaterThan(following), reason: 'followed again');
+
+      // Scrolled away again, then a line tapped: the tape goes there and is followed from it.
+      await tester.drag(find.byType(TranscriptWords), const Offset(0, 300));
+      await run(tester, 600);
+      expect(find.text('Follow'), findsOneWidget);
+      final tapped = tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase)).firstWhere((p) => tester.getCenter(find.byWidget(p)).dy > view.top + 100 && tester.getCenter(find.byWidget(p)).dy < view.bottom - 100);
+      await tester.tap(find.byWidget(tapped));
+      await tester.pump();
+      expect(tape.at, tapped.segment.startMs);
+      await run(tester, 600);
+      expect(find.text('Follow'), findsNothing);
+      await away(tester);
+    });
+
+    testWidgets('builds again only the lines whose light moved, over an hour of phrases', (tester) async {
+      await probe(tester, makeNote('t', '# Meeting', recordingMs: 3600000, segments: many(3600)));
+      final phrasesBuilt = <int>[];
+      var built = 0;
+      debugOnRebuildDirtyWidget = (element, builtOnce) {
+        built += 1;
+        final widget = element.widget;
+        if (widget is TranscriptPhrase) phrasesBuilt.add(widget.segment.startMs ~/ 1000);
+      };
+      addTearDown(() => debugOnRebuildDirtyWidget = null);
+
+      // The first Play: every phrase goes from read to waiting to be heard, once.
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(phrasesBuilt.length, 3600);
+
+      // Ticks inside one phrase: nothing of the transcript is built.
+      phrasesBuilt.clear();
+      built = 0;
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(tape.at, inInclusiveRange(300, 400));
+      expect(phrasesBuilt, isEmpty);
+      expect(built, lessThan(20), reason: 'the first line\'s fade finishing, and nothing more; $built built');
+
+      // Into the next phrase: the two whose light moved, and nothing else of the hour.
+      phrasesBuilt.clear();
+      built = 0;
+      await tester.pump(const Duration(milliseconds: 700));
+      expect(tape.at ~/ 1000, 1);
+      expect(phrasesBuilt..sort(), [0, 1]);
+      expect(built, lessThan(80), reason: 'the transcript\'s frame, and two lines with their buttons; $built built');
+
+      // Taken far on: what lies between is now heard, and is built so, once.
+      phrasesBuilt.clear();
+      tape.seek(1800500);
+      await tester.pump();
+      expect(phrasesBuilt.toSet().length, phrasesBuilt.length);
+      expect(phrasesBuilt.length, 1800);
+      await away(tester);
+    });
+  });
+
   group('the day a tape was recorded (tapes/tapeDate.ts)', () {
     tearDown(() => toldLocale = null);
 

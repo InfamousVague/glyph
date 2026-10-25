@@ -139,6 +139,7 @@ class Tape extends ChangeNotifier {
   List<Segment>? _segments;
   int _at = 0;
   bool _playing = false;
+  bool _started = false;
   String? _problem;
   bool _loaded;
   bool _loading = false;
@@ -161,6 +162,7 @@ class Tape extends ChangeNotifier {
       _loading = false;
       _at = 0;
       _playing = false;
+      _started = false;
       _problem = null;
       _segments = next.segments;
     } else if (!identical(next, was) && _segments != null && (next.recordingMs != was.recordingMs || transcriptOf(next.body) != transcriptOf(was.body))) {
@@ -178,8 +180,29 @@ class Tape extends ChangeNotifier {
   /// The phrases as spoken, null until they have been fetched.
   List<Segment>? get segments => _segments;
 
-  /// The phrase under the playhead, or -1.
-  int get current => _segments?.indexWhere((s) => _at >= s.startMs && _at < s.endMs) ?? -1;
+  /// Whether the tape has moved since it last rested at its start: played, or taken to a phrase (Matt, 2026-10-25:
+  /// "the transcript for the meeting should highlight the section of audio that's playing"). Paused, it still has;
+  /// played to its end, it rests at its start again and has not. The transcript lights what is being heard only
+  /// while it has, so a tape nobody has played has nothing lit, its first phrase included.
+  bool get started => _started;
+
+  /// The phrase under the playhead, or -1. Found by halves, the phrases being in the order they were spoken: an
+  /// hour's meeting has thousands, and this was a walk over all of them, asked again for every phrase drawn.
+  int get current {
+    final segments = _segments;
+    if (segments == null || segments.isEmpty) return -1;
+    var low = 0, high = segments.length;
+    while (low < high) {
+      final mid = (low + high) >> 1;
+      if (segments[mid].startMs <= _at) {
+        low = mid + 1;
+      } else {
+        high = mid;
+      }
+    }
+    final at = low - 1;
+    return at >= 0 && _at < segments[at].endMs ? at : -1;
+  }
   String? get problem => _problem;
 
   /// The list leaves the phrases out of the notes it loads, so fetch them by id.
@@ -240,6 +263,7 @@ class Tape extends ChangeNotifier {
     final now = player.position.value;
     if (now == _at) return;
     _at = now;
+    if (now > 0) _started = true;
     notifyListeners();
   }
 
@@ -248,6 +272,7 @@ class Tape extends ChangeNotifier {
     final now = player.playing.value;
     if (now == _playing) return;
     _playing = now;
+    if (now) _started = true;
     notifyListeners();
   }
 
@@ -256,6 +281,7 @@ class Tape extends ChangeNotifier {
     switch (event) {
       case TapeEvent.ended:
         _playing = false;
+        _started = false;
         _at = 0;
         notifyListeners();
         unawaited(player.seek(0).catchError((Object _) {}));
@@ -320,6 +346,7 @@ class Tape extends ChangeNotifier {
   /// Takes the tape to [ms].
   void seek(int ms) {
     _at = ms;
+    _started = true;
     notifyListeners();
     if (_loaded) unawaited(player.seek(ms).catchError((Object _) {}));
   }
