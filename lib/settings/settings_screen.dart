@@ -697,7 +697,10 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
           whole: _target?.setting != null && _target!.id == shown.id && _shownTarget != _target!.nonce,
           child: Builder(
             // `useWispEdge(scroller, …)`, as the list: no header over the page, so it fades at its own top.
-            builder: (context) => BlurEdge(child: SingleChildScrollView(
+            // Its top is under Settings' own head, never the status bar: no bar's height over it to fade through, so
+            // the blur is its band alone (Matt, 2026-10-25: "the blur on settings goes too far make it take up half the
+            // space or less"; it was the status bar's height and 8px more, then the band).
+            builder: (context) => BlurEdge(safeTop: 0, child: SingleChildScrollView(
               key: ValueKey('scroll ${shown.id}'),
               controller: _paneScroll,
               padding: padding,
@@ -843,9 +846,11 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
       final list = Semantics(
         container: true,
         label: looking ? '$title found' : '$title sections',
-        // `useWispEdge(scroller, …)` with no header: the list fades over its first `--app-safe-top + 8px` once scrolled,
-        // and is soft for a band below that (art/blur_edge.dart).
+        // `useWispEdge(scroller, …)` with no header: the list fades over its first 8px once scrolled, and is soft for a
+        // band below that (art/blur_edge.dart). Under Settings' head, not the status bar, so no bar's height is faded
+        // through first (Matt, 2026-10-25).
         child: BlurEdge(
+          safeTop: 0,
           child: _scroller(
             t,
             key: const ValueKey('settings-list'),

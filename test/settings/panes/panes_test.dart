@@ -732,6 +732,21 @@ void main() {
     });
   });
 
+  // Matt, 2026-10-25: "the blur on settings goes too far make it take up half the space or less". A page of Settings
+  // and its list sit under Settings' own head, never the status bar: their blur is its band alone, with no bar's
+  // height faded through first.
+  testWidgets('a page\'s blur and the list\'s are their band alone, under Settings\' head', (tester) async {
+    for (final size in [phone, const Size(1000, 800)]) {
+      await openPane(tester, 'about', size: size);
+      final edges = tester.widgetList<BlurEdge>(find.byType(BlurEdge)).toList();
+      expect(edges, isNotEmpty);
+      for (final edge in edges) {
+        expect(edge.under > 0 || edge.safeTop == 0, isTrue, reason: 'at $size: a blur with no header fades no status bar here');
+      }
+      await endSettings(tester);
+    }
+  });
+
   group('the search', () {
     testWidgets('finds only names its page draws: every setting listed for a page is on that page', (tester) async {
       // The web's own rule (SettingsSheet.test.tsx): a name the search offers and the page does not draw opens the
