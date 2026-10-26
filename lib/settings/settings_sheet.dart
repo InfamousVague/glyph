@@ -4,6 +4,7 @@ import 'package:flutter/widgets.dart';
 import '../account/ui_state.dart';
 import '../core/preferences.dart';
 import '../core/workspaces.dart';
+import '../market/market_items.dart' show marketLanding;
 import '../perf/frame_log.dart';
 import '../plugins/registry.dart' show plugins;
 import '../shell/page_dock.dart' show PageDockSeam;
@@ -62,6 +63,7 @@ class SettingsSheet extends StatefulWidget {
     this.onCanvas,
     this.onHowCanvas,
     this.onAcademy,
+    this.onMarket,
     this.onOrganization,
     this.onOpenLink,
     this.onOpenNote,
@@ -118,6 +120,10 @@ class SettingsSheet extends StatefulWidget {
 
   /// Opens Ghost.md Academy.
   final VoidCallback? onAcademy;
+
+  /// Shuts Settings and opens the Market (lib/market/market_screen.dart), at [plugin]'s page when one is named: the
+  /// list's Market row, a plugin's page's word on where the plugin is, and a link to what was Settings › Plugins.
+  final void Function({String? plugin})? onMarket;
 
   /// Opens an organization's own screen: the shell closes this sheet first.
   final void Function(String orgId)? onOrganization;
@@ -179,12 +185,26 @@ class _SettingsSheetState extends State<SettingsSheet> {
     if (widget.toCheatSheet != 0 && widget.toCheatSheet != was?.toCheatSheet) _goTo = SettingsTarget('cheatsheet', nonce: widget.toCheatSheet);
     if (widget.toModel != 0 && widget.toModel != was?.toModel) _goTo = SettingsTarget('ai', setting: 'Model', nonce: widget.toModel);
     final page = widget.toPage;
-    if (page != null && page.nonce != was?.toPage?.nonce) _goTo = settingsLanding(SettingsTarget(page.id, setting: page.setting, nonce: page.nonce));
+    if (page != null && page.nonce != was?.toPage?.nonce) {
+      // What was Settings › Plugins is the Market now: the link is handed on once this frame is drawn.
+      final market = marketLanding(page.id);
+      final onMarket = widget.onMarket;
+      if (market != null && onMarket != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => onMarket(plugin: market.plugin));
+        return;
+      }
+      _goTo = settingsLanding(SettingsTarget(page.id, setting: page.setting, nonce: page.nonce));
+    }
   }
 
   /// Lands on a section, and on a setting there when one is named (`go`): a row that opens a sub-page, or a word
   /// like "Local only". An old id lands as a link from outside does ([settingsLanding]).
-  void _go(String id, {String? setting}) => setState(() => _goTo = settingsLanding(settingsTargetNow(id, setting: setting)));
+  void _go(String id, {String? setting}) {
+    final market = marketLanding(id);
+    final onMarket = widget.onMarket;
+    if (market != null && onMarket != null) return onMarket(plugin: market.plugin);
+    setState(() => _goTo = settingsLanding(settingsTargetNow(id, setting: setting)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -205,6 +225,7 @@ class _SettingsSheetState extends State<SettingsSheet> {
       onCanvas: widget.onCanvas,
       onHowCanvas: widget.onHowCanvas,
       onAcademy: widget.onAcademy,
+      onMarket: widget.onMarket,
       onOrganization: widget.onOrganization,
       onOpenLink: widget.onOpenLink,
       onOpenNote: widget.onOpenNote,
@@ -248,6 +269,8 @@ class _SettingsSheetState extends State<SettingsSheet> {
                   listed: spec.listed,
                   parent: spec.parent,
                   searched: spec.searched,
+                  // The Market's row goes to the Market, and Settings shuts.
+                  launch: spec.id == marketSectionId && widget.onMarket != null ? () => widget.onMarket!() : null,
                 ),
           ];
           return SettingsScreen(open: widget.open, onClose: widget.onClose, sections: sections, goTo: _goTo, split: widget.split, dock: widget.dock);

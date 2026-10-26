@@ -146,6 +146,7 @@ PaletteDoing paletteDoingFor({
   VoidCallback? today,
   VoidCallback? askClaude,
   VoidCallback? tags,
+  VoidCallback? market,
   void Function(String id)? openSmart,
   VoidCallback? trash,
 }) {
@@ -187,6 +188,7 @@ PaletteDoing paletteDoingFor({
     today: today,
     askClaude: askClaude,
     tags: tags,
+    market: market,
     openSmart: openSmart,
     trash: trash,
   );

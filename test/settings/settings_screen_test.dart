@@ -396,7 +396,7 @@ void main() {
         section('account', 'Account', 0),
         section('theme', 'Appearance', 1),
         section('recording', 'Recording', 1),
-        section('plugins', 'Plugins', 1),
+        section('market', 'Market', 1),
         section('about', 'About', 2),
         section('plugin:someday', 'Someday', 3, hue: 'coral'),
         section('plugin:unknown', 'Unknown', 3),

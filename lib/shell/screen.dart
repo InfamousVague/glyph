@@ -78,7 +78,12 @@ sealed class Screen {
   /// The Tags page, one tag's notes, or a smart notebook's (lib/notes/collection_screen.dart).
   const factory Screen.collection(CollectionKind kind, {String key, bool fromTags}) = ScreenCollection;
 
-  /// The union's tag: `list`, `notes`, `note`, `capture`, `meeting`, `academy`, `organization`.
+  /// The Market: the plugins, themes and fonts to add (lib/market/market_screen.dart), opened at [plugin]'s page
+  /// when one is named.
+  const factory Screen.market({String? plugin}) = ScreenMarket;
+
+  /// The union's tag: `list`, `notes`, `note`, `capture`, `meeting`, `academy`, `organization`, `collection`,
+  /// `market`.
   String get name;
 
   /// Whether the screen is the whole window with a microphone behind it: a capture or a meeting, over which nothing
@@ -96,7 +101,7 @@ sealed class Screen {
 
   /// Whether the screen is one of the places, which carry the app's tab row and take a pane beside the sidebar on a
   /// wide window: the three on the trail, and an organization's dashboard, drawn where All notes is.
-  bool get isPlace => place != null || this is ScreenOrganization || this is ScreenCollection;
+  bool get isPlace => place != null || this is ScreenOrganization || this is ScreenCollection || this is ScreenMarket;
 
   /// The id of the note on screen, or null when the screen is not a note.
   String? get noteOnScreen => switch (this) { ScreenNote(:final note) => note.id, _ => null };
@@ -300,4 +305,24 @@ class ScreenCollection extends Screen {
 
   @override
   int get hashCode => Object.hash(name, kind, key, fromTags);
+}
+
+/// The Market (the port's own, Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the app, include
+/// some more themes, fonts an of course all our plugins"): every plugin, theme and font to add, out of Settings and
+/// a place of its own. A place as the Tags page is, drawn where All notes is with the tab row over it and the sidebar
+/// beside it on a wide window; not on the trail the arrows walk, and its way out goes home. With [plugin] it opens on
+/// that plugin's page: an old link to Settings › Plugins › its name lands here.
+class ScreenMarket extends Screen {
+  const ScreenMarket({this.plugin});
+
+  final String? plugin;
+
+  @override
+  String get name => 'market';
+
+  @override
+  bool operator ==(Object other) => other is ScreenMarket && other.plugin == plugin;
+
+  @override
+  int get hashCode => Object.hash(name, plugin);
 }

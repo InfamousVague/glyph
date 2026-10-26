@@ -38,6 +38,7 @@ class SettingsSection implements SearchableSection, SectionPlace {
     this.listed = true,
     this.parent,
     this.searched = true,
+    this.launch,
   });
 
   @override
@@ -81,6 +82,10 @@ class SettingsSection implements SearchableSection, SectionPlace {
   /// False keeps it out of the search's results; it still opens from a row or a link.
   @override
   final bool searched;
+
+  /// Where its row goes instead of its page: somewhere outside Settings, which Settings shuts for (the Market's row,
+  /// lib/market). Its page is then only what a link that lands on it finds.
+  final VoidCallback? launch;
 }
 
 /// Where to land (`SettingsTarget` with its nonce): a section, and a setting on its page to bring into view and
@@ -113,7 +118,7 @@ const Map<String, String> _hues = {
   'ai': 'magenta',
   'theme': 'purple',
   'recording': 'red',
-  'plugins': 'green',
+  'market': 'green',
   'about': 'yellow',
   'developer': 'brown',
   'test-results': 'mint',
@@ -346,6 +351,8 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
   void _onFocus() => setState(() {});
 
   void _enterSection(String id) {
+    final launch = widget.sections.where((section) => section.id == id).firstOrNull?.launch;
+    if (launch != null) return launch();
     setState(() {
       _out = false;
       _left = null;
@@ -381,6 +388,7 @@ class SettingsScreenState extends State<SettingsScreen> with SingleTickerProvide
 
   /// A result: its section's page, and when it was a setting inside it, that setting brought into view there.
   void _openHit(SettingsHit<SettingsSection> hit) {
+    if (hit.section.launch != null) return hit.section.launch!();
     _enterSection(hit.section.id);
     _target = hit.setting == null ? null : SettingsTarget(hit.section.id, setting: hit.setting, nonce: DateTime.now().microsecondsSinceEpoch);
     _lookSoon();

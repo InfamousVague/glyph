@@ -92,7 +92,7 @@ void main() {
       // Meetings is kept in Simple too, but listed only for an account whose service has Ghost in meetings, and
       // these facts have no account (test/meet/meet_card_test.dart lists it).
       expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections.difference({'meetings'}));
-      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'plugins', 'about', 'cheatsheet', 'spec', 'examples'];
+      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
       expect(_among(_facts(_advanced)), everything);
       // Until the choice is made the app is advanced, and so is Settings.
       expect(_among(_facts(const Preferences(theme: 'light'))), everything);
@@ -157,7 +157,7 @@ void main() {
       // Another device, or the walkthrough, choosing Advanced: the list is read from the preferences, live.
       preferences.update((now) => now.choosing('advanced'));
       await tester.pump();
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Plugins', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
       expect(_line(tester, 'Appearance'), 'Advanced · Light · Maple Mono');
       await endSettings(tester);
     });

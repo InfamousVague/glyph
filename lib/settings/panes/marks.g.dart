@@ -115,7 +115,7 @@ const List<MarkGroup> markGroups = [
   ),
   MarkGroup(
     title: "Ghost.md’s own",
-    lead: "Marks the app adds, all from the Marks plugin, which Settings › Plugins can switch off.",
+    lead: "Marks the app adds, all from the Marks plugin, which the Market can switch off.",
     rows: [
       MarkRow(name: "Spoiler", symbol: "||", typed: "||the cabin key||", words: "the cabin key", looks: "wisp", icon: "eye-off", say: "“spoiler” … “end spoiler”"),
       MarkRow(name: "Highlight", symbol: "==", typed: "==highlight this==", words: "highlight this", looks: "style", icon: "highlighter", say: "“highlight” … “end highlight”"),

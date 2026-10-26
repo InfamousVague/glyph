@@ -191,12 +191,14 @@ const _squareKanban = LucideIcon('square-kanban', ['M5 3H19A2 2 0 0 1 21 5V19A2 
 const _squarePen = LucideIcon('square-pen', ['M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7', 'M18.375 2.625a1 1 0 0 1 3 3l-9.013 9.014a2 2 0 0 1-.853.505l-2.873.84a.5.5 0 0 1-.62-.62l.84-2.873a2 2 0 0 1 .506-.852z'], [0, 1]);
 const _squareRadical = LucideIcon('square-radical', ['M7 12h2l2 5 2-10h4', 'M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z'], [1]);
 const _sticker = LucideIcon('sticker', ['M21 9a2.4 2.4 0 0 0-.706-1.706l-3.588-3.588A2.4 2.4 0 0 0 15 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2z', 'M15 3v5a1 1 0 0 0 1 1h5', 'M8 13h.01', 'M16 13h.01', 'M10 16s.8 1 2 1c1.3 0 2-1 2-1'], [0]);
+const _store = LucideIcon('store', ['M15 21v-5a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v5', 'M17.774 10.31a1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.451 0 1.12 1.12 0 0 0-1.548 0 2.5 2.5 0 0 1-3.452 0 1.12 1.12 0 0 0-1.549 0 2.5 2.5 0 0 1-3.77-3.248l2.889-4.184A2 2 0 0 1 7 2h10a2 2 0 0 1 1.653.873l2.895 4.192a2.5 2.5 0 0 1-3.774 3.244', 'M4 10.95V19a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8.05'], [1]);
 const _strikethrough = LucideIcon('strikethrough', ['M16 4H9a3 3 0 0 0-2.83 4', 'M14 12a4 4 0 0 1 0 8H6', 'M4 12L20 12'], []);
 const _subscript = LucideIcon('subscript', ['m4 5 8 8', 'm12 5-8 8', 'M20 19h-4c0-1.5.44-2 1.5-2.5S20 15.33 20 14c0-.47-.17-.93-.48-1.29a2.11 2.11 0 0 0-2.62-.44c-.42.24-.74.62-.9 1.07'], []);
 const _sun = LucideIcon('sun', ['M8 12A4 4 0 1 0 16 12A4 4 0 1 0 8 12Z', 'M12 2v2', 'M12 20v2', 'm4.93 4.93 1.41 1.41', 'm17.66 17.66 1.41 1.41', 'M2 12h2', 'M20 12h2', 'm6.34 17.66-1.41 1.41', 'm19.07 4.93-1.41 1.41'], [0]);
 const _sunMoon = LucideIcon('sun-moon', ['M12 2v2', 'M14.837 16.385a6 6 0 1 1-7.223-7.222c.624-.147.97.66.715 1.248a4 4 0 0 0 5.26 5.259c.589-.255 1.396.09 1.248.715', 'M16 12a4 4 0 0 0-4-4', 'm19 5-1.256 1.256', 'M20 12h2'], [1]);
 const _sunrise = LucideIcon('sunrise', ['M12 2v8', 'm4.93 10.93 1.41 1.41', 'M2 18h2', 'M20 18h2', 'm19.07 10.93-1.41 1.41', 'M22 22H2', 'm8 6 4-4 4 4', 'M16 18a4 4 0 0 0-8 0'], []);
 const _superscript = LucideIcon('superscript', ['m4 19 8-8', 'm12 19-8-8', 'M20 12h-4c0-1.5.442-2 1.5-2.5S20 8.334 20 7.002c0-.472-.17-.93-.484-1.29a2.105 2.105 0 0 0-2.617-.436c-.42.239-.738.614-.899 1.06'], []);
+const _swatchBook = LucideIcon('swatch-book', ['M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z', 'M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7', 'M 7 17h.01', 'm11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8'], [0]);
 const _table = LucideIcon('table', ['M12 3v18', 'M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z', 'M3 9h18', 'M3 15h18'], [1]);
 const _tag = LucideIcon('tag', ['M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z', 'M7 7.5A0.5 0.5 0 1 0 8 7.5A0.5 0.5 0 1 0 7 7.5Z'], [0]);
 const _terminal = LucideIcon('terminal', ['M12 19h8', 'm4 17 6-6-6-6'], []);
@@ -419,12 +421,14 @@ abstract final class Lucide {
   static const squarePen = _squarePen;
   static const squareRadical = _squareRadical;
   static const sticker = _sticker;
+  static const store = _store;
   static const strikethrough = _strikethrough;
   static const subscript = _subscript;
   static const sun = _sun;
   static const sunMoon = _sunMoon;
   static const sunrise = _sunrise;
   static const superscript = _superscript;
+  static const swatchBook = _swatchBook;
   static const table = _table;
   static const tag = _tag;
   static const terminal = _terminal;
@@ -677,12 +681,14 @@ abstract final class Lucide {
     'stars': _sparkles,
     'sticker': _sticker,
     'stop-circle': _circleStop,
+    'store': _store,
     'strikethrough': _strikethrough,
     'subscript': _subscript,
     'sun': _sun,
     'sun-moon': _sunMoon,
     'sunrise': _sunrise,
     'superscript': _superscript,
+    'swatch-book': _swatchBook,
     'table': _table,
     'tag': _tag,
     'terminal': _terminal,

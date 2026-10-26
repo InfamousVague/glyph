@@ -20,6 +20,9 @@ const also = <String>[
   // lib/integrations/contacts: a contact's card (Call) and Settings › Contacts.
   'phone',
   'contact-round',
+  // lib/market: the Market's own mark (the sidebar's row, the palette, Settings' row) and the Themes shelf's.
+  'store',
+  'swatch-book',
 ];
 
 const glyph = 'tauri';

@@ -305,7 +305,7 @@ List<MarkGroup> markGroups({Registry? registry, DateTime? now}) {
   );
   return <MarkGroup>[
     ...own,
-    MarkGroup(title: 'Ghost.md’s own', lead: 'Marks the app adds, all from the Marks plugin, which Settings › Plugins can switch off.', rows: <MarkRow>[...rows, tinted, noted]),
+    MarkGroup(title: 'Ghost.md’s own', lead: 'Marks the app adds, all from the Marks plugin, which the Market can switch off.', rows: <MarkRow>[...rows, tinted, noted]),
   ];
 }
 

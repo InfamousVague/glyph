@@ -14,8 +14,8 @@ import 'package:ghost_md/integrations/webhooks/setup.dart';
 import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/types.dart';
-import 'package:ghost_md/settings/kit/settings_kit.dart';
-import 'package:ghost_md/settings/panes/plugins_pane.dart';
+import 'package:ghost_md/market/market_items.dart' show MarketShelf;
+import 'package:ghost_md/market/market_screen.dart';
 import 'package:ghost_md/settings/settings_sections.dart' show pluginPageSections;
 
 import '../../settings/support.dart';
@@ -51,10 +51,10 @@ void main() {
     expect(webhooksOn(), isFalse, reason: 'Local only holds off a plugin that reaches past the phone');
   });
 
-  testWidgets('its card is in Settings › Plugins, to discover; added, its page is a row of Settings of its own', (tester) async {
-    await pumpSettings(tester, SingleChildScrollView(child: PluginsPane(registry: registry, onOpen: (id, {setting}) {})), prefs: const Preferences(theme: 'light'));
-    expect(find.byWidgetPredicate((w) => w is PaneHero && w.title == 'Webhooks', skipOffstage: false), findsOneWidget);
-    expect(find.textContaining('5 of 12 added.', skipOffstage: false), findsOneWidget);
+  testWidgets('its card is in the Market, to discover; added, its page is a row of Settings of its own', (tester) async {
+    await pumpSettings(tester, MarketScreen(onBack: () {}, registry: registry, shelf: MarketShelf.plugins), prefs: const Preferences(theme: 'light'));
+    expect(find.byKey(const ValueKey('market-plugin-webhooks'), skipOffstage: false), findsOneWidget);
+    expect(find.text('5 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
     expect([for (final spec in pluginPageSections()) spec.id], isNot(contains('plugin:webhooks')));
     registry.setEnabled(webhooksId, true);
     await settleSettings(tester);

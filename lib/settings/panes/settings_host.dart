@@ -304,6 +304,7 @@ class SettingsHost extends InheritedWidget {
     this.onCanvas,
     this.onHowCanvas,
     this.onAcademy,
+    this.onMarket,
     this.onOrganization,
     this.onOpenLink,
     this.onOpenNote,
@@ -324,6 +325,9 @@ class SettingsHost extends InheritedWidget {
   final VoidCallback? onCanvas;
   final VoidCallback? onHowCanvas;
   final VoidCallback? onAcademy;
+
+  /// Shuts Settings and opens the Market, at [plugin]'s page when one is named (lib/market/market_screen.dart).
+  final void Function({String? plugin})? onMarket;
   final void Function(String orgId)? onOrganization;
 
   /// Opens a link outside the app (core/linkPreview.ts `openLink`).

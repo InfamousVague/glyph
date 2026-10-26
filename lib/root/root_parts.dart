@@ -299,6 +299,19 @@ extension _RootParts on _GhostRootState {
           dock: _notesDock(),
         ),
       ),
+      // The Market: plugins, themes and fonts (lib/market/market_screen.dart). A plugin's Settings opens Settings over
+      // it at the plugin's own page, and Local only's word Account at Privacy.
+      marketBuilder: (context, shell, screen) => _part(
+        'market',
+        () => (screen, _claudeShown, _canTalk),
+        (context) => MarketScreen(
+          plugin: screen.plugin,
+          onBack: shell.backToList,
+          onPluginSettings: (id) => _openSettingsAt(pluginPageId(id)),
+          onLocalOnly: () => _openSettingsAt('account', setting: 'Privacy'),
+          dock: _notesDock(),
+        ),
+      ),
       sidebarBuilder: (context, shell, close) => _part(
         'sidebar',
         () => _sidebarReads(shell),
@@ -364,6 +377,13 @@ extension _RootParts on _GhostRootState {
               : () {
                   close();
                   _organize.showTags();
+                },
+          // The Market's row under Tags: advanced mode's, as Settings › Plugins was.
+          onMarket: simple
+              ? null
+              : () {
+                  close();
+                  _showMarket();
                 },
           simple: simple,
         ),
@@ -721,6 +741,8 @@ extension _RootParts on _GhostRootState {
         _closeSettings();
         _shell.currentState?.show(const Screen.academy());
       },
+      // Settings' Market row, a plugin page's word on where the plugin is, and a link to the old Plugins.
+      onMarket: ({plugin}) => _showMarket(plugin: plugin),
       onGuide: guide == null
           ? null
           : () {
@@ -799,6 +821,7 @@ extension _RootParts on _GhostRootState {
         today: _organize.today,
         askClaude: _claudeOn ? () => _openAskClaude() : null,
         tags: _organize.showTags,
+        market: _showMarket,
         trash: _openTrash,
         openSmart: _organize.showSmart,
       ),

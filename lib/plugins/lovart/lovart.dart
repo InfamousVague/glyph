@@ -55,7 +55,7 @@ void _mark(String key, bool on) {
 
 /// What the person is told when Lovart cannot be asked here.
 String? lovartUnready() {
-  if (!hasLovartKeys()) return 'Add your Lovart keys in Settings › Plugins › Lovart first.';
+  if (!hasLovartKeys()) return 'Add your Lovart keys in Settings › Lovart first.';
   if (lovartPictureStore == null) return cannotKeepLovart;
   return null;
 }

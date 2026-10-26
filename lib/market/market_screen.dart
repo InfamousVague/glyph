@@ -1,0 +1,629 @@
+/// The Market (Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the app, include some more
+/// themes, fonts an of course all our plugins with vivid iconography and imagery where possible include mobile and
+/// desktop support and move the plugins section out of the settings (leaving plugin specific settings to own their
+/// settings) add the plugins setting to the market page"): a place of its own (lib/shell/screen.dart
+/// [ScreenMarket]) where every plugin, theme and font Ghost.md carries is laid out to browse and add.
+///
+/// It opens on what it is, a band in colour with the plugins' marks on it, then a search across everything and the
+/// shelves to choose between: All, Plugins, Themes, Fonts. All leads with the featured plugins (those whose brand
+/// Ghost.md draws), then the themes, the fonts and every plugin; each other shelf is its kind alone, the plugins with
+/// their categories to filter by, the themes with the accents after them, the fonts as a note's and as the
+/// interface's. What is typed in the search filters every shelf at once, and a search that leaves nothing says so,
+/// with the way back to everything.
+///
+/// What was Settings › Plugins' own is here now: how many plugins are added of how many, the word that Local only is
+/// on and holds the plugins that use the internet off (with its way to Account › Privacy), and the Added and Discover
+/// shelves. A plugin's own page in Settings stays there (lib/settings/settings_sections.dart `pluginPageSections`);
+/// a plugin's page here has the way to it ([onPluginSettings]).
+///
+/// On a phone the page is one column: the featured plugins, the themes and the fonts are rows that scroll sideways,
+/// the plugins a card each down the page, and a plugin's page takes the screen, its way back the bar's arrow and the
+/// back gesture. With room (a Fold open, a Mac), the cards stand two to four across, and a plugin's page opens beside
+/// them, the shelves still there to press another.
+///
+/// Advanced mode's: simple mode hides every way in, as it hid Settings › Plugins.
+library;
+
+import 'dart:math' as math;
+
+import 'package:flutter/widgets.dart';
+import 'package:glacier/glacier.dart';
+
+import '../art/art.dart';
+import '../core/back.dart';
+import '../core/preferences.dart';
+import '../plugins/catalogue.dart';
+import '../plugins/reach.dart';
+import '../plugins/registry.dart';
+import '../plugins/types.dart';
+import '../settings/accent_swatch.dart';
+import '../settings/kit/settings_type.dart';
+import '../settings/theme_cards.dart';
+import '../shell/header_pane.dart';
+import '../shell/page_dock.dart';
+import 'market_cards.dart';
+import 'market_items.dart';
+import 'market_looks.dart';
+import 'market_plugins.dart';
+
+/// The width from which the Market lays its cards across and opens a plugin's page beside them.
+const double marketWide = 720;
+
+class MarketScreen extends StatefulWidget {
+  const MarketScreen({super.key, required this.onBack, this.plugin, this.onPluginSettings, this.onLocalOnly, this.registry, this.prefs, this.dock, this.shelf});
+
+  /// Home, from the bar's arrow.
+  final VoidCallback onBack;
+
+  /// The plugin whose page it opens on, from a link (an old Settings › Plugins › its name).
+  final String? plugin;
+
+  /// Opens a plugin's own page in Settings, by the plugin's id.
+  final ValueChanged<String>? onPluginSettings;
+
+  /// Opens Account at its Privacy card, for "Local only".
+  final VoidCallback? onLocalOnly;
+
+  /// The plugins; the app's when null.
+  final Registry? registry;
+
+  /// The preferences a theme and a face are set in, and Local only read from; the app's when null.
+  final PreferencesStore? prefs;
+
+  /// The dock (docs/DOCK.md); none where it is left out.
+  final PageDockSeam? dock;
+
+  /// The shelf it opens on; All when null.
+  final MarketShelf? shelf;
+
+  @override
+  State<MarketScreen> createState() => _MarketScreenState();
+}
+
+class _MarketScreenState extends State<MarketScreen> {
+  late MarketShelf _shelf = widget.shelf ?? MarketShelf.all;
+  String _query = '';
+
+  /// The category chosen on the Plugins shelf; null is every one.
+  PluginCategory? _category;
+
+  /// The plugin whose page is open.
+  late String? _open = widget.plugin;
+
+  final ScrollController _scroll = ScrollController();
+
+  Registry get _registry => widget.registry ?? plugins;
+  PreferencesStore get _prefs => widget.prefs ?? preferences;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  void _openPlugin(String id) => setState(() => _open = id);
+
+  void _close() => setState(() => _open = null);
+
+  void _toShelf(MarketShelf shelf) {
+    setState(() => _shelf = shelf);
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return ListenableBuilder(
+      listenable: Listenable.merge([_registry, _prefs]),
+      builder: (context, _) => LayoutBuilder(
+        builder: (context, box) {
+          final wide = box.maxWidth >= marketWide;
+          final open = _open == null ? null : _registry.byId(_open!);
+          final safeTop = t.len('app-safe-top');
+          final hairline = t.len('glacier-hairline');
+          final bar = safeTop + t.space(2) * 2 + t.space(8) + hairline * 2;
+          final top = bar.roundToDouble() + t.space(4);
+          final dock = widget.dock;
+          final foot = t.len('app-safe-bottom') + (dock == null ? t.space(10) : math.max(t.space(10), pageDockRoom(t, dock.rings)));
+          final gutterStart = t.len('app-gutter-start'), gutterEnd = t.len('app-gutter-end');
+          final pad = EdgeInsetsDirectional.fromSTEB(gutterStart, top, gutterEnd, foot);
+
+          // A phone's plugin page takes the screen; with room it stands beside the shelves.
+          final paneWidth = math.min(440.0, box.maxWidth * 0.42);
+          final Widget body;
+          if (open != null && !wide) {
+            body = OnBack(
+              key: const ValueKey('back:market-plugin'),
+              onBack: _close,
+              child: SingleChildScrollView(key: ValueKey('market-page-${open.manifest.id}'), padding: pad, child: _detail(open, close: false)),
+            );
+          } else {
+            final shelves = SingleChildScrollView(
+              key: const ValueKey('market-scroll'),
+              controller: _scroll,
+              padding: pad,
+              child: Center(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 1180),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: _page(t, wide: wide, narrowed: open != null)),
+                ),
+              ),
+            );
+            body = open == null
+                ? shelves
+                : Row(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Expanded(child: shelves),
+                      OnBack(
+                        key: const ValueKey('back:market-plugin'),
+                        onBack: _close,
+                        child: Container(
+                          key: const ValueKey('market-pane'),
+                          width: paneWidth,
+                          decoration: BoxDecoration(color: t.color('app-paper'), border: Border(left: BorderSide(color: t.color('app-rule'), width: hairline))),
+                          child: SingleChildScrollView(
+                            key: ValueKey('market-page-${open.manifest.id}'),
+                            padding: EdgeInsets.fromLTRB(t.space(4), top, t.space(4), foot),
+                            child: _detail(open, close: true),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+          }
+
+          final title = open != null && !wide ? open.manifest.name : 'Market';
+          return ColoredBox(
+            color: t.color('glacier-bg'),
+            child: ClipRect(
+              child: Stack(
+                children: [
+                  Positioned.fill(child: dock == null ? body : PageDockFrame(seam: dock, child: body)),
+                  HeaderPane(
+                    child: Padding(
+                      key: const ValueKey('market-bar'),
+                      padding: EdgeInsetsDirectional.fromSTEB(gutterStart - t.space(2), t.space(2), gutterEnd, t.space(2)),
+                      child: Row(
+                        spacing: t.space(2),
+                        children: [
+                          GlacierPressable(
+                            key: const ValueKey('market-back'),
+                            onPressed: open != null && !wide ? _close : widget.onBack,
+                            semanticLabel: open != null && !wide ? 'Back to the Market' : 'Back to home',
+                            builder: (context, state) => GlacierFocusRing(
+                              visible: state.focused,
+                              child: SizedBox.square(dimension: t.space(8), child: Center(child: AppIcon(Lucide.arrowLeft, size: 20, color: t.color('app-ink')))),
+                            ),
+                          ),
+                          Expanded(
+                            child: Semantics(
+                              header: true,
+                              child: Text(title, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// A plugin's page, switched through the registry.
+  Widget _detail(GlyphPlugin plugin, {required bool close}) {
+    final registry = _registry;
+    final id = plugin.manifest.id;
+    final held = _prefs.value.localOnly && usesNetwork(plugin.manifest);
+    final settings = widget.onPluginSettings;
+    return PluginDetail(
+      plugin: plugin,
+      added: registry.switchedOn(id),
+      on: registry.isEnabled(id),
+      held: held,
+      onSwitch: (on) => registry.setEnabled(id, on),
+      onSettings: settings == null || plugin.settings == null ? null : () => settings(id),
+      onLocalOnly: widget.onLocalOnly,
+      onClose: close ? _close : null,
+    );
+  }
+
+  /// Everything above the plugin's page: the band, the search, the shelves' control and what the shelf holds.
+  List<Widget> _page(Tokens t, {required bool wide, required bool narrowed}) {
+    final registry = _registry;
+    final prefs = _prefs.value;
+    final query = _query;
+    final all = catalogueOrder(registry.all());
+    final options = themeOptions(t);
+    final shelf = _shelf;
+    final searching = query.trim().isNotEmpty;
+    final gap = t.space(6);
+
+    // What each shelf would show, the search applied.
+    final categories = categoriesOf(all);
+    final category = categories.contains(_category) ? _category : null;
+    final found = [
+      for (final plugin in pluginsFound(all, query))
+        if (shelf != MarketShelf.plugins || category == null || plugin.manifest.category == category) plugin,
+    ];
+    final themesFound = [for (final option in options) if (themeFound(option, query)) option];
+    final noteFaces = [for (final face in typefaces) if (faceFound(face, query)) face];
+    final uiFaces = [for (final face in interfaceFaces) if (faceFound(face, query)) face];
+    final showPlugins = shelf == MarketShelf.all || shelf == MarketShelf.plugins;
+    final showThemes = shelf == MarketShelf.all || shelf == MarketShelf.themes;
+    final showFonts = shelf == MarketShelf.all || shelf == MarketShelf.fonts;
+    final nothing = (!showPlugins || found.isEmpty) && (!showThemes || themesFound.isEmpty) && (!showFonts || (noteFaces.isEmpty && uiFaces.isEmpty));
+    // A phone's All shows the themes and the fonts as rows that scroll sideways; everywhere else they stand across.
+    final rows = !wide && shelf == MarketShelf.all;
+
+    final parts = <Widget>[
+      _Band(plugins: all, themes: options.length, faces: typefaces.length, wide: wide),
+      SizedBox(height: t.space(4)),
+      GlacierSearchField(
+        key: const ValueKey('market-find'),
+        value: query,
+        onValueChange: (value) => setState(() => _query = value),
+        placeholder: 'Search plugins, themes and fonts',
+        ariaLabel: 'Search the Market',
+      ),
+      SizedBox(height: t.space(3)),
+      Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: wide ? 440 : double.infinity),
+          child: GlacierSegmentedControl(
+            key: const ValueKey('market-shelves'),
+            ariaLabel: 'Shelves',
+            fullWidth: true,
+            options: [for (final each in MarketShelf.values) GlacierSegmentedOption(value: each.name, label: Text(each.label))],
+            value: shelf.name,
+            onValueChange: (value) => _toShelf(MarketShelf.values.byName(value)),
+          ),
+        ),
+      ),
+    ];
+
+    if (nothing) {
+      return [
+        ...parts,
+        SizedBox(height: gap),
+        _Nothing(
+          query: query.trim(),
+          onEverything: () => setState(() {
+            _query = '';
+            _category = null;
+            _shelf = MarketShelf.all;
+          }),
+        ),
+      ];
+    }
+
+    // The featured plugins, at the head of All before anything is typed.
+    if (shelf == MarketShelf.all && !searching) {
+      final featured = featuredPlugins(all);
+      if (featured.isNotEmpty) {
+        final cards = [for (final plugin in featured) _featured(plugin)];
+        parts.addAll([
+          SizedBox(height: gap),
+          const MarketHeading(title: 'Featured', icon: Lucide.sparkles),
+          if (!wide)
+            MarketRow(width: t.lenOf('17rem'), height: t.lenOf('13rem'), children: cards)
+          else
+            MarketGrid(minWidth: t.lenOf('14rem'), most: narrowed ? 2 : 4, children: [for (final card in cards) SizedBox(height: t.lenOf('13rem'), child: card)]),
+        ]);
+      }
+    }
+
+    if (showThemes && themesFound.isNotEmpty) {
+      final cards = [
+        for (final option in themesFound) MarketThemeCard(option: option, selected: prefs.theme == option.value, onPress: () => _prefs.update((now) => themeChoice(option.value, now))),
+      ];
+      parts.addAll([
+        SizedBox(height: gap),
+        MarketHeading(
+          title: 'Themes',
+          icon: Lucide.swatchBook,
+          meta: '${themesFound.length} to choose from',
+          more: shelf == MarketShelf.all ? 'See all' : null,
+          onMore: () => _toShelf(MarketShelf.themes),
+        ),
+        if (rows)
+          MarketRow(width: t.lenOf('10.5rem'), height: t.lenOf('7rem') + t.lenOf('3.6rem'), children: cards)
+        else
+          MarketGrid(minWidth: t.lenOf('10rem'), most: 5, children: cards),
+      ]);
+      if (shelf == MarketShelf.themes) {
+        parts.addAll([
+          SizedBox(height: gap),
+          MarketHeading(title: 'Accent', icon: Lucide.palette, meta: accentName(prefs.accent)),
+          MarketCard(
+            key: const ValueKey('market-accents'),
+            padding: EdgeInsets.all(t.space(4)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                AccentSwatch(accent: prefs.accent, onAccent: (accent) => _prefs.update((now) => now.copyWith(accent: accent))),
+                SizedBox(height: t.space(3)),
+                Text('The one colour Ghost.md wears: the chosen tab, a link, a ticked box. Ink is no colour at all.', style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3'))),
+              ],
+            ),
+          ),
+        ]);
+      }
+    }
+
+    if (showFonts && (noteFaces.isNotEmpty || uiFaces.isNotEmpty)) {
+      final faces = prefs.faces;
+      Widget fonts(List<String> list, FaceRole role) {
+        final cards = [
+          for (final face in list)
+            MarketFontCard(
+              face: face,
+              role: role,
+              selected: role == FaceRole.note ? faces.note == face : faces.ui == face,
+              onPress: () => _prefs.update((now) => role == FaceRole.note ? now.copyWith(noteFace: face) : now.copyWith(typeface: face)),
+            ),
+        ];
+        return rows ? MarketRow(width: t.lenOf('14rem'), height: t.lenOf('6.2rem') + t.lenOf('3.6rem'), children: cards) : MarketGrid(minWidth: t.lenOf('13rem'), most: 4, children: cards);
+      }
+
+      if (noteFaces.isNotEmpty) {
+        parts.addAll([
+          SizedBox(height: gap),
+          MarketHeading(title: shelf == MarketShelf.fonts ? 'Note font' : 'Fonts', icon: Lucide.type, meta: 'Your notes’ words and code', more: shelf == MarketShelf.all ? 'See all' : null, onMore: () => _toShelf(MarketShelf.fonts)),
+          fonts(noteFaces, FaceRole.note),
+        ]);
+      }
+      if (uiFaces.isNotEmpty && (shelf == MarketShelf.fonts || searching)) {
+        parts.addAll([
+          SizedBox(height: gap),
+          const MarketHeading(title: 'Interface font', icon: Lucide.textCursorInput, meta: 'Menus, tabs and buttons'),
+          fonts(uiFaces, FaceRole.interface),
+        ]);
+      }
+    }
+
+    if (showPlugins && (found.isNotEmpty || category != null)) parts.addAll([SizedBox(height: gap), ..._plugins(t, all: all, found: found, categories: categories, category: category, wide: wide)]);
+    return parts;
+  }
+
+  Widget _featured(GlyphPlugin plugin) {
+    final id = plugin.manifest.id;
+    final held = _prefs.value.localOnly && usesNetwork(plugin.manifest);
+    return FeaturedPluginCard(plugin: plugin, added: _registry.switchedOn(id), held: held, onAdd: held ? null : () => _registry.setEnabled(id, true), onOpen: () => _openPlugin(id));
+  }
+
+  /// The plugins: how many are added, Local only's word, the categories on their own shelf, then Added and Discover.
+  List<Widget> _plugins(Tokens t, {required List<GlyphPlugin> all, required List<GlyphPlugin> found, required List<PluginCategory> categories, required PluginCategory? category, required bool wide}) {
+    final registry = _registry;
+    final localOnly = _prefs.value.localOnly;
+    final count = all.where((p) => registry.switchedOn(p.manifest.id)).length;
+    final added = [for (final plugin in found) if (registry.switchedOn(plugin.manifest.id)) plugin];
+    final discover = [for (final plugin in found) if (!registry.switchedOn(plugin.manifest.id)) plugin];
+
+    Widget card(GlyphPlugin plugin) {
+      final id = plugin.manifest.id;
+      final held = localOnly && usesNetwork(plugin.manifest);
+      return MarketPluginCard(
+        plugin: plugin,
+        added: registry.switchedOn(id),
+        held: held,
+        wide: wide,
+        selected: _open == id,
+        onAdd: held ? null : () => registry.setEnabled(id, true),
+        onOpen: () => _openPlugin(id),
+      );
+    }
+
+    Widget shelf(String title, List<GlyphPlugin> list) {
+      final size = t.lenOf('0.72rem');
+      return Column(
+        key: ValueKey('shelf ${title.toLowerCase()}'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: EdgeInsets.only(top: t.space(4), bottom: t.space(2)),
+            child: Semantics(
+              header: true,
+              label: title,
+              child: ExcludeSemantics(child: Text(title.toUpperCase(), style: pageText(t, size, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size)))),
+            ),
+          ),
+          if (wide)
+            MarketGrid(minWidth: t.lenOf('14rem'), most: 4, children: [for (final plugin in list) card(plugin)])
+          else
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                for (var i = 0; i < list.length; i++) ...[if (i > 0) SizedBox(height: t.space(2)), card(list[i])],
+              ],
+            ),
+        ],
+      );
+    }
+
+    return [
+      MarketHeading(
+        title: 'Plugins',
+        icon: Lucide.puzzle,
+        meta: '$count of ${all.length} added',
+        more: _shelf == MarketShelf.all && _query.trim().isEmpty ? 'See all' : null,
+        onMore: () => _toShelf(MarketShelf.plugins),
+      ),
+      Text(
+        'Every one is built in: adding one is a switch, and removing one keeps what it kept. None reaches anywhere its page does not say.',
+        style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3')),
+      ),
+      if (localOnly) ...[
+        SizedBox(height: t.space(3)),
+        _LocalOnly(onPress: widget.onLocalOnly),
+      ],
+      if (_shelf == MarketShelf.plugins && categories.length > 1) ...[
+        SizedBox(height: t.space(3)),
+        Semantics(
+          container: true,
+          label: 'Categories',
+          child: Wrap(
+            spacing: t.space(2),
+            runSpacing: t.space(2),
+            children: [
+              MarketChip(label: 'All', chosen: category == null, onPress: () => setState(() => _category = null)),
+              for (final each in categories) MarketChip(label: each.label, chosen: category == each, onPress: () => setState(() => _category = each)),
+            ],
+          ),
+        ),
+      ],
+      if (added.isNotEmpty) shelf('Added', added),
+      if (discover.isNotEmpty) shelf('Discover', discover),
+      if (found.isEmpty)
+        Padding(
+          padding: EdgeInsets.only(top: t.space(4)),
+          child: Text('There is no plugin in ${category?.label ?? 'this build'} that matches.', style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        ),
+    ];
+  }
+}
+
+/// The Market's head: a band in colour, its name and what it is, how much is on its shelves, and the plugins' tiles
+/// scattered at its end, the brands' marks first.
+class _Band extends StatelessWidget {
+  const _Band({required this.plugins, required this.themes, required this.faces, required this.wide});
+
+  final List<GlyphPlugin> plugins;
+  final int themes;
+  final int faces;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final radius = t.radius('lg') * 1.6;
+    final height = wide ? t.lenOf('12rem') : t.lenOf('11rem');
+    final tiles = [...plugins.where(hasBrandMark), ...plugins.where((p) => !hasBrandMark(p))].take(wide ? 7 : 4).toList();
+    // Where each tile sits, from the band's end: its offset across and down, its size and its turn.
+    const spots = [(0.06, 0.12, 3.6, -0.10), (0.30, 0.46, 3.0, 0.08), (0.03, 0.62, 2.6, 0.14), (0.24, 0.02, 2.4, 0.06), (0.52, 0.10, 2.2, -0.12), (0.47, 0.58, 2.6, -0.04), (0.70, 0.40, 2.0, 0.10)];
+    final lineStyle = pageText(t, t.fontSize(wide ? 'md' : 'sm'), height: 1.35, color: const Color(0xEBFFFFFF));
+    return ClipRRect(
+      key: const ValueKey('market-band'),
+      borderRadius: BorderRadius.circular(radius),
+      child: ConstrainedBox(
+        // At least this tall, and taller where its words need it.
+        constraints: BoxConstraints(minHeight: height),
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(begin: Alignment.topLeft, end: Alignment.bottomRight, colors: [Color(0xFF4F5BD5), Color(0xFF9A45C9), Color(0xFFD6336C), Color(0xFFD9600D)], stops: [0, 0.38, 0.72, 1]),
+          ),
+          child: LayoutBuilder(
+            builder: (context, box) {
+              final across = wide ? math.min(box.maxWidth * 0.4, 420.0) : box.maxWidth * 0.42;
+              return Stack(
+                children: [
+                  Positioned.fill(child: tileLight(radius: radius)),
+                  for (var i = 0; i < tiles.length; i++)
+                    Positioned(
+                      right: spots[i].$1 * across,
+                      top: spots[i].$2 * height,
+                      child: Transform.rotate(
+                        angle: spots[i].$4,
+                        child: DecoratedBox(
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(t.lenOf('${spots[i].$3 * 0.28}rem')),
+                            boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 14, offset: Offset(0, 6))],
+                          ),
+                          child: PluginTile(plugin: tiles[i], size: t.lenOf('${spots[i].$3}rem')),
+                        ),
+                      ),
+                    ),
+                  Container(
+                    width: box.maxWidth,
+                    alignment: AlignmentDirectional.bottomStart,
+                    padding: EdgeInsets.all(t.space(wide ? 6 : 5)),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(minHeight: height - t.space(wide ? 6 : 5) * 2, maxWidth: box.maxWidth - across - t.space(wide ? 6 : 5)),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          Text('Market', style: pageText(t, t.fontSize(wide ? '3xl' : '2xl'), weight: 'bold', color: const Color(0xFFFFFFFF))),
+                          SizedBox(height: t.space(1)),
+                          Text('Plugins, themes and fonts, all built in. Adding one is a switch.', maxLines: 3, overflow: TextOverflow.ellipsis, style: lineStyle),
+                          SizedBox(height: t.space(3)),
+                          Text(
+                            '${plugins.length} plugins · $themes themes · $faces fonts',
+                            key: const ValueKey('market-band-count'),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xCCFFFFFF)),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Local only's word over the plugins: on, it holds every plugin that uses the internet off.
+class _LocalOnly extends StatelessWidget {
+  const _LocalOnly({this.onPress});
+  final VoidCallback? onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      key: const ValueKey('market-local-only'),
+      padding: EdgeInsets.all(t.space(3)),
+      decoration: BoxDecoration(
+        color: t.color('app-paper-2'),
+        borderRadius: BorderRadius.circular(t.radius('lg')),
+        border: Border.all(color: t.color('app-rule'), width: t.len('glacier-hairline')),
+      ),
+      child: Row(
+        children: [
+          AppIcon(Lucide.wifiOff, size: 18, strokeWidth: 2.1, color: t.color('app-ink-2')),
+          SizedBox(width: t.space(3)),
+          Expanded(child: Text('Local only is on, so plugins that use the internet are held off until it is off.', style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-2')))),
+          if (onPress != null) ...[SizedBox(width: t.space(2)), MarketWord(word: 'Local only', onPress: onPress!)],
+        ],
+      ),
+    );
+  }
+}
+
+/// A search that left nothing: the ghost finding nothing, and the way back to everything.
+class _Nothing extends StatelessWidget {
+  const _Nothing({required this.query, required this.onEverything});
+
+  final String query;
+  final VoidCallback onEverything;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Column(
+      key: const ValueKey('market-nothing'),
+      children: [
+        const Ghost(scene: GhostScene.searchNothing, size: GhostSize.small, align: GhostAlign.center, maxWidth: 200),
+        SizedBox(height: t.space(3)),
+        Text(query.isEmpty ? 'Nothing here yet' : 'Nothing matches “$query”', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
+        SizedBox(height: t.space(1)),
+        Text('Try a plugin’s name, a theme or a font.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        SizedBox(height: t.space(4)),
+        MarketButton(key: const ValueKey('market-everything'), label: 'Show everything', look: MarketButtonLook.ring, onPress: onEverything),
+      ],
+    );
+  }
+}

@@ -72,7 +72,7 @@ A diagram uses Mermaid, with every kind of diagram it knows. It is loaded the fi
 
 ## Ghost.md's own seven
 
-These come from the **Marks** plugin, which is on unless you switch it off in Settings › Plugins.
+These come from the **Marks** plugin, which is on unless you remove it in the Market.
 
 | Mark | Type | Looks like |
 |---|---|---|

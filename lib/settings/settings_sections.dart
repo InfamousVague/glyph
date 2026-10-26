@@ -3,7 +3,9 @@ import 'package:flutter/widgets.dart';
 import '../account/ui_state.dart';
 import '../core/mac_app.dart' show macAppStore;
 import '../core/preferences.dart';
+import '../art/art.dart' show AppIcon, Lucide;
 import '../core/workspaces.dart' show Workspace;
+import '../market/market_items.dart' show marketLanding;
 import '../plugins/catalogue.dart' show catalogueOrder;
 import '../plugins/registry.dart' show plugins;
 import 'appearance_pane.dart';
@@ -175,13 +177,14 @@ String _static(String line, SettingsFacts _) => line;
 ///   where it cannot (an app to update, a device backups are not on).
 /// - AI's reading is the chosen model and what it takes to get, from the catalogue; About's is the version alone
 ///   until the app has an updater; Test results' is "No report yet" until a report is built in.
-/// - Plugins reads the app's registry (lib/plugins/registry.dart `plugins`), which is empty until the built-in
-///   plugins are put in place: its row then says "0 of 0 added". Plugins is a catalogue now, with a card of its own
-///   on the list (Matt, 2026-10-18: "rework the plugins page to be a marketplace, also move plugin settings to their
-///   own page under settings"): its row, then a row for each added plugin's own page ([pluginPageSections]), then
-///   every plugin's page in the catalogue, off the list ([pluginInfoSections]). So this table is read afresh each
-///   time it is asked for, where the web built its list on every draw, and the sheet draws it again whenever a
-///   plugin's switch moves.
+/// - The plugins are not Settings' any more: their catalogue is the Market, a place of the app's own (Matt,
+///   2026-10-26: "move the plugins section out of the settings (leaving plugin specific settings to own their
+///   settings) add the plugins setting to the market page"; lib/market/market_screen.dart). Its card on the list
+///   keeps the Market's row, which shuts Settings and opens it, and a row for each added plugin's own page
+///   ([pluginPageSections]), read from the app's registry (lib/plugins/registry.dart `plugins`). So this table is
+///   read afresh each time it is asked for, where the web built its list on every draw, and the sheet draws it
+///   again whenever a plugin's switch moves. A link to what was Plugins (`plugins`, `plugins/<id>`) lands in the
+///   Market ([settingsLanding], and the sheet's `onMarket`).
 /// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
 /// - Simple or advanced (GHST-103, the port's own), the choice the walkthrough asks, is Appearance's first card for
 ///   later (lib/settings/mode_cards.dart). It headed the list as a page of its own on a card of its own from
@@ -193,12 +196,15 @@ String _static(String line, SettingsFacts _) => line;
 List<SettingsSectionSpec> get settingsSections => [
       for (final spec in _sections) ...[
         spec,
-        if (spec.id == 'plugins') ...[...pluginPageSections(), ...pluginInfoSections()],
+        if (spec.id == marketSectionId) ...pluginPageSections(),
       ],
     ];
 
-/// The card Plugins and the plugins' own pages share on the list, between AI's and About's.
+/// The card the Market's row and the plugins' own pages share on the list, between AI's and About's.
 const int pluginsGroup = 5;
+
+/// The Market's row on Settings' list (lib/market/market_screen.dart), where Plugins was.
+const String marketSectionId = 'market';
 
 /// The card Appearance has to itself, under Account's (Matt, 2026-10-24: "move appearnce up in the settings to under
 /// account"). Its own rather than a row of Account's: that card is who you are and what leaves the phone, and a row
@@ -211,8 +217,10 @@ const int appearanceGroup = 6;
 const Map<String, ({String id, String setting})> settingsAliases = {'experience': (id: 'theme', setting: 'Mode')};
 
 /// Where [target] lands: itself, or for an id of [settingsAliases] the page and the card it names, unless the link
-/// named a card of its own.
+/// named a card of its own. What was Plugins, and a plugin's page in it, is the Market's row, for a Settings with
+/// nowhere to send the link on to (the sheet hands it to the Market itself where it can).
 SettingsTarget settingsLanding(SettingsTarget target) {
+  if (marketLanding(target.id) != null) return SettingsTarget(marketSectionId, nonce: target.nonce);
   final alias = settingsAliases[target.id];
   return alias == null ? target : SettingsTarget(alias.id, setting: target.setting ?? alias.setting, nonce: target.nonce);
 }
@@ -220,19 +228,20 @@ SettingsTarget settingsLanding(SettingsTarget target) {
 /// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you (with Meetings, which was a card of
 /// Account's until GHST-110), how it looks with the choice itself on its first card, and the app itself with its
 /// cheat sheet. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
-/// Export, Recording, AI, Plugins, the Specification and the Examples, waits behind Advanced; Developer and Test
+/// Export, Recording, AI, the Market and the plugins' pages, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
 const Set<String> simpleSections = {'account', 'notifications', 'meetings', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
 
-/// Each added plugin's own page, a row of Settings' list on the Plugins card (Matt, 2026-10-18: "move plugin
-/// settings to their own page under settings"): in the plugin's own icon and colour, read by its own summary, and
+/// Each added plugin's own page, a row of Settings' list on the Market's card (Matt, 2026-10-18: "move plugin
+/// settings to their own page under settings"; and 2026-10-26: "leaving plugin specific settings to own their
+/// settings"): in the plugin's own icon and colour, read by its own summary, and
 /// found by the search by the plugin's name, what it does, and what its page lists. In the catalogue's order (by
 /// category, then by name: Claude; Calendar, Contacts, Place reminders; Things, Todoist; GitHub, Notion, Slack,
-/// Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in the catalogue
-/// offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the catalogue
+/// Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in the Market
+/// offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the Market
 /// ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on.
 ///
 /// What differs from the web original: there, each was a sub-page behind its card on Plugins, which is where it was
@@ -250,35 +259,11 @@ List<SettingsSectionSpec> pluginPageSections() => [
             webFile: 'plugins/PluginsPane.tsx',
             summary: (facts) => own.summary(),
             settings: (facts) => own.settings,
-            // Plugins are what Simple hides, each one's page with the catalogue.
+            // Plugins are what Simple hides, each one's page with the Market.
             where: _advanced,
             hue: own.hue,
             pane: (context) => PluginSettingsPage(plugin: plugin),
           ),
-    ];
-
-/// Every plugin's page in the catalogue, added or not: a sub-page of Plugins, in Plugins' green, opened from its
-/// card. The search finds it by the plugin's name only while it is the plugin's one page: once the plugin is added
-/// and has a page of its own in Settings, that page is what the name finds.
-List<SettingsSectionSpec> pluginInfoSections() => [
-      for (final plugin in catalogueOrder(plugins.all()))
-        SettingsSectionSpec(
-          id: pluginInfoId(plugin.manifest.id),
-          label: plugin.manifest.name,
-          words: [plugin.manifest.description, plugin.manifest.category?.label, 'add'].nonNulls.join(' '),
-          glyph: SettingsGlyph.puzzle,
-          icon: (size) => pluginIcon(plugin, size),
-          group: pluginsGroup,
-          webFile: 'plugins/PluginsPane.tsx',
-          summary: (facts) => plugin.manifest.line,
-          settings: (facts) => pluginInfoFindable(plugin),
-          where: _advanced,
-          hue: 'green',
-          pane: (context) => PluginInfoPane.hosted(context, plugin),
-          listed: false,
-          parent: 'plugins',
-          searched: !(plugin.settings != null && plugins.isEnabled(plugin.manifest.id)),
-        ),
     ];
 
 final List<SettingsSectionSpec> _sections = [
@@ -474,19 +459,19 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
   ),
-  // The catalogue, first on a card of its own, with each added plugin's page after it (settingsSections).
+  // The Market (lib/market/market_screen.dart), first on a card of its own, with each added plugin's page after it
+  // (settingsSections): its row shuts Settings and opens the Market, where the plugins, themes and fonts are.
   SettingsSectionSpec(
-    id: 'plugins',
-    label: 'Plugins',
-    words: 'extensions integrations add-ons marketplace catalogue store browse install',
+    id: marketSectionId,
+    label: 'Market',
+    words: 'plugins plugin extensions integrations add-ons marketplace catalogue store browse install add themes fonts',
     glyph: SettingsGlyph.puzzle,
+    icon: (size) => AppIcon(Lucide.store, size: size),
     group: pluginsGroup,
     webFile: 'plugins/PluginsPane.tsx',
     where: _advanced,
     summary: (facts) => pluginsSummary(plugins),
-    settings: (facts) => pluginsFindable(plugins),
-    // A card lands on that plugin's page in the catalogue, and "Local only" on Account's Privacy card.
-    pane: PluginsPane.hosted,
+    pane: MarketPane.hosted,
   ),
   SettingsSectionSpec(
     id: 'about',

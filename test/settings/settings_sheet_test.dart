@@ -80,10 +80,10 @@ void main() {
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
         // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
-        'Plugins': '0 of 0 added',
+        'Market': '0 of 0 plugins added',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Plugins', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
       await endSettings(tester);
     });
 
@@ -107,9 +107,10 @@ void main() {
         ('recording', 2, SettingsGlyph.mic),
         ('ai', 2, SettingsGlyph.sparkles),
         // Ask Claude, Calendar and Contacts were the port's own sections until they were plugins (2026-10-17): their
-        // pages are the Claude, Calendar and Contacts plugins' now. Plugins, the catalogue, heads a card of its own,
-        // its plugins' pages as rows after it once they are added (2026-10-18; test/plugins/plugins_pane_test.dart).
-        ('plugins', 5, SettingsGlyph.puzzle),
+        // pages are the Claude, Calendar and Contacts plugins' now. Plugins, the catalogue, headed a card of its own
+        // from 2026-10-18; the Market's row does since 2026-10-26, the plugins' own pages as rows after it once they
+        // are added (test/plugins/plugins_pane_test.dart).
+        ('market', 5, SettingsGlyph.puzzle),
         ('about', 3, SettingsGlyph.info),
         ('cheatsheet', 3, SettingsGlyph.bookOpen),
         ('spec', 3, SettingsGlyph.fileCode),
@@ -130,7 +131,7 @@ void main() {
       }
     });
 
-    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, Plugins green, About yellow; none grey', (tester) async {
+    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, the Market green, About yellow; none grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
       // Appearance's purple under Account's card since 2026-10-24; no row grey since the same day (Matt: "make sure all
@@ -172,7 +173,7 @@ void main() {
     testWidgets('leave out what an iPhone has no use for, and add the hidden pages once they are unlocked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await _open(tester, size: const Size(390, 1200));
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Export', 'Plugins', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Export', 'Market', 'About']);
       debugDefaultTargetPlatformOverride = null;
       await endSettings(tester);
 

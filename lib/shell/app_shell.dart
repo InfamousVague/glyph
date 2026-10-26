@@ -118,6 +118,7 @@ class AppShell extends StatefulWidget {
     this.allNotesBuilder,
     this.organizationBuilder,
     this.collectionBuilder,
+    this.marketBuilder,
     this.captureBuilder,
     this.meetingBuilder,
     this.academyBuilder,
@@ -200,6 +201,9 @@ class AppShell extends StatefulWidget {
 
   /// The Tags page, a tag's notes and a smart notebook's (shell/screen.dart [ScreenCollection]).
   final ShellScreenBuilder<ScreenCollection>? collectionBuilder;
+
+  /// The Market: plugins, themes and fonts (lib/market/market_screen.dart, shell/screen.dart [ScreenMarket]).
+  final ShellScreenBuilder<ScreenMarket>? marketBuilder;
   final ShellOrganizationBuilder? organizationBuilder;
   final ShellScreenBuilder<ScreenCapture>? captureBuilder;
   final ShellScreenBuilder<ScreenMeeting>? meetingBuilder;
@@ -459,6 +463,13 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenCollection(kind, key: key, fromTags: fromTags);
       });
 
+  /// The Market, from the sidebar, the palette or Settings' row, at [plugin]'s page when one is named: the notes'
+  /// card closes first, as for the Tags page.
+  void showMarket({String? plugin}) => _change(() {
+        _drawer = false;
+        _screen = ScreenMarket(plugin: plugin);
+      });
+
   /// An organization's dashboard, over nothing: Settings and the notes' card close first.
   void openOrganization(String orgId) => _change(() {
         _settings = null;
@@ -618,6 +629,16 @@ class AppShellState extends State<AppShell> {
           child: KeyedSubtree(
             key: ValueKey('collection:${screen.kind.name}/${screen.key}'),
             child: widget.collectionBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'a page of notes', onDone: backToList),
+          ),
+        );
+      case ScreenMarket():
+        return OnBack(
+          key: const ValueKey('back:market'),
+          onBack: backToList,
+          // Made anew for each plugin it is opened at, so a link lands on that plugin's page.
+          child: KeyedSubtree(
+            key: ValueKey('market:${screen.plugin ?? ''}'),
+            child: widget.marketBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'the Market', onDone: backToList),
           ),
         );
       case ScreenOrganization():

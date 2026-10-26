@@ -108,7 +108,7 @@ A code block can name JavaScript, TypeScript, Python, Rust, Bash, shell, JSON, H
 
 ## Ghost.md's own marks
 
-With the Marks plugin on, as it is unless you switched it off in Settings › Plugins, its marks are said the way bold is.
+With the Marks plugin on, as it is unless you removed it in the Market, its marks are said the way bold is.
 
 | Say | You get |
 |---|---|

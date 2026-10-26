@@ -69,7 +69,7 @@ void main() {
     tearDown(() => runner.dispose());
 
     test('refuses an ask while it is off, and says where it is switched on', () async {
-      await expectLater(runner.ask('Hello'), throwsA(isA<ClaudeError>().having((e) => e.message, 'message', contains('Settings › Plugins'))));
+      await expectLater(runner.ask('Hello'), throwsA(isA<ClaudeError>().having((e) => e.message, 'message', contains('the Market'))));
       expect(keys, isEmpty);
       expect(runner.conversation, isEmpty);
     });

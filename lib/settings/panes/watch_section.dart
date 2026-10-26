@@ -67,7 +67,7 @@ class WatchSection extends StatelessWidget {
           label: watchClaudeLabel,
           hint: const Text('Up to ten minutes, the words go to Claude as if said to the microphone, to add to a note, make a list and so on; no note of its own is made and no audio kept. If Claude cannot do it, it is kept as a voice note. Longer recordings are meetings.'),
           control: claude ? GlacierSwitch(ariaLabel: watchClaudeLabel, checked: toClaude, onCheckedChange: onToClaude) : null,
-          disabledReason: claude ? null : 'Switch Claude on and add your Anthropic API key in Settings › Plugins › Claude.',
+          disabledReason: claude ? null : 'Add Claude in the Market, then your Anthropic API key in Settings › Claude.',
         ),
       ],
     );

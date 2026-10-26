@@ -1,5 +1,5 @@
 // The Place reminders plugin (lib/plugins/places): built in and off until switched on, within its manifest, held on
-// under Local only (nothing of it leaves the phone), its card on Settings › Plugins, and its page: how it works,
+// under Local only (nothing of it leaves the phone), its card in the Market, and its page: how it works,
 // whether Android lets it know where the phone is all the time, and the way to allow it. Against stand-ins for the
 // phone.
 import 'package:flutter/widgets.dart';
@@ -14,7 +14,8 @@ import 'package:ghost_md/reminders/place_host.dart';
 import 'package:ghost_md/reminders/place_settings.dart';
 import 'package:ghost_md/reminders/reminder_settings.dart';
 import 'package:ghost_md/settings/kit/settings_kit.dart';
-import 'package:ghost_md/settings/panes/plugins_pane.dart';
+import 'package:ghost_md/market/market_items.dart' show MarketShelf;
+import 'package:ghost_md/market/market_screen.dart';
 
 import '../settings/support.dart';
 import '../support/fake_places.dart';
@@ -47,7 +48,7 @@ void main() {
     });
   });
 
-  group('Settings › Plugins', () {
+  group('the Market', () {
     late Registry before;
     setUp(() {
       before = plugins;
@@ -57,14 +58,17 @@ void main() {
 
     testWidgets('its card, to discover, with its line and what it uses; its page, with what it does', (tester) async {
       usePlugins(createRegistry(builtIn, store: MemorySwitches()));
-      await pumpSettings(tester, const SingleChildScrollView(child: PluginsPane()));
-      expect(find.text('Place reminders', skipOffstage: false), findsWidgets);
-      expect(find.text('Reminders when you arrive somewhere', skipOffstage: false), findsOneWidget);
-      expect(find.descendant(of: find.ancestor(of: find.text('Reminders when you arrive somewhere', skipOffstage: false), matching: find.byType(PluginCard, skipOffstage: false)), matching: find.text('Uses your notes and your phone', skipOffstage: false), skipOffstage: false), findsOneWidget);
+      await pumpSettings(tester, MarketScreen(onBack: () {}, shelf: MarketShelf.plugins));
+      final card = find.byKey(const ValueKey('market-plugin-$placeRemindersId'), skipOffstage: false);
+      expect(find.descendant(of: card, matching: find.text('Place reminders', skipOffstage: false), skipOffstage: false), findsOneWidget);
+      expect(find.descendant(of: card, matching: find.text('Reminders when you arrive somewhere', skipOffstage: false), skipOffstage: false), findsOneWidget);
+      // It watches places through Android's geofences alone.
+      expect(find.descendant(of: card, matching: find.text('Android only', skipOffstage: false), skipOffstage: false), findsOneWidget);
       await endSettings(tester);
 
-      await pumpSettings(tester, SingleChildScrollView(child: PluginInfoPane(plugin: placesPlugin)));
+      await pumpSettings(tester, MarketScreen(onBack: () {}, plugin: placeRemindersId));
       expect(find.text('A to-do with a place reminds you when your phone arrives there.', skipOffstage: false), findsOneWidget);
+      expect(find.text('Your notes', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
   });

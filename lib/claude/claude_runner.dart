@@ -89,7 +89,7 @@ class ClaudeRunner extends ChangeNotifier {
 
   Future<void> _start(String prompt, Completer<ClaudeRun> started, {required bool alone, String? extraSystem, ClaudeDesk? desk}) async {
     if (!(allowed?.call() ?? true)) {
-      started.completeError(const ClaudeError('Claude is switched off on this device. Switch it on in Settings › Plugins.'));
+      started.completeError(const ClaudeError('Claude is switched off on this device. Add it in the Market.'));
       return;
     }
     await settings.load();

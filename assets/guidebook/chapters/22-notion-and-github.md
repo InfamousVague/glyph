@@ -11,9 +11,9 @@ _Four plugins come with Ghost.md. Two of them carry a note's list items to where
 | **Marks** | Ghost.md's own formatting on top of Markdown: the spoiler, the highlight, the aside and the rest, and the five effects. |
 | **Claude** | A page with the way to let Claude read and write your notes ([[Claude on your notes]]). |
 
-All four live in **Settings › Plugins**, a card each with a switch, and all four start on. A plugin switched off offers nothing anywhere, at once: no rows on a note's More sheet, no swipe, no page in Settings, nothing for the model. What it kept stays where it was, so switching it on again brings it all back. With Marks off, its marks read as plain text.
+All four live in the **Market**, a card each with Add, and all four start added. Open it from the sidebar under Tags, from the command bar, or from its row in Settings. A plugin removed offers nothing anywhere, at once: no rows on a note's More sheet, no swipe, no page in Settings, nothing for the model. What it kept stays where it was, so switching it on again brings it all back. With Marks off, its marks read as plain text.
 
-Each card says in one line what the plugin may reach, and **Why** opens the reason for each part:
+Each plugin's page in the Market says what it may reach, and why, part by part:
 
 | Plugin | What it may reach |
 | --- | --- |
@@ -28,7 +28,7 @@ Each card says in one line what the plugin may reach, and **Why** opens the reas
 
 ### Signing in
 
-Notion works in the Ghost.md app, on Android or the Mac, not in the web version. Open **Settings › Plugins**, tap the row on Notion's card to open its page, and tap **Sign in**. Notion opens in your browser and asks which pages and boards Ghost.md may use. Tick the boards you want, then come back. Ghost.md collects the sign-in by itself.
+Notion works in the Ghost.md app, on Android or the Mac, not in the web version. Open **Settings › Notion**, the row the plugin adds to Settings, tap the row on Notion's card to open its page, and tap **Sign in**. Notion opens in your browser and asks which pages and boards Ghost.md may use. Tick the boards you want, then come back. Ghost.md collects the sign-in by itself.
 
 Signing in needs a secret that no app can carry, so that one step goes through Ghost.md's server. The server holds the answer in memory for up to ten minutes, until your device collects it, and only the device that started the sign-in can collect it. After that the sign-in is kept on the device, in the app's own files, where no page can read it. Your notes never pass through.
 
@@ -80,11 +80,11 @@ On the More sheet, under **Linked to**, tap **GitHub repo**. Type the repo as `g
 
 Ghost.md reads the repo on your device: its description, the shape of its folders, and up to eight files that say what it is. Those are the README, notes written for AI tools such as `AGENTS.md`, a few docs, and a manifest such as `package.json` or `Cargo.toml`. The model on your phone then writes a short briefing of the project's names, parts and terms. Where there is no model, on the web or before one is downloaded, the README's opening stands in.
 
-Whenever the model on your phone works on the note, the briefing goes with it: every run on its More sheet, a spoken ask, and the review. So names come out spelled right. The model is told to use it and not to add it to the note. GitHub's page, opened from its card in **Settings › Plugins**, lists every repo read, what wrote its briefing and when, with **Forget**.
+Whenever the model on your phone works on the note, the briefing goes with it: every run on its More sheet, a spoken ask, and the review. So names come out spelled right. The model is told to use it and not to add it to the note. GitHub's page, **Settings › GitHub**, the row the plugin adds to Settings, lists every repo read, what wrote its briefing and when, with **Forget**.
 
 ### Issues
 
-Sending needs a token. Add one on GitHub's page, opened from its card in **Settings › Plugins**, under Token, and tap **Keep it**. It stays on the device.
+Sending needs a token. Add one on GitHub's page, **Settings › GitHub**, the row the plugin adds to Settings, under Token, and tap **Keep it**. It stays on the device.
 
 Then items go as issues the same four ways: the swipe, the quiet word _GitHub_, the press-and-hold menu, and **Send list to GitHub**. An issue carries the item's words as its title, and nothing else of the note. The line gains its mark:
 

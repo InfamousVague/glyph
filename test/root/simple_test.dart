@@ -98,6 +98,8 @@ void main() {
     final drawer = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
     expect(drawer.simple, isTrue);
     expect(drawer.onTags, isNull);
+    // The Market is advanced mode's, as Settings › Plugins was (Matt, 2026-10-26).
+    expect(drawer.onMarket, isNull);
     expect(drawer.onGraph, isNull);
     expect(drawer.smart, isNull);
 
@@ -153,6 +155,7 @@ void main() {
     expect((docked.pane, docked.underBar, docked.onSettings), (true, true, null));
     final drawer = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
     expect(drawer.onTags, isNotNull);
+    expect(drawer.onMarket, isNotNull);
     expect(drawer.onGraph, isNotNull);
     expect(tester.widget<NewSheet>(find.byType(NewSheet)).simple, isFalse);
 
@@ -174,6 +177,7 @@ void main() {
     final again = partOf<NotesDrawer>(shell.context, shellWidget(tester).sidebarBuilder!(shell.context, shell, () {}));
     expect(again.simple, isTrue);
     expect(again.onTags, isNull);
+    expect(again.onMarket, isNull);
 
     // And back.
     preferences.update((now) => now.choosing('advanced'));

@@ -169,6 +169,9 @@ import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/lovart/lovart.dart' show LovartMeetings, lovartPictureStore;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
+import '../market/market_items.dart' show marketLanding;
+import '../market/market_screen.dart';
+import '../settings/panes/plugins_pane.dart' show pluginPageId;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../scene/at_work.dart';
@@ -1896,10 +1899,23 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _openSettings() => setState(() => _settings = true);
 
-  void _openSettingsAt(String page) => setState(() {
-        _settings = true;
-        _settingsPage = SettingsTarget(page, nonce: DateTime.now().microsecondsSinceEpoch);
-      });
+  /// Settings at [page], and at [setting] on it when one is named. A page that was the plugins' (`plugins`,
+  /// `plugins/<id>`) is the Market now, and the link lands there instead ([marketLanding]).
+  void _openSettingsAt(String page, {String? setting}) {
+    final market = marketLanding(page);
+    if (market != null) return _showMarket(plugin: market.plugin);
+    setState(() {
+      _settings = true;
+      _settingsPage = SettingsTarget(page, setting: setting, nonce: DateTime.now().microsecondsSinceEpoch);
+    });
+  }
+
+  /// The Market (lib/market/market_screen.dart), at [plugin]'s page when one is named: Settings shut first, from its
+  /// row or a link that once went to its Plugins.
+  void _showMarket({String? plugin}) {
+    if (_settings) _closeSettings();
+    _shell.currentState?.showMarket(plugin: plugin);
+  }
 
   void _closeSettings() => setState(() => _settings = false);
 

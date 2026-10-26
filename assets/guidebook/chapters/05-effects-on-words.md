@@ -39,7 +39,7 @@ They are adjectives because the nouns are everyday words. A spoken mark closes o
 
 ## Anywhere else
 
-In another app the emoji stay, so `🔥🔥too hot to touch🔥🔥` still says what was meant. Switch the Marks plugin off, in Settings › Plugins, and Ghost.md shows them as plain characters too, as it does the other marks.
+In another app the emoji stay, so `🔥🔥too hot to touch🔥🔥` still says what was meant. Remove the Marks plugin, in the Market, and Ghost.md shows them as plain characters too, as it does the other marks.
 
 ## Read next
 

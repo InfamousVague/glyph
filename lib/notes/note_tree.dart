@@ -94,6 +94,7 @@ class NoteTree extends StatefulWidget {
     this.onSmart,
     this.onManageSmart,
     this.onTags,
+    this.onMarket,
     this.simple = false,
   });
 
@@ -151,6 +152,10 @@ class NoteTree extends StatefulWidget {
 
   /// The Tags page; the row is there only with this.
   final VoidCallback? onTags;
+
+  /// The Market (Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the app"): a row under Tags,
+  /// there only with this.
+  final VoidCallback? onMarket;
 
   /// Simple mode (GHST-103; Matt, 2026-10-17: "fancy features hidden behind more"): the tools over the notes are
   /// New note, Search and commands, Open or Fold every folder where there are folders, and Close; no New workspace
@@ -273,7 +278,7 @@ class _NoteTreeState extends State<NoteTree> {
       art: nothing ? widget.emptyArt : null,
       // The smart notebooks and the Tags row.
       smart: widget.smart?.value,
-      organize: (widget.onTags != null ? 1 : 0) | (widget.onSmart != null ? 2 : 0) | (widget.onManageSmart != null ? 4 : 0),
+      organize: (widget.onTags != null ? 1 : 0) | (widget.onSmart != null ? 2 : 0) | (widget.onManageSmart != null ? 4 : 0) | (widget.onMarket != null ? 8 : 0),
     );
     if (had != null && had.drawn == drawn && sameNotes(had.notes, widget.notes) && sameNotes(had.trashed, trashed)) {
       return _framed(context, t, look, had.tree, had.list, popup: popup, compact: compact);
@@ -648,6 +653,17 @@ class _NoteTreeState extends State<NoteTree> {
           SliverToBoxAdapter(
             key: const ValueKey('tree-tags'),
             child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: Lucide.hash, name: 'Tags', count: tagIndex(widget.notes).length, onPressed: onTags)),
+          ),
+        );
+        pending = 1;
+      }
+      final onMarket = widget.onMarket;
+      if (onMarket != null) {
+        final gap = over(1);
+        slivers.add(
+          SliverToBoxAdapter(
+            key: const ValueKey('tree-market'),
+            child: Padding(padding: EdgeInsets.only(top: gap), child: _ShelfRow(look: look, icon: Lucide.store, name: 'Market', onPressed: onMarket)),
           ),
         );
         pending = 1;
@@ -1292,14 +1308,16 @@ class _Speak extends StatelessWidget {
 /// The smart notebooks' place among the folders, for remembering whether it is open.
 const String smartFolder = 'smart';
 
-/// A row over the folders that opens a page rather than folding: the Tags page.
+/// A row over the folders that opens a page rather than folding: the Tags page, and the Market.
 class _ShelfRow extends StatelessWidget {
-  const _ShelfRow({required this.look, required this.icon, required this.name, required this.count, required this.onPressed});
+  const _ShelfRow({required this.look, required this.icon, required this.name, this.count, required this.onPressed});
 
   final _Look look;
   final LucideIcon icon;
   final String name;
-  final int count;
+
+  /// How many it holds; none for a row that counts nothing (the Market).
+  final int? count;
   final VoidCallback onPressed;
 
   @override
@@ -1309,7 +1327,7 @@ class _ShelfRow extends StatelessWidget {
     final ink = t.color('app-ink');
     return GlacierPressable(
       onPressed: onPressed,
-      semanticLabel: '$name, $count',
+      semanticLabel: count == null ? name : '$name, $count',
       builder: (context, state) => GlacierFocusRing(
         visible: state.focused,
         offset: -2,
@@ -1326,7 +1344,8 @@ class _ShelfRow extends StatelessWidget {
                   const SizedBox(width: 15),
                   lucide(icon, size: 14, strokeWidth: 2.1, color: t.color('app-ink-3')),
                   Expanded(child: Text(name, maxLines: 1, softWrap: false, overflow: TextOverflow.ellipsis, style: pageText(t, size, weight: 'semibold', color: ink))),
-                  Padding(
+                  if (count != null)
+                    Padding(
                     padding: EdgeInsets.only(left: 0.5 * size),
                     child: Text('$count', style: pageText(t, size, weight: 'medium', color: t.color('app-ink-4')).copyWith(fontFeatures: [...t.typography.features, const FontFeature.tabularFigures()])),
                   ),

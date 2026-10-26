@@ -4,9 +4,9 @@ _Every section of Settings in the order the list shows them, with what each sett
 
 ## Finding your way
 
-Settings opens on a list of seven sections: **Account**, **Notifications**, **Appearance**, **Recording**, **AI**, **Plugins** and **About**. Recording and AI are there in the Android app and on the Mac, where a recorder has a model behind it, so the web version lists five. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
+Settings opens on a list of seven sections: **Account**, **Notifications**, **Appearance**, **Recording**, **AI**, **Market** and **About**. Recording and AI are there in the Android app and on the Mac, where a recorder has a model behind it, so the web version lists five. On a phone, each opens as a page of its own: the back gesture or a swipe to the right steps out, and a swipe to the left goes back in. On a wide window, a Mac or a folding phone opened out, Settings is a split view with the sections down the left.
 
-A few pages open from a row on another page rather than from the list: Organizations from Account, a plugin's own page from its card on Plugins, and the cheat sheet, Specification and Examples from About. Over one of those, the way back names the page it came from, "← Account", "← Plugins" or "← About", and back steps there first. In the split view the page it came from stays marked in the column.
+A few pages open from a row on another page rather than from the list: Organizations from Account, and the cheat sheet, Specification and Examples from About. Over one of those, the way back names the page it came from, "← Account" or "← About", and back steps there first. In the split view the page it came from stays marked in the column.
 
 **Search settings**, at the top of the list, finds a section or a single setting inside one, the pages behind a row included. Every word you type has to start a word of what it finds, in any order, so "sm ed" finds Smoke at the edges. A result opens its page and lights the setting for a moment. Enter opens the first result, and on a keyboard ⌘F or Ctrl+F goes to the field.
 
@@ -96,9 +96,9 @@ In the Android app and on the Mac.
 
 In the Android app and on the Mac. The **Model** card chooses the model that writes the summaries and the review, and Format, Summarize and Enhance on a note. Each model is listed once. **Get** downloads one, with the bytes shown as they arrive, and a model that is here can be picked, with **Remove** beside it, which takes two taps: Remove, then Tap again. The one in use says In use and has no Remove: pick another first. When it is the only one here there is nothing to pick, so it has Remove too. If the chosen model is not here, the one standing in for it is the one in use. Under the card, how much the models take. Qwen3.5 2B is quick, Qwen3.5 4B is the balance and the default, Qwen3.5 9B is the most careful and wants 12 GB of memory, and Gemma 4 E4B is a different voice. The card also holds the switch for filling a note's blanks on their own once typing stops. More in [[The models on your phone]].
 
-## Plugins
+## Market
 
-A card and a switch for each of the four, with what each may reach and why. A plugin that is on and has a page of its own has a row on its card that opens it: **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. See [[Notion and GitHub]] and [[Claude on your notes]].
+The plugins are not in Settings any more. Their row, **Market**, shuts Settings and opens the Market, a place of its own with the plugins, the themes and the fonts: a card for each plugin with Add, what it may reach and why, and where it works. A plugin that is added and has a page of its own keeps that page in Settings, a row of its own under the Market's: **Notion** holds its sign-in and the boards Notion shared, **GitHub** the repos read and the token, and **Claude** the way to connect. See [[Notion and GitHub]] and [[Claude on your notes]].
 
 ## About
 

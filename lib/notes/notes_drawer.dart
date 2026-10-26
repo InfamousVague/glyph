@@ -52,6 +52,7 @@ class NotesDrawer extends StatelessWidget {
     this.onSmart,
     this.onManageSmart,
     this.onTags,
+    this.onMarket,
     this.simple = false,
   });
 
@@ -100,6 +101,9 @@ class NotesDrawer extends StatelessWidget {
   final void Function(SmartNotebook notebook)? onManageSmart;
   final VoidCallback? onTags;
 
+  /// The Market; its row under Tags is there only with this.
+  final VoidCallback? onMarket;
+
   /// Simple mode (GHST-103), passed through to the tree.
   final bool simple;
 
@@ -146,6 +150,7 @@ class NotesDrawer extends StatelessWidget {
         onSmart: onSmart,
         onManageSmart: onManageSmart,
         onTags: onTags,
+        onMarket: onMarket,
         simple: simple,
       ),
     );

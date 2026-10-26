@@ -42,6 +42,7 @@ void main() {
         today: () => calls.add('today'),
         askClaude: () => calls.add('askClaude'),
         tags: () => calls.add('tags'),
+        market: () => calls.add('market'),
         openSmart: (id) => calls.add('openSmart $id'),
       );
 
@@ -77,14 +78,14 @@ void main() {
 
   test('leaves out what simple mode has no page or icon for', () {
     final list = ids(world(simple: true));
-    for (final gone in ['notebook', 'journal', 'entry:j1', 'graph', 'ask-claude', 'tags', 'smart:s1', 'space:all', 'space:w2', 'notifications', 'organizations', 'forward', 'note:links', 'note:graph', 'tab:group:new', 'tab:group:g1']) {
+    for (final gone in ['notebook', 'journal', 'entry:j1', 'graph', 'ask-claude', 'tags', 'market', 'smart:s1', 'space:all', 'space:w2', 'notifications', 'organizations', 'forward', 'note:links', 'note:graph', 'tab:group:new', 'tab:group:g1']) {
       expect(list, isNot(contains(gone)), reason: '$gone is advanced');
     }
   });
 
   test('is the whole list in advanced, from the same world and doings', () {
     final list = ids(world(simple: false));
-    expect(list, containsAll(['notebook', 'journal', 'entry:j1', 'graph', 'ask-claude', 'tags', 'smart:s1', 'space:all', 'space:w2', 'notifications', 'organizations', 'forward', 'note:links', 'note:graph', 'tab:group:new', 'tab:group:g1']));
+    expect(list, containsAll(['notebook', 'journal', 'entry:j1', 'graph', 'ask-claude', 'tags', 'market', 'smart:s1', 'space:all', 'space:w2', 'notifications', 'organizations', 'forward', 'note:links', 'note:graph', 'tab:group:new', 'tab:group:g1']));
     // And nothing simple mode keeps is lost on the way.
     expect(list, containsAll(ids(world(simple: true))));
   });
@@ -94,5 +95,16 @@ void main() {
     String? shortcut(String id) => list.firstWhere((command) => command.descriptor.id == id).descriptor.shortcut;
     expect(shortcut('new'), '⌘N');
     expect(shortcut('today'), '⇧⌘D');
+  });
+
+  // Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the app". Found by what it holds.
+  test('offers the Market in advanced, found by plugins, themes and fonts, and opens it', () {
+    for (final word in ['market', 'plugins', 'themes', 'fonts']) {
+      final hits = [for (final command in paletteCommands(world(simple: false), doing())) if (command.descriptor.id == 'market' && '${command.descriptor.label} ${command.descriptor.keywords}'.toLowerCase().contains(word)) command];
+      expect(hits, hasLength(1), reason: word);
+    }
+    calls.clear();
+    paletteCommands(world(simple: false), doing()).singleWhere((command) => command.descriptor.id == 'market').run();
+    expect(calls, ['market']);
   });
 }

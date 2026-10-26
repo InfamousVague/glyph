@@ -158,6 +158,7 @@ class PaletteDoing {
     this.today,
     this.askClaude,
     this.tags,
+    this.market,
     this.trash,
     this.openSmart,
   });
@@ -227,6 +228,9 @@ class PaletteDoing {
   /// Ask Claude (lib/claude/claude_chat.dart): the app's own Claude, with the person's API key.
   final VoidCallback? askClaude;
   final VoidCallback? tags;
+
+  /// The Market: plugins, themes and fonts (lib/market/market_screen.dart); advanced mode's.
+  final VoidCallback? market;
   final void Function(String id)? openSmart;
 
   /// The Trash, as a section of its own (lib/notes/trash_sheet.dart, 2026-10-23); offered in simple mode too.
@@ -422,6 +426,8 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   // ---- the app ----------------------------------------------------------------------------------------------------
   const app = 'Ghost.md';
   add('settings', 'Settings', app, 'preferences options account sync type animations', doing.settings);
+  final market = simple ? null : doing.market;
+  if (market != null) add('market', 'Market', app, 'plugins plugin extensions integrations add-ons store browse install themes fonts typeface', market);
   final notifications = simple ? null : doing.notifications;
   if (notifications != null) add('notifications', 'Notifications', app, 'bell invites invitations inbox feed unread claude', notifications);
   final organizations = simple ? null : doing.organizations;

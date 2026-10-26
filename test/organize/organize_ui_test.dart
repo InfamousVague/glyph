@@ -190,7 +190,7 @@ void main() {
   });
 
   group('the sidebar', () {
-    testWidgets('a Tags row and the smart notebooks over the folders, folders inside folders, each folding', (tester) async {
+    testWidgets('a Tags row, the Market\'s and the smart notebooks over the folders, folders inside folders, each folding', (tester) async {
       final prefs = PreferencesStore()..startWithoutStorage();
       final smart = SmartNotebookStore(prefs: prefs);
       final open = smart.add('Open at work', 'in:work is:todo')!;
@@ -213,6 +213,7 @@ void main() {
               onSmart: (id) => asked.add('smart $id'),
               onManageSmart: (notebook) => asked.add('more ${notebook.id}'),
               onTags: () => asked.add('tags'),
+              onMarket: () => asked.add('market'),
             ),
           ),
         ),
@@ -229,7 +230,9 @@ void main() {
       expect(find.byKey(const ValueKey('folder-row-clients')), findsNothing);
       await tester.tap(find.bySemanticsLabel('Tags, 9'));
       await tester.tap(find.bySemanticsLabel('Open at work, 2 notes'));
-      expect(asked, ['tags', 'smart ${open.id}']);
+      // The Market's row under Tags (Matt, 2026-10-26), with no count.
+      await tester.tap(find.bySemanticsLabel('Market'));
+      expect(asked, ['tags', 'smart ${open.id}', 'market']);
       smart.dispose();
       await down(tester);
     });
