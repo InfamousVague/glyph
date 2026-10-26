@@ -46,7 +46,21 @@ void main() {
     await tester.pump();
   }
 
-  group('the blur round the dock', () {
+  testWidgets('no halo is drawn round the dock: the dock sits on the page as it is (Matt, 2026-10-26)', (tester) async {
+    expect(DockBlurHalo.drawn, isFalse);
+    for (final platform in [TargetPlatform.android, TargetPlatform.macOS, TargetPlatform.iOS]) {
+      debugDefaultTargetPlatformOverride = platform;
+      await dock(tester);
+      expect(find.byType(EdgeStrips), findsNothing, reason: platform.name);
+      expect(tester.widgetList<CustomPaint>(find.byType(CustomPaint)).map((p) => p.foregroundPainter).whereType<DockFadeHalo>(), isEmpty, reason: platform.name);
+    }
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  group('the blur round the dock, where a look draws it', () {
+    setUp(() => DockBlurHalo.drawn = true);
+    tearDown(() => DockBlurHalo.drawn = false);
+
     test('is shown through a soft pill the halo\'s size, the dock\'s shape grown half the reach', () {
       final shape = dockBlurPill(160 + 2 * dockBlurReach, 44 + 2 * dockBlurReach);
       expect(shape.pill.outerRect, Rect.fromLTWH(dockBlurReach / 2, dockBlurReach / 2, 160 + dockBlurReach, 44 + dockBlurReach));

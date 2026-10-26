@@ -108,8 +108,14 @@ class DockBlurHalo extends StatelessWidget {
   final double reach;
   final Widget child;
 
+  /// Whether the halo is drawn at all. Off since 2026-10-26 (Matt: "remove the shadow from around the floating
+  /// dock"): the wash of the page's ground round the pill read as a shadow, light or dark, so the dock now sits on the
+  /// page with nothing round it, on every platform. The halo's drawing stays, for a look that wants it back.
+  static bool drawn = false;
+
   @override
   Widget build(BuildContext context) {
+    if (!drawn) return child;
     final dock = this.dock;
     final strips = <EdgeStrip>[];
     if (dock != null && dock.width >= 2 && dock.height >= 2 && !ghostPlain) {
