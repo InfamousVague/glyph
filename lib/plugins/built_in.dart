@@ -19,7 +19,8 @@
 /// none); and the feed's rows reach the plugins from here rather than from the registry's own module, for the same
 /// reason the list is here. And the list is longer: the web's five, then the integrations the app has of its own,
 /// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
-/// Contacts, Rich embeds, Todoist and Things. The app's own Claude is the Claude plugin's other half.
+/// Contacts, Rich embeds, Todoist and Things; then Lovart and Discord. The app's own Claude is the Claude plugin's other
+/// half.
 library;
 
 import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
@@ -27,6 +28,7 @@ import '../sync/arrived.dart' show onArrived;
 import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
+import 'discord/discord.dart' show discordPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
@@ -56,6 +58,8 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   todoistPlugin,
   thingsPlugin,
   lovartPlugin,
+  // Matt, 2026-10-26: "Add a new plugin to post notes to discord chats": the Slack plugin's shape, for Discord.
+  discordPlugin,
 ]);
 
 void Function()? _unhear;

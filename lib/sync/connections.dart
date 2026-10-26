@@ -8,12 +8,17 @@
 ///   ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
 ///   on the Fold is the Mac's at its next sync, and the summaries' handoff (lib/ai/summary_handoff.dart), which looks
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
-/// - **The plugins' switches** for the four whose connections travel, Claude, Slack, GitHub and Lovart (`plugin:<id>`,
-///   [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack is on wherever its channels are.
+/// - **The plugins' switches** for the five whose connections travel, Claude, Slack, Discord, GitHub and Lovart
+///   (`plugin:<id>`, [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack and Discord are on
+///   wherever their channels are.
 /// - **Slack** (lib/plugins/slack/channels.dart, meetings.dart): each channel's webhook (the secure store's
 ///   `glyph-slack-webhook:<id>`) and the list that names them (`glyph-slack-channels`), and Settings › Meetings › Post
 ///   to Slack (`glyph-slack-meetings`: the switch, the channel, the share link). So the device that writes a meeting up
 ///   has the channel to post it to, whichever it is; that it is posted once stays the synced `slackMeetingPosts`'s.
+/// - **Discord** (lib/plugins/discord/channels.dart, meetings.dart; Matt, 2026-10-26: "Add a new plugin to post notes
+///   to discord chats"), as Slack's: each channel's webhook (`glyph-discord-webhook:<id>`), the list that names them
+///   (`glyph-discord-channels`), and Settings › Meetings › Post to Discord (`glyph-discord-meetings`). That a meeting
+///   is posted to Discord once stays the synced `discordMeetingPosts`'s.
 /// - **GitHub's token** (lib/plugins/github/repos.dart): a personal access token, which works from any number of
 ///   devices at once.
 /// - **Lovart's keys** (lib/plugins/lovart/manifest.dart): the access key and the secret key, a pair that signs each
@@ -35,16 +40,16 @@
 /// - **What Claude spent this month**: the count is each device's own, and the limit holds each to the same amount.
 /// - **Where an organization's news goes on Slack** (`glyph-slack-news`, news.dart): every device with a channel set
 ///   for an organization posts its news, so synced, every device would post each row. Set on one device, as before.
-/// - **What has been posted and what waits**: `glyph-slack-posted`, the meetings' queue of tries
-///   (`glyph-slack-meeting-queue`), and the caches the plugins read into (`glyph-notion-tasks`, `glyph-github-issues`,
+/// - **What has been posted and what waits**: `glyph-slack-posted`, the meetings' queues of tries
+///   (`glyph-slack-meeting-queue`, `glyph-discord-meeting-queue`), and the caches the plugins read into (`glyph-notion-tasks`, `glyph-github-issues`,
 ///   `glyph-github-projects`, `glyph-calendar-events`): a device's own bookkeeping, or what it fetched.
 /// - **What is the device's**: the microphone and the models downloaded, its own sign-in session and keys
 ///   (lib/account/device_keys.dart), window and layout choices, and the plugins tied to its permissions (the
 ///   contacts, places and their reminders).
 /// - **Todoist's token** is not kept anywhere: it is pasted for one import.
 ///
-/// **On an iPhone** the Slack items are not offered (lib/core/iphone_app.dart `notOnIPhone`), as Slack is not there
-/// yet: their entries are carried in the settings untouched. Claude's are offered, so a key reaches an iPhone too.
+/// **On an iPhone** the Slack and Discord items are not offered (lib/core/iphone_app.dart `notOnIPhone`), as neither is
+/// there yet: their entries are carried in the settings untouched. Claude's are offered, so a key reaches an iPhone too.
 library;
 
 import 'dart:convert';
@@ -54,6 +59,7 @@ import 'package:flutter/foundation.dart';
 import '../claude/claude_settings.dart';
 import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
+import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
 import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, host, secretKeySecret;
@@ -66,7 +72,7 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeLimitName];
 
 /// The plugins whose switch travels.
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart'];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord'];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';
@@ -79,10 +85,20 @@ final RegExp _channelId = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 
 /// The items this device offers (see the header), given the names the settings already hold. Claude's settings, the
 /// plugins' hosts and the registry are the app's own unless a test gives its own; [platform] is the device's.
-List<SyncedItem> connectionItems(Set<String> named, {ClaudeSettings? claude, PluginHost? slackHost, PluginHost? githubHost, PluginHost? lovartHost, Registry Function()? registry, TargetPlatform? platform}) {
+List<SyncedItem> connectionItems(
+  Set<String> named, {
+  ClaudeSettings? claude,
+  PluginHost? slackHost,
+  PluginHost? discordHost,
+  PluginHost? githubHost,
+  PluginHost? lovartHost,
+  Registry Function()? registry,
+  TargetPlatform? platform,
+}) {
   final settings = claude ?? claudeSettings;
   final reg = (registry ?? () => plugins)();
   final slackHere = notOnIPhone('slack', platform: platform) == null;
+  final discordHere = notOnIPhone('discord', platform: platform) == null;
   return [
     for (final name in claudeSyncedNames)
       SyncedItem(
@@ -95,10 +111,11 @@ List<SyncedItem> connectionItems(Set<String> named, {ClaudeSettings? claude, Plu
         peek: () => _claudePeek(settings, name),
       ),
     if (slackHere) ..._slackItems(named, slackHost ?? slack.host),
+    if (discordHere) ..._discordItems(named, discordHost ?? discord.host),
     _secretItem(githubHost ?? github.host, github.tokenSecret),
     for (final name in const [lovart.accessKeySecret, lovart.secretKeySecret]) _secretItem(lovartHost ?? lovart.host, name),
     for (final id in syncedSwitches)
-      if (reg.byId(id) != null && (slackHere || id != 'slack')) _switchItem(reg, id),
+      if (reg.byId(id) != null && (slackHere || id != 'slack') && (discordHere || id != 'discord')) _switchItem(reg, id),
   ];
 }
 
@@ -154,6 +171,27 @@ List<SyncedItem> _slackItems(Set<String> named, PluginHost host) {
       if (_channelId.hasMatch(id)) _secretItem(host, '${slack.webhookPrefix}$id'),
     _storageItem(host, slackChannelsKey),
     _storageItem(host, slackMeetingsKey),
+  ];
+}
+
+/// Discord's, as Slack's: each channel's webhook, by the ids listed here and the ones the settings name, then the list
+/// and Post to Discord.
+List<SyncedItem> _discordItems(Set<String> named, PluginHost host) {
+  final ids = <String>{};
+  final Object? listed = host.storage.get<Object?>(discord.discordChannelsKey, const <Object?>[]);
+  if (listed is List) {
+    for (final each in listed) {
+      if (each is Map && each['id'] is String) ids.add(each['id'] as String);
+    }
+  }
+  for (final name in named) {
+    if (name.startsWith(discord.discordWebhookPrefix)) ids.add(name.substring(discord.discordWebhookPrefix.length));
+  }
+  return [
+    for (final id in ids)
+      if (_channelId.hasMatch(id)) _secretItem(host, '${discord.discordWebhookPrefix}$id'),
+    _storageItem(host, discord.discordChannelsKey),
+    _storageItem(host, discord.discordMeetingsKey),
   ];
 }
 

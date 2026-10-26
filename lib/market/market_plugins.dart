@@ -10,7 +10,7 @@
 /// only".
 ///
 /// Adding one is the registry's switch (`registry.setEnabled`), as the catalogue's Add was, so the switches the
-/// account carries (Claude, Slack, GitHub, Lovart; lib/sync/connections.dart) still follow it. Local only holds a
+/// account carries (Claude, Slack, Discord, GitHub, Lovart; lib/sync/connections.dart) still follow it. Local only holds a
 /// plugin that uses the internet off: its card says so and cannot be added until Local only is off.
 library;
 

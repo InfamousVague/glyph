@@ -41,6 +41,9 @@ String? notOnIPhone(String what, {TargetPlatform? platform}) {
   return switch (what) {
     'notion' => 'Notion is not available on iOS yet.',
     'slack' => 'Slack is not available on iOS yet.',
+    // Not Rust's: the Discord plugin posts from Dart, and is kept off an iPhone as Slack is, the two being one
+    // shape (lib/plugins/discord/discord.dart; Matt, 2026-10-26).
+    'discord' => 'Discord is not available on iOS yet.',
     _ => null,
   };
 }

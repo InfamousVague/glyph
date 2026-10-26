@@ -77,6 +77,8 @@ void main() {
       expect(reach('place-reminders'), 'Android only');
       expect(reach('todoist'), 'Android · Desktop');
       expect(reach('lovart'), 'Mobile · Desktop');
+      // Off an iPhone as Slack is (lib/core/iphone_app.dart; Matt, 2026-10-26).
+      expect(reach('discord'), 'Android · Desktop');
     });
 
     test('gives every plugin a hue it can draw, its Settings page’s where it has one', () {
@@ -110,7 +112,7 @@ void main() {
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNWidgets(themes.length));
       expect(find.byType(MarketFontCard, skipOffstage: false), findsNWidgets(typefaces.length));
       expect(onShelf(tester, 'added'), ['claude', 'github', 'notion', 'marks', 'rich-embeds']);
-      expect(onShelf(tester, 'discover'), ['lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'slack', 'webhooks']);
+      expect(onShelf(tester, 'discover'), ['lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
       expect(find.text('5 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
@@ -162,6 +164,20 @@ void main() {
       expect(find.byType(MarketPluginCard, skipOffstage: false), findsNWidgets(builtIn.length));
       await endSettings(tester);
     });
+  });
+
+  testWidgets('lists Discord among the plugins, found by its name, in its colour and the chat bubble, not a brand’s mark', (tester) async {
+    final discord = builtIn.singleWhere((p) => p.manifest.id == 'discord');
+    expect(hasBrandMark(discord), isFalse);
+    expect(pluginHue(discord), 'indigo');
+    expect(pluginsFound(builtIn, 'discord').map((p) => p.manifest.id), ['discord']);
+    await pumpMarket(tester);
+    await search(tester, 'discord');
+    expect(find.byType(MarketPluginCard, skipOffstage: false), findsOneWidget);
+    expect(card('discord'), findsOneWidget);
+    expect(find.descendant(of: card('discord'), matching: find.text('Discord')), findsWidgets);
+    expect(find.descendant(of: card('discord'), matching: find.text('Android · Desktop')), findsWidgets);
+    await endSettings(tester);
   });
 
   group('a plugin', () {

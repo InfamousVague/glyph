@@ -56,7 +56,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
             const SettingsFindable('Sync now', 'devices'),
             // Sync meeting recordings is Meetings' now (meetings_pane.dart `meetingsFindable`).
             const SettingsFindable('Live typing', 'realtime collaborate claude'),
-            const SettingsFindable(keysInSyncLabel, 'claude api key token slack github webhook secrets devices'),
+            const SettingsFindable(keysInSyncLabel, 'claude api key token slack discord github webhook secrets devices'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
@@ -454,7 +454,7 @@ class _AccountPaneState extends State<AccountPane> {
               // (Matt, 2026-10-26).
               SettingRow(
                 label: keysInSyncLabel,
-                hint: const Text('Your Claude key, Slack channels and GitHub token on each device you sign in to. End-to-end encrypted: the server can’t read them.'),
+                hint: const Text('Your Claude key, Slack and Discord channels and GitHub token on each device you sign in to. End-to-end encrypted: the server can’t read them.'),
                 control: ValueListenableBuilder<bool>(
                   valueListenable: keysInSync,
                   builder: (context, on, _) => GlacierSwitch(ariaLabel: keysInSyncLabel, checked: on, onCheckedChange: keysInSync.set),

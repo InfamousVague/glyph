@@ -28,6 +28,8 @@ import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/orgs/org_keys.dart';
 import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/plugins/claude/claude.dart' show claudePlugin;
+import 'package:ghost_md/plugins/discord/discord.dart' show discordChannels, discordMeetingChannel, discordPlugin, postsMeetingsToDiscord;
+import 'package:ghost_md/plugins/discord/manifest.dart' as discord show discordWebhookPrefix, manifest;
 import 'package:ghost_md/plugins/github/github.dart' show githubPlugin;
 import 'package:ghost_md/plugins/github/manifest.dart' as github show manifest, tokenSecret;
 import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
@@ -78,6 +80,7 @@ const String webhook = 'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXX
 const String githubToken = 'ghp_0123456789abcdefABCDEF0123456789abcd';
 const String lovartAccess = 'ak-LOVART-0123456789abcdef';
 const String lovartSecret = 'sk-LOVART-fedcba9876543210';
+const String discordWebhook = 'https://discord.com/api/webhooks/123456789012345678/aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-x';
 
 /// One device: its settings, its secure stores, its plugins' storage and switches, its sync engine.
 class KeysDevice {
@@ -87,11 +90,12 @@ class KeysDevice {
     slackHost = createHost(slack.manifest, ground: ground);
     githubHost = createHost(github.manifest, ground: ground);
     lovartHost = createHost(lovart.manifest, ground: ground);
-    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin], store: MemorySwitches());
+    discordHost = createHost(discord.manifest, ground: ground);
+    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin], store: MemorySwitches());
     claude = ClaudeSettings(claudeStore);
     sealed = keys
         ? SealedKeys(
-            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, githubHost: githubHost, lovartHost: lovartHost, registry: () => registry, platform: platform),
+            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, registry: () => registry, platform: platform),
             prefs: prefs,
             device: () => id,
             heard: connectionChanges(claude: claude, registry: () => registry),
@@ -138,6 +142,7 @@ class KeysDevice {
   late final PluginHost slackHost;
   late final PluginHost githubHost;
   late final PluginHost lovartHost;
+  late final PluginHost discordHost;
   late final Registry registry;
   late final ClaudeSettings claude;
   late final SealedKeys? sealed;
@@ -170,6 +175,17 @@ class KeysDevice {
   }
 
   Future<String?> webhookOf(String channelId) => slackHost.secrets.read('${slack.webhookPrefix}$channelId');
+
+  /// A Discord channel, as lib/plugins/discord/channels.dart keeps one.
+  Future<void> addDiscordChannel(String channelId, String name, String url) async {
+    await discordHost.secrets.write('${discord.discordWebhookPrefix}$channelId', url);
+    discordHost.storage.set('glyph-discord-channels', [
+      ...?(discordHost.storage.get<Object?>('glyph-discord-channels', null) as List?),
+      {'id': channelId, 'name': name},
+    ]);
+  }
+
+  Future<String?> discordWebhookOf(String channelId) => discordHost.secrets.read('${discord.discordWebhookPrefix}$channelId');
 
   /// Everything this device keeps in the clear: its storage, and its settings as the store would write them.
   String inTheClear() => [for (final key in kept.allKeys) kept.getItem(key), jsonEncode(prefs.value.toJson())].join('\n');
@@ -490,6 +506,54 @@ void main() {
     expect(fold.claude.model, 'claude-haiku-5-5');
     final after = sealedEntriesOf(fold.prefs.value);
     expect(jsonEncode(after['${slack.webhookPrefix}abc123']), jsonEncode((jsonDecode(before) as Map)['${slack.webhookPrefix}abc123']));
+  });
+
+  test('a Discord channel, where meetings post and the switch follow the account sealed, and a channel forgotten goes everywhere', () async {
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    await fold.addDiscordChannel('d1', '#launch', discordWebhook);
+    fold.discordHost.storage.set('glyph-discord-meetings', {'channel': 'd1', 'on': true, 'share': true});
+    fold.registry.setEnabled('discord', true);
+    await fold.sync();
+    // Nothing of the webhook in what was sent, nor kept readable: sealed on its own.
+    expect(fold.sent.join(), isNot(contains('discord.com/api/webhooks')));
+    expect(fold.inTheClear(), isNot(contains(discordWebhook)));
+    expect(sealedEntriesOf(fold.prefs.value).keys, containsAll(['${discord.discordWebhookPrefix}d1', 'glyph-discord-channels', 'glyph-discord-meetings', 'plugin:discord']));
+
+    await mac.sync();
+    expect(await mac.discordWebhookOf('d1'), discordWebhook);
+    expect(mac.registry.switchedOn('discord'), isTrue);
+    // The Discord plugin's own code, on the Mac.
+    usePluginGround(mac.ground);
+    usePlugins(mac.registry);
+    expect([for (final c in discordChannels()) c.name], ['#launch']);
+    expect(discordMeetingChannel()?.id, 'd1');
+    expect(postsMeetingsToDiscord(), isTrue);
+
+    // Forgotten on the Mac: gone from the Fold at its next sync, webhook first.
+    mac.clock = 2000;
+    await mac.discordHost.secrets.write('${discord.discordWebhookPrefix}d1', null);
+    mac.discordHost.storage.remove('glyph-discord-channels');
+    await mac.sync();
+    fold.clock = 3000;
+    await fold.sync();
+    expect(await fold.discordWebhookOf('d1'), isNull);
+    expect(fold.discordHost.storage.get<Object?>('glyph-discord-channels', null), isNull);
+  });
+
+  test('on an iPhone Discord’s channels do not arrive either, and are carried untouched', () async {
+    final fold = KeysDevice(service, 'fold-1');
+    await fold.addDiscordChannel('d1', '#launch', discordWebhook);
+    await fold.sync();
+    final before = sealedEntriesOf(fold.prefs.value)['${discord.discordWebhookPrefix}d1'];
+    final iphone = KeysDevice(service, 'iphone-1', platform: TargetPlatform.iOS);
+    await iphone.sync();
+    expect(await iphone.discordWebhookOf('d1'), isNull);
+    expect(iphone.discordHost.storage.get<Object?>('glyph-discord-channels', null), isNull);
+    iphone.clock = 9000;
+    await iphone.sync();
+    await fold.sync();
+    expect(jsonEncode(sealedEntriesOf(fold.prefs.value)['${discord.discordWebhookPrefix}d1']), jsonEncode(before));
   });
 
   test('signing out takes the entries out of the settings here, and keeps the keys', () async {
