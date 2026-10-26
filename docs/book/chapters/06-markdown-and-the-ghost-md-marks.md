@@ -7,16 +7,14 @@ Ghost.md reads standard Markdown first. On top of that it adds a few marks of it
 
 Type the mark on both sides of the words.
 
-| Type | Looks like |
-|---|---|
-| `**Friday at noon**` | **Friday at noon** |
-| `_if the weather holds_` | _if the weather holds_ |
-| `***not*** refundable` | ***not*** refundable |
-| `~~on Thursday~~` | ~~on Thursday~~ |
-| `` `npm run dev` `` | `npm run dev` |
-| `the 2^nd^ of June` | the 2^nd^ of June |
-| `H~2~O` | H~2~O |
-| `shipped :tada:` | shipped :tada: |
+- `**Friday at noon**` reads as **Friday at noon**
+- `_if the weather holds_` reads as _if the weather holds_
+- `***not*** refundable` reads as ***not*** refundable
+- `~~on Thursday~~` reads as ~~on Thursday~~
+- `` `npm run dev` `` reads as `npm run dev`
+- `the 2^nd^ of June` reads as the 2^nd^ of June
+- `H~2~O` reads as H~2~O
+- `shipped :tada:` reads as shipped :tada:
 
 `*one star*` works for italic too. A backslash makes a mark mean itself: `\*not italic\*` keeps its stars.
 
