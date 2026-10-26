@@ -91,7 +91,7 @@ class _KitGalleryState extends State<KitGallery> {
                         spacing: t.space(2),
                         runSpacing: t.space(2),
                         children: [
-                          for (final name in const ['dawn', 'boreal', 'ember'])
+                          for (final name in themePresets.keys)
                             GlacierPressable(
                               onPressed: () => preferences.value = prefs.copyWith(theme: prefs.theme == name ? 'system' : name),
                               pressScale: PressScale.chip,

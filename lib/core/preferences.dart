@@ -37,10 +37,16 @@ const Map<String, ThemePresetInfo> themePresets = {
   'dawn': ThemePresetInfo('light', 'red'),
   'boreal': ThemePresetInfo('dark', 'green'),
   'ember': ThemePresetInfo('dark', 'amber'),
+  // Four more for the Market (Matt, 2026-10-26: "include some more themes, fonts"): two light, two dark, each its
+  // own tint and accent. Sakura's greys are rose, Meadow's sage, Tide's a deep blue-teal, Dusk's violet.
+  'sakura': ThemePresetInfo('light', 'purple'),
+  'meadow': ThemePresetInfo('light', 'green'),
+  'tide': ThemePresetInfo('dark', 'teal'),
+  'dusk': ThemePresetInfo('dark', 'purple'),
 };
 
 /// Every theme a person can choose (`THEMES`), in the order Settings offers them.
-const List<String> themes = ['system', 'light', 'dark', 'dawn', 'boreal', 'ember'];
+const List<String> themes = ['system', 'light', 'dark', 'dawn', 'boreal', 'ember', 'sakura', 'meadow', 'tide', 'dusk'];
 
 bool isThemePreset(Object? theme) => theme is String && themePresets.containsKey(theme);
 
@@ -114,18 +120,19 @@ bool isRounding(Object? value) => value is String && roundings.contains(value);
 /// The reader's dial on the type scale (`TextSize`); `large` is already large.
 const List<String> textSizes = ['large', 'larger', 'largest'];
 
-/// Every face the app can set (`TYPEFACES`): two coding faces and the kit's three sans.
-const List<String> typefaces = ['maple', 'fira', 'inter', 'noto', 'plex'];
+/// Every face the app can set (`TYPEFACES`): three coding faces, four sans and a serif. JetBrains Mono, Atkinson
+/// Hyperlegible Next and Lora came with the Market (Matt, 2026-10-26: "include some more themes, fonts").
+const List<String> typefaces = ['maple', 'fira', 'jetbrains', 'inter', 'noto', 'plex', 'atkinson', 'lora'];
 
-/// The faces the interface can be set in (`INTERFACE_FACES`).
-const List<String> interfaceFaces = ['inter', 'noto', 'plex'];
+/// The faces the interface can be set in (`INTERFACE_FACES`): the sans.
+const List<String> interfaceFaces = ['inter', 'noto', 'plex', 'atkinson'];
 
 bool isTypeface(Object? value) => value is String && typefaces.contains(value);
 
 bool isInterfaceFace(Object? value) => value is String && interfaceFaces.contains(value);
 
 /// Whether a face is one of the monospace coding faces, which set the note's code as well as its words.
-bool isCodingFace(String face) => face == 'maple' || face == 'fira';
+bool isCodingFace(String face) => face == 'maple' || face == 'fira' || face == 'jetbrains';
 
 /// The two faces a set of preferences draws with, whatever the store says (`facesOf`): the interface's is one of the
 /// sans, and the note's any face. One face for everything was the setting until 2026-09-24, and a coding face chosen

@@ -59,4 +59,8 @@ export const THEME_OPTIONS: readonly ThemeOption[] = [
   presetOption('dawn'),
   presetOption('boreal'),
   presetOption('ember'),
+  presetOption('sakura'),
+  presetOption('meadow'),
+  presetOption('tide'),
+  presetOption('dusk'),
 ];

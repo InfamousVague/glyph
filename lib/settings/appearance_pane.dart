@@ -129,7 +129,7 @@ class AppearancePane extends StatelessWidget {
 
         final page = PaneSection(
           title: 'Page',
-          description: const Text('Ink on paper, paper on ink, or one of three tinted themes. System follows the phone.'),
+          description: const Text('Ink on paper, paper on ink, or one of seven tinted themes. System follows the phone.'),
           children: [
             // The kit's theme cards: each is the page painted small in that theme, System split light and dark.
             SettingRowBox(child: ThemeCards(value: prefs.theme, onValueChange: (value) => set((now) => themeChoice(value, now)))),

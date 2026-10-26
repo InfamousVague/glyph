@@ -42,13 +42,18 @@ function readTabGroups(raw: unknown): TabGroups {
  * Attack.FM's set". Each is one side of the page, light or dark, with its own tinted greys, and comes with an accent.
  * They were already in the vendored kit - `:root[data-theme-preset]` in tokens.css - and nothing in Glyph ever set it.
  */
-export type ThemePreset = 'dawn' | 'boreal' | 'ember';
+export type ThemePreset = 'dawn' | 'boreal' | 'ember' | 'sakura' | 'meadow' | 'tide' | 'dusk';
 export const THEME_PRESETS: Record<ThemePreset, { scheme: 'light' | 'dark'; accent: Accent }> = {
   dawn: { scheme: 'light', accent: 'red' },
   boreal: { scheme: 'dark', accent: 'green' },
   ember: { scheme: 'dark', accent: 'amber' },
+  // Four more for the Market (Matt, 2026-10-26: "include some more themes, fonts"): two light, two dark.
+  sakura: { scheme: 'light', accent: 'purple' },
+  meadow: { scheme: 'light', accent: 'green' },
+  tide: { scheme: 'dark', accent: 'teal' },
+  dusk: { scheme: 'dark', accent: 'purple' },
 };
-export const THEMES: readonly ThemePref[] = ['system', 'light', 'dark', 'dawn', 'boreal', 'ember'];
+export const THEMES: readonly ThemePref[] = ['system', 'light', 'dark', 'dawn', 'boreal', 'ember', 'sakura', 'meadow', 'tide', 'dusk'];
 
 /*
  * Interface size: every part of the app scaled together, buttons and bars and tabs as well as words (Matt, for the

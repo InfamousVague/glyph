@@ -14,12 +14,24 @@ const Map<String, String> typefaceFamilies = {
   'inter': 'Inter Variable',
   'noto': 'Noto Sans Variable',
   'plex': 'IBM Plex Sans',
+  'jetbrains': 'JetBrains Mono Variable',
+  'atkinson': 'Atkinson Hyperlegible Next Variable',
+  'lora': 'Lora Variable',
 };
 
 /// The families whose files the app ships (pubspec.yaml). A card for any other face is drawn in the page's own sans,
 /// the first of the stylesheet's fallbacks (`ui-sans-serif, system-ui, sans-serif`), rather than in whatever the
 /// device would put in its place. Add a family here when its file is added.
-const Set<String> shippedFamilies = {'Maple Mono', 'Fira Code Variable', 'Inter Variable', 'Noto Sans Variable', 'IBM Plex Sans'};
+const Set<String> shippedFamilies = {
+  'Maple Mono',
+  'Fira Code Variable',
+  'Inter Variable',
+  'Noto Sans Variable',
+  'IBM Plex Sans',
+  'JetBrains Mono Variable',
+  'Atkinson Hyperlegible Next Variable',
+  'Lora Variable',
+};
 
 /// Whether a card previews Markdown, for the note's face, or the app's own words, for the interface's (`kind`).
 enum TypefaceKind { note, interface }
@@ -30,7 +42,7 @@ enum TypefaceKind { note, interface }
 /// marks dimmed as the editor dims them. An interface face's card sets a scrap of the app's own words instead: a
 /// title and a row of tabs.
 ///
-/// The app ships all five (pubspec.yaml, tool/fonts.py), so each card is its own face.
+/// The app ships all eight (pubspec.yaml, tool/fonts.py), so each card is its own face.
 class TypefaceCards extends StatelessWidget {
   const TypefaceCards({super.key, required this.faces, required this.value, required this.onValueChange, required this.label, required this.kind});
 

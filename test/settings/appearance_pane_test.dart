@@ -25,12 +25,31 @@ import 'support.dart';
 /// under appearance"; mode_cards_test.dart): the web's page begins with Page, so each of the web's measures is held
 /// that card and its gap further down ([_modeAbove]), and the card itself where Page stood.
 
-const Size _tall = Size(390, 5700);
+const Size _tall = Size(390, 6700);
 
 /// How far the mode's card puts the web's page down: from its top to Page's, its height and the gap between cards.
 double _modeAbove(WidgetTester tester) {
   double top(String title) => tester.getRect(find.byWidgetPredicate((w) => w is PaneSection && w.title == title)).top;
   return top('Page') - top('Mode');
+}
+
+/// What the Market's themes and faces (Matt, 2026-10-26: "include some more themes, fonts") add to the web's page,
+/// which was measured with six themes, five note faces and three interface faces: the rows of cards they make, each
+/// as tall as a card and the gap under it here. `page` is Page's growth, `type` Type's.
+({double page, double type}) _marketRows(WidgetTester tester) {
+  double extra(String group, int had) {
+    final radios = _within(group, find.byWidgetPredicate((w) => w is Semantics && w.properties.inMutuallyExclusiveGroup == true));
+    final cards = [for (var i = 0; i < radios.evaluate().length; i++) tester.getRect(radios.at(i))];
+    // System spans its row, the theme cards' first: the rest are as many to a row as fit.
+    final spans = cards.length > 1 && cards.first.width > cards[1].width + 0.5;
+    final rest = spans ? cards.skip(1).toList() : cards;
+    final columns = rest.where((c) => (c.top - rest.first.top).abs() < 0.5).length;
+    final pitch = cards.firstWhere((c) => c.top > cards.first.top + 0.5).top - cards.first.top;
+    int rows(int n) => (spans ? 1 : 0) + (n - (spans ? 1 : 0) + columns - 1) ~/ columns;
+    return (rows(cards.length) - rows(had)) * pitch;
+  }
+
+  return (page: extra('Theme', 6), type: extra('Note font', 5) + extra('Interface font', 3));
 }
 
 Future<void> _open(WidgetTester tester, {Preferences prefs = const Preferences(theme: 'light'), Size size = _tall}) =>
@@ -87,7 +106,7 @@ void main() {
       expect(sample.style!.fontSize, closeTo(36.6157, 0.01));
       expect(sample.style!.letterSpacing, closeTo(-1.6477, 0.001));
       expect(sample.style!.fontWeight, FontWeight.w700);
-      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75 + _modeAbove(tester), 327.53, 36.61, 2.5));
+      expect(tester.getRect(find.byKey(const ValueKey('settings-sample'))), rectNear(31.23, 2297.75 + _modeAbove(tester) + _marketRows(tester).page, 327.53, 36.61, 2.5));
       await endSettings(tester);
     });
 
@@ -230,8 +249,8 @@ void main() {
     testWidgets('writes the two faces, each its own, and stamps each', (tester) async {
       await _open(tester);
       final note = _cards<String>(tester, 'Note font'), ui = _cards<String>(tester, 'Interface font');
-      expect(note.values.map(note.nameOf), ['Maple Mono', 'Fira Code', 'Inter', 'Noto', 'Plex']);
-      expect(ui.values.map(ui.nameOf), ['Inter', 'Noto', 'Plex']);
+      expect(note.values.map(note.nameOf), ['Maple Mono', 'Fira Code', 'JetBrains Mono', 'Inter', 'Noto', 'Plex', 'Atkinson', 'Lora']);
+      expect(ui.values.map(ui.nameOf), ['Inter', 'Noto', 'Plex', 'Atkinson']);
       expect((note.value, ui.value), ('maple', 'inter'));
       await _tap(tester, _within('Note font', find.text('Inter')));
       expect(preferences.value.noteFace, 'inter');
@@ -274,7 +293,10 @@ void main() {
       expect(options.map((o) => o.value), themes);
       expect(options.first.alternatePalette!.background, sameColor(inkDark(t).background));
       expect(options.first.palette.background, sameColor(inkLight(t).background));
-      expect(options.map((o) => o.description), ['Follows the phone', 'Ink on paper', 'Paper on ink', 'Light, with red', 'Dark, with green', 'Dark, with amber']);
+      expect(options.map((o) => o.description), [
+        'Follows the phone', 'Ink on paper', 'Paper on ink', 'Light, with red', 'Dark, with green', 'Dark, with amber', //
+        'Light, with purple', 'Light, with green', 'Dark, with teal', 'Dark, with purple',
+      ]);
       await endSettings(tester);
     });
 
@@ -318,7 +340,7 @@ void main() {
     testWidgets('are radios: the chosen one is checked and ringed, and choosing another dresses the app in it', (tester) async {
       await _open(tester, prefs: const Preferences(theme: 'dark'));
       final cards = _cards<String>(tester, 'Theme');
-      expect(cards.values.map(cards.nameOf), ['System', 'Light', 'Dark', 'Dawn', 'Boreal', 'Ember']);
+      expect(cards.values.map(cards.nameOf), ['System', 'Light', 'Dark', 'Dawn', 'Boreal', 'Ember', 'Sakura', 'Meadow', 'Tide', 'Dusk']);
       expect(cards.value, 'dark');
       expect(tester.getSemantics(find.bySemanticsLabel('Dark')), isSemantics(label: 'Dark', hasCheckedState: true, isChecked: true, isInMutuallyExclusiveGroup: true, hasTapAction: true, isFocusable: true, hasFocusAction: true));
       expect(_root(tester).isDark, isTrue);
@@ -458,7 +480,7 @@ void main() {
       expect(find.descendant(of: find.byType(ScaleCards), matching: find.text('Default')), findsOneWidget);
       // Measured on the page: five cards 56.58 x 84.08, 8.93 apart; and the piece's icon 0.7em of each step.
       final first = find.ancestor(of: _within('Interface size', find.text('85%')), matching: find.byType(AnimatedContainer)).first;
-      expect(tester.getRect(first), rectNear(35.7, 3530.88 + _modeAbove(tester), 56.58, 84.08, 3.5));
+      expect(tester.getRect(first), rectNear(35.7, 3530.88 + _modeAbove(tester) + _marketRows(tester).page + _marketRows(tester).type, 56.58, 84.08, 3.5));
       expect(tester.getRect(first).size.width, closeTo(56.58, 0.05));
       expect(tester.getRect(first).size.height, closeTo(84.08, 0.6));
       final icons = tester.widgetList<Container>(_within('Interface size', find.byWidgetPredicate((w) => w is Container && w.decoration is BoxDecoration && (w.decoration! as BoxDecoration).borderRadius != null && w.constraints?.maxWidth == w.constraints?.maxHeight && (w.constraints?.maxWidth ?? 99) < 16)));
@@ -529,12 +551,21 @@ void main() {
         'Code': (4052.14, 269.34),
         'Motion': (4339.33, 523.86),
       };
+      // The Market's themes and faces, which the web's page did not have then: Page and Type that many rows taller,
+      // and every card under each that much further down.
+      final market = _marketRows(tester);
+      expect(market.page, greaterThan(0));
+      expect(market.type, greaterThan(0));
+      const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion'];
       for (final entry in web.entries) {
         final rect = card(entry.key);
+        final at = order.indexOf(entry.key);
+        final grown = entry.key == 'Page' ? market.page : entry.key == 'Type' ? market.type : 0.0;
+        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type : 0.0);
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
-        expect(rect.height, closeTo(entry.value.$2, 2), reason: '${entry.key}’s height');
-        expect(rect.top, closeTo(entry.value.$1 + down, 3.5), reason: '${entry.key}’s top');
+        expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');
+        expect(rect.top, closeTo(entry.value.$1 + down + below, 3.5), reason: '${entry.key}’s top');
       }
       // The segmented controls: the kit's small size, on the deeper track a card gives them.
       final size = find.ancestor(of: find.text('Largest'), matching: find.byType(GlacierSegmentedControl));

@@ -293,7 +293,7 @@ void main() {
         remove: (_) {},
       );
       final list = ids(paletteCommands(PaletteWorld(note: n('n1', 'A'), theme: 'dark'), bare));
-      expect(list, ['note:pin', 'note:archive', 'note:delete', 'note:close', 'new', 'list', 'notes', 'theme:system', 'theme:light', 'theme:dawn', 'theme:boreal', 'theme:ember', 'settings']);
+      expect(list, ['note:pin', 'note:archive', 'note:delete', 'note:close', 'new', 'list', 'notes', 'theme:system', 'theme:light', 'theme:dawn', 'theme:boreal', 'theme:ember', 'theme:sakura', 'theme:meadow', 'theme:tide', 'theme:dusk', 'settings']);
     });
 
     test('the whole list, in the web app’s order, with everything given', () {
@@ -321,7 +321,7 @@ void main() {
         'tab:t2', 'tab:close:t2', 'back', 'forward', //
         'space:all', 'space:w2', //
         'open:a', //
-        'theme:system', 'theme:light', 'theme:dawn', 'theme:boreal', 'theme:ember', //
+        'theme:system', 'theme:light', 'theme:dawn', 'theme:boreal', 'theme:ember', 'theme:sakura', 'theme:meadow', 'theme:tide', 'theme:dusk', //
         'settings', 'notifications', 'organizations', 'cheatsheet', 'academy', 'guide',
       ]);
     });

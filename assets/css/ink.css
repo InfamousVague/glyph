@@ -165,7 +165,7 @@
 }
 
 /*
- * A named theme (core/preferences.ts THEME_PRESETS: dawn, boreal, ember): the page's greys become the kit's tinted
+ * A named theme (core/preferences.ts THEME_PRESETS: dawn, boreal, ember, sakura, meadow, tide, dusk): the page's greys become the kit's tinted
  * ones, step for step (Matt: "port Attack.FM's set"). The kit already tints `--glacier-gray-*` under
  * `data-theme-preset` (vendor/@glacier/tokens tokens.css), but Glyph draws from its own scale above, which is pure grey
  * on purpose and read nothing of the kit's - so stamping a preset alone changed nothing on the page. Both are the
@@ -192,13 +192,17 @@
 
 /*
  * The kit's ink as a grey, for `--app-ink-flat` below: a named theme's ink is tinted, and the flat bar is the nearest
- * grey to it (dawn's `--glacier-gray-12` is oklch 0.303, boreal's and ember's 0.935; stylesheets.test.ts checks).
+ * grey to it (the light themes' `--glacier-gray-12` is oklch 0.303, the dark ones' 0.935; stylesheets.test.ts checks).
  */
-:root:root[data-theme-preset='dawn'] {
+:root:root[data-theme-preset='dawn'],
+:root:root[data-theme-preset='sakura'],
+:root:root[data-theme-preset='meadow'] {
   --app-ink-level: 0.182;
 }
 :root:root[data-theme-preset='boreal'],
-:root:root[data-theme-preset='ember'] {
+:root:root[data-theme-preset='ember'],
+:root:root[data-theme-preset='tide'],
+:root:root[data-theme-preset='dusk'] {
   --app-ink-level: 0.915;
 }
 

@@ -42,7 +42,7 @@ export const ACCENT_WORDS: Record<Accent, string> = {
   purple: 'Purple',
 };
 
-export const THEME_WORDS: Record<ThemePref, string> = { system: 'System', light: 'Light', dark: 'Dark', dawn: 'Dawn', boreal: 'Boreal', ember: 'Ember' };
+export const THEME_WORDS: Record<ThemePref, string> = { system: 'System', light: 'Light', dark: 'Dark', dawn: 'Dawn', boreal: 'Boreal', ember: 'Ember', sakura: 'Sakura', meadow: 'Meadow', tide: 'Tide', dusk: 'Dusk' };
 
 /** A map's values as the options a SegmentedControl takes, in the map's own order. */
 export function optionsOf<T extends string>(words: Record<T, string>): { value: T; label: string }[] {

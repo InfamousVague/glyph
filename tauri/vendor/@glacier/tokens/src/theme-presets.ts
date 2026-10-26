@@ -10,10 +10,10 @@ import {
 
 type Decl = [name: string, value: string];
 
-export const themePresetIds = ['light', 'dark', 'dawn', 'boreal', 'ember'] as const;
+export const themePresetIds = ['light', 'dark', 'dawn', 'boreal', 'ember', 'sakura', 'meadow', 'tide', 'dusk'] as const;
 
 export type ThemePresetId = (typeof themePresetIds)[number];
-export type ThemePresetAccent = 'blue' | 'red' | 'green' | 'amber';
+export type ThemePresetAccent = 'blue' | 'red' | 'green' | 'amber' | 'teal' | 'purple';
 
 export interface ThemePreviewPalette {
   background: string;
@@ -94,6 +94,76 @@ const customThemes: Partial<Record<ThemePresetId, CustomThemeTokens>> = {
       'glass-highlight': 'oklch(0.98 0.018 48 / 0.11)',
     },
   },
+  sakura: {
+    neutral: { name: 'gray', hue: 352, chroma: 0.052, contrast: 'white' },
+    semantic: {
+      'surface-raised': 'oklch(0.998 0.004 352)',
+      overlay: 'oklch(0.22 0.03 352 / 0.42)',
+      'text-subtle': 'oklch(0.49 0.042 352)',
+      'segment-track': 'oklch(0.92 0.028 352 / 0.72)',
+      'segment-thumb': 'oklch(0.998 0.004 352)',
+      'slider-thumb': 'oklch(0.998 0.004 352)',
+    },
+    glass: {
+      'glass-thin': 'oklch(0.985 0.016 352 / 0.48)',
+      'glass-regular': 'oklch(0.985 0.016 352 / 0.68)',
+      'glass-thick': 'oklch(0.985 0.016 352 / 0.86)',
+      'glass-border': 'oklch(0.4 0.042 352 / 0.12)',
+      'glass-highlight': 'oklch(1 0 0 / 0.82)',
+    },
+  },
+  meadow: {
+    neutral: { name: 'gray', hue: 140, chroma: 0.05, contrast: 'white' },
+    semantic: {
+      'surface-raised': 'oklch(0.998 0.004 140)',
+      overlay: 'oklch(0.22 0.028 140 / 0.42)',
+      'text-subtle': 'oklch(0.49 0.04 140)',
+      'segment-track': 'oklch(0.92 0.026 140 / 0.72)',
+      'segment-thumb': 'oklch(0.998 0.004 140)',
+      'slider-thumb': 'oklch(0.998 0.004 140)',
+    },
+    glass: {
+      'glass-thin': 'oklch(0.985 0.015 140 / 0.48)',
+      'glass-regular': 'oklch(0.985 0.015 140 / 0.68)',
+      'glass-thick': 'oklch(0.985 0.015 140 / 0.86)',
+      'glass-border': 'oklch(0.4 0.04 140 / 0.12)',
+      'glass-highlight': 'oklch(1 0 0 / 0.82)',
+    },
+  },
+  tide: {
+    neutral: { name: 'gray', hue: 220, chroma: 0.05, contrast: 'white' },
+    semantic: {
+      'surface-sunken': 'oklch(0.105 0.022 220)',
+      overlay: 'oklch(0.055 0.022 220 / 0.7)',
+      'segment-track': 'oklch(0.28 0.04 220 / 0.62)',
+      'segment-thumb': 'oklch(0.58 0.045 220)',
+      'slider-thumb': 'oklch(0.92 0.02 220)',
+    },
+    glass: {
+      'glass-thin': 'oklch(0.23 0.04 220 / 0.44)',
+      'glass-regular': 'oklch(0.23 0.04 220 / 0.64)',
+      'glass-thick': 'oklch(0.2 0.036 220 / 0.88)',
+      'glass-border': 'oklch(0.9 0.035 220 / 0.11)',
+      'glass-highlight': 'oklch(0.96 0.028 220 / 0.11)',
+    },
+  },
+  dusk: {
+    neutral: { name: 'gray', hue: 290, chroma: 0.052, contrast: 'white' },
+    semantic: {
+      'surface-sunken': 'oklch(0.11 0.024 290)',
+      overlay: 'oklch(0.06 0.024 290 / 0.72)',
+      'segment-track': 'oklch(0.28 0.042 290 / 0.62)',
+      'segment-thumb': 'oklch(0.58 0.047 290)',
+      'slider-thumb': 'oklch(0.92 0.02 290)',
+    },
+    glass: {
+      'glass-thin': 'oklch(0.23 0.042 290 / 0.44)',
+      'glass-regular': 'oklch(0.23 0.042 290 / 0.64)',
+      'glass-thick': 'oklch(0.2 0.038 290 / 0.88)',
+      'glass-border': 'oklch(0.92 0.035 290 / 0.11)',
+      'glass-highlight': 'oklch(0.97 0.028 290 / 0.11)',
+    },
+  },
 };
 
 function previewPalette(scheme: Theme, accentName: ThemePresetAccent, neutral = defaultNeutral): ThemePreviewPalette {
@@ -129,6 +199,10 @@ export const themePresets: readonly ThemePresetDefinition[] = [
   preset('dawn', 'light', 'red'),
   preset('boreal', 'dark', 'green'),
   preset('ember', 'dark', 'amber'),
+  preset('sakura', 'light', 'purple'),
+  preset('meadow', 'light', 'green'),
+  preset('tide', 'dark', 'teal'),
+  preset('dusk', 'dark', 'purple'),
 ];
 
 export function systemThemePreview(scheme: Theme): ThemePreviewPalette {
