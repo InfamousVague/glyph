@@ -154,7 +154,7 @@ void main() {
       await search(tester, 'dark');
       expect([for (final each in tester.widgetList<MarketThemeCard>(find.byType(MarketThemeCard, skipOffstage: false))) each.option.value], containsAll(['dark', 'boreal', 'ember']));
       await search(tester, 'coding');
-      expect([for (final each in tester.widgetList<MarketFontCard>(find.byType(MarketFontCard, skipOffstage: false))) each.face], ['maple', 'fira']);
+      expect([for (final each in tester.widgetList<MarketFontCard>(find.byType(MarketFontCard, skipOffstage: false))) each.face], [for (final face in typefaces) if (isCodingFace(face)) face]);
       expect(find.byType(MarketPluginCard, skipOffstage: false), findsNothing);
       await search(tester, 'zzzz');
       expect(find.byKey(const ValueKey('market-nothing')), findsOneWidget);
