@@ -167,7 +167,7 @@ import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest,
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
-import '../plugins/lovart/lovart.dart' show LovartBanners, LovartMeetings, lovartPictureStore;
+import '../plugins/lovart/lovart.dart' show LovartBanners, LovartMeetings, lovartBannerSource, lovartPictureStore;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
@@ -1579,6 +1579,7 @@ class _GhostRootState extends State<GhostRoot> {
       discordCanShare = () => discordShareLink != null;
     }
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
+    if (identical(lovartBannerSource?.banners, _banners)) lovartBannerSource = null;
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();
@@ -1654,6 +1655,8 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     // Where Lovart's images are kept before their lines are written (lib/plugins/lovart/keep.dart).
     if (_pictures != null) lovartPictureStore = _pictures;
+    // Settings › Lovart's run over the recent notes reads the library and makes through the same maker.
+    lovartBannerSource = (notes: () => _library.value, banners: _banners);
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).
     discordShareLink = _discordShare;

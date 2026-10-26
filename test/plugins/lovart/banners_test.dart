@@ -186,6 +186,70 @@ void main() {
     });
   });
 
+  group('a run over the recent notes', () {
+    setUp(() {
+      lovartBannerRun.value = null;
+      lovartBannerSource = (notes: () => notes.values.toList(), banners: banners);
+    });
+    tearDown(() => lovartBannerSource = null);
+
+    Note dated(String id, String body, int at) => notes[id] = Note(id: id, body: body, createdAt: 0, updatedAt: at);
+
+    test('picks the newest notes that are ones to have a banner, at most a hundred', () {
+      for (var i = 0; i < 120; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      dated('ticket', '---\ntype: ticket\n---\n# Fix\n\n$_words', 500);
+      dated('meeting', '# Standup\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n$_words', 501);
+      dated('short', '# Milk', 502);
+      final picked = bannerCandidates(notes.values.toList());
+      expect(picked, hasLength(100));
+      expect(picked.first.id, 'n119');
+      expect(picked.last.id, 'n20');
+    });
+
+    test('gives each its banner, says how far it is, and leaves done ones alone after', () async {
+      await keys();
+      for (var i = 0; i < 5; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      final seen = <int>[];
+      void hear() => seen.add(lovartBannerRun.value!.done);
+      lovartBannerRun.addListener(hear);
+      await runBanners();
+      lovartBannerRun.removeListener(hear);
+      expect(fake.asked, hasLength(5));
+      expect([for (final n in notes.values) bannerOf(n.body) != null], everyElement(isTrue));
+      expect((lovartBannerRun.value!.done, lovartBannerRun.value!.made, lovartBannerRun.value!.running), (5, 5, false));
+      expect(seen, containsAllInOrder([0, 1, 2, 3, 4, 5]));
+      await runBanners();
+      expect(lovartBannerRun.value!.total, 0);
+      expect(fake.asked, hasLength(5));
+    });
+
+    test('credits spent stop it, and the notes not made are tried again next time', () async {
+      await keys();
+      for (var i = 0; i < 6; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      fake.fails = const LovartFailure('Your Lovart credits have run out.');
+      await runBanners();
+      expect(lovartBannerRun.value!.running, isFalse);
+      expect(lovartBannerRun.value!.made, 0);
+      expect(lovartBannerRun.value!.stopped, contains('credits'));
+      expect(fake.asked.length, lessThanOrEqualTo(3));
+      fake.fails = null;
+      await runBanners();
+      expect(lovartBannerRun.value!.made, 6);
+    });
+
+    test('says what is missing without keys', () async {
+      await runBanners();
+      expect(lovartBannerRun.value!.stopped, contains('Lovart keys'));
+      expect(fake.asked, isEmpty);
+    });
+  });
+
   group('Header image, on the note\'s cog', () {
     test('writes front matter before a note with none', () async {
       await keys();

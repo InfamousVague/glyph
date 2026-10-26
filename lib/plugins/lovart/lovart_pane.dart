@@ -21,7 +21,7 @@ import '../host.dart' show onPluginStorage;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
-import 'banners.dart' show bannersOn, setBanners;
+import 'banners.dart' show BannerRun, bannerRunMost, bannersOn, lovartBannerRun, lovartBannerSource, runBanners, setBanners, stopBannerRun;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
 /// What Settings' search finds on the page.
@@ -30,6 +30,16 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Header images for notes', 'banner header cover image ghost dotwork automatic'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
 ];
+
+/// What the run over the recent notes says.
+String _runWords(BannerRun? run) {
+  const about = 'Banners for your $bannerRunMost most recent notes that are not tickets, meetings, mail or short, and have none yet. Three at a time, with your credits.';
+  if (run == null) return about;
+  if (run.running) return 'Making ${run.done + 1 > run.total ? run.total : run.done + 1} of ${run.total}… ${run.made} made so far.';
+  if (run.total == 0 && run.stopped == null) return 'Every recent note has one already, or is not one to have one.';
+  final made = '${run.made} of ${run.total} made.';
+  return run.stopped == null ? made : '$made ${run.stopped}';
+}
 
 class LovartPane extends StatefulWidget {
   const LovartPane({super.key});
@@ -199,6 +209,18 @@ class _LovartPaneState extends State<LovartPane> {
               hint: const Text('When you leave a note, Lovart draws a banner for its top in the ghost’s dotwork, from its title and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
               control: GlacierSwitch(ariaLabel: 'Header images for notes', checked: bannersOn(), onCheckedChange: setBanners),
             ),
+            if (lovartBannerSource != null)
+              ValueListenableBuilder<BannerRun?>(
+                valueListenable: lovartBannerRun,
+                builder: (context, run, _) => SettingRow(
+                  key: const ValueKey('lovart-banner-run'),
+                  label: 'Header images for recent notes',
+                  hint: Text(_runWords(run)),
+                  value: run?.running == true
+                      ? RowAction(onPress: stopBannerRun, child: const Text('Stop'))
+                      : RowAction(onPress: () => unawaited(runBanners()), disabled: keys == null, child: const Text('Make them')),
+                ),
+              ),
           ],
         ),
         PaneSection(

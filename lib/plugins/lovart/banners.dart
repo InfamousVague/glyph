@@ -148,7 +148,14 @@ class LovartBanners {
 
   /// The note [id] was left: given its banner, where it is one to have. Answers whether it was.
   Future<bool> noteLeft(String id) async {
-    if (!pluginOn(manifest) || !bannersOn(_on) || !hasLovartKeys(_on)) return false;
+    if (!bannersOn(_on)) return false;
+    return make(id);
+  }
+
+  /// Gives the note [id] its banner, where it is one to have, the switch aside. Answers whether it was. A failure is
+  /// said to the log, or thrown where [rethrowStopping] and it is one that stops a run (anything but Lovart declining).
+  Future<bool> make(String id, {bool rethrowStopping = false}) async {
+    if (!pluginOn(manifest) || !hasLovartKeys(_on)) return false;
     if ((pictures ?? lovartPictureStore) == null) return false;
     if (_done(_on).contains(id) || lovartBannerMaking.value.contains(id)) return false;
     final note = await getNote(id);
@@ -163,6 +170,11 @@ class LovartBanners {
       try {
         images = await lovart.generate(bannerPrompt(note.body));
       } on LovartFailure catch (failure) {
+        if (rethrowStopping && failure is! LovartRefused) {
+          // Not this note's fault: a run started again later tries it again.
+          _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
+          rethrow;
+        }
         warn?.call('[lovart] no banner for the note: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
         return false;
       }
@@ -185,6 +197,77 @@ class LovartBanners {
       _making(id, false);
     }
   }
+}
+
+/// Where a run over the recent notes stands (Matt, 2026-10-26: "add the banner to 100 of the most recent notes that
+/// are not tickets or meetings"): how many it set out to make, how many are done, how many came back with a banner,
+/// and why it stopped where it stopped early.
+@immutable
+class BannerRun {
+  const BannerRun({required this.total, this.done = 0, this.made = 0, this.running = true, this.stopped});
+  final int total;
+  final int done;
+  final int made;
+  final bool running;
+  final String? stopped;
+
+  BannerRun next({int? done, int? made, bool? running, String? stopped}) =>
+      BannerRun(total: total, done: done ?? this.done, made: made ?? this.made, running: running ?? this.running, stopped: stopped ?? this.stopped);
+}
+
+/// The run over the recent notes, if one has been: the page draws it, and it outlives the page.
+final ValueNotifier<BannerRun?> lovartBannerRun = ValueNotifier<BannerRun?>(null);
+
+/// How many recent notes a run gives banners to, and how many Lovart is asked for at once.
+const int bannerRunMost = 100;
+const int bannerRunAtOnce = 3;
+
+/// What the root hands the page for a run: the library's notes now, and the maker. Null where there is no library.
+({List<Note> Function() notes, LovartBanners banners})? lovartBannerSource;
+
+bool _stopRun = false;
+
+/// Stops the run after the pictures being made now.
+void stopBannerRun() => _stopRun = true;
+
+/// The [most] most recently changed notes that are ones to have a banner and were never given one, newest first.
+List<Note> bannerCandidates(List<Note> notes, {int most = bannerRunMost, PluginHost? via}) {
+  final done = _done(via ?? host).toSet();
+  final sorted = [...notes]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  return [for (final note in sorted) if (!done.contains(note.id) && wantsBanner(note)) note].take(most).toList();
+}
+
+/// Gives banners to the most recent notes ([bannerCandidates]), [bannerRunAtOnce] at a time, telling
+/// [lovartBannerRun] as each is done. Credits spent, keys refused or a costly step waiting stops the rest; Lovart
+/// declining one goes on.
+Future<void> runBanners() async {
+  final source = lovartBannerSource;
+  if (source == null || lovartBannerRun.value?.running == true) return;
+  final unready = bannerUnready();
+  if (unready != null) {
+    lovartBannerRun.value = BannerRun(total: 0, running: false, stopped: unready);
+    return;
+  }
+  final queue = bannerCandidates(source.notes());
+  _stopRun = false;
+  var run = lovartBannerRun.value = BannerRun(total: queue.length);
+  String? stopped;
+  var next = 0;
+  Future<void> worker() async {
+    while (!_stopRun && stopped == null && next < queue.length) {
+      final note = queue[next++];
+      try {
+        final made = await source.banners.make(note.id, rethrowStopping: true);
+        run = lovartBannerRun.value = run.next(done: run.done + 1, made: run.made + (made ? 1 : 0));
+      } on LovartFailure catch (failure) {
+        stopped = failure is LovartNeedsConfirmation ? failure.said : failure.message;
+        run = lovartBannerRun.value = run.next(done: run.done + 1);
+      }
+    }
+  }
+
+  await Future.wait([for (var i = 0; i < bannerRunAtOnce; i += 1) worker()]);
+  lovartBannerRun.value = run.next(running: false, stopped: stopped ?? (_stopRun ? 'Stopped.' : null));
 }
 
 /// The one line of the open note [body] to change for its banner to be [name], and what it becomes: the banner's own
