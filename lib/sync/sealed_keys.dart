@@ -4,8 +4,8 @@
 ///
 /// What it is for: that morning a meeting's summary stuck on the Mac, because Claude's key was kept per device and
 /// only the Fold had one (lib/ai/summary_handoff.dart). Now the key, the Claude switch, the model and the spending
-/// limit, the Slack channels with their webhooks, where meetings post, and the GitHub token follow the account
-/// (lib/sync/connections.dart has the list, and says why each thing that stays on a device stays).
+/// limit, the Slack and Discord channels with their webhooks, where meetings post, and the GitHub token follow the
+/// account (lib/sync/connections.dart has the list, and says why each thing that stays on a device stays).
 ///
 /// HOW THEY TRAVEL: in the synced settings (lib/sync/prefs.dart), under one key, [sealedKeysKey], so nothing new is
 /// asked of the service, and **each value is sealed again on its own** before it goes in, under the account key with

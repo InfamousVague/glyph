@@ -156,6 +156,18 @@ extension _RootVoice on _GhostRootState {
       warn: debugPrint,
     );
     _slackMeetings = meetingSlackPoster = slack;
+    // And to the Discord channel chosen for meetings, beside Slack's, on its own mark: the same message for Discord
+    // (lib/plugins/discord/meetings.dart; Matt, 2026-10-26: "Add a new plugin to post notes to discord chats").
+    final discord = MeetingDiscordPoster(
+      preferences: () => preferences.value,
+      setPreferences: preferences.update,
+      getNote: _library.get,
+      shareLink: slack.shareLink,
+      teamOf: slack.teamOf,
+      me: slack.me,
+      warn: debugPrint,
+    );
+    _discordMeetings = meetingDiscordPoster = discord;
     // A design meeting written up gets a moodboard from Lovart under its Inspiration, once, where the Lovart plugin is
     // on and its switch is (lib/plugins/lovart/meetings.dart; Matt, 2026-10-26: "during design meetings the Lovart.ai
     // plugin can generate inspo images and such").
@@ -182,8 +194,8 @@ extension _RootVoice on _GhostRootState {
           ),
         );
       },
-      // Sorted first, then posted to Slack where meetings post here, so the post names the team whose workspace it
-      // was filed in; then, for a design meeting, Lovart's inspiration, which takes minutes.
+      // Sorted first, then posted to Slack and to Discord where meetings post here, so each post names the team whose
+      // workspace it was filed in; then, for a design meeting, Lovart's inspiration, which takes minutes.
       meetingSummarized: (id, body) => unawaited(() async {
         try {
           await sorter.meetingSummarized(id, body);
@@ -194,6 +206,11 @@ extension _RootVoice on _GhostRootState {
           await slack.meetingSummarized(id, body);
         } catch (failure) {
           debugPrint('[ghost] the meeting was not posted to Slack: $failure');
+        }
+        try {
+          await discord.meetingSummarized(id, body);
+        } catch (failure) {
+          debugPrint('[ghost] the meeting was not posted to Discord: $failure');
         }
         try {
           await lovart.meetingSummarized(id, body);
@@ -208,8 +225,9 @@ extension _RootVoice on _GhostRootState {
     // already being recorded.
     await _notesRead.future;
     if (mounted) capture.boot();
-    // A meeting whose post to Slack failed last time is tried again, now the app runs (Matt, 2026-10-26).
+    // A meeting whose post to Slack or Discord failed last time is tried again, now the app runs (Matt, 2026-10-26).
     if (mounted) unawaited(slack.resume().then<void>((_) {}, onError: (Object failure) => debugPrint('[ghost] the meetings were not posted to Slack: $failure')));
+    if (mounted) unawaited(discord.resume().then<void>((_) {}, onError: (Object failure) => debugPrint('[ghost] the meetings were not posted to Discord: $failure')));
   }
 
   /// The AI, once voice has made its engine the app's: whether it can run here, the phone as the strip's card

@@ -239,10 +239,10 @@ bool _advanced(SettingsFacts facts) => !facts.simple;
 /// settings to their own page under settings"; and 2026-10-26: "leaving plugin specific settings to own their
 /// settings"): in the plugin's own icon and colour, read by its own summary, and
 /// found by the search by the plugin's name, what it does, and what its page lists. In the catalogue's order (by
-/// category, then by name: Claude; Calendar, Contacts, Place reminders; Things, Todoist; GitHub, Notion, Slack,
-/// Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in the Market
-/// offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the Market
-/// ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on.
+/// category, then by name: Claude, Lovart; Calendar, Contacts, Place reminders; Things, Todoist; Discord, GitHub,
+/// Notion, Slack, Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in
+/// the Market offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the
+/// Market ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on.
 ///
 /// What differs from the web original: there, each was a sub-page behind its card on Plugins, which is where it was
 /// here too until 2026-10-18.

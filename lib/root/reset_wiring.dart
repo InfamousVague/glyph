@@ -9,8 +9,9 @@
 ///   the service's own answer. And the team notes' documents after it ([teamDocsIn], `<dataDir>/team`): they are
 ///   this port's own files, which the core's reset does not know of, and were left behind by Reset everything on
 ///   the emulator, signed in.
-/// - **The plugins' secrets by name**: the manifests' own, and Slack's webhooks, one to a channel, named by
-///   [slackSecretNames] from the channels kept now, before the storage that lists them is cleared.
+/// - **The plugins' secrets by name**: the manifests' own, and Slack's and Discord's webhooks, one to a channel, named
+///   by [slackSecretNames] and [discordSecretNames] from the channels kept now, before the storage that lists them is
+///   cleared.
 /// - **The restart** is the root's: the preferences read again, and the whole app built anew on an empty library.
 library;
 
@@ -20,6 +21,8 @@ import '../core/preferences.dart';
 import '../core/reset.dart';
 import '../core/reset_native.dart';
 import '../core/stored.dart';
+import '../plugins/discord/channels.dart' show discordChannels;
+import '../plugins/discord/manifest.dart' show discordWebhookPrefix;
 import '../plugins/slack/channels.dart' show channels;
 import '../plugins/slack/manifest.dart' show webhookPrefix;
 import '../team/docs.dart' show FileDocs;
@@ -28,8 +31,15 @@ import '../team/docs.dart' show FileDocs;
 /// reset forgets by name, since the store cannot list what it holds.
 List<String> slackSecretNames() => [for (final channel in channels()) '$webhookPrefix${channel.id}'];
 
-/// The names kept under [prefix] (`ResetGround.secretsUnder`): Slack's is the only prefix a plugin names.
-Iterable<String> secretsUnder(String prefix) => prefix == webhookPrefix ? slackSecretNames() : const <String>[];
+/// Discord's, the same way (lib/plugins/discord/channels.dart).
+List<String> discordSecretNames() => [for (final channel in discordChannels()) '$discordWebhookPrefix${channel.id}'];
+
+/// The names kept under [prefix] (`ResetGround.secretsUnder`): Slack's and Discord's are the prefixes plugins name.
+Iterable<String> secretsUnder(String prefix) => switch (prefix) {
+      webhookPrefix => slackSecretNames(),
+      discordWebhookPrefix => discordSecretNames(),
+      _ => const <String>[],
+    };
 
 /// The ground a reset stands on in this app. [recordingNow] is the meeting's state as the app last heard it;
 /// [restart] builds the app anew. With no [invoke] (a test, a picture) there is no phone half, and the reset is the

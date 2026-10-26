@@ -95,6 +95,9 @@ const List<String> syncedPrefs = [
   // up, so no other device, and no summary made again, posts it twice. Where they go stays with the device, as the
   // channels do.
   'slackMeetingPosts',
+  // And to Discord (lib/plugins/discord/meetings.dart; Matt, 2026-10-26), on a mark of its own: a meeting posted to
+  // both is posted once to each.
+  'discordMeetingPosts',
   // The meetings waiting for a summary another device can write, who claimed each and which are done
   // (lib/ai/summary_handoff.dart): marked on the device that could not, claimed and written on one that can. Merged an
   // entry at a time, and an entry both devices changed by its own rule (`mergedHandoffs`), so it is claimed once.
@@ -116,7 +119,7 @@ const List<String> syncedPrefs = [
   'webhooks',
   // The keys and connections that follow the account (lib/sync/sealed_keys.dart; Matt, 2026-10-26: "things like the
   // Claude tokens and other stuff is kept in sync across all instances of ghost logged in to my account"): Claude's
-  // key and its choices, the Slack channels with their webhooks, the GitHub token. Each value sealed again on its own,
+  // key and its choices, the Slack and Discord channels with their webhooks, the GitHub token. Each value sealed again on its own,
   // so the settings kept on a device in the clear hold none of them readable; merged an entry at a time, the later
   // change winning (`mergedSealedKeys`).
   sealedKeysKey,

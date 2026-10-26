@@ -152,8 +152,8 @@ class PluginReach {
       };
 }
 
-/// Where [plugin] works, as the code says: Notion and Slack answer an iPhone with Rust's "not available on iOS yet"
-/// (lib/core/iphone_app.dart `notOnIPhone`); Place reminders watch places through Android's geofences alone
+/// Where [plugin] works, as the code says: Notion and Slack answer an iPhone with Rust's "not available on iOS yet",
+/// and Discord, Slack's shape, the same (lib/core/iphone_app.dart `notOnIPhone`); Place reminders watch places through Android's geofences alone
 /// (lib/reminders/place_host.dart); Todoist and Things bring notes in through Settings › Import, which an iPhone has
 /// not got (lib/settings/settings_sections.dart). The rest work everywhere.
 PluginReach reachOf(GlyphPlugin plugin) {

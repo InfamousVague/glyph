@@ -53,7 +53,7 @@ void main() {
 
   group('the catalogue’s order and words', () {
     test('lists the plugins by category, then by name, and has the categories they are in', () {
-      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
+      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Discord', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
       expect([for (final c in categoriesOf(builtIn)) c.label], ['AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
       // Every plugin that ships has a category, a line of its own and what it adds.
       for (final plugin in builtIn) {
@@ -109,7 +109,7 @@ void main() {
       final card = find.byKey(const ValueKey('cluster market'));
       expect([for (final id in ['market', 'plugin:claude', 'plugin:github', 'plugin:notion']) find.descendant(of: card, matching: rowOf(id)).evaluate().length], [1, 1, 1, 1]);
       expect(find.descendant(of: card, matching: rowOf('about')), findsNothing);
-      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 13 plugins added');
+      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 14 plugins added');
       expect(tester.widget<AppIcon>(find.descendant(of: rowOf('market'), matching: find.byType(AppIcon)).first).icon, Lucide.store);
       expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
       // Each in its own icon, Claude's its own mark as an icon (Matt, 2026-10-26: "iconize the lovart logo so we can use

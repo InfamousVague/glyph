@@ -41,6 +41,9 @@ void main() {
     expect(notOnIPhone('github', platform: TargetPlatform.iOS), isNull);
     expect(notOnIPhone('notion', platform: TargetPlatform.android), isNull);
     expect(notOnIPhone('slack', platform: TargetPlatform.macOS), isNull);
+    // Discord is Slack's shape, kept off an iPhone as Slack is (lib/plugins/discord/discord.dart).
+    expect(notOnIPhone('discord', platform: TargetPlatform.iOS), 'Discord is not available on iOS yet.');
+    expect(notOnIPhone('discord', platform: TargetPlatform.android), isNull);
   });
 
   test('an iPhone cannot say where it is, in the page’s own answer', () async {

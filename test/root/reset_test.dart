@@ -6,6 +6,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/reset.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/plugins/built_in.dart';
+import 'package:ghost_md/plugins/discord/manifest.dart' show discordWebhookPrefix;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/slack/manifest.dart' show webhookPrefix;
@@ -45,6 +46,17 @@ void main() {
     }
   });
 
+  test('Discord\'s webhooks are named the same way, under their own prefix', () {
+    expect(discordSecretNames(), isEmpty);
+    kept.write('glyph-discord-channels', [
+      {'id': '00112233445566778899aabbccddeeff', 'name': '#launch'},
+    ]);
+    expect(discordSecretNames(), ['${discordWebhookPrefix}00112233445566778899aabbccddeeff']);
+    expect(secretsUnder(discordWebhookPrefix), discordSecretNames());
+    expect(secretsUnder(webhookPrefix), isEmpty, reason: 'Slack\'s are Slack\'s');
+    expect(RegExp(r'^[A-Za-z0-9_:-]{1,64}$').hasMatch(discordSecretNames().single), isTrue);
+  });
+
   test('a reset forgets every plugin\'s secret by name, clears the device\'s memory but what is spared, and starts again', () async {
     final id = '00112233445566778899aabbccddeeff';
     kept.write('glyph-slack-channels', [
@@ -54,6 +66,10 @@ void main() {
     kept.write('glyph-developer', true);
     kept.write('someone-elses', 'kept');
     await secrets.write('$webhookPrefix$id', 'https://hooks.slack.com/services/T/B/x');
+    kept.write('glyph-discord-channels', [
+      {'id': id, 'name': '#launch'},
+    ]);
+    await secrets.write('$discordWebhookPrefix$id', 'https://discord.com/api/webhooks/1/x');
     for (final name in plugins.secretNames().where((name) => !name.endsWith(':'))) {
       await secrets.write(name, 'a token');
     }

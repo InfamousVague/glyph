@@ -166,6 +166,7 @@ import '../perf/frame_log.dart';
 import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
+import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../plugins/lovart/lovart.dart' show LovartMeetings, lovartPictureStore;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
@@ -1206,6 +1207,18 @@ class _GhostRootState extends State<GhostRoot> {
   /// Meetings posted to Slack once written up (lib/plugins/slack/meetings.dart), once voice is made.
   MeetingSlackPoster? _slackMeetings;
 
+  /// And to Discord (lib/plugins/discord/meetings.dart), beside them.
+  MeetingDiscordPoster? _discordMeetings;
+
+  /// A note's share link for the Discord plugin's cut of a long note: the link the note's Share sheet copies, made or
+  /// found again by the app's share.
+  Future<String> _discordShare(String noteId) async {
+    final shares = _services?.shares;
+    final note = await _library.get(noteId);
+    if (shares == null || note == null) throw StateError('no share to make here');
+    return shares.shareNote(note, await shares.listNotes());
+  }
+
   NoteActions? _made;
 
   /// Pin, archive, delete and their Undo (notes/note_actions.dart); made once there is a toast to say them with.
@@ -1554,6 +1567,12 @@ class _GhostRootState extends State<GhostRoot> {
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
     if (identical(meetingSlackPoster, _slackMeetings)) meetingSlackPoster = null;
+    if (identical(meetingDiscordPoster, _discordMeetings)) meetingDiscordPoster = null;
+    // A method's tear-off is equal to another of it, never the same object.
+    if (discordShareLink == _discordShare) {
+      discordShareLink = null;
+      discordCanShare = () => discordShareLink != null;
+    }
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
     _aiReady.dispose();
     _builtReport.dispose();
@@ -1630,6 +1649,10 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     // Where Lovart's images are kept before their lines are written (lib/plugins/lovart/keep.dart).
     if (_pictures != null) lovartPictureStore = _pictures;
+    // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
+    // build has an account signed in (lib/plugins/discord/discord.dart).
+    discordShareLink = _discordShare;
+    discordCanShare = () => _services?.shares != null && (_services?.signedIn ?? false);
     // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
     _pluginsHeard.addListener(_pluginsMoved);
     _claudeKeyed = claudeSettings.hasKey;

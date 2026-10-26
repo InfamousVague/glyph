@@ -9,6 +9,8 @@ import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
 import '../../meet/ui/meet_card.dart';
+import '../../plugins/discord/meetings.dart' show meetingDiscordOffered;
+import '../../plugins/discord/meetings_section.dart';
 import '../../plugins/slack/meetings.dart' show meetingSlackOffered;
 import '../../plugins/slack/meetings_section.dart';
 import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
@@ -34,6 +36,7 @@ List<SettingsFindable> meetingsFindable(AccountServices? services) {
     if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
     if (services != null) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox'),
     if (services != null && meetingSlackOffered()) const SettingsFindable('Post to Slack', 'slack channel action items share link transcript automatic post meetings'),
+    if (services != null && meetingDiscordOffered()) const SettingsFindable('Post to Discord', 'discord channel action items share link transcript automatic post meetings'),
   ];
 }
 
@@ -62,6 +65,9 @@ String meetingsSummary(AccountServices? services) {
 ///   in hand to sending meeting action items and a link to the meeting transcript to a specified slack channel"),
 ///   drawn only where the Slack plugin is on with a channel on this device. In Simple its switch, the rest behind
 ///   More.
+/// - **Post to Discord** ([MeetingsDiscordSection]): the same for a Discord channel (lib/plugins/discord/meetings.dart;
+///   Matt, 2026-10-26: "Add a new plugin to post notes to discord chats"), a section of its own under Slack's, drawn
+///   only where the Discord plugin is on with a channel on this device. A meeting can go to both.
 ///
 /// A meeting that became a note opens it ([onOpenNote], the host's: Settings shuts and the note opens).
 class MeetingsPane extends StatelessWidget {
@@ -96,6 +102,7 @@ class MeetingsPane extends StatelessWidget {
           // Asked here as well as in the section, which draws nothing where meetings cannot post: an empty child would
           // still take a gap of the page's.
           if (services != null && meetingSlackOffered()) MeetingsSlackSection(prefs: services.prefs),
+          if (services != null && meetingDiscordOffered()) MeetingsDiscordSection(prefs: services.prefs),
         ],
       ),
     );
