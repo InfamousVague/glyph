@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/art.dart';
+import 'package:ghost_md/claude/claude_mark.dart' show ClaudeMark;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/catalogue.dart';
@@ -111,8 +112,10 @@ void main() {
       expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 13 plugins added');
       expect(tester.widget<AppIcon>(find.descendant(of: rowOf('market'), matching: find.byType(AppIcon)).first).icon, Lucide.store);
       expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
-      // Each in its own icon, and Claude in its coral.
-      expect(tester.widget<AppIcon>(find.descendant(of: rowOf('plugin:claude'), matching: find.byType(AppIcon)).first).icon, Lucide.bot);
+      // Each in its own icon, Claude's its own mark as an icon (Matt, 2026-10-26: "iconize the lovart logo so we can use
+      // their logo in the settings, same with the Claude logo"), in its coral.
+      expect(find.descendant(of: rowOf('plugin:claude'), matching: find.byType(ClaudeMark)), findsOneWidget);
+      expect(find.descendant(of: rowOf('plugin:github'), matching: find.byType(ClaudeMark)), findsNothing);
       final claude = sectionsOf(tester).singleWhere((s) => s.id == 'plugin:claude');
       expect((claude.hue, claude.parent, claude.listed, claude.words), ('coral', null, true, pluginOf('claude').manifest.description));
       // The catalogue is not Settings' any more: no Plugins page, and no page a plugin for it.
