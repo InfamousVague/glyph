@@ -259,6 +259,10 @@ String meetDetailWords(String? detail) => switch ((detail ?? '').toLowerCase().r
       'invalid_link' => 'the link led to no meeting',
       'unsupported_browser' => 'Zoom would not open in Ghost’s browser',
       'bad_url' => 'Ghost can’t open that link',
+      // A Discord call's (discord/bot/lib/call.mjs, bot.mjs).
+      'nothing_heard' => 'Ghost heard nobody in the call',
+      'join_failed' => 'Discord would not let Ghost into the channel',
+      'restarted' => 'Ghost restarted during the call',
       _ => '',
     };
 

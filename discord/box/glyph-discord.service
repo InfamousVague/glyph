@@ -1,0 +1,64 @@
+# glyph-discord: Ghost.md's Discord notetaker (discord/bot, docs/DISCORD_CALLS.md "The bot and the box").
+#
+# Installed by scripts/setup-discord-box.mjs, which rewrites this file on every run - edit it here, not on the box.
+#
+# A Node service holding one gateway connection to Discord, answering /ghost join, /ghost leave and /ghost link, and,
+# for each call it is asked into, a voice connection whose packets it mixes into one recording and hands to glyph-api
+# on loopback, which seals it to the account on arrival. Its only files: /var/lib/glyph-discord (a call's recording
+# until it is uploaded). No browser, no screen, no sound server: unlike the Meet bot it hears the call as packets.
+#
+# Its own Node (/opt/glyph-discord/node, pinned and checked by the setup): @discordjs/voice 0.19 needs 22.12 or newer,
+# and the box's /usr/bin/node is Ubuntu's 18, which glyph-mcp and the Meet bot keep.
+#
+# Hardening: V8 is a JIT (and opusscript is WebAssembly), so no MemoryDenyWriteExecute=; everything else is shut.
+
+[Unit]
+Description=Ghost.md Discord bot (records the Discord calls Ghost is asked into)
+After=network-online.target glyph-api.service
+Wants=network-online.target
+
+[Service]
+User=glyph-discord
+Group=glyph-discord
+# DISCORD_BOT_TOKEN (Discord's, for the gateway), GLYPH_DISCORD_TOKEN (the bot's key to glyph-api's internal routes)
+# and DISCORD_APP_ID: root-owned, 0640, group glyph-discord. systemd reads it as root before dropping to the user.
+EnvironmentFile=/opt/glyph-discord/glyph-discord.env
+Environment=GLYPH_DISCORD_API=http://127.0.0.1:8796
+Environment=GLYPH_DISCORD_DATA=/var/lib/glyph-discord
+Environment=HOME=/var/lib/glyph-discord
+Environment=NODE_ENV=production
+StateDirectory=glyph-discord
+StateDirectoryMode=0700
+WorkingDirectory=/opt/glyph-discord/app/discord/bot
+ExecStart=/opt/glyph-discord/node/bin/node /opt/glyph-discord/app/discord/bot/bot.mjs
+Restart=on-failure
+RestartSec=10
+# A stop in a call leaves it, writes the rest of the recording and tries the upload once: two minutes.
+KillMode=mixed
+TimeoutStopSec=120
+
+Nice=5
+CPUQuota=100%
+MemoryMax=1G
+
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+ProtectClock=true
+ProtectHostname=true
+LockPersonality=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RestrictNamespaces=true
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

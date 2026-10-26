@@ -228,11 +228,12 @@ impl Store {
     }
 
     /// The bookings the bot should be in, or on its way to, at `now` (ms): live, with a link, from `early` ms before
-    /// each starts until `late` ms after it ends. Oldest first, of every account.
+    /// each starts until `late` ms after it ends. Oldest first, of every account. A Discord call (uid `discord:…`,
+    /// store/discord.rs) is the Discord bot's, never the Meet bot's, which would post it `failed: bad_url`.
     pub fn meet_due(&self, now: i64, early: i64, late: i64) -> Vec<MeetBooking> {
         self.all(
-            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND series IS NULL AND url != '' AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
-            params![now, early, late],
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND series IS NULL AND url != '' AND substr(uid, 1, length(?4)) != ?4 AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
+            params![now, early, late, super::DISCORD_UID],
             booking,
         )
     }

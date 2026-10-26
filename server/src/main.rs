@@ -8,6 +8,7 @@
 //!   /api/v1/mail/*     email to a note: an account's private address and the mail sent to it, sealed, see `mail.rs`
 //!   /api/v1/hooks/*, /api/hooks/{token}  incoming hooks: a URL that adds to a note, what it takes sealed, see `hooks.rs`
 //!   /api/v1/meet/*, /api/internal/meet/*  Ghost in a Google Meet: bookings, and recordings sealed, see `meet.rs`
+//!   /api/v1/discord/*, /api/internal/discord/*  Ghost in a Discord call: a Discord user linked, calls as bookings, see `discord.rs`
 //!   /api/v1/orgs/*     organizations: teams invited by handle, see `orgs.rs`
 //!   /api/v1/notifications/*  what an account is told, as a feed, see `notifications.rs`
 //!   /api/v1/live       live sync's relay, a WebSocket passing sealed edits, see `live.rs`
@@ -28,7 +29,8 @@
 //! (`mcp_proxy.rs`); NOTION_CLIENT_ID, NOTION_CLIENT_SECRET and NOTION_REDIRECT_URI (`notion.rs`); GOOGLE_CLIENT_ID,
 //! GOOGLE_CLIENT_SECRET and GOOGLE_REDIRECT_URI (`google.rs`; unset, Google sign-in answers 503); and
 //! GLYPH_MAILGUN_SIGNING_KEY and GLYPH_MAIL_DOMAIN (`mail.rs`; unset, the service takes no mail); GLYPH_MEET_TOKEN
-//! (`meet.rs`, the Meet bot's token; unset, the bot's loopback routes are not mounted); and GLYPH_PUBLIC_URL
+//! (`meet.rs`, the Meet bot's token; unset, the bot's loopback routes are not mounted); GLYPH_DISCORD_TOKEN
+//! (`discord.rs`, the Discord bot's token to this service, not Discord's; unset, no Discord route is mounted); and GLYPH_PUBLIC_URL
 //! (`hooks.rs`, what a hook's URL starts with; default `https://ghostmarkdown.com`). On the box,
 //! glyph-api.service sets GLYPH_API_BIND, OLLAMA_URL and GLYPH_API_DATA, and its env file the token and Notion's and
 //! Google's client ids and secrets; GLYPH_API_MODEL, GLYPH_MCP_UPSTREAM, NOTION_REDIRECT_URI and GOOGLE_REDIRECT_URI are
@@ -38,6 +40,7 @@
 //! the routes carry `/api`.
 
 mod accounts;
+mod discord;
 mod format;
 mod google;
 mod guard;
@@ -78,6 +81,8 @@ mod mail_tests;
 mod hooks_tests;
 #[cfg(test)]
 mod meet_tests;
+#[cfg(test)]
+mod discord_tests;
 
 use axum::extract::{Request, State};
 use axum::http::{header, HeaderValue, Method, StatusCode, Uri};
@@ -199,6 +204,8 @@ fn router(app: Arc<format::App>, accounts: Option<Arc<accounts::Accounts>>) -> R
             .merge(hooks::router(accounts.clone()))
             // Ghost in a Google Meet (docs/MEET.md): a device's bookings and sealed recordings, and the bot's loopback routes.
             .merge(meet::router(accounts.clone(), meet::bot_token()))
+            // Ghost in a Discord call (docs/DISCORD_CALLS.md): a Discord user linked by a code, its calls booked as meetings.
+            .merge(discord::router(accounts.clone(), discord::bot_token()))
             // Organizations and the notifications feed (docs/TEAMS.md): the same accounts, invited by handle.
             .merge(orgs::router(accounts.clone()))
             .merge(org_notes::router(accounts.clone()))

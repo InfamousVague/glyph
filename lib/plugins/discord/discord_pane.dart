@@ -5,6 +5,9 @@
 ///
 /// The webhooks are kept in the secure store (channels.dart) and follow the account sealed with the channels' names
 /// (lib/sync/connections.dart), which the page says. What a note posts is chosen on the note, from its More sheet.
+///
+/// First on the page, Discord calls (calls_section.dart; Matt, 2026-10-26: Discord calls belong to the Discord
+/// plugin): linking a Discord account, Join Discord calls, how to start one, and the calls Ghost recorded.
 library;
 
 import 'dart:async';
@@ -12,12 +15,14 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart' show AccountScope;
 import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
+import 'calls_section.dart';
 import 'channels.dart';
 import 'meetings.dart' show meetingDiscordOffered;
 import 'meetings_section.dart';
@@ -202,6 +207,7 @@ class _DiscordPaneState extends State<DiscordPane> {
     return PaneBody(
       children: [
         if (said != null) SettingsCallout(child: Text(said)),
+        DiscordCallsSection(services: AccountScope.maybeOf(context), onOpenNote: SettingsHost.maybeOf(context)?.onOpenNote, onOpenLink: SettingsHost.maybeOf(context)?.onOpenLink),
         PaneSection(
           title: 'Channels',
           description: const Text('Each is a Discord channel’s webhook, under a name you give it. The same on each of your devices, end-to-end encrypted, and once kept no page can read the webhook back.'),
@@ -236,7 +242,7 @@ class _DiscordPaneState extends State<DiscordPane> {
         // still take a gap of the page's.
         if (list.isNotEmpty && meetingDiscordOffered()) DiscordMeetingsLine(onOpenMeetings: _openMeetings(context)),
         const SettingsFootnote(
-          child: Text('Nothing goes to Discord unless you post it from a note, or set meetings to go. What is posted leaves Ghost.md’s encryption: Discord, and everyone in the channel, can read it. Nobody is pinged by a post, @everyone included.'),
+          child: Text('Nothing goes to a Discord channel unless you post it from a note, or set meetings to go. What is posted leaves Ghost.md’s encryption: Discord, and everyone in the channel, can read it. Nobody is pinged by a post, @everyone included.'),
         ),
       ],
     );

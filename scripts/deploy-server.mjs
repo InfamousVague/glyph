@@ -119,6 +119,11 @@ function loadServerEnv() {
   if (env.GLYPH_MEET_TOKEN && !/^[A-Za-z0-9_-]{32,200}$/.test(env.GLYPH_MEET_TOKEN)) {
     fail('GLYPH_MEET_TOKEN in .env must be 32 to 200 letters, digits, - or _.');
   }
+  // The Discord bot's key to glyph-api's internal routes (server/src/discord.rs, docs/DISCORD_CALLS.md): not Discord's
+  // own bot token, which glyph-api never sees. Optional the same way: without it no Discord route is mounted.
+  if (env.GLYPH_DISCORD_TOKEN && !/^[A-Za-z0-9_-]{32,200}$/.test(env.GLYPH_DISCORD_TOKEN)) {
+    fail('GLYPH_DISCORD_TOKEN in .env must be 32 to 200 letters, digits, - or _.');
+  }
   return env;
 }
 
@@ -207,6 +212,9 @@ if [ "$MCP_ONLY" != 1 ]; then
   if [ -n "$MEET_TOKEN_NEW" ]; then
     printf 'GLYPH_MEET_TOKEN=%s\\n' "$MEET_TOKEN_NEW"
   fi
+  if [ -n "$DISCORD_TOKEN_NEW" ]; then
+    printf 'GLYPH_DISCORD_TOKEN=%s\\n' "$DISCORD_TOKEN_NEW"
+  fi
 } | $SUDO tee ${REMOTE}/glyph-api.env.new >/dev/null
 $SUDO chown root:root ${REMOTE}/glyph-api.env.new
 $SUDO chmod 600 ${REMOTE}/glyph-api.env.new
@@ -226,7 +234,7 @@ $SUDO install -o root -g root -m 755 "$STAGE/glyph-api" ${REMOTE}/bin/glyph-api.
 $SUDO mv -f ${REMOTE}/bin/glyph-api.new ${REMOTE}/bin/glyph-api
 $SUDO install -o root -g root -m 644 "$STAGE/glyph-api.service" /etc/systemd/system/${SERVICE}.service
 fi
-unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW
+unset GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW
 
 # Claude's hosted MCP server beside it: the one file, renamed into place like the binary, and its own unit. Only
 # when either changed: a restart signs nobody out (its sessions are kept, sealed), but an unchanged server is left running all the same. The previous file is
@@ -294,8 +302,8 @@ echo "MCP_LOOPBACK $(curl -s -m 5 http://127.0.0.1:${MCP_PORT}/api/mcp/health)"
  * can afford.
  *
  * stdin carries the token, then the Notion client ID and secret, then
- * Google's, then Mailgun's signing key (each on a line of its own, empty when
- * not set), then a tarball. The remote shell `read`s the first line - bash reads a pipe one
+ * Google's, then Mailgun's signing key, the Meet bot's token and the Discord
+ * bot's (each on a line of its own, empty when not set), then a tarball. The remote shell `read`s the first line - bash reads a pipe one
  * byte at a time, precisely so that it never swallows what comes after the
  * newline - and tar gets the rest intact. So the token is never in a file on
  * this Mac, never in an argument list on either side (the remote command
@@ -314,14 +322,14 @@ function ship(env) {
     const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
       `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
-      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW; ` +
+      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; IFS= read -r DISCORD_TOKEN_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
         Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n` +
             `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n` +
-            `${env.GLYPH_MEET_TOKEN ?? ''}\n`,
+            `${env.GLYPH_MEET_TOKEN ?? ''}\n${env.GLYPH_DISCORD_TOKEN ?? ''}\n`,
         ),
         bundle,
       ]),
