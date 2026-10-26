@@ -11,6 +11,7 @@ import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/mac_app.dart' show macAppStore;
+import '../../web/web_facts.dart';
 
 /// The version this app is, as pubspec.yaml has it (a test holds the two together). About draws it when no updater
 /// has said which build this is. The build that goes to the App Store has no updater to say, and is told its
@@ -88,6 +89,23 @@ String buildLine(SettingsUpdates updates) => [
 /// About's row in the list: the version and where it stands.
 String aboutSummary(SettingsUpdates? updates) => updates == null ? ghostVersion : '${updates.version} · ${updatesSummary(updates)}';
 
+/// The Updates card of the web build (AboutUpdates.tsx's for a page that is not in Tauri): the page updates when it
+/// is loaded again, and says what the apps do that it does not. And, the once it happened, that the old web app's
+/// notes were carried in; or, in a browser that keeps nothing, that nothing is kept (lib/web, docs/WEB.md).
+Widget webVersionSection() => PaneSection(
+      title: 'Updates',
+      footer: Text(
+        webKeepsNothing
+            ? 'This browser is not keeping site data, so these notes go when the tab does. Sign in to keep them in your account.'
+            : 'Recording, the AI models, reminders and the side key are in the apps for Android, iPhone and the Mac.',
+      ),
+      children: [
+        const SettingRow(label: "You're on the web version", hint: Text('Reload the page to update.')),
+        if (webCarried > 0)
+          SettingRow(label: 'Notes from the old web version', hint: Text('$webCarried ${webCarried == 1 ? 'note was' : 'notes were'} brought into this one, as they were.')),
+      ],
+    );
+
 /// Presses on the version needed to unlock the developer tools (settings/developerMode.ts `KNOCKS_WANTED`).
 const int knocksWanted = 7;
 const int _knockGapMs = 900;
@@ -115,7 +133,9 @@ int countKnock([int? now]) {
 /// - [updates] may be null, and is until the app has an updater (stage 9): the hero is then the version alone, and
 ///   the Updates card, its words and What's new are not drawn (nor listed for the search). With one, they are the
 ///   web's: the card's one row, Reload, Install and Check for updates, Android's alerts switch, and the releases.
-///   The web's card for a browser ("You're on the web version") has no place in an app.
+/// - The web's card for a browser ("You're on the web version") is drawn in the web build, and only there
+///   ([webVersionSection]; Matt, 2026-10-26: "update the web version of the app it's very behind"), where a page
+///   updates by being loaded again and has no updater.
 /// - Help's rows run callbacks that may be null (the Academy, the walkthrough and the book are later stages); such a
 ///   row is drawn and cannot be pressed. The three that open another page of Settings always can.
 /// - The releases are handed in already read (`SettingsUpdates.releases`), where the page fetched them itself.
@@ -174,7 +194,7 @@ class AboutPane extends StatelessWidget {
         PaneSection(
           children: [PaneHero(title: updates?.version ?? ghostVersion, meta: updates == null ? null : Text(buildLine(updates)), onPress: () => _knock(context))],
         ),
-        if (updates != null) ...updatesSection(updates),
+        if (onWeb) webVersionSection() else if (updates != null) ...updatesSection(updates),
         PaneSection(
           title: 'Help',
           children: [

@@ -239,6 +239,8 @@ pub fn derive_bytes(secret: &str, salt: &str, rounds: u32, threads: bool) -> Res
     }
     let keyed = <Hmac<Sha256> as Mac>::new_from_slice(secret.as_bytes()).map_err(|_| "That secret could not be used.".to_string())?;
     let salt = salt.as_bytes();
+    // A browser's core (native/web) has no threads: its worker is the lane, and the halves are made in turn.
+    let threads = threads && !cfg!(target_family = "wasm");
     let (first, second) = if threads {
         std::thread::scope(|scope| {
             let second = scope.spawn(|| pbkdf2_block(&keyed, salt, rounds, 2));
@@ -528,6 +530,18 @@ fn recovery_code() -> Result<String, String> {
 fn recovery_sheet(handle: &str, account: &Secret, rounds: u32) -> Result<Value, String> {
     let codes = (0..CODES).map(|_| recovery_code()).collect::<Result<Vec<_>, _>>()?;
     let salt = salt(handle, true);
+    // In a browser's core (native/web), one after another: it has no threads, and the worker is not the page.
+    if cfg!(target_family = "wasm") {
+        let entries = codes
+            .iter()
+            .map(|code| -> Result<Value, String> {
+                let derived = derive_bytes(&normalise_code(code), &salt, rounds, false)?;
+                let wrap = Secret::from_slice(&derived[32..]).ok_or("no wrap key")?;
+                Ok(json!({ "login": to_hex(&derived[..32]), "wrapped": wrap_account(account, &wrap.cipher())? }))
+            })
+            .collect::<Result<Vec<_>, String>>()?;
+        return Ok(json!({ "codes": codes, "entries": entries }));
+    }
     let entries = std::thread::scope(|scope| {
         let working: Vec<_> = codes
             .iter()

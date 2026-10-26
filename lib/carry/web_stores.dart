@@ -30,10 +30,11 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:typed_data';
 
 import 'leveldb.dart';
+import '../core/host_platform.dart';
 
 /// The origin the Tauri app's page was served from on Android (`http://tauri.localhost`, wry's default with no
 /// `useHttpsScheme`): what its storage is kept under.

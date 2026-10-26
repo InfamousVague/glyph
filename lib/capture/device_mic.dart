@@ -35,7 +35,6 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart' show visibleForTesting;
@@ -43,6 +42,7 @@ import 'package:flutter/services.dart';
 
 import '../core/mac_app.dart';
 import 'audio.dart';
+import '../core/host_platform.dart';
 
 /// What a recorder says when the microphone was not allowed: the WebView's own words for a `getUserMedia` it
 /// refused (`NotAllowedError: Permission denied`), which are what Ghost.md's recorder shows, since it shows whatever

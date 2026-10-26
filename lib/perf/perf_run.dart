@@ -16,7 +16,7 @@ library;
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' show Service;
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:math' as math;
 import 'dart:ui' as ui show channelBuffers;
 
@@ -37,6 +37,7 @@ import '../shell/phone_tour.dart';
 import '../shell/wide_screen.dart' show mousePointer, splitFits;
 import 'frame_log.dart';
 import 'perf_seed.dart' show perfBody;
+import '../core/host_platform.dart';
 
 /// The walk this build takes by itself, if any.
 const String ghostPerfTour = String.fromEnvironment('GHOST_PERF_TOUR');

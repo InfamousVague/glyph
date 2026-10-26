@@ -22,8 +22,10 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/widgets.dart';
 
+import '../../account/api.dart' show FetchRequest, ioFetcher;
 import '../../core/place_refs.dart';
 import 'map_card.dart' show MapTilesBuilder;
 
@@ -76,6 +78,19 @@ class MapTiles {
   final Map<String, Future<ui.Image?>> _asked = <String, Future<ui.Image?>>{};
 
   static TileFetch _osm() {
+    // In the web build, the browser's `fetch`: OpenStreetMap's tiles let any site in, and the browser sends its own
+    // agent, which a page cannot change.
+    if (kIsWeb) {
+      final page = ioFetcher();
+      return (z, x, y) async {
+        try {
+          final answer = await page(FetchRequest(method: 'GET', url: Uri.parse(osmTileUrl(z, x, y)), timeout: const Duration(seconds: 12)));
+          return answer.status == 200 ? answer.bytes : null;
+        } catch (_) {
+          return null;
+        }
+      };
+    }
     final http = HttpClient()
       ..userAgent = tilesUserAgent
       ..connectionTimeout = const Duration(seconds: 8);

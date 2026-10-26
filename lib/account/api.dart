@@ -22,6 +22,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import '../web/page_net_stub.dart' if (dart.library.js_interop) '../web/page_net.dart' show pageFetcher;
 import 'not_yet.dart';
 
 export 'not_yet.dart' show noSuchRoute, notYet;
@@ -92,7 +95,11 @@ bool isProductionHost(String host) {
 const String _refused = 'A development build never talks to ghostmarkdown.com (docs/STAGE7.md): work against the fake service or a local server.';
 
 /// A [Fetcher] over `dart:io`'s [HttpClient]. [client] is the one to use, or one made here and kept.
+///
+/// In the web build there is no `dart:io` to ask, and this is the browser's `fetch` (lib/web/page_net.dart), so
+/// every client that takes the default needs no word of where it runs.
 Fetcher ioFetcher({HttpClient? client}) {
+  if (kIsWeb) return pageFetcher();
   final http = client ?? HttpClient();
   return (request) async {
     assert(!isProductionHost(request.url.host), _refused);

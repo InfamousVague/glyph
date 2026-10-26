@@ -1,8 +1,7 @@
 import 'dart:async';
-import 'dart:io' show Platform;
 import 'dart:ui' show PlatformDispatcher;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWasm, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
@@ -59,8 +58,14 @@ import 'shell/desktop/mac_window.dart';
 import 'shell/phone_tour.dart';
 import 'tapes/phone_player.dart';
 import 'tapes/previews.dart';
+import 'core/host_platform.dart';
+import 'web/too_old.dart';
+import 'web/web_opening.dart';
 
 Future<void> main() async {
+  // The web build's copy in JavaScript, for a browser without WebAssembly's garbage collection: it says what the
+  // browser needs and opens nothing, since its numbers cannot be the phone's (lib/web/too_old.dart, docs/WEB.md).
+  if (kIsWeb && !kIsWasm) return runApp(const TooOldBrowser());
   // Flutter's binding, which draws nothing while Android is taking the app from the front (app/front_frames.dart).
   GhostBinding.ensureInitialized();
   // A build made to be measured times its own start and every frame after (lib/perf); any other does none of it.
@@ -102,9 +107,11 @@ Future<void> main() async {
   ).wait;
   // Whether the phone has a connection, and the moment one comes back (Android's own; anywhere else there is
   // always one as far as the app can tell). Not waited for: it answers when the phone does.
-  final connection = defaultTargetPlatform == TargetPlatform.android ? PhoneConnection().start() : null;
+  // A browser on an Android phone is not the Android app: none of the phone's own halves are asked there.
+  final android = !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
+  final connection = android ? PhoneConnection().start() : null;
   // And its battery, for the AI card's Battery reading (the page's `navigator.getBattery`).
-  if (defaultTargetPlatform == TargetPlatform.android) useBatterySource(phoneBattery());
+  if (android) useBatterySource(phoneBattery());
   // The app's updates, only in a build told where its own releases are (`--dart-define=GHOST_UPDATES=https://…`)
   // and never in a debug build (lib/core/updates.dart): with none, nothing is asked of anywhere. One for the
   // process, as the core is, and made before the core has opened, since the launch screen asks it to look as it
@@ -115,14 +122,14 @@ Future<void> main() async {
   // One PhoneLinks for the life of the app: it holds the channel the activity says `arrived` on.
   final links = PhoneLinks();
   // And one for what other apps share in, on the phone that has a share sheet (lib/share/share_in.dart).
-  final shares = defaultTargetPlatform == TargetPlatform.android ? PhoneShares() : null;
+  final shares = android ? PhoneShares() : null;
   // And one player of a note's recording, the phone's own.
   final tapes = PhoneTapePlayer();
   // And one more for the voice memos left in a note, so a memo never takes the tape's playhead.
   final clips = PhoneTapePlayer.clips();
   // And on the Mac, a few for the home page's shelf, which loads the cassettes in view into them ahead so a
   // resting mouse only presses Play (Matt, 2026-10-24). The other computers have no player of a recording yet.
-  final previews = defaultTargetPlatform == TargetPlatform.macOS ? TapePreviews.mac() : null;
+  final previews = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? TapePreviews.mac() : null;
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   // A place by its name, for Remind me at a place: asked as the app, a second apart, never under Local only.
@@ -157,9 +164,9 @@ Future<void> main() async {
         placeLookup: placeLookup,
         placeSearch: placeSearch,
         mapTiles: mapTiles,
-        picturePicker: phonePicturePicker,
+        picturePicker: kIsWeb ? null : phonePicturePicker,
         films: opened.films,
-        dayPicker: defaultTargetPlatform == TargetPlatform.android || runsAsIPhoneApp ? phoneDayPicker : null,
+        dayPicker: android || runsAsIPhoneApp ? phoneDayPicker : null,
         connection: connection,
       ),
     ),
@@ -200,7 +207,7 @@ final Future<TauriCarry?> _carry = () async {
   // it carries nothing and starts as a new install (lib/core/mac_app.dart `macAppStore`).
   final mac = runsAsMacApp && replacesTauriApp && !macAppStore;
   final iPhone = runsAsIPhoneApp && replacesTauriApp;
-  if ((defaultTargetPlatform != TargetPlatform.android && !mac && !iPhone) || ghostPerf) return null;
+  if (kIsWeb || (defaultTargetPlatform != TargetPlatform.android && !mac && !iPhone) || ghostPerf) return null;
   try {
     final dirs = await DevicePaths.find();
     final kept = await DeviceCarryPrefs.open().timeout(const Duration(seconds: 2));
@@ -233,6 +240,19 @@ Future<_Opened> _opened() async {
   VoiceMaking? voice;
   Films? films;
   Future<VoiceMaking?>? voiceLater;
+  // In a browser the library is the page's and its core a worker's (lib/web, docs/WEB.md): no voice, no films, and
+  // the account made over the same. A browser whose core will not open opens on the invented library.
+  if (kIsWeb) {
+    try {
+      final opened = await openInBrowser(base: accountBase(ghostApiDefine));
+      core = opened.core;
+      account = opened.account;
+      if (account != null) debugPrint('[ghost] this build has an account service: ${account.base}');
+    } catch (failure) {
+      debugPrint('[ghost] the library would not open in this browser: $failure');
+    }
+    return (core: core, whole: null, account: account, voice: null, voiceLater: null, films: null);
+  }
   try {
     // A debug build in the iPhone's simulator, asked for the store pictures' invented notes, opens no core
     // (lib/shell/phone_tour.dart). Never true in a release: the compiler folds it to false.

@@ -20,7 +20,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
-import '../account/api.dart' show FetchResponse, Fetcher, isProductionHost;
+import '../account/api.dart' show FetchResponse, Fetcher, ioFetcher, isProductionHost;
 import '../account/device_keys.dart' show deviceSecureStore;
 import '../core/open_link.dart';
 import '../core/preferences.dart';
@@ -32,7 +32,17 @@ import '../plugins/registry.dart';
 /// A [Fetcher] over `dart:io` that follows no redirect: a 3xx is answered as it came. A build that is not a release
 /// refuses the real service's hosts outright, as every other client of this app does. [client] is the one to use,
 /// or one made here and kept.
+///
+/// In the web build, the browser's `fetch` (lib/web/page_net.dart), which follows a redirect, and which a service
+/// that does not let this site in (CORS) does not answer: that plugin says it could not reach its service.
 Fetcher pluginFetcher({HttpClient? client, bool debug = !kReleaseMode}) {
+  if (kIsWeb) {
+    final page = ioFetcher();
+    return (request) async {
+      if (debug && isProductionHost(request.url.host)) throw StateError('A development build never talks to ${request.url.host}.');
+      return page(request);
+    };
+  }
   HttpClient? made;
   return (request) async {
     if (debug && isProductionHost(request.url.host)) throw StateError('A development build never talks to ${request.url.host}.');

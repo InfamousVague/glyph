@@ -31,7 +31,7 @@ library;
 
 import 'dart:io';
 
-import '../carry/sqlite_read.dart';
+import '../carry/sqlite_read.dart' if (dart.library.js_interop) '../carry/sqlite_read_web.dart';
 import 'things.dart';
 
 /// Things' folder in the Group Containers, under the home folder.

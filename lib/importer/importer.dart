@@ -7,7 +7,7 @@
 /// ([Importer.overLibrary]); a test makes one from its own [ImportPicker] and [ImportTarget].
 library;
 
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/services.dart' show Clipboard;
 
@@ -28,6 +28,7 @@ import 'things_database.dart';
 import 'things_paste.dart';
 import 'todoist.dart';
 import 'todoist_csv.dart';
+import '../core/host_platform.dart';
 
 /// The text on the clipboard, or null for none.
 Future<String?> clipboardText() async => (await Clipboard.getData(Clipboard.kTextPlain))?.text;

@@ -10,7 +10,8 @@
 ///   test, where nothing answers a channel and the app's files must not be touched.
 library;
 
-import 'dart:io';
+import 'dart:io' hide Platform;
+import 'host_platform.dart';
 
 /// True inside the built Mac app: the executable is in an app bundle, and this is not a test run.
 final bool runsAsMacApp = _inMacApp(executable: Platform.resolvedExecutable, macOS: Platform.isMacOS, test: Platform.environment.containsKey('FLUTTER_TEST'));

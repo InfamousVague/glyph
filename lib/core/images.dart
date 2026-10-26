@@ -130,6 +130,21 @@ class CorePictureStore extends PictureStore {
 
   void _look(String name) {
     if (!_asking.add(name)) return;
+    // A page has no file to draw from (lib/web, docs/WEB.md): the picture's bytes, read off the page's own shelf.
+    if (kIsWeb) {
+      unawaited(
+        _files
+            .read(CoreFileKind.image, name)
+            .then<void>((bytes) {
+              if (bytes == null) return;
+              _known[name] = Picture.memory(bytes, _arrived[name] ?? 0);
+              if (!_disposed) notifyListeners();
+            })
+            .catchError((Object _) {})
+            .whenComplete(() => _asking.remove(name)),
+      );
+      return;
+    }
     unawaited(
       _files
           .where(CoreFileKind.image, name)

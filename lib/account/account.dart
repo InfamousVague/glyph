@@ -20,7 +20,6 @@
 /// - The device's label is the platform's, not a user agent's.
 library;
 
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
@@ -28,6 +27,7 @@ import 'api.dart';
 import 'crypto_api.dart';
 import 'keystore.dart';
 import 'session.dart';
+import '../core/host_platform.dart';
 
 export 'session.dart';
 

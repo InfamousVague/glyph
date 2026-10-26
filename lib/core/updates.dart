@@ -57,7 +57,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -71,6 +71,7 @@ import 'mac_app.dart' show macAppStore, runsAsMacApp;
 import 'native/core.dart';
 import 'open_link.dart' as links;
 import 'update_keys.dart';
+import 'host_platform.dart';
 
 // ---- what the build was told ----------------------------------------------------------------------------------------
 

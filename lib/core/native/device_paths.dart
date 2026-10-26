@@ -31,12 +31,13 @@
 /// temporary directory, so the app runs and nothing of a person's is mistaken for it.
 library;
 
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/services.dart';
 
 import '../iphone_app.dart';
 import '../mac_app.dart';
+import '../host_platform.dart';
 
 class DevicePaths {
   const DevicePaths({required this.dataDir, required this.cacheDir});

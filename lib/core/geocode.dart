@@ -29,7 +29,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-import '../account/api.dart' show FetchRequest, FetchResponse, Fetcher;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import '../account/api.dart' show FetchRequest, FetchResponse, Fetcher, ioFetcher;
 import 'location.dart' show PlaceAnswer, PlaceLookup, nominatimGapMs, shortPlace;
 import 'place_refs.dart' show jsNumber;
 
@@ -101,7 +103,11 @@ PlaceLookup geocodePlace(Fetcher fetch, {String Function()? lang, String version
 
 /// A [Fetcher] over `dart:io` that follows no redirect, for [geocodePlace]: a 3xx is answered as it came. [client]
 /// is the one to use, or one made here and kept.
+///
+/// In the web build, the browser's `fetch` (lib/web/page_net.dart), which follows a redirect where this would not:
+/// a page cannot ask it not to and still read the answer.
 Fetcher geocodeFetcher({HttpClient? client}) {
+  if (kIsWeb) return ioFetcher();
   final http = client ?? HttpClient();
   return (request) async {
     HttpClientRequest? sent;

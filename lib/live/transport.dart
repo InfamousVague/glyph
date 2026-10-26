@@ -19,6 +19,10 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
+
+import '../web/page_net_stub.dart' if (dart.library.js_interop) '../web/page_net.dart' show pageLiveSocket;
+
 /// What the relay says (`LiveEvents`).
 class LiveEvents {
   const LiveEvents({required this.ready, required this.joined, required this.peers, required this.message, required this.down, this.poke});
@@ -118,8 +122,8 @@ class _IoSocket extends LiveSocket {
   }
 }
 
-/// The real socket.
-LiveSocket ioLiveSocket(String url) => _IoSocket(url);
+/// The real socket: `dart:io`'s, or in the web build the browser's own (lib/web/page_net.dart).
+LiveSocket ioLiveSocket(String url) => kIsWeb ? pageLiveSocket(url) : _IoSocket(url);
 
 /// The relay (`WebSocketTransport`).
 class WebSocketTransport implements LiveTransport {

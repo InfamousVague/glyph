@@ -626,7 +626,7 @@ impl Held {
         self.undo = None;
         let clock = Arc::new(AtomicU64::new(0));
         let carets = Arc::new(Mutex::new(Carets::default()));
-        let mut options = yrs::undo::Options::<Caret>::default();
+        let mut options = undo_options();
         options.capture_timeout_millis = capture_ms;
         options.tracked_origins.insert(Origin::from(EDITOR));
         let read = clock.clone();
@@ -1115,6 +1115,26 @@ struct Touched {
 impl Touched {
     fn json(&self) -> Value {
         json!({ "added": self.added, "updated": self.updated, "touched": self.touched, "removed": self.removed })
+    }
+}
+
+/// yrs's undo options as its `Default` makes them. yrs leaves that `Default` out of a wasm build, whose clock it
+/// cannot assume, so the browser's core (native/web) spells the same fields out; the clock is replaced by
+/// `undo_open` either way.
+#[cfg(not(target_family = "wasm"))]
+fn undo_options() -> yrs::undo::Options<Caret> {
+    yrs::undo::Options::<Caret>::default()
+}
+
+#[cfg(target_family = "wasm")]
+fn undo_options() -> yrs::undo::Options<Caret> {
+    yrs::undo::Options {
+        capture_timeout_millis: 500,
+        tracked_origins: Default::default(),
+        capture_transaction: None,
+        timestamp: Arc::new(now_ms),
+        init_undo_stack: Vec::new(),
+        init_redo_stack: Vec::new(),
     }
 }
 

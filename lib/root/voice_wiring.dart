@@ -30,7 +30,7 @@
 library;
 
 import 'dart:async';
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
@@ -76,6 +76,7 @@ import '../tapes/player.dart' show markAudioRemoved;
 import '../watch/watch_device.dart';
 import '../watch/watch_link.dart';
 import '../watch/watch_notes.dart';
+import '../core/host_platform.dart';
 
 /// `--dart-define=GHOST_MODELS=http://…`: where this build fetches a voice or language model from. Empty in every
 /// build that was not given one.

@@ -44,7 +44,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart';
@@ -53,6 +53,7 @@ import '../account/device_keys.dart' show SecureStore;
 import '../core/native/core.dart';
 import 'leveldb.dart';
 import 'web_stores.dart';
+import '../core/host_platform.dart';
 
 /// The page's keys that are secrets: carried to the secure store, never to SharedPreferences.
 const String carrySessionKey = 'glyph-account-session';

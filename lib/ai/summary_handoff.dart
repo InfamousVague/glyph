@@ -59,7 +59,6 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -71,6 +70,7 @@ import '../core/summary_text.dart' show summarySection;
 import '../meet/meet_note.dart' show awaitsWriteUp, ghostLineStart;
 import '../meet/speakers.dart' show sectionOf;
 import 'meeting_sort.dart' show meetingSortsKey;
+import '../core/host_platform.dart';
 
 /// The synced map of meetings handed on, in [Preferences.more] (see the header).
 const String summaryHandoffsKey = 'summaryHandoffs';

@@ -20,6 +20,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 
+import '../../../account/api.dart' show FetchRequest, ioFetcher;
 import '../../../core/stored.dart';
 import 'providers.dart';
 
@@ -126,6 +127,18 @@ const int pictureMaxBytes = 2 * 1024 * 1024;
 EmbedGet httpEmbedGet({HttpClient? client, Duration timeout = embedTimeout, bool allowHttp = false}) {
   return (address, {int maxBytes = oEmbedMaxBytes}) async {
     if (address.scheme != 'https' && !(allowHttp && address.scheme == 'http')) throw const EmbedError('Only https is asked.');
+    // In the web build, the browser's `fetch`: a service that does not let this site in is one not reached.
+    if (kIsWeb) {
+      try {
+        final answer = await ioFetcher()(FetchRequest(method: 'GET', url: address, timeout: timeout));
+        if (answer.bytes.length > maxBytes) throw const EmbedError('Too much came back.');
+        return (status: answer.status, body: answer.bytes);
+      } on EmbedError {
+        rethrow;
+      } catch (_) {
+        throw const EmbedError("The service couldn't be reached.");
+      }
+    }
     final http = client ?? HttpClient();
     try {
       return await () async {

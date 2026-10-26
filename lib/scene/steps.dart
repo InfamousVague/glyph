@@ -20,7 +20,6 @@
 /// where the page asked `navigator.hardwareConcurrency`.
 library;
 
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
@@ -30,6 +29,7 @@ import '../ai/kinds.dart';
 import '../ai/review_stage.dart';
 import '../ai/runs.dart';
 import '../ai/words.dart';
+import '../core/host_platform.dart';
 
 /// `StepId`; [name] is the web's word.
 enum StepId { listen, load, read, think, write, done }

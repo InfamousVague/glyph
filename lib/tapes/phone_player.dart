@@ -22,7 +22,8 @@ import 'player.dart';
 
 class PhoneTapePlayer implements TapePlayer {
   PhoneTapePlayer({MethodChannel channel = const MethodChannel('ghost_md/tape'), EventChannel events = const EventChannel('ghost_md/tape/events')}) : _channel = channel {
-    _heard = events.receiveBroadcastStream().listen(_said, onError: (Object _) {});
+    // A browser has no phone half to hear from (lib/web, docs/WEB.md): nothing is listened for, and a load throws.
+    if (!kIsWeb) _heard = events.receiveBroadcastStream().listen(_said, onError: (Object _) {});
   }
 
   /// The player a voice memo is played on: the phone's second, which the tape's knows nothing of.

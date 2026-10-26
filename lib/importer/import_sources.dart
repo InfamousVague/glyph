@@ -14,7 +14,7 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -23,6 +23,7 @@ import '../core/iphone_app.dart' show runsAsIPhoneApp;
 import '../core/library_folder.dart' show filesChannel;
 import '../core/mac_app.dart' show runsAsMacApp;
 import '../core/shared_files.dart';
+import '../core/host_platform.dart';
 
 /// One file in a folder being imported.
 @immutable

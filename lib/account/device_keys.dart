@@ -23,8 +23,8 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import '../core/iphone_app.dart';
@@ -33,6 +33,8 @@ import 'crypto.dart';
 import 'crypto_api.dart';
 import 'keystore.dart';
 import 'session.dart';
+import '../core/host_platform.dart';
+import '../web/page_secure_stub.dart' if (dart.library.js_interop) '../web/page_secure.dart';
 
 /// A few small strings, kept where only this app on this device can read them.
 abstract interface class SecureStore {
@@ -82,8 +84,12 @@ class ChannelSecureStore implements SecureStore {
 
 /// This device's secure storage: the phone's Keystore on Android, the Keychain in the Mac app
 /// (macos/Runner/GhostChannels.swift `Keychain`, under a service of this app's own) and in the iPhone app
-/// (apple/Keychain.swift, the same items kept for this device alone), memory anywhere else.
-SecureStore deviceSecureStore() => Platform.isAndroid || runsAsMacApp || runsAsIPhoneApp ? const ChannelSecureStore() : MemorySecureStore();
+/// (apple/Keychain.swift, the same items kept for this device alone), the site's own storage in the web build
+/// (lib/web/page_secure.dart), memory anywhere else.
+SecureStore deviceSecureStore() {
+  if (kIsWeb) return pageSecureStore();
+  return Platform.isAndroid || runsAsMacApp || runsAsIPhoneApp ? const ChannelSecureStore() : MemorySecureStore();
+}
 
 /// One of the three keys, as it is held and kept.
 class _Slot<K extends KeyHandle> {

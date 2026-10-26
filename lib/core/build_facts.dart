@@ -2,11 +2,11 @@
 /// with and what it runs on), each as a name and its words. Nothing here is asked of a service.
 library;
 
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 
 import 'updates.dart' show ghostBuild;
+import 'host_platform.dart';
 
 /// The commit this build was made from (`--dart-define=GHOST_COMMIT=…`, tool/cutover-build.sh), or ''.
 const String ghostCommit = String.fromEnvironment('GHOST_COMMIT');

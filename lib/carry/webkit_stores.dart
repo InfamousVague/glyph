@@ -45,12 +45,13 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:typed_data';
 
 import 'aes_unwrap.dart';
-import 'sqlite_read.dart';
+import 'sqlite_read.dart' if (dart.library.js_interop) 'sqlite_read_web.dart';
 import 'web_stores.dart' show DiskKey, DiskKeys, p256ScalarOfPkcs8;
+import '../core/host_platform.dart';
 
 /// The origin the Tauri app's page has on a Mac: wry's own scheme, with no `useHttpsScheme`
 /// (tauri/src-tauri/tauri.conf.json).

@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 
 import '../core/days.dart' show isoDayAfter;
+import '../format/body_hash.dart' show fnvOffsetBasis;
 import '../core/note.dart';
 import '../core/note_facts.dart';
 import 'dated_items.dart';
@@ -78,7 +79,7 @@ class Reminder {
 /// FNV-1a over the text's UTF-16 units, 64 bits as 16 hex digits: the same in every run, as `hashCode` is not
 /// promised to be. The two halves are written apart, since a 64-bit int with its top bit set is negative here.
 String stableId(String text) {
-  var hash = 0xcbf29ce484222325;
+  var hash = fnvOffsetBasis;
   for (final unit in text.codeUnits) {
     hash ^= unit;
     hash *= 0x100000001b3;

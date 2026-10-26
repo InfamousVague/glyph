@@ -42,7 +42,7 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -55,6 +55,7 @@ import '../../core/stored_device.dart';
 import '../../editor/editor_widget.dart';
 import '../../editor/input/ime.dart';
 import 'mac_window.dart';
+import '../../core/host_platform.dart';
 
 /// Whether the script asks for the invented library (its first step is `invented`): the notes the store's
 /// pictures are taken over (lib/core/sample_library.dart `seedLibrary`), drawn in place of this Mac's own library

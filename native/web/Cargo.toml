@@ -1,0 +1,49 @@
+# Ghost.md's core in a browser (the web build, docs/WEB.md): the halves of native/ that must be the same bytes on
+# every device, compiled to WebAssembly for WASI and run in a worker of the page (web/core/ghost_core_worker.js).
+# Nothing of them is copied: src/lib.rs includes the very files native/ builds, by `#[path]`.
+#
+#   tool/build-web-core.sh        target/wasm32-wasip1/release/ghost_core_web.wasm, copied to web/core/
+#
+# Its own workspace, beside native/'s and not in it: a browser has no SQLite file, no threads and no engines, so it
+# builds none of what native/Cargo.toml pulls in for them.
+[package]
+name = "ghost_core_web"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[workspace]
+
+[lib]
+name = "ghost_core_web"
+path = "src/lib.rs"
+crate-type = ["cdylib"]
+doctest = false
+
+# What crypto.rs, crdt.rs, crdt_wire.rs and note.rs use, at native/Cargo.toml's versions (Cargo.lock began as its
+# own, so the versions resolved are the phone's and the Mac's).
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1.26.1", features = ["v4"] }
+aes-gcm = "0.10"
+sha2 = "0.10"
+hmac = "0.12"
+hkdf = "0.12"
+p256 = { version = "0.13", default-features = false, features = ["arithmetic", "ecdh", "std"] }
+ed25519-dalek = "2"
+zeroize = "1"
+getrandom = "0.2"
+base64 = "0.22"
+yrs = { version = "=0.26.0", features = ["sync"] }
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(mobile)'] }
+
+# Small and fast: a page downloads it, and a sign-in runs 600,000 rounds of SHA-256 in it twice.
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

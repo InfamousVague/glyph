@@ -77,3 +77,8 @@ app.*.map.json
 # Ghost.md Docs, built from docs/book/ by `npm run build:docs` in tauri/ (vite.docs.config.ts): about 15 MB of hashed
 # assets that change with every build, so made fresh by scripts/deploy-landing.mjs rather than kept here.
 /landing/docs/
+
+# The web build's core (native/web, tool/build-web-core.sh): its target folder, and the WebAssembly it copies into web/core/
+# for `flutter build web` to take, built from the tree as the phone's libghost_core.so is and never kept (docs/WEB.md).
+/native/web/target/
+/web/core/ghost_core_web.wasm

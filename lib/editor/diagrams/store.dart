@@ -25,14 +25,16 @@ library;
 import 'dart:async';
 import 'dart:collection';
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import '../../core/iphone_app.dart';
 import '../../core/mac_app.dart';
 import '../../core/native/device_paths.dart';
+import '../../format/body_hash.dart' show fnvOffsetBasis;
 import 'bridge.dart';
+import '../../core/host_platform.dart';
 
 /// What a block shows of its diagram.
 sealed class DiagramDrawing {
@@ -343,7 +345,7 @@ class DiagramStore {
 /// The file a key's picture is kept in: the key's length and its FNV-1a hash, 64 bits wide. The key itself is
 /// written inside, and read back before the picture is believed.
 String diagramFile(String key) {
-  var hash = 0xcbf29ce484222325;
+  var hash = fnvOffsetBasis;
   for (var i = 0; i < key.length; i += 1) {
     hash ^= key.codeUnitAt(i);
     hash *= 0x100000001b3;

@@ -14,9 +14,9 @@
 ///   answers.
 library;
 
-import 'dart:io';
 
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
+import 'host_platform.dart';
 
 /// True in the iPhone app, on a phone or in the simulator.
 final bool runsAsIPhoneApp = !kIsWeb && Platform.isIOS;

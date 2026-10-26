@@ -10,12 +10,12 @@
 /// (tool/perf.sh): never a library a person keeps.
 library;
 
-import 'dart:io';
 
 import '../core/native/core.dart';
 import '../core/native/device_paths.dart';
 import '../core/sample_library.dart';
 import 'perf_run.dart' show PerfLaunch;
+import '../core/host_platform.dart';
 
 /// How many notes a measured build's library is brought up to (`--dart-define=GHOST_PERF_SEED=<n>`); 0 leaves the
 /// library as it is.

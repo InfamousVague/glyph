@@ -27,13 +27,13 @@ library;
 
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import 'meeting_live.dart';
 import 'system_sound.dart' show SoundSupport;
+import '../core/host_platform.dart';
 
 /// One thing the phone said without being asked: [name] is the Tauri page's inbound call (`meeting`,
 /// `recordingDone`, `notified`, `capture`, `screenOff`) and [argument] what it was called with (JSON, or null).

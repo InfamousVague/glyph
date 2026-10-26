@@ -26,7 +26,7 @@ import 'dart:isolate';
 
 import 'core.dart';
 import 'events.dart';
-import 'ghost_worker.dart';
+import 'ghost_worker.dart' if (dart.library.js_interop) 'ghost_worker_web.dart';
 
 class GhostCore {
   GhostCore._(this._isolate, this._requests, this._answers);

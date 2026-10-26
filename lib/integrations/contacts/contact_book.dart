@@ -13,12 +13,12 @@
 library;
 
 import 'dart:async';
-import 'dart:io' show Platform;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show PlatformException, MissingPluginException;
 import 'package:flutter_contacts/flutter_contacts.dart' as fc;
 import 'package:url_launcher/url_launcher.dart' as launcher;
+import '../../core/host_platform.dart';
 
 /// Whether the app may read the contacts.
 enum ContactsAccess {

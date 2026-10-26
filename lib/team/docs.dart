@@ -14,10 +14,11 @@
 library;
 
 import 'dart:convert';
-import 'dart:io';
+import 'dart:io' hide Platform;
 import 'dart:typed_data';
 
 import '../core/bytes.dart';
+import '../core/host_platform.dart';
 
 /// One note's document as kept (`TeamDocRecord`).
 class TeamDocRecord {

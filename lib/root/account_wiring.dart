@@ -102,7 +102,7 @@ Future<List<String>?> noServiceWayIn({required String mode, required String hand
 /// What `main` hands the app for an account: where the service is, the crypto, and the app's data folder.
 @immutable
 class AccountMaking {
-  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds, this.notices, this.jpeg});
+  const AccountMaking({required this.base, required this.crypto, required this.dataDir, this.fetcher, this.secure, this.iterations = rounds, this.notices, this.jpeg, this.docsFor});
 
   final String base;
   final CoreCrypto crypto;
@@ -120,24 +120,29 @@ class AccountMaking {
 
   /// What writes a share's reading copy of a picture as a JPEG; the phone's unless a test says otherwise.
   final JpegShrink? jpeg;
+
+  /// Where one account's team documents are kept: files under [dataDir] unless this says otherwise, which the web
+  /// build does, having no folder (lib/web/web_core.dart `ShelfTeamDocs`).
+  final TeamDocStore Function(int accountId)? docsFor;
 }
 
 /// The team notes' documents, in the folder of whoever is signed in: signed out, there are none to read and
 /// nowhere to write.
 class _AccountDocs implements TeamDocStore {
-  _AccountDocs(this._dataDir, this._account);
+  _AccountDocs(this._dataDir, this._account, [this._docsFor]);
 
   final String _dataDir;
   final Account _account;
-  FileDocs? _docs;
+  final TeamDocStore Function(int accountId)? _docsFor;
+  TeamDocStore? _docs;
   int? _for;
 
-  FileDocs? get _now {
+  TeamDocStore? get _now {
     final id = _account.session?.accountId;
     if (id == null) return null;
     if (_for != id) {
       _for = id;
-      _docs = FileDocs.forAccount(_dataDir, id);
+      _docs = _docsFor?.call(id) ?? FileDocs.forAccount(_dataDir, id);
     }
     return _docs;
   }
@@ -188,7 +193,7 @@ class WiredAccount {
     final orgKeys = OrgKeys(crypto: crypto, api: api);
     final files = CoreFiles(core);
     final notes = LibraryNotes(core);
-    final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account));
+    final docs = TeamDocs(crdt: Crdt(core), store: _AccountDocs(making.dataDir, account, making.docsFor));
     final live = LiveServices(base: making.base, account: account, crypto: crypto, crdt: Crdt(core), orgs: orgs, orgKeys: orgKeys, prefs: settings, kept: device);
     // A share's reading copies are JPEGs written by the phone (lib/core/phone_pictures.dart): nothing on a device with no half for it.
     final shares = Shares(account: account, api: api, crypto: crypto, prefs: settings, pictures: CorePictures(files, jpeg: making.jpeg ?? phoneJpegShrink, onPicture: onPicture), listNotes: notes.list);
