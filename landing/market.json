@@ -1,0 +1,1330 @@
+{
+  "made": "MADE, not written: test/market/market_listing_test.dart writes it from the app's own lists (lib/market/market_listing.dart).",
+  "link": "ghostmd://market",
+  "shelves": [
+    {
+      "id": "all",
+      "label": "All"
+    },
+    {
+      "id": "plugins",
+      "label": "Plugins"
+    },
+    {
+      "id": "themes",
+      "label": "Themes"
+    },
+    {
+      "id": "fonts",
+      "label": "Fonts"
+    }
+  ],
+  "categories": [
+    {
+      "id": "ai",
+      "label": "AI"
+    },
+    {
+      "id": "calendar",
+      "label": "Calendar & tasks"
+    },
+    {
+      "id": "imports",
+      "label": "Import"
+    },
+    {
+      "id": "connections",
+      "label": "Connections"
+    },
+    {
+      "id": "editor",
+      "label": "Editor"
+    }
+  ],
+  "featured": [
+    "claude",
+    "lovart",
+    "github",
+    "notion"
+  ],
+  "plugins": [
+    {
+      "id": "claude",
+      "name": "Claude",
+      "line": "Ask Claude, here and from Claude’s own app",
+      "description": "Ask Claude in the app with your own API key, and read, add to and change your notes from Claude, through Ghost.md’s MCP server.",
+      "category": "ai",
+      "icon": "bot",
+      "mark": "claude",
+      "hue": "coral",
+      "colours": [
+        "#c8643f",
+        "#f0906b"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Claude in the dock at the head of every page, and Ask Claude in the command bar",
+        "The chat, where Claude writes into the note as you watch",
+        "The “Ask Claude” note, done as requests are written in it",
+        "Ghost.md’s MCP server, for Claude’s own app to read and write your notes"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Asked here, Claude reads, makes and changes your notes on this device as you watch. From Claude’s own app it reads and writes them through the sync service once you sign it in.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "What you ask here, and the notes Claude reads to answer, go to Anthropic with your key. Claude’s own app talks to Ghost.md’s sync service and nothing else. It talks to api.anthropic.com and ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "api.anthropic.com",
+        "ghostmarkdown.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.1.0",
+      "link": "ghostmd://market/plugin/claude"
+    },
+    {
+      "id": "lovart",
+      "name": "Lovart",
+      "line": "Images from your notes, by Lovart’s design agent",
+      "description": "Make images from your notes with Lovart’s design agent: inspiration for design meetings, and images where you write {image: …}.",
+      "category": "ai",
+      "icon": "palette",
+      "mark": "lovart",
+      "hue": "purple",
+      "colours": [
+        "#9a45c9",
+        "#c77dff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Make images, on a note with {image: a prompt} in it: each becomes a picture",
+        "Inspiration images, on any note: a moodboard of four under ## Inspiration",
+        "Inspiration for design meetings, once each is written up, where you switch it on"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Writes the images it makes into your notes.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Asks Lovart for images, with your own Lovart keys: only the prompt, or the note you ask inspiration for, goes there. It talks to lovart.ai and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "lovart.ai"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/lovart"
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "line": "Your events in queries and on Today",
+      "description": "Shows your calendars’ events in queries and on the home page’s Today, from an iCal address or Google Calendar, and can put dated to-dos on Google’s.",
+      "category": "calendar",
+      "icon": "calendar-days",
+      "mark": null,
+      "hue": "cyan",
+      "colours": [
+        "#0a86a8",
+        "#4cc9f0"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Your calendars’ events in queries and on the home page’s Today",
+        "An iCal address, or Google Calendar once you connect it",
+        "Dated to-dos on a Google calendar, where you switch that on"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Reads the calendar addresses you add, wherever they are, and Google Calendar once you connect it, its sign-in through ghostmarkdown.com. The addresses are kept with your account’s settings.",
+          "icon": "globe"
+        },
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads your to-dos with a due date to put them on a Google calendar, only where you switch that on. Nothing in a note changes.",
+          "icon": "file-text"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/calendar"
+    },
+    {
+      "id": "contacts",
+      "name": "Contacts",
+      "line": "The people on your to-dos, from your contacts",
+      "description": "Matches the people named on your to-dos to your phone’s contacts: their picture on the chip, a tap to call, text or email them, and A person to pick someone.",
+      "category": "calendar",
+      "icon": "contact-round",
+      "mark": null,
+      "hue": "rose",
+      "colours": [
+        "#d6336c",
+        "#ff7aa8"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A contact’s picture on a person’s chip, and a tap to call, text or email them",
+        "A person, on the + beside a line, to pick someone from your contacts"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads the people your to-dos name (@sam) to match them, and writes the name you pick into the note. Nothing else in a note changes.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Reads your phone’s contacts, once you allow it, on this device only. No contact’s name, number or picture is kept or sent anywhere.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/contacts"
+    },
+    {
+      "id": "place-reminders",
+      "name": "Place reminders",
+      "line": "Reminders when you arrive somewhere",
+      "description": "A to-do with a place reminds you when your phone arrives there.",
+      "category": "calendar",
+      "icon": "map-pin",
+      "mark": null,
+      "hue": "green",
+      "colours": [
+        "#2a9d4b",
+        "#4cd571"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": false
+      },
+      "reach": "Android only",
+      "adds": [
+        "Remind me at a place, when you press and hold a to-do",
+        "A reminder as your phone arrives, while the app is closed"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads the to-dos that have a place, to know which places to watch, and writes the place you pick on a to-do.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Knows where your phone is while the app is closed, through Google Play services’ geofences, to notice when you arrive at one of those places. Where you are never leaves the phone through Ghost.md.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/place-reminders"
+    },
+    {
+      "id": "things",
+      "name": "Things",
+      "line": "Bring Things 3 in",
+      "description": "Brings Things 3 in: its areas as notebooks and its projects as their pages, from Things on this Mac or a list it copied.",
+      "category": "imports",
+      "icon": "square-check-big",
+      "mark": null,
+      "hue": "blue",
+      "colours": [
+        "#0a6fe0",
+        "#4ea1ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Things 3 on Settings › Import: from Things on this Mac, or a list it copied"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Makes a notebook of each area and a note of each project, in a workspace of the import’s own. Nothing you have is changed.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Reads a copy of Things’ own data on this Mac, when you ask, or what Things copied. Nothing leaves the device.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/things"
+    },
+    {
+      "id": "todoist",
+      "name": "Todoist",
+      "line": "Bring your Todoist projects in",
+      "description": "Brings your Todoist projects in as notes, their sections headings and their tasks to-dos, from your account or a project’s CSV export.",
+      "category": "imports",
+      "icon": "list-checks",
+      "mark": null,
+      "hue": "red",
+      "colours": [
+        "#dd3a30",
+        "#ff6b61"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Todoist on Settings › Import: from your account with a token, or a project’s CSV export"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Makes a note of each project, in a workspace of the import’s own. Nothing you have is changed.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Reads your Todoist account with the token you paste, for that one import; the token is not kept. An export is read on this device. It talks to api.todoist.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "api.todoist.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/todoist"
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "line": "Post a note to a Discord channel",
+      "description": "Posts a note, or a meeting’s summary, to a Discord channel when you say so, and each meeting’s action items once it is written up.",
+      "category": "connections",
+      "icon": "message-square",
+      "mark": null,
+      "hue": "indigo",
+      "colours": [
+        "#4f5bd5",
+        "#8c95ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Post to Discord on a note’s settings, and Post the summary to Discord for a meeting",
+        "A meeting’s action items and its links to the channel chosen on its page in Settings, once it is written up"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads the note you post, or its summary, to make the message. Nothing in the note changes.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Posts to the channels you add, straight from this device. Only what you choose to post goes: a note you post, and each meeting’s action items where you chose a channel for meetings. It talks to discord.com and discordapp.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "discord.com",
+        "discordapp.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/discord"
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "line": "Notes linked to repos, their items issues",
+      "description": "Links a note to a repo: its list items become issues you can tick off from either side, and the repo is read on the phone into a short briefing so names and terms come out right when the note is formatted.",
+      "category": "connections",
+      "icon": "git-branch",
+      "mark": null,
+      "hue": "indigo",
+      "colours": [
+        "#4f5bd5",
+        "#8c95ff"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A GitHub repo to link a note to, on its settings",
+        "Swipe a list item left, or tap the quiet “GitHub” after it, to make it an issue",
+        "Send list to GitHub, once the note is linked",
+        "A briefing of the repo for the model as the note is formatted"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Sends a note’s list items to the repo as issues, and writes each one’s link back into the note.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Reads the repo’s README, docs and file list from GitHub, and makes and closes the issues you send. Nothing else of your notes goes there. It talks to api.github.com and nowhere else.",
+          "icon": "globe"
+        },
+        {
+          "kind": "ai",
+          "label": "The model on your phone",
+          "why": "The model on your phone writes the briefing from what it read.",
+          "icon": "sparkles"
+        }
+      ],
+      "hosts": [
+        "api.github.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/github"
+    },
+    {
+      "id": "google-meet",
+      "name": "Google Meet",
+      "line": "Send Ghost to take notes in a Google Meet",
+      "description": "Ghost joins your Google Meet meetings, records them, and files each as a note written up on your device, with who said what. Invite it with your address on a calendar invite, or send it in with a link.",
+      "category": "connections",
+      "icon": "users",
+      "mark": null,
+      "hue": "orange",
+      "colours": [
+        "#d9600d",
+        "#ff9a4d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Its page in Settings: invite Ghost by a Meet link or by your address, and the Meet meetings it is booked for and was in",
+        "Each meeting Ghost was in filed as a note, written up on your device"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Files each meeting Ghost was in as a note in your Inbox, and opens it from the meeting’s row.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Ghost.md’s server books Ghost into the meetings you invite it to and joins them from there. Each recording comes back sealed to your account and is written up on your device. It talks to ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "ghostmarkdown.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/google-meet"
+    },
+    {
+      "id": "notion",
+      "name": "Notion",
+      "line": "List items as tasks on your Notion boards",
+      "description": "Turns list items into tasks on your Notion boards: swipe an item, or send a whole list.",
+      "category": "connections",
+      "icon": "square-kanban",
+      "mark": "notion",
+      "hue": "orange",
+      "colours": [
+        "#d9600d",
+        "#ff9a4d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "A Notion board to link a note to, on its settings",
+        "Swipe a list item left, or tap the quiet “Notion” after it, to send it as a task",
+        "Send list to Notion, once the note is linked"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Turns a sent item’s words into a link to its task, in the note it came from.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Signs in through ghostmarkdown.com and sends tasks to Notion. Only the items you send go. It talks to api.notion.com and ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Keeps your Notion sign-in inside the app, where no page can read it.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [
+        "api.notion.com",
+        "ghostmarkdown.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/notion"
+    },
+    {
+      "id": "slack",
+      "name": "Slack",
+      "line": "Post a note to a Slack channel",
+      "description": "Posts a note, or a meeting’s summary, to a Slack channel when you say so, and an organization’s news to its channel.",
+      "category": "connections",
+      "icon": "hash",
+      "mark": null,
+      "hue": "magenta",
+      "colours": [
+        "#b5279f",
+        "#f07ae0"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Post to Slack on a note’s settings, and Post the summary to Slack for a meeting",
+        "A meeting’s action items and its links to the channel chosen on its page in Settings, once it is written up",
+        "An organization’s news to the channel set for it"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads the note you post, or its summary, to make the message. Nothing in the note changes.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Posts to the channels you add, straight from this device. Only what you choose to post goes: a note you post, each meeting’s action items where you chose a channel for meetings, and an organization’s news where you set a channel for it. It talks to hooks.slack.com and nowhere else.",
+          "icon": "globe"
+        },
+        {
+          "kind": "native",
+          "label": "Your phone",
+          "why": "Keeps each channel’s webhook inside the app, where no page can read it back, and posts with it.",
+          "icon": "smartphone"
+        }
+      ],
+      "hosts": [
+        "hooks.slack.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/slack"
+    },
+    {
+      "id": "webhooks",
+      "name": "Webhooks",
+      "line": "Tell a URL when a note changes",
+      "description": "Tells a URL of yours when a note changes, and gives you URLs that add to a note: for Zapier, Make, IFTTT or a line of curl.",
+      "category": "connections",
+      "icon": "link",
+      "mark": null,
+      "hue": "lime",
+      "colours": [
+        "#5a8a00",
+        "#a3d93f"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A URL of yours told whenever a note changes on this device",
+        "URLs that add to a note, for Zapier, Make, IFTTT or a line of curl"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Reads a note you change on this device to tell your URLs of it, and adds what is posted to your incoming hooks to the note it names.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Posts to the URLs you add, straight from this device, and collects what your incoming hooks took in from ghostmarkdown.com, sealed to your account. It talks to ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "ghostmarkdown.com"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/webhooks"
+    },
+    {
+      "id": "zoom",
+      "name": "Zoom",
+      "line": "Send Ghost to take notes in a Zoom call",
+      "description": "Ghost joins your Zoom calls as a guest from its browser, records them, and files each as a note written up on your device, with who said what. Invite it with your address on a calendar invite, or send it in with a link.",
+      "category": "connections",
+      "icon": "laptop",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": false,
+        "mac": true
+      },
+      "reach": "Android · Desktop",
+      "adds": [
+        "Its page in Settings: invite Ghost by a Zoom link or by your address, the Zoom calls it is booked for and was in, and what a host must allow",
+        "Each call Ghost was in filed as a note, written up on your device"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Files each meeting Ghost was in as a note in your Inbox, and opens it from the meeting’s row.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Ghost.md’s server books Ghost into the meetings you invite it to and joins them from there. Each recording comes back sealed to your account and is written up on your device. It talks to ghostmarkdown.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "ghostmarkdown.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/zoom"
+    },
+    {
+      "id": "marks",
+      "name": "Marks",
+      "line": "Smoke, highlights, asides and effects",
+      "description": "Ghost.md’s own formatting on top of Markdown: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout, an addition, and five effects: heat, frost, a wave, a shimmer and a haunting. Typed or said.",
+      "category": "editor",
+      "icon": "highlighter",
+      "mark": null,
+      "hue": "amber",
+      "colours": [
+        "#c27c00",
+        "#ffb84d"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Seven marks of its own, typed or said: a spoiler in smoke, a highlighter, an aside, a doubt, a redaction, a shout and an addition",
+        "Five effects: heat, frost, a wave, a shimmer and a haunting"
+      ],
+      "settings": false,
+      "permissions": [],
+      "hosts": [],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/marks"
+    },
+    {
+      "id": "rich-embeds",
+      "name": "Rich embeds",
+      "line": "YouTube, Spotify and Figma in their cards",
+      "description": "Plays a YouTube video or a Spotify song in its link’s card, and shows a Figma file, where the link is alone on its line.",
+      "category": "editor",
+      "icon": "play",
+      "mark": null,
+      "hue": "red",
+      "colours": [
+        "#dd3a30",
+        "#ff6b61"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "A YouTube video or a Spotify song played in its link’s card",
+        "A Figma file shown, where its link is alone on its line"
+      ],
+      "settings": false,
+      "permissions": [
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Asks YouTube, Spotify or Figma for a link’s title and picture once Link previews are on, and plays it only when you tap it. Nothing of your notes goes but the link. It talks to www.youtube.com, open.spotify.com and www.figma.com and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "www.youtube.com",
+        "open.spotify.com",
+        "www.figma.com"
+      ],
+      "standard": true,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/rich-embeds"
+    }
+  ],
+  "themes": [
+    {
+      "id": "system",
+      "name": "System",
+      "line": "Follows the phone",
+      "scheme": "system",
+      "accent": null,
+      "palette": {
+        "background": "#fdfdfd",
+        "sidebar": "#f7f7f7",
+        "surface": "#f0f0f0",
+        "border": "#e6e6e6",
+        "text": "#0d0d0d",
+        "muted": "#747474",
+        "accent": "#0d0d0d"
+      },
+      "alternate": {
+        "background": "#040404",
+        "sidebar": "#090909",
+        "surface": "#0f0f0f",
+        "border": "#171717",
+        "text": "#f3f3f3",
+        "muted": "#808080",
+        "accent": "#f3f3f3"
+      },
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/system"
+    },
+    {
+      "id": "light",
+      "name": "Light",
+      "line": "Ink on paper",
+      "scheme": "light",
+      "accent": null,
+      "palette": {
+        "background": "#fdfdfd",
+        "sidebar": "#f7f7f7",
+        "surface": "#f0f0f0",
+        "border": "#e6e6e6",
+        "text": "#0d0d0d",
+        "muted": "#747474",
+        "accent": "#0d0d0d"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/light"
+    },
+    {
+      "id": "dark",
+      "name": "Dark",
+      "line": "Paper on ink",
+      "scheme": "dark",
+      "accent": null,
+      "palette": {
+        "background": "#040404",
+        "sidebar": "#090909",
+        "surface": "#0f0f0f",
+        "border": "#171717",
+        "text": "#f3f3f3",
+        "muted": "#808080",
+        "accent": "#f3f3f3"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/dark"
+    },
+    {
+      "id": "dawn",
+      "name": "Dawn",
+      "line": "Light, with red",
+      "scheme": "light",
+      "accent": "Red",
+      "palette": {
+        "background": "#fefcfc",
+        "sidebar": "#fbf8f7",
+        "surface": "#fdfdfd",
+        "border": "#e1d0c9",
+        "text": "#362c28",
+        "muted": "#705e57",
+        "accent": "#e44b49"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/dawn"
+    },
+    {
+      "id": "boreal",
+      "name": "Boreal",
+      "line": "Dark, with green",
+      "scheme": "dark",
+      "accent": "Green",
+      "palette": {
+        "background": "#080a09",
+        "sidebar": "#0d100f",
+        "surface": "#151a17",
+        "border": "#2c3933",
+        "text": "#e3ece7",
+        "muted": "#b2c4bb",
+        "accent": "#35a558"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/boreal"
+    },
+    {
+      "id": "ember",
+      "name": "Ember",
+      "line": "Dark, with amber",
+      "scheme": "dark",
+      "accent": "Amber",
+      "palette": {
+        "background": "#0b0908",
+        "sidebar": "#120f0d",
+        "surface": "#1c1715",
+        "border": "#3f322c",
+        "text": "#f1e7e2",
+        "muted": "#cebbb1",
+        "accent": "#c47a00"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/ember"
+    },
+    {
+      "id": "sakura",
+      "name": "Sakura",
+      "line": "Light, with purple",
+      "scheme": "light",
+      "accent": "Purple",
+      "palette": {
+        "background": "#fffcfd",
+        "sidebar": "#fcf7f9",
+        "surface": "#fdfdfd",
+        "border": "#e8cbd7",
+        "text": "#3a2930",
+        "muted": "#775865",
+        "accent": "#a168d9"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/sakura"
+    },
+    {
+      "id": "meadow",
+      "name": "Meadow",
+      "line": "Light, with green",
+      "scheme": "light",
+      "accent": "Green",
+      "palette": {
+        "background": "#fcfdfb",
+        "sidebar": "#f7faf6",
+        "surface": "#fdfdfd",
+        "border": "#c9dac5",
+        "text": "#273225",
+        "muted": "#566952",
+        "accent": "#3b9f59"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/meadow"
+    },
+    {
+      "id": "tide",
+      "name": "Tide",
+      "line": "Dark, with teal",
+      "scheme": "dark",
+      "accent": "Teal",
+      "palette": {
+        "background": "#060a0b",
+        "sidebar": "#0b1012",
+        "surface": "#101a1d",
+        "border": "#203a42",
+        "text": "#dbedf3",
+        "muted": "#a2c6d2",
+        "accent": "#00a49e"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/tide"
+    },
+    {
+      "id": "dusk",
+      "name": "Dusk",
+      "line": "Dark, with purple",
+      "scheme": "dark",
+      "accent": "Purple",
+      "palette": {
+        "background": "#09090c",
+        "sidebar": "#0f0f14",
+        "surface": "#181720",
+        "border": "#353247",
+        "text": "#e9e7f8",
+        "muted": "#bebbdb",
+        "accent": "#a769e4"
+      },
+      "alternate": null,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/theme/dusk"
+    }
+  ],
+  "fonts": [
+    {
+      "id": "maple",
+      "name": "Maple Mono",
+      "family": "Maple Mono",
+      "roles": [
+        "Note font",
+        "Coding face"
+      ],
+      "coding": true,
+      "interface": false,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/maple"
+    },
+    {
+      "id": "fira",
+      "name": "Fira Code",
+      "family": "Fira Code Variable",
+      "roles": [
+        "Note font",
+        "Coding face"
+      ],
+      "coding": true,
+      "interface": false,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/fira"
+    },
+    {
+      "id": "jetbrains",
+      "name": "JetBrains Mono",
+      "family": "JetBrains Mono Variable",
+      "roles": [
+        "Note font",
+        "Coding face"
+      ],
+      "coding": true,
+      "interface": false,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/jetbrains"
+    },
+    {
+      "id": "inter",
+      "name": "Inter",
+      "family": "Inter Variable",
+      "roles": [
+        "Note font",
+        "Interface font"
+      ],
+      "coding": false,
+      "interface": true,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/inter"
+    },
+    {
+      "id": "noto",
+      "name": "Noto",
+      "family": "Noto Sans Variable",
+      "roles": [
+        "Note font",
+        "Interface font"
+      ],
+      "coding": false,
+      "interface": true,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/noto"
+    },
+    {
+      "id": "plex",
+      "name": "Plex",
+      "family": "IBM Plex Sans",
+      "roles": [
+        "Note font",
+        "Interface font"
+      ],
+      "coding": false,
+      "interface": true,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/plex"
+    },
+    {
+      "id": "atkinson",
+      "name": "Atkinson",
+      "family": "Atkinson Hyperlegible Next Variable",
+      "roles": [
+        "Note font",
+        "Interface font"
+      ],
+      "coding": false,
+      "interface": true,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/atkinson"
+    },
+    {
+      "id": "lora",
+      "name": "Lora",
+      "family": "Lora Variable",
+      "roles": [
+        "Note font"
+      ],
+      "coding": false,
+      "interface": false,
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "link": "ghostmd://market/font/lora"
+    }
+  ],
+  "samples": {
+    "note": "The quick brown ghost -> drifts past **bold** notes.",
+    "interface": "Notes, Notebooks & Settings"
+  },
+  "icons": {
+    "bot": [
+      "M12 8V4H8",
+      "M6 8H18A2 2 0 0 1 20 10V18A2 2 0 0 1 18 20H6A2 2 0 0 1 4 18V10A2 2 0 0 1 6 8Z",
+      "M2 14h2",
+      "M20 14h2",
+      "M15 13v2",
+      "M9 13v2"
+    ],
+    "calendar-days": [
+      "M8 2v3",
+      "M16 2v3",
+      "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+      "M3 9h18",
+      "M8 13h.01",
+      "M12 13h.01",
+      "M16 13h.01",
+      "M8 17h.01",
+      "M12 17h.01",
+      "M16 17h.01"
+    ],
+    "check": [
+      "M20 6 9 17l-5-5"
+    ],
+    "contact-round": [
+      "M16 2v2",
+      "M17.915 21a6 6 0 10-12 0",
+      "M8 2v2",
+      "M8 11A4 4 0 1 0 16 11A4 4 0 1 0 8 11Z",
+      "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z"
+    ],
+    "download": [
+      "M12 15V3",
+      "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4",
+      "m7 10 5 5 5-5"
+    ],
+    "file-text": [
+      "M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z",
+      "M14 2v5a1 1 0 0 0 1 1h5",
+      "M10 9H8",
+      "M16 13H8",
+      "M16 17H8"
+    ],
+    "git-branch": [
+      "M15 6a9 9 0 0 0-9 9V3",
+      "M15 6A3 3 0 1 0 21 6A3 3 0 1 0 15 6Z",
+      "M3 18A3 3 0 1 0 9 18A3 3 0 1 0 3 18Z"
+    ],
+    "globe": [
+      "M2 12A10 10 0 1 0 22 12A10 10 0 1 0 2 12Z",
+      "M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20",
+      "M2 12h20"
+    ],
+    "hash": [
+      "M4 9L20 9",
+      "M4 15L20 15",
+      "M10 3L8 21",
+      "M16 3L14 21"
+    ],
+    "highlighter": [
+      "m9 11-6 6v3h9l3-3",
+      "m22 12-4.6 4.6a2 2 0 0 1-2.8 0l-5.2-5.2a2 2 0 0 1 0-2.8L14 4"
+    ],
+    "laptop": [
+      "M18 5a2 2 0 0 1 2 2v8.526a2 2 0 0 0 .212.897l1.068 2.127a1 1 0 0 1-.9 1.45H3.62a1 1 0 0 1-.9-1.45l1.068-2.127A2 2 0 0 0 4 15.526V7a2 2 0 0 1 2-2z",
+      "M20.054 15.987H3.946"
+    ],
+    "link": [
+      "M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71",
+      "M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"
+    ],
+    "list-checks": [
+      "M13 5h8",
+      "M13 12h8",
+      "M13 19h8",
+      "m3 17 2 2 4-4",
+      "m3 7 2 2 4-4"
+    ],
+    "map-pin": [
+      "M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0",
+      "M9 10A3 3 0 1 0 15 10A3 3 0 1 0 9 10Z"
+    ],
+    "message-square": [
+      "M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"
+    ],
+    "palette": [
+      "M12 22a1 1 0 0 1 0-20 10 9 0 0 1 10 9 5 5 0 0 1-5 5h-2.25a1.75 1.75 0 0 0-1.4 2.8l.3.4a1.75 1.75 0 0 1-1.4 2.8z",
+      "M13 6.5A0.5 0.5 0 1 0 14 6.5A0.5 0.5 0 1 0 13 6.5Z",
+      "M17 10.5A0.5 0.5 0 1 0 18 10.5A0.5 0.5 0 1 0 17 10.5Z",
+      "M6 12.5A0.5 0.5 0 1 0 7 12.5A0.5 0.5 0 1 0 6 12.5Z",
+      "M8 7.5A0.5 0.5 0 1 0 9 7.5A0.5 0.5 0 1 0 8 7.5Z"
+    ],
+    "play": [
+      "M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z"
+    ],
+    "plus": [
+      "M5 12h14",
+      "M12 5v14"
+    ],
+    "puzzle": [
+      "M15.39 4.39a1 1 0 0 0 1.68-.474 2.5 2.5 0 1 1 3.014 3.015 1 1 0 0 0-.474 1.68l1.683 1.682a2.414 2.414 0 0 1 0 3.414L19.61 15.39a1 1 0 0 1-1.68-.474 2.5 2.5 0 1 0-3.014 3.015 1 1 0 0 1 .474 1.68l-1.683 1.682a2.414 2.414 0 0 1-3.414 0L8.61 19.61a1 1 0 0 0-1.68.474 2.5 2.5 0 1 1-3.014-3.015 1 1 0 0 0 .474-1.68l-1.683-1.682a2.414 2.414 0 0 1 0-3.414L4.39 8.61a1 1 0 0 1 1.68.474 2.5 2.5 0 1 0 3.014-3.015 1 1 0 0 1-.474-1.68l1.683-1.682a2.414 2.414 0 0 1 3.414 0z"
+    ],
+    "search": [
+      "m21 21-4.34-4.34",
+      "M3 11A8 8 0 1 0 19 11A8 8 0 1 0 3 11Z"
+    ],
+    "settings": [
+      "M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915",
+      "M9 12A3 3 0 1 0 15 12A3 3 0 1 0 9 12Z"
+    ],
+    "shield-check": [
+      "M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z",
+      "m9 12 2 2 4-4"
+    ],
+    "smartphone": [
+      "M7 2H17A2 2 0 0 1 19 4V20A2 2 0 0 1 17 22H7A2 2 0 0 1 5 20V4A2 2 0 0 1 7 2Z",
+      "M12 18h.01"
+    ],
+    "sparkles": [
+      "M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z",
+      "M20 2v4",
+      "M22 4h-4",
+      "M2 20A2 2 0 1 0 6 20A2 2 0 1 0 2 20Z"
+    ],
+    "square-arrow-out-up-right": [
+      "M21 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h6",
+      "m21 3-9 9",
+      "M15 3h6v6"
+    ],
+    "square-check-big": [
+      "M21 10.656V19a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12.344",
+      "m9 11 3 3L22 4"
+    ],
+    "square-kanban": [
+      "M5 3H19A2 2 0 0 1 21 5V19A2 2 0 0 1 19 21H5A2 2 0 0 1 3 19V5A2 2 0 0 1 5 3Z",
+      "M8 7v7",
+      "M12 7v4",
+      "M16 7v9"
+    ],
+    "swatch-book": [
+      "M11 17a4 4 0 0 1-8 0V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2Z",
+      "M16.7 13H19a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2H7",
+      "M 7 17h.01",
+      "m11 8 2.3-2.3a2.4 2.4 0 0 1 3.404.004L18.6 7.6a2.4 2.4 0 0 1 .026 3.434L9.9 19.8"
+    ],
+    "type": [
+      "M12 4v16",
+      "M4 7V5a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v2",
+      "M9 20h6"
+    ],
+    "users": [
+      "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2",
+      "M16 3.128a4 4 0 0 1 0 7.744",
+      "M22 21v-2a4 4 0 0 0-3-3.87",
+      "M5 7A4 4 0 1 0 13 7A4 4 0 1 0 5 7Z"
+    ],
+    "x": [
+      "M18 6 6 18",
+      "m6 6 12 12"
+    ]
+  }
+}

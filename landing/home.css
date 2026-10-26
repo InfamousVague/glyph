@@ -121,8 +121,9 @@ code {
   margin-inline-start: auto;
 }
 
-/* From where the links, Docs among them, fit beside the brand and Download without the bar running off the page. */
-@media (min-width: 940px) {
+/* From where the links, Docs and the Market among them, fit beside the brand and Download without the bar running off
+   the page (1000px since the Market's link, 2026-10-26: it ran 43px off at 940). */
+@media (min-width: 1000px) {
   .bar-links {
     display: flex;
   }

@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../core/note.dart';
+import '../share/app_links.dart' show MarketPlace;
 import 'visited.dart';
 
 /// Something handed to a screen once, with the number that tells one handing from the next (the web's
@@ -79,8 +80,8 @@ sealed class Screen {
   const factory Screen.collection(CollectionKind kind, {String key, bool fromTags}) = ScreenCollection;
 
   /// The Market: the plugins, themes and fonts to add (lib/market/market_screen.dart), opened at [plugin]'s page
-  /// when one is named.
-  const factory Screen.market({String? plugin}) = ScreenMarket;
+  /// when one is named, or where a `ghostmd://market` [link] lands.
+  const factory Screen.market({String? plugin, MarketPlace? link}) = ScreenMarket;
 
   /// The union's tag: `list`, `notes`, `note`, `capture`, `meeting`, `academy`, `organization`, `collection`,
   /// `market`.
@@ -311,18 +312,21 @@ class ScreenCollection extends Screen {
 /// some more themes, fonts an of course all our plugins"): every plugin, theme and font to add, out of Settings and
 /// a place of its own. A place as the Tags page is, drawn where All notes is with the tab row over it and the sidebar
 /// beside it on a wide window; not on the trail the arrows walk, and its way out goes home. With [plugin] it opens on
-/// that plugin's page: an old link to Settings › Plugins › its name lands here.
+/// that plugin's page: an old link to Settings › Plugins › its name lands here. With [link] it opens where a
+/// `ghostmd://market/<kind>/<id>` lands, the website's market page's Open in Ghost.md (lib/market/market_items.dart
+/// `marketLinkLanding`).
 class ScreenMarket extends Screen {
-  const ScreenMarket({this.plugin});
+  const ScreenMarket({this.plugin, this.link});
 
   final String? plugin;
+  final MarketPlace? link;
 
   @override
   String get name => 'market';
 
   @override
-  bool operator ==(Object other) => other is ScreenMarket && other.plugin == plugin;
+  bool operator ==(Object other) => other is ScreenMarket && other.plugin == plugin && other.link == link;
 
   @override
-  int get hashCode => Object.hash(name, plugin);
+  int get hashCode => Object.hash(name, plugin, link);
 }

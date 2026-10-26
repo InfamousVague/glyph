@@ -63,7 +63,7 @@ class Door implements AppLinkDoor {
   Future<void> openNote(String id) async => did.add('note $id');
 
   @override
-  void openPlace(LinkedPlace place) => did.add(switch (place) { NotificationsPlace() => 'notifications', OrganizationPlace(:final orgId) => 'org $orgId' });
+  void openPlace(LinkedPlace place) => did.add(switch (place) { NotificationsPlace() => 'notifications', OrganizationPlace(:final orgId) => 'org $orgId', MarketPlace() => 'market $place' });
 }
 
 void main() {
@@ -88,6 +88,39 @@ void main() {
       expect(readPlaceLink('ghostmd://org/a b'), isNull);
       expect(readPlaceLink('ghostmd://org/${'x' * 65}'), isNull);
       expect(readPlaceLink(noteLink), isNull);
+    });
+
+    // The website's market page opens each thing by its kind and id (landing/market.html; Matt, 2026-10-26: "add a
+    // browsable marketplace listed under the plugins section on the website that deeplinks to the app").
+    test('names the Market, a shelf of it, or one plugin, theme or font on it', () {
+      expect(readPlaceLink('ghostmd://market'), const MarketPlace());
+      expect(readPlaceLink(' ghostmd://market/ '), const MarketPlace());
+      expect(readPlaceLink('ghostmd://market/plugin/notion'), const MarketPlace(kind: MarketKind.plugin, id: 'notion'));
+      expect(readPlaceLink('ghostmd://market/theme/dusk'), const MarketPlace(kind: MarketKind.theme, id: 'dusk'));
+      expect(readPlaceLink('ghostmd://market/font/lora/'), const MarketPlace(kind: MarketKind.font, id: 'lora'));
+      expect(readPlaceLink('ghostmd://market/plugin/place-reminders'), const MarketPlace(kind: MarketKind.plugin, id: 'place-reminders'));
+      // A kind alone is its shelf, said either way; an id alone is whichever thing has it.
+      expect(readPlaceLink('ghostmd://market/themes'), const MarketPlace(kind: MarketKind.theme));
+      expect(readPlaceLink('ghostmd://market/plugin'), const MarketPlace(kind: MarketKind.plugin));
+      expect(readPlaceLink('ghostmd://market/notion'), const MarketPlace(id: 'notion'));
+      expect(readPlaceLink('ghostmd://market/plugin-x'), const MarketPlace(id: 'plugin-x'));
+      // A page's query or fragment says nothing, and the case of the link is not the id's.
+      expect(readPlaceLink('ghostmd://market/plugin/claude?from=site'), const MarketPlace(kind: MarketKind.plugin, id: 'claude'));
+      expect(readPlaceLink('GHOSTMD://Market/Plugin/Claude'), const MarketPlace(kind: MarketKind.plugin, id: 'claude'));
+      // Anything else is not the Market's.
+      expect(readPlaceLink('ghostmd://market/widget/notion'), isNull);
+      expect(readPlaceLink('ghostmd://market/plugin/a b'), isNull);
+      expect(readPlaceLink('ghostmd://market/plugin/../x'), isNull);
+      expect(readPlaceLink('ghostmd://market/plugin/notion/more'), isNull);
+      expect(readPlaceLink('ghostmd://market/plugin/${'x' * 65}'), isNull);
+      expect(readPlaceLink('ghostmd://marketplace'), isNull);
+      expect(readPlaceLink('https://ghostmarkdown.com/market.html#plugin/notion'), isNull);
+    });
+
+    test('a Market link says itself as the link it was', () {
+      for (final link in ['ghostmd://market', 'ghostmd://market/theme', 'ghostmd://market/plugin/notion', 'ghostmd://market/lora']) {
+        expect(readPlaceLink(link).toString(), link);
+      }
     });
   });
 
@@ -163,11 +196,11 @@ void main() {
 
     test('goes to the door that does what it asks', () async {
       final door = Door();
-      for (final link in ['ghostmd://join/$code', noteLink, 'ghostmd://org/o1', 'ghostmd://notifications', share, 'ghostmd://something-else']) {
+      for (final link in ['ghostmd://join/$code', noteLink, 'ghostmd://org/o1', 'ghostmd://notifications', 'ghostmd://market/font/lora', share, 'ghostmd://something-else']) {
         openAppLink(link, door);
       }
       await pumpEventQueue();
-      expect(door.did, ['join $code', 'note m1', 'org o1', 'notifications', 'fork $share']);
+      expect(door.did, ['join $code', 'note m1', 'org o1', 'notifications', 'market ghostmd://market/font/lora', 'fork $share']);
       // A door that fails is its own trouble, and is said.
       final failures = <Object>[];
       door.failure = const ShareError('That link reads nothing: the share was taken down.');

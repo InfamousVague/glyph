@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:glacier/glacier.dart' show GlacierSegmentedControl;
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/market/market_items.dart';
 import 'package:ghost_md/market/market_looks.dart';
@@ -10,6 +11,7 @@ import 'package:ghost_md/market/market_screen.dart';
 import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/theme_cards.dart' show ThemeOption, ThemePalette;
+import 'package:ghost_md/share/app_links.dart';
 import 'package:ghost_md/market/market_cards.dart';
 
 import '../settings/panes/support.dart' hide tapOn;
@@ -39,13 +41,14 @@ void main() {
     Registry? registry,
     MarketShelf? shelf,
     String? plugin,
+    MarketPlace? link,
     Size size = const Size(390, 3000),
     Preferences prefs = const Preferences(theme: 'light'),
   }) async {
     final settings = <String>[], localOnly = <String>[];
     await pumpSettings(
       tester,
-      MarketScreen(onBack: () {}, registry: registry ?? shipped(), shelf: shelf, plugin: plugin, onPluginSettings: settings.add, onLocalOnly: () => localOnly.add('privacy')),
+      MarketScreen(onBack: () {}, registry: registry ?? shipped(), shelf: shelf, plugin: plugin, link: link, onPluginSettings: settings.add, onLocalOnly: () => localOnly.add('privacy')),
       size: size,
       prefs: prefs,
     );
@@ -267,6 +270,91 @@ void main() {
       // Its page cannot add it.
       await tapOn(tester, card('slack'));
       expect(tester.widget<MarketButton>(find.byKey(const ValueKey('market-add-slack'))).onPress, isNull);
+      await endSettings(tester);
+    });
+  });
+
+  // `ghostmd://market/<kind>/<id>`, the website's Open in Ghost.md (landing/market.html; Matt, 2026-10-26: "add a
+  // browsable marketplace listed under the plugins section on the website that deeplinks to the app").
+  group('a link into it', () {
+    test('lands on the thing it names, a shelf, or the front with a word', () {
+      MarketLanding land(String link) => marketLinkLanding(readPlaceLink(link)! as MarketPlace, plugins: builtIn);
+      expect(land('ghostmd://market/plugin/notion'), const MarketLanding(shelf: MarketShelf.plugins, plugin: 'notion'));
+      expect(land('ghostmd://market/plugin/google-meet'), const MarketLanding(shelf: MarketShelf.plugins, plugin: 'google-meet'));
+      expect(land('ghostmd://market/theme/dusk'), const MarketLanding(shelf: MarketShelf.themes, theme: 'dusk'));
+      expect(land('ghostmd://market/font/lora'), const MarketLanding(shelf: MarketShelf.fonts, face: 'lora'));
+      expect(land('ghostmd://market/fonts'), const MarketLanding(shelf: MarketShelf.fonts));
+      expect(land('ghostmd://market'), const MarketLanding());
+      // An id alone is the plugin of that id, then the theme, then the face.
+      expect(land('ghostmd://market/zoom'), const MarketLanding(shelf: MarketShelf.plugins, plugin: 'zoom'));
+      expect(land('ghostmd://market/boreal'), const MarketLanding(shelf: MarketShelf.themes, theme: 'boreal'));
+      expect(land('ghostmd://market/plex'), const MarketLanding(shelf: MarketShelf.fonts, face: 'plex'));
+      // A thing under another kind's name, or one this build does not have, is the front with a word.
+      final wrongKind = land('ghostmd://market/theme/notion');
+      expect((wrongKind.shelf, wrongKind.plugin, wrongKind.theme), (MarketShelf.all, null, null));
+      expect(wrongKind.missing, contains('no theme called “notion”'));
+      final newer = land('ghostmd://market/plugin/teams');
+      expect((newer.shelf, newer.plugin), (MarketShelf.all, null));
+      expect(newer.missing, 'This Ghost.md has no plugin called “teams”. It may be in a newer version: here is everything this one has.');
+      expect(land('ghostmd://market/nothing-like-it').missing, contains('no plugin, theme or font called “nothing-like-it”'));
+    });
+
+    testWidgets('to a plugin opens its page, with Add', (tester) async {
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.plugin, id: 'slack'));
+      expect(find.byKey(const ValueKey('market-detail-slack')), findsOneWidget);
+      expect(find.byKey(const ValueKey('market-add-slack')), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('to a theme holds it at the head of Themes, and Use this theme applies it', (tester) async {
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.theme, id: 'dusk'));
+      final linked = find.byKey(const ValueKey('market-linked-theme-dusk'));
+      expect(linked, findsOneWidget);
+      expect(tester.widget<GlacierSegmentedControl>(find.byKey(const ValueKey('market-shelves'))).value, 'themes');
+      await tapOn(tester, find.descendant(of: linked, matching: find.byKey(const ValueKey('market-use Use this theme'))));
+      expect((preferences.value.theme, preferences.value.accent), ('dusk', themePresets['dusk']!.accent));
+      // Once in use, it says so and does nothing more.
+      final button = tester.widget<MarketButton>(find.descendant(of: linked, matching: find.byType(MarketButton)));
+      expect((button.label, button.onPress), ('In use', null));
+      // Put away with its cross.
+      await tapOn(tester, find.descendant(of: linked, matching: find.byKey(const ValueKey('market-link-dismiss'))));
+      expect(find.byKey(const ValueKey('market-linked')), findsNothing);
+      await endSettings(tester);
+    });
+
+    testWidgets('to a font holds it at the head of Fonts, for notes and, a sans, the interface', (tester) async {
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.font, id: 'atkinson'));
+      final linked = find.byKey(const ValueKey('market-linked-face-atkinson'));
+      expect(linked, findsOneWidget);
+      await tapOn(tester, find.descendant(of: linked, matching: find.byKey(const ValueKey('market-use Use for notes'))));
+      expect(preferences.value.noteFace, 'atkinson');
+      await tapOn(tester, find.descendant(of: linked, matching: find.byKey(const ValueKey('market-use Use for the interface'))));
+      expect(preferences.value.typeface, 'atkinson');
+      await endSettings(tester);
+
+      // A coding face is a note's alone.
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.font, id: 'maple'));
+      expect(find.byKey(const ValueKey('market-use Use for the interface')), findsNothing);
+      expect(find.byKey(const ValueKey('market-use Use for notes')), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('leaving the shelf puts what it held away', (tester) async {
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.theme, id: 'tide'));
+      expect(find.byKey(const ValueKey('market-linked')), findsOneWidget);
+      await tapOn(tester, find.text('All').first);
+      expect(find.byKey(const ValueKey('market-linked')), findsNothing);
+      await endSettings(tester);
+    });
+
+    testWidgets('naming nothing this build has opens the front with a short note, put away with its cross', (tester) async {
+      await pumpMarket(tester, link: const MarketPlace(kind: MarketKind.plugin, id: 'teams'));
+      expect(find.byKey(const ValueKey('market-link-note')), findsOneWidget);
+      expect(find.textContaining('no plugin called “teams”'), findsOneWidget);
+      expect(tester.widget<GlacierSegmentedControl>(find.byKey(const ValueKey('market-shelves'))).value, 'all');
+      expect(find.byType(PluginDetail), findsNothing);
+      await tapOn(tester, find.descendant(of: find.byKey(const ValueKey('market-link-note')), matching: find.byKey(const ValueKey('market-link-dismiss'))));
+      expect(find.byKey(const ValueKey('market-link-note')), findsNothing);
       await endSettings(tester);
     });
   });

@@ -487,7 +487,7 @@ class PluginDetail extends StatelessWidget {
           if (manifest.permissions.isEmpty) point(Lucide.shieldCheck, 'Nothing past the note you are in', hint: 'It asks for nothing: what it does happens in the note as you type it.'),
           for (final permission in manifest.permissions)
             point(
-              _permissionIcon(permission.kind),
+              permissionIcon(permission.kind),
               plainPermissionWords[permission.kind]!,
               key: ValueKey(permission.kind),
               hint: permission.kind == Permission.network && manifest.hosts.isNotEmpty ? '${permission.why} It talks to ${joinAnd(manifest.hosts)} and nowhere else.' : permission.why,
@@ -502,7 +502,8 @@ class PluginDetail extends StatelessWidget {
   }
 }
 
-LucideIcon _permissionIcon(Permission kind) => switch (kind) {
+/// Each permission's icon on a plugin's page, and on the website's (lib/market/market_listing.dart).
+LucideIcon permissionIcon(Permission kind) => switch (kind) {
       Permission.notes => Lucide.fileText,
       Permission.network => Lucide.globe,
       Permission.ai => Lucide.sparkles,

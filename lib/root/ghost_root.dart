@@ -1942,6 +1942,17 @@ class _GhostRootState extends State<GhostRoot> {
 
   void _closeSettings() => setState(() => _settings = false);
 
+  /// A `ghostmd://market` link that came in Simple mode, where the Market is not shown: a word saying where it is,
+  /// and the way to Appearance's Mode card to choose Advanced ([_RootDoor.openPlace]).
+  void _marketInSimple() {
+    if (!mounted) return;
+    GlacierToast.of(context).toast(
+      message: const Text('The Market is part of Advanced mode.'),
+      duration: const Duration(seconds: 8),
+      action: GlacierToastAction(label: 'Mode', onPress: () => _openSettingsAt('experience')),
+    );
+  }
+
   /// A .ghostex opened from the phone's Files or the Mac's Finder: Settings › Import, where it waits for the person
   /// ([ghostexWaiting], lib/settings/panes/ghostex_cards.dart).
   void _readGhostex(GhostexChosen chosen) {
@@ -2003,7 +2014,10 @@ class _RootDoor implements AppLinkDoor {
   @override
   Future<void> openNote(String id) => root._openNoteFromLink(id);
 
-  /// The notifications drawer, or an organization's dashboard, which only a build with an account has.
+  /// The notifications drawer, or an organization's dashboard, which only a build with an account has, or the Market
+  /// where a `ghostmd://market` link lands (the website's market page, landing/market.html). The Market is Advanced
+  /// mode's, as every way into it is (lib/market/market_screen.dart): in Simple the link is answered with a word
+  /// saying so and the way to the Mode card, and the mode is the person's to change, never the link's.
   @override
   void openPlace(LinkedPlace place) {
     final shell = root._shell.currentState;
@@ -2013,6 +2027,10 @@ class _RootDoor implements AppLinkDoor {
         shell.showNotifications();
       case OrganizationPlace(:final orgId):
         if (root._services != null) shell.openOrganization(orgId);
+      case MarketPlace():
+        if (preferences.value.simple) return root._marketInSimple();
+        if (root._settings) root._closeSettings();
+        shell.showMarket(link: place);
     }
   }
 

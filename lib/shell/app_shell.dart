@@ -10,6 +10,7 @@ import '../core/tabs.dart';
 import '../core/workspaces.dart';
 import '../notes/note_tabs.dart';
 import '../perf/frame_log.dart';
+import '../share/app_links.dart' show MarketPlace;
 import '../simple/simple_pane.dart';
 import 'app_tab_bar.dart';
 import 'open_tabs.dart';
@@ -463,11 +464,11 @@ class AppShellState extends State<AppShell> {
         _screen = ScreenCollection(kind, key: key, fromTags: fromTags);
       });
 
-  /// The Market, from the sidebar, the palette or Settings' row, at [plugin]'s page when one is named: the notes'
-  /// card closes first, as for the Tags page.
-  void showMarket({String? plugin}) => _change(() {
+  /// The Market, from the sidebar, the palette or Settings' row, at [plugin]'s page when one is named, or where a
+  /// `ghostmd://market` [link] lands: the notes' card closes first, as for the Tags page.
+  void showMarket({String? plugin, MarketPlace? link}) => _change(() {
         _drawer = false;
-        _screen = ScreenMarket(plugin: plugin);
+        _screen = ScreenMarket(plugin: plugin, link: link);
       });
 
   /// An organization's dashboard, over nothing: Settings and the notes' card close first.
@@ -635,9 +636,9 @@ class AppShellState extends State<AppShell> {
         return OnBack(
           key: const ValueKey('back:market'),
           onBack: backToList,
-          // Made anew for each plugin it is opened at, so a link lands on that plugin's page.
+          // Made anew for each plugin it is opened at, and each link, so a link lands on that plugin's page.
           child: KeyedSubtree(
-            key: ValueKey('market:${screen.plugin ?? ''}'),
+            key: ValueKey('market:${screen.plugin ?? ''}:${screen.link ?? ''}'),
             child: widget.marketBuilder?.call(context, this, screen) ?? WholeScreenPlaceholder(what: 'the Market', onDone: backToList),
           ),
         );

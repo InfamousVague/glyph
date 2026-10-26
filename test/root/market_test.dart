@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/commands/command_bar.dart';
@@ -13,11 +15,36 @@ import 'package:ghost_md/plugins/built_in.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
+import 'package:ghost_md/share/app_links.dart';
 import 'package:ghost_md/shell/app_shell.dart';
 import 'package:ghost_md/shell/screen.dart';
 
 import '../support/render.dart';
 import 'part_of.dart';
+
+/// The links a test hands the app, as the phone keeps them until asked (test/root/links_test.dart has the same).
+class _Links implements LinkSource {
+  final List<String> kept = [];
+  final StreamController<void> _arrived = StreamController<void>.broadcast();
+
+  void arrive(String link) {
+    kept.add(link);
+    _arrived.add(null);
+  }
+
+  @override
+  Future<List<String>> take() async {
+    final all = [...kept];
+    kept.clear();
+    return all;
+  }
+
+  @override
+  String? takeActivityLink() => null;
+
+  @override
+  Stream<void> get arrived => _arrived.stream;
+}
 
 /// The Market in the app put together (Matt, 2026-10-26: "Make the plugins a dedicated "Market" section in the
 /// app"): a place of the shell's, reached from the sidebar's row, the palette and Settings' row, each of which
@@ -29,11 +56,11 @@ void main() {
     queriesWatchMidnight = false;
   });
 
-  Future<void> open(WidgetTester tester, {String experience = 'advanced'}) async {
+  Future<void> open(WidgetTester tester, {String experience = 'advanced', LinkSource? links}) async {
     await pumpApp(
       tester,
       prefs: Preferences(theme: 'light', experience: experience, experienceChosen: true),
-      home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: MemoryStored()),
+      home: GhostRoot(launch: false, library: SampleLibrary.seeded(), workspaces: WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces())), clock: () => seedNow, stored: MemoryStored(), links: links),
     );
     await tester.pump(const Duration(milliseconds: 100));
   }
@@ -113,5 +140,48 @@ void main() {
     expect(drawer.onMarket, isNull);
     expect([for (final command in palette(tester)) command.descriptor.id], isNot(contains('market')));
     await close(tester);
+  });
+
+  // The website's Open in Ghost.md (landing/market.html; Matt, 2026-10-26: "add a browsable marketplace listed under
+  // the plugins section on the website that deeplinks to the app").
+  group('a ghostmd://market link', () {
+    Future<void> follow(WidgetTester tester) async {
+      for (var i = 0; i < 6; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 5)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    testWidgets('opens the Market at the plugin it names, Settings shut', (tester) async {
+      final before = plugins;
+      addTearDown(() => usePlugins(before));
+      usePlugins(createRegistry(builtIn, store: MemorySwitches()));
+      final links = _Links();
+      await open(tester, links: links);
+      await follow(tester);
+      links.arrive('ghostmd://market/plugin/discord');
+      await follow(tester);
+      expect(shellOf(tester).screen, const ScreenMarket(link: MarketPlace(kind: MarketKind.plugin, id: 'discord')));
+      expect(find.byKey(const ValueKey('market-detail-discord')), findsOneWidget);
+      // Another link while it is open is followed too: the Market is made anew for it.
+      links.arrive('ghostmd://market/theme/meadow');
+      await follow(tester);
+      expect(find.byKey(const ValueKey('market-linked-theme-meadow')), findsOneWidget);
+      await close(tester);
+    });
+
+    testWidgets('in Simple mode says the Market is Advanced mode’s, with the way to the Mode card, and changes nothing', (tester) async {
+      final links = _Links();
+      await open(tester, experience: 'simple', links: links);
+      await follow(tester);
+      links.arrive('ghostmd://market/plugin/notion');
+      await follow(tester);
+      expect(shellOf(tester).screen, const ScreenList());
+      expect(find.byType(MarketScreen), findsNothing);
+      expect(find.text('The Market is part of Advanced mode.'), findsOneWidget);
+      expect(find.text('Mode'), findsWidgets);
+      expect(preferences.value.simple, isTrue);
+      await close(tester);
+    });
   });
 }
