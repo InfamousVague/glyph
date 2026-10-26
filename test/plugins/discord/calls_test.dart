@@ -20,6 +20,7 @@ import '../../meet/support.dart';
 /// The service's Discord routes in memory (server/src/discord.rs), in front of another fetcher for the rest.
 class FakeDiscordRoutes {
   Map<String, Object?>? link;
+  String? appId;
   bool routes = true;
   int codes = 0;
   final List<String> calls = [];
@@ -39,7 +40,7 @@ class FakeDiscordRoutes {
         if (!routes) return FetchResponse.json(404, {'error': 'no such route'});
         lastBody = request.body == null || request.body!.isEmpty ? null : jsonDecode(utf8.decode(request.body!)) as Map<String, Object?>;
         return switch ('${request.method} $path') {
-          'GET discord/link' => FetchResponse.json(200, {'link': link}),
+          'GET discord/link' => FetchResponse.json(200, {'link': link, 'appId': appId}),
           'POST discord/link-code' => FetchResponse.json(200, {'code': 'K7QM-2XR${++codes}', 'expiresAt': DateTime.now().millisecondsSinceEpoch + 600000}),
           'DELETE discord/link' => () {
               link = null;
@@ -156,6 +157,33 @@ void main() {
     await tapKey(tester, 'discord-leave-c1');
     await settle(tester);
     expect(m.meet.calls, contains('DELETE meet/c1'));
+    await endSettings(tester);
+  });
+
+  testWidgets('Add Ghost to a server opens the invite from the service’s application id, linked or not (Matt, 2026-10-26)', (tester) async {
+    final m = await made();
+    m.discord.appId = '123456789012345678';
+    final opened = <String>[];
+    await m.device.pump(tester, DiscordCallsSection(services: m.device.services, onOpenLink: opened.add));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('discord-invite-row')), findsOneWidget, reason: 'before linking, beside Link Discord');
+    await tapKey(tester, 'discord-invite-open');
+    await settle(tester);
+    expect(opened.single, 'https://discord.com/oauth2/authorize?client_id=123456789012345678&scope=bot%20applications.commands&permissions=1051648');
+    m.discord.linkedBy('sam_lee');
+    await m.device.pump(tester, DiscordCallsSection(key: const ValueKey('again'), services: m.device.services, onOpenLink: opened.add));
+    await settle(tester);
+    expect(allText(tester), contains('Linked as sam_lee'));
+    expect(find.byKey(const ValueKey('discord-invite-row')), findsOneWidget, reason: 'and once linked, for another server');
+    await endSettings(tester);
+  });
+
+  testWidgets('with no application id anywhere, Add Ghost to a server says there is no link and offers no button', (tester) async {
+    final m = await made();
+    await m.device.pump(tester, DiscordCallsSection(services: m.device.services, onOpenLink: (_) {}));
+    await settle(tester);
+    expect(find.byKey(const ValueKey('discord-invite-row')), findsOneWidget);
+    expect(find.byKey(const ValueKey('discord-invite-open')), findsNothing);
     await endSettings(tester);
   });
 

@@ -44,8 +44,11 @@ const String discordAppId = String.fromEnvironment('GHOST_DISCORD_APP_ID');
 /// What the bot needs in a server: View Channels, Send Messages and Connect (docs/DISCORD_CALLS.md).
 const int discordBotPermissions = 1024 | 2048 | 1048576;
 
-/// The link that adds Ghost to a Discord server, or null without [discordAppId].
-String? discordInviteUrl([String app = discordAppId]) =>
+/// The link that adds Ghost to a Discord server, or null with no application id: the service's (GET discord/link
+/// `appId`, from DISCORD_APP_ID on the box), else this build's [discordAppId].
+String? discordInviteUrl([String? app]) => _invite(app == null || app.isEmpty ? discordAppId : app);
+
+String? _invite(String app) =>
     app.isEmpty ? null : 'https://discord.com/oauth2/authorize?client_id=$app&scope=bot%20applications.commands&permissions=$discordBotPermissions';
 
 /// The command a code is run with.
@@ -132,7 +135,7 @@ class _DiscordCallsSectionState extends State<DiscordCallsSection> {
 
   List<Widget> _codeRows(BuildContext context, DiscordCode code) {
     final t = context.tokens;
-    final invite = discordInviteUrl();
+    final invite = discordInviteUrl(_calls?.appId);
     final command = discordLinkCommand(code.code);
     return [
       SettingRow(
@@ -207,6 +210,29 @@ class _DiscordCallsSectionState extends State<DiscordCallsSection> {
         ),
       ];
 
+  /// "Add Ghost to a server", on the card once linked (Matt, 2026-10-26: "add the invite to server button from inside
+  /// the plugin itself"): each server Ghost should join calls in is added once, by someone who may manage it. Before
+  /// linking the same link is step 1 of the code's steps.
+  Widget _inviteRow(DiscordCalls calls) {
+    final invite = discordInviteUrl(calls.appId);
+    final open = widget.onOpenLink;
+    return SettingRow(
+      key: const ValueKey('discord-invite-row'),
+      icon: const AppIcon(Lucide.userPlus, size: 20),
+      label: 'Add Ghost to a server',
+      hint: Text(invite == null
+          ? 'Ghost.md’s service has no Discord application yet, so there is no invite link to open.'
+          : 'Once for each server, by someone who may manage it. Ghost asks to see channels, send messages and connect to voice.'),
+      control: invite == null
+          ? null
+          : RowAction(
+              key: const ValueKey('discord-invite-open'),
+              onPress: () => open == null ? unawaited(_copy(invite)) : open(invite),
+              child: Text(open == null ? 'Copy link' : 'Add Ghost'),
+            ),
+    );
+  }
+
   Widget _callRow(MeetIn meet, MeetBooking call, int now) {
     final prefs = widget.services!.prefs.value;
     final noteId = meetingNoteFor(call, filed: meetingNotesOf(prefs), meetings: prefs.meetings, notes: _notes);
@@ -257,9 +283,12 @@ class _DiscordCallsSectionState extends State<DiscordCallsSection> {
               const SettingRow(key: ValueKey('discord-calls-not-here'), icon: AppIcon(Lucide.audioLines, size: 20), label: 'Discord calls are not on this service yet')
             else if (!calls.read)
               const SettingRow(key: ValueKey('discord-calls-reading'), icon: AppIcon(Lucide.clock, size: 20), label: 'Reading your Discord link…')
-            else if (link != null)
-              ..._linkedRows(calls, link)
+            else if (link != null) ...[
+              ..._linkedRows(calls, link),
+              _inviteRow(calls),
+            ]
             else ...[
+              if (code == null) _inviteRow(calls),
               SettingRow(
                 key: const ValueKey('discord-link'),
                 icon: const AppIcon(Lucide.link, size: 20),
