@@ -409,7 +409,8 @@ extension _RootVoice on _GhostRootState {
                 recordingNow: () => _voice?.live?.state?.recording ?? false,
                 kept: () => _stored,
                 restart: restart,
-                teamDocsIn: widget.account?.dataDir,
+                // The page's documents are on its shelf, which its library's reset empties (lib/web/web_store.dart).
+                teamDocsIn: kIsWeb ? null : widget.account?.dataDir,
               ),
               models: models,
             );
