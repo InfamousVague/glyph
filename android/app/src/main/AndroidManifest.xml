@@ -314,6 +314,21 @@
         </service>
 
         <!--
+          A job the app runs by itself, held up while it runs (BackgroundJobs.kt; lib/core/background_jobs.dart):
+          Lovart's header images for the recent notes, made with the screen off or the app behind another. The work
+          is the app's own engine's; the service keeps the process from being frozen, with a notification that says
+          how far it is and has Stop. specialUse from Android 14, said in the property as a store reads it.
+        -->
+        <service
+            android:name="com.mattssoftware.ghost_md.BackgroundJobService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Making header images for the person's notes, a job they started in the app" />
+        </service>
+
+        <!--
           WorkManager's own foreground service, given the write-up's types (recordings/RecordingWorker.kt calls
           setForegroundAsync with them on Android 14+). Merged onto the library's declaration, which has no type;
           without this the worker's foreground start throws InvalidForegroundServiceTypeException and the retry

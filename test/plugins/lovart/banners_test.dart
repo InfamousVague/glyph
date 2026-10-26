@@ -1,9 +1,17 @@
-// Header banners made by Lovart in the ghost's dotwork (lib/plugins/lovart/banners.dart, lib/core/banner.dart).
+// Header banners made by Lovart in the ghost's dotwork (lib/plugins/lovart/banners.dart, lib/core/banner.dart), and
+// the run over the recent notes as the app's own job (lib/plugins/lovart/banner_run.dart).
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/summary_handoff.dart' show SummaryDevice;
+import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/banner.dart';
 import 'package:ghost_md/core/images.dart';
 import 'package:ghost_md/core/note.dart';
+import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/sync/prefs.dart' show merged;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/lovart/lovart.dart';
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart;
@@ -189,9 +197,9 @@ void main() {
   group('a run over the recent notes', () {
     setUp(() {
       lovartBannerRun.value = null;
-      lovartBannerSource = (notes: () => notes.values.toList(), banners: banners);
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners);
     });
-    tearDown(() => lovartBannerSource = null);
+    tearDown(() => lovartBannerJob = null);
 
     Note dated(String id, String body, int at) => notes[id] = Note(id: id, body: body, createdAt: 0, updatedAt: at);
 
@@ -250,6 +258,244 @@ void main() {
     });
   });
 
+  group('the run as the app\'s own job', () {
+    late GatedClient gated;
+    late FakeJobs jobs;
+    late BannerJob job;
+
+    Note dated(String id, String body, int at) => notes[id] = Note(id: id, body: body, createdAt: 0, updatedAt: at);
+
+    void five() {
+      for (var i = 0; i < 5; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+    }
+
+    BannerJob made({BannerClaims? claims}) => BannerJob(notes: () => notes.values.toList(), banners: banners, background: jobs, claims: claims);
+
+    setUp(() async {
+      await keys();
+      gated = GatedClient();
+      lovartClient = () => gated;
+      jobs = FakeJobs();
+      lovartBannerRun.value = null;
+      lovartBannerMaking.value = const {};
+      lovartBannerJob = job = made();
+    });
+    tearDown(() {
+      gated.openAll();
+      lovartBannerJob = null;
+      lovartBannerMaking.value = const {};
+    });
+
+    testWidgets('starts from the page and goes on once the page is closed', (tester) async {
+      five();
+      await pumpPane(tester, const LovartPane());
+      final row = find.byKey(const ValueKey('lovart-banner-run'));
+      await tester.ensureVisible(row);
+      await tester.tap(find.descendant(of: row, matching: find.text('Make them')));
+      await tester.pump();
+      expect(lovartBannerRun.value!.running, isTrue);
+      await tester.pump();
+      expect(find.descendant(of: row, matching: find.text('Stop')), findsOneWidget);
+      expect(find.textContaining('Making header images · 0 of 5'), findsOneWidget);
+      // Settings closed while Lovart is still at work.
+      await away(tester);
+      expect(job.running, isTrue);
+      gated.openAll();
+      for (var i = 0; i < 20 && job.running; i += 1) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(job.running, isFalse);
+      expect([for (final n in notes.values) bannerOf(n.body) != null], everyElement(isTrue));
+      expect((lovartBannerRun.value!.made, lovartBannerRun.value!.running), (5, false));
+      expect(jobs.ends.single, 'Header images made for 5 notes');
+      expect(keptBannerQueue(), isNull, reason: 'a run that ended takes its queue with it');
+    });
+
+    test('says how far it is, to the page, the line and the phone, three at a time', () async {
+      five();
+      final running = job.start();
+      await pumpEvents();
+      expect(gated.waiting, 3, reason: 'three asked of Lovart at once');
+      expect(lovartBannerRun.value!.done, 0);
+      expect(bannerRunLine(lovartBannerRun.value!), 'Making header images · 0 of 5');
+      gated.openOne();
+      await pumpEvents();
+      expect(lovartBannerRun.value!.done, 1);
+      expect(gated.waiting, 3, reason: 'the next one asked as soon as one is done');
+      expect(jobs.said.last, (title: 'Making header images', text: '1 of 5', done: 1, total: 5));
+      gated.openAll();
+      await running;
+      expect(jobs.said.map((r) => r.done), containsAllInOrder([0, 1, 2, 3, 4, 5]));
+      expect(jobs.ends, ['Header images made for 5 notes']);
+    });
+
+    test('Stop ends it after the pictures being made, and leaves the rest for another run', () async {
+      five();
+      final running = job.start();
+      await pumpEvents();
+      stopBannerRun();
+      gated.openAll();
+      await running;
+      final run = lovartBannerRun.value!;
+      expect((run.made, run.asked, run.running), (3, true, false));
+      expect(gated.asked, hasLength(3));
+      expect(bannerRunEndWords(run), 'Header images stopped · 3 made');
+      expect(jobs.ends.single, 'Header images stopped · 3 made');
+      expect(keptBannerQueue(), isNull);
+      // The two it did not reach are the next run's.
+      expect(bannerCandidates(notes.values.toList()).map((n) => n.id), unorderedEquals(['n0', 'n1']));
+    });
+
+    test('the phone\'s Stop is the same Stop', () async {
+      five();
+      final running = job.start();
+      await pumpEvents();
+      jobs.stopFromNotification(bannerJobId);
+      gated.openAll();
+      await running;
+      expect(lovartBannerRun.value!.asked, isTrue);
+      expect(lovartBannerRun.value!.made, 3);
+    });
+
+    test('is kept as it goes, and goes on after a restart from where it was', () async {
+      five();
+      unawaited(job.start());
+      await pumpEvents();
+      gated.openOne();
+      await pumpEvents();
+      // One made, three being made, one waiting: as the app is killed.
+      final kept = keptBannerQueue()!;
+      expect((kept.total, kept.made, kept.left.length, kept.going.length), (5, 1, 4, 3));
+      final done = notes.values.where((n) => bannerOf(n.body) != null).single.id;
+      expect(kept.left, isNot(contains(done)));
+      // A new process: nothing being made, the old run gone with it, a new job made at launch.
+      lovartBannerMaking.value = const {};
+      lovartBannerRun.value = null;
+      final fresh = GatedClient()..open = true;
+      lovartClient = () => fresh;
+      final again = made();
+      await again.resume();
+      expect(fresh.asked, hasLength(4), reason: 'the three that were being made and the one left; not the one done');
+      final run = lovartBannerRun.value!;
+      expect((run.total, run.done, run.made, run.running), (5, 5, 5, false));
+      expect([for (final n in notes.values) bannerOf(n.body) != null], everyElement(isTrue));
+      expect(keptBannerQueue(), isNull);
+    });
+
+    test('a kept run waits for Lovart\'s keys before it goes on', () async {
+      five();
+      lovart.host.storage.set(bannerRunKey, const BannerQueue(total: 5, left: ['n3', 'n4'], made: 3).toJson());
+      await lovart.host.secrets.write(accessKeySecret, null);
+      gated.open = true;
+      await job.resume();
+      expect(gated.asked, isEmpty);
+      expect(keptBannerQueue(), isNotNull, reason: 'kept until it can go on');
+      await keys();
+      for (var i = 0; i < 10 && lovartBannerRun.value?.running != false; i += 1) {
+        await pumpEvents();
+      }
+      expect(gated.asked, hasLength(2));
+      expect((lovartBannerRun.value!.made, lovartBannerRun.value!.total), (5, 5));
+    });
+
+    test('credits spent stop it, and say why, on the line and the phone', () async {
+      five();
+      gated.open = true;
+      gated.fails = const LovartFailure('Your Lovart credits have run out.');
+      await job.start();
+      final run = lovartBannerRun.value!;
+      expect((run.running, run.made, run.done, run.asked), (false, 0, 0, false));
+      expect(run.stopped, 'Your Lovart credits have run out.');
+      expect(bannerRunEndWords(run), 'Header images stopped at 0 of 5: Your Lovart credits have run out.');
+      expect(jobs.ends.single, contains('credits'));
+      expect(gated.asked.length, lessThanOrEqualTo(3));
+      // Nothing was given one: every note is the next run's.
+      expect(bannerCandidates(notes.values.toList()), hasLength(5));
+    });
+
+    test('runs once at a time on this device', () async {
+      five();
+      final first = job.start();
+      await pumpEvents();
+      await job.start();
+      await runBanners();
+      gated.openAll();
+      await first;
+      expect(gated.asked, hasLength(5), reason: 'each note asked once');
+      expect(lovartBannerRun.value!.made, 5);
+    });
+
+    group('across the account\'s devices', () {
+      late Preferences prefs;
+      late Map<String, Object?> account;
+      var at = 1000000;
+      const mac = SummaryDevice(id: 'mac-1', name: 'Mac');
+      const phone = SummaryDevice(id: 'phone-1', name: 'phone');
+
+      BannerClaims on(SummaryDevice device) => BannerClaims(
+            device: () => device,
+            preferences: () => prefs,
+            setPreferences: (change) => prefs = change(prefs),
+            // The account takes this device's claim, as a sync with nothing in between does.
+            syncNow: () async => account = {...account, bannerClaimKey: prefs.more[bannerClaimKey]},
+            accountHeld: () => account,
+            clock: () => at,
+          );
+
+      setUp(() {
+        prefs = Preferences.defaults;
+        account = {};
+        at = 1000000;
+      });
+
+      test('a run claimed by another device is not made here too', () async {
+        five();
+        gated.open = true;
+        // The Mac claimed it, and its claim reached this phone.
+        prefs = prefs.copyWith(more: {...prefs.more, bannerClaimKey: const BannerClaim(by: 'mac-1', name: 'Mac', at: 1000000 - 60000, done: 12, total: 100).toJson()});
+        account = {bannerClaimKey: prefs.more[bannerClaimKey]};
+        lovartBannerJob = job = made(claims: on(phone));
+        expect(await job.start(), 'Header images are being made on your Mac · 12 of 100.');
+        expect(gated.asked, isEmpty);
+        expect(job.elsewhere()!.name, 'Mac');
+        // Once its claim has run out (the Mac went mid-run), this device may.
+        at += bannerClaimMs;
+        expect(job.elsewhere(), isNull);
+        expect(await job.start(), isNull);
+        expect(gated.asked, hasLength(5));
+      });
+
+      test('the claim is this device\'s while it runs, renewed with how far it is, and let go as it ends', () async {
+        five();
+        lovartBannerJob = job = made(claims: on(mac));
+        final running = job.start();
+        await pumpEvents();
+        expect(bannerClaimOf(prefs)!.by, 'mac-1');
+        expect(BannerClaim.fromJson(account[bannerClaimKey])!.by, 'mac-1', reason: 'the account holds it before Lovart is asked');
+        at += bannerRenewMs;
+        gated.openOne();
+        await pumpEvents();
+        expect((bannerClaimOf(prefs)!.done, bannerClaimOf(prefs)!.at), (1, at));
+        gated.openAll();
+        await running;
+        expect(bannerClaimOf(prefs), isNull);
+      });
+
+      test('of two devices that claim at once, the account\'s first claim stands in the merge', () {
+        final macClaim = const BannerClaim(by: 'mac-1', name: 'Mac', at: 1000000).toJson();
+        final phoneClaim = const BannerClaim(by: 'phone-1', name: 'phone', at: 1000001).toJson();
+        // The phone's write was refused; it reads the account's (the Mac's) and merges its own over it.
+        final out = merged(const {}, {bannerClaimKey: phoneClaim}, {bannerClaimKey: macClaim}, now: 1000002);
+        expect(BannerClaim.fromJson(out[bannerClaimKey])!.by, 'mac-1');
+        // A claim run out is no claim: the phone's stands.
+        final later = merged(const {}, {bannerClaimKey: phoneClaim}, {bannerClaimKey: macClaim}, now: 1000000 + bannerClaimMs);
+        expect(BannerClaim.fromJson(later[bannerClaimKey])!.by, 'phone-1');
+      });
+    });
+  });
+
   group('Header image, on the note\'s cog', () {
     test('writes front matter before a note with none', () async {
       await keys();
@@ -298,4 +544,60 @@ void main() {
       await away(tester);
     });
   });
+}
+
+/// Every microtask and zero-length wait run, as a few awaits in a row let the run take its next step.
+Future<void> pumpEvents() async {
+  for (var i = 0; i < 20; i += 1) {
+    await Future<void>.delayed(Duration.zero);
+  }
+}
+
+/// Lovart, held: each prompt waits until it is let through, one at a time or all at once.
+class GatedClient extends FakeClient {
+  final List<Completer<void>> _held = [];
+
+  /// Every prompt answered at once, from now on.
+  bool open = false;
+
+  /// How many wait now.
+  int get waiting => _held.where((gate) => !gate.isCompleted).length;
+
+  void openOne() => _held.firstWhere((gate) => !gate.isCompleted).complete();
+
+  void openAll() {
+    open = true;
+    for (final gate in _held) {
+      if (!gate.isCompleted) gate.complete();
+    }
+  }
+
+  @override
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+    if (!open) {
+      final gate = Completer<void>();
+      _held.add(gate);
+      await gate.future;
+    }
+    return super.generate(prompt, timeout: timeout);
+  }
+}
+
+/// The phone's half, heard.
+class FakeJobs implements BackgroundJobs {
+  final List<({String title, String text, int? done, int? total})> said = [];
+  final List<String> ends = [];
+  void Function(String id)? _stop;
+
+
+  void stopFromNotification(String id) => _stop?.call(id);
+
+  @override
+  Future<void> running(String id, {required String title, required String text, int? done, int? total}) async => said.add((title: title, text: text, done: done, total: total));
+
+  @override
+  Future<void> ended(String id, {required String title, String? text}) async => ends.add(title);
+
+  @override
+  void onStop(void Function(String id)? stop) => _stop = stop;
 }

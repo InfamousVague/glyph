@@ -460,11 +460,11 @@ extension _RootParts on _GhostRootState {
 
   /// What the narrow window's sidebar reads: the notes and the one on screen, the workspaces, the trash, whether there
   /// is a folder to browse and a recorder to speak to, and the update it carries.
-  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, preferences.value.simple);
+  Object _sidebarReads(AppShellState shell) => (shell.notes, shell.shown, _workspaces.value, _trashed, _canBrowse, _capture != null, _updatesAt, _bannerShown, preferences.value.simple);
 
   /// What the wide window's sidebar reads ([_listColumn]): the notes, whether they are read yet, the microphone
   /// and whose it is, which list it is on, the update it carries, and whether there is a folder to browse.
-  Object _listReads(AppShellState shell) => (shell.notes, !_read, _capture != null, _canTalk, _simpleTab, _updatesAt, _canBrowse, preferences.value.simple);
+  Object _listReads(AppShellState shell) => (shell.notes, !_read, _capture != null, _canTalk, _simpleTab, _updatesAt, _bannerShown, _canBrowse, preferences.value.simple);
 
   /// Advanced mode's sidebar on a wide window (Matt, 2026-10-24: "make the sidebar on advanced mode the same as simple
   /// but just hide it by default"): simple mode's list itself ([_simpleHome] as a column), under the bar. What
@@ -540,6 +540,8 @@ extension _RootParts on _GhostRootState {
           _capture != null,
           _recordingNow,
           _updatesAt,
+          // The header images being made in the background, or stopped for a reason (lib/plugins/lovart/banner_run.dart).
+          _bannerShown,
           _voiceModelLine,
           _accountAt,
           _presenceAt,
@@ -1180,8 +1182,27 @@ extension _RootParts on _GhostRootState {
       if (services != null) InviteWaiting(services: services, onOpen: (id) => _shell.currentState?.openOrganization(id)),
       if (model != null && _voiceModelLine != null)
         ListenableBuilder(listenable: model, builder: (context, _) => notices.VoiceModelStatus(state: _voiceModelState(model), onRetry: model.retry)),
+      if (_bannerShown) _bannerNotice(),
     ];
   }
+
+  /// The header images being made for the recent notes, as the app's own job (lib/plugins/lovart/banner_run.dart;
+  /// Matt, 2026-10-26: "Make the header generation async and a background task that runs while the app is
+  /// generating the images"): "Making header images · 12 of 100" with Stop while it runs, on home and in the
+  /// sidebar, wherever the person went after pressing Make them; and once it stopped for a reason (credits spent,
+  /// keys refused, a costly step waiting), the reason, with Hide. The line follows the run by itself; the parts are
+  /// built again only as it comes and goes ([_bannerShown]).
+  Widget _bannerNotice() => ValueListenableBuilder<BannerRun?>(
+        valueListenable: lovartBannerRun,
+        builder: (context, run, _) {
+          if (run == null) return const SizedBox.shrink();
+          if (run.running) return notices.JobNotice(words: bannerRunLine(run), action: 'Stop', onAction: stopBannerRun);
+          return notices.JobNotice(words: bannerRunEndWords(run), action: 'Hide', onAction: () => _told(() {
+                _bannerHidden = run;
+                _bannerShown = false;
+              }));
+        },
+      );
 
   /// Whether home asks simple or advanced (GHST-103): the walkthrough has been seen (so it did not ask, or was
   /// skipped before its page) and the choice was never made, here or on another device. Matt, 2026-10-18: new
@@ -1203,6 +1224,9 @@ extension _RootParts on _GhostRootState {
   /// is in two panes. Nothing while there is nothing newer, and neither gives it room then.
   List<Widget> _sidebarNotices() {
     final updates = widget.updates;
-    return [if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates))];
+    return [
+      if (updates != null && updates.apk is! ApkPhaseNone) notices.UpdateNotice(updates: updateCardOf(updates)),
+      if (_bannerShown) _bannerNotice(),
+    ];
   }
 }

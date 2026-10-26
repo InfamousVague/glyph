@@ -167,7 +167,9 @@ import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest,
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
-import '../plugins/lovart/lovart.dart' show LovartBanners, LovartMeetings, lovartBannerSource, lovartPictureStore;
+import '../ai/summary_handoff.dart' show thisDevice;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs;
+import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartMeetings, bannerRunEndWords, bannerRunLine, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
@@ -439,8 +441,45 @@ class _GhostRootState extends State<GhostRoot> {
   // A note left is given its header banner by Lovart, where the plugin and its switch are on and it is a note to have
   // one (lib/plugins/lovart/banners.dart; Matt, 2026-10-26: "add a setting to automatically generate header images
   // for notes"). The note on screen is the one being left when the screen changes.
-  late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, warn: debugPrint);
+  // Written where the note is now: through its editor while it is open, so a banner made in the background never
+  // costs what is being typed (`_changeNote`).
+  late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, write: (id, change) => _changeNote(id, change, userEvent: 'lovart.banner'), warn: debugPrint);
   String? _bannerOpen;
+
+  /// Settings › Lovart's header images for the recent notes, as the app's own job (lib/plugins/lovart/banner_run.dart;
+  /// Matt, 2026-10-26: "Make the header generation async and a background task that runs while the app is generating
+  /// the images"): the root's, so it goes on whatever page is up; claimed in the synced settings, so two of the
+  /// account's devices never make the same notes' pictures; held up by the phone's foreground service and kept out of
+  /// the Mac's App Nap while it runs; said by a toast as it ends.
+  late final BannerJob _bannerJob = BannerJob(
+    notes: () => _library.value,
+    banners: _banners,
+    claims: BannerClaims(
+      device: thisDevice,
+      preferences: () => preferences.value,
+      setPreferences: preferences.update,
+      syncNow: () async => await _services?.engine?.syncNow(),
+      accountHeld: () => _services?.engine?.accountPrefs,
+    ),
+    background: ChannelBackgroundJobs(),
+    ended: _bannerRunEnded,
+  );
+
+  /// Whether the line for the run shows on home and in the sidebar (root_parts.dart `_bannerNotice`): while it runs,
+  /// and once it stopped for a reason, until Hide ([_bannerHidden], the run hidden).
+  bool _bannerShown = false;
+  BannerRun? _bannerHidden;
+
+  void _bannerMoved() {
+    final run = lovartBannerRun.value;
+    final shows = run != null && !identical(run, _bannerHidden) && (run.running || (run.stopped != null && !run.asked && run.total > 0));
+    if (shows != _bannerShown && mounted) _told(() => _bannerShown = shows);
+  }
+
+  void _bannerRunEnded(BannerRun run) {
+    if (!mounted) return;
+    GlacierToast.of(context).toast(message: Text(bannerRunEndWords(run)), duration: const Duration(seconds: 6));
+  }
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
 
   /// The kept pictures, where there is a core to keep them.
@@ -1579,7 +1618,9 @@ class _GhostRootState extends State<GhostRoot> {
       discordCanShare = () => discordShareLink != null;
     }
     if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
-    if (identical(lovartBannerSource?.banners, _banners)) lovartBannerSource = null;
+    if (identical(lovartBannerJob, _bannerJob)) lovartBannerJob = null;
+    lovartBannerRun.removeListener(_bannerMoved);
+    _bannerJob.dispose();
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();
@@ -1655,8 +1696,12 @@ class _GhostRootState extends State<GhostRoot> {
     claudeHandle = () => _services?.session?.handle;
     // Where Lovart's images are kept before their lines are written (lib/plugins/lovart/keep.dart).
     if (_pictures != null) lovartPictureStore = _pictures;
-    // Settings › Lovart's run over the recent notes reads the library and makes through the same maker.
-    lovartBannerSource = (notes: () => _library.value, banners: _banners);
+    // Settings › Lovart's run over the recent notes, the root's job: one the app went under goes on, once Lovart is
+    // on and its keys are read.
+    lovartBannerJob = _bannerJob;
+    lovartBannerRun.addListener(_bannerMoved);
+    _bannerMoved();
+    unawaited(_bannerJob.resume(changes: _pluginsHeard));
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).
     discordShareLink = _discordShare;

@@ -240,6 +240,43 @@ extension _RootCommands on _GhostRootState {
     }
   }
 
+  /// A change to a note's words from outside its editor, where losing what the person types would be wrong: Claude's
+  /// edits (lib/claude), and Lovart's header images made in the background (lib/plugins/lovart/banner_run.dart; Matt,
+  /// 2026-10-26: "Make the header generation async and a background task that runs while the app is generating the
+  /// images"). Open in an editor, the change is an edit there of only the stretch that differs, so the caret, the
+  /// marks and the words typed meanwhile stay where they are, and the editor's own saving writes it: a write behind
+  /// an open editor is refused at its next save and stops its saving (lib/core/library.dart `NoteSaving`). Open with
+  /// no editor (a notebook's own words drawn), its screen writes it. Otherwise it is written where it is kept, from
+  /// the revision read, and a note gone or moved on throws, for the caller to say. [userEvent] is the edit's name in
+  /// the editor's history.
+  Future<void> _changeNote(String noteId, String Function(String body) change, {String userEvent = 'claude.type'}) async {
+    final view = openNoteScreen(_shell.currentContext, noteId)?.view;
+    if (view != null) {
+      final now = view.state.doc.toString();
+      final next = change(now);
+      if (next == now) return;
+      var start = 0;
+      while (start < now.length && start < next.length && now.codeUnitAt(start) == next.codeUnitAt(start)) {
+        start += 1;
+      }
+      var endNow = now.length, endNext = next.length;
+      while (endNow > start && endNext > start && now.codeUnitAt(endNow - 1) == next.codeUnitAt(endNext - 1)) {
+        endNow -= 1;
+        endNext -= 1;
+      }
+      view.dispatch(ed.TransactionSpec(changes: ed.Change(from: start, to: endNow, insert: next.substring(start, endNext)), userEvent: userEvent));
+      return;
+    }
+    final screen = openNoteScreen(_shell.currentContext, noteId);
+    if (screen != null) return screen.writeNotebook(change);
+    final note = await _library.get(noteId);
+    if (note == null) throw StateError('No such note.');
+    final next = change(note.body);
+    if (next == note.body) return;
+    await _library.update(noteId, next, note.revision);
+    await _library.refresh();
+  }
+
   /// A ticket typed at the + of a lane of a query's board (`addFromQuery`). Its notebook is the one `from: [[…]]`
   /// names, else the one the board's own note is in: the notebook's next key and its workflow, then the lane's value
   /// and what the query insists on, so it lands in the lane it was typed in. Its page goes in the notebook's index

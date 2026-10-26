@@ -32,6 +32,10 @@ const String bannersKey = 'glyph-lovart-banners';
 /// The notes already given one, by id, so a banner taken off is not made again.
 const String bannersDoneKey = 'glyph-lovart-banners-done';
 
+/// The run over the recent notes as it stands (banner_run.dart): the notes left, the ones being made, and how many
+/// were made, so a run the app was closed under goes on at the next launch.
+const String bannerRunKey = 'glyph-lovart-banner-run';
+
 const PluginManifest manifest = PluginManifest(
   id: 'lovart',
   name: 'Lovart',
@@ -53,7 +57,7 @@ const PluginManifest manifest = PluginManifest(
     PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there.'),
   ],
   hosts: ['lovart.ai'],
-  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey],
+  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey, bannerRunKey],
   secrets: [accessKeySecret, secretKeySecret],
 );
 

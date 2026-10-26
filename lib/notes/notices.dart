@@ -662,6 +662,47 @@ class RefiningNotice extends StatelessWidget {
   }
 }
 
+// ---- a job of the app's own ---------------------------------------------------------------------------------------
+
+/// A job the app is doing by itself, while it does, as one quiet line above the notes and in the sidebar, with the
+/// one word that stops it (Matt, 2026-10-26: "Make the header generation async and a background task that runs while
+/// the app is generating the images"): "Making header images · 12 of 100   Stop" (lib/plugins/lovart/banner_run.dart).
+/// And, where it stopped for a reason the person has to act on, that reason, with Hide. The same in simple and
+/// advanced: a line, never a card. Fed its words and its word's press by whoever has the job.
+class JobNotice extends StatelessWidget {
+  const JobNotice({super.key, required this.words, this.action, this.onAction});
+
+  final String words;
+  final String? action;
+  final VoidCallback? onAction;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final sm = t.fontSize('sm');
+    final action = this.action, onAction = this.onAction;
+    return _Line(
+      key: const ValueKey('job-notice'),
+      children: [
+        TextSpan(text: words),
+        if (action != null && onAction != null) ...[
+          const TextSpan(text: '   '),
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: GlacierPressable(
+              key: const ValueKey('job-notice-action'),
+              onPressed: onAction,
+              // The voice model's Try again, as a word in the line.
+              builder: (context, state) => Text(action, style: pageText(t, sm, weight: 'medium', color: state.pressed ? t.color('glacier-text') : t.color('glacier-accent-text'), height: t.len('glacier-leading-sm'))),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 // ---- layout -------------------------------------------------------------------------------------------------------
 
 /// Two children on a wrapping line: the first `flex: 1 1 <basis>`, the second `flex: none` and kept to the end

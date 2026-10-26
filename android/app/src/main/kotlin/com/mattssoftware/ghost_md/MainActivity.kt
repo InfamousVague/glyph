@@ -185,6 +185,9 @@ class MainActivity : FlutterActivity() {
         // The bell's rows as the phone's own notifications, and the prompt that allows them (Notices.kt;
         // lib/core/phone_notices.dart).
         Notices(applicationContext) { meeting?.requestNotifications() ?: "blocked" }.register(messenger)
+        // A job the app runs by itself, held up by a foreground service while it runs (BackgroundJobs.kt;
+        // lib/core/background_jobs.dart): Lovart's header images for the recent notes.
+        BackgroundJobs(applicationContext).register(messenger)
         // Whether there is a connection, and its coming back (Connection.kt; lib/core/phone_connection.dart).
         connection.register(messenger)
         // On charge or off, and how full, for the AI card (Battery.kt; lib/core/phone_battery.dart).

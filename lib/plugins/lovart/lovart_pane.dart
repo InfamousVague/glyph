@@ -21,7 +21,8 @@ import '../host.dart' show onPluginStorage;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
-import 'banners.dart' show BannerRun, bannerRunMost, bannersOn, lovartBannerRun, lovartBannerSource, runBanners, setBanners, stopBannerRun;
+import 'banner_run.dart' show BannerRun, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
+import 'banners.dart' show bannersOn, setBanners;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
 /// What Settings' search finds on the page.
@@ -31,14 +32,16 @@ const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
 ];
 
-/// What the run over the recent notes says.
+/// What the run over the recent notes says: what it does, before one; how far it is while it runs, here or on
+/// another of the account's devices; and how it ended.
 String _runWords(BannerRun? run) {
-  const about = 'Banners for your $bannerRunMost most recent notes that are not tickets, meetings, mail or short, and have none yet. Three at a time, with your credits.';
+  const about = 'Banners for your $bannerRunMost most recent notes that are not tickets, meetings, mail or short, and have none yet. Three at a time, with your credits. They go on being made while you use the app.';
+  final elsewhere = lovartBannerJob?.elsewhere();
+  if (run?.running != true && elsewhere != null) return bannerElsewhereWords(elsewhere);
   if (run == null) return about;
-  if (run.running) return 'Making ${run.done + 1 > run.total ? run.total : run.done + 1} of ${run.total}… ${run.made} made so far.';
-  if (run.total == 0 && run.stopped == null) return 'Every recent note has one already, or is not one to have one.';
-  final made = '${run.made} of ${run.total} made.';
-  return run.stopped == null ? made : '$made ${run.stopped}';
+  if (run.running) return '${bannerRunLine(run)}, ${run.made} made so far. You can leave this page.';
+  if (run.total == 0 && run.stopped != null) return run.stopped!;
+  return '${bannerRunEndWords(run)}.';
 }
 
 class LovartPane extends StatefulWidget {
@@ -209,7 +212,7 @@ class _LovartPaneState extends State<LovartPane> {
               hint: const Text('When you leave a note, Lovart draws a banner for its top in the ghost’s dotwork, from its title and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
               control: GlacierSwitch(ariaLabel: 'Header images for notes', checked: bannersOn(), onCheckedChange: setBanners),
             ),
-            if (lovartBannerSource != null)
+            if (lovartBannerJob != null)
               ValueListenableBuilder<BannerRun?>(
                 valueListenable: lovartBannerRun,
                 builder: (context, run, _) => SettingRow(

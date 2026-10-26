@@ -32,6 +32,7 @@ import '../account/crypto_api.dart';
 import '../ai/summary_handoff.dart' show mergedHandoffs, summaryHandoffsKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import '../plugins/lovart/banner_run.dart' show bannerClaimKey, chosenBannerClaim;
 import 'sealed_keys.dart' show mergedSealedKeys, sealedKeysKey;
 
 /// The settings that travel (`SYNCED_PREFS`), in the page's order, which is the order they are written in.
@@ -102,6 +103,11 @@ const List<String> syncedPrefs = [
   // (lib/ai/summary_handoff.dart): marked on the device that could not, claimed and written on one that can. Merged an
   // entry at a time, and an entry both devices changed by its own rule (`mergedHandoffs`), so it is claimed once.
   'summaryHandoffs',
+  // Which device is making Lovart's header images for the recent notes, and how far it is
+  // (lib/plugins/lovart/banner_run.dart; Matt, 2026-10-26): claimed before a run starts, so two of the account's
+  // devices never spend Lovart credits on the same notes. Where both changed it, a live claim of another device's
+  // that the account held stands (`chosenBannerClaim`).
+  bannerClaimKey,
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
@@ -217,7 +223,8 @@ List<Object?> _madeOnBoth(List<Object?> base, List<Object?> theirs, List<Object?
 /// This device's settings and another's, both changed since [base] (`merged`). A setting only one of them changed is
 /// that one's. The maps (which note is filed where, what is in the trash) are merged an entry at a time, since a
 /// filing made on one device and another made elsewhere are two changes, not one. What both changed stays as it is
-/// here - but for a meeting's summary claimed on both ([summaryHandoffsKey]), where the account's live claim stands.
+/// here - but for a meeting's summary claimed on both ([summaryHandoffsKey]), where the account's live claim stands, and
+/// the header images' run claimed on both ([bannerClaimKey]), likewise.
 /// [now] is when a claim is judged live at, the clock's unless a test says.
 Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine, Map<String, Object?> theirs, {int? now}) {
   final out = <String, Object?>{...mine};
@@ -237,6 +244,14 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
     } else if (key == sealedKeysKey && m != null && t != null) {
       // The later change of each key stands, a removal among them (lib/sync/sealed_keys.dart).
       out[key] = mergedSealedKeys(b ?? const {}, m, t);
+    } else if (key == bannerClaimKey) {
+      // A run claimed on another device first is that device's to make.
+      final chosen = chosenBannerClaim(mine[key], theirs[key], now: now);
+      if (chosen == null) {
+        out.remove(key);
+      } else {
+        out[key] = chosen;
+      }
     } else if (key == summaryHandoffsKey && m != null && t != null) {
       // A live claim the account already held is kept over this device's: a meeting's summary is claimed once.
       out[key] = mergedHandoffs(b ?? const {}, m, t, now: now);

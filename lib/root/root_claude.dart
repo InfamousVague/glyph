@@ -330,38 +330,10 @@ class _RootClaudeDesk implements ClaudeDesk {
   @override
   bool showing(String noteId, ed.EditorViewLike view) => _root.mounted && identical(_viewOf(noteId), view);
 
+  /// Through the open editor where the note is open, so the person's caret and words stay (`_changeNote`); a
+  /// passage not found, or a write refused, reaches the tool and Claude is told.
   @override
-  Future<void> change(String noteId, String Function(String body) change) async {
-    final view = _viewOf(noteId);
-    if (view != null) {
-      final now = view.state.doc.toString();
-      final next = change(now);
-      if (next == now) return;
-      // Only the stretch that differs, so the person's caret and the note's marks outside it stay where they are.
-      var start = 0;
-      while (start < now.length && start < next.length && now.codeUnitAt(start) == next.codeUnitAt(start)) {
-        start += 1;
-      }
-      var endNow = now.length, endNext = next.length;
-      while (endNow > start && endNext > start && now.codeUnitAt(endNow - 1) == next.codeUnitAt(endNext - 1)) {
-        endNow -= 1;
-        endNext -= 1;
-      }
-      view.dispatch(ed.TransactionSpec(changes: ed.Change(from: start, to: endNow, insert: next.substring(start, endNext)), userEvent: 'claude.type'));
-      return;
-    }
-    // Open without an editor (a notebook's own words drawn): the screen writes it, as it writes its index.
-    final screen = openNoteScreen(_root._shell.currentContext, noteId);
-    if (screen != null) return screen.writeNotebook(change);
-    // Written here rather than by `_writeNote`, which swallows what goes wrong: a passage not found, or a write
-    // refused, reaches the tool and Claude is told.
-    final note = await _root._library.get(noteId);
-    if (note == null) throw StateError('No such note.');
-    final next = change(note.body);
-    if (next == note.body) return;
-    await _root._library.update(noteId, next, note.revision);
-    await _root._library.refresh();
-  }
+  Future<void> change(String noteId, String Function(String body) change) => _root._changeNote(noteId, change);
 
   @override
   bool get smoke => preferences.value.wisp;

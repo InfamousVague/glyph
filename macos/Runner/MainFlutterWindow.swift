@@ -24,6 +24,9 @@ class MainFlutterWindow: NSWindow {
   /// A note's diagrams, drawn by a web view behind the app's own view (apple/DiagramRenderer.swift).
   private var diagrams: DiagramRenderer?
   private var windowChannel: FlutterMethodChannel?
+  /// A job the app runs by itself (lib/core/background_jobs.dart), and the hold that keeps App Nap off it.
+  private var jobsChannel: FlutterMethodChannel?
+  private var jobHold: NSObjectProtocol?
   private var lastPress: NSEvent?
   private var pressMonitor: Any?
 
@@ -62,6 +65,26 @@ class MainFlutterWindow: NSWindow {
     let window = FlutterMethodChannel(name: "ghost_md/window", binaryMessenger: messenger)
     window.setMethodCallHandler { [weak self] call, result in self?.asked(call, result) }
     windowChannel = window
+    // A job the app runs by itself, Lovart's header images for the recent notes (lib/plugins/lovart/banner_run.dart):
+    // while it runs the app is kept out of App Nap, which slows the timers and fetches of an app whose window is
+    // behind others. The Mac app quits with its window, and a job it quit under goes on at the next launch.
+    let jobs = FlutterMethodChannel(name: "ghost_md/jobs", binaryMessenger: messenger)
+    jobs.setMethodCallHandler { [weak self] call, result in
+      switch call.method {
+      case "running":
+        if self?.jobHold == nil {
+          self?.jobHold = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Ghost.md is working on your notes")
+        }
+        result("running")
+      case "ended":
+        if let hold = self?.jobHold { ProcessInfo.processInfo.endActivity(hold) }
+        self?.jobHold = nil
+        result("ended")
+      default:
+        result(FlutterMethodNotImplemented)
+      }
+    }
+    jobsChannel = jobs
     (NSApp.delegate as? AppDelegate)?.window = self
 
     // The press a drag of the window starts from: `performDrag` wants the event itself, and the page's word that a
