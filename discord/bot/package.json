@@ -1,0 +1,22 @@
+{
+  "name": "glyph-discord-bot",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ghost.md's Discord notetaker: /ghost join in a voice channel, and Ghost records the call and hands the take to glyph-api, sealed to the linked account.",
+  "type": "module",
+  "main": "bot.mjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "test": "node --test",
+    "register": "node register.mjs"
+  },
+  "dependencies": {
+    "@discordjs/voice": "0.19.2",
+    "@noble/ciphers": "2.4.0",
+    "@snazzah/davey": "0.1.12",
+    "discord.js": "14.27.0",
+    "opusscript": "0.1.1"
+  }
+}

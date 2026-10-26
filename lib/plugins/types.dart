@@ -25,6 +25,7 @@ library;
 import 'package:flutter/widgets.dart';
 
 import '../account/api.dart' show FetchRequest, FetchResponse;
+import '../account/ui_state.dart' show AccountServices;
 import '../core/notifications.dart' show FeedNotification;
 import '../settings/settings_search.dart' show SettingsFindable;
 import 'mark_details.dart';
@@ -318,7 +319,7 @@ typedef InlineFormat = GlyphFormat;
 
 /// A plugin's page in Settings, the page's one-line reading, and its colour there.
 class PluginSettings {
-  const PluginSettings({required this.pane, required this.summary, this.hue, this.settings = const []});
+  const PluginSettings({required this.pane, required this.summary, this.hue, this.settings = const [], this.simple = false, this.offered, this.accountSummary, this.findable});
   final WidgetBuilder pane;
   final String Function() summary;
 
@@ -327,6 +328,21 @@ class PluginSettings {
 
   /// What the search finds on the page: its cards' titles and rows' labels.
   final List<SettingsFindable> settings;
+
+  /// Kept in Simple, where every other plugin's page waits behind Advanced: the meeting plugins' (Google Meet, Zoom),
+  /// which are what Settings › Meetings was, and that was a page of Simple's (Matt, 2026-10-26: "I want settings /
+  /// meetings to be broken up into three plugins"). Not on the page.
+  final bool simple;
+
+  /// Whether the page is listed for this account at all, the account's services as Settings has them; null is always.
+  /// A meeting plugin's page needs a service with Ghost in meetings. Not on the page.
+  final bool Function(AccountServices? services)? offered;
+
+  /// The row's reading from the account, in place of [summary]: how many meetings of its kind Ghost is booked for.
+  final String Function(AccountServices? services)? accountSummary;
+
+  /// What the search finds on the page as the account has it, in place of [settings].
+  final List<SettingsFindable> Function(AccountServices? services)? findable;
 }
 
 class GlyphPlugin {

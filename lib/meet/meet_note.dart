@@ -49,6 +49,7 @@ import '../core/note.dart' show Segment;
 import '../mail/mail_note.dart' show mailNoteId;
 import 'gmt.dart';
 import 'speakers.dart';
+import '../tapes/tape.dart' show counter;
 
 /// The id of the note take [takeId] becomes: a UUID made from the take's id, never the one a mail with the same id
 /// would make.
@@ -107,6 +108,16 @@ String meetNoteBody(OpenedTake take, {required int now, required bool writeUp, C
   if (writeUp) {
     out.write(' It is being written up on your device.\n');
     if (turns.isNotEmpty) out.write('\n${captionsSection(turns)}\n');
+    return out.toString();
+  }
+  // A Discord call has no captions to be a transcript: who spoke when is all its lines say (docs/DISCORD_CALLS.md).
+  if (take.service == MeetService.discord) {
+    out.write(switch (why) {
+      CaptionsOnly.noSound => ' No sound came with it, and Discord shows no captions.\n',
+      CaptionsOnly.notKept => ' The recording could not be kept on this device, and Discord shows no captions: who spoke when is below.\n',
+    });
+    final spoke = [for (final turn in turns) if (turn.speaker.isNotEmpty) '- ${turn.speaker}, ${counter(turn.startMs)}'];
+    out.write(spoke.isEmpty ? '\n## Who spoke\n\nNobody was heard.\n' : '\n## Who spoke\n\n${spoke.join('\n')}\n');
     return out.toString();
   }
   // Whose captions: a Zoom's are Zoom's (Matt, 2026-10-26: "also consider zoom meetings").

@@ -10,7 +10,7 @@ import 'package:glacier/glacier.dart' show GlacierSwitch;
 
 import 'support.dart';
 
-/// Settings › Meetings' Post to Discord, the Discord page, and its line on meetings
+/// Post to Discord, on the Discord page since Settings › Meetings became the meeting plugins' pages
 /// (lib/plugins/discord/meetings_section.dart, discord_pane.dart; Matt, 2026-10-26): drawn only with a channel, the
 /// switch off until a channel is chosen, Simple's More, beside Slack's section, and a meeting that did not post said
 /// with Discord's reason and Try now.
@@ -155,14 +155,15 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('says where meetings go, and that they are set in Settings › Meetings', (tester) async {
+    testWidgets('has Post to Discord itself, where meetings are set to go', (tester) async {
       await addDiscordChannel('#launch', hook);
       await pumpPane(tester, const DiscordPane());
-      expect(textOf(tester), contains('Meetings aren’t posted'));
+      expect(find.byType(MeetingsDiscordSection), findsOneWidget);
+      expect(textOf(tester), contains('Post meetings to Discord'));
+      expect(textOf(tester), isNot(contains('Settings › Meetings')));
       setDiscordMeetingPosts(true);
       await settle(tester);
-      expect(textOf(tester), contains('Meetings post to #launch'));
-      expect(textOf(tester), contains('Set in Settings › Meetings.'));
+      expect(textOf(tester), contains('#launch'));
       await away(tester);
     });
   });

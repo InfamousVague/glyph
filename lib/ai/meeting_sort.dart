@@ -7,8 +7,8 @@
 /// spoke in it, and its summary; and the note is filed into that workspace's "Meetings" folder, made where it is
 /// missing (lib/core/workspaces.dart `addWorkspace`, whose id is the folder's place's, so every device makes the same
 /// one). Matt's answers: filed automatically, with no question, an organization's workspace included, though filing
-/// there shares the note with every member of it; and on by default, with a switch in Settings › Meetings
-/// ([sortMeetingsKey]).
+/// there shares the note with every member of it; and on by default, with a switch on each meeting plugin's
+/// page ([sortMeetingsKey]; lib/meet/ui/meeting_settings.dart).
 ///
 /// The rules, each a test (test/ai/meeting_sort_test.dart):
 /// - **Only a meeting the person has not filed.** One in no workspace (the Inbox: a meeting Ghost was in lands

@@ -4,6 +4,7 @@
 // build/feature-shots/meetings-settings/ (not committed), on a phone and the Mac's window, light and dark. The same
 // file run over the tree before the move with `--dart-define=SHOTS_AS=before` (less `onOpenNote`, which that tree's
 // sheet did not take) writes the pictures to set beside them.
+// Settings › Meetings is the Google Meet plugin's page since 2026-10-26 (lib/plugins/meetings/), which these draw now.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,8 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 
@@ -33,6 +36,8 @@ void main() {
           if (mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
           final meet = FakeMeet();
           final service = await FakeService.start(seed: seeded);
+          usePlugins(createRegistry(builtIn, store: MemorySwitches()));
+          addTearDown(() => usePlugins(createRegistry(const [])));
           final device = await Device.make(service: service, publishing: true, meeting: true, fetcher: meet.over(service.fetcher), now: () => at);
           await device.mailIn!.newAddress();
           meet.meetings.addAll([
@@ -48,7 +53,7 @@ void main() {
             prefs: Preferences(theme: theme, meetings: {'retro': at - 86400000}, more: const {'meetingNotes': {'d': 'retro'}}),
             home: BackScope(
               stack: BackStack(),
-              child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: SettingsTarget(page, nonce: 1))),
+              child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: SettingsTarget(page == 'meetings' ? 'plugin:google-meet' : page, nonce: 1))),
             ),
           );
           tester.view.padding = FakeViewPadding.zero;

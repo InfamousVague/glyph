@@ -21,6 +21,10 @@
 ///   paragraphs, else, for a meeting written up before the times were kept (`**Name:** words`), the paragraphs matched
 ///   to the phrases by where their words fall. A recording made on the device has no captions and no names, and its
 ///   phrases stay unnamed.
+/// - **A Discord call's turns have no words** (docs/DISCORD_CALLS.md): a line a turn, the speaker and when, and no
+///   text (gmt.dart). They are turns all the same: kept under `## Captions` as `**Name (0:12):**` with nothing after
+///   ([captionsSection]), read back by [turnsOf], and every phrase named from them; with no words they make no
+///   paragraphs of a transcript of their own ([captionParagraphs]).
 /// - **Meet's icons are no names** ([captionIcons]; Matt's engineering standup, 2026-10-26, had a speaker called
 ///   `groups`): Meet draws its icons from Material Symbols, whose glyph is drawn from a word, so a caption block read
 ///   as text can start with one where the speaker's name should be. The bot drops them as it reads the page
@@ -309,11 +313,16 @@ List<String> captionParagraphs(List<CaptionTurn> turns) => [
         if (turn.text.trim().isNotEmpty) turn.speaker.isEmpty ? turn.text.trim() : '**${turn.speaker}:** ${turn.text.trim()}',
     ];
 
-/// The section the captions are kept in until the write-up (see the header): heading and all.
+/// The section the captions are kept in until the write-up (see the header): heading and all. A named turn with no
+/// words (a Discord call's) is kept as its name and time alone, `**Sam Lee (0:12):**`; an unnamed one with none is
+/// nothing.
 String captionsSection(List<CaptionTurn> turns) {
   final paragraphs = [
     for (final turn in turns)
-      if (turn.text.trim().isNotEmpty) turn.speaker.isEmpty ? '(${counter(turn.startMs)}) ${turn.text.trim()}' : '**${turn.speaker} (${counter(turn.startMs)}):** ${turn.text.trim()}',
+      if (turn.text.trim().isNotEmpty)
+        turn.speaker.isEmpty ? '(${counter(turn.startMs)}) ${turn.text.trim()}' : '**${turn.speaker} (${counter(turn.startMs)}):** ${turn.text.trim()}'
+      else if (turn.speaker.isNotEmpty)
+        '**${turn.speaker} (${counter(turn.startMs)}):**',
   ];
   return paragraphs.isEmpty ? captionsHeading : '$captionsHeading\n\n${paragraphs.join('\n\n')}';
 }

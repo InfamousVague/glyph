@@ -28,6 +28,9 @@
 /// speakers named from the captions it kept (meet_note.dart `withSpeakers`), then leaves the list of those waiting
 /// ([pendingKey]).
 ///
+/// First of all, each pass: the plugins' kinds the service has not taken yet, sent (meet_kinds.dart
+/// `sendUnsentKinds`), so a switch moved while offline reaches the service at the next sync.
+///
 /// Quiet against a service with no meeting routes.
 library;
 
@@ -44,9 +47,11 @@ import '../core/locale_dates.dart';
 import '../core/note.dart';
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import '../plugins/registry.dart' show plugins;
 import '../sync/notes.dart' show LocalNotes;
 import 'gmt.dart';
 import 'meet_api.dart';
+import 'meet_kinds.dart';
 import 'meet_note.dart';
 
 /// What this device can do with a meeting's sound (lib/meet/tape.dart is the app's).
@@ -120,6 +125,7 @@ Future<int> nameSpeakers(MeetPassContext ctx) async {
 
 /// The meeting step (see the header). Answers how many notes it wrote.
 Future<int> syncMeet(MeetPassContext ctx) async {
+  await sendUnsentKinds(api: ctx.api, token: ctx.token, kept: ctx.kept);
   final meet = MeetApi(ctx.api);
   var written = await nameSpeakers(ctx);
   final waiting = await meet.takes(ctx.token);
@@ -259,6 +265,10 @@ String meetDetailWords(String? detail) => switch ((detail ?? '').toLowerCase().r
       'invalid_link' => 'the link led to no meeting',
       'unsupported_browser' => 'Zoom would not open in Ghost’s browser',
       'bad_url' => 'Ghost can’t open that link',
+      // A Discord call's (discord/bot/lib/call.mjs, bot.mjs).
+      'nothing_heard' => 'Ghost heard nobody in the call',
+      'join_failed' => 'Discord would not let Ghost into the channel',
+      'restarted' => 'Ghost restarted during the call',
       _ => '',
     };
 
@@ -360,16 +370,50 @@ String? zoomLink(String typed) {
 const String meetLinkProblem = 'That is not a Google Meet or Zoom link. It looks like meet.google.com/abc-defg-hij or zoom.us/j/123456789.';
 
 /// The setting's side of Ghost in meetings: the meetings as the service last said them, and what a person may do
-/// with them.
+/// with them. One for every meeting plugin's page (lib/plugins/meetings/): each lists its own kind of them
+/// ([MeetBooking.kind]), from the one list.
+///
+/// It hears the plugins' switches ([switches], the app's registry unless a test says): a meeting plugin turned on or
+/// off is kept as unsent and sent to the service at once (meet_kinds.dart), then the meetings read again, since the
+/// service has skipped, or booked again, what is booked of that kind.
 class MeetIn extends ChangeNotifier {
-  MeetIn({required this.account, required this.keys, required this.api, required this.crypto}) {
+  MeetIn({required this.account, required this.keys, required this.api, required this.crypto, Stored? kept, Listenable? switches, Map<String, bool> Function()? wanted, bool Function(String kind)? kindOn})
+      : kept = kept ?? stored,
+        _wanted = wanted ?? meetKindsWanted,
+        kindOn = kindOn ?? meetKindOn,
+        _switches = switches ?? plugins {
     account.addListener(_accountChanged);
+    _lastWanted = _wanted();
+    _switches.addListener(_switchesMoved);
   }
 
   final AccountSource account;
   final KeyStore keys;
   final Api api;
   final AccountCrypto crypto;
+
+  /// This device's storage, where the kinds not yet sent wait.
+  final Stored kept;
+
+  /// Whether Ghost joins a kind here: its plugin on ([meetKindOn]).
+  final bool Function(String kind) kindOn;
+
+  final Map<String, bool> Function() _wanted;
+  final Listenable _switches;
+  late Map<String, bool> _lastWanted;
+
+  /// A plugin's switch moved: if a meeting plugin's did, the kinds kept unsent and sent now.
+  void _switchesMoved() {
+    final wanted = _wanted();
+    if (mapEquals(wanted, _lastWanted)) return;
+    _lastWanted = wanted;
+    keepKindsUnsent(kept, wanted);
+    final session = account.session;
+    if (session == null) return;
+    unawaited(() async {
+      if (await sendUnsentKinds(api: api, token: session.token, kept: kept)) readNow();
+    }());
+  }
 
   List<MeetBooking>? _meetings;
   bool _available = true;
@@ -506,6 +550,7 @@ class MeetIn extends ChangeNotifier {
   @override
   void dispose() {
     account.removeListener(_accountChanged);
+    _switches.removeListener(_switchesMoved);
     super.dispose();
   }
 
@@ -556,17 +601,24 @@ class MeetIn extends ChangeNotifier {
 
   static List<MeetBooking> _sorted(List<MeetBooking> list) => list..sort((a, b) => a.startsAt != b.startsAt ? a.startsAt.compareTo(b.startsAt) : a.id.compareTo(b.id));
 
+  /// How many pages "Show more" reads at most for one press, looking for a meeting of the page's own kind.
+  static const int morePages = 5;
+
   /// "Show more": the page of meetings over after those read, put below them. Once at a time; a failure is kept in
-  /// [moreProblem] for the row to say, with Retry, and the cursor kept to try again with.
-  Future<void> more() async {
-    final cursor = _next;
-    if (cursor == null || _loadingMore) return;
+  /// [moreProblem] for the row to say, with Retry, and the cursor kept to try again with. With [wanted], a plugin's
+  /// page's own kind ([MeetBooking.kind]): pages are read on, [morePages] at most, until one brings a meeting it lists,
+  /// since the service pages every kind together, and a press that showed nothing new would seem to do nothing.
+  Future<void> more({bool Function(MeetBooking meeting)? wanted}) async {
+    if (_next == null || _loadingMore) return;
     _loadingMore = true;
     _moreProblem = null;
     notifyListeners();
     try {
-      final said = await MeetApi(api).page(_token(), before: cursor);
-      if (said != null && cursor == _next) {
+      for (var page = 0; page < morePages; page++) {
+        final cursor = _next;
+        if (cursor == null) break;
+        final said = await MeetApi(api).page(_token(), before: cursor);
+        if (said == null || cursor != _next) break;
         final kept = {for (final m in _meetings ?? const <MeetBooking>[]) m.id: m};
         for (final m in said.meetings) {
           kept[m.id] = kept[m.id]?.followedBy(m) ?? m;
@@ -574,6 +626,7 @@ class MeetIn extends ChangeNotifier {
         _meetings = _sorted(kept.values.toList());
         _next = said.next;
         _paged = true;
+        if (wanted == null || said.meetings.any(wanted)) break;
       }
     } catch (_) {
       _moreProblem = 'Older meetings could not be read just now.';
@@ -598,9 +651,13 @@ class MeetIn extends ChangeNotifier {
 
   /// Ghost joins the Google Meet or Zoom at [url] now: the account's encryption key seen to first, since the recording
   /// is sealed to it as it arrives.
+  /// A link of a kind whose plugin is off is refused here, in the service's words ([meetTurnOnWords]), as the service
+  /// would refuse it.
   Future<MeetBooking?> sendNow(String url, {String? title}) async {
     final link = meetLink(url);
     if (link == null) throw const ApiError(400, meetLinkProblem);
+    final kind = meetKindOfLink(link);
+    if (!kindOn(kind)) throw ApiError(400, meetTurnOnWords(kind));
     final token = _token();
     final accountKey = await account.accountKey();
     if (accountKey == null) throw const ApiError(409, 'Sign in again on this device first: its key is not here.');

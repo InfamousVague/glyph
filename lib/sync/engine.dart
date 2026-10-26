@@ -205,6 +205,7 @@ class TeamPass {
     required this.loadState,
     required this.saveState,
     required this.isTeamNote,
+    this.leftTeam,
     required this.file,
     this.folders,
     required this.pulled,
@@ -238,6 +239,11 @@ class TeamPass {
   /// Whether a note on this device is this team's: filed in the organization's workspace, or in a folder under it
   /// (GHST-107).
   final bool Function(String noteId) isTeamNote;
+
+  /// Whether a note on this device has left the organization, as far as this device can tell: filed in a workspace
+  /// it knows that is not the organization's nor under it. A note unfiled, or in a folder this device cannot place,
+  /// has not (lib/team/sync.dart `_push`).
+  final bool Function(String noteId)? leftTeam;
 
   /// Files a note that arrived from the team in the organization's workspace.
   final void Function(String noteId) file;
@@ -595,6 +601,13 @@ class SyncEngine {
               saveState: (state) => _device.write(teamKey, state),
               // Filed in the organization's workspace or a folder under it (GHST-107).
               isTeamNote: (id) => _workspaces.orgOf(_workspaces.workspaceOf(id)?.id ?? '') == row.id,
+              // Out of the team only where it is filed somewhere this device knows outside the organization: never
+              // because its folder cannot be placed (2026-10-26, 108 team notes deleted by a build that read the
+              // organizations' folders as personal).
+              leftTeam: (id) {
+                final filed = _workspaces.workspaceOf(id);
+                return filed != null && _workspaces.orgOf(filed.id) != row.id;
+              },
               file: (id) => _workspaces.fileNote(id, workspace),
               folders: OrgFolders(_workspaces, row.id),
               // Drawn as soon as the rows are in, before their histories and pictures.

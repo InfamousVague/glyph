@@ -122,8 +122,8 @@ SummaryDevice thisDevice([Stored? kept]) {
   return _here = SummaryDevice(id: id, name: deviceNameHere());
 }
 
-/// What a meeting waiting for its summary says on the device that has it (Matt, 2026-10-26), in Settings › Meetings'
-/// row and the note: what to do here, or where else it will be written. [here] is this device's name.
+/// What a meeting waiting for its summary says on the device that has it (Matt, 2026-10-26), on a meeting plugin's
+/// row and in the note: what to do here, or where else it will be written. [here] is this device's name.
 String summaryWaitWords(String here) => here == 'Mac'
     ? 'Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone.'
     : 'Waiting for a summary: turn on Claude or download the summary model on this $here, or open Ghost.md on another of your devices.';
@@ -131,7 +131,7 @@ String summaryWaitWords(String here) => here == 'Mac'
 /// What it says while another device's claim on it is live.
 String summaryElsewhereWords(String? there) => 'Being summarized on your ${there == null || there.isEmpty ? 'other device' : there}.';
 
-/// What the meeting [noteId] says of its summary here, in the note and in Settings › Meetings' row, or null where it
+/// What the meeting [noteId] says of its summary here, in the note and on a meeting plugin's row, or null where it
 /// waits for none: being written on another device while that device's claim is live ([summaryElsewhereWords]); and
 /// waiting, with what to do ([summaryWaitWords]), where its job here needs a model ([needsModelHere]) or this device
 /// marked it waiting. A meeting done is said nothing of. [here] and [now] are this device and the clock's unless a

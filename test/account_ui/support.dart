@@ -67,7 +67,7 @@ class Device {
     sites = publishing ? Sites(account: account, api: api, crypto: service.crypto, pictures: NoPictures(), listNotes: () async => notes.held.values.toList()) : null;
     mailIn = publishing ? MailIn(account: account, keys: keys, api: api, crypto: service.crypto) : null;
     // Ghost in meetings (docs/MEET.md), for its own tests: a fake service of its routes in front of this one.
-    meetIn = meeting ? MeetIn(account: account, keys: keys, api: api, crypto: service.crypto) : null;
+    meetIn = meeting ? MeetIn(account: account, keys: keys, api: api, crypto: service.crypto, kept: kept) : null;
     this.shares = shares ? Shares(account: account, api: api, crypto: service.crypto, prefs: preferences, pictures: NoPictures(), listNotes: () async => notes.held.values.toList()) : null;
     services = AccountServices(
       account: account,

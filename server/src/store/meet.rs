@@ -45,6 +45,9 @@ pub struct MeetBooking {
     pub sequence: i64,
     /// A series' own row: its `meet::ics::Series`, as JSON. None for an occurrence, and for every other booking.
     pub series: Option<String>,
+    /// The service it is on, `meet` or `zoom`, as read back; on a write the link's own (`meet::ics::kind`) wins, and
+    /// this is kept once the link is blanked. None for a row blanked before kinds were kept.
+    pub kind: Option<String>,
 }
 
 /// A take as a device lists it.
@@ -57,7 +60,7 @@ pub struct MeetTake {
     pub at: i64,
 }
 
-const BOOKING_COLUMNS: &str = "id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series";
+const BOOKING_COLUMNS: &str = "id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series, kind";
 
 fn booking(r: &Row<'_>) -> rusqlite::Result<MeetBooking> {
     Ok(MeetBooking {
@@ -72,7 +75,14 @@ fn booking(r: &Row<'_>) -> rusqlite::Result<MeetBooking> {
         detail: r.get(8)?,
         sequence: r.get(9)?,
         series: r.get(10)?,
+        kind: r.get(11)?,
     })
+}
+
+/// The kind a booking is written with (meet.rs `kind_of`): a Discord call's, its link's, or the one it was read with
+/// once the link is blank.
+fn kind_of(b: &MeetBooking) -> Option<String> {
+    crate::meet::kind_of(b).map(str::to_string)
 }
 
 /// The states a booking is still live in: the bot may yet join it, or is in it.
@@ -86,9 +96,9 @@ impl Store {
     /// A new booking; none if the account already has one for that UID (two copies of one invite at once).
     pub fn insert_meet_booking(&self, b: &MeetBooking, now: i64) -> rusqlite::Result<bool> {
         let n = self.lock().execute(
-            "INSERT OR IGNORE INTO meet_bookings (id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series, created_at, updated_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12)",
-            params![b.id, b.account, b.uid, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now],
+            "INSERT OR IGNORE INTO meet_bookings (id, account_id, uid, url, title, starts_at, ends_at, state, detail, sequence, series, created_at, updated_at, kind)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?12, ?13)",
+            params![b.id, b.account, b.uid, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now, kind_of(b)],
         )?;
         Ok(n > 0)
     }
@@ -97,9 +107,9 @@ impl Store {
     /// stay).
     pub fn update_meet_booking(&self, b: &MeetBooking, now: i64) -> rusqlite::Result<()> {
         self.lock().execute(
-            "UPDATE meet_bookings SET url = ?3, title = ?4, starts_at = ?5, ends_at = ?6, state = ?7, detail = ?8, sequence = ?9, series = ?10, updated_at = ?11
-             WHERE id = ?1 AND account_id = ?2",
-            params![b.id, b.account, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now],
+            "UPDATE meet_bookings SET url = ?3, title = ?4, starts_at = ?5, ends_at = ?6, state = ?7, detail = ?8, sequence = ?9, series = ?10, updated_at = ?11,
+             kind = COALESCE(?12, kind) WHERE id = ?1 AND account_id = ?2",
+            params![b.id, b.account, b.url, b.title, b.starts_at, b.ends_at, b.state, b.detail, b.sequence, b.series, now, kind_of(b)],
         )?;
         Ok(())
     }
@@ -228,11 +238,12 @@ impl Store {
     }
 
     /// The bookings the bot should be in, or on its way to, at `now` (ms): live, with a link, from `early` ms before
-    /// each starts until `late` ms after it ends. Oldest first, of every account.
+    /// each starts until `late` ms after it ends. Oldest first, of every account. A Discord call (uid `discord:…`,
+    /// store/discord.rs) is the Discord bot's, never the Meet bot's, which would post it `failed: bad_url`.
     pub fn meet_due(&self, now: i64, early: i64, late: i64) -> Vec<MeetBooking> {
         self.all(
-            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND series IS NULL AND url != '' AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
-            params![now, early, late],
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE state IN {LIVE} AND series IS NULL AND url != '' AND substr(uid, 1, length(?4)) != ?4 AND starts_at - ?2 <= ?1 AND ?1 < ends_at + ?3 ORDER BY starts_at, id"),
+            params![now, early, late, super::DISCORD_UID],
             booking,
         )
     }
@@ -256,6 +267,35 @@ impl Store {
             Ok(counts) => tx.commit().map(|_| counts).unwrap_or((0, 0)),
             Err(_) => (0, 0),
         }
+    }
+
+    /// The account's bookings that end after `now` (ms), of any state, soonest first; a series' own row is not one:
+    /// what turning a kind off or on again (meet.rs `set_kinds`) looks through.
+    pub fn meet_ahead(&self, account: i64, now: i64) -> Vec<MeetBooking> {
+        self.all(
+            &format!("SELECT {BOOKING_COLUMNS} FROM meet_bookings WHERE account_id = ?1 AND ends_at > ?2 AND series IS NULL ORDER BY starts_at, id"),
+            params![account, now],
+            booking,
+        )
+    }
+
+    // --- kinds -----------------------------------------------------------------------------------
+
+    /// The kinds the account wants Ghost booked into, as stored (JSON, meet.rs `MeetKinds`); none until a device has
+    /// said, which is every kind on.
+    pub fn meet_kinds(&self, account: i64) -> Option<String> {
+        self.one("SELECT kinds FROM meet_kinds WHERE account_id = ?1", params![account], |r| r.get(0))
+    }
+
+    pub fn set_meet_kinds(&self, account: i64, kinds: &str, now: i64) -> bool {
+        self.lock()
+            .execute(
+                "INSERT INTO meet_kinds (account_id, kinds, updated_at) VALUES (?1, ?2, ?3)
+                 ON CONFLICT(account_id) DO UPDATE SET kinds = excluded.kinds, updated_at = excluded.updated_at",
+                params![account, kinds, now],
+            )
+            .map(|n| n > 0)
+            .unwrap_or(false)
     }
 
     // --- takes -----------------------------------------------------------------------------------
@@ -347,6 +387,7 @@ mod tests {
             detail: None,
             sequence: 0,
             series: None,
+            kind: None,
         }
     }
 

@@ -50,6 +50,7 @@ import '../live/open.dart';
 import '../live/poke.dart';
 import '../mail/mail_in.dart';
 import '../meet/meet_in.dart';
+import '../plugins/discord/calls.dart' show discordCallsFollowPlugin;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
@@ -203,7 +204,7 @@ class WiredAccount {
     final mailIn = offered ? MailIn(account: account, keys: keys, api: api, crypto: crypto) : null;
     // Ghost in a Google Meet (docs/MEET.md): its setting beside the mail's, which it is booked through; its takes
     // filed on every device, an iPhone's from the captions after a day left for one that keeps the sound.
-    final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto) : null;
+    final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto, kept: device) : null;
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,
@@ -224,7 +225,12 @@ class WiredAccount {
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
       mailIn: offered ? syncMail : null,
-      meetIn: syncMeet,
+      // And, before the takes, the Discord plugin's word to the service: off on this device, Ghost stops joining the
+      // account's Discord calls (lib/plugins/discord/calls.dart).
+      meetIn: (ctx) async {
+        await discordCallsFollowPlugin(api: ctx.api, token: ctx.token, kept: ctx.kept);
+        return syncMeet(ctx);
+      },
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
       // Webhooks plugin is on.
       hooksIn: hooksWhileOn,

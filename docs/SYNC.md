@@ -18,9 +18,9 @@ the tests are test/sync/sealed_keys_test.dart.
 | --- | --- |
 | Claude: the API key, the model, the effort, the inbox switch, the watch's To Claude switch | the secure store, `anthropic-api-key`, `-model`, `-effort`, `-inbox`, `-watch` |
 | Claude's spending limit: on, the amount, the warning | the secure store, `anthropic-limit` (new: written only when it is set) |
-| The Claude, Slack and GitHub plugins' switches | `glyph-plugins`, as `plugin:<id>` |
+| The Claude, Slack and GitHub plugins' switches, and Google Meet's and Zoom's (which kinds Ghost joins; docs/MEET.md) | `glyph-plugins`, as `plugin:<id>` |
 | Slack: each channel's webhook, and the list that names them | the secure store, `glyph-slack-webhook:<id>`; storage, `glyph-slack-channels` |
-| Settings › Meetings › Post to Slack: the switch, the channel, the share link | storage, `glyph-slack-meetings` |
+| The Slack page's Post to Slack: the switch, the channel, the share link | storage, `glyph-slack-meetings` |
 | GitHub's personal access token | the secure store, `glyph-github-token` |
 
 Already travelling with the settings, sealed with the blob as a whole: the calendars' iCal addresses and Google's

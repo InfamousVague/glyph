@@ -1,6 +1,8 @@
-/// Settings › Meetings' Post to Slack (meetings.dart; Matt, 2026-10-26: "make the meetings plugin work hand in hand
-/// to sending meeting action items and a link to the meeting transcript to a specified slack channel"), and the
-/// line on the Slack plugin's own page that says where meetings go.
+/// Post to Slack (meetings.dart; Matt, 2026-10-26: "make the meetings plugin work hand in hand to sending meeting
+/// action items and a link to the meeting transcript to a specified slack channel"), on the Slack plugin's own page.
+/// It was a section of Settings › Meetings, with a line on this page pointing there, until Meetings became the meeting
+/// plugins' pages the same day ("I want settings / meetings to be broken up into three plugins"); the section is here
+/// now, and the line is gone.
 ///
 /// The section is drawn only where meetings can post ([meetingSlackOffered]: the plugin on, a channel on this
 /// device, not an iPhone), so a person without Slack never meets it. In it:
@@ -89,7 +91,7 @@ String meetingTryLine(MeetingPostTry waiting) {
   return '$why Ghost.md tries again when it next opens (tried ${waiting.tries} of $meetingPostTriesMost).';
 }
 
-/// Settings › Meetings' Post to Slack; nothing where meetings cannot post here.
+/// Post to Slack, on the Slack plugin's page; nothing where meetings cannot post here.
 class MeetingsSlackSection extends StatefulWidget {
   const MeetingsSlackSection({super.key, required this.prefs});
 
@@ -201,65 +203,6 @@ class _MeetingsSlackSectionState extends State<MeetingsSlackSection> {
                 control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
               ),
             ..._failures(context.tokens),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// The Slack plugin's page's word on meetings: where they go, any that did not, and the way to Settings ›
-/// Meetings, where it is set ([onOpenMeetings]).
-class SlackMeetingsLine extends StatefulWidget {
-  const SlackMeetingsLine({super.key, this.onOpenMeetings});
-
-  final VoidCallback? onOpenMeetings;
-
-  @override
-  State<SlackMeetingsLine> createState() => _SlackMeetingsLineState();
-}
-
-class _SlackMeetingsLineState extends State<SlackMeetingsLine> {
-  String? _trying;
-
-  Future<void> _tryNow(String noteId) async {
-    final poster = meetingSlackPoster;
-    if (poster == null) return;
-    setState(() => _trying = noteId);
-    try {
-      await poster.tryNow(noteId);
-    } finally {
-      if (mounted) setState(() => _trying = null);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _Heard(
-      builder: (context) {
-        if (!meetingSlackOffered()) return const SizedBox.shrink();
-        final channel = meetingChannel();
-        final on = meetingSlackSettings().on && channel != null;
-        final go = widget.onOpenMeetings;
-        return PaneSection(
-          title: 'Automations',
-          children: [
-            SettingRow(
-              icon: const AppIcon(Lucide.hash, size: 16),
-              label: on ? 'Meetings post to ${channel.name}' : 'Meetings aren’t posted',
-              hint: Text(on ? 'Each meeting’s action items and its links, once it is written up. Set in Settings › Meetings.' : 'Choose a channel for them in Settings › Meetings, and each meeting’s action items go there once it is written up.'),
-              control: go == null ? null : RowAction(onPress: go, child: const Text('Meetings')),
-            ),
-            for (final waiting in failedMeetingPosts())
-              SettingRow(
-                key: ValueKey('slack-line-${waiting.noteId}'),
-                icon: const AppIcon(Lucide.triangleAlert, size: 16),
-                label: 'Not posted: “${waiting.title}”',
-                hint: Text(meetingTryLine(waiting)),
-                // Slack's reason is a sentence or two: the words to press go under it, not beside it.
-                layout: SettingRowLayout.stacked,
-                control: RowAction(onPress: () => unawaited(_tryNow(waiting.noteId)), disabled: _trying != null || meetingSlackPoster == null, child: Text(_trying == waiting.noteId ? 'Posting…' : 'Try now')),
-              ),
           ],
         );
       },

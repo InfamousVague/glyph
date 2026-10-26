@@ -10,14 +10,17 @@
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
 /// - **The plugins' switches** for the five whose connections travel, Claude, Slack, Discord, GitHub and Lovart
 ///   (`plugin:<id>`, [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack and Discord are on
-///   wherever their channels are.
+///   wherever their channels are. And the meeting plugins', Google Meet and Zoom (lib/plugins/meetings/; Matt,
+///   2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins"): which kinds Ghost joins
+///   is the account's, so a kind turned off on one device is off on all of them, as it is on the service
+///   (lib/meet/meet_kinds.dart).
 /// - **Slack** (lib/plugins/slack/channels.dart, meetings.dart): each channel's webhook (the secure store's
-///   `glyph-slack-webhook:<id>`) and the list that names them (`glyph-slack-channels`), and Settings › Meetings › Post
-///   to Slack (`glyph-slack-meetings`: the switch, the channel, the share link). So the device that writes a meeting up
+///   `glyph-slack-webhook:<id>`) and the list that names them (`glyph-slack-channels`), and the Slack page's Post to
+///   Slack (`glyph-slack-meetings`: the switch, the channel, the share link). So the device that writes a meeting up
 ///   has the channel to post it to, whichever it is; that it is posted once stays the synced `slackMeetingPosts`'s.
 /// - **Discord** (lib/plugins/discord/channels.dart, meetings.dart; Matt, 2026-10-26: "Add a new plugin to post notes
 ///   to discord chats"), as Slack's: each channel's webhook (`glyph-discord-webhook:<id>`), the list that names them
-///   (`glyph-discord-channels`), and Settings › Meetings › Post to Discord (`glyph-discord-meetings`). That a meeting
+///   (`glyph-discord-channels`), and the Discord page's Post to Discord (`glyph-discord-meetings`). That a meeting
 ///   is posted to Discord once stays the synced `discordMeetingPosts`'s.
 /// - **GitHub's token** (lib/plugins/github/repos.dart): a personal access token, which works from any number of
 ///   devices at once.
@@ -72,7 +75,7 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeLimitName];
 
 /// The plugins whose switch travels.
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord'];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom'];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';

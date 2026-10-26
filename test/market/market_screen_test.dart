@@ -111,9 +111,9 @@ void main() {
       expect(find.byKey(const ValueKey('market-featured-claude'), skipOffstage: false), findsOneWidget);
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNWidgets(themes.length));
       expect(find.byType(MarketFontCard, skipOffstage: false), findsNWidgets(typefaces.length));
-      expect(onShelf(tester, 'added'), ['claude', 'github', 'notion', 'marks', 'rich-embeds']);
+      expect(onShelf(tester, 'added'), ['claude', 'github', 'google-meet', 'notion', 'zoom', 'marks', 'rich-embeds']);
       expect(onShelf(tester, 'discover'), ['lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
-      expect(find.text('5 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
+      expect(find.text('7 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
 
@@ -150,8 +150,9 @@ void main() {
     testWidgets('the search filters every shelf at once, and a search that leaves nothing has the way back', (tester) async {
       await pumpMarket(tester);
       await search(tester, 'google');
-      expect(find.byType(MarketPluginCard, skipOffstage: false), findsOneWidget);
+      expect(find.byType(MarketPluginCard, skipOffstage: false), findsNWidgets(2));
       expect(card('calendar'), findsOneWidget);
+      expect(card('google-meet'), findsOneWidget);
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNothing);
       await search(tester, 'dark');
       expect([for (final each in tester.widgetList<MarketThemeCard>(find.byType(MarketThemeCard, skipOffstage: false))) each.option.value], containsAll(['dark', 'boreal', 'ember']));
@@ -180,6 +181,26 @@ void main() {
     await endSettings(tester);
   });
 
+  // Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins".
+  testWidgets('lists Google Meet and Zoom as two plugins, each found by its name, added, in a colour and a plain icon of its own', (tester) async {
+    for (final (id, name, icon, hue) in [('google-meet', 'Google Meet', 'users', 'orange'), ('zoom', 'Zoom', 'laptop', 'mint')]) {
+      final plugin = builtIn.singleWhere((p) => p.manifest.id == id);
+      expect((plugin.manifest.name, plugin.icon, pluginHue(plugin), plugin.manifest.standard), (name, icon, hue, true), reason: id);
+      expect(hasBrandMark(plugin), isFalse, reason: 'no third party’s mark (docs/store/)');
+      expect(reachOf(plugin).line, 'Android · Desktop', reason: 'Ghost in meetings is not offered on an iPhone');
+      expect(pluginsFound(builtIn, name.toLowerCase()).map((p) => p.manifest.id), contains(id));
+    }
+    await pumpMarket(tester);
+    await search(tester, 'zoom');
+    expect(find.byType(MarketPluginCard, skipOffstage: false), findsOneWidget);
+    expect(find.descendant(of: card('zoom'), matching: find.text('Zoom')), findsWidgets);
+    expect(find.descendant(of: card('zoom'), matching: find.text('Send Ghost to take notes in a Zoom call')), findsWidgets);
+    await search(tester, 'meet');
+    expect(card('google-meet'), findsOneWidget);
+    expect(find.descendant(of: card('google-meet'), matching: find.text('Send Ghost to take notes in a Google Meet')), findsWidgets);
+    await endSettings(tester);
+  });
+
   group('a plugin', () {
     testWidgets('Add on its card switches it on through the registry, kept, and the card moves to Added', (tester) async {
       final store = MemorySwitches();
@@ -189,7 +210,7 @@ void main() {
       expect(store.held, {'slack': true});
       expect(registry.isEnabled('slack'), isTrue);
       expect(onShelf(tester, 'added'), contains('slack'));
-      expect(find.text('6 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
+      expect(find.text('8 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
 

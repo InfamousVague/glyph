@@ -11,6 +11,9 @@
 ///   `{series, meetings}`, a series stopped ([MeetApi.stopSeries]).
 /// - `GET meet/takes` → `{takes: [{id, meeting, size, at, wrapped}]}`; `GET meet/takes/{id}` → the sealed take, raw;
 ///   `DELETE meet/takes/{id}` → 204.
+/// - `PUT meet/kinds {meet?, zoom?}` → `{meet, zoom}`: which kinds Ghost is booked into, the plugins' switches
+///   (meet_kinds.dart, which sends them). Each meeting and series says its `kind`, kept by the service once its link
+///   is blanked, so each plugin's page lists its own ([MeetBooking.kind]).
 ///
 /// A take is sealed as a mail is, with contexts of its own ([takeWrapContext], [takeSealContext]), and opened with
 /// what the device already has ([openSealedTake]).
@@ -69,7 +72,7 @@ enum MeetState {
 /// One meeting Ghost is booked for, or was.
 @immutable
 class MeetBooking {
-  const MeetBooking({required this.id, this.title, this.url, this.service, required this.startsAt, required this.endsAt, required this.state, this.detail, this.series});
+  const MeetBooking({required this.id, this.title, this.url, this.service, required this.startsAt, required this.endsAt, required this.state, this.detail, this.series, String? kind}) : _kind = kind;
 
   final String id;
 
@@ -77,9 +80,17 @@ class MeetBooking {
   final String? title;
   final String? url;
 
-  /// The service the meeting is on, Google Meet or Zoom (the list's `kind`, else read from [url]); null once the
-  /// service has forgotten the link, when the row says no service.
+  /// The service the meeting is on, Google Meet, Zoom or Discord (the list's `kind`, else read from [url]); null once
+  /// the service has forgotten the link and its kind, when the row says no service, and for a kind this build does not
+  /// know.
   final MeetService? service;
+
+  final String? _kind;
+
+  /// Which kind of meeting it is, and so which plugin's page lists it (meet_kinds.dart; Matt, 2026-10-26: "each zoom,
+  /// Google meets and discord handle their own meetings"): the service's word (`meet`, `zoom`, `discord`), else the
+  /// service read from its link, else `meet`, the one kind there was before the service kept them.
+  String get kind => _kind ?? service?.name ?? 'meet';
   final int startsAt;
   final int endsAt;
   final MeetState state;
@@ -97,23 +108,29 @@ class MeetBooking {
     String? text(String key) => raw[key] is String && (raw[key] as String).trim().isNotEmpty ? (raw[key] as String).trim() : null;
     int whole(String key) => raw[key] is num ? (raw[key] as num).toInt() : 0;
     final url = text('url');
+    final kind = text('kind');
     return MeetBooking(
       id: raw['id'] as String,
       title: text('title'),
       url: url,
-      service: url == null && raw['kind'] is! String ? null : MeetService.of(raw['kind'], url: url),
+      service: switch (kind) {
+        'meet' || 'zoom' || 'discord' => MeetService.of(kind),
+        String() => null,
+        null => url == null ? null : MeetService.of(null, url: url),
+      },
       startsAt: whole('startsAt'),
       endsAt: whole('endsAt'),
       state: MeetState.of(raw['state']),
       detail: text('detail'),
       series: text('series'),
+      kind: kind,
     );
   }
 
   /// This booking as [next] says it now, keeping which series it is of where [next] does not say.
   MeetBooking followedBy(MeetBooking next) => next.series != null || series == null
       ? next
-      : MeetBooking(id: next.id, title: next.title, url: next.url, service: next.service, startsAt: next.startsAt, endsAt: next.endsAt, state: next.state, detail: next.detail, series: series);
+      : MeetBooking(id: next.id, title: next.title, url: next.url, service: next.service, startsAt: next.startsAt, endsAt: next.endsAt, state: next.state, detail: next.detail, series: series, kind: next._kind ?? _kind);
 }
 
 /// A recurring meeting Ghost joins every time (server/src/meet.rs `series_json`): its rule in words made on the
@@ -121,7 +138,7 @@ class MeetBooking {
 /// clock and that clock's zone, the next occurrence, and how it ends.
 @immutable
 class MeetSeries {
-  const MeetSeries({required this.id, this.title, required this.rule, this.zone, this.offset = 0, this.next, this.until, this.count});
+  const MeetSeries({required this.id, this.title, required this.rule, this.zone, this.offset = 0, this.next, this.until, this.count, this.kind = 'meet'});
 
   /// The series' own id, for "Stop joining" ([MeetApi.stopSeries]).
   final String id;
@@ -144,6 +161,9 @@ class MeetSeries {
   final int? until;
   final int? count;
 
+  /// Its kind ([MeetBooking.kind]): which plugin's page lists it.
+  final String kind;
+
   static MeetSeries? fromJson(Object? raw) {
     if (raw is! Map || raw['id'] is! String) return null;
     String? text(String key) => raw[key] is String && (raw[key] as String).trim().isNotEmpty ? (raw[key] as String).trim() : null;
@@ -157,6 +177,7 @@ class MeetSeries {
       next: MeetSeriesNext.fromJson(raw['next']),
       until: whole('until'),
       count: whole('count'),
+      kind: text('kind') ?? 'meet',
     );
   }
 }

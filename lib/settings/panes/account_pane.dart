@@ -22,7 +22,6 @@ import '../settings_search.dart';
 import '../settings_sections.dart' show SettingsNotPortedCard, settingsSections;
 import '../shared_links.dart';
 import 'ghostex_cards.dart';
-import 'meetings_pane.dart' show meetingsOffered;
 import 'pane_parts.dart';
 import 'settings_host.dart';
 import '../../core/iphone_app.dart' show recordsVoice;
@@ -54,13 +53,14 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
     ? (ported
         ? [
             const SettingsFindable('Sync now', 'devices'),
-            // Sync meeting recordings is Meetings' now (meetings_pane.dart `meetingsFindable`).
+            // Sync meeting recordings is the meeting plugins' pages' (lib/plugins/meetings/meetings.dart).
             const SettingsFindable('Live typing', 'realtime collaborate claude'),
             const SettingsFindable(keysInSyncLabel, 'claude api key token slack discord github webhook secrets devices'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
             if (shared) const SettingsFindable('Shared links', 'share publish read'),
+            const SettingsFindable('Email to a note', 'mail inbox address turn off meeting invite ghost'),
             ...privacyFindable,
             ...locationFindable,
             ghostexExportFindable,
@@ -95,16 +95,18 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///
 /// **Signed in**: the hero (the handle, "End-to-end encrypted", where the sync stands), what the last sync kept
 /// twice or could not send, the Sync card (Sync now, Live typing, Password and recovery codes, Sign out), then Your
-/// colour ([ColourCard]), Shared links ([SharedLinks]), Published sites, a line for Email to a note, Privacy,
-/// Location, and Delete account. Password and recovery codes, and Delete account, each put a form where the Sync card
+/// colour ([ColourCard]), Shared links ([SharedLinks]), Published sites, Email to a note, Privacy, Location, and Delete
+/// account. Password and recovery codes, and Delete account, each put a form where the Sync card
 /// was and take the cards after it off the page until it is done or cancelled.
 ///
 /// **Nothing of meetings** (Matt, 2026-10-24: "remove the meetings stuff from the account page the account settings
-/// page is overwhelming move all google meet related stuff to under the meet section"): Sync meeting recordings, how
-/// many recordings stayed on this phone, and the Email to a note card, whose address is also Ghost's invite, are on
-/// Settings › Meetings (meetings_pane.dart). Mail to a note is a feature of its own, so Account keeps one row that
-/// says where it went and goes there ([AccountPane.onOpenMeetings]). A service with no Ghost in meetings has no
-/// Meetings page, and its Email to a note card stays here whole.
+/// page is overwhelming move all google meet related stuff to under the meet section"): Sync meeting recordings and
+/// how many recordings stayed on this phone are on the meeting plugins' pages (lib/plugins/meetings/). **Email to a
+/// note** is here whole again ([MailCard]): it was Settings › Meetings' while that was one page, since its address is
+/// Ghost's invite too, but once Meetings became a plugin for each service (Matt, 2026-10-26: "I want settings /
+/// meetings to be broken up into three plugins"), the address belongs to no one of them, and with every meeting
+/// plugin off it is still mail's. The Google Meet and Zoom pages show the same address on their invite cards, with Copy, a name and a
+/// new one; this card is what mail to it becomes, and off.
 ///
 /// While Local only holds the sync off, a callout says so, signed in or out, and its "Local only" is a word that
 /// brings the card into view: a plain word while a form has the card off the page.
@@ -124,7 +126,7 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///   (`autocomplete`) beyond what the kit passes on.
 /// - There is no list of this account's devices: the web's page has none either.
 class AccountPane extends StatefulWidget {
-  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.services, this.onOpenPrivacy, this.onOpenLink, this.onOpenMeetings});
+  const AccountPane({super.key, this.store, this.features = const SettingsFeatures(), this.services, this.onOpenPrivacy, this.onOpenLink});
 
   /// The preferences to read and write; the services' when there are some, else the app's own.
   final PreferencesStore? store;
@@ -137,9 +139,6 @@ class AccountPane extends StatefulWidget {
   final VoidCallback? onOpenPrivacy;
   final void Function(String url)? onOpenLink;
 
-  /// Lands on Settings › Meetings, where Email to a note is; without it the row is a plain row.
-  final VoidCallback? onOpenMeetings;
-
   static Widget hosted(BuildContext context) {
     final host = SettingsHost.maybeOf(context);
     return AccountPane(
@@ -147,7 +146,6 @@ class AccountPane extends StatefulWidget {
       services: AccountScope.maybeOf(context),
       onOpenPrivacy: host == null ? null : () => host.go('account', setting: 'Privacy'),
       onOpenLink: host?.onOpenLink,
-      onOpenMeetings: host == null ? null : () => host.go('meetings'),
     );
   }
 
@@ -395,11 +393,9 @@ class _AccountPaneState extends State<AccountPane> {
                     : 'Sign in again to sync';
     final form = _editing || _deleting;
     final shared = _shared;
-    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md);
-    // whether it has Ghost in meetings decides where Email to a note is.
+    // The account's published sites and its mail address are the service's to say (docs/SITES.md, docs/MAIL.md).
     services.sites?.readSoon();
     services.mailIn?.readSoon();
-    services.meetIn?.readSoon();
     final sites = services.sites, mail = services.mailIn;
     return PaneBody(
       children: [
@@ -468,22 +464,7 @@ class _AccountPaneState extends State<AccountPane> {
           ColourCard(services: services),
           if (shared != null && shared.any) SharedLinks(services: services, model: shared),
           if (sites != null && publishedSitesShown(sites)) PublishedSites(services: services),
-          // Email to a note's address is Ghost's invite too, so it is on Meetings, and here only a word on where.
-          if (mail != null && mailCardShown(mail))
-            if (meetingsOffered(services))
-              PaneSection(
-                children: [
-                  SettingRow(
-                    key: const ValueKey('account-mail-moved'),
-                    icon: const AppIcon(Lucide.mail, size: 20),
-                    label: 'Email to a note',
-                    hint: const Text('Your address, which Ghost is invited by too, is under Meetings.'),
-                    onPress: widget.onOpenMeetings,
-                  ),
-                ],
-              )
-            else
-              MailCard(services: services),
+          if (mail != null && mailCardShown(mail)) MailCard(services: services),
           privacy,
           ...location.parts(prefs),
           GhostexExportCard(ghostex: widget.features.ghostex),
