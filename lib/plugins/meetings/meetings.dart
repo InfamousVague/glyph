@@ -33,7 +33,7 @@ import '../../account/ui_state.dart';
 import '../../meet/meet_api.dart' show MeetBooking;
 import '../../meet/meet_kinds.dart';
 import '../../meet/ui/meet_card.dart' show meetCardShown;
-import '../../core/iphone_app.dart' show recordsVoice;
+import '../../meet/ui/meeting_settings.dart' show meetingsGoName;
 import '../../settings/settings_search.dart' show SettingsFindable;
 import '../types.dart';
 import 'meeting_pane.dart';
@@ -53,16 +53,16 @@ String meetingPluginSummary(String kind, AccountServices? services) {
 }
 
 /// What the search finds on a meeting plugin's page, by the names it draws: the invite card once there is an address
-/// to invite Ghost by, the meetings, what a Zoom's host must allow, the recordings' switch where this device records
-/// (not an iPhone, [recordsVoice]), and Sorting.
+/// to invite Ghost by, the meetings, what a Zoom's host must allow, and Where meetings go. Sync meeting recordings and
+/// Sort meetings into workspaces are found on Settings › Recording, the one place for every kind
+/// (lib/meet/ui/meeting_settings.dart).
 List<SettingsFindable> meetingPluginFindable(String kind, AccountServices? services) {
   final words = kind == 'zoom' ? 'zoom us link' : 'meet google link';
   return [
     if (services != null && meetCardShown(services)) SettingsFindable('Invite Ghost', 'send ghost $words join now invite calendar guest address copy new refresh regenerate name'),
     if (services != null) SettingsFindable('Ghost in ${meetKindWords(kind)}', 'meetings booked recording written up don’t join leave open note check now recurring'),
     if (kind == 'zoom') const SettingsFindable(zoomHostAllows, 'zoom guests authenticated browser passcode waiting room captions host'),
-    if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
-    if (services != null) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox'),
+    if (services != null) const SettingsFindable(meetingsGoName, 'recordings sort sorting folder workspace inbox filed summaries'),
   ];
 }
 

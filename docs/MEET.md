@@ -15,6 +15,23 @@ meetings". In the app Ghost in meetings is two plugins (lib/plugins/meetings/), 
 Market listing, switch and page in Settings; Settings › Meetings, the one page every kind shared, is gone. Discord's
 calls are the Discord plugin's (docs/DISCORD.md), listed with the same list (`MeetingsList(kind: 'discord')`).
 
+**One place for every meeting.** Matt, 2026-10-26: "All meetings plugins should sort meetings to the same place on
+the recordings but have different settings". A meeting Ghost was in on Google Meet, on Zoom or in a Discord call, and
+one recorded on the device, is filed, written up, sorted and shelved the same way: the meeting step files every take
+as a note in the Inbox whatever its kind (`syncMeet`, "On the device", below), the summary queue writes it up as any
+meeting, the sorting files it into its workspace's Meetings folder without asking the kind (lib/ai/meeting_sort.dart),
+and the home page's shelf holds every meeting with a tape. So the settings of that are no plugin's: **Sync meeting
+recordings** and **Sort meetings into workspaces** are Settings › Recording's **Meetings** card, once
+(lib/meet/ui/meeting_settings.dart `MeetingsCard`), after this device's own meeting rows (Include sound from other
+apps, Tell me when a meeting is written up, Write up straight away; the computer's sound on the Mac). Each was always
+one synced preference (`syncMeetingRecordings`, `sortMeetings` in `Preferences.more`), never one a kind, so a choice
+made on the old pages reads the same there and nothing is moved. Recording is in Simple wherever a meeting plugin's
+page is, showing that card first and the rest of the page behind More. Each plugin's page keeps what is its own, and
+a row, **Where meetings go** ("Workspaces", or "Inbox" with the sorting off), that opens the card, lit. A link from
+before to Recordings, Sorting or either switch on a meeting plugin's page or on Settings › Meetings lands on the
+card's row (`meetingSettingLanding`). Tests: test/meet/meeting_sorting_test.dart; pictures,
+test/meet/meeting_sorting_shots_test.dart into build/feature-shots/meeting-sorting/.
+
 | | Google Meet | Zoom |
 |---|---|---|
 | id | `google-meet` | `zoom` |
@@ -629,9 +646,10 @@ address. Turn one on in Settings › Account, then invite Ghost here.", with a w
   Its footer says where the sound goes, and how long meetings are kept.
 - **What the host must allow**, on the Zoom page alone: guests, joining from the browser, the passcode in the link, the
   waiting room, captions (the Zoom section's list, above).
-- **Recordings** (Sync meeting recordings, and how many stayed on this phone; not on an iPhone) and **Sorting** (Sort
-  meetings into workspaces): about meetings of every kind, one setting each, the same on both pages
-  (lib/meet/ui/meeting_settings.dart).
+- **Where meetings go**: one row, "Workspaces" or "Inbox", which opens Settings › Recording at its Meetings card,
+  where Sync meeting recordings (with how many stayed on this phone) and Sort meetings into workspaces are, once for
+  every kind ("One place for every meeting", above). Until later on 2026-10-26 the two were a copy on each page, as
+  Recordings and Sorting.
 
 Post to Slack and Post to Discord, which were Settings › Meetings' too, are sections of the Slack and Discord plugins'
 own pages.

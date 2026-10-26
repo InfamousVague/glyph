@@ -5,9 +5,12 @@ import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart' show AccountScope, AccountServices;
 import '../../capture/voice_log.dart';
 import '../../claude/claude_settings.dart' show ClaudeSettings, claudeSettings;
+import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
+import '../../meet/ui/meeting_settings.dart';
 import '../../plugins/claude/claude.dart' show claudeInApp;
 import '../../watch/watch_link.dart';
 import '../kit/settings_kit.dart';
@@ -19,13 +22,18 @@ import 'watch_section.dart';
 
 /// What Settings' search finds on Recording (`findable`, src/app/settings/RecordingPane.findable.ts, for the app), by
 /// the names the page draws, in its order. Android's rows are listed on Android only, the meetings whether or not
-/// this build has the service that records them: there the search opens the page.
-List<SettingsFindable> recordingFindable({required bool android}) => [
-      const SettingsFindable('Stop when I go quiet', 'silence auto stop'),
-      const SettingsFindable('Review after recording', 'check transcript'),
-      const SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
-      const SettingsFindable('Better words', 'refine clean up transcript'),
-      const SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
+/// this build has the service that records them: there the search opens the page. The Meetings card's own two
+/// (lib/meet/ui/meeting_settings.dart): Sync meeting recordings [signedIn], and Sort meetings into workspaces
+/// wherever the card is drawn without the service (signed in, or the desktop). In [simple] only the Meetings card's,
+/// which is all Simple's page shows until More.
+List<SettingsFindable> recordingFindable({required bool android, bool signedIn = false, bool simple = false}) => [
+      if (!simple) ...const [
+        SettingsFindable('Stop when I go quiet', 'silence auto stop'),
+        SettingsFindable('Review after recording', 'check transcript'),
+        SettingsFindable('Voice log', 'voice commands what the app understood model transcript copy clear debug'),
+        SettingsFindable('Better words', 'refine clean up transcript'),
+        SettingsFindable('Summaries', 'summary meeting write-up minutes long voice notes'),
+      ],
       if (android) ...const [
         SettingsFindable('Include sound from other apps', 'system audio media games screen share meeting record'),
         SettingsFindable('Tell me when a meeting is written up', 'notification notify alert written up'),
@@ -33,8 +41,12 @@ List<SettingsFindable> recordingFindable({required bool android}) => [
       ],
       // The desktop's own Meetings card: one switch, for the computer's sound.
       if (!android) const SettingsFindable("Record the computer's sound too", 'system audio meeting call both sides zoom'),
-      const SettingsFindable('Tapes', 'your tapes storage audio remove space'),
-      const SettingsFindable('Remove audio older than a month', 'storage space delete recordings audio'),
+      if (signedIn && recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
+      if (signedIn || !android) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox google meet zoom discord'),
+      if (!simple) ...const [
+        SettingsFindable('Tapes', 'your tapes storage audio remove space'),
+        SettingsFindable('Remove audio older than a month', 'storage space delete recordings audio'),
+      ],
     ];
 
 /// Recording's row in the list: what a take becomes, better words or the words as heard.
@@ -43,6 +55,14 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 /// Port of `RecordingPane` (src/app/settings/RecordingPane.tsx): the microphone and what happens to a take. While
 /// recording, After recording, the Summaries as three picks with a hint each, the Meetings, and the Tapes. The page's
 /// words say where the work is done: "the phone" on Android, "this Mac" elsewhere.
+///
+/// **Meetings** is where every meeting goes, one card for every kind (Matt, 2026-10-26: "All meetings plugins should
+/// sort meetings to the same place on the recordings but have different settings"; [MeetingsCard],
+/// lib/meet/ui/meeting_settings.dart): this device's own meeting rows, then Sync meeting recordings and Sort meetings
+/// into workspaces, which were a copy on the Google Meet page and the Zoom page until then. Each meeting plugin's page
+/// has a row, Where meetings go, that opens this card, lit. So the page is in Simple too wherever a meeting plugin's
+/// page is (settings_sections.dart), and there it shows the Meetings card and a More row that opens the rest in
+/// place (GHST-103).
 ///
 /// Every switch and pick is a stored preference and is live in `preferences` at once: `quietStop`, `review`,
 /// `refine`, `summaries`, `writeUp` and `meetingSound`.
@@ -62,7 +82,7 @@ String recordingSummary(Preferences prefs) => prefs.refine ? 'Better words' : 'W
 ///   build that could.
 /// - The two rows the recorder reads, and the summaries, change nothing more than the preference until then.
 class RecordingPane extends StatefulWidget {
-  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude});
+  const RecordingPane({super.key, this.store, this.features = const SettingsFeatures(), this.android, this.watch, this.claude, this.services});
 
   /// The preferences to read and write; the app's own when null.
   final PreferencesStore? store;
@@ -79,7 +99,11 @@ class RecordingPane extends StatefulWidget {
   /// switch kept with them); the app's own ([claudeSettings]) when null.
   final ClaudeSettings? claude;
 
-  static Widget hosted(BuildContext context) => RecordingPane(features: SettingsHost.maybeOf(context)?.features ?? const SettingsFeatures());
+  /// The account, for the Meetings card's Sync meeting recordings and the recordings that stayed on this phone; none
+  /// reads as signed in or not by [SettingsFeatures.signedIn], and counts nothing.
+  final AccountServices? services;
+
+  static Widget hosted(BuildContext context) => RecordingPane(features: SettingsHost.maybeOf(context)?.features ?? const SettingsFeatures(), services: AccountScope.maybeOf(context));
 
   @override
   State<RecordingPane> createState() => _RecordingPaneState();
@@ -148,6 +172,9 @@ class _RecordingPaneState extends State<RecordingPane> {
   /// What Copy did, in the voice log's footer.
   String? _copied;
 
+  /// Simple's More, pressed: the rest of the page under the Meetings card.
+  bool _more = false;
+
   /// The watch, as this page reads it: asked again each time the page is put up.
   WatchLink? _watch;
 
@@ -205,146 +232,177 @@ class _RecordingPaneState extends State<RecordingPane> {
         final bytes = features.tapes ?? 0;
         final remove = features.onRemoveOldAudio;
 
-        return PaneBody(
-          children: [
-            PaneSection(
-              title: 'While recording',
-              children: [
-                SettingRow(
-                  label: 'Stop when I go quiet',
-                  hint: Text(
-                    android
-                        ? "Saves after four seconds of quiet, once you've started talking. The side key and Done still work."
-                        : "Saves after four seconds of quiet, once you've started talking. Done still works.",
-                  ),
-                  control: GlacierSwitch(ariaLabel: 'Stop when I go quiet', checked: prefs.quietStop, onCheckedChange: (on) => set((now) => now.copyWith(quietStop: on))),
-                ),
-                SettingRow(
-                  label: 'Review after recording',
-                  hint: const Text('After you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes.'),
-                  control: GlacierSwitch(ariaLabel: 'Review after recording', checked: prefs.review, onCheckedChange: (on) => set((now) => now.copyWith(review: on))),
-                ),
-              ],
-            ),
-            PaneSection(
-              title: 'After recording',
-              children: [
-                SettingRow(
-                  label: 'Better words',
-                  hint: Text('A larger model goes over the recording and fixes the words. A few seconds of $device per minute of speech.'),
-                  control: GlacierSwitch(ariaLabel: 'Better words after recording', checked: prefs.refine, onCheckedChange: (on) => set((now) => now.copyWith(refine: on))),
-                ),
-              ],
-            ),
-            PaneSection(
-              title: 'Summaries',
-              description: Text('The language model on $device writes a summary under the title. What was said, what was decided, and your to-dos.'),
-              children: [
-                // Which recordings are summarised on their own (`summaryChoices`), each with what it means.
-                for (final (value, label, hint) in <(String, String, String?)>[
-                  ('meetings', 'Meetings', 'Every meeting, once it is done.'),
-                  ('long', 'Meetings and long voice notes', 'A long voice note is one over three minutes. A few minutes of $device for each.'),
-                  ('off', 'Off', null),
-                ])
-                  SettingRow(
-                    key: ValueKey('summaries-$value'),
-                    label: label,
-                    hint: hint == null ? null : Text(hint),
-                    control: Pick(checked: prefs.summaries == value, label: label, onPress: () => set((now) => now.copyWith(summaries: value))),
-                  ),
-              ],
-            ),
-            if (android && features.meetings)
-              PaneSection(
-                title: 'Meetings',
-                children: [
-                  sound,
-                  SettingRow(
-                    label: 'Tell me when a meeting is written up',
-                    hint: Text(
-                      _blocked && !canNotify
-                          ? 'Notifications are off for Ghost.md in the phone’s settings.'
-                          : 'A notification, with the first line of the summary once the phone is unlocked.',
-                    ),
-                    value: canNotify ? const Text('On') : null,
-                    control: canNotify
-                        ? null
-                        : RowAction(
-                            onPress: () {
-                              if (allow == null) return;
-                              void answered(bool asked) {
-                                if (!asked && mounted) setState(() => _blocked = true);
-                              }
+        // This device's own rows for its meetings, first on the Meetings card: on Android with the meeting service the
+        // sound, the notification and when it is written up; on the desktop the computer's sound.
+        final deviceRows = <Widget>[
+          if (android && features.meetings) ...[
+            sound,
+            SettingRow(
+              label: 'Tell me when a meeting is written up',
+              hint: Text(
+                _blocked && !canNotify
+                    ? 'Notifications are off for Ghost.md in the phone’s settings.'
+                    : 'A notification, with the first line of the summary once the phone is unlocked.',
+              ),
+              value: canNotify ? const Text('On') : null,
+              control: canNotify
+                  ? null
+                  : RowAction(
+                      onPress: () {
+                        if (allow == null) return;
+                        void answered(bool asked) {
+                          if (!asked && mounted) setState(() => _blocked = true);
+                        }
 
-                              // `if (requestNotifications() === 'blocked') setBlocked(true)`, once the phone has said.
-                              final said = allow();
-                              if (said is bool) return answered(said);
-                              unawaited(said.then<void>(answered, onError: (Object _) => answered(false)));
-                            },
-                            disabled: allow == null,
-                            child: const Text('Allow'),
-                          ),
-                  ),
-                  SettingRow(
-                    label: 'Write up straight away',
-                    hint: const Text('Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery.'),
-                    control: GlacierSwitch(
-                      ariaLabel: 'Write up straight away',
-                      checked: prefs.writeUp == 'now',
-                      onCheckedChange: (now) => set((was) => was.copyWith(writeUp: now ? 'now' : 'charging')),
+                        // `if (requestNotifications() === 'blocked') setBlocked(true)`, once the phone has said.
+                        final said = allow();
+                        if (said is bool) return answered(said);
+                        unawaited(said.then<void>(answered, onError: (Object _) => answered(false)));
+                      },
+                      disabled: allow == null,
+                      child: const Text('Allow'),
                     ),
-                  ),
-                ],
-              ),
-            if (!android) PaneSection(title: 'Meetings', children: [sound]),
-            // Tapes: the room the recordings take on this device, and the way to give back the room the old ones take.
-            PaneSection(
-              title: 'Tapes',
-              footer: Text(
-                _said ??
-                    (features.countingTapes
-                        ? 'Your tapes are being counted.'
-                        : bytes <= 0
-                            ? 'No tapes on this device.'
-                            : 'Your tapes take about ${tapeSize(bytes)} on this device.'),
-              ),
-              children: [
-                SettingRow(
-                  label: 'Remove audio older than a month',
-                  hint: const Text('Every word and phrase stays. Only the audio goes.'),
-                  control: remove == null
-                      ? null
-                      : ArmedAction(
-                          word: 'Remove',
-                          busyWord: 'Removing',
-                          disabled: features.oldTapes == 0,
-                          onDo: () async {
-                            final removed = await remove();
-                            if (mounted) setState(() => _said = removed == 0 ? 'Nothing to remove.' : 'Removed the audio of ${removed == 1 ? 'one tape' : '$removed tapes'}. The words stay.');
-                          },
-                          onFailed: (why) => setState(() => _said = why),
-                        ),
-                ),
-              ],
             ),
-            // Last, so every card above it stays where the page puts it (panes_test.dart, rect for rect).
-            _voiceLogSection(context),
-            // The watch, after even the voice log, and only where a watch has Ghost.md (docs/WATCH.md).
-            if (android && (_watch?.value.any ?? false))
-              ListenableBuilder(
-                listenable: widget.claude ?? claudeSettings,
-                builder: (context, _) {
-                  final claude = widget.claude ?? claudeSettings;
-                  return WatchSection(
-                    status: _watch!.value,
-                    claude: claudeInApp() && claude.hasKey,
-                    toClaude: claude.watch,
-                    onToClaude: (on) => unawaited(claude.setWatch(on)),
-                  );
-                },
+            SettingRow(
+              label: 'Write up straight away',
+              hint: const Text('Off, a meeting is written up when the phone is charging or above half. On, straight away, which uses more of the battery.'),
+              control: GlacierSwitch(
+                ariaLabel: 'Write up straight away',
+                checked: prefs.writeUp == 'now',
+                onCheckedChange: (now) => set((was) => was.copyWith(writeUp: now ? 'now' : 'charging')),
               ),
+            ),
           ],
-        );
+          if (!android) sound,
+        ];
+        // Every meeting's settings, one card for every kind (meeting_settings.dart): drawn where there is a meeting
+        // to have them, a recorder's or the account's.
+        final signedIn = widget.services?.signedIn ?? features.signedIn;
+        final Widget? meetings = deviceRows.isEmpty && !signedIn
+            ? null
+            : MeetingsCard(store: store, services: widget.services, before: deviceRows, signedIn: signedIn, records: recordsVoice);
+
+        final rest = <Widget>[
+          PaneSection(
+            title: 'While recording',
+            children: [
+              SettingRow(
+                label: 'Stop when I go quiet',
+                hint: Text(
+                  android
+                      ? "Saves after four seconds of quiet, once you've started talking. The side key and Done still work."
+                      : "Saves after four seconds of quiet, once you've started talking. Done still works.",
+                ),
+                control: GlacierSwitch(ariaLabel: 'Stop when I go quiet', checked: prefs.quietStop, onCheckedChange: (on) => set((now) => now.copyWith(quietStop: on))),
+              ),
+              SettingRow(
+                label: 'Review after recording',
+                hint: const Text('After you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes.'),
+                control: GlacierSwitch(ariaLabel: 'Review after recording', checked: prefs.review, onCheckedChange: (on) => set((now) => now.copyWith(review: on))),
+              ),
+            ],
+          ),
+          PaneSection(
+            title: 'After recording',
+            children: [
+              SettingRow(
+                label: 'Better words',
+                hint: Text('A larger model goes over the recording and fixes the words. A few seconds of $device per minute of speech.'),
+                control: GlacierSwitch(ariaLabel: 'Better words after recording', checked: prefs.refine, onCheckedChange: (on) => set((now) => now.copyWith(refine: on))),
+              ),
+            ],
+          ),
+          PaneSection(
+            title: 'Summaries',
+            description: Text('The language model on $device writes a summary under the title. What was said, what was decided, and your to-dos.'),
+            children: [
+              // Which recordings are summarised on their own (`summaryChoices`), each with what it means.
+              for (final (value, label, hint) in <(String, String, String?)>[
+                ('meetings', 'Meetings', 'Every meeting, once it is done.'),
+                ('long', 'Meetings and long voice notes', 'A long voice note is one over three minutes. A few minutes of $device for each.'),
+                ('off', 'Off', null),
+              ])
+                SettingRow(
+                  key: ValueKey('summaries-$value'),
+                  label: label,
+                  hint: hint == null ? null : Text(hint),
+                  control: Pick(checked: prefs.summaries == value, label: label, onPress: () => set((now) => now.copyWith(summaries: value))),
+                ),
+            ],
+          ),
+          // Where the Meetings card stands in Advanced, between the summaries and the tapes; first in Simple.
+          if (!prefs.simple) ?meetings,
+          // Tapes: the room the recordings take on this device, and the way to give back the room the old ones take.
+          PaneSection(
+            title: 'Tapes',
+            footer: Text(
+              _said ??
+                  (features.countingTapes
+                      ? 'Your tapes are being counted.'
+                      : bytes <= 0
+                          ? 'No tapes on this device.'
+                          : 'Your tapes take about ${tapeSize(bytes)} on this device.'),
+            ),
+            children: [
+              SettingRow(
+                label: 'Remove audio older than a month',
+                hint: const Text('Every word and phrase stays. Only the audio goes.'),
+                control: remove == null
+                    ? null
+                    : ArmedAction(
+                        word: 'Remove',
+                        busyWord: 'Removing',
+                        disabled: features.oldTapes == 0,
+                        onDo: () async {
+                          final removed = await remove();
+                          if (mounted) setState(() => _said = removed == 0 ? 'Nothing to remove.' : 'Removed the audio of ${removed == 1 ? 'one tape' : '$removed tapes'}. The words stay.');
+                        },
+                        onFailed: (why) => setState(() => _said = why),
+                      ),
+              ),
+            ],
+          ),
+          // Last, so every card above it stays where the page puts it (panes_test.dart, rect for rect).
+          _voiceLogSection(context),
+          // The watch, after even the voice log, and only where a watch has Ghost.md (docs/WATCH.md).
+          if (android && (_watch?.value.any ?? false))
+            ListenableBuilder(
+              listenable: widget.claude ?? claudeSettings,
+              builder: (context, _) {
+                final claude = widget.claude ?? claudeSettings;
+                return WatchSection(
+                  status: _watch!.value,
+                  claude: claudeInApp() && claude.hasKey,
+                  toClaude: claude.watch,
+                  onToClaude: (on) => unawaited(claude.setWatch(on)),
+                );
+              },
+            ),
+        ];
+
+        // Simple (GHST-103): the Meetings card, which is what brings Simple here (a meeting plugin's Where meetings
+        // go), and the rest of the page behind More, opened in place.
+        if (prefs.simple) {
+          return PaneBody(
+            children: [
+              ?meetings,
+              if (_more)
+                ...rest
+              else
+                PaneSection(
+                  children: [
+                    SettingRow(
+                      key: const ValueKey('recording-more'),
+                      label: 'More',
+                      hint: const Text('While and after recording, summaries, tapes and the voice log.'),
+                      control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
+                    ),
+                  ],
+                ),
+            ],
+          );
+        }
+        return PaneBody(children: rest);
       },
     );
   }

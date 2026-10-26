@@ -6,7 +6,9 @@ import '../core/preferences.dart';
 import '../art/art.dart' show AppIcon, Lucide;
 import '../core/workspaces.dart' show Workspace;
 import '../market/market_items.dart' show marketLanding;
+import '../meet/ui/meeting_settings.dart' show meetingsGoSaid, recordingSectionId;
 import '../plugins/catalogue.dart' show catalogueOrder;
+import '../plugins/meetings/meetings.dart' show googleMeetManifest, meetingPluginOffered, zoomManifest;
 import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show PluginSettings;
 import 'appearance_pane.dart';
@@ -221,6 +223,8 @@ const Map<String, ({String id, String setting})> settingsAliases = {'experience'
 /// nowhere to send the link on to (the sheet hands it to the Market itself where it can). What was Meetings is a
 /// meeting plugin's page ([meetingsLanding]).
 SettingsTarget settingsLanding(SettingsTarget target) {
+  final shared = meetingSettingLanding(target);
+  if (shared != null) return shared;
   if (target.id == meetingsSectionId) return meetingsLanding(target);
   if (marketLanding(target.id) != null) return SettingsTarget(marketSectionId, nonce: target.nonce);
   final alias = settingsAliases[target.id];
@@ -247,12 +251,40 @@ SettingsTarget meetingsLanding(SettingsTarget target) {
   return SettingsTarget(pluginPageId(page), setting: card, nonce: target.nonce);
 }
 
+/// The meeting settings every kind shares, by the names they had on the pages that drew a copy of them (Settings ›
+/// Meetings, then the Google Meet and Zoom pages, whose cards were Recordings and Sorting), each to its row on
+/// Settings › Recording's Meetings card now (Matt, 2026-10-26: "All meetings plugins should sort meetings to the same
+/// place on the recordings but have different settings"; lib/meet/ui/meeting_settings.dart).
+const Map<String, String> sharedMeetingSettings = {
+  'Recordings': 'Sync meeting recordings',
+  'Sync meeting recordings': 'Sync meeting recordings',
+  'Sorting': 'Sort meetings into workspaces',
+  'Sort meetings into workspaces': 'Sort meetings into workspaces',
+};
+
+/// Where a link from before to a shared meeting setting lands: on Settings › Recording, at its row there, from what was
+/// Settings › Meetings or a meeting plugin's page. Null for any other link.
+SettingsTarget? meetingSettingLanding(SettingsTarget target) {
+  final row = sharedMeetingSettings[target.setting];
+  if (row == null) return null;
+  final from = {meetingsSectionId, pluginPageId(googleMeetManifest.id), pluginPageId(zoomManifest.id), pluginPageId('discord')};
+  return from.contains(target.id) ? SettingsTarget(recordingSectionId, setting: row, nonce: target.nonce) : null;
+}
+
+/// Whether a meeting plugin's page is on Settings' list in Simple, which brings Recording there too: its Meetings card
+/// is where every meeting goes, and each such page has a row to it.
+bool meetingPagesInSimple(SettingsFacts facts) {
+  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id);
+  return (on(googleMeetManifest.id) || on(zoomManifest.id)) && meetingPluginOffered(facts.services);
+}
+
 /// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you, the meeting plugins' pages (which
 /// were Meetings, which was a card of Account's until GHST-110; [PluginSettings.simple]), how it looks with the choice
-/// itself on its first card, and the app itself with its cheat sheet. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
+/// itself on its first card, and the app itself with its cheat sheet. Recording too wherever a meeting plugin's page is
+/// ([meetingPagesInSimple]), for its Meetings card, the rest of it behind More. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, the Market and the plugins' pages, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'recording', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -441,18 +473,20 @@ final List<SettingsSectionSpec> _sections = [
     listed: false,
     parent: 'export',
   ),
-  // Where a recorder runs: Android, and the desktop app.
+  // Where a recorder runs: Android, and the desktop app. In Simple where a meeting plugin's page is, for the Meetings
+  // card every meeting shares.
   SettingsSectionSpec(
-    id: 'recording',
+    id: recordingSectionId,
     label: 'Recording',
     words: 'voice microphone mic dictate',
     glyph: SettingsGlyph.mic,
     group: 2,
     webFile: 'settings/RecordingPane.tsx',
-    where: (facts) => !facts.ios && _advanced(facts),
-    // What a take becomes: better words, or the words as heard.
-    summary: (facts) => recordingSummary(facts.prefs),
-    settings: (facts) => recordingFindable(android: facts.android),
+    where: (facts) => !facts.ios && (_advanced(facts) || meetingPagesInSimple(facts)),
+    // What a take becomes: better words, or the words as heard. In Simple, where the page is its Meetings card, where
+    // meetings go.
+    summary: (facts) => facts.simple ? 'Meetings: ${meetingsGoSaid(facts.prefs)}' : recordingSummary(facts.prefs),
+    settings: (facts) => recordingFindable(android: facts.android, signedIn: facts.signedIn, simple: facts.simple),
     pane: RecordingPane.hosted,
   ),
   // The model and how it fills a note: its own section where a model runs, never an iPhone.

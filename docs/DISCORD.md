@@ -16,7 +16,7 @@ The plugin is built in, off until added in the Market (category Connections). It
 | `channels.dart` | `channels.dart` | the channels, the webhook's shape, the post, Discord's answers and its 429 |
 | `markdown.dart` | `mrkdwn.dart` | a note as Discord's Markdown, and the cut to one message |
 | `meetings.dart` | `meetings.dart` | the meeting's message, the setting, the once-per-account mark, the queue of tries |
-| `meetings_section.dart` | `meetings_section.dart` | Settings › Meetings › Post to Discord, and the page's Automations line |
+| `meetings_section.dart` | `meetings_section.dart` | Post to Discord on the plugin's page (Settings › Meetings' once), and the page's Automations line |
 | `discord_pane.dart` | `slack_pane.dart` | the plugin's page in Settings |
 | `marks.dart` | `marks.dart` | the mark on a note's More sheet |
 | `discord.dart` | `slack.dart` | the plugin, its two note actions, its seams |
@@ -43,7 +43,7 @@ it. No sign-in, no bot, nothing on our server: each post goes straight from the 
 
 The channels follow the account, sealed, exactly as Slack's do (`lib/sync/connections.dart`, a674e242's sealed keys,
 `lib/sync/sealed_keys.dart`): each `glyph-discord-webhook:<id>` sealed on its own under the account key, the list
-`glyph-discord-channels`, Settings › Meetings › Post to Discord `glyph-discord-meetings` (switch, channel, share
+`glyph-discord-channels`, Post to Discord's `glyph-discord-meetings` (switch, channel, share
 link), and the plugin's switch `plugin:discord`. A channel added on the Fold posts from the Mac; one forgotten anywhere
 is forgotten everywhere. What stays on each device: the queue of meeting posts still to try,
 `glyph-discord-meeting-queue`.
@@ -115,7 +115,12 @@ problem…"*; a timeout or no network in a sentence of its own.
 
 ## Meetings
 
-Settings › Meetings has **Post to Discord**, its own section under Post to Slack, drawn only with the plugin on and a
+Where a Discord call goes, as every meeting: Settings › Recording's Meetings card, one sorting for every kind (Matt,
+2026-10-26: "All meetings plugins should sort meetings to the same place on the recordings but have different
+settings"; docs/MEET.md, "One place for every meeting"). The plugin's page says it in a row, **Where meetings go**,
+under the calls, which opens that card; nothing of Discord's own forks it.
+
+The Discord plugin's page has **Post to Discord** (Settings › Meetings' until that became the meeting plugins' pages), drawn only with the plugin on and a
 channel on the device: the switch (off until a channel is chosen), the channel, Include a share link (on unless turned
 off, with Slack's warning), and any meeting not posted with Discord's reason, Try now and Don't post. In Simple, the
 channel and the share link are behind More. A section of its own rather than one "Post meetings to" list: each chat has

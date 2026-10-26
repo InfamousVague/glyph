@@ -403,7 +403,9 @@ void main() {
     testWidgets('with the meeting service, draws Meetings: the sound, the notification, and when it is written up', (tester) async {
       var asked = 0;
       await openPane(tester, 'recording', size: const Size(390, 1800), features: SettingsFeatures(meetings: true, meetingSoundWhy: 'Update Ghost.md to include sound from other apps.', onAllowMeetingNotices: () => ++asked > 0 && false));
-      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Tell me when a meeting is written up', 'Write up straight away']);
+      // Then the sorting every meeting shares, whatever plugin it came from (lib/meet/ui/meeting_settings.dart); Sync
+      // meeting recordings waits for an account.
+      expect(rowLabels(tester, 'Meetings'), ['Include sound from other apps', 'Tell me when a meeting is written up', 'Write up straight away', 'Sort meetings into workspaces']);
       // The sound has no switch where the device cannot, and says why.
       expect(tester.widget<SettingRow>(rowCalled('Include sound from other apps')).control, isNull);
       expect(find.text('Update Ghost.md to include sound from other apps.'), findsOneWidget);

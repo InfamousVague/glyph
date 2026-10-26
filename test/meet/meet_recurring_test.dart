@@ -126,7 +126,7 @@ void main() {
     history(d.meet, 3);
     await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
-    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Recurring', 'Ghost in Google Meet', 'Recordings', 'Sorting']));
+    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Recurring', 'Ghost in Google Meet']));
     expect(hintOf(tester, 'meet-series-stand'), allOf(contains('Engineering Standup'), contains('Every weekday at 9:30\nNext: Mon 26 Oct'), contains('Stop joining')));
     expect(find.text('Ghost won’t join Engineering Standup any more. Past recordings stay.'), findsNothing);
     // The occurrence is marked as a series', the meeting of its own is not.

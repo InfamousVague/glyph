@@ -3,14 +3,15 @@
 // Google meets and discord handle their own meetings". Once there is an address, the invite first (a link of the
 // page's kind sent now, the address with Copy and a new one, asked first, said to work for Meet and Zoom alike), then
 // what Ghost does and where the sound goes over the page's own kind of meetings with where each stands in words,
-// Don't join on one to come, and a meeting that became a note opening it. Then the recordings' switch with how many
-// stayed on this phone. Without an address, a word on where Email to a note is turned on: Account, whose card it is
+// Don't join on one to come, and a meeting that became a note opening it. Then Where meetings go, the row to Settings ›
+// Recording's Meetings card, where the recordings' switch and the sorting are for every kind (Matt, 2026-10-26: "All
+// meetings plugins should sort meetings to the same place on the recordings but have different settings"; their tests
+// are test/meet/meeting_sorting_test.dart). Without an address, a word on where Email to a note is turned on: Account, whose card it is
 // again. Join refuses a link of a kind whose plugin is off, and a link of the other kind says which page takes it. On
 // a phone and a wide window, light and dark.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/summary_handoff.dart';
-import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/mail/ui/mail_card.dart';
 import 'package:ghost_md/meet/gmt.dart' show MeetService;
@@ -119,7 +120,9 @@ void main() {
     await settle(tester, 10);
     expect(find.byType(MeetInviteCard), findsOneWidget);
     expect(find.text(d.device.service.mailAddress!.replaceFirst('@', '@​')), findsOneWidget, reason: 'drawn once, on the invite card');
-    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in Google Meet', 'Recordings', 'Sorting']));
+    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in Google Meet']));
+    expect(titlesOf(tester), isNot(anyOf(contains('Recordings'), contains('Sorting'))));
+    expect(find.byKey(const ValueKey('meetings-go')), findsOneWidget);
     await endSettings(tester);
   });
 
@@ -141,44 +144,14 @@ void main() {
     await endSettings(tester);
   });
 
-  testWidgets('the recordings switch is on Meetings, on by default, and writes the choice', (tester) async {
-    final d = await made();
-    await d.device.pump(tester, page(d));
-    await settle(tester, 10);
-    expect(find.textContaining("A meeting is other people's voices: off, the words sync and the audio stays on the device it was made on."), findsOneWidget);
-    expect(find.textContaining('to everyone in the team'), findsOneWidget);
-    expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (true, false));
-    final toggle = find.byWidgetPredicate((w) => w is GlacierSwitch && w.ariaLabel == 'Sync meeting recordings');
-    await tester.ensureVisible(toggle);
-    await tester.tap(toggle);
-    await settle(tester);
-    expect((preferences.value.syncMeetingRecordings, preferences.value.syncMeetingRecordingsChosen), (false, true));
-    await endSettings(tester);
-  });
-
-  testWidgets('counts the recordings that stayed on this phone: a meeting’s while those stay, and any over the service’s limit', (tester) async {
-    final d = await made();
-    Note taped(String id, String body, int ms) => d.device.notes.held[id] = Note(id: id, body: body, createdAt: 0, updatedAt: 0, source: NoteSource.capture, recordingMs: ms, segments: const []);
-    taped('m', '# Meeting, 26 Sep 14:05', 60000);
-    taped('big', '# Long', 150 * 60000);
-    taped('ok', '# Short', 60000);
-    preferences.update((now) => now.copyWith(meetings: const {'m': 1}, syncMeetingRecordings: false, syncMeetingRecordingsChosen: true));
-    await d.device.pump(tester, page(d));
-    await settle(tester);
-    expect(find.textContaining('2 recordings stayed on this phone: meetings, while their recordings stay'), findsOneWidget);
-    preferences.update((now) => now.copyWith(syncMeetingRecordings: true));
-    await settle(tester);
-    expect(find.textContaining('1 recording stayed on this phone: longer than the account takes'), findsOneWidget);
-    await endSettings(tester);
-  });
-
   for (final (kind, words) in [('meet', 'Google Meet'), ('zoom', 'Zoom')]) {
     testWidgets('every name the search lists for the $words page is on it', (tester) async {
       final d = await made();
       await d.device.pump(tester, page(d, kind: kind));
       await settle(tester, 10);
       final names = meetingPluginFindable(kind, d.device.services).map((found) => found.name).toList();
-      expect(names, containsAll(['Invite Ghost', 'Ghost in $words', 'Sync meeting recordings', 'Sort meetings into workspaces', if (kind == 'zoom') zoomHostAllows]));
+      expect(names, containsAll(['Invite Ghost', 'Ghost in $words', 'Where meetings go', if (kind == 'zoom') zoomHostAllows]));
+      expect(names, isNot(anyOf(contains('Sync meeting recordings'), contains('Sort meetings into workspaces'))), reason: 'Settings › Recording’s, for every kind');
       for (final name in names) {
         expect(find.byWidgetPredicate((w) => w is SettingsFindableMark && w.name == name, skipOffstage: false), findsWidgets, reason: 'the $words page lists "$name" and does not draw it');
       }
@@ -332,7 +305,8 @@ void main() {
     await settle(tester, 10);
     expect(find.byKey(const ValueKey('meet-z')), findsOneWidget);
     expect(find.byKey(const ValueKey('meet-b')), findsNothing);
-    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in Zoom', zoomHostAllows, 'Recordings']));
+    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in Zoom', zoomHostAllows]));
+    expect(titlesOf(tester), isNot(anyOf(contains('Recordings'), contains('Sorting'))));
     expect(find.text('Add this address as a guest on a calendar invite with a Zoom link. The same address works for Meet and Zoom invites. Mail sent to it becomes a note in your Inbox.'), findsOneWidget);
     expect(find.text(address.replaceFirst('@', '@​')), findsOneWidget, reason: 'the same address on both pages');
     await typeInto(tester, 'Zoom link', 'us06web.zoom.us/j/83512345678?pwd=AbC.1&uname=Sam');
