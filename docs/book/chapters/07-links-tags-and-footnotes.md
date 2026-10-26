@@ -127,4 +127,4 @@ While you speak a note, links have spoken forms too:
 
 See [[Speaking your notes]].
 
-See also: [[Markdown and Ghost.md's marks]], [[Lists, to-dos and tickets]], [[Canvases, cards and lines]], [[Workspaces, folders and search]]
+See also: [[Markdown and the Ghost.md marks]], [[Lists, to-dos and tickets]], [[Canvases, cards and lines]], [[Workspaces, folders and search]]

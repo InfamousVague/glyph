@@ -171,7 +171,7 @@ Ghost.md's own formatting on top of Markdown, typed or said: a spoiler in smoke,
 
 It has no settings and asks for nothing. Remove it and the marks are plain text.
 
-Works on: Android, iPhone and Mac. See [[Markdown and Ghost.md's marks]].
+Works on: Android, iPhone and Mac. See [[Markdown and the Ghost.md marks]].
 
 ## Rich embeds
 

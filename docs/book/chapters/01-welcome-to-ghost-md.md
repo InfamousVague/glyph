@@ -15,7 +15,7 @@ Ghost.md is a notes app for the things you type and the things you say. Every no
 
 A note is words with a few marks around them. Type `**Friday**` and it reads as **Friday**. Type `- [ ] Book the cabin` and you get a box to tick. Ghost.md draws each mark as you type, and the file keeps the characters you typed.
 
-Ghost.md also has a handful of marks of its own, such as ==a highlight== and %%a quiet aside%%. In any other app they still read as the characters you typed. [[Markdown and Ghost.md's marks]] covers them all.
+Ghost.md also has a handful of marks of its own, such as ==a highlight== and %%a quiet aside%%. In any other app they still read as the characters you typed. [[Markdown and the Ghost.md marks]] covers them all.
 
 ## Simple or Advanced
 

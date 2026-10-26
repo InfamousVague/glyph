@@ -57,7 +57,7 @@ A note can show its marks, or hide them:
 - **Markdown** shows the words formatted, with the marks still on the page, dimmed.
 - **Formatted** hides the marks. The line you're editing shows its marks again so you can change them.
 
-Switch between them with the first round button in a note's tools, or from the More sheet. Simple starts in Formatted. See [[Markdown and Ghost.md's marks]].
+Switch between them with the first round button in a note's tools, or from the More sheet. Simple starts in Formatted. See [[Markdown and the Ghost.md marks]].
 
 ## Pin, archive and delete
 
@@ -93,4 +93,4 @@ If you turn on **Tag new notes with my location** in Settings › Account, each 
 - **Ghost.md Academy** teaches one mark at a time, in short lessons. Open it from Settings › About. If you know Markdown already, switch on **I know Markdown already** to learn only Ghost.md's own marks.
 - **The cheat sheet** puts every mark on one page: Settings › About › **Cheat sheet**, or **Formatting cheat sheet** in a note's More sheet.
 
-See also: [[Markdown and Ghost.md's marks]], [[Speaking your notes]], [[Workspaces, folders and search]], [[Notebooks and journals]]
+See also: [[Markdown and the Ghost.md marks]], [[Speaking your notes]], [[Workspaces, folders and search]], [[Notebooks and journals]]

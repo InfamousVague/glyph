@@ -16,7 +16,7 @@ Everything Ghost.md does, a page at a time: for the Android, iPhone and Mac apps
 
 ## Part II: Writing
 
-6. [[Markdown and Ghost.md's marks]]
+6. [[Markdown and the Ghost.md marks]]
 7. [[Links, tags and footnotes]]
 8. [[Lists, to-dos and tickets]]
 9. [[Boards, tables and live queries]]

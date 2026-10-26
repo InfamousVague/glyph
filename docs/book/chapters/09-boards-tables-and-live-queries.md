@@ -128,4 +128,4 @@ show: table
 
 The first is a ticket board that moves as tickets change. The second adds up what's left.
 
-See also: [[Lists, to-dos and tickets]], [[Notebooks and journals]], [[Plugins, one by one]], [[Markdown and Ghost.md's marks]]
+See also: [[Lists, to-dos and tickets]], [[Notebooks and journals]], [[Plugins, one by one]], [[Markdown and the Ghost.md marks]]

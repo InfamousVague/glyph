@@ -111,4 +111,4 @@ The first time, Ghost.md downloads its voice model, about 60 MB. The home page s
 
 With **Local only** on, the model isn't downloaded. Turn Local only off in Settings to get it.
 
-See also: [[Meetings and the Meet bot]], [[Tapes and transcripts]], [[Markdown and Ghost.md's marks]], [[AI on your device]]
+See also: [[Meetings and the Meet bot]], [[Tapes and transcripts]], [[Markdown and the Ghost.md marks]], [[AI on your device]]

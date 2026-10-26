@@ -1,5 +1,4 @@
-# Markdown and Ghost.md's marks
-
+# Markdown and the Ghost.md marks
 A note is words with a few marks around them. Type a mark and Ghost.md draws what it means, as you type. The characters stay in the file, so any other Markdown app reads the same thing.
 
 Ghost.md reads standard Markdown first. On top of that it adds a few marks of its own, from the Marks plugin.
