@@ -15,6 +15,10 @@ if ('serviceWorker' in navigator) {
 
 _flutter.loader.load({
   config: {
+    // WebAssembly wherever the browser has WasmGC, Safari's and Firefox's engines too: Flutter's loader offers it to
+    // Chromium alone by default, and the JavaScript copy it would give the others opens only the "too old" page (the
+    // app's 64-bit hashes need WebAssembly's ints; lib/web/too_old.dart, docs/WEB.md). Walked in WebKit, 2026-10-26.
+    wasmAllowList: { blink: true, gecko: true, webkit: true },
     // The box serves the page without cross-origin isolation, so skwasm draws on one thread; it says so once, and
     // that is known (docs/WEB.md, "Threads").
     suppressMultithreadingWarning: true,

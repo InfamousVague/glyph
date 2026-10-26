@@ -33,6 +33,8 @@ reminder's id, a diagram's file). A Dart `int` compiled to JavaScript is a doubl
 so every one of those would be another number than the phone's. In WebAssembly an `int` is 64 bits, as on the
 phone. The one 64-bit literal is written in halves (`fnvOffsetBasis`) so the JavaScript copy still compiles; that
 copy opens nothing but the "too old" page. Browsers: Chrome and Edge 119, Firefox 120, Safari 18.2 and later.
+Flutter's loader offers WebAssembly to Chromium alone unless told otherwise, and Safari and Firefox would have had the
+"too old" page: `web/flutter_bootstrap.js` allows all three engines (`wasmAllowList`).
 
 **Why Rust compiled to WebAssembly for the crypto and the documents.** These must be the same bytes on every device:
 a password's derived halves under the `glyph/v1/` salt, the sealed wire, an organization's key out of its wrap, a
@@ -57,7 +59,8 @@ core.
 
 ## What a browser does, and what it does not
 
-Seen working in Chromium (2026-10-26, `tool/web_shots.mjs`, signed in nowhere): the sign-in page, "Use without an
+Seen working in Chromium and in WebKit, Safari's engine (2026-10-26, `tool/web_shots.mjs`, signed in nowhere; Firefox
+not yet tried): the sign-in page, "Use without an
 account", the walkthrough, home, a note opened and typed in and still there after a reload, the Market, Settings and
 About, at a desktop's width and a phone's. Built to work as in the apps, and not yet tried against the real service
 (no check here signs in): signing in and up to the same account, sync of notes, pictures and versions, organizations
