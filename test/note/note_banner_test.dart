@@ -56,7 +56,7 @@ void main() {
       await tester.runAsync(() => store.keep('lovart-sample.png', bytes));
       await pumpApp(
         tester,
-        size: const Size(420, 360),
+        size: const Size(420, 440),
         prefs: AppPreferences(theme: theme),
         home: Builder(
           builder: (context) => ColoredBox(
@@ -152,5 +152,19 @@ void main() {
     expect(await filters('lovart-colour.png'), 0, reason: 'turned over, its reds would come out cyan');
     expect(await filters('lovart-grey.png'), 1, reason: 'black dots turn to light on the dark page, as before');
     debugDisableShadows = true;
+  });
+
+  test('a square picture with its drawing in a band is drawn at the band\'s shape, the drawing in the middle (Matt, 2026-10-26)', () {
+    // Lovart's 1254×1254, the drawing across the middle: 10%–90% wide, 30%–60% high.
+    const look = BannerLook(colour: true, aspect: 1, drawn: Rect.fromLTRB(0.1, 0.3, 0.9, 0.6));
+    expect(look.shape, bannerWidest, reason: 'the drawing\'s own shape, 8:3, held to the widest');
+    final at = look.alignmentIn(look.shape);
+    // The box shows 1/2.5 of the height; centred on the drawing's middle, 0.45, it shows 0.25–0.65: all of it.
+    final seen = 1 / look.shape, top = (at.y + 1) / 2 * (1 - seen);
+    expect(top, lessThanOrEqualTo(0.3));
+    expect(top + seen, greaterThanOrEqualTo(0.6));
+    // A drawing as wide as a strip is held to the widest; one as tall as the picture to the tallest.
+    expect(const BannerLook(colour: false, aspect: 1, drawn: Rect.fromLTRB(0, 0.45, 1, 0.5)).shape, bannerWidest);
+    expect(const BannerLook(colour: false, aspect: 1, drawn: Rect.fromLTRB(0, 0, 1, 1)).shape, bannerTallest);
   });
 }
