@@ -2,6 +2,7 @@
  * The bot's decisions, kept apart from the browser and the network so they can be tested with plain numbers: which
  * meeting to join, which ones to give up on while it is busy, and when to leave a call.
  */
+import { isZoomHost } from './zoomtext.mjs';
 
 export const LIMITS = {
   /** How often /due is asked, idle and in a call. */
@@ -143,6 +144,35 @@ export function isMeetUrl(url) {
   } catch {
     return false;
   }
+}
+
+/**
+ * A Zoom link the bot will open, in the forms the server books (server/src/meet/ics.rs `zoom_url`): https, zoom.us or
+ * one name under it, and `/j/<id>` or `/wc/join/<id>` (nine to eleven digits) or a personal `/my/<name>`; and nothing
+ * else (a webinar's `/w/`, a host's start link `/s/`, which would sign in as the host).
+ */
+export function isZoomUrl(url) {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      isZoomHost(parsed.hostname) &&
+      (/^\/(?:j|wc\/join)\/\d{9,11}\/?$/.test(parsed.pathname) || /^\/my\/[a-z0-9._-]{1,64}\/?$/i.test(parsed.pathname))
+    );
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Which service a meeting's link is on, so session.mjs drives the page that service draws (lib/meet.mjs,
+ * lib/zoom.mjs): `meet`, `zoom`, or null for a link the bot will not open. Read from the link itself, not from the
+ * booking's `kind`, which only says the same.
+ */
+export function platformOf(url) {
+  if (isMeetUrl(url)) return 'meet';
+  if (isZoomUrl(url)) return 'zoom';
+  return null;
 }
 
 /** A meeting id safe to put in a file name and a URL path. */

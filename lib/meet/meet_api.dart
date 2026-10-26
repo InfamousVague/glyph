@@ -69,18 +69,23 @@ enum MeetState {
 /// One meeting Ghost is booked for, or was.
 @immutable
 class MeetBooking {
-  const MeetBooking({required this.id, this.title, this.url, required this.startsAt, required this.endsAt, required this.state, this.detail, this.series});
+  const MeetBooking({required this.id, this.title, this.url, this.service, required this.startsAt, required this.endsAt, required this.state, this.detail, this.series});
 
   final String id;
 
   /// The invite's title; null where it had none, or once the service has forgotten it (an hour after it ended).
   final String? title;
   final String? url;
+
+  /// The service the meeting is on, Google Meet or Zoom (the list's `kind`, else read from [url]); null once the
+  /// service has forgotten the link, when the row says no service.
+  final MeetService? service;
   final int startsAt;
   final int endsAt;
   final MeetState state;
 
-  /// Why, for a meeting Ghost could not join: `signed_out`, `refused`, `not_admitted`, `busy`, `upload`, `missed`.
+  /// Why, for a meeting Ghost could not join: `signed_out`, `refused`, `not_admitted`, `busy`, `upload`, `missed`; and a
+  /// Zoom's own (`captcha`, `sign_in_required`, `no_browser_join`, `passcode_needed`, ...; [meetDetailWords]).
   final String? detail;
 
   /// The id of the recurring meeting this is an occurrence of ([MeetSeries.id]), as the list says it; null for a
@@ -91,13 +96,24 @@ class MeetBooking {
     if (raw is! Map || raw['id'] is! String) return null;
     String? text(String key) => raw[key] is String && (raw[key] as String).trim().isNotEmpty ? (raw[key] as String).trim() : null;
     int whole(String key) => raw[key] is num ? (raw[key] as num).toInt() : 0;
-    return MeetBooking(id: raw['id'] as String, title: text('title'), url: text('url'), startsAt: whole('startsAt'), endsAt: whole('endsAt'), state: MeetState.of(raw['state']), detail: text('detail'), series: text('series'));
+    final url = text('url');
+    return MeetBooking(
+      id: raw['id'] as String,
+      title: text('title'),
+      url: url,
+      service: url == null && raw['kind'] is! String ? null : MeetService.of(raw['kind'], url: url),
+      startsAt: whole('startsAt'),
+      endsAt: whole('endsAt'),
+      state: MeetState.of(raw['state']),
+      detail: text('detail'),
+      series: text('series'),
+    );
   }
 
   /// This booking as [next] says it now, keeping which series it is of where [next] does not say.
   MeetBooking followedBy(MeetBooking next) => next.series != null || series == null
       ? next
-      : MeetBooking(id: next.id, title: next.title, url: next.url, startsAt: next.startsAt, endsAt: next.endsAt, state: next.state, detail: next.detail, series: series);
+      : MeetBooking(id: next.id, title: next.title, url: next.url, service: next.service, startsAt: next.startsAt, endsAt: next.endsAt, state: next.state, detail: next.detail, series: series);
 }
 
 /// A recurring meeting Ghost joins every time (server/src/meet.rs `series_json`): its rule in words made on the

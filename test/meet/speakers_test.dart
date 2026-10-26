@@ -17,9 +17,10 @@ const List<CaptionLine> lines = [
   CaptionLine(at: 11000, speaker: 'Daniel', text: 'The pricing page is drafted.'),
 ];
 
-OpenedTake take({String title = 'Launch sync', List<CaptionLine> captions = lines, int audio = 4}) => OpenedTake(
+OpenedTake take({String title = 'Launch sync', List<CaptionLine> captions = lines, int audio = 4, MeetService service = MeetService.meet}) => OpenedTake(
       meeting: 'm1',
       title: title,
+      service: service,
       startedAt: DateTime(2026, 10, 18, 14, 0).millisecondsSinceEpoch,
       endedAt: DateTime(2026, 10, 18, 14, 45).millisecondsSinceEpoch,
       mime: 'audio/webm',
@@ -97,6 +98,9 @@ void main() {
     expect(meetNoteBody(take(), now: 0, writeUp: false), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45. This is from Meet’s captions: the recording could not be kept on this device.\n\n'
         '## Transcript\n\n**Sam Lee:** Good morning everyone. Launch checklist first.\n\n**Daniel:** The pricing page is drafted.\n');
     expect(meetNoteBody(take(captions: const [], audio: 0), now: 0, writeUp: false, why: CaptionsOnly.noSound), endsWith('No sound came with it, so this is from Meet’s captions.\n\n## Transcript\n\nMeet showed no captions.\n'));
+    // A Zoom's are Zoom's.
+    expect(meetNoteBody(take(service: MeetService.zoom), now: 0, writeUp: false), contains('This is from Zoom’s captions: the recording could not be kept on this device.'));
+    expect(meetNoteBody(take(captions: const [], audio: 0, service: MeetService.zoom), now: 0, writeUp: false, why: CaptionsOnly.noSound), endsWith('No sound came with it, so this is from Zoom’s captions.\n\n## Transcript\n\nZoom showed no captions.\n'));
   });
 
   test('with no title the note is named by its date, as a meeting recorded here is', () {

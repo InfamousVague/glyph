@@ -1,6 +1,7 @@
-//! A calendar invite read (RFC 5545), as much of it as booking Ghost into a Google Meet needs: which meeting (its UID,
-//! and RECURRENCE-ID for one changed occurrence), what it is called, when, where (the Meet link), whether it is
-//! called off, and which version of it this is (SEQUENCE).
+//! A calendar invite read (RFC 5545), as much of it as booking Ghost into a Google Meet or a Zoom meeting needs: which
+//! meeting (its UID, and RECURRENCE-ID for one changed occurrence), what it is called, when, where (the Meet or Zoom
+//! link, `meeting_url`), whether it is called off, and which version of it this is (SEQUENCE). Zoom's own invites
+//! (`PRODID:-//zoom.us//iCalendar Event//EN`, the link in LOCATION and DESCRIPTION) are read as Google's are.
 //!
 //! Written here rather than taken from a crate because what is needed is small and exact: Google's invites, which are
 //! regular in shape, read right. The lines are unfolded, each is split into its name, its parameters (a quoted value
@@ -39,7 +40,7 @@ pub struct Invite {
     /// One changed occurrence's original start, in ms (its RECURRENCE-ID), when this is one.
     pub recurrence_id: Option<i64>,
     pub title: Option<String>,
-    /// The Google Meet link, in its one canonical form (`meet_url`), when the invite has one.
+    /// The Google Meet or Zoom link, in its one canonical form (`meet_url`, `zoom_url`), when the invite has one.
     pub url: Option<String>,
     /// The occurrence booked, in ms since the epoch.
     pub starts_at: i64,
@@ -880,6 +881,11 @@ fn said_rule(parts: &HashMap<String, String>, start: i64) -> Option<String> {
 /// The first Google Meet link in `text`, as `https://meet.google.com/abc-defg-hij`: a code of three, four and three
 /// lower-case letters. Anything else - another service's link, a Meet "lookup" link - is none.
 pub fn meet_url(text: &str) -> Option<String> {
+    find_meet(text).map(|(_, url)| url)
+}
+
+/// `meet_url`, with where in `text` the link's host begins, for `meeting_url` to take whichever link comes first.
+fn find_meet(text: &str) -> Option<(usize, String)> {
     let lower = text.to_ascii_lowercase();
     let mut from = 0;
     while let Some(at) = lower[from..].find("meet.google.com/") {
@@ -890,7 +896,7 @@ pub fn meet_url(text: &str) -> Option<String> {
         let code: String = lower[start..].chars().take_while(|c| c.is_ascii_lowercase() || *c == '-').collect();
         let pieces: Vec<&str> = code.split('-').collect();
         if own_host && pieces.len() == 3 && pieces[0].len() == 3 && pieces[1].len() == 4 && pieces[2].len() == 3 {
-            return Some(format!("https://meet.google.com/{code}"));
+            return Some((host_start, format!("https://meet.google.com/{code}")));
         }
         from = start;
     }
@@ -905,6 +911,143 @@ pub fn typed_meet_url(typed: &str) -> Option<String> {
     let path = t.strip_prefix("meet.google.com/")?;
     let code = path.split(['?', '#']).next().unwrap_or(path).trim_end_matches('/');
     meet_url(&format!("meet.google.com/{code}")).filter(|url| url.ends_with(&format!("/{code}")))
+}
+
+/// A Zoom meeting's id: Zoom's are nine to eleven digits (the older nine, a personal meeting's ten, a scheduled one's
+/// eleven).
+const ZOOM_ID: std::ops::RangeInclusive<usize> = 9..=11;
+
+/// Where a link in running text ends: at a space, or at what an invite puts around a link (`<…>`, `(…)`, quotes).
+fn link_end(text: &str, from: usize) -> usize {
+    text[from..].find(|c: char| c.is_whitespace() || "<>\"'()[]{},;|\\^`".contains(c)).map_or(text.len(), |at| from + at)
+}
+
+/// The first Zoom meeting link in `text` (Matt, 2026-10-26: "While you're at it also consider zoom meetings"), in its
+/// one form: `https://<host>/j/<id>`, with `?pwd=<passcode>` when the link carries one, where `<host>` is `zoom.us` or
+/// one name under it (`us06web.zoom.us`, a company's `acme.zoom.us`). Three shapes are read:
+///
+/// - `https://us06web.zoom.us/j/83512345678?pwd=…`, the link Zoom puts on every invite;
+/// - `https://zoom.us/wc/join/83512345678?pwd=…`, the web client's own, read as the same meeting (`/j/`);
+/// - `https://zoom.us/my/sam.lee`, a personal link, kept as it is: only Zoom can say which meeting it is, and the bot
+///   asks it at the time.
+///
+/// Anything else is none: a webinar (`/w/`), a host that only ends in zoom.us (`notzoom.us`, `zoom.us.example`), two
+/// names under it, an id that is not nine to eleven digits, a path that goes on past the id. The passcode keeps its
+/// case (Zoom's is case-sensitive) and is the one part of the query kept; a full stop after the link is the
+/// sentence's. (The service reads it through `meeting_url` and `typed_zoom_url`; the tests read it alone.)
+#[cfg_attr(not(test), allow(dead_code))]
+pub fn zoom_url(text: &str) -> Option<String> {
+    find_zoom(text).map(|(_, _, url)| url)
+}
+
+/// `zoom_url`, with where in `text` the link begins (its host, or its `https://`) and ends.
+fn find_zoom(text: &str) -> Option<(usize, usize, String)> {
+    let lower = text.to_ascii_lowercase();
+    let bytes = lower.as_bytes();
+    let hostish = |c: u8| c.is_ascii_alphanumeric() || c == b'-';
+    let mut from = 0;
+    while let Some(at) = lower[from..].find("zoom.us/") {
+        let dom = from + at;
+        from = dom + "zoom.us/".len();
+        // zoom.us itself, or one name under it.
+        let mut host_start = dom;
+        if dom > 0 && bytes[dom - 1] == b'.' {
+            let mut s = dom - 1;
+            while s > 0 && hostish(bytes[s - 1]) {
+                s -= 1;
+            }
+            let label = &lower[s..dom - 1];
+            if label.is_empty() || label.len() > 63 || label.starts_with('-') || label.ends_with('-') {
+                continue;
+            }
+            host_start = s;
+        }
+        // Before the host: nothing, the scheme, or what is no part of a host or a path (`notzoom.us`, `a.b.zoom.us`,
+        // `example.com/zoom.us/j/…` are not Zoom's).
+        let mut link_start = host_start;
+        for scheme in ["https://", "http://"] {
+            if lower[..host_start].ends_with(scheme) {
+                link_start = host_start - scheme.len();
+            }
+        }
+        if link_start == host_start && host_start > 0 && (hostish(bytes[host_start - 1]) || b"./@?=&%#+_~".contains(&bytes[host_start - 1])) {
+            continue;
+        }
+        let host = &lower[host_start..dom + "zoom.us".len()];
+        let rest = &lower[from..];
+        let (personal, id, after) = if let Some(path) = rest.strip_prefix("j/").or_else(|| rest.strip_prefix("wc/join/")) {
+            let digits = path.bytes().take_while(u8::is_ascii_digit).count();
+            if !ZOOM_ID.contains(&digits) {
+                continue;
+            }
+            (false, &path[..digits], from + (rest.len() - path.len()) + digits)
+        } else if let Some(path) = rest.strip_prefix("my/") {
+            let name = path.bytes().take_while(|c| c.is_ascii_alphanumeric() || b"._-".contains(c)).count();
+            let name = path[..name].trim_end_matches('.').len();
+            if name == 0 || name > 64 {
+                continue;
+            }
+            (true, &path[..name], from + (rest.len() - path.len()) + name)
+        } else {
+            continue;
+        };
+        let end = link_end(&lower, after);
+        // What may follow the id: nothing, a slash, a query or a fragment; not more path, nor more of a word.
+        let tail = lower[after..end].trim_end_matches('.');
+        let tail = tail.strip_prefix('/').unwrap_or(tail);
+        if !(tail.is_empty() || tail.starts_with('?') || tail.starts_with('#')) {
+            continue;
+        }
+        // The passcode, from the text as it was written.
+        let query = text[after..end].split('#').next().unwrap_or("");
+        let pwd = query.split_once('?').map_or("", |(_, q)| q).split('&').find_map(|pair| pair.strip_prefix("pwd=")).map(|p| p.trim_end_matches('.')).filter(|p| {
+            !p.is_empty() && p.len() <= 128 && p.bytes().all(|c| c.is_ascii_alphanumeric() || b"._-".contains(&c))
+        });
+        let path = if personal { "my" } else { "j" };
+        let url = match pwd {
+            Some(pwd) => format!("https://{host}/{path}/{id}?pwd={pwd}"),
+            None => format!("https://{host}/{path}/{id}"),
+        };
+        let end = after + lower[after..end].trim_end_matches('.').len();
+        return Some((link_start, end, url));
+    }
+    None
+}
+
+/// A Zoom link a person typed or pasted, checked whole as `typed_meet_url` checks a Meet link: with or without
+/// `https://`, nothing else around it.
+pub fn typed_zoom_url(typed: &str) -> Option<String> {
+    let t = typed.trim();
+    let (start, end, url) = find_zoom(t)?;
+    (start == 0 && end == t.len()).then_some(url)
+}
+
+/// The first meeting link in `text` that Ghost can join, Google Meet's or Zoom's, whichever comes first.
+pub fn meeting_url(text: &str) -> Option<String> {
+    match (find_meet(text), find_zoom(text)) {
+        (Some((m, meet)), Some((z, _, zoom))) => Some(if z < m { zoom } else { meet }),
+        (Some((_, meet)), None) => Some(meet),
+        (None, Some((_, _, zoom))) => Some(zoom),
+        (None, None) => None,
+    }
+}
+
+/// A meeting link a person typed or pasted, Google Meet's or Zoom's, checked whole.
+pub fn typed_meeting_url(typed: &str) -> Option<String> {
+    typed_meet_url(typed).or_else(|| typed_zoom_url(typed))
+}
+
+/// Which service a booked link (one of `meeting_url`'s) is: `zoom` or `meet`; none for a link the sweep has blanked.
+/// The bot opens each its own way, and the device names the service on the meeting's row.
+pub fn kind(url: &str) -> Option<&'static str> {
+    let host = url.strip_prefix("https://")?.split('/').next()?;
+    if host == "zoom.us" || host.ends_with(".zoom.us") {
+        Some("zoom")
+    } else if host == "meet.google.com" {
+        Some("meet")
+    } else {
+        None
+    }
 }
 
 /// Every meeting the calendar text books, moves or calls off, at `now` (ms). All-day events, and events with no UID or
@@ -974,7 +1117,12 @@ pub fn invites(calendar: &str, now: i64) -> Vec<Invite> {
                 None => (None, (first, first + length), false),
             };
             let status_cancelled = event.value("STATUS").is_some_and(|s| s.trim().eq_ignore_ascii_case("CANCELLED"));
-            let url = ["X-GOOGLE-CONFERENCE", "DESCRIPTION", "LOCATION", "URL"].into_iter().find_map(|name| event.all(name).find_map(|p| meet_url(&text(&p.value))));
+            // The conference first (Google's own, or RFC 7986's CONFERENCE), then the description, the location and
+            // URL, as Zoom's own invite and Google's for a Zoom meeting put it in any of them; but a Zoom link in the
+            // location is the meeting even beside a Meet of Google's: Calendar can add a Meet to every event by itself,
+            // and the location is where a person puts the room they mean.
+            let found = |name: &str| event.all(name).find_map(|p| meeting_url(&text(&p.value)));
+            let url = found("LOCATION").filter(|u| kind(u) == Some("zoom")).or_else(|| ["X-GOOGLE-CONFERENCE", "CONFERENCE", "DESCRIPTION", "LOCATION", "URL"].into_iter().find_map(found));
             let title = event.value("SUMMARY").map(|s| text(s).trim().to_string()).filter(|s| !s.is_empty());
             let organizer = event.value("ORGANIZER").map(|o| {
                 let o = o.trim();
@@ -1111,18 +1259,164 @@ DESCRIPTION:Join: https://meet.google.com/xyz-abcd-efg\r\nEND:VEVENT\r\nEND:VCAL
         assert_eq!(london("20261026T093000", "20261026T100000").starts_at, utc(2026, 10, 26, 9, 30));
     }
 
+    /// The Zoom link the invites below carry, as Zoom writes it, and as it is booked.
+    pub const ZOOM_LINK: &str = "https://us06web.zoom.us/j/83512345678?pwd=bWVvT3h5Vm1uVTNtTHpuNnJ3QT09.1";
+
+    /// Zoom's own invite, as the web portal's "Add to calendar" and Zoom's mails attach it: `METHOD:PUBLISH`,
+    /// America/Los_Angeles with its VTIMEZONE, the link in LOCATION and in Zoom's invite text in DESCRIPTION (with the
+    /// meeting ID, the passcode and the dial-in numbers), a stray TZID inside the VEVENT, and an alarm.
+    pub fn zoom_invite(start: &str, end: &str) -> String {
+        format!(
+            "BEGIN:VCALENDAR\r\n\
+PRODID:-//zoom.us//iCalendar Event//EN\r\n\
+VERSION:2.0\r\n\
+CALSCALE:GREGORIAN\r\n\
+METHOD:PUBLISH\r\n\
+CLASS:PUBLIC\r\n\
+BEGIN:VTIMEZONE\r\n\
+TZID:America/Los_Angeles\r\n\
+LAST-MODIFIED:20230407T050750Z\r\n\
+TZURL:https://www.tzurl.org/zoneinfo-outlook/America/Los_Angeles\r\n\
+X-LIC-LOCATION:America/Los_Angeles\r\n\
+BEGIN:DAYLIGHT\r\n\
+TZNAME:PDT\r\n\
+TZOFFSETFROM:-0800\r\n\
+TZOFFSETTO:-0700\r\n\
+DTSTART:19700308T020000\r\n\
+RRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=2SU\r\n\
+END:DAYLIGHT\r\n\
+BEGIN:STANDARD\r\n\
+TZNAME:PST\r\n\
+TZOFFSETFROM:-0700\r\n\
+TZOFFSETTO:-0800\r\n\
+DTSTART:19701101T020000\r\n\
+RRULE:FREQ=YEARLY;BYMONTH=11;BYDAY=1SU\r\n\
+END:STANDARD\r\n\
+END:VTIMEZONE\r\n\
+BEGIN:VEVENT\r\n\
+DTSTAMP:20261020T170000Z\r\n\
+DTSTART;TZID=America/Los_Angeles:{start}\r\n\
+DTEND;TZID=America/Los_Angeles:{end}\r\n\
+SUMMARY:Design sync\r\n\
+UID:20261020T170000Z-83512345678@fe80:0:0:0:1c4e:3a5f:9b2d:7e10eth0\r\n\
+TZID:America/Los_Angeles\r\n\
+DESCRIPTION:Sam Lee is inviting you to a scheduled Zoom meeting.\\n\\nJoin Zo\r\n \
+om Meeting\\n{ZOOM_LINK}\\n\\nMeeting ID: 835 1234 5678\\nP\r\n \
+asscode: 482913\\n\\n---\\n\\nOne tap mobile\\n+16699006833\\,\\,83512345678#\\,\\,\\,\\,*48291\r\n \
+3# US (San Jose)\\n\\n---\\n\\nJoin by SIP\\n• 83512345678@zoomcrc.com\\n\r\n\
+LOCATION:{ZOOM_LINK}\r\n\
+BEGIN:VALARM\r\n\
+TRIGGER:-PT10M\r\n\
+ACTION:DISPLAY\r\n\
+DESCRIPTION:Reminder\r\n\
+END:VALARM\r\n\
+END:VEVENT\r\n\
+END:VCALENDAR\r\n"
+        )
+    }
+
+    /// A Google Calendar event that meets on Zoom (the Zoom add-on, or a link pasted in): Google's invite with no Meet
+    /// of its own, the Zoom link in LOCATION and Zoom's invite text in the description.
+    pub fn google_zoom_invite(method: &str, sequence: i64, start: &str, end: &str, status: &str) -> String {
+        google_invite(method, sequence, start, end, status)
+            .replace("X-GOOGLE-CONFERENCE:https://meet.google.com/abc-defg-hij\r\n", "")
+            .replace("Join with Google Meet: https://meet.google.com/abc-defg-hij", &format!("Join Zoom Meeting\\n{ZOOM_LINK}\\nMeeting ID: 835 1234 5678"))
+            .replace("LOCATION:\r\n", &format!("LOCATION:{ZOOM_LINK}\r\n"))
+    }
+
+    #[test]
+    fn zoom_s_own_invite_is_read_with_its_link_and_its_zone() {
+        // 10:00 in Los Angeles is 17:00 UTC in October (PDT) and 18:00 in December (PST).
+        let october = invites(&zoom_invite("20261027T100000", "20261027T110000"), 0);
+        assert_eq!(october.len(), 1);
+        let one = &october[0];
+        assert_eq!(one.uid, "20261020T170000Z-83512345678@fe80:0:0:0:1c4e:3a5f:9b2d:7e10eth0");
+        assert_eq!((one.starts_at, one.ends_at), (utc(2026, 10, 27, 17, 0), utc(2026, 10, 27, 18, 0)));
+        assert_eq!(one.title.as_deref(), Some("Design sync"));
+        assert_eq!(one.url.as_deref(), Some(ZOOM_LINK));
+        assert!(!one.cancelled && one.series.is_none());
+        assert_eq!(invites(&zoom_invite("20261208T100000", "20261208T103000"), 0)[0].starts_at, utc(2026, 12, 8, 18, 0));
+        // With the link in the description alone (an invite pasted into another calendar), the description's.
+        let described = zoom_invite("20261027T100000", "20261027T110000").replace(&format!("LOCATION:{ZOOM_LINK}\r\n"), "");
+        assert_eq!(invites(&described, 0)[0].url.as_deref(), Some(ZOOM_LINK));
+    }
+
+    #[test]
+    fn a_google_event_on_zoom_books_its_zoom_link_and_a_zoom_location_wins_over_google_s_own_meet() {
+        let zoom = invites(&google_zoom_invite("REQUEST", 0, "20261020T110000", "20261020T120000", "CONFIRMED"), 0);
+        assert_eq!(zoom[0].url.as_deref(), Some(ZOOM_LINK));
+        assert_eq!(zoom[0].title.as_deref(), Some("Roadmap review, Q4"));
+        // Calendar added a Meet of its own; the person put the Zoom room in the location.
+        let both = google_invite("REQUEST", 0, "20261020T110000", "20261020T120000", "CONFIRMED").replace("LOCATION:\r\n", "LOCATION:Zoom: https://acme.zoom.us/j/9876543210\r\n");
+        assert_eq!(invites(&both, 0)[0].url.as_deref(), Some("https://acme.zoom.us/j/9876543210"));
+        // A Zoom link only in the description, beside Google's Meet: the conference is the meeting.
+        let mentioned = google_invite("REQUEST", 0, "20261020T110000", "20261020T120000", "CONFIRMED").replace("Plans\\, and the budget.", "The old room was https://zoom.us/j/9876543210");
+        assert_eq!(invites(&mentioned, 0)[0].url.as_deref(), Some("https://meet.google.com/abc-defg-hij"));
+        // RFC 7986's CONFERENCE is a conference too.
+        let conference = "BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:c\r\nDTSTART:20261020T150000Z\r\nDTEND:20261020T160000Z\r\nCONFERENCE;VALUE=URI;FEATURE=VIDEO:https://zoom.us/j/9876543210?pwd=Ab3\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        assert_eq!(invites(conference, 0)[0].url.as_deref(), Some("https://zoom.us/j/9876543210?pwd=Ab3"));
+    }
+
+    #[test]
+    fn a_zoom_link_is_found_only_in_its_three_shapes() {
+        // The three shapes, in their one form; the passcode kept as written, the rest of the query dropped.
+        assert_eq!(zoom_url("Join: <https://us06web.zoom.us/j/83512345678?pwd=AbC.1&uname=x>").as_deref(), Some("https://us06web.zoom.us/j/83512345678?pwd=AbC.1"));
+        assert_eq!(zoom_url("https://zoom.us/wc/join/83512345678?pwd=AbC.1").as_deref(), Some("https://zoom.us/j/83512345678?pwd=AbC.1"));
+        assert_eq!(zoom_url("HTTPS://ACME.ZOOM.US/J/123456789").as_deref(), Some("https://acme.zoom.us/j/123456789"));
+        assert_eq!(zoom_url("Sam's room: zoom.us/my/Sam.Lee.").as_deref(), Some("https://zoom.us/my/sam.lee"), "a full stop after it is the sentence's");
+        assert_eq!(zoom_url("https://zoom.us/j/12345678901#success").as_deref(), Some("https://zoom.us/j/12345678901"));
+        assert_eq!(zoom_url("(https://zoom.us/j/123456789?pwd=x)").as_deref(), Some("https://zoom.us/j/123456789?pwd=x"));
+        assert_eq!(zoom_url("https://zoom.us/j/123456789?pwd=bad*word").as_deref(), Some("https://zoom.us/j/123456789"), "a passcode Zoom would not write is not kept");
+        // And nothing else.
+        for not in [
+            "https://zoom.us/j/12345678",
+            "https://zoom.us/j/123456789012",
+            "https://zoom.us/j/123456789abc",
+            "https://zoom.us/j/123456789/more",
+            "https://zoom.us/w/123456789",
+            "https://zoom.us/s/123456789",
+            "https://zoom.us/wc/123456789/join",
+            "https://notzoom.us/j/123456789",
+            "https://zoom.us.evil.example/j/123456789",
+            "https://a.b.zoom.us/j/123456789",
+            "https://-x.zoom.us/j/123456789",
+            "https://example.com/zoom.us/j/123456789",
+            "https://example.com/?u=zoom.us/j/123456789",
+            "https://zoom.us/my/",
+            "https://zoom.com/j/123456789",
+        ] {
+            assert_eq!(zoom_url(not), None, "{not}");
+        }
+        // Typed, checked whole.
+        assert_eq!(typed_zoom_url(" us06web.zoom.us/j/83512345678?pwd=AbC.1 ").as_deref(), Some("https://us06web.zoom.us/j/83512345678?pwd=AbC.1"));
+        assert_eq!(typed_zoom_url("https://zoom.us/my/sam.lee/").as_deref(), Some("https://zoom.us/my/sam.lee"));
+        assert_eq!(typed_zoom_url("join https://zoom.us/j/123456789"), None);
+        assert_eq!(typed_zoom_url("https://zoom.us/j/123456789 now"), None);
+        assert_eq!(typed_meeting_url("meet.google.com/abc-defg-hij").as_deref(), Some("https://meet.google.com/abc-defg-hij"));
+        assert_eq!(typed_meeting_url("zoom.us/wc/join/123456789").as_deref(), Some("https://zoom.us/j/123456789"));
+        assert_eq!(typed_meeting_url("https://teams.microsoft.com/l/meetup-join/19%3ameeting"), None);
+        // Whichever comes first in a text.
+        assert_eq!(meeting_url("zoom.us/j/123456789 or meet.google.com/abc-defg-hij").as_deref(), Some("https://zoom.us/j/123456789"));
+        assert_eq!(meeting_url("meet.google.com/abc-defg-hij or zoom.us/j/123456789").as_deref(), Some("https://meet.google.com/abc-defg-hij"));
+        // And which service each is.
+        assert_eq!(kind("https://us06web.zoom.us/j/83512345678?pwd=x"), Some("zoom"));
+        assert_eq!(kind("https://zoom.us/my/sam.lee"), Some("zoom"));
+        assert_eq!(kind("https://meet.google.com/abc-defg-hij"), Some("meet"));
+        assert_eq!(kind(""), None, "blanked by the sweep");
+    }
+
     #[test]
     fn utc_times_all_day_events_and_links_not_to_meet() {
         let cal = "BEGIN:VCALENDAR\r\nMETHOD:REQUEST\r\n\
 BEGIN:VEVENT\r\nUID:a\r\nDTSTART:20261020T150000Z\r\nDURATION:PT45M\r\nSUMMARY:In UTC\r\nX-GOOGLE-CONFERENCE:https://meet.google.com/aaa-bbbb-ccc\r\nEND:VEVENT\r\n\
 BEGIN:VEVENT\r\nUID:b\r\nDTSTART;VALUE=DATE:20261020\r\nDTEND;VALUE=DATE:20261021\r\nSUMMARY:Holiday\r\nX-GOOGLE-CONFERENCE:https://meet.google.com/aaa-bbbb-ccc\r\nEND:VEVENT\r\n\
-BEGIN:VEVENT\r\nUID:c\r\nDTSTART:20261020T150000Z\r\nDTEND:20261020T160000Z\r\nLOCATION:https://zoom.us/j/123456789\r\nDESCRIPTION:https://meet.google.com/lookup/abcdefg and https://notmeet.google.com/abc-defg-hij\r\nEND:VEVENT\r\n\
+BEGIN:VEVENT\r\nUID:c\r\nDTSTART:20261020T150000Z\r\nDTEND:20261020T160000Z\r\nLOCATION:https://teams.microsoft.com/l/meetup-join/19%3ameeting and https://zoom.us/w/123456789\r\nDESCRIPTION:https://meet.google.com/lookup/abcdefg and https://notmeet.google.com/abc-defg-hij\r\nEND:VEVENT\r\n\
 END:VCALENDAR\r\n";
         let found = invites(cal, 0);
         assert_eq!(found.len(), 2, "the all-day event is left out");
         assert_eq!((found[0].uid.as_str(), found[0].starts_at, found[0].ends_at), ("a", utc(2026, 10, 20, 15, 0), utc(2026, 10, 20, 15, 45)));
         assert_eq!(found[0].url.as_deref(), Some("https://meet.google.com/aaa-bbbb-ccc"));
-        assert_eq!(found[1].url, None, "a Zoom link, a Meet lookup link and another host are not a Meet code");
+        assert_eq!(found[1].url, None, "a Teams link, a Zoom webinar, a Meet lookup link and another host are not a meeting Ghost joins");
     }
 
     #[test]

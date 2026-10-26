@@ -6,7 +6,15 @@
 //! as a guest on a Google Calendar event. Google mails the invite there; the mail becomes a note as any mail does, and
 //! in the same request `book_from_mail` reads the invite's calendar part (`text/calendar`, or an `.ics` attachment;
 //! src/meet/ics.rs) and books Ghost for the meeting: one row per invite UID, moved by a newer SEQUENCE and called off by
-//! METHOD:CANCEL or STATUS:CANCELLED. Only Google Meet links are booked. A device can also say "join this now".
+//! METHOD:CANCEL or STATUS:CANCELLED. Only Google Meet and Zoom links are booked. A device can also say "join this now".
+//!
+//! ZOOM TOO (Matt, 2026-10-26: "While you're at it also consider zoom meetings"). A Zoom link is booked wherever a Meet
+//! link is - an invite's conference, description, location or URL (ics.rs `meeting_url`: Zoom's own invites, and
+//! Google Calendar events with a Zoom link in place of a Meet), and "join now" - in one form, `https://<host>/j/<id>`
+//! with its `?pwd=`, or a personal `/my/<name>`. The booking keeps the link as it keeps a Meet's; which service it is
+//! (`kind`, `meet` or `zoom`) is read from the link wherever a booking is said, to the bot (which opens Zoom's web
+//! client rather than Meet) and the device (which names the service on the row), and into a take's head. Nothing new
+//! is stored: once the sweep blanks the link the kind is gone with it, and null.
 //!
 //! A RECURRING MEETING is joined every time, with no new mail. Its invite makes a row for the series (`apply_series`;
 //! never listed, due or counted) that keeps what expanding the rule needs (`ics::Series`) and the link, and a booking for
@@ -167,6 +175,7 @@ fn meeting_json(b: &MeetBooking) -> Value {
         "id": b.id,
         "title": b.title,
         "url": if b.url.is_empty() { Value::Null } else { json!(b.url) },
+        "kind": ics::kind(&b.url),
         "startsAt": b.starts_at,
         "endsAt": b.ends_at,
         "state": b.state,
@@ -228,16 +237,16 @@ fn series_of(b: &MeetBooking) -> Option<Series> {
     b.series.as_deref().and_then(|rule| serde_json::from_str(rule).ok())
 }
 
-/// Why a meeting is called off: the organizer did, or the invite no longer has a Meet link.
+/// Why a meeting is called off: the organizer did, or the invite no longer has a Meet or Zoom link.
 fn called_off(invite: &Invite) -> &'static str {
     if invite.cancelled {
         "The organizer called it off."
     } else {
-        "The invite no longer has a Google Meet link."
+        "The invite no longer has a Google Meet or Zoom link."
     }
 }
 
-/// One meeting, applied to the account's bookings. A new one is booked if it has a Meet link and is not over; one
+/// One meeting, applied to the account's bookings. A new one is booked if it has a Meet or Zoom link and is not over; one
 /// already booked follows the invite unless the invite is older (a lower SEQUENCE) than what was applied.
 fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
     let secs = now.div_euclid(1000);
@@ -574,6 +583,7 @@ fn series_json(store: &Store, s: &MeetBooking, now: i64) -> Option<Value> {
     Some(json!({
         "id": s.id,
         "title": s.title,
+        "kind": ics::kind(&s.url),
         "rule": rule.words(),
         "time": format!("{hour:02}:{minute:02}"),
         "zone": rule.zone_name(),
@@ -670,8 +680,8 @@ struct BookNow {
 }
 
 async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<BookNow>) -> Response {
-    let Some(url) = ics::typed_meet_url(&body.url) else {
-        return error(StatusCode::BAD_REQUEST, "That is not a Google Meet link. It looks like meet.google.com/abc-defg-hij.");
+    let Some(url) = ics::typed_meeting_url(&body.url) else {
+        return error(StatusCode::BAD_REQUEST, "That is not a Google Meet or Zoom link. It looks like meet.google.com/abc-defg-hij or zoom.us/j/123456789.");
     };
     // The recording is sealed to the account's encryption key on arrival, so there must be one to seal it to.
     if accounts.store.account_key(who.sub).is_none() {
@@ -848,7 +858,7 @@ async fn due(State(bot): State<Arc<Bot>>) -> Response {
         .store
         .meet_due(now, JOIN_EARLY, STAY_LATE)
         .iter()
-        .map(|b| json!({ "id": b.id, "url": b.url, "title": b.title, "startsAt": b.starts_at, "endsAt": b.ends_at, "state": b.state, "announce": ANNOUNCE }))
+        .map(|b| json!({ "id": b.id, "url": b.url, "kind": ics::kind(&b.url), "title": b.title, "startsAt": b.starts_at, "endsAt": b.ends_at, "state": b.state, "announce": ANNOUNCE }))
         .collect();
     Json(json!({ "meetings": meetings })).into_response()
 }
@@ -972,6 +982,7 @@ async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multi
         "v": 1,
         "meeting": b.id,
         "title": b.title,
+        "kind": ics::kind(&b.url),
         "startedAt": started.unwrap_or(b.starts_at),
         "endedAt": ended.unwrap_or_else(now_ms),
         "mime": mime,

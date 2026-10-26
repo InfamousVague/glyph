@@ -3,14 +3,37 @@
 ///
 /// The service packs a take as `GMT1` before sealing it (server/src/meet.rs `pack`), framed as a mail's `GML1` is
 /// (lib/mail/mail_note.dart `readMail`): four magic bytes, the head's length as four bytes big-endian, the head as
-/// JSON, then the captions' bytes, then the audio's. The head is `{v, meeting, title, startedAt, endedAt, mime,
-/// captionsBytes, audioBytes}`. The captions are NDJSON, a line `{at, speaker, text}` each, `at` in ms since the
+/// JSON, then the captions' bytes, then the audio's. The head is `{v, meeting, title, kind, startedAt, endedAt, mime,
+/// captionsBytes, audioBytes}`, `kind` the service the meeting was on (`meet` or `zoom`; none from a service before
+/// Zoom, read as Meet). The captions are NDJSON, a line `{at, speaker, text}` each, `at` in ms since the
 /// recording started (meet/bot/lib/captions.mjs: when the phrase was first seen on screen); the audio is what the
 /// bot's Chrome recorded, Opus in WebM.
 library;
 
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+
+/// The service a meeting Ghost joins is on (Matt, 2026-10-26: "While you're at it also consider zoom meetings"): the
+/// service's `kind` of a booking or a take, else read from its link, else Google Meet, which was the only one before.
+enum MeetService {
+  meet,
+  zoom;
+
+  static MeetService of(Object? kind, {String? url}) => switch (kind) {
+        'zoom' => zoom,
+        'meet' => meet,
+        _ => url != null && RegExp(r'^https://([a-z0-9-]+\.)?zoom\.us/', caseSensitive: false).hasMatch(url) ? zoom : meet,
+      };
+
+  /// Its name, as a row or a sentence says it.
+  String get words => switch (this) { meet => 'Google Meet', zoom => 'Zoom' };
+
+  /// Whose captions a note was filed from, as its first line says it: "Meet’s", "Zoom’s".
+  String get captions => switch (this) { meet => 'Meet’s', zoom => 'Zoom’s' };
+
+  /// The short name a sentence uses after "the": "Meet", "Zoom".
+  String get short => switch (this) { meet => 'Meet', zoom => 'Zoom' };
+}
 
 /// One line of Meet's captions, as the bot read it.
 @immutable
@@ -37,10 +60,13 @@ class CaptionLine {
 /// A take as the service sealed it.
 @immutable
 class OpenedTake {
-  const OpenedTake({required this.meeting, required this.title, required this.startedAt, required this.endedAt, required this.mime, required this.captions, required this.audio});
+  const OpenedTake({required this.meeting, required this.title, this.service = MeetService.meet, required this.startedAt, required this.endedAt, required this.mime, required this.captions, required this.audio});
 
   /// The booking it was recorded for.
   final String meeting;
+
+  /// The service the meeting was on, from the head's `kind`.
+  final MeetService service;
 
   /// The invite's title, trimmed; empty where it had none.
   final String title;
@@ -95,6 +121,7 @@ OpenedTake readTake(Uint8List payload) {
   return OpenedTake(
     meeting: text('meeting'),
     title: text('title').replaceAll(RegExp(r'\s+'), ' '),
+    service: MeetService.of(said['kind']),
     startedAt: whole('startedAt'),
     endedAt: whole('endedAt'),
     mime: text('mime').isEmpty ? 'audio/webm' : text('mime').toLowerCase(),

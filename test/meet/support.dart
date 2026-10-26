@@ -6,13 +6,14 @@ import 'package:ghost_md/account/crypto_api.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 
 /// A take laid out as the service lays one out before sealing it (server/src/meet.rs `pack`, `GMT1`).
-Uint8List gmt1({String? title = 'Launch sync', String meeting = 'm1', int startedAt = 1792159200000, int endedAt = 1792161900000, String mime = 'audio/webm;codecs=opus', List<Map<String, Object?>> captions = const [], List<int> audio = const [1, 2, 3, 4], Map<String, Object?>? head}) {
+Uint8List gmt1({String? title = 'Launch sync', String meeting = 'm1', String? kind, int startedAt = 1792159200000, int endedAt = 1792161900000, String mime = 'audio/webm;codecs=opus', List<Map<String, Object?>> captions = const [], List<int> audio = const [1, 2, 3, 4], Map<String, Object?>? head}) {
   final lines = utf8.encode(captions.map(jsonEncode).join('\n'));
   final said = utf8.encode(jsonEncode(head ??
       {
         'v': 1,
         'meeting': meeting,
         'title': title,
+        'kind': ?kind,
         'startedAt': startedAt,
         'endedAt': endedAt,
         'mime': mime,

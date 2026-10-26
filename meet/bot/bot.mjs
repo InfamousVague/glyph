@@ -1,7 +1,9 @@
 #!/usr/bin/env node
 /**
- * Ghost.md's Google Meet notetaker (GHST-106, docs/MEET.md): a signed-in Chrome that joins the meetings glyph-api
- * hands it, records what the meeting sounds like and what Meet's captions say, and hands the take back.
+ * Ghost.md's Google Meet and Zoom notetaker (GHST-106, docs/MEET.md): a signed-in Chrome that joins the meetings
+ * glyph-api hands it, records what the meeting sounds like and what its captions say, and hands the take back. A Meet
+ * is joined as Ghost's Google account (lib/meet.mjs); a Zoom through Zoom's web client as a guest named "Ghost
+ * (notetaker)" (lib/zoom.mjs; Matt, 2026-10-26: "While you're at it also consider zoom meetings").
  *
  *   node bot.mjs              the service (glyph-meet.service): asks the server what is due every 20 s, one meeting
  *                             at a time
@@ -21,7 +23,7 @@ import { hostname } from 'node:os';
 import { join } from 'node:path';
 import { createApi } from './lib/api.mjs';
 import { signinCommand } from './lib/chrome.mjs';
-import { LIMITS, isMeetUrl, isSafeId, planIdle } from './lib/decide.mjs';
+import { LIMITS, isSafeId, planIdle, platformOf } from './lib/decide.mjs';
 import { errorField, log } from './lib/log.mjs';
 
 const DATA = process.env.GLYPH_MEET_DATA || '/var/lib/glyph-meet';
@@ -131,7 +133,7 @@ async function service() {
       await api.state(id, 'skipped', detail).then(() => log('state', { id, state: 'skipped', detail }), (e) => log('state_failed', { id, error: errorField(e) }));
     }
     if (next && !stopping) {
-      if (!isSafeId(next.id) || !isMeetUrl(next.url)) {
+      if (!isSafeId(next.id) || !platformOf(next.url)) {
         handled.add(next.id);
         log('refused_meeting', { id: isSafeId(next.id) ? next.id : 'unsafe' });
         if (isSafeId(next.id)) await api.state(next.id, 'failed', 'bad_url').catch(() => {});

@@ -2,7 +2,7 @@
   "name": "glyph-meet-bot",
   "version": "1.0.0",
   "private": true,
-  "description": "Ghost.md's Google Meet notetaker (GHST-106): joins the meetings glyph-api hands it, records the call's sound and Meet's captions, and hands the take back.",
+  "description": "Ghost.md's Google Meet and Zoom notetaker (GHST-106): joins the meetings glyph-api hands it, records the call's sound and its captions, and hands the take back.",
   "type": "module",
   "main": "bot.mjs",
   "engines": {

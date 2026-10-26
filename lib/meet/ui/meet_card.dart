@@ -23,9 +23,10 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// Ghost in meetings, Settings › Meetings (lib/settings/panes/meetings_pane.dart, lib/meet/meet_in.dart, docs/MEET.md):
 /// the mail-to-note address is also the address Ghost is invited by, so the cards are drawn only once there is one
 /// ([meetCardShown]). Two cards. First the ways to invite Ghost (Matt, 2026-10-23: "move the invite card to the top"):
-/// a Meet link sent now, then the address to put on a Calendar invite, with Copy and, beside it, a new address in its
-/// place (Matt, 2026-10-24: "add a refresh button next to the email so i can regeenrate the email"). This card is the
-/// one place the address is shown, mail to a note's as much as Ghost's (Account points here). Then what Ghost does
+/// a Google Meet or Zoom link sent now, then the address to put on a Calendar invite, with Copy and, beside it, a new
+/// address in its place (Matt, 2026-10-24: "add a refresh button next to the email so i can regeenrate the email").
+/// This card is the one place the address is shown, mail to a note's as much as Ghost's (Account points here). Then
+/// what Ghost does
 /// and where the sound goes, over the meetings Ghost is booked for and was in with where each stands, and a way to
 /// tell Ghost not to join one or to leave.
 ///
@@ -46,6 +47,11 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// the field, and the old address stays. It is a word of its own beside Copy rather than a choice behind the refresh,
 /// so the refresh stays the one press it was, and a name, which is what most people will want once, is in sight
 /// rather than a step down; also in Simple, as the refresh is.
+///
+/// Zoom as well as Google Meet (Matt, 2026-10-26: "While you're at it also consider zoom meetings"): the link field
+/// takes either ([meetLink]), the card's words name both, and a meeting's row names the service it is on ("Zoom",
+/// "Google Meet") while the service still has its link, so one booked from a calendar invite says where Ghost will go.
+/// A Zoom Ghost could not join says what its host would have to allow ([meetDetailWords]).
 ///
 /// A meeting that became a note opens it (Matt, 2026-10-24: "add the ability to click a meeting to jump to the
 /// associated note"): the row is pressed, and [MeetCard.onOpenNote] shuts Settings and opens the note, as the home
@@ -435,7 +441,7 @@ class _MeetCardState extends State<MeetCard> {
           _ => meeting.series != null ? Lucide.repeat : Lucide.calendarDays,
         }, size: 20),
         label: meeting.title ?? 'A meeting',
-        hint: Text('$when · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId], widget.services.prefs.value)}'),
+        hint: Text('$when · ${meeting.service == null ? '' : '${meeting.service!.words} · '}${_whereItStands(meeting, noteId == null ? null : _notes[noteId], widget.services.prefs.value)}'),
         onPress: noteId == null || open == null ? null : () => open(noteId),
         control: meeting.state.open
             ? RowAction(
@@ -506,7 +512,7 @@ class _MeetCardState extends State<MeetCard> {
         final ready = meetLink(_link) != null && !_busy;
         final invite = PaneSection(
           title: 'Invite Ghost',
-          description: const Text('Paste a Google Meet link to send Ghost in now, or add your address as a guest on a Google Calendar invite and Ghost joins by itself.'),
+          description: const Text('Paste a Google Meet or Zoom link to send Ghost in now, or add your address as a guest on a calendar invite and Ghost joins by itself.'),
           footer: _said == null ? null : Text(_said!),
           children: [
             // The link and Join beside it (Matt, 2026-10-24: "change the \"send ghost to a meeting now\" to be a
@@ -518,8 +524,8 @@ class _MeetCardState extends State<MeetCard> {
                   children: [
                     Expanded(
                       child: GlacierInput(
-                        ariaLabel: 'Meet link',
-                        placeholder: 'meet.google.com/abc-defg-hij',
+                        ariaLabel: 'Meeting link',
+                        placeholder: 'Google Meet or Zoom link',
                         value: _link,
                         onChange: (text) => setState(() => _link = text),
                         onSubmitted: (_) {
@@ -540,7 +546,7 @@ class _MeetCardState extends State<MeetCard> {
               icon: const AppIcon(Lucide.calendarPlus, size: 20),
               // Broken, where a phone's width must break it, after the @ and nowhere in a word.
               label: address.replaceFirst('@', '@​'),
-              hint: const Text('Add this address as a guest on a Google Calendar invite. Mail sent to it becomes a note in your Inbox.'),
+              hint: const Text('Add this address as a guest on a calendar invite with a Google Meet or Zoom link. Mail sent to it becomes a note in your Inbox.'),
               // On a phone, Copy and the new address under the words: beside them they leave the address too little
               // width, and it broke inside the domain.
               layout: MediaQuery.sizeOf(context).width < 600 ? SettingRowLayout.stacked : SettingRowLayout.trailing,

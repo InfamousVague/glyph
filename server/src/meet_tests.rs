@@ -5,7 +5,7 @@
 
 use crate::mail::seal;
 use crate::mail_tests::{heard_pokes, post, token, turned_on, with_key};
-use crate::meet::ics::tests::{google_invite, utc};
+use crate::meet::ics::tests::{google_invite, google_zoom_invite, utc, zoom_invite, ZOOM_LINK};
 use crate::meet::{self, take_seal_context, take_wrap_context, unpack, TEST_BOT_TOKEN};
 use crate::store::MeetBooking;
 use crate::test_support::{behind_caddy, device, routes, Harness};
@@ -128,7 +128,7 @@ async fn a_google_invite_mailed_to_the_address_books_ghost_and_its_updates_move_
     let id = listed[0]["id"].as_str().unwrap().to_string();
     assert_eq!(
         listed[0],
-        json!({ "id": id, "title": "Roadmap review, Q4", "url": "https://meet.google.com/abc-defg-hij", "startsAt": utc(2030, 1, 15, 16, 0), "endsAt": utc(2030, 1, 15, 17, 0), "state": "booked", "detail": null })
+        json!({ "id": id, "title": "Roadmap review, Q4", "url": "https://meet.google.com/abc-defg-hij", "kind": "meet", "startsAt": utc(2030, 1, 15, 16, 0), "endsAt": utc(2030, 1, 15, 17, 0), "state": "booked", "detail": null })
     );
     // A newer SEQUENCE moves it, the same booking.
     let moved = google_invite("REQUEST", 1, "20300116T090000", "20300116T100000", "CONFIRMED").replace("abc-defg-hij", "xyz-wxyz-xyz");
@@ -152,17 +152,99 @@ async fn a_google_invite_mailed_to_the_address_books_ghost_and_its_updates_move_
 }
 
 #[tokio::test]
-async fn an_invite_without_a_meet_link_or_already_over_books_nothing() {
+async fn an_invite_without_a_meet_or_zoom_link_or_already_over_books_nothing() {
     let h = Harness::new("meet");
     let (account, _) = with_key(&h, "sam").await;
     let address = turned_on(&h, &account).await;
-    let zoom = google_invite("REQUEST", 0, "20300115T110000", "20300115T120000", "CONFIRMED").replace("https://meet.google.com/abc-defg-hij", "https://zoom.us/j/123456789");
-    h.send(post(&address, invite_mail(&address, &zoom).as_bytes(), &token(1))).await;
+    let teams = google_invite("REQUEST", 0, "20300115T110000", "20300115T120000", "CONFIRMED").replace("https://meet.google.com/abc-defg-hij", "https://teams.microsoft.com/l/meetup-join/19%3ameeting");
+    h.send(post(&address, invite_mail(&address, &teams).as_bytes(), &token(1))).await;
     let past = google_invite("REQUEST", 0, "20200115T110000", "20200115T120000", "CONFIRMED");
     h.send(post(&address, invite_mail(&address, &past).as_bytes(), &token(2))).await;
     assert!(meetings(&h, &account).await.is_empty());
     let (_, mail) = h.call(Method::GET, "/api/v1/mail", Some(&account), None).await;
     assert_eq!(mail["mail"].as_array().unwrap().len(), 2, "both are notes all the same");
+}
+
+#[tokio::test]
+async fn zoom_s_own_invite_and_a_google_event_on_zoom_book_ghost_into_the_zoom_and_tell_the_bot_so() {
+    let h = Harness::new("meet");
+    let (account, _) = with_key(&h, "sam").await;
+    let address = turned_on(&h, &account).await;
+    // Zoom's own invite, as Zoom mails it or a person forwards it.
+    let zoom = zoom_invite("20300115T100000", "20300115T110000");
+    let (status, _, bytes) = h.send(post(&address, invite_mail(&address, &zoom).as_bytes(), &token(1))).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
+    let listed = meetings(&h, &account).await;
+    assert_eq!(listed.len(), 1, "{listed:?}");
+    let id = listed[0]["id"].as_str().unwrap().to_string();
+    assert_eq!(
+        listed[0],
+        json!({ "id": id, "title": "Design sync", "url": ZOOM_LINK, "kind": "zoom", "startsAt": utc(2030, 1, 15, 18, 0), "endsAt": utc(2030, 1, 15, 19, 0), "state": "booked", "detail": null })
+    );
+
+    // A Google Calendar event on Zoom: booked, and moved to Meet by its update, the same booking.
+    let google = google_zoom_invite("REQUEST", 0, "20300116T110000", "20300116T120000", "CONFIRMED");
+    h.send(post(&address, invite_mail(&address, &google).as_bytes(), &token(2))).await;
+    let on_zoom = meetings(&h, &account).await.into_iter().find(|m| m["title"] == "Roadmap review, Q4").unwrap();
+    assert_eq!((on_zoom["url"].as_str(), on_zoom["kind"].as_str()), (Some(ZOOM_LINK), Some("zoom")));
+    let to_meet = google_invite("REQUEST", 1, "20300116T110000", "20300116T120000", "CONFIRMED");
+    h.send(post(&address, invite_mail(&address, &to_meet).as_bytes(), &token(3))).await;
+    let moved = meetings(&h, &account).await.into_iter().find(|m| m["title"] == "Roadmap review, Q4").unwrap();
+    assert_eq!((moved["id"].as_str(), moved["url"].as_str(), moved["kind"].as_str()), (on_zoom["id"].as_str(), Some("https://meet.google.com/abc-defg-hij"), Some("meet")));
+    // And back to Zoom; then the Zoom link taken away with nothing in its place calls it off.
+    let back = google_zoom_invite("REQUEST", 2, "20300116T110000", "20300116T120000", "CONFIRMED");
+    h.send(post(&address, invite_mail(&address, &back).as_bytes(), &token(4))).await;
+    let gone = google_zoom_invite("REQUEST", 3, "20300116T110000", "20300116T120000", "CONFIRMED").replace(ZOOM_LINK, "(link to come)");
+    h.send(post(&address, invite_mail(&address, &gone).as_bytes(), &token(5))).await;
+    let called_off = meetings(&h, &account).await.into_iter().find(|m| m["title"] == "Roadmap review, Q4").unwrap();
+    assert_eq!((called_off["state"].as_str(), called_off["detail"].as_str()), (Some("cancelled"), Some("The invite no longer has a Google Meet or Zoom link.")));
+
+    // The bot is told which service each is, so it opens Zoom's web client for the Zoom.
+    let (_, due) = bot_call(&h, Method::GET, "/api/internal/meet/due", None).await;
+    assert_eq!(due["meetings"], json!([]), "not due yet");
+    let now = join_now_url(&h, &account, "zoom.us/my/Sam.Lee").await;
+    let (_, due) = bot_call(&h, Method::GET, "/api/internal/meet/due", None).await;
+    let one = due["meetings"].as_array().unwrap().iter().find(|m| m["id"] == now.as_str()).unwrap().clone();
+    assert_eq!((one["url"].as_str(), one["kind"].as_str()), (Some("https://zoom.us/my/sam.lee"), Some("zoom")));
+}
+
+/// Ghost booked now into the meeting at `url`, by a device; the booking's id.
+async fn join_now_url(h: &Harness, token: &str, url: &str) -> String {
+    let (status, body) = h.call(Method::POST, "/api/v1/meet", Some(token), Some(json!({ "url": url }))).await;
+    assert_eq!(status, StatusCode::OK, "{url}: {body}");
+    body["meeting"]["id"].as_str().unwrap().to_string()
+}
+
+#[tokio::test]
+async fn join_now_takes_a_zoom_link_in_its_three_shapes_and_nothing_else_of_zoom_s() {
+    let h = Harness::new("meet");
+    let (account, _) = with_key(&h, "sam").await;
+    for (typed, booked) in [
+        (" https://us06web.zoom.us/j/83512345678?pwd=bWVvT3h5Vm1uVTNtTHpuNnJ3QT09.1&uname=Sam ", "https://us06web.zoom.us/j/83512345678?pwd=bWVvT3h5Vm1uVTNtTHpuNnJ3QT09.1"),
+        ("zoom.us/wc/join/123456789", "https://zoom.us/j/123456789"),
+        ("https://acme.zoom.us/my/sam.lee", "https://acme.zoom.us/my/sam.lee"),
+    ] {
+        let (status, body) = h.call(Method::POST, "/api/v1/meet", Some(&account), Some(json!({ "url": typed }))).await;
+        assert_eq!(status, StatusCode::OK, "{typed}: {body}");
+        assert_eq!((body["meeting"]["url"].as_str(), body["meeting"]["kind"].as_str()), (Some(booked), Some("zoom")), "{typed}");
+    }
+    for bad in [
+        "https://zoom.us/j/1",
+        "https://zoom.us/w/123456789",
+        "https://zoom.us/s/123456789",
+        "https://evilzoom.us/j/123456789",
+        "https://zoom.us.evil.example/j/123456789",
+        "https://a.b.zoom.us/j/123456789",
+        "https://example.com/?zoom.us/j/123456789",
+        "https://zoom.us/j/123456789/start",
+    ] {
+        let (status, body) = h.call(Method::POST, "/api/v1/meet", Some(&account), Some(json!({ "url": bad }))).await;
+        assert_eq!(
+            (status, body),
+            (StatusCode::BAD_REQUEST, json!({ "error": "That is not a Google Meet or Zoom link. It looks like meet.google.com/abc-defg-hij or zoom.us/j/123456789." })),
+            "{bad}"
+        );
+    }
 }
 
 #[tokio::test]
@@ -316,6 +398,7 @@ async fn a_take_is_sealed_on_arrival_kept_only_sealed_and_opened_by_the_account_
     assert_eq!((head["meeting"].as_str(), head["title"].as_str(), head["mime"].as_str()), (Some(id.as_str()), Some("Budget"), Some("audio/webm;codecs=opus")));
     assert_eq!((head["startedAt"].as_i64(), head["captionsBytes"].as_u64(), head["audioBytes"].as_u64()), (Some(1_792_159_500_000), Some(captions.len() as u64), Some(audio.len() as u64)));
     assert!(head["endedAt"].as_i64().unwrap() > 1_700_000_000_000);
+    assert_eq!(head["kind"], "meet", "which service it was, for the note's words");
     let other = p256::SecretKey::random(&mut rand::rngs::OsRng);
     assert!(seal::open_sealed_with(&other, &wrapped, &take_wrap_context(&take), &sealed, &take_seal_context(&take)).is_err());
 
@@ -821,6 +904,7 @@ async fn the_device_lists_each_running_series_with_its_rule_its_next_and_whether
         json!({
             "id": own.id,
             "title": "Roadmap review, Q4",
+            "kind": "meet",
             "rule": "Every weekday at 9:30",
             "time": "09:30",
             "zone": "America/New_York",
@@ -1089,7 +1173,7 @@ async fn asked_with_no_page_the_list_is_what_it_always_was_with_next_for_the_old
     let (ids, next, body) = page(&h, &token, "").await;
     // Still to come and the last seven days', soonest first, as an app from before pages reads it.
     assert_eq!(ids, vec!["week".to_string(), "soon".to_string()]);
-    assert_eq!(body["meetings"][0], json!({ "id": "week", "title": "This week", "url": null, "startsAt": now - 2 * day - 1_800_000, "endsAt": now - 2 * day, "state": "done", "detail": null }));
+    assert_eq!(body["meetings"][0], json!({ "id": "week", "title": "This week", "url": null, "kind": null, "startsAt": now - 2 * day - 1_800_000, "endsAt": now - 2 * day, "state": "done", "detail": null }));
     assert_eq!(body["series"], json!([]));
     // And where the older ones go on from: those past the seven days, the latest first.
     let next = next.expect("older ones are kept");

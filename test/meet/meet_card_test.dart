@@ -11,6 +11,7 @@ import 'package:ghost_md/ai/summary_handoff.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/mail/ui/mail_card.dart';
+import 'package:ghost_md/meet/gmt.dart' show MeetService;
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
@@ -41,8 +42,8 @@ Future<({Device device, FakeMeet meet})> made({bool address = true, bool Functio
   return (device: device, meet: meet);
 }
 
-Map<String, Object?> meeting(String id, String? title, String state, {String? detail, int startsAt = 1792159200000}) =>
-    {'id': id, 'title': title, 'url': 'https://meet.google.com/abc-defg-hij', 'startsAt': startsAt, 'endsAt': startsAt + 3600000, 'state': state, 'detail': detail};
+Map<String, Object?> meeting(String id, String? title, String state, {String? detail, int startsAt = 1792159200000, String? url = 'https://meet.google.com/abc-defg-hij', String? kind}) =>
+    {'id': id, 'title': title, 'url': url, 'kind': ?kind, 'startsAt': startsAt, 'endsAt': startsAt + 3600000, 'state': state, 'detail': detail};
 
 /// A row's words, all of them, for what it says.
 String hintOf(WidgetTester tester, String id) => tester.widgetList<Text>(find.descendant(of: find.byKey(ValueKey('meet-$id')), matching: find.byType(Text))).map((t) => t.data ?? '').join(' | ');
@@ -62,6 +63,37 @@ void main() {
     expect(meetStateWords(of('failed')), 'Couldn’t join');
     expect(meetLink(' meet.google.com/ABC-defg-hij?authuser=1 '), 'https://meet.google.com/abc-defg-hij');
     expect(meetLink('https://zoom.us/j/123'), isNull);
+    // A Zoom's own (Matt, 2026-10-26: "While you're at it also consider zoom meetings"), what its host must allow.
+    expect(meetStateWords(of('failed', 'captcha')), 'Couldn’t join: Zoom asked Ghost to prove it is a person');
+    expect(meetStateWords(of('failed', 'sign_in_required')), 'Couldn’t join: the meeting lets in signed-in Zoom users only');
+    expect(meetStateWords(of('failed', 'no_browser_join')), 'Couldn’t join: the host turned off joining from a browser');
+    expect(meetStateWords(of('failed', 'passcode_needed')), 'Couldn’t join: the link had no passcode in it');
+  });
+
+  test('a Zoom link is taken in the forms the service books, its passcode kept as written, and nothing else of Zoom’s', () {
+    expect(meetLink(' https://us06web.zoom.us/j/83512345678?pwd=bWVvT3h5Vm1uVTNtTHpuNnJ3QT09.1&uname=Sam '), 'https://us06web.zoom.us/j/83512345678?pwd=bWVvT3h5Vm1uVTNtTHpuNnJ3QT09.1');
+    expect(meetLink('zoom.us/wc/join/123456789'), 'https://zoom.us/j/123456789');
+    expect(meetLink('HTTPS://Acme.Zoom.us/J/12345678901#success'), 'https://acme.zoom.us/j/12345678901');
+    expect(meetLink('https://zoom.us/my/Sam.Lee'), 'https://zoom.us/my/sam.lee');
+    expect(meetLink('https://zoom.us/j/123456789?pwd=bad*one'), 'https://zoom.us/j/123456789');
+    for (final not in [
+      'https://zoom.us/w/123456789',
+      'https://zoom.us/s/123456789',
+      'https://zoom.us/j/12345678',
+      'https://zoom.us/j/123456789/start',
+      'https://evilzoom.us/j/123456789',
+      'https://zoom.us.evil.example/j/123456789',
+      'https://a.b.zoom.us/j/123456789',
+      'join https://zoom.us/j/123456789',
+      'https://zoom.us/my/sam.',
+    ]) {
+      expect(meetLink(not), isNull, reason: not);
+    }
+    MeetBooking of(Map<String, Object?> json) => MeetBooking.fromJson(json)!;
+    expect(of(meeting('z', 'Z', 'booked', url: 'https://zoom.us/j/123456789', kind: 'zoom')).service, MeetService.zoom);
+    expect(of(meeting('z', 'Z', 'booked', url: 'https://us06web.zoom.us/j/123456789')).service, MeetService.zoom, reason: 'a service before kind: read from the link');
+    expect(of(meeting('m', 'M', 'booked')).service, MeetService.meet);
+    expect(of(meeting('o', 'O', 'done', url: null)).service, isNull, reason: 'swept: no link, no service');
   });
 
   testWidgets('without an address, the page turns one on itself, and the invite card is drawn once there is one', (tester) async {
@@ -229,6 +261,7 @@ void main() {
       meeting('b', 'Standup', 'in_call'),
       meeting('c', null, 'failed', detail: 'not_admitted'),
       meeting('d', 'Retro', 'done'),
+      meeting('z', 'Design sync', 'booked', url: 'https://us06web.zoom.us/j/83512345678', kind: 'zoom'),
     ]);
     await d.device.pump(tester, MeetingsPane(services: d.device.services));
     await settle(tester, 10);
@@ -236,23 +269,25 @@ void main() {
     expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Ghost in meetings']));
     expect(tester.getTopLeft(find.text('Join')).dy, lessThan(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy));
     // Join on the link's line, to its right (Matt, 2026-10-24).
-    final field = tester.getRect(find.bySemanticsLabel('Meet link').first), join = tester.getRect(find.byKey(const ValueKey('meet-send')));
+    final field = tester.getRect(find.bySemanticsLabel('Meeting link').first), join = tester.getRect(find.byKey(const ValueKey('meet-send')));
     expect(join.left, greaterThan(field.right));
     expect((join.center.dy - field.center.dy).abs(), lessThan(4));
     expect(tester.getTopLeft(find.byKey(const ValueKey('meet-address'))).dy, lessThan(tester.getTopLeft(find.byWidgetPredicate((w) => w is PaneSection && w.title == 'Ghost in meetings')).dy));
-    expect(meetingsSummary(d.device.services), 'Ghost is booked for 2 meetings');
+    expect(meetingsSummary(d.device.services), 'Ghost is booked for 3 meetings');
     expect(find.text(meetCardFooter), findsOneWidget);
     expect(meetCardFooter, 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.');
-    expect(find.text('Add this address as a guest on a Google Calendar invite. Mail sent to it becomes a note in your Inbox.'), findsOneWidget);
+    expect(find.text('Add this address as a guest on a calendar invite with a Google Meet or Zoom link. Mail sent to it becomes a note in your Inbox.'), findsOneWidget);
+    expect(find.text('Paste a Google Meet or Zoom link to send Ghost in now, or add your address as a guest on a calendar invite and Ghost joins by itself.'), findsOneWidget);
     final address = d.device.service.mailAddress!;
     await bringIntoView(tester, find.byKey(const ValueKey('meet-address')));
     await tester.tap(find.descendant(of: find.byKey(const ValueKey('meet-address')), matching: find.text('Copy')));
     await settle(tester);
     expect(copied.text, address);
 
-    expect(hintOf(tester, 'a'), allOf(contains('Roadmap review'), contains('Booked'), contains('Don’t join')));
+    expect(hintOf(tester, 'a'), allOf(contains('Roadmap review'), contains('Google Meet · Booked'), contains('Don’t join')));
     expect(hintOf(tester, 'b'), allOf(contains('In the meeting'), contains('Leave now')));
     expect(hintOf(tester, 'c'), allOf(contains('A meeting'), contains('Couldn’t join: nobody let Ghost in')));
+    expect(hintOf(tester, 'z'), allOf(contains('Design sync'), contains('Zoom · Booked')), reason: 'the row names the service it is on');
     // Done on the service, and no note here yet: the take waits for a device to file it.
     expect(hintOf(tester, 'd'), allOf(contains('Not written up yet'), isNot(contains('Don’t join'))));
 
@@ -262,13 +297,18 @@ void main() {
     expect(d.meet.calls, contains('DELETE meet/a'));
     expect(hintOf(tester, 'a'), contains('Skipped'));
 
-    await typeInto(tester, 'Meet link', 'not a link');
+    await typeInto(tester, 'Meeting link', 'not a link');
     expect(d.meet.booked, isNull);
-    await typeInto(tester, 'Meet link', 'meet.google.com/xyz-abcd-efg');
+    await typeInto(tester, 'Meeting link', 'meet.google.com/xyz-abcd-efg');
     await press(tester, 'Join');
     await settle(tester, 10);
     expect(d.meet.booked, {'url': 'https://meet.google.com/xyz-abcd-efg'});
     expect(find.text('Ghost is on its way into the meeting.'), findsOneWidget);
+    // And a Zoom's, booked in the form the service keeps.
+    await typeInto(tester, 'Meeting link', 'us06web.zoom.us/j/83512345678?pwd=AbC.1&uname=Sam');
+    await press(tester, 'Join');
+    await settle(tester, 10);
+    expect(d.meet.booked, {'url': 'https://us06web.zoom.us/j/83512345678?pwd=AbC.1'});
     await endSettings(tester);
   });
 

@@ -1,14 +1,14 @@
 /**
  * Google Meet, driven: everything that touches the page. What is matched here (button names, texts, the captions
  * region) was found by the spike (meet/spike/README.md) and is Meet's English UI; when Meet changes, this is the file.
+ * Zoom is lib/zoom.mjs, with the same exports; the browser and the recorder both share are lib/browser.mjs, and are
+ * passed on from here as they were before Zoom came.
  *
  * Nothing read from the page reaches the log except which of a few known situations it was.
  */
-import { appendFileSync } from 'node:fs';
-import { chromium } from 'playwright-core';
-import { botLaunchOptions } from './chrome.mjs';
+import { bodyText, clickIf, hostOf, lobbyButtons, sleep } from './browser.mjs';
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+export { openBrowser, soundLevel, startRecording, stopRecording } from './browser.mjs';
 
 /** Texts that end the attempt to join, and the detail each is reported with. */
 const PREVIEW_OUTCOMES = [
@@ -31,65 +31,6 @@ const ENDED = [
  */
 export const JOIN_BUTTON = /\b(join now|ask to join|switch here)\b/i;
 const LEAVE_BUTTON = /leave call/i;
-
-/** Runs in the page before Meet does: no navigator.webdriver, and the recorder (tab capture into a MediaRecorder). */
-function pageScript() {
-  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-  const box = { ctx: null, rec: null, chain: Promise.resolve(), meter: null, stream: null };
-  window.__ghostStart = async () => {
-    // The tab's own sound, as a person at this seat would hear it: the meeting's mix. Chrome accepts the prompt
-    // itself (--auto-accept-this-tab-capture).
-    const stream = await navigator.mediaDevices.getDisplayMedia({
-      video: true,
-      audio: { suppressLocalAudioPlayback: false },
-      preferCurrentTab: true,
-      selfBrowserSurface: 'include',
-      systemAudio: 'exclude',
-    });
-    stream.getVideoTracks().forEach((t) => t.stop());
-    const tracks = stream.getAudioTracks();
-    if (!tracks.length) throw new Error('the tab capture has no audio track');
-    box.stream = stream;
-    box.ctx = new AudioContext({ sampleRate: 48000 });
-    await box.ctx.resume().catch(() => {});
-    const source = box.ctx.createMediaStreamSource(new MediaStream(tracks));
-    const dest = box.ctx.createMediaStreamDestination();
-    source.connect(dest);
-    box.meter = box.ctx.createAnalyser();
-    box.meter.fftSize = 2048;
-    source.connect(box.meter);
-    box.rec = new MediaRecorder(dest.stream, { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 48000 });
-    // Slices handed over in order: each waits for the one before it to reach Node.
-    box.rec.ondataavailable = (e) => {
-      if (!e.data || !e.data.size) return;
-      box.chain = box.chain.then(async () => {
-        const bytes = new Uint8Array(await e.data.arrayBuffer());
-        let s = '';
-        for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
-        await window.__ghostChunk(btoa(s));
-      });
-    };
-    box.rec.start(5000);
-    return tracks.length;
-  };
-  /** The sound's level over the last instant, in dB: a recording of silence shows up in the log as -100s. */
-  window.__ghostLevel = () => {
-    if (!box.meter) return null;
-    const buf = new Float32Array(2048);
-    box.meter.getFloatTimeDomainData(buf);
-    let sum = 0;
-    for (const v of buf) sum += v * v;
-    return Math.round(20 * Math.log10(Math.sqrt(sum / buf.length) + 1e-9));
-  };
-  /** Stops the recorder: the last slice is handed over before this resolves. */
-  window.__ghostStop = () =>
-    new Promise((done) => {
-      if (!box.rec || box.rec.state === 'inactive') return box.chain.then(done, done);
-      box.rec.onstop = () => box.chain.then(done, done);
-      box.rec.stop();
-      if (box.stream) box.stream.getTracks().forEach((t) => t.stop());
-    });
-}
 
 /** The captions region's blocks, each `name\ntext`; null when the region is not there (captions off). */
 function readCaptions() {
@@ -137,35 +78,6 @@ function readPeople() {
   return tiles.size ? { count: tiles.size, from: 'tiles' } : null;
 }
 
-export async function openBrowser(profile) {
-  const context = await chromium.launchPersistentContext(profile, botLaunchOptions());
-  await context.addInitScript(pageScript);
-  const page = context.pages()[0] ?? (await context.newPage());
-  return { context, page };
-}
-
-/** A visible button whose accessible name matches, clicked; whether there was one. */
-async function clickIf(page, name) {
-  const button = page.getByRole('button', { name }).first();
-  if (!(await button.isVisible().catch(() => false))) return false;
-  await button.click({ timeout: 5000 }).catch(() => {});
-  return true;
-}
-
-async function lobbyButtons(page) {
-  return page
-    .evaluate(() =>
-      [...document.querySelectorAll('button,[role=button]')]
-        .filter((b) => b.offsetParent !== null)
-        .length,
-    )
-    .catch(() => null);
-}
-
-async function bodyText(page) {
-  return page.locator('body').innerText({ timeout: 5000 }).catch(() => '');
-}
-
 /** Google's sign-in pages: Meet sends a profile there when its sign-in has lapsed (no name box, no Sign in button). */
 export function isSignInPage(url) {
   try {
@@ -198,7 +110,7 @@ export async function join(page, url, { admitMs, shouldStop = () => false, log =
     if (Date.now() > previewBy) {
       // Where the lobby was instead, for the log: the page's host and how many buttons it showed (no names: a button
       // can carry a person's).
-      log('lobby', { host: (() => { try { return new URL(page.url()).hostname; } catch { return ''; } })(), count: await lobbyButtons(page) });
+      log('lobby', { host: hostOf(page), count: await lobbyButtons(page) });
       return { ok: false, detail: 'no_join_button' };
     }
     if (await signedOut(page)) return { ok: false, detail: 'signed_out' };
@@ -269,24 +181,6 @@ export async function captionBlocks(page) {
  * or null where the page would not say. */
 export async function people(page) {
   return page.evaluate(readPeople).catch(() => null);
-}
-
-/**
- * The recorder: every 5-second slice of Opus/WebM appended to `file` as it arrives, so a crash loses at most one.
- * Returns whether capture started.
- */
-export async function startRecording(page, file) {
-  await page.exposeFunction('__ghostChunk', (b64) => appendFileSync(file, Buffer.from(b64, 'base64')));
-  await page.evaluate(() => window.__ghostStart());
-}
-
-export async function soundLevel(page) {
-  return page.evaluate(() => window.__ghostLevel && window.__ghostLevel()).catch(() => null);
-}
-
-/** Stops the recorder and waits (up to 20 s) for the last slice to be on disk. */
-export async function stopRecording(page) {
-  await Promise.race([page.evaluate(() => window.__ghostStop && window.__ghostStop()).catch(() => {}), sleep(20_000)]);
 }
 
 /**

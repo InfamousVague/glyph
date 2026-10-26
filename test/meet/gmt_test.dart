@@ -33,6 +33,13 @@ void main() {
     expect(take.audio, [1, 2]);
   });
 
+  test('which service the meeting was on: the head\'s kind, and Meet for a take from before Zoom', () {
+    expect(readTake(gmt1(kind: 'zoom')).service, MeetService.zoom);
+    expect(readTake(gmt1(kind: 'meet')).service, MeetService.meet);
+    expect(readTake(gmt1()).service, MeetService.meet);
+    expect(readTake(gmt1(kind: 'teams')).service, MeetService.meet, reason: 'a kind this app does not know reads as the one it does');
+  });
+
   test('no captions, and no audio', () {
     final take = readTake(gmt1(audio: const []));
     expect(take.captions, isEmpty);

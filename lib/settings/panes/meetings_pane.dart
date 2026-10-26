@@ -27,7 +27,7 @@ List<SettingsFindable> meetingsFindable(AccountServices? services) {
   final mail = services?.mailIn;
   return [
     if (services != null && meetCardShown(services)) ...const [
-      SettingsFindable('Invite Ghost', 'send ghost meet link join now invite calendar guest address copy new refresh regenerate'),
+      SettingsFindable('Invite Ghost', 'send ghost meet google zoom link join now invite calendar guest address copy new refresh regenerate'),
       SettingsFindable('Ghost in meetings', 'meetings booked recording written up don’t join leave open note'),
     ],
     if (mail != null && mailCardShown(mail)) const SettingsFindable('Email to a note', 'mail inbox address turn off'),
@@ -42,7 +42,7 @@ String meetingsSummary(AccountServices? services) {
   final meetings = services?.meetIn?.meetings;
   final open = meetings?.where((m) => m.state.open).length ?? 0;
   if (open > 0) return open == 1 ? 'Ghost is booked for 1 meeting' : 'Ghost is booked for $open meetings';
-  return 'Invite Ghost to a Google Meet';
+  return 'Invite Ghost to a Google Meet or Zoom';
 }
 
 /// Settings › Meetings (Matt, 2026-10-23: "Make the meeting section its own section in settings and move the invite

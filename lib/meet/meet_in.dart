@@ -242,7 +242,8 @@ String? meetingNoteFor(MeetBooking booking, {required Map<String, String> filed,
   return best;
 }
 
-/// A failure's detail in a person's words: why Ghost could not join.
+/// A failure's detail in a person's words: why Ghost could not join. A Zoom's own (meet/bot/lib/zoomtext.mjs) say what
+/// its host would have to allow, since Ghost joins a Zoom as a guest (docs/MEET.md, "Zoom").
 String meetDetailWords(String? detail) => switch ((detail ?? '').toLowerCase().replaceAll(' ', '_')) {
       'signed_out' => 'Ghost was signed out of Google',
       'not_admitted' => 'nobody let Ghost in',
@@ -250,6 +251,14 @@ String meetDetailWords(String? detail) => switch ((detail ?? '').toLowerCase().r
       'busy' => 'Ghost was in another meeting',
       'upload' => 'the recording did not reach Ghost.md',
       'missed' => 'Ghost missed it',
+      'captcha' => 'Zoom asked Ghost to prove it is a person',
+      'sign_in_required' => 'the meeting lets in signed-in Zoom users only',
+      'no_browser_join' => 'the host turned off joining from a browser',
+      'passcode_needed' => 'the link had no passcode in it',
+      'passcode_wrong' => 'the passcode was wrong',
+      'invalid_link' => 'the link led to no meeting',
+      'unsupported_browser' => 'Zoom would not open in Ghost’s browser',
+      'bad_url' => 'Ghost can’t open that link',
       _ => '',
     };
 
@@ -312,13 +321,43 @@ String meetSeriesNext(MeetSeries series) {
 /// What "Stop joining" asks first: the series named, and that its past stays.
 String meetStopWarning(MeetSeries series) => 'Ghost won’t join ${series.title ?? 'this meeting'} any more. Past recordings stay.';
 
-/// A Google Meet link, as a person pastes one: `https://meet.google.com/abc-defg-hij`, with or without the scheme.
+/// A meeting link Ghost can join, as a person pastes one, in the one form the service books it by: a Google Meet's,
+/// `https://meet.google.com/abc-defg-hij`, with or without the scheme; or a Zoom's ([zoomLink]; Matt, 2026-10-26:
+/// "While you're at it also consider zoom meetings"). Null for anything else, and Join stays off.
 String? meetLink(String typed) {
   final text = typed.trim();
   final match = RegExp(r'^(?:https?://)?meet\.google\.com/([a-z]{3}-[a-z]{4}-[a-z]{3})(?:[/?#].*)?$', caseSensitive: false).firstMatch(text);
-  if (match == null) return null;
-  return 'https://meet.google.com/${match.group(1)!.toLowerCase()}';
+  if (match != null) return 'https://meet.google.com/${match.group(1)!.toLowerCase()}';
+  return zoomLink(text);
 }
+
+/// A Zoom link, as a person pastes one, as the service reads it (server/src/meet/ics.rs `typed_zoom_url`): `zoom.us`
+/// or one name under it (`us06web.zoom.us`), and `/j/<id>` or the web client's `/wc/join/<id>` (nine to eleven digits,
+/// booked as `/j/<id>`), or a personal `/my/<name>`; the passcode (`pwd`, as written) the one part of the query kept.
+/// A webinar's `/w/`, a host's `/s/` and anything around the link are none.
+String? zoomLink(String typed) {
+  final match = RegExp(r'^(?:https?://)?((?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)?zoom\.us)/(j|wc/join|my)/([^/?#\s]+)/?([?#]\S*)?$', caseSensitive: false).firstMatch(typed.trim());
+  if (match == null) return null;
+  final host = match.group(1)!.toLowerCase();
+  final personal = match.group(2)!.toLowerCase() == 'my';
+  final id = match.group(3)!;
+  if (personal ? !RegExp(r'^[A-Za-z0-9._-]{0,63}[A-Za-z0-9_-]$').hasMatch(id) : !RegExp(r'^\d{9,11}$').hasMatch(id)) return null;
+  final query = match.group(4) ?? '';
+  String? pwd;
+  if (query.startsWith('?')) {
+    for (final pair in query.substring(1).split('#').first.split('&')) {
+      if (pair.startsWith('pwd=')) {
+        pwd = pair.substring(4).replaceFirst(RegExp(r'\.+$'), '');
+        break;
+      }
+    }
+  }
+  final kept = pwd != null && RegExp(r'^[A-Za-z0-9._-]{1,128}$').hasMatch(pwd) ? '?pwd=$pwd' : '';
+  return personal ? 'https://$host/my/${id.toLowerCase()}$kept' : 'https://$host/j/$id$kept';
+}
+
+/// What a link that will not do is answered with, as the service answers it.
+const String meetLinkProblem = 'That is not a Google Meet or Zoom link. It looks like meet.google.com/abc-defg-hij or zoom.us/j/123456789.';
 
 /// The setting's side of Ghost in meetings: the meetings as the service last said them, and what a person may do
 /// with them.
@@ -557,11 +596,11 @@ class MeetIn extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Ghost joins the Meet at [url] now: the account's encryption key seen to first, since the recording is sealed
-  /// to it as it arrives.
+  /// Ghost joins the Google Meet or Zoom at [url] now: the account's encryption key seen to first, since the recording
+  /// is sealed to it as it arrives.
   Future<MeetBooking?> sendNow(String url, {String? title}) async {
     final link = meetLink(url);
-    if (link == null) throw const ApiError(400, 'That is not a Google Meet link. It looks like meet.google.com/abc-defg-hij.');
+    if (link == null) throw const ApiError(400, meetLinkProblem);
     final token = _token();
     final accountKey = await account.accountKey();
     if (accountKey == null) throw const ApiError(409, 'Sign in again on this device first: its key is not here.');

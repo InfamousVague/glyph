@@ -109,12 +109,14 @@ String meetNoteBody(OpenedTake take, {required int now, required bool writeUp, C
     if (turns.isNotEmpty) out.write('\n${captionsSection(turns)}\n');
     return out.toString();
   }
+  // Whose captions: a Zoom's are Zoom's (Matt, 2026-10-26: "also consider zoom meetings").
+  final whose = take.service.captions, who = take.service.short;
   out.write(switch (why) {
-    CaptionsOnly.noSound => ' No sound came with it, so this is from Meet’s captions.\n',
-    CaptionsOnly.notKept => ' This is from Meet’s captions: the recording could not be kept on this device.\n',
+    CaptionsOnly.noSound => ' No sound came with it, so this is from $whose captions.\n',
+    CaptionsOnly.notKept => ' This is from $whose captions: the recording could not be kept on this device.\n',
   });
   final paragraphs = captionParagraphs(turns);
-  out.write(paragraphs.isEmpty ? '\n## Transcript\n\nMeet showed no captions.\n' : '\n## Transcript\n\n${paragraphs.join('\n\n')}\n');
+  out.write(paragraphs.isEmpty ? '\n## Transcript\n\n$who showed no captions.\n' : '\n## Transcript\n\n${paragraphs.join('\n\n')}\n');
   return out.toString();
 }
 

@@ -1,6 +1,7 @@
-# Ghost in a Google Meet
+# Ghost in a Google Meet and Zoom
 
-GHST-106. Matt: "invite Ghost to meetings for it to automatically join". Ghost joins a Google Meet by itself, records
+GHST-106. Matt: "invite Ghost to meetings for it to automatically join". Ghost joins a Google Meet, or a Zoom
+(below, "Zoom"; Matt, 2026-10-26), by itself, records
 it with the captions Meet shows, and the recording reaches the person who invited it, sealed to their account. This
 page is the service's half (`server/src/meet.rs`, `server/src/meet/ics.rs`, `server/src/store/meet.rs`); the bot that
 joins is a separate service on the box, and the app's half downloads and opens the recordings. The spike that showed
@@ -13,10 +14,11 @@ it can be done is `meet/spike/README.md`.
 2. Google mails the invitation there. The mail becomes a note as any mail does, and in the same request the service
    reads its calendar part - the `text/calendar` alternative, or the `invite.ics` attachment; Google sends both, and
    they are read once - and books Ghost for the meeting.
-3. Or a device says "join this now": `POST /api/v1/meet` with a Meet link books Ghost from now for two hours.
+3. Or a device says "join this now": `POST /api/v1/meet` with a Meet or Zoom link books Ghost from now for two hours.
 
 Only an account with an encryption key gets bookings (the recording is sealed to it), and only Google Meet links
 (`https://meet.google.com/abc-defg-hij`, from `X-GOOGLE-CONFERENCE`, else the description, the location or `URL`)
+and Zoom links (`https://<host>.zoom.us/j/<id>?pwd=…`, `zoom.us/wc/join/<id>`, `zoom.us/my/<name>`; "Zoom", below)
 are booked. An account has at most 100 meetings booked and still to come, so an address anyone may mail cannot fill
 the bot's day.
 
@@ -27,10 +29,10 @@ One booking per invite UID (an occurrence of a series is `<UID>#<its start in ms
 
 | The invite | The booking |
 |---|---|
-| new, with a Meet link, not over | booked |
+| new, with a Meet or Zoom link, not over | booked |
 | a SEQUENCE lower than the one applied | ignored (an old copy arriving late) |
 | a newer one | its link, title and times follow the invite; booked again if it had been called off, or if it moves to a new time after it was over, skipped or failed |
-| `METHOD:CANCEL` or `STATUS:CANCELLED`, or no Meet link any more | `cancelled`; or `leave` if Ghost is in it or on its way |
+| `METHOD:CANCEL` or `STATUS:CANCELLED`, or no Meet or Zoom link any more | `cancelled`; or `leave` if Ghost is in it or on its way |
 
 Times: UTC (`…Z`); wall-clock time in a zone, resolved with the invite's own VTIMEZONE block (Google always sends one:
 STANDARD and DAYLIGHT, their offsets and yearly rules), or a small table of common IANA names when an invite names a
@@ -87,6 +89,124 @@ series is mailed again, and the series is booked beside it.
 with a RECURRENCE-ID and no RRULE. That is one meeting, booked if it is still to come; mailed after it ended, as
 happened to Matt's stand-up on 2026-10-21, it books nothing, and the mail is a note as any mail is.
 
+## Zoom
+
+Matt, 2026-10-26: "While you're at it also consider zoom meetings". Ghost joins a Zoom the way it joins a Meet: booked
+from a calendar invite mailed to the address, or by "join now" with a pasted link; the same bot, Chrome and recorder;
+the same leave rules, take and note. What differs is how it gets in: **as a guest, by name, through Zoom's web
+client**, never signed in to Zoom.
+
+### The links
+
+`server/src/meet/ics.rs` `zoom_url` reads three shapes and books each in one form; anything else is not booked:
+
+| Written | Booked |
+|---|---|
+| `https://us06web.zoom.us/j/83512345678?pwd=…` (any one name under zoom.us, or none) | `https://us06web.zoom.us/j/83512345678?pwd=…` |
+| `https://zoom.us/wc/join/83512345678?pwd=…` | `https://zoom.us/j/83512345678?pwd=…` |
+| `https://zoom.us/my/sam.lee` | `https://zoom.us/my/sam.lee` |
+
+The id is nine to eleven digits; the passcode (`pwd`) keeps its case and is the one part of the query kept; a full stop
+after a link is the sentence's. Not booked: a webinar (`/w/`), a host's start link (`/s/`, which would sign in as the
+host), a host that only ends in zoom.us (`notzoom.us`, `zoom.us.example`), two names under it, more path after the id.
+"Join now" checks a typed link whole (`typed_zoom_url`), as a Meet link is checked, and the app checks it first the same
+way (lib/meet/meet_in.dart `zoomLink`).
+
+In an invite the link is looked for where a Meet's is: X-GOOGLE-CONFERENCE and RFC 7986's CONFERENCE, then DESCRIPTION,
+LOCATION and URL, the first Meet or Zoom link in each, whichever comes first in it. One exception: **a Zoom link in the
+location wins over a Meet in the conference**, because Calendar can add a Meet to every event by itself while the
+location is where a person puts the room they mean. Read and tested: Zoom's own invite (`PRODID:-//zoom.us//iCalendar
+Event//EN`, `METHOD:PUBLISH`, the link in LOCATION and in Zoom's invite text, a VTIMEZONE), a Google Calendar event on
+Zoom (no Meet of Google's, the link in the location and the description), an update that moves a meeting from Zoom to
+Meet and back (the same booking), and one that takes the link away (`cancelled`, "The invite no longer has a Google
+Meet or Zoom link.").
+
+`kind` (`meet` or `zoom`) is read from the link wherever a booking is said: the device's `Meeting` and `Series`, the
+bot's `due`, and a take's `GMT1` head (so the note says "Zoom's captions"). Nothing new is stored; once the sweep blanks
+the link, `kind` is null with it.
+
+### The bot in a Zoom
+
+`meet/bot/lib/session.mjs` picks the page by the link (`decide.mjs` `platformOf`): `lib/meet.mjs` for Meet,
+`lib/zoom.mjs` for Zoom, the same exports; the browser and the recorder both use are `lib/browser.mjs`. What Zoom's
+words mean is `lib/zoomtext.mjs`, tested in `test/zoom.test.mjs`. `bot.mjs` opens only the shapes above
+(`isZoomUrl`), and posts `failed: bad_url` for anything else.
+
+1. **The page.** `/j/<id>?pwd=<p>` is opened as the web client, `https://app.zoom.us/wc/join/<id>?pwd=<p>`. A personal
+   link is opened as it is, and the web client's page read off where Zoom moves to or its "Join from your browser"
+   link (`resolvedWebClientUrl`).
+2. **The lobby** (90 s to find Join): a cookie banner answered with the fewest cookies; a dialog's "I Agree", "Got it",
+   "Continue" pressed (terms, recording notices: staying is consenting, as for a person); "Continue without microphone
+   and camera", Mute and Stop Video if offered; the name box filled with **Ghost (notetaker)**; then **Join**. A
+   passcode box with nothing in it, when the link brought no passcode (or Zoom has not taken it in 10 s), is
+   `failed: passcode_needed`: Ghost has none to type.
+3. **Given up on at once, never answered**: a captcha (`failed: captcha`, by its frame or its words); a sign-in wall
+   (`failed: sign_in_required`: Zoom's `/signin`, a company's single sign-on, "authorized attendees only", "Sign in
+   to join"); joining from the browser turned off (`failed: no_browser_join`). Also `passcode_wrong`, `invalid_link`,
+   `refused` (removed, locked, full), `unsupported_browser`, and `skipped: meeting_ended`.
+4. **The waiting room** (or a host not yet there): waited in for `admitMs` (10 minutes), then `failed: not_admitted`.
+5. **In the call** when the Leave button is attached. `ready` joins the meeting's sound ("Join Audio by Computer";
+   without it the web client plays nothing and the recording is silence), mutes and stops video again, and presses
+   the opening notices away. Then the same `announce` line in the chat, captions on, the recorder, as for Meet.
+6. **Captions**, where the host lets a participant see them: "Show Captions" on the footer, else the Captions / CC /
+   Live Transcript button's "Show captions" / "Show subtitle", else the same under More; a language dialog saved as
+   it is. Asked for again every 30 s while none show, as for Meet; Ghost never asks the host to turn them on. Each
+   caption's speaker is the name Zoom draws on it, else a `Name: words` line, else the name on the tile Zoom marks as
+   speaking, else "Someone"; the blocks go through the same `CaptionTimeline` into `{at, speaker, text}` NDJSON.
+   Without captions the take is the sound alone, and the device's write-up has no names to give the transcript.
+7. **People**: the number on the Participants button (its accessible name, Zoom's own "particpants" included, or its
+   badge), else the video tiles; Ghost counted. The same alone, few-left and overrun rules.
+8. **The end**: the Leave button gone with "ended by host", "removed", or Zoom's `/postattendee` or `/wc/leave` page,
+   or three reads with no button. Leaving is Leave, then "Leave Meeting" (never "End Meeting for All").
+
+### What the host must allow
+
+- **Guests**: "Only authenticated users can join" off, or Ghost meets a sign-in wall.
+- **Joining from the browser**: "Show a Join from your browser link" on (an account setting the host's admin may
+  lock), or `no_browser_join`.
+- **The passcode in the link**: Zoom's default ("Embed passcode in invite link for one-click join"); with it off,
+  `passcode_needed`.
+- **The waiting room**: someone lets "Ghost (notetaker)" in within 10 minutes, as for a Meet's "Ask to join".
+- **Captions**: "Automated captions" (or a live transcript) on for the meeting, and shown to participants; otherwise
+  sound only.
+- **Chat**: open to everyone, or the announcement is let go (`announce_skipped`).
+
+### Known limits
+
+- **Not yet run against a live Zoom.** Meet's selectors came from the spike; Zoom's are written from Zoom's
+  accessible names and its long-standing wording, defensively, and are the first thing to check in a test call.
+- **Zoom may turn the bot away**: its web client watches for automation, can show a captcha to a guest it doubts, and
+  changes often. A captcha is never solved: the meeting fails with `captcha` and the person sees "Zoom asked Ghost to
+  prove it is a person".
+- **The sound needs "Join Audio by Computer"**, and the bot has no microphone (no fake devices, as for Meet). If Zoom
+  will not join computer audio without a microphone permission, the recording is silent (the log's `level` reads
+  -100s): the fix would be a muted fake microphone, which the spike avoided for Meet; decide after a test call.
+- **Speakers** come from captions when Zoom names them, else from the active-speaker tile, which lags a turn now and
+  then; a caption block whose speaker changes between reads can be written twice.
+- One Chrome profile: a Zoom is joined while signed in to Ghost's Google account. Zoom is not offered it.
+
+### The selectors (lib/zoom.mjs)
+
+| What | Found by |
+|---|---|
+| Join | button named exactly "Join" |
+| Name | textbox named "Your Name"/"Name", else `#input-for-name` |
+| Passcode | textbox named "Passcode"/"Password", else `#input-for-pwd` |
+| Captcha | `iframe[src*=recaptcha]`, `hcaptcha`, `arkoselabs`, `[id*=captcha]`, or its words |
+| No devices | button "Continue without microphone and camera" (or audio/video) |
+| Mic, camera | buttons "Mute", "Stop Video" |
+| Notices | a dialog's "Got it", "I Agree", "Agree", "Continue", "OK", "I understand", "Not now" (never Close) |
+| Cookies | "Reject all", "Decline", "Necessary cookies only" |
+| Sound | a dialog's or the footer's "Join Audio by Computer" / "Join Audio" / "Computer Audio" |
+| In the call | button named "Leave", else `button.footer__leave-btn`, `button[aria-label^=Leave]` |
+| Leave | "Leave", then "Leave Meeting" |
+| Chat | button "Chat" / "open the chat pane"; textbox "Type message here…", else a contenteditable in the chat |
+| Captions | "Show Captions" / "Show Subtitle"; the "Captions", "CC", "Live Transcript" button; under "More" |
+| Caption text | `[aria-label*=caption][aria-live]`, `[class*=live-transcription-subtitle]`, `[class*=subtitle][aria-live]`, `[class*=caption][aria-live]`, `[id*=subtitle]`; a name in `[class*=name]`, `[class*=speaker]` |
+| Active speaker | `[class*=speaker-active] [class*=avatar-name]`, `[class*=active-speaker] [class*=name]`, `[class*=speaking] [class*=name]` |
+| People | a button whose name or text says "participants" ("particpants"): `[n]` or a number in its name, else its `[class*=counter]` badge; else the tiles |
+| Ended | "ended by host", "removed", a `/postattendee` or `/wc/leave` page |
+
 ## What is in the clear, and for how long
 
 The bot has no key, so a booking keeps what joining needs in the clear: the Meet link, the title the app shows, the
@@ -113,19 +233,20 @@ All times are ms since the epoch. Ids are base64url.
 | `GET /api/v1/meet` | | `{ meetings: [Meeting], series: [Series], next }`: those not over, and the last 7 days', soonest first, as before pages; `next` the cursor for those older, or null |
 | `GET /api/v1/meet?limit=20` | | `{ meetings, series, next }`: every one not over (`endsAt` after now), soonest first, then the first `limit` (1 to 100) of those over, the latest ended first; `next` the cursor for the page after, or null on the last |
 | `GET /api/v1/meet?before=<next>&limit=20` | | `{ meetings, next }`: the page of those over after the cursor, in the same order; `limit` 20 when not given. 400 a cursor this list did not give |
-| `POST /api/v1/meet` | `{ url, title? }` | `{ meeting: Meeting }`, booked now for 2 h. 400 not a Meet link, 409 no encryption key yet, 429 100 already to come |
+| `POST /api/v1/meet` | `{ url, title? }` | `{ meeting: Meeting }`, booked now for 2 h. 400 not a Meet or Zoom link, 409 no encryption key yet, 429 100 already to come |
 | `DELETE /api/v1/meet/{id}` | | `{ meeting: Meeting }`: `skipped` if it had not started, `leave` if Ghost is joining or in it, as it was otherwise. 404 not the account's |
 | `DELETE /api/v1/meet/series/{id}` | | `{ series: { id, stopped: true }, meetings: [Meeting] }`: the series stopped (above), with the occurrences that changed. 404 not the account's, or not a series; a series stopped already answers with none changed |
 | `GET /api/v1/meet/takes` | | `{ takes: [{ id, meeting, size, at, wrapped }] }`, oldest first |
 | `GET /api/v1/meet/takes/{id}` | | the sealed take, raw `application/octet-stream`; headers `x-glyph-wrapped` (the wrapped key) and `x-glyph-meeting`. 404 not waiting |
 | `DELETE /api/v1/meet/takes/{id}` | | 204: taken |
 
-`Meeting` is `{ id, title, url, startsAt, endsAt, state, detail, series? }`; `title`, `url` and `detail` may be null
-(`title` and `url` are null once swept, and the app says "A meeting"). `state` is one of `booked`, `joining`,
+`Meeting` is `{ id, title, url, kind, startsAt, endsAt, state, detail, series? }`; `title`, `url`, `kind` and `detail`
+may be null (`title` and `url` are null once swept, and the app says "A meeting"; `kind`, `meet` or `zoom`, is read
+from `url` and null with it). `state` is one of `booked`, `joining`,
 `in_call`, `leave`, `done`, `failed`, `skipped`, `cancelled`. `series`, in the list only, is the id of the series an
 occurrence is of.
 
-`Series` is a series running and not stopped: `{ id, title, rule, time, zone, offset, next, until, count }`. `rule` is
+`Series` is a series running and not stopped: `{ id, title, kind, rule, time, zone, offset, next, until, count }`. `rule` is
 the rule in words, made on the server (`ics::rule_words`): "Daily at 9:30", "Every 3 days at 9:30", "Every weekday at
 9:30", "Weekly on Tue and Thu at 11:00", "Every 2 weeks on Mon at 9:30", "Monthly on the 2nd Tuesday at 9:30",
 "Monthly on the last Friday at 9:30", "Monthly on the 1st and 15th at 9:30", "Yearly on 15 Jan at 9:30", and
@@ -160,7 +281,7 @@ machine is 401. Without `GLYPH_MEET_TOKEN` the routes are not mounted. The bot c
 
 | | Request | Answer |
 |---|---|---|
-| `GET /api/internal/meet/due` | | `{ meetings: [{ id, url, title, startsAt, endsAt, state, announce }] }`: state `booked`, `joining`, `in_call` or `leave`, from 2 minutes before `startsAt` until 15 minutes after `endsAt`, oldest first. `announce` is the line to post in the meeting's chat |
+| `GET /api/internal/meet/due` | | `{ meetings: [{ id, url, kind, title, startsAt, endsAt, state, announce }] }`: state `booked`, `joining`, `in_call` or `leave`, from 2 minutes before `startsAt` until 15 minutes after `endsAt`, oldest first. `announce` is the line to post in the meeting's chat |
 | `POST /api/internal/meet/{id}/state` | `{ state, detail? }`, state `joining`, `in_call`, `done`, `failed` or `skipped`; detail free text, at most 200 characters (`signed_out`, `not admitted`, `meeting ended`) | `{ id, state }`. 409 `{ error, id, state }` with the state that stands when the meeting is over (`done`, `failed`, `skipped`, `cancelled`) or the bot was asked to `leave` and says `joining`/`in_call`: leave, and do not join again. 400 another state, 404 no such meeting |
 | `PUT /api/internal/meet/{id}/take` | `multipart/form-data`: `audio` (the recording; its Content-Type is kept, `audio/webm` if absent or odd), `captions` (NDJSON, optional), `startedAt` and `endedAt` (ms as text, optional) | `{ take, size }`, and the meeting is `done`. 400 no audio or unreadable, 404 no such meeting, 409 the meeting was skipped or cancelled, or its account has no key |
 
@@ -180,11 +301,11 @@ The take, before it is sealed: the four bytes `GMT1`, the head's length as four 
 then the captions' bytes, then the audio's (the mail's `GML1`, for a meeting):
 
 ```json
-{ "v": 1, "meeting": "<booking id>", "title": "Roadmap review, Q4", "startedAt": 1792159500000,
+{ "v": 1, "meeting": "<booking id>", "title": "Roadmap review, Q4", "kind": "meet", "startedAt": 1792159500000,
   "endedAt": 1792163100000, "mime": "audio/webm;codecs=opus", "captionsBytes": 1234, "audioBytes": 15000000 }
 ```
 
-`title` may be null. `startedAt` is the upload's, else the booking's start; `endedAt` the upload's, else the moment it
+`title` may be null; `kind` is `meet` or `zoom` (none from a service before Zoom, read as Meet). `startedAt` is the upload's, else the booking's start; `endedAt` the upload's, else the moment it
 arrived. The captions are passed through as the bot sent them.
 
 ## The seal
@@ -230,7 +351,8 @@ bot's own tab.
   others wait, and one that would be joined more than 10 minutes late is posted `failed: busy`. A meeting whose end
   has passed is posted `skipped: time_up`. A meeting is joined again after a restart if it is still `joining` or
   `in_call`; a 409 to `joining` or `in_call` means it is not Ghost's any more, and it is never tried again. Only
-  `https://meet.google.com/<code>` links are opened.
+  `https://meet.google.com/<code>` links and the Zoom links above are opened, each by its own page (`session.mjs`,
+  "Zoom").
 - **The lobby** (`lib/meet.mjs`): `joining`; the link; a "Your name" box or a Sign in button is `failed: signed_out`
   and the end of it; "Continue without microphone and camera", microphone and camera off; then the first of "Join
   now", "Ask to join" or "Switch here" (a seat of its own left behind). "You can't join this video call" is
@@ -266,7 +388,8 @@ bot's own tab.
 
 `node --test` in `meet/bot` tests the captions diff, the decisions (alone, time up, busy, which meeting), the API
 client against a stand-in server (the multipart body, the token, no proxy headers, 409, the retries), the upload's
-keep-or-delete, Chrome's switches and the log's filter. Joining a real Meet is tested only by hand.
+keep-or-delete, Chrome's switches, the log's filter, and Zoom's links and words (`test/zoom.test.mjs`). Joining a real
+Meet or Zoom is tested only by hand.
 
 ### The units
 
@@ -423,14 +546,14 @@ Android's does (lib/root/voice_wiring.dart), so Try again, Write up now and a mo
 A section of its own on the Account card, after Notifications (GHST-110; Matt, 2026-10-23: "Make the meeting section
 its own section in settings and move the invite card to the top"). It was a card on Account until then. Settings lists
 it for a signed-in account whose service has the meeting routes (`meetingsOffered`), in Simple too; its row reads
-"Ghost is booked for N meetings", or "Invite Ghost to a Google Meet". The page is lib/settings/panes/meetings_pane.dart
+"Ghost is booked for N meetings", or "Invite Ghost to a Google Meet or Zoom". The page is lib/settings/panes/meetings_pane.dart
 over lib/meet/ui/meet_card.dart. Since 2026-10-24 (Matt: "remove the meetings stuff from the account page the account
 settings page is overwhelming move all google meet related stuff to under the meet section") everything about
 meetings is here and nothing on Account. With no Email to a note address yet it says "Ghost is invited by your Email
 to a note address. Turn one on below, then invite Ghost here.", over the Email to a note card that turns one on. With
 one:
 
-- **Invite Ghost**, first: "Send Ghost to a meeting now", a Meet link sent to `POST meet` after the account's
+- **Invite Ghost**, first: "Send Ghost to a meeting now", a Google Meet or Zoom link sent to `POST meet` after the account's
   encryption key is seen to; then the address with Copy and a refresh icon ("Make a new address"; Matt, 2026-10-24:
   "add a refresh button next to the email so i can regeenrate the email"), which asks "Make a new address?" in the
   card, with Make it and Cancel, then runs `POST mail/address` (the old address takes no more invites or mail) and
@@ -444,7 +567,9 @@ one:
 - **Ghost in meetings**: what Ghost does; the meetings from `GET meet` with their state in words (Booked, Joining, In
   the meeting, Leaving, Written up / Being written up / Not written up yet, Couldn't join: Ghost was signed out of
   Google / nobody let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and
-  Leave now on one Ghost is in (`DELETE meet/{id}`). A meeting whose note is here is pressed to open it (Settings
+  Leave now on one Ghost is in (`DELETE meet/{id}`). A row names the service it is on ("Google Meet", "Zoom") while
+the service has its link, and a Zoom Ghost could not join says what its host would have to allow ("the host turned off
+joining from a browser", "Zoom asked Ghost to prove it is a person", ...). A meeting whose note is here is pressed to open it (Settings
   shuts; Matt, 2026-10-24: "add the ability to click a meeting to jump to the associated note"): the note kept
   against it (`meetingNotes`), or, for one filed before that was kept, Ghost's note whose recording began while the
   meeting was on (`meetingNoteFor`). Those to come first, under Coming up, then those over by day, the latest first,

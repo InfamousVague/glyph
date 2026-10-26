@@ -9,9 +9,18 @@ import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync, app
 import { join } from 'node:path';
 import { withRetry } from './api.mjs';
 import { CaptionTimeline } from './captions.mjs';
-import { LIMITS, busyMisses, leaveReason, nextPeak, trackAlone, trackFew } from './decide.mjs';
+import { LIMITS, busyMisses, leaveReason, nextPeak, platformOf, trackAlone, trackFew } from './decide.mjs';
 import { errorField, log } from './log.mjs';
 import * as meet from './meet.mjs';
+import * as zoom from './zoom.mjs';
+
+/**
+ * The page each service draws, driven (Matt, 2026-10-26: "While you're at it also consider zoom meetings"): Google
+ * Meet's (lib/meet.mjs) or Zoom's web client (lib/zoom.mjs), chosen by the meeting's link. Both have the same exports;
+ * `ready`, Zoom's alone, joins the meeting's sound once in. The rest of a call - the recording, the captions'
+ * timeline, the leave rules, the upload - is the same for both.
+ */
+export const PLATFORMS = { meet, zoom };
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const size = (path) => (existsSync(path) ? statSync(path).size : 0);
@@ -40,6 +49,13 @@ export async function runMeeting(meeting, ctx) {
     );
 
   handled.add(id);
+  const kind = platformOf(meeting.url);
+  const platform = PLATFORMS[kind];
+  if (!platform) {
+    // bot.mjs refuses such a link before it gets here; this is the same rule, kept where the page is chosen.
+    await report('failed', 'bad_url');
+    return;
+  }
   if (!(await report('joining'))) return;
   let browser = null;
   let recording = false;
@@ -51,9 +67,9 @@ export async function runMeeting(meeting, ctx) {
     for (const line of lines) appendFileSync(captions, JSON.stringify(line) + '\n');
   };
   try {
-    browser = await meet.openBrowser(profile);
+    browser = await platform.openBrowser(profile);
     const { page } = browser;
-    const joined = await meet.join(page, meeting.url, { admitMs: limits.admitMs, shouldStop: stopping, log: (e, f) => log(e, { id, ...f }) });
+    const joined = await platform.join(page, meeting.url, { admitMs: limits.admitMs, shouldStop: stopping, log: (e, f) => log(e, { id, kind, ...f }) });
     if (!joined.ok) {
       // Stopped in the lobby (a restart): left as `joining`, which the next run joins again.
       if (joined.detail === 'shutdown') log('lobby_left', { id, detail: 'shutdown' });
@@ -63,18 +79,19 @@ export async function runMeeting(meeting, ctx) {
     const joinedAt = Date.now();
     if (!(await report('in_call'))) {
       // Asked to leave, or called off, while the bot was in the lobby.
-      await meet.leaveCall(page);
+      await platform.leaveCall(page);
       return;
     }
     await sleep(2000);
-    await meet.announce(page, meeting.announce, (e) => log(e, { id }));
-    await meet.captionsOn(page);
+    if (platform.ready) await platform.ready(page, (e) => log(e, { id }));
+    await platform.announce(page, meeting.announce, (e) => log(e, { id }));
+    await platform.captionsOn(page);
 
     writeFileSync(audio, Buffer.alloc(0));
     writeFileSync(captions, '');
     t0 = Date.now();
     try {
-      await meet.startRecording(page, audio);
+      await platform.startRecording(page, audio);
       recording = true;
       log('recording', { id });
     } catch (e) {
@@ -98,21 +115,21 @@ export async function runMeeting(meeting, ctx) {
     let lastLevel = Date.now();
     for (;;) {
       const now = Date.now();
-      const blocks = await meet.captionBlocks(page);
+      const blocks = await platform.captionBlocks(page);
       if (blocks) {
         lastCaptionsSeen = now;
         write(timeline.update(blocks, now - t0));
       } else if (now - lastCaptionsSeen > 10_000 && now - lastCaptionsAsk > 30_000) {
         // Captions went off (or never came on): asked for again, now and then.
         lastCaptionsAsk = now;
-        await meet.captionsOn(page);
+        await platform.captionsOn(page);
         log('captions_asked', { id });
       }
       let ended = null;
       if (now - lastSlow >= 5000) {
         lastSlow = now;
-        ended = await meet.endedReason(page, live);
-        const read = await meet.people(page);
+        ended = await platform.endedReason(page, live);
+        const read = await platform.people(page);
         count = read?.count ?? null;
         if (count != null) countedAt = now;
         if (count > 1) seenOthers = true;
@@ -138,16 +155,16 @@ export async function runMeeting(meeting, ctx) {
       }
       if (now - lastLevel >= 60_000) {
         lastLevel = now;
-        log('in_call', { id, seconds: Math.round((now - t0) / 1000), bytes: size(audio), level: await meet.soundLevel(page), people: count });
+        log('in_call', { id, seconds: Math.round((now - t0) / 1000), bytes: size(audio), level: await platform.soundLevel(page), people: count });
       }
       reason = leaveReason({ now, joinedAt, startsAt: meeting.startsAt, endsAt: meeting.endsAt, aloneSince, fewSince, count, countedAt, seenOthers, serverLeave, ended, stopping: stopping() }, limits);
       if (reason) break;
       await sleep(500);
     }
     log('leaving', { id, reason });
-    await meet.stopRecording(page);
+    await platform.stopRecording(page);
     endedAt = Date.now();
-    if (reason !== 'meeting_ended' && reason !== 'removed') await meet.leaveCall(page);
+    if (reason !== 'meeting_ended' && reason !== 'removed') await platform.leaveCall(page);
   } catch (e) {
     log('meeting_error', { id, error: errorField(e) });
     reason = reason ?? 'error';
