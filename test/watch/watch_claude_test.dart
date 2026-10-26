@@ -467,7 +467,7 @@ void main() {
       await section(tester, claude: false, on: true);
       expect(find.text(watchClaudeLabel), findsOneWidget);
       expect(find.byType(GlacierSwitch), findsNothing);
-      expect(find.textContaining('add your Anthropic API key'), findsOneWidget);
+      expect(find.textContaining('then your Anthropic API key'), findsOneWidget);
       debugDisableShadows = true;
       await tester.pumpWidget(const SizedBox.shrink());
     });

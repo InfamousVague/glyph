@@ -242,8 +242,15 @@ void scenarios(World Function() world, GhostCore Function() core, {required bool
     await mac.sync();
     expect(mac.notes['t1']?.body, '$merged\nfour');
 
-    // Taken out of the organization's workspace on the mac: gone from the team, and from the phone.
+    // Unfiled on the mac: no evidence it left, so it stays the team's (ddeb6141) and the phone keeps it.
     mac.workspaces.fileNote('t1', null);
+    await mac.sync();
+    await again.sync();
+    expect(again.notes.containsKey('t1'), isTrue);
+
+    // Filed in a workspace of the account's own on the mac: gone from the team, and from the phone.
+    final mine = mac.workspaces.addWorkspace('Mine', 'sea')!;
+    mac.workspaces.fileNote('t1', mine.id);
     await mac.sync();
     await again.sync();
     expect(again.notes.containsKey('t1'), isFalse);

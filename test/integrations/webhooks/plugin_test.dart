@@ -54,7 +54,7 @@ void main() {
   testWidgets('its card is in the Market, to discover; added, its page is a row of Settings of its own', (tester) async {
     await pumpSettings(tester, MarketScreen(onBack: () {}, registry: registry, shelf: MarketShelf.plugins), prefs: const Preferences(theme: 'light'));
     expect(find.byKey(const ValueKey('market-plugin-webhooks'), skipOffstage: false), findsOneWidget);
-    expect(find.text('5 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
+    expect(find.text('7 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
     expect([for (final spec in pluginPageSections()) spec.id], isNot(contains('plugin:webhooks')));
     registry.setEnabled(webhooksId, true);
     await settleSettings(tester);
