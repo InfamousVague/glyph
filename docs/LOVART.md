@@ -109,6 +109,19 @@ whose summary has two different ones (design, mockup, wireframe, UI, UX, brand, 
 typography, layout, prototype, illustration, Figma, style guide, icon…), gets the same section in the closed note.
 Once per meeting, remembered before Lovart is asked.
 
+**Header images** (switch on the plugin's page, **on** by default; Matt, 2026-10-26: "add a setting to automatically
+generate header images for notes (turn it on by default when lovart is enabled)"): a banner across the top of a note,
+made when the note is **left** (lib/root/root_parts.dart `onScreenChanged` → lib/plugins/lovart/banners.dart
+`LovartBanners.noteLeft`), and on the note's cog as **Header image** (makes one again where there is one). The prompt is
+the house style, the ghost's stipple dotwork word for word from tauri/docs/GHOSTS.md (`bannerStyle`), with the note's
+title and its first 900 characters as the subject; 4:1, the ghost small on the right two-thirds, the left third white.
+The banner is front matter `banner: "![](image/lovart-….png)"` (lib/core/banner.dart): a picture's own Markdown, so
+sync, team sync, export and the trash's sweep follow it with no change. The note page draws it under the header
+(lib/note/note_banner.dart) in the page's inks, white as paper and black as ink, so it turns over in dark mode as the
+ghost scenes do. Made by itself only for a note of 25 words or more that is not a ticket, a meeting (Ghost's, or a
+recording with a summary), a mail (`from:`), a notebook, a canvas or a template, has no banner, and was never given
+one: remembered by id before Lovart is asked, so a banner taken off is not made again.
+
 **The badge.** A picture whose name begins `lovart-` carries Lovart's mark at its bottom right (20 px on a dark rounded
 ground, inset 8 px, "Made with Lovart" to a screen reader) wherever it is drawn: the editor's figures, an embedded
 note, a canvas picture card, on every device, plugin on or not (lib/editor/media/lovart_badge.dart).

@@ -182,7 +182,8 @@ import '../note/note_place.dart';
 import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/link_marks.dart';
-import '../plugins/lovart/lovart.dart' show lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
+import '../plugins/lovart/lovart.dart' show lovartBannerMaking, lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
+import '../note/note_banner.dart';
 import '../note/note_settings.dart' show NotePlugins;
 import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show NoteEditing;
@@ -2089,6 +2090,16 @@ class NoteDeskState extends State<NoteDesk> {
         final team = widget.readOnly ? null : _team;
         return team == null ? view(context, body, onChange) : TeamCanvasHost(key: ObjectKey(team.doc), team: team, body: body, onChange: onChange, draw: view);
       },
+      // Its header banner (lib/note/note_banner.dart), or Lovart at work on one while it is made.
+      banner: (context, noteId, name) => ValueListenableBuilder<Set<String>>(
+        valueListenable: lovartBannerMaking,
+        builder: (context, making, _) => NoteBannerView(
+          name: name,
+          store: _world.pictures,
+          making: making.contains(noteId),
+          prompt: noteId,
+        ),
+      ),
       // What the note is linked to, at its top; pressed, the note's More sheet, where a link is changed.
       head: (context, openSettings) {
         final tape = _tapeNow();

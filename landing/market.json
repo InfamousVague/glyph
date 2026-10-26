@@ -119,7 +119,8 @@
       "adds": [
         "Make images, on a note with {image: a prompt} in it: each becomes a picture",
         "Inspiration images, on any note: a moodboard of four under ## Inspiration",
-        "Inspiration for design meetings, once each is written up, where you switch it on"
+        "Inspiration for design meetings, once each is written up, where you switch it on",
+        "Header images for notes, in the ghost’s dotwork, made as you leave a note"
       ],
       "settings": true,
       "permissions": [
@@ -132,7 +133,7 @@
         {
           "kind": "network",
           "label": "The internet",
-          "why": "Asks Lovart for images, with your own Lovart keys: only the prompt, or the note you ask inspiration for, goes there. It talks to lovart.ai and nowhere else.",
+          "why": "Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there. It talks to lovart.ai and nowhere else.",
           "icon": "globe"
         }
       ],

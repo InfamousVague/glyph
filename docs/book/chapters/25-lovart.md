@@ -74,6 +74,14 @@ Any note can have a moodboard. Tap **More for this note** and choose **Inspirati
 
 Lovart reads the note's title, and its summary or its opening words, and makes **four images** for the ideas in it, each a different visual direction: style, colour palette, composition. They go under a `## Inspiration` heading at the end of the note. Ask again and the new ones join the ones already there.
 
+## Header images
+
+With Lovart added, a note gets a **header image**: a wide banner across its top, drawn in Ghost.md's own style, the ghost in black dotwork, doing whatever the note is about. It's made when you leave the note, so it's drawn from what you wrote, and it turns light on dark when your theme is dark.
+
+It's on as soon as you add Lovart. Switch it off in **Settings › Lovart › Notes**, **Header images for notes**. Each note gets one once, with your credits. Tickets, meetings, mail, notebooks, canvases and notes of only a few words are left alone, and a banner you take off isn't made again.
+
+To make one for a note now, or a new one, tap **More for this note** and choose **Header image**. The banner is a line in the note's front matter, `banner:`, so it travels with the note to your other devices and your team.
+
 ## Inspiration for design meetings
 
 In **Settings › Lovart › Meetings**, switch on **Inspiration for design meetings**. It is off by default.
@@ -94,7 +102,7 @@ A picture Lovart made carries Lovart's mark in its bottom-right corner, wherever
 
 ## What goes to Lovart
 
-Only what you ask about: the words of a cue, or the title and summary (or opening words) of the note you ask inspiration for. Nothing else of your notes goes there. The images are made in a Lovart project of your own, so you can also find them in Lovart.
+Only what you ask about: the words of a cue, the title and summary (or opening words) of the note you ask inspiration for, or the title and opening words of a note getting its header image. Nothing else of your notes goes there. The images are made in a Lovart project of your own, so you can also find them in Lovart.
 
 ## When something goes wrong
 

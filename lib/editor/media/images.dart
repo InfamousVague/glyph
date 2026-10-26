@@ -71,7 +71,7 @@ ImageProvider _providerOf(Picture picture) => picture.path != null ? FileImage(F
 /// and a most height, its shape kept. Until the store has it and it has decoded, [waiting] is drawn in its place
 /// (nothing, by default: an `<img>` with no picture yet has no height).
 class KeptPicture extends StatefulWidget {
-  const KeptPicture({super.key, required this.name, required this.store, this.label = '', this.maxHeight = double.infinity, this.minWidth = 0, this.minHeight = 0, this.radius = 0, this.background, this.waiting, this.onSize});
+  const KeptPicture({super.key, required this.name, required this.store, this.label = '', this.maxHeight = double.infinity, this.minWidth = 0, this.minHeight = 0, this.radius = 0, this.background, this.waiting, this.onSize, this.badge = true});
 
   final String name;
   final PictureStore? store;
@@ -85,6 +85,10 @@ class KeptPicture extends StatefulWidget {
 
   /// Told the picture's own size once it has decoded (`naturalWidth`, `naturalHeight`).
   final void Function(Size natural)? onSize;
+
+  /// Whether Lovart's mark is drawn on a picture Lovart made: off where the one drawing it puts the mark itself (a
+  /// note's banner, lib/note/note_banner.dart, which scales the picture and would scale the mark with it).
+  final bool badge;
 
   @override
   State<KeptPicture> createState() => _KeptPictureState();
@@ -168,7 +172,7 @@ class _KeptPictureState extends State<KeptPicture> {
         minHeight: widget.minHeight,
         // Lovart's mark on its corner where Lovart made it (lovart_badge.dart).
         child: LovartBadged(
-          name: widget.name,
+          name: widget.badge ? widget.name : '',
           child: ClipRRect(
             borderRadius: BorderRadius.circular(widget.radius),
             child: ColoredBox(

@@ -167,7 +167,7 @@ import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest,
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
-import '../plugins/lovart/lovart.dart' show LovartMeetings, lovartPictureStore;
+import '../plugins/lovart/lovart.dart' show LovartBanners, LovartMeetings, lovartPictureStore;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
@@ -436,6 +436,11 @@ class _GhostRootState extends State<GhostRoot> {
           : WorkspaceStore(storage: MemoryWorkspaceStorage(seedWorkspaces()), trash: _trash));
   late final VersionsStore _versionsStore = VersionsStore(widget.core, kept: _stored);
   // Who keeps a version here: the account's handle, read as each is kept (core/versions/record.ts `keeper`).
+  // A note left is given its header banner by Lovart, where the plugin and its switch are on and it is a note to have
+  // one (lib/plugins/lovart/banners.dart; Matt, 2026-10-26: "add a setting to automatically generate header images
+  // for notes"). The note on screen is the one being left when the screen changes.
+  late final LovartBanners _banners = LovartBanners(getNote: _library.get, update: _library.update, warn: debugPrint);
+  String? _bannerOpen;
   late final VersionsRecord _versions = VersionsRecord(store: _versionsStore, preferences: preferences, workspaces: _workspaces, keeper: () => _services?.session?.handle);
 
   /// The kept pictures, where there is a core to keep them.

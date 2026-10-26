@@ -27,9 +27,13 @@ class FakeClient extends LovartClient {
   LovartFailure? fails;
   final List<String> asked = [];
 
+  /// Run as each prompt is asked, before the answer: a note changing while Lovart works.
+  void Function()? onAsk;
+
   @override
   Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
     asked.add(prompt);
+    onAsk?.call();
     if (fails != null) throw fails!;
     return [for (var i = 0; i < count; i++) png];
   }
@@ -231,6 +235,7 @@ void main() {
     testWidgets('switches Inspiration for design meetings, off until then', (tester) async {
       await pumpPane(tester, const LovartPane());
       expect(designMeetingsOn(), isFalse);
+      await tester.ensureVisible(find.byKey(const ValueKey('lovart-design-meetings')));
       await tester.tap(find.descendant(of: find.byKey(const ValueKey('lovart-design-meetings')), matching: find.byType(GlacierSwitch)));
       await settle(tester);
       expect(designMeetingsOn(), isTrue);

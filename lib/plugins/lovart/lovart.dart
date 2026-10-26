@@ -12,6 +12,8 @@
 ///   (inspiration.dart).
 /// - **Inspiration for design meetings**, a switch on its page: a meeting that reads as a design meeting gets the same,
 ///   once, as soon as it is written up (meetings.dart).
+/// - **Header images**: a banner across the top of a note in the ghost's dotwork, made as a note is left where its
+///   switch is on (on by default), and on the note's cog (banners.dart).
 /// - Its page in Settings: the two keys, checked before they are kept, and the switch (lovart_pane.dart).
 ///
 /// A picture Lovart made carries Lovart's mark at its corner wherever it is drawn (lib/editor/media/lovart_badge.dart),
@@ -21,8 +23,10 @@ library;
 
 import 'package:flutter/foundation.dart';
 
+import '../../core/banner.dart' show bannerOf;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
+import 'banners.dart';
 import 'client.dart';
 import 'cues.dart';
 import 'inspiration.dart';
@@ -31,13 +35,14 @@ import 'lovart_mark.dart';
 import 'lovart_pane.dart';
 import 'manifest.dart';
 
+export 'banners.dart';
 export 'client.dart';
 export 'cues.dart';
 export 'inspiration.dart';
 export 'keep.dart';
 export 'lovart_mark.dart';
 export 'lovart_pane.dart';
-export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey;
+export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey;
 export 'meetings.dart';
 
 /// The cues being made now, by note and cue (`noteId\ncue`): the chip by each draws a spinner while it is here.
@@ -174,6 +179,15 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
       },
       enabled: (noteId, body) => lovartUnready() == null && imageCues(body).isNotEmpty,
       run: (editing, [choice]) => makeAllCues(editing),
+    ),
+    NoteAction(
+      id: 'lovart-banner',
+      label: 'Header image',
+      icon: lovartIcon,
+      visible: (noteId, body) => body.trim().isNotEmpty,
+      hint: (noteId, body) => bannerUnready() ?? '${bannerOf(body) == null ? 'A banner' : 'A new banner'} across the top of this note, in the ghost’s dotwork, made by Lovart with your credits.',
+      enabled: (noteId, body) => bannerUnready() == null && !lovartBannerMaking.value.contains(noteId),
+      run: (editing, [choice]) => makeBanner(editing),
     ),
     NoteAction(
       id: 'lovart-inspiration',

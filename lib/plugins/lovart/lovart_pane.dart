@@ -21,11 +21,13 @@ import '../host.dart' show onPluginStorage;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
+import 'banners.dart' show bannersOn, setBanners;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
 /// What Settings' search finds on the page.
 const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
+  SettingsFindable('Header images for notes', 'banner header cover image ghost dotwork automatic'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
 ];
 
@@ -189,6 +191,17 @@ class _LovartPaneState extends State<LovartPane> {
           ],
         ),
         PaneSection(
+          title: 'Notes',
+          children: [
+            SettingRow(
+              key: const ValueKey('lovart-banners'),
+              label: 'Header images for notes',
+              hint: const Text('When you leave a note, Lovart draws a banner for its top in the ghost’s dotwork, from its title and opening. Once per note, with your credits; not for tickets, meetings, mail or short notes. Make one any time from Header image on the note’s menu.'),
+              control: GlacierSwitch(ariaLabel: 'Header images for notes', checked: bannersOn(), onCheckedChange: setBanners),
+            ),
+          ],
+        ),
+        PaneSection(
           title: 'Meetings',
           children: [
             SettingRow(
@@ -199,7 +212,7 @@ class _LovartPaneState extends State<LovartPane> {
             ),
           ],
         ),
-        const SettingsFootnote(child: Text('Only the words of a {image: …}, or of the note you ask inspiration for, go to Lovart. Write {image: a prompt} anywhere in a note to make a picture there.')),
+        const SettingsFootnote(child: Text('Only the words of a {image: …}, the note you ask inspiration for, or a note’s title and opening for its header image go to Lovart. Write {image: a prompt} anywhere in a note to make a picture there.')),
       ],
     );
   }

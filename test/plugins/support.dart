@@ -75,7 +75,8 @@ class TestNote implements NoteEditing {
     for (var n = 1; n <= lines.length; n++) {
       final text = lines[n - 1];
       if (find(text, n)) {
-        lines[n - 1] = next(text);
+        // As the editor has it: what a line becomes may be several lines, each counted after.
+        lines = [...lines.sublist(0, n - 1), ...next(text).split('\n'), ...lines.sublist(n)];
         return true;
       }
     }

@@ -86,6 +86,7 @@ import '../core/front_matter.dart';
 import '../core/geotag.dart';
 import '../core/library.dart';
 import '../core/live_titles.dart';
+import '../core/banner.dart' show bannerOf;
 import '../core/look.dart';
 import '../core/note.dart';
 import '../core/note_names.dart';
@@ -168,6 +169,7 @@ class NoteSeams {
     this.linked,
     this.plugins,
     this.head,
+    this.banner,
     this.transcript,
     this.saving,
     this.hasTape,
@@ -237,6 +239,11 @@ class NoteSeams {
   /// recording's tape (tapes/NoteTape.tsx) and what the note is linked to (plugins/LinkMarks.tsx), whose press is
   /// [openSettings], the note's More sheet.
   final List<Widget> Function(BuildContext context, VoidCallback openSettings)? head;
+
+  /// The note's header banner, across the very top of a note of words: the picture its front matter's `banner:` names
+  /// (lib/core/banner.dart), or null where it names none, which the seam may still draw something for (Lovart making
+  /// one: lib/plugins/lovart/banners.dart). Drawn again whenever the banner the note names changes.
+  final Widget Function(BuildContext context, String noteId, String? name)? banner;
 
   /// The phrases of the note's recording as they were spoken (tapes/NoteTape.tsx `TranscriptWords`), given while
   /// its tape plays and only then: playing takes the screen for the transcript, and the note waits under it
@@ -477,6 +484,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   GeoTag? _tag;
   Look? _look;
+  String? _banner;
 
   /// The map's box held for a new note while its fix is on its way, or once it is known none is coming (`hold`).
   Held? _hold;
@@ -612,6 +620,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _saving = NoteSaving(widget.library, note, onExternalChange: _external, debounce: widget.debounce, lifecycle: widget.lifecycle && !widget.readOnly)..addListener(_saved);
     _tag = geoTagOf(note.body) ?? _tags?.pendingTag(note.id);
     _look = lookOf(note.body);
+    _banner = bannerOf(note.body);
     _wasBlank = _saving.blank;
     final tags = _tags;
     if (tags != null) {
@@ -912,6 +921,7 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     _versioning?.changed();
     final tag = geoTagOf(next) ?? _tags?.pendingTag(_id);
     final look = lookOf(next);
+    final banner = bannerOf(next);
     final wasBlank = _wasBlank, wasUntouched = _untouched;
     _wasBlank = _saving.blank;
     var fresh = _fresh, untouched = _untouched;
@@ -927,10 +937,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         _drafted = false;
       }
     }
-    if (tag != _tag || look != _look || fresh != _fresh || untouched != _untouched) {
+    if (tag != _tag || look != _look || banner != _banner || fresh != _fresh || untouched != _untouched) {
       _redraw(() {
         _tag = tag;
         _look = look;
+        _banner = banner;
         _fresh = fresh;
         _untouched = untouched;
       });
@@ -1726,6 +1737,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         SliverToBoxAdapter(child: SizedBox(height: padTop + (seams.headRoom?.value ?? 0))),
         // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
         if (book != null && seams.bookBar != null) SliverToBoxAdapter(child: seams.bookBar!(context, book)),
+        // Its banner, across the top: a picture made for it, under the header's wisp.
+        if (_words && seams.banner != null) SliverToBoxAdapter(child: seams.banner!(context, _id, _banner)),
         // Who wrote it, when it names anyone: a book says so for all its pages, in its index.
         if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
         // Where it was written: the map at the top of the note, where the page scrolls with the words.

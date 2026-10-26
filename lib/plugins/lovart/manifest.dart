@@ -26,6 +26,12 @@ const String meetingsKey = 'glyph-lovart-meetings';
 /// The meetings already given inspiration, by note id, so a summary made again makes none.
 const String meetingsDoneKey = 'glyph-lovart-meetings-done';
 
+/// Whether notes are given header banners by themselves as they are left (banners.dart), on this device.
+const String bannersKey = 'glyph-lovart-banners';
+
+/// The notes already given one, by id, so a banner taken off is not made again.
+const String bannersDoneKey = 'glyph-lovart-banners-done';
+
 const PluginManifest manifest = PluginManifest(
   id: 'lovart',
   name: 'Lovart',
@@ -38,15 +44,16 @@ const PluginManifest manifest = PluginManifest(
     'Make images, on a note with {image: a prompt} in it: each becomes a picture',
     'Inspiration images, on any note: a moodboard of four under ## Inspiration',
     'Inspiration for design meetings, once each is written up, where you switch it on',
+    'Header images for notes, in the ghost’s dotwork, made as you leave a note',
   ],
   // Off until added: it sends a note's words to Lovart and spends the person's Lovart credits.
   standard: false,
   permissions: [
     PluginPermission(Permission.notes, 'Writes the images it makes into your notes.'),
-    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, or the note you ask inspiration for, goes there.'),
+    PluginPermission(Permission.network, 'Asks Lovart for images, with your own Lovart keys: only the prompt, the note you ask inspiration for, or a note’s title and opening for its header image, goes there.'),
   ],
   hosts: ['lovart.ai'],
-  storage: [projectKey, meetingsKey, meetingsDoneKey],
+  storage: [projectKey, meetingsKey, meetingsDoneKey, bannersKey, bannersDoneKey],
   secrets: [accessKeySecret, secretKeySecret],
 );
 
