@@ -4,10 +4,17 @@
 /// The service packs a take as `GMT1` before sealing it (server/src/meet.rs `pack`), framed as a mail's `GML1` is
 /// (lib/mail/mail_note.dart `readMail`): four magic bytes, the head's length as four bytes big-endian, the head as
 /// JSON, then the captions' bytes, then the audio's. The head is `{v, meeting, title, kind, startedAt, endedAt, mime,
-/// captionsBytes, audioBytes}`, `kind` the service the meeting was on (`meet` or `zoom`; none from a service before
-/// Zoom, read as Meet). The captions are NDJSON, a line `{at, speaker, text}` each, `at` in ms since the
+/// captionsBytes, audioBytes}`, `kind` the service the meeting was on (`meet`, `zoom` or `discord`; none from a
+/// service before Zoom, read as Meet). The captions are NDJSON, a line `{at, speaker, text}` each, `at` in ms since the
 /// recording started (meet/bot/lib/captions.mjs: when the phrase was first seen on screen); the audio is what the
 /// bot's Chrome recorded, Opus in WebM.
+///
+/// A Discord call's take (discord/bot, docs/DISCORD_CALLS.md) has the same shape with no words: Discord shows no
+/// captions, but it says exactly who is speaking, so each line is a turn, `{at, speaker, text: ""}`, the moment the
+/// floor passed to someone (discord/bot/lib/turns.mjs). [readCaptions] keeps such a line where it names someone (in a
+/// Discord take only: a Meet's or a Zoom's caption with no words is still nothing), and
+/// the device names Whisper's phrases from them as from Meet's (speakers.dart). Its audio is the bot's own mix of the
+/// call, Opus in WebM too.
 library;
 
 import 'dart:convert';
@@ -15,24 +22,33 @@ import 'package:flutter/foundation.dart';
 
 /// The service a meeting Ghost joins is on (Matt, 2026-10-26: "While you're at it also consider zoom meetings"): the
 /// service's `kind` of a booking or a take, else read from its link, else Google Meet, which was the only one before.
+///
+/// And a Discord call (docs/DISCORD_CALLS.md), the Discord plugin's: `discord`, or a `discord.com/channels/` link.
 enum MeetService {
   meet,
-  zoom;
+  zoom,
+  discord;
 
   static MeetService of(Object? kind, {String? url}) => switch (kind) {
         'zoom' => zoom,
         'meet' => meet,
-        _ => url != null && RegExp(r'^https://([a-z0-9-]+\.)?zoom\.us/', caseSensitive: false).hasMatch(url) ? zoom : meet,
+        'discord' => discord,
+        _ => url != null && RegExp(r'^https://([a-z0-9-]+\.)?zoom\.us/', caseSensitive: false).hasMatch(url)
+            ? zoom
+            : url != null && RegExp(r'^https://(ptb\.|canary\.)?discord(app)?\.com/channels/', caseSensitive: false).hasMatch(url)
+                ? discord
+                : meet,
       };
 
   /// Its name, as a row or a sentence says it.
-  String get words => switch (this) { meet => 'Google Meet', zoom => 'Zoom' };
+  String get words => switch (this) { meet => 'Google Meet', zoom => 'Zoom', discord => 'Discord' };
 
-  /// Whose captions a note was filed from, as its first line says it: "Meet’s", "Zoom’s".
-  String get captions => switch (this) { meet => 'Meet’s', zoom => 'Zoom’s' };
+  /// Whose captions a note was filed from, as its first line says it: "Meet’s", "Zoom’s". A Discord call has none:
+  /// its lines say only who spoke when (meet_note.dart words its note so).
+  String get captions => switch (this) { meet => 'Meet’s', zoom => 'Zoom’s', discord => 'Discord’s' };
 
-  /// The short name a sentence uses after "the": "Meet", "Zoom".
-  String get short => switch (this) { meet => 'Meet', zoom => 'Zoom' };
+  /// The short name a sentence uses after "the": "Meet", "Zoom", "Discord".
+  String get short => switch (this) { meet => 'Meet', zoom => 'Zoom', discord => 'Discord' };
 }
 
 /// One line of Meet's captions, as the bot read it.
@@ -115,13 +131,14 @@ OpenedTake readTake(Uint8List payload) {
   String text(String key) => said[key] is String ? (said[key] as String).trim() : '';
   var at = 8 + length;
   final captionsBytes = whole('captionsBytes').clamp(0, payload.length - at);
-  final captions = readCaptions(Uint8List.sublistView(payload, at, at + captionsBytes));
+  final service = MeetService.of(said['kind']);
+  final captions = readCaptions(Uint8List.sublistView(payload, at, at + captionsBytes), turns: service == MeetService.discord);
   at += captionsBytes;
   final audioBytes = said['audioBytes'] is num ? whole('audioBytes').clamp(0, payload.length - at) : payload.length - at;
   return OpenedTake(
     meeting: text('meeting'),
     title: text('title').replaceAll(RegExp(r'\s+'), ' '),
-    service: MeetService.of(said['kind']),
+    service: service,
     startedAt: whole('startedAt'),
     endedAt: whole('endedAt'),
     mime: text('mime').isEmpty ? 'audio/webm' : text('mime').toLowerCase(),
@@ -131,8 +148,9 @@ OpenedTake readTake(Uint8List payload) {
 }
 
 /// The caption lines of an NDJSON part, in the order of their `at`: a line that is not one is passed over, as is one
-/// with no words.
-List<CaptionLine> readCaptions(Uint8List ndjson) {
+/// with no words; with [turns] (a Discord call's take), one with a speaker and no words is a turn (see the header),
+/// kept.
+List<CaptionLine> readCaptions(Uint8List ndjson, {bool turns = false}) {
   final lines = <CaptionLine>[];
   for (final raw in const LineSplitter().convert(utf8.decode(ndjson, allowMalformed: true))) {
     if (raw.trim().isEmpty) continue;
@@ -144,12 +162,9 @@ List<CaptionLine> readCaptions(Uint8List ndjson) {
     }
     if (line is! Map) continue;
     final text = line['text'] is String ? (line['text'] as String).replaceAll(RegExp(r'\s+'), ' ').trim() : '';
-    if (text.isEmpty) continue;
-    lines.add(CaptionLine(
-      at: line['at'] is num ? (line['at'] as num).toInt() : 0,
-      speaker: line['speaker'] is String ? (line['speaker'] as String).replaceAll(RegExp(r'\s+'), ' ').trim() : '',
-      text: text,
-    ));
+    final speaker = line['speaker'] is String ? (line['speaker'] as String).replaceAll(RegExp(r'\s+'), ' ').trim() : '';
+    if (text.isEmpty && (!turns || speaker.isEmpty)) continue;
+    lines.add(CaptionLine(at: line['at'] is num ? (line['at'] as num).toInt() : 0, speaker: speaker, text: text));
   }
   // Stable: lines seen at the same moment keep the bot's order.
   final indexed = [for (final (i, line) in lines.indexed) (i, line)]..sort((a, b) => a.$2.at != b.$2.at ? a.$2.at.compareTo(b.$2.at) : a.$1.compareTo(b.$1));

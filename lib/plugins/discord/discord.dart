@@ -1,7 +1,8 @@
 /// The Discord plugin, built in and off until switched on: a note, or a meeting's summary, posted to a Discord channel
 /// when the person chooses, and each meeting's action items once it is written up (Matt, 2026-10-26: "Add a new
-/// plugin to post notes to discord chats as well as join discord calls to summarize meetings"). The posting half;
-/// Ghost joining a Discord call is meet/'s and server/'s, not this plugin's.
+/// plugin to post notes to discord chats as well as join discord calls to summarize meetings"). The posting half, and
+/// the call half's page: Ghost joining a Discord call is linked, switched and listed here (calls.dart,
+/// calls_section.dart); the bot is discord/bot, the routes server/src/discord.rs, the take filed by lib/meet.
 ///
 /// It is the Slack plugin (lib/plugins/slack/slack.dart) for Discord, and keeps its rule: posting is the one moment
 /// words leave the encryption, so it is always a press, or a meeting set up on its page to go. The
@@ -37,6 +38,8 @@ import 'manifest.dart';
 import 'marks.dart';
 import 'markdown.dart';
 
+export 'calls.dart';
+export 'calls_section.dart';
 export 'channels.dart';
 export 'discord_pane.dart';
 export 'manifest.dart' show DiscordFailure, discordWebhookPrefix;
@@ -149,6 +152,7 @@ String _summary() {
 
 /// What Settings' search finds on the plugin's page: its cards, by their titles.
 const List<SettingsFindable> discordFindable = [
+  SettingsFindable('Discord calls', 'ghost join voice channel call record link discord code unlink meeting notes calls recorded written up leave now'),
   SettingsFindable('Channels', 'discord webhook test message server'),
   SettingsFindable('Add a channel', 'incoming webhook discord.com integrations'),
 ];

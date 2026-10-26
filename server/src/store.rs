@@ -13,7 +13,9 @@
 //! `store/prefs.rs`, `store/shares.rs`, `store/recordings.rs`, `store/orgs.rs` (organizations and who is in them),
 //! `store/keys.rs` (encryption keys, organization keys and colours; docs/SHARED.md), `store/notifications.rs`
 //! (what each account is told), `store/sites.rs` (published sites), `store/mail.rs` (email to a note), `store/hooks.rs` (incoming hooks) and `store/meet.rs` (Ghost
-//! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) - each an `impl Store` of its own, so a caller still holds one `Store`.
+//! in a Google Meet: its bookings, and its recordings sealed as files beside the recordings) and `store/discord.rs` (Ghost in a
+//! Discord call: which Discord user is which account, and the codes that link them; its tables are its own `SCHEMA`) -
+//! each an `impl Store` of its own, so a caller still holds one `Store`.
 //!
 //! THE SCHEMA GROWS BY TABLES, AND BY COLUMNS ADDED. It is `CREATE TABLE IF NOT EXISTS`: a new table reaches the box on
 //! the next start (shares did). A new column on a table that is already there does not, so it goes in the table's
@@ -22,6 +24,7 @@
 //! `busy_timeout`, which is safe only while the one `Mutex<Connection>` is the file's only writer.
 
 mod accounts;
+mod discord;
 mod hooks;
 mod keys;
 mod mail;
@@ -38,6 +41,7 @@ mod shares;
 mod sites;
 
 pub use accounts::DeleteAccount;
+pub use discord::DISCORD_UID;
 pub use hooks::{HookItem, HookRow, HookWrite};
 pub use keys::{AccountKey, KeyWrite, OrgKeys, Wrap};
 pub use notes::NoteRow;
@@ -477,6 +481,7 @@ fn add_missing_columns(conn: &Connection) -> rusqlite::Result<()> {
 fn schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.execute_batch(SCHEMA)?;
+    conn.execute_batch(discord::SCHEMA)?;
     add_missing_columns(conn)?;
     conn.execute(KIND_FROM_LINK, []).map(|_| ())
 }

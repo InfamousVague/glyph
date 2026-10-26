@@ -113,7 +113,7 @@ use crate::accounts::Accounts;
 use crate::identity::Claims;
 use crate::live::Poke;
 use crate::mail::seal;
-use crate::store::{MeetBooking, Store, MEET_SERIES as SERIES};
+use crate::store::{MeetBooking, Store, DISCORD_UID, MEET_SERIES as SERIES};
 use crate::wire::{base64url, error, fresh_id, millis, now_secs};
 use axum::extract::multipart::Field;
 use axum::extract::rejection::ExtensionRejection;
@@ -150,16 +150,16 @@ const LISTED_FOR: i64 = 7 * 24 * 3600 * 1000;
 const PAGE: usize = 20;
 const PAGE_MOST: usize = 100;
 /// The most meetings an account has booked and still to come: an address anyone may mail cannot fill the bot's day.
-const UPCOMING: i64 = 100;
+pub(crate) const UPCOMING: i64 = 100;
 /// The most a recording may be, and its captions. Opus at 32 kbit/s is 15 MB an hour; this is ten hours and more.
 const AUDIO_LIMIT: usize = 300 * 1024 * 1024;
 const CAPTIONS_LIMIT: usize = 20 * 1024 * 1024;
 /// The upload's body: the two, and multipart's own bytes around them.
-const TAKE_BODY: usize = AUDIO_LIMIT + CAPTIONS_LIMIT + 1024 * 1024;
+pub(crate) const TAKE_BODY: usize = AUDIO_LIMIT + CAPTIONS_LIMIT + 1024 * 1024;
 /// A calendar part larger than this is not an invite.
 const CALENDAR_LIMIT: usize = 1024 * 1024;
 /// A title, and a state's detail, in characters.
-const TITLE_LIMIT: usize = 200;
+pub(crate) const TITLE_LIMIT: usize = 200;
 const DETAIL_LIMIT: usize = 200;
 /// The states the bot may set. `leave` is set by a device or by a cancellation, for the bot to read; `booked` and
 /// `cancelled` by an invite.
@@ -170,7 +170,7 @@ const ENDED: &[&str] = &["done", "failed", "skipped", "cancelled"];
 pub const MAGIC: &[u8; 4] = b"GMT1";
 /// The minimum length of GLYPH_MEET_TOKEN, as GLYPH_API_TOKEN's.
 #[cfg_attr(test, allow(dead_code))]
-const TOKEN_FLOOR: usize = 32;
+pub(crate) const TOKEN_FLOOR: usize = 32;
 
 /// The context a take's key is wrapped in, and the one the take is sealed in: a take's seal opens as no mail's, nor
 /// moved onto another take.
@@ -191,12 +191,24 @@ fn clip(s: Option<&str>, limit: usize) -> Option<String> {
     s.map(str::trim).filter(|s| !s.is_empty()).map(|s| s.chars().take(limit).collect())
 }
 
+/// Which service a booking is on: `discord` for a Discord call (discord.rs), read from its uid, so it outlives the
+/// sweep's blanking of the link and the device can still send a tap on it to the Discord plugin; else `meet` or `zoom`
+/// from the link (`ics::kind`), or, once the link is blanked, the kind the booking kept (`meet_bookings.kind`; see
+/// "TWO PLUGINS"), none only for one blanked before kinds were kept.
+pub(crate) fn kind_of(b: &MeetBooking) -> Option<&str> {
+    if b.uid.starts_with(DISCORD_UID) {
+        Some("discord")
+    } else {
+        ics::kind(&b.url).or(b.kind.as_deref())
+    }
+}
+
 fn meeting_json(b: &MeetBooking) -> Value {
     json!({
         "id": b.id,
         "title": b.title,
         "url": if b.url.is_empty() { Value::Null } else { json!(b.url) },
-        "kind": ics::kind(&b.url).or(b.kind.as_deref()),
+        "kind": kind_of(b),
         "startsAt": b.starts_at,
         "endsAt": b.ends_at,
         "state": b.state,
@@ -997,10 +1009,22 @@ async fn delete_take(State(accounts): State<Arc<Accounts>>, Path(id): Path<Strin
 // --- the bot's routes ----------------------------------------------------------------------------
 
 /// The bot's side: the accounts, and the SHA-256 of its token (compared as hashes, so in constant time and whatever
-/// length a guess is).
+/// length a guess is). The Discord bot's routes (discord.rs) hold one of their own, with their own token, and hand
+/// it to `set_state` and `put_take` below.
 pub struct Bot {
     accounts: Arc<Accounts>,
     token: [u8; 32],
+}
+
+impl Bot {
+    pub(crate) fn new(accounts: Arc<Accounts>, token: &str) -> Self {
+        Bot { accounts, token: Sha256::digest(token.as_bytes()).into() }
+    }
+
+    /// Whether `given` is this bot's token (`same_token`).
+    pub(crate) fn admits(&self, given: &str) -> bool {
+        same_token(given, &self.token)
+    }
 }
 
 /// The bot's token, from GLYPH_MEET_TOKEN: none when unset or too short to be one, and then the bot's routes are not
@@ -1063,16 +1087,16 @@ async fn due(State(bot): State<Arc<Bot>>) -> Response {
 }
 
 #[derive(Deserialize)]
-struct StateBody {
-    state: String,
+pub(crate) struct StateBody {
+    pub(crate) state: String,
     #[serde(default)]
-    detail: Option<String>,
+    pub(crate) detail: Option<String>,
 }
 
 /// Where the bot is with a meeting. A meeting that is over (done, failed, skipped, called off) stays over, and one a
 /// device asked Ghost to leave is not joined again: both are answered 409 with the state that stands, for the bot to
 /// act on.
-async fn set_state(State(bot): State<Arc<Bot>>, Path(id): Path<String>, Json(body): Json<StateBody>) -> Response {
+pub(crate) async fn set_state(State(bot): State<Arc<Bot>>, Path(id): Path<String>, Json(body): Json<StateBody>) -> Response {
     if !BOT_STATES.contains(&body.state.as_str()) {
         return error(StatusCode::BAD_REQUEST, "A state is joining, in_call, done, failed or skipped.");
     }
@@ -1130,7 +1154,7 @@ fn audio_type(given: Option<&str>) -> String {
 /// The recording of meeting `id`, with its captions: sealed to the meeting's account in this request, kept only sealed,
 /// and the meeting then `done`. Multipart: `audio` (the recording; its type is kept), `captions` (NDJSON, optional),
 /// and optionally `startedAt` and `endedAt` (ms) when the recording's own span differs from the booking's.
-async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multipart: Multipart) -> Response {
+pub(crate) async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multipart: Multipart) -> Response {
     let Some(b) = bot.accounts.store.meet_booking(&id).filter(|b| base64url(&id, 1..=64) && b.series.is_none()) else {
         return error(StatusCode::NOT_FOUND, "No meeting by that id.");
     };
@@ -1181,7 +1205,7 @@ async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multi
         "v": 1,
         "meeting": b.id,
         "title": b.title,
-        "kind": ics::kind(&b.url).or(b.kind.as_deref()),
+        "kind": kind_of(&b),
         "startedAt": started.unwrap_or(b.starts_at),
         "endedAt": ended.unwrap_or_else(now_ms),
         "mime": mime,
@@ -1227,7 +1251,7 @@ pub fn router(accounts: Arc<Accounts>, bot_token: Option<String>) -> Router {
         .route("/api/v1/meet/{id}", delete(skip))
         .with_state(accounts.clone());
     if let Some(token) = bot_token {
-        let bot = Arc::new(Bot { accounts, token: Sha256::digest(token.as_bytes()).into() });
+        let bot = Arc::new(Bot::new(accounts, &token));
         let internal = Router::new()
             .route("/api/internal/meet/due", get(due))
             .route("/api/internal/meet/{id}/state", post(set_state))

@@ -80,9 +80,9 @@ class MeetBooking {
   final String? title;
   final String? url;
 
-  /// The service the meeting is on, Google Meet or Zoom (the list's `kind`, else read from [url]); null once the
-  /// service has forgotten the link and its kind, when the row says no service, and for a kind that is neither
-  /// (Discord's calls).
+  /// The service the meeting is on, Google Meet, Zoom or Discord (the list's `kind`, else read from [url]); null once
+  /// the service has forgotten the link and its kind, when the row says no service, and for a kind this build does not
+  /// know.
   final MeetService? service;
 
   final String? _kind;
@@ -114,7 +114,7 @@ class MeetBooking {
       title: text('title'),
       url: url,
       service: switch (kind) {
-        'meet' || 'zoom' => MeetService.of(kind),
+        'meet' || 'zoom' || 'discord' => MeetService.of(kind),
         String() => null,
         null => url == null ? null : MeetService.of(null, url: url),
       },

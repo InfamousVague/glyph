@@ -4,7 +4,8 @@ Matt, 2026-10-26: "Add a new plugin to post notes to discord chats as well as jo
 meetings."
 
 This file is the **posting** half: `lib/plugins/discord/`. Ghost joining a Discord call to write it up is Ghost in
-meetings' work (`meet/`, `server/`, docs/MEET.md) and is not here.
+meetings' work (`meet/`, `server/`, docs/MEET.md) and is not here: it is docs/DISCORD_CALLS.md, the bot in
+`discord/bot/`, its page Discord calls on this plugin's page (`lib/plugins/discord/calls_section.dart`).
 
 The plugin is built in, off until added in the Market (category Connections). It is the Slack plugin
 (`lib/plugins/slack/`) for Discord, file for file:

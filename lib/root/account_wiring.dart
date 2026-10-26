@@ -50,6 +50,7 @@ import '../live/open.dart';
 import '../live/poke.dart';
 import '../mail/mail_in.dart';
 import '../meet/meet_in.dart';
+import '../plugins/discord/calls.dart' show discordCallsFollowPlugin;
 import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
@@ -219,7 +220,12 @@ class WiredAccount {
       sharedLive: live.shared.isShared,
       tellChanged: live.nudges.tellChanged,
       mailIn: offered ? syncMail : null,
-      meetIn: syncMeet,
+      // And, before the takes, the Discord plugin's word to the service: off on this device, Ghost stops joining the
+      // account's Discord calls (lib/plugins/discord/calls.dart).
+      meetIn: (ctx) async {
+        await discordCallsFollowPlugin(api: ctx.api, token: ctx.token, kept: ctx.kept);
+        return syncMeet(ctx);
+      },
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
       // Webhooks plugin is on.
       hooksIn: hooksWhileOn,

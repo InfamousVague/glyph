@@ -40,8 +40,12 @@ export class ApiError extends Error {
   }
 }
 
-export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 30_000 } = {}) {
-  if (!token) throw new Error('GLYPH_MEET_TOKEN is not set');
+/**
+ * The client. `basePath` and `tokenName` are the Discord bot's to change (discord/bot/lib/api.mjs: the same three
+ * calls under /api/internal/discord, with GLYPH_DISCORD_TOKEN), which is why they are options at all.
+ */
+export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 30_000, basePath = BASE_PATH, tokenName = 'GLYPH_MEET_TOKEN' } = {}) {
+  if (!token) throw new Error(`${tokenName} is not set`);
   const root = new URL(base);
   const client = root.protocol === 'https:' ? https : http;
 
@@ -58,7 +62,7 @@ export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 3
             const text = Buffer.concat(chunks).toString('utf8');
             if (res.statusCode >= 200 && res.statusCode < 300) resolve(text);
             // The body is not put in the message: an error page could carry anything, and messages reach the log.
-            else reject(new ApiError(res.statusCode, `${method} ${path.replace(/\/meet\/[^/]+\//, '/meet/:id/')} answered ${res.statusCode}`));
+            else reject(new ApiError(res.statusCode, `${method} ${path.replace(/\/(meet|discord)\/[^/]+\/(state|take)$/, '/$1/:id/$2')} answered ${res.statusCode}`));
           });
           res.on('error', (e) => reject(new ApiError(0, e.message)));
         },
@@ -74,12 +78,16 @@ export function createApi({ base = 'http://127.0.0.1:8796', token, timeoutMs = 3
     const body = Buffer.from(JSON.stringify(value));
     return { headers: { 'Content-Type': 'application/json', 'Content-Length': body.length }, body };
   };
-  const meetingPath = (id, what) => `${BASE_PATH}/${encodeURIComponent(id)}/${what}`;
+  const meetingPath = (id, what) => `${basePath}/${encodeURIComponent(id)}/${what}`;
 
   return {
+    /** One request as the calls below make them, for a client that adds calls of its own (the Discord bot's). */
+    request,
+    json,
+
     /** The meetings that are due, or under way. */
     async due() {
-      const text = await request('GET', `${BASE_PATH}/due`);
+      const text = await request('GET', `${basePath}/due`);
       const parsed = JSON.parse(text || '{}');
       return Array.isArray(parsed.meetings) ? parsed.meetings : [];
     },
