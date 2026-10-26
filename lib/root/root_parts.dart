@@ -249,7 +249,7 @@ extension _RootParts on _GhostRootState {
         () => (shell.notes, !_read, screen.tapes, _workspaces.value, preferences.value.wispEdge, _claudeShown, _canTalk, preferences.value.simple, _trashed.length),
         (context) => AllNotesScreen(
           // The empty page's hint, as home's: the side key on any Android phone (AllNotesScreen.tsx `isAndroid`).
-          sideKey: defaultTargetPlatform == TargetPlatform.android,
+          sideKey: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
           notes: shell.notes,
           loading: !_read,
           workspaces: _workspaces,
@@ -607,7 +607,7 @@ extension _RootParts on _GhostRootState {
       recording: _recordingNow,
       // `isAndroid ? 'Write it, or hold the side key and say it.'`: the page says the side key on any Android
       // phone, whether or not this build answers it, and the empty page's words are held to the page's.
-      sideKey: defaultTargetPlatform == TargetPlatform.android,
+      sideKey: !kIsWeb && defaultTargetPlatform == TargetPlatform.android,
       notices: _notices(),
       clock: widget.clock,
       onAllNotes: shell.showAllNotes,

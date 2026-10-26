@@ -10,7 +10,6 @@
 /// (tool/perf.sh): never a library a person keeps.
 library;
 
-
 import '../core/native/core.dart';
 import '../core/native/device_paths.dart';
 import '../core/sample_library.dart';

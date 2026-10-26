@@ -54,13 +54,18 @@ EdgeLook? debugEdgeLook;
 /// Mac's, not the Fold's: what it tells is the cost of each way against the others. An engine that cannot filter by
 /// a shader (Skia, which a test runs on) fades. The Mac, the iPhone and every desktop keep the strips: Impeller on
 /// Metal draws them inside a frame, and their look is the one the tests measure (test/art/blur_edge_test.dart).
+///
+/// The web build keeps the strips too, on every browser's machine (docs/WEB.md): a browser cannot filter by a
+/// shader, so a phone's would have faded, and the strips are pictures and blurs that skwasm draws as Skia does. A
+/// note scrolled at a desktop's width and a phone's drew its 60 frames a second in Chromium on the Mac's GPU
+/// (tool/web_shots.mjs --gpu, 2026-10-26), and the page looks as the Mac app and the iPhone app do.
 EdgeLook get edgeLook {
   if (debugEdgeLook case final look?) return look;
   final asked = switch (ghostEdge) {
     'fade' => EdgeLook.fade,
     'blur' => EdgeLook.blur,
     'backdrop' => EdgeLook.backdrop,
-    _ => defaultTargetPlatform == TargetPlatform.android ? EdgeLook.backdrop : EdgeLook.blur,
+    _ => !kIsWeb && defaultTargetPlatform == TargetPlatform.android ? EdgeLook.backdrop : EdgeLook.blur,
   };
   return asked == EdgeLook.backdrop && !ui.ImageFilter.isShaderFilterSupported ? EdgeLook.fade : asked;
 }

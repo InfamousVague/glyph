@@ -4,8 +4,12 @@
 # it's very behind".
 #
 #   tool/build-web.sh                          the release, on the real service, for scripts/deploy-flutter-web.mjs
-#   GHOST_WEB_API=http://127.0.0.1:9/api tool/build-web.sh
-#                                              one that signs in nowhere (a dead address), for the browser pane
+#   GHOST_WEB_VERSION=2.3.36 tool/build-web.sh
+#                                              the version About says (pubspec's 0.1.0 when not told), as the Mac's and
+#                                              the iPhone's builds are told theirs; the deploy refuses a build without
+#   GHOST_WEB_API=http://127.0.0.1:9999/api tool/build-web.sh
+#                                              one that signs in nowhere (a dead address), for the browser pane; the
+#                                              deploy refuses it (scripts/deploy-flutter-web.mjs)
 #   GHOST_WEB_BASE=/ tool/build-web.sh         served at a site's root instead of /glyph/
 #   GHOST_WEB_NAMES=1 tool/build-web.sh        Dart's names kept in the WebAssembly (-O1, not stripped), so an error
 #                                              in the console names the function it came from
@@ -43,7 +47,8 @@ if [ "${GHOST_WEB_NAMES:-}" = "1" ]; then
 fi
 flutter build web "$@"
 
-# What the deploy reads to say which build it is shipping.
-printf '{"built":"%s","commit":"%s","base":"%s","api":"%s"}\n' \
-  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(git rev-parse --short HEAD)" "$base" "${GHOST_WEB_API:-https://ghostmarkdown.com/api}" > "$root/build/web/ghost-build.json"
+# What the deploy reads to know which build it is shipping, and to refuse one built from other code than the tree's,
+# against another service, or with no version.
+printf '{"built":"%s","commit":"%s","base":"%s","api":"%s","version":"%s"}\n' \
+  "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(git rev-parse HEAD)" "$base" "${GHOST_WEB_API:-https://ghostmarkdown.com/api}" "${GHOST_WEB_VERSION:-}" > "$root/build/web/ghost-build.json"
 du -sh "$root/build/web"

@@ -144,7 +144,7 @@ class _DeveloperPaneState extends State<DeveloperPane> {
         // Ghost.md's branch `voice/assistant-flag` has this card (lib/core/wip.dart), as the page's first; here it is
         // the last, so everything above it stays where `main`'s page has it, which is the page this one is held to
         // rect for rect. Only on a phone, where there is an assistant to be.
-        if (defaultTargetPlatform == TargetPlatform.android)
+        if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android)
           PaneSection(
             title: 'Work in progress',
             children: [

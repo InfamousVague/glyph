@@ -55,7 +55,7 @@ class PhoneSpellChecker implements SpellChecker {
   final bool? _supported;
 
   /// Whether this platform's engine answers `flutter/spellcheck`.
-  bool get supported => _supported ?? (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS);
+  bool get supported => _supported ?? (!kIsWeb && (defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS));
 
   @override
   Future<List<Misspelling>?> check(String text, {required Locale locale}) async {

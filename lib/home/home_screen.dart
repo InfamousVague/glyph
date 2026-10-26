@@ -645,7 +645,7 @@ class _HomeScreenState extends State<HomeScreen> {
       recording: widget.recording,
       organizations: widget.organizations,
       orgNews: widget.orgNews,
-      sideKey: widget.sideKey ?? defaultTargetPlatform == TargetPlatform.android,
+      sideKey: widget.sideKey ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android),
       seams: (widget.onCapture != null ? 1 : 0) |
           (widget.onSearch != null ? 2 : 0) |
           (widget.onSwipe != null ? 4 : 0) |

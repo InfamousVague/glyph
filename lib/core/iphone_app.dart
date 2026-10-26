@@ -14,7 +14,6 @@
 ///   answers.
 library;
 
-
 import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'host_platform.dart';
 
@@ -27,7 +26,11 @@ final bool runsAsIPhoneApp = !kIsWeb && Platform.isIOS;
 /// palette's, a meeting) is left out there rather than offered and failing, and the voice model is not looked for.
 /// The iPhone's core is built without the engines to match (tool/build-native.sh ios), so nothing is made of
 /// voice at all where this is false (lib/main.dart).
-bool get recordsVoice => recordsVoiceOn(defaultTargetPlatform);
+///
+/// And not in the web build (lib/web, docs/WEB.md), whatever the browser's machine is: the page has no engine, no
+/// model and no recorder, so every way into a recording is left out there too, as on an iPhone, rather than offered
+/// and failing.
+bool get recordsVoice => !kIsWeb && recordsVoiceOn(defaultTargetPlatform);
 
 /// [recordsVoice]'s rule, for a platform said outright.
 bool recordsVoiceOn(TargetPlatform platform) => platform != TargetPlatform.iOS;

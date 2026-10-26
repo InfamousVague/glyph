@@ -14,7 +14,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'location.dart';
@@ -67,7 +67,7 @@ class PhoneLocator implements Locator {
   LocateFailure? get cannot => _attached ? null : (defaultTargetPlatform == TargetPlatform.iOS ? LocateFailure.ios : LocateFailure.none);
 
   @override
-  bool get onPhone => _attached && defaultTargetPlatform == TargetPlatform.android;
+  bool get onPhone => _attached && !kIsWeb && defaultTargetPlatform == TargetPlatform.android;
 
   @override
   Future<LocationAccess?> access() async {

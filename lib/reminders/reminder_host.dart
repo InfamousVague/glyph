@@ -17,7 +17,7 @@ library;
 
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show ValueNotifier, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show ValueNotifier, defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
 /// The phone's reminders, where this run has them: Settings › Notifications draws its Reminders group, and a line's
@@ -53,7 +53,7 @@ const MethodChannel remindersChannel = MethodChannel('ghost_md/reminders');
 
 /// The phone's own half, on Android; nothing anywhere else.
 class PhoneReminderHost implements ReminderHost {
-  PhoneReminderHost({MethodChannel channel = remindersChannel, bool? android}) : _channel = channel, _android = android ?? defaultTargetPlatform == TargetPlatform.android {
+  PhoneReminderHost({MethodChannel channel = remindersChannel, bool? android}) : _channel = channel, _android = android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
     if (_android) _channel.setMethodCallHandler(_said);
   }
 

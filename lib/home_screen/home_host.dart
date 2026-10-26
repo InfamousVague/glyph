@@ -24,7 +24,7 @@
 /// Where there is no phone half (a desktop, an iPhone, a test without one) nothing is kept and nothing asks.
 library;
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
 /// What the home screen is handed.
@@ -51,7 +51,7 @@ class PhoneHomeScreenHost implements HomeScreenHost {
 
   @override
   Future<bool> put(HomeKind kind, String json) async {
-    if (!(_android ?? defaultTargetPlatform == TargetPlatform.android)) return false;
+    if (!(_android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android))) return false;
     try {
       return await _channel.invokeMethod<Object?>('put', {'kind': kind.name, 'json': json}) == true;
     } on MissingPluginException {
@@ -63,7 +63,7 @@ class PhoneHomeScreenHost implements HomeScreenHost {
 
   @override
   Future<List<String>> chosen() async {
-    if (!(_android ?? defaultTargetPlatform == TargetPlatform.android)) return const [];
+    if (!(_android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android))) return const [];
     try {
       final ids = await _channel.invokeMethod<Object?>('chosen');
       return ids is List ? [for (final id in ids) if (id is String && id.isNotEmpty) id] : const [];
@@ -76,7 +76,7 @@ class PhoneHomeScreenHost implements HomeScreenHost {
 
   @override
   void listen(void Function() then) {
-    if (!(_android ?? defaultTargetPlatform == TargetPlatform.android)) return;
+    if (!(_android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android))) return;
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'chosen') then();
       return null;

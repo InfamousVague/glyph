@@ -85,7 +85,7 @@ class PhoneFilmDevice implements FilmDevice {
   PhoneFilmDevice(this._invoke, {MethodChannel channel = filmChannel, EventChannel events = filmEvents, bool? plays})
       : _channel = channel,
         _events = events,
-        plays = plays ?? defaultTargetPlatform == TargetPlatform.android;
+        plays = plays ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
 
   final CoreInvoke _invoke;
   final MethodChannel _channel;

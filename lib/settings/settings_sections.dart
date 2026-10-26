@@ -37,6 +37,7 @@ import 'panes/workspaces_pane.dart';
 import 'settings_screen.dart' show SettingsTarget;
 import 'settings_search.dart';
 import 'words.dart';
+import '../web/web_facts.dart' show onWeb;
 
 /// What a section's row and its search words may depend on: the preferences as they stand, and what this device and
 /// this window are. The readings come from the same stores the panes edit, so a row can never disagree with its
@@ -185,7 +186,9 @@ String _static(String line, SettingsFacts _) => line;
 ///   read afresh each time it is asked for, where the web built its list on every draw, and the sheet draws it
 ///   again whenever a plugin's switch moves. A link to what was Plugins (`plugins`, `plugins/<id>`) lands in the
 ///   Market ([settingsLanding], and the sheet's `onMarket`).
-/// - "The app" is always true here: the web asked whether it ran inside Tauri, to leave a browser's rows out.
+/// - "The app" is true but in the web build ([onWeb]; lib/web, docs/WEB.md), which leaves out, as the web asked
+///   whether it ran inside Tauri to, the rows a page cannot do: a library folder, a backup, an export or an import
+///   (each a folder or a file of the device's), recording, and the models.
 /// - Simple or advanced (GHST-103, the port's own), the choice the walkthrough asks, is Appearance's first card for
 ///   later (lib/settings/mode_cards.dart). It headed the list as a page of its own on a card of its own from
 ///   2026-10-18 until Matt, 2026-10-24: "move the simple or advanced toggle under appearance"; its id still lands,
@@ -389,7 +392,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.folderOpen,
     group: 1,
     webFile: 'settings/LibraryFolderPane.tsx',
-    where: (facts) => !facts.ios && _advanced(facts),
+    where: (facts) => !onWeb && !facts.ios && _advanced(facts),
     summary: (facts) => _static('Where your notes are kept', facts),
     settings: (facts) => libraryFolderFindable,
     pane: LibraryFolderPane.hosted,
@@ -405,7 +408,7 @@ final List<SettingsSectionSpec> _sections = [
     // Not in the Mac App Store's build ([macAppStore]): a sandboxed app cannot ask the Mac which disks are
     // removable (the core asks `diskutil`) nor write a drive by its path, so the page is left out rather than
     // shown empty. Export is the way to a copy there.
-    where: (facts) => backupOffered(ios: facts.ios) && _advanced(facts),
+    where: (facts) => !onWeb && backupOffered(ios: facts.ios) && _advanced(facts),
     summary: (facts) => _static('To a USB drive or SD card', facts),
     settings: (facts) => backupFindable,
     pane: BackupPane.hosted,
@@ -418,7 +421,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.hardDriveDownload,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
-    where: _advanced,
+    where: (facts) => !onWeb && _advanced(facts),
     // An iPhone exports nothing yet, and its page says so (export_pane.dart): the row does not promise a zip.
     summary: (facts) => _static(facts.ios ? 'Not on iPhone yet' : 'Everything as one zip', facts),
     settings: (facts) => exportFindable,
@@ -434,7 +437,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.folderInput,
     group: 1,
     webFile: 'settings/ExportCard.tsx',
-    where: (facts) => !facts.ios && _advanced(facts),
+    where: (facts) => !onWeb && !facts.ios && _advanced(facts),
     summary: (facts) => importSummary(importKinds()),
     settings: (facts) => importFindableOf(importKinds()),
     pane: (context) => ImportPane.hosted(context, kinds: importKinds()),
@@ -449,7 +452,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.mic,
     group: 2,
     webFile: 'settings/RecordingPane.tsx',
-    where: (facts) => !facts.ios && _advanced(facts),
+    where: (facts) => !onWeb && !facts.ios && _advanced(facts),
     // What a take becomes: better words, or the words as heard.
     summary: (facts) => recordingSummary(facts.prefs),
     settings: (facts) => recordingFindable(android: facts.android),
@@ -463,7 +466,7 @@ final List<SettingsSectionSpec> _sections = [
     glyph: SettingsGlyph.sparkles,
     group: 2,
     webFile: 'settings/AiPane.tsx',
-    where: (facts) => !facts.ios && _advanced(facts),
+    where: (facts) => !onWeb && !facts.ios && _advanced(facts),
     summary: (facts) => aiSummary(facts.prefs, facts.features.models),
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,

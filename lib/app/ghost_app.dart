@@ -20,6 +20,21 @@ const interFallbacks = [
   'Inter Variable Vietnamese',
 ];
 
+/// The keys the whole app answers in the web build, in place of Flutter's for a page
+/// (`WidgetsApp.defaultShortcuts` on the web), which give the space bar to a page-down scroll and the arrows to
+/// scrolling the page. A browser's EditableText takes those back while it has the focus; the note's editor is none
+/// (lib/editor), so in the page a space typed in a note scrolled it and never arrived, and an arrow moved the page
+/// and not the caret (seen on 2026-10-26, docs/WEB.md). These are what the desktops have: activation, Escape and
+/// Tab, and the arrows, the space and the page keys left to whatever has the focus.
+const Map<ShortcutActivator, Intent> pageShortcuts = <ShortcutActivator, Intent>{
+  SingleActivator(LogicalKeyboardKey.space): ActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.enter): ButtonActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.numpadEnter): ButtonActivateIntent(),
+  SingleActivator(LogicalKeyboardKey.escape): DismissIntent(),
+  SingleActivator(LogicalKeyboardKey.tab): NextFocusIntent(),
+  SingleActivator(LogicalKeyboardKey.tab, shift: true): PreviousFocusIntent(),
+};
+
 /// The app: the design tokens over everything, haptics for every press, and the page's own type
 /// (app.css `html { font-feature-settings: 'cv11', 'ss01' }`, `html, body { font-family; color; background }`).
 ///
@@ -102,8 +117,10 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
       builder: (context, _) {
         final prefs = preferences.value;
         return WidgetsApp(
-          title: 'Ghost Markdown',
+          // The browser tab's title in the web build is the app's visible name; the task switcher's is as it was.
+          title: kIsWeb ? 'Ghost.md' : 'Ghost Markdown',
           color: const Color(0xFF0D0D0D),
+          shortcuts: kIsWeb ? pageShortcuts : null,
           debugShowCheckedModeBanner: false,
           initialRoute: Navigator.defaultRouteName,
           pageRouteBuilder: <T>(RouteSettings settings, WidgetBuilder builder) => PageRouteBuilder<T>(settings: settings, pageBuilder: (context, _, _) => builder(context)),
@@ -119,7 +136,8 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                   'platform': defaultTargetPlatform == TargetPlatform.android || defaultTargetPlatform == TargetPlatform.iOS ? 'mobile' : 'desktop',
                   // The Mac app draws under its own title bar, the window's buttons set into the page's top row
                   // (`core/platform.ts`: `data-titlebar='overlay'` where `isMacApp`).
-                  if (defaultTargetPlatform == TargetPlatform.macOS) 'titlebar': 'overlay',
+                  // Not in a browser on a Mac: the page has no window buttons in its top row (lib/web).
+                  if (!kIsWeb && defaultTargetPlatform == TargetPlatform.macOS) 'titlebar': 'overlay',
                   'tabs': 'on',
                   ...prefs.attrs,
                   // The pace, which the page writes as inline durations; a device asking for less motion is left

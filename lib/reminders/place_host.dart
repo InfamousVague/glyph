@@ -18,7 +18,7 @@
 /// reminders are offered nowhere. The iPhone's region monitoring is to come (docs/INTEGRATIONS.md §3).
 library;
 
-import 'package:flutter/foundation.dart' show ValueNotifier, defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show ValueNotifier, defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
 import 'place_plan.dart';
@@ -92,7 +92,7 @@ const MethodChannel placesChannel = MethodChannel('ghost_md/places');
 
 /// The phone's own half, on Android; nothing anywhere else.
 class PhonePlaceHost implements PlaceHost {
-  PhonePlaceHost({MethodChannel channel = placesChannel, bool? android}) : _channel = channel, _android = android ?? defaultTargetPlatform == TargetPlatform.android;
+  PhonePlaceHost({MethodChannel channel = placesChannel, bool? android}) : _channel = channel, _android = android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
 
   final MethodChannel _channel;
   final bool _android;

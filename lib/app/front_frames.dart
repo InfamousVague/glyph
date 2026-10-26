@@ -26,7 +26,7 @@ class GhostBinding extends WidgetsFlutterBinding {
     if (_instance == null) {
       final binding = GhostBinding();
       _instance = binding;
-      if (defaultTargetPlatform == TargetPlatform.android) {
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
         _front.setMethodCallHandler((call) async {
           if (call.method == 'leaving') binding._hold(true);
           if (call.method == 'back') binding._hold(false);

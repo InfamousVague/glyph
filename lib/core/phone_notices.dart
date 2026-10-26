@@ -12,7 +12,7 @@ library;
 
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform, kIsWeb;
 import 'package:flutter/services.dart';
 
 /// What the phone does with the bell's rows: not watched, shown, or watched but kept from showing by Android
@@ -69,7 +69,7 @@ class PhoneNoticesHost implements NoticesHost {
   final MethodChannel _channel;
   final bool? _android;
 
-  bool get _here => _android ?? defaultTargetPlatform == TargetPlatform.android;
+  bool get _here => _android ?? (!kIsWeb && defaultTargetPlatform == TargetPlatform.android);
 
   Future<Object?> _ask(String method, [Map<String, Object?>? arguments]) async {
     if (!_here) return null;

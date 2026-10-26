@@ -22,7 +22,7 @@ library;
 
 import 'dart:math' as math;
 
-import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform;
+import 'package:flutter/foundation.dart' show TargetPlatform, defaultTargetPlatform, kIsWeb;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
@@ -95,7 +95,7 @@ class _GuideState extends State<Guide> {
   ScrollController _scroll = ScrollController();
 
   ValueNotifier<Preferences> get _prefs => widget.preferences ?? preferences;
-  List<GuidePage> get _pages => walkthroughPagesFor(ios: defaultTargetPlatform == TargetPlatform.iOS, prefs: _prefs.value);
+  List<GuidePage> get _pages => walkthroughPagesFor(ios: kIsWeb || defaultTargetPlatform == TargetPlatform.iOS, prefs: _prefs.value);
   GuidePage get _page => _pages[widget.index.clamp(0, _pages.length - 1)];
   bool get _last => widget.index == _pages.length - 1;
 

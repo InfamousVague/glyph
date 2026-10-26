@@ -1,6 +1,6 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, setEquals;
+import 'package:flutter/foundation.dart' show TargetPlatform, ValueListenable, defaultTargetPlatform, listEquals, setEquals, kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
@@ -743,7 +743,7 @@ class _GhostRootState extends State<GhostRoot> {
   GuideModels? get _modelsForGuide {
     final models = _voice?.models;
     if (models == null || !engine.aiBackend.available) return null;
-    return _guideModels ??= PhoneGuideModels(models, offered: defaultTargetPlatform != TargetPlatform.iOS);
+    return _guideModels ??= PhoneGuideModels(models, offered: !kIsWeb && defaultTargetPlatform != TargetPlatform.iOS);
   }
 
   /// A line for each note that wants one, written by the smallest model while nothing else has the cores
@@ -875,7 +875,7 @@ class _GhostRootState extends State<GhostRoot> {
 
   /// Reminders, the home screen's widgets and the icon's shortcuts (lib/root/phone_extras.dart): on Android, over the
   /// real library, and nowhere else. Begun once the notes are read.
-  late final PhoneExtras? _extras = _real && defaultTargetPlatform == TargetPlatform.android
+  late final PhoneExtras? _extras = _real && !kIsWeb && defaultTargetPlatform == TargetPlatform.android
       ? PhoneExtras(library: _library, trash: _trash, reminders: PhoneReminderHost(), places: PhonePlaceHost(), placesOn: () => plugins.isEnabled(placeRemindersId), placesSwitch: plugins, home: const PhoneHomeScreenHost(), kept: _stored, openView: (id) => openNoteScreen(_shell.currentContext, id)?.view, events: calendar.events, calendarOn: calendarOn, scheme: () => themeScheme(preferences.value.theme), lookChanged: preferences, workspaces: _workspaces, claudeOn: () => _claudeOn, claudeKey: () => claudeSettings.hasKey, claudeChanged: Listenable.merge([_pluginsHeard, claudeSettings]))
       : null;
 
