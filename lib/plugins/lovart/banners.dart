@@ -3,7 +3,9 @@
 /// house style"; then, of the four offered, "I like the dotwork prompt, bake it into generating the header prompts and
 /// add a setting to automatically generate header images for notes (turn it on by default when lovart is enabled)").
 ///
-/// The style is the ghost's own (tauri/docs/GHOSTS.md): stipple dotwork, black ink on pure white, the mascot described
+/// The style is the ghost's own (tauri/docs/GHOSTS.md): stipple dotwork on pure white, in full colour since Matt asked
+/// for it (2026-10-26: "The dotwork pre prompts should be full color like the grocery store item from earlier"; they
+/// were black ink only before, and lib/note/note_banner.dart draws each as it is), the mascot described
 /// word for word as every ghost scene describes it, small on the right two-thirds doing what the note is about, the
 /// left third left white. [bannerPrompt] is that pre-prompt with the note's title and its opening as the subject;
 /// Lovart picks the one scene. The banner is the note's front matter `banner:` (lib/core/banner.dart), drawn across
@@ -51,11 +53,11 @@ const int _doneKept = 2000;
 
 /// The house's banner, the ghost's dotwork, with [subject] where the scene goes.
 String bannerStyle(String subject) => [
-  'A wide banner illustration, 4:1 landscape, for the header of a note in Ghost.md, a notes app.',
-  'A stipple dotwork illustration, black ink on pure white: form, folds and shadow built entirely from black dots, dense in the shadows and sparse in the light, with a fine clean outline. Precise, patient and quietly elegant, like a fine-art print or a careful naturalist\'s plate.',
+  'A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square, for the header banner of a note in Ghost.md, a notes app. Keep everything drawn inside the middle band of the picture, away from its top and bottom edges, with plain white above and below, so the banner can be cropped wider without cutting anything off.',
+  'A stipple dotwork illustration in full colour on pure white: form, folds and shadow built entirely from dots of rich, natural colour, dense in the shadows and sparse in the light, with a fine clean outline. The colours are true to the things drawn, warm and clear. Precise, patient and quietly elegant, like a hand-coloured fine-art print or a careful naturalist\'s plate.',
   'In it is the mascot of Ghost.md: a ghost made from a single sheet of fine writing paper. The sheet falls from a softly rounded top with one small corner folded down like a dog-eared page, a little taller than it is wide and as wide at the bottom as at the top, and ends in a hem cut in three soft waves that never touches the ground and never narrows to a tail. The sheet is plain, with no lines or writing on it. There is nothing inside the sheet: no body, no legs, no feet. Two small, simple eyes, each a solid black oval of dots, set wide and a little low, with no eyelids, iris, pupils, highlights or lashes. No mouth, and two short arms that are only a lift in the cloth. A single thin curl of smoke rises from the top of its head. The sheet bends, billows and folds with every movement; it never stands on the ground, and its small shadow of dots is below it. Calm and quietly warm, with the poise of a grown-up; not cute, not spooky.',
   'The ghost is small in the frame, in the right two-thirds, doing what this note is about: $subject The left third is empty white.',
-  'Pure black and white only: no grey tones, no colour, no gradients; every tone is made of dots. No text, no letters, no words, no watermark, no border.',
+  'Full colour, every tone made of dots: no flat fills, no smooth gradients. The ghost\'s sheet stays white paper and its eyes black. No text, no letters, no words, no watermark, no border.',
   'Make one image.',
 ].join('\n\n');
 

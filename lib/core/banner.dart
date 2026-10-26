@@ -19,8 +19,10 @@ import 'properties.dart' show withFrontMatterValue;
 /// The key.
 const String bannerKey = 'banner';
 
-/// The shape a banner is drawn at: four times as wide as it is tall, and what it is asked to be made at.
-const double bannerAspect = 4;
+/// The shape a banner is asked to be made at, and drawn at until its picture is read: 16:9, a shape Lovart makes
+/// (it was 4:1, which Lovart never made: its pictures came square, and a quarter of each showed). A banner read is
+/// drawn at the shape of its drawing (lib/note/note_banner.dart `BannerLook`).
+const double bannerAspect = 16 / 9;
 
 /// The picture's name a note's banner names, or null where it names none.
 String? bannerOf(String body) {

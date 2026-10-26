@@ -80,8 +80,9 @@ void main() {
   group('the prompt', () {
     test('is the ghost\'s dotwork, with the note\'s title and opening as the subject', () {
       final prompt = bannerPrompt('---\nlocation: 1,2\n---\n# New Orleans weekend\n\n$_words\n\n![](image/x.png)');
-      expect(prompt, startsWith('A wide banner illustration, 4:1 landscape, for the header of a note in Ghost.md'));
-      expect(prompt, contains('A stipple dotwork illustration, black ink on pure white'));
+      expect(prompt, startsWith('A wide 16:9 landscape illustration, 1920 by 1080 pixels, never square'));
+      expect(prompt, contains('A stipple dotwork illustration in full colour on pure white'));
+      expect(prompt, isNot(contains('no colour')), reason: 'full colour since 2026-10-26');
       expect(prompt, contains('one small corner folded down like a dog-eared page'));
       expect(prompt, contains('A single thin curl of smoke rises from the top of its head.'));
       expect(prompt, contains('The note is titled “New Orleans weekend”.'));
