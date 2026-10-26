@@ -250,8 +250,11 @@ bot's own tab.
 - **Leaving**, on the first of: the page says the call is over (the Leave button gone, with "You left the meeting",
   "The meeting has ended", removed, or three reads with no button at all); `due` says `leave`; alone (a people count
   of 1, from the People button or the tiles) for 2 minutes, counted from the booked start at the earliest and, when
-  nobody else has come at all, not before 10 minutes past it; 10 minutes past the booked end; 3 hours in; the service
-  stopping. The recorder is stopped and its last slice flushed, Leave pressed, Chrome closed.
+  nobody else has come at all, not before 10 minutes past it; after a big group (5 in the call at once, Ghost
+  counted), down to Ghost and one more for 2 minutes (`few_left`; Matt, 2026-10-26: "it should leave when it's one of
+  the last people in chat after a big group"); 10 minutes past the booked end only when the people cannot be counted,
+  since a meeting running over is stayed in while it goes on ("it doesn't leave meetings that are running over"); 3
+  hours in; the service stopping. The recorder is stopped and its last slice flushed, Leave pressed, Chrome closed.
 - **The take**: `PUT take` with `audio`, `captions`, `startedAt` and `endedAt`, tried 5 times (2, 6, 18, 54 s apart;
   once when the service is stopping). Taken: both files deleted, then `done` posted again with why the call ended
   (`alone`, `time_up`, ...). Refused with 409 (called off, skipped): deleted all the same. Anything else: both moved to
