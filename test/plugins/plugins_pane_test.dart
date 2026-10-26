@@ -97,7 +97,7 @@ void main() {
 
   group('the catalogue’s order and words', () {
     test('lists the plugins by category, then by name, and has the categories they are in', () {
-      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
+      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
       expect([for (final c in categoriesOf(builtIn)) c.label], ['AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
       // Every plugin that ships has a category, a line of its own and what it adds.
       for (final plugin in builtIn) {
@@ -148,9 +148,9 @@ void main() {
     testWidgets('has every plugin on two shelves, Added and Discover, in the catalogue’s order', (tester) async {
       await pumpPane(tester, shipped());
       expect(heroTitles(tester).first, 'Plugins');
-      expect(find.textContaining('5 of 12 added.', skipOffstage: false), findsOneWidget);
+      expect(find.textContaining('5 of 13 added.', skipOffstage: false), findsOneWidget);
       expect(shelf(tester, 'Added'), ['Claude', 'GitHub', 'Notion', 'Marks', 'Rich embeds']);
-      expect(shelf(tester, 'Discover'), ['Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Slack', 'Webhooks']);
+      expect(shelf(tester, 'Discover'), ['Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Slack', 'Webhooks']);
       // The search finds the shelves by their captions.
       expect(find.byWidgetPredicate((w) => w is SettingsFindableMark && w.name == 'Discover', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
@@ -183,7 +183,7 @@ void main() {
       expect(registry.isEnabled('slack'), isTrue);
       expect(shelf(tester, 'Added'), ['Claude', 'GitHub', 'Notion', 'Slack', 'Marks', 'Rich embeds']);
       expect(shelf(tester, 'Discover'), isNot(contains('Slack')));
-      expect(find.textContaining('6 of 12 added.', skipOffstage: false), findsOneWidget);
+      expect(find.textContaining('6 of 13 added.', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });
 
@@ -196,13 +196,13 @@ void main() {
       expect(shelfCalled('Added'), findsNothing);
       expect(tester.widget<CategoryChip>(chipCalled('Import')).chosen, isTrue);
       await tapOn(tester, chipCalled('AI'));
-      expect(heroTitles(tester), ['Plugins', 'Claude']);
+      expect(heroTitles(tester), ['Plugins', 'Claude', 'Lovart']);
       await typeIn(tester, 'spotify');
       expect(heroTitles(tester), ['Plugins']);
       expect(find.text('No plugin matches'), findsOneWidget);
       expect(find.text('Nothing in AI matches “spotify”.'), findsOneWidget);
       await tapOn(tester, find.text('Show every plugin'));
-      expect(heroTitles(tester).length, 13);
+      expect(heroTitles(tester).length, 14);
       expect(tester.widget<CategoryChip>(chipCalled('All')).chosen, isTrue);
       await endSettings(tester);
     });
@@ -215,7 +215,7 @@ void main() {
       expect(shelf(tester, 'Discover'), ['Calendar']);
       expect(shelfCalled('Added'), findsNothing);
       await typeIn(tester, '');
-      expect(heroTitles(tester).length, 13);
+      expect(heroTitles(tester).length, 14);
       await endSettings(tester);
     });
 
@@ -333,7 +333,7 @@ void main() {
       final card = find.byKey(const ValueKey('cluster plugins'));
       expect([for (final id in ['plugins', 'plugin:claude', 'plugin:github', 'plugin:notion']) find.descendant(of: card, matching: rowOf(id)).evaluate().length], [1, 1, 1, 1]);
       expect(find.descendant(of: card, matching: rowOf('about')), findsNothing);
-      expect(tester.widget<Text>(find.descendant(of: rowOf('plugins'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 12 added');
+      expect(tester.widget<Text>(find.descendant(of: rowOf('plugins'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 13 added');
       expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
       // Each in its own icon, and Claude in its coral.
       expect(tester.widget<AppIcon>(find.descendant(of: rowOf('plugin:claude'), matching: find.byType(AppIcon)).first).icon, Lucide.bot);

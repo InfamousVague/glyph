@@ -38,6 +38,7 @@ import '../core/short_url.dart';
 import '../editor/diagrams/diagrams.dart' show drawnMermaid;
 import '../editor/editor.dart';
 import '../editor/editor_widget.dart';
+import '../editor/media/lovart_badge.dart' show LovartBadged;
 import '../editor/items/items.dart' show itemExtensions;
 import '../editor/looks/look.dart';
 import '../editor/looks/peek_look.dart';
@@ -227,7 +228,7 @@ class CanvasCard {
             listenable: store,
             builder: (context, _) {
               final picture = store.pictureOf(own);
-              return picture == null ? _FileWords(node: node, wiki: wiki, near: near) : _PictureFill(picture: picture);
+              return picture == null ? _FileWords(node: node, wiki: wiki, near: near) : LovartBadged(name: own, child: _PictureFill(picture: picture));
             },
           );
         }

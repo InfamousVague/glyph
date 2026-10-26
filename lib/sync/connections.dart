@@ -8,7 +8,7 @@
 ///   ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
 ///   on the Fold is the Mac's at its next sync, and the summaries' handoff (lib/ai/summary_handoff.dart), which looks
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
-/// - **The plugins' switches** for the three whose connections travel, Claude, Slack and GitHub (`plugin:<id>`,
+/// - **The plugins' switches** for the four whose connections travel, Claude, Slack, GitHub and Lovart (`plugin:<id>`,
 ///   [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack is on wherever its channels are.
 /// - **Slack** (lib/plugins/slack/channels.dart, meetings.dart): each channel's webhook (the secure store's
 ///   `glyph-slack-webhook:<id>`) and the list that names them (`glyph-slack-channels`), and Settings › Meetings › Post
@@ -16,6 +16,10 @@
 ///   has the channel to post it to, whichever it is; that it is posted once stays the synced `slackMeetingPosts`'s.
 /// - **GitHub's token** (lib/plugins/github/repos.dart): a personal access token, which works from any number of
 ///   devices at once.
+/// - **Lovart's keys** (lib/plugins/lovart/manifest.dart): the access key and the secret key, a pair that signs each
+///   request and works from any number of devices (Matt, 2026-10-26: "Yes please sync lovart too"). Its project
+///   (`glyph-lovart-project`) stays: each device makes or finds its own. So does "Inspiration for design meetings"
+///   (`glyph-lovart-meetings`) and the meetings it has done: each device that writes a meeting up asks for its own.
 ///
 /// ALREADY TRAVELLING, in the settings sealed as a whole (lib/sync/prefs.dart): the calendars' iCal addresses and
 /// Google's sign-in (`calendars`), and the webhooks with their secrets (`webhooks`). **Google's refresh token** may be
@@ -52,6 +56,7 @@ import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
+import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, host, secretKeySecret;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/manifest.dart' as slack show host, webhookPrefix;
 import '../plugins/types.dart' show PluginHost;
@@ -61,7 +66,7 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeLimitName];
 
 /// The plugins whose switch travels.
-const List<String> syncedSwitches = ['claude', 'slack', 'github'];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart'];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';
@@ -74,7 +79,7 @@ final RegExp _channelId = RegExp(r'^[A-Za-z0-9-]{1,64}$');
 
 /// The items this device offers (see the header), given the names the settings already hold. Claude's settings, the
 /// plugins' hosts and the registry are the app's own unless a test gives its own; [platform] is the device's.
-List<SyncedItem> connectionItems(Set<String> named, {ClaudeSettings? claude, PluginHost? slackHost, PluginHost? githubHost, Registry Function()? registry, TargetPlatform? platform}) {
+List<SyncedItem> connectionItems(Set<String> named, {ClaudeSettings? claude, PluginHost? slackHost, PluginHost? githubHost, PluginHost? lovartHost, Registry Function()? registry, TargetPlatform? platform}) {
   final settings = claude ?? claudeSettings;
   final reg = (registry ?? () => plugins)();
   final slackHere = notOnIPhone('slack', platform: platform) == null;
@@ -91,6 +96,7 @@ List<SyncedItem> connectionItems(Set<String> named, {ClaudeSettings? claude, Plu
       ),
     if (slackHere) ..._slackItems(named, slackHost ?? slack.host),
     _secretItem(githubHost ?? github.host, github.tokenSecret),
+    for (final name in const [lovart.accessKeySecret, lovart.secretKeySecret]) _secretItem(lovartHost ?? lovart.host, name),
     for (final id in syncedSwitches)
       if (reg.byId(id) != null && (slackHere || id != 'slack')) _switchItem(reg, id),
   ];

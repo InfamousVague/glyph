@@ -166,6 +166,7 @@ import '../perf/frame_log.dart';
 import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest, calendarOn;
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
+import '../plugins/lovart/lovart.dart' show LovartMeetings, lovartPictureStore;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../settings/organization_sheet.dart';
@@ -1550,6 +1551,7 @@ class _GhostRootState extends State<GhostRoot> {
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
     if (identical(meetingSlackPoster, _slackMeetings)) meetingSlackPoster = null;
+    if (_pictures != null && identical(lovartPictureStore, _pictures)) lovartPictureStore = null;
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();
@@ -1623,6 +1625,8 @@ class _GhostRootState extends State<GhostRoot> {
     _localOnly.addListener(_localOnlyMoved);
     // Who Claude's page in Settings reads as signed in (plugins/claude): this build's account, where it has one.
     claudeHandle = () => _services?.session?.handle;
+    // Where Lovart's images are kept before their lines are written (lib/plugins/lovart/keep.dart).
+    if (_pictures != null) lovartPictureStore = _pictures;
     // The plugins' switches, for what the root draws of them: Claude on every dock, its chat and its bar.
     _pluginsHeard.addListener(_pluginsMoved);
     _claudeKeyed = claudeSettings.hasKey;

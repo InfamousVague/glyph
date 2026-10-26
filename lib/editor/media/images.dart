@@ -41,6 +41,7 @@ import '../commands/inserts.dart';
 import '../editor.dart';
 import '../view/line_facts.dart';
 import '../looks/look.dart';
+import 'lovart_badge.dart';
 import '../view/editor_view.dart';
 
 /// Where the editor's pictures are drawn from, and kept: the first one given.
@@ -165,11 +166,15 @@ class _KeptPictureState extends State<KeptPicture> {
         maxHeight: widget.maxHeight,
         minWidth: widget.minWidth,
         minHeight: widget.minHeight,
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(widget.radius),
-          child: ColoredBox(
-            color: widget.background ?? const Color(0x00000000),
-            child: RawImage(image: image, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
+        // Lovart's mark on its corner where Lovart made it (lovart_badge.dart).
+        child: LovartBadged(
+          name: widget.name,
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(widget.radius),
+            child: ColoredBox(
+              color: widget.background ?? const Color(0x00000000),
+              child: RawImage(image: image, fit: BoxFit.fill, filterQuality: FilterQuality.medium),
+            ),
           ),
         ),
       ),

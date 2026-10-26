@@ -156,6 +156,10 @@ extension _RootVoice on _GhostRootState {
       warn: debugPrint,
     );
     _slackMeetings = meetingSlackPoster = slack;
+    // A design meeting written up gets a moodboard from Lovart under its Inspiration, once, where the Lovart plugin is
+    // on and its switch is (lib/plugins/lovart/meetings.dart; Matt, 2026-10-26: "during design meetings the Lovart.ai
+    // plugin can generate inspo images and such").
+    final lovart = LovartMeetings(getNote: _library.get, update: _library.update, warn: debugPrint);
     await voice.start(
       // A better-words pass landed: a tag that waited for it may land too.
       notesChanged: () {
@@ -179,7 +183,7 @@ extension _RootVoice on _GhostRootState {
         );
       },
       // Sorted first, then posted to Slack where meetings post here, so the post names the team whose workspace it
-      // was filed in.
+      // was filed in; then, for a design meeting, Lovart's inspiration, which takes minutes.
       meetingSummarized: (id, body) => unawaited(() async {
         try {
           await sorter.meetingSummarized(id, body);
@@ -190,6 +194,11 @@ extension _RootVoice on _GhostRootState {
           await slack.meetingSummarized(id, body);
         } catch (failure) {
           debugPrint('[ghost] the meeting was not posted to Slack: $failure');
+        }
+        try {
+          await lovart.meetingSummarized(id, body);
+        } catch (failure) {
+          debugPrint('[ghost] no inspiration was made for the meeting: $failure');
         }
       }()),
     );

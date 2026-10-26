@@ -30,6 +30,8 @@ import 'package:ghost_md/orgs/orgs.dart';
 import 'package:ghost_md/plugins/claude/claude.dart' show claudePlugin;
 import 'package:ghost_md/plugins/github/github.dart' show githubPlugin;
 import 'package:ghost_md/plugins/github/manifest.dart' as github show manifest, tokenSecret;
+import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
+import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, manifest, secretKeySecret;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/slack/channels.dart' show channels;
@@ -74,6 +76,8 @@ const String claudeKey = 'sk-ant-api03-FOLD-ONLY-0123456789abcdef';
 const String otherKey = 'sk-ant-api03-MAC-CHOSEN-fedcba9876543210';
 const String webhook = 'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXXXXXXXXXXXXX';
 const String githubToken = 'ghp_0123456789abcdefABCDEF0123456789abcd';
+const String lovartAccess = 'ak-LOVART-0123456789abcdef';
+const String lovartSecret = 'sk-LOVART-fedcba9876543210';
 
 /// One device: its settings, its secure stores, its plugins' storage and switches, its sync engine.
 class KeysDevice {
@@ -82,11 +86,12 @@ class KeysDevice {
     ground = PluginGround(stored: () => kept, secrets: MemorySecureStore());
     slackHost = createHost(slack.manifest, ground: ground);
     githubHost = createHost(github.manifest, ground: ground);
-    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin], store: MemorySwitches());
+    lovartHost = createHost(lovart.manifest, ground: ground);
+    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin], store: MemorySwitches());
     claude = ClaudeSettings(claudeStore);
     sealed = keys
         ? SealedKeys(
-            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, githubHost: githubHost, registry: () => registry, platform: platform),
+            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, githubHost: githubHost, lovartHost: lovartHost, registry: () => registry, platform: platform),
             prefs: prefs,
             device: () => id,
             heard: connectionChanges(claude: claude, registry: () => registry),
@@ -132,6 +137,7 @@ class KeysDevice {
   late final PluginGround ground;
   late final PluginHost slackHost;
   late final PluginHost githubHost;
+  late final PluginHost lovartHost;
   late final Registry registry;
   late final ClaudeSettings claude;
   late final SealedKeys? sealed;
@@ -392,6 +398,41 @@ void main() {
     final mac = KeysDevice(service, 'mac-1');
     await mac.sync();
     expect(mac.claude.key, claudeKey);
+  });
+
+  test('Lovart’s two keys and its switch, set on one device, are on the next after a sync, sealed (Matt, 2026-10-26: "Yes please sync lovart too")', () async {
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    await fold.lovartHost.secrets.write(lovart.accessKeySecret, lovartAccess);
+    await fold.lovartHost.secrets.write(lovart.secretKeySecret, lovartSecret);
+    fold.registry.setEnabled('lovart', true);
+    // This device's own: its project and its meetings' switch stay with it.
+    fold.lovartHost.storage.set('glyph-lovart-project', 'proj-fold');
+    await fold.sync();
+
+    expect(mac.registry.switchedOn('lovart'), isFalse);
+    await mac.sync();
+    expect(await mac.lovartHost.secrets.read(lovart.accessKeySecret), lovartAccess);
+    expect(await mac.lovartHost.secrets.read(lovart.secretKeySecret), lovartSecret);
+    expect(mac.registry.switchedOn('lovart'), isTrue);
+    expect(mac.lovartHost.storage.get<Object?>('glyph-lovart-project', null), isNull);
+
+    // Sealed: neither key is in what was sent, as written or as base64.
+    String b64(String s) => base64Url.encode(utf8.encode(s)).replaceAll('=', '');
+    for (final body in fold.sent) {
+      for (final secret in [lovartAccess, lovartSecret]) {
+        expect(body, isNot(contains(secret)));
+        expect(body, isNot(contains(b64(secret))));
+      }
+    }
+
+    // Forgotten on the Mac, forgotten on the Fold.
+    await mac.lovartHost.secrets.write(lovart.accessKeySecret, null);
+    await mac.lovartHost.secrets.write(lovart.secretKeySecret, null);
+    await mac.sync();
+    await fold.sync();
+    expect(await fold.lovartHost.secrets.read(lovart.accessKeySecret), isNull);
+    expect(await fold.lovartHost.secrets.read(lovart.secretKeySecret), isNull);
   });
 
   test('nothing secret is in what is sent, nor in the settings opened, nor in what a device keeps in the clear', () async {

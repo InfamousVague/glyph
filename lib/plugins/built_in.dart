@@ -28,6 +28,7 @@ import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
 import 'github/github.dart' show githubPlugin;
+import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
 import 'notion/notion.dart' show notionPlugin;
 import 'places/places.dart' show placesPlugin;
@@ -54,6 +55,7 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   richEmbedsPlugin,
   todoistPlugin,
   thingsPlugin,
+  lovartPlugin,
 ]);
 
 void Function()? _unhear;

@@ -65,6 +65,10 @@ flutter:
     # What every test did the last time the whole suite was run (lib/diag/built_report.dart; Settings › Test
     # results): written by tool/test_report.mjs before a release is built, and the empty one in the repository.
     - assets/diag/test_report.json
+    # Lovart's mark (lib/plugins/lovart/lovart_mark.dart), the circle with "Lo" cut out of its site's header,
+    # www.lovart.ai, as read on 2026-10-26 (docs/LOVART.md). A third party's mark: drawn only in the Lovart plugin's
+    # own places (its page, its actions, the chip by a cue, the badge on a picture it made), never in the store's.
+    - assets/plugins/lovart/lovart-mark.svg
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

@@ -165,6 +165,7 @@ import '../integrations/contacts/contact_picker.dart' show pickContact;
 import '../integrations/contacts/contacts.dart' show phoneContacts;
 import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
+import '../editor/ai/lovart_cues.dart' show LovartCueHooks, lovartCues;
 import '../editor/ai/wisp_arrivals.dart' show wispArrivals;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
@@ -181,6 +182,7 @@ import '../note/note_place.dart';
 import '../note/note_place.dart' as reading show caretPlace, placeOf;
 import '../note/note_screen.dart';
 import '../plugins/link_marks.dart';
+import '../plugins/lovart/lovart.dart' show lovartCuesOn, lovartIsMaking, lovartMaking, makeCue;
 import '../note/note_settings.dart' show NotePlugins;
 import '../plugins/registry.dart' show plugins;
 import '../plugins/types.dart' show NoteEditing;
@@ -816,6 +818,15 @@ class NoteDeskState extends State<NoteDesk> {
     noteComments(() => _comments.hooks),
     // Claude's suggested edits in CriticMarkup, with Keep and Revert (docs/CLAUDE_LIVE.md, "Suggest mode").
     suggestions(),
+    // `{image: a prompt}` with Lovart's mark after it while the Lovart plugin is on, a tap making that one
+    // (lib/editor/ai/lovart_cues.dart): drawn again as the plugin is switched and as a cue is being made.
+    if (!widget.readOnly)
+      lovartCues(LovartCueHooks(
+        on: lovartCuesOn,
+        press: (cue) => unawaited(makeCue(_editing, cue)),
+        making: (cueText) => lovartIsMaking(widget.noteId, cueText),
+        changes: Listenable.merge(<Listenable>[lovartMaking, plugins]),
+      )),
     // Claude typing as it writes, with its caret (lib/claude/live_typing.dart, docs/CLAUDE_APP.md).
     claudeTyping,
     mediaExtensions(
