@@ -1,6 +1,9 @@
 import { call } from '../app/core/account/api.ts';
 import { openShare, type Shared } from '../app/share/share.ts';
 
+// A page's name in its address (slugs.ts): pure, so the docs build (vite.docs.config.ts) names its pages as a site does.
+export { siteSlugs, slugOf } from './slugs.ts';
+
 /**
  * A published site's address and its pages' (docs/SITES.md; the app's half is lib/share/sites.dart).
  *
@@ -47,37 +50,6 @@ export function readSiteAddress(pathname: string, hash: string): SiteAddress | n
 /** Whether this page was opened at a site's address. */
 export function isSitePath(pathname: string): boolean {
   return /^\/s\/[A-Za-z0-9_-]{22,64}(\/|$)/.test(pathname);
-}
-
-/**
- * A title as a page's name: lower case, accents off, letters and digits of any script kept, everything else one `-`
- * between them, at most sixty characters. "Café plans, 2026" is `cafe-plans-2026`.
- */
-export function slugOf(title: string): string {
-  const plain = title
-    .normalize('NFKD')
-    .replace(/\p{M}+/gu, '')
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
-    .replace(/^-+|-+$/g, '');
-  return [...plain].slice(0, 60).join('').replace(/-+$/, '');
-}
-
-/**
- * Each page's name, in the site's order: the first page has none (it is the site's own address), and every other its
- * title's slug, made unique with `-2`, `-3` where two titles slug alike, or `page-<n>` where a title has nothing a
- * slug can keep.
- */
-export function siteSlugs(shared: Shared): string[] {
-  const taken = new Set<string>(['']);
-  return shared.pages.map((page, i) => {
-    if (i === 0) return '';
-    const base = slugOf(page.title) || `page-${i + 1}`;
-    let slug = base;
-    for (let n = 2; taken.has(slug); n += 1) slug = `${base}-${n}`;
-    taken.add(slug);
-    return slug;
-  });
 }
 
 /** A page's address on the site, its key carried as it came. */

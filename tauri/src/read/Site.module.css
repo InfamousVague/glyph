@@ -19,6 +19,20 @@
   border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
 }
 
+/* The way home, before the title: the public docs' to ghostmarkdown.com (src/docs). */
+.home {
+  display: inline-flex;
+  flex: none;
+  border-radius: var(--glacier-radius-sm);
+}
+
+.home img {
+  display: block;
+  inline-size: 1.5rem;
+  block-size: 1.5rem;
+  border-radius: var(--glacier-radius-sm);
+}
+
 .siteTitle {
   flex: 1;
   min-inline-size: 0;
@@ -247,4 +261,12 @@
 
 .quiet {
   color: var(--glacier-text-muted);
+}
+
+/* A part's heading in the list down the side, over the first of its pages there is. */
+.part {
+  padding: var(--glacier-space-3) 0.65rem var(--glacier-space-1);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-semibold);
 }

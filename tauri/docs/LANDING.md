@@ -19,6 +19,15 @@ foot with the app's six themes to try on the site itself.
   Claude typing, Today with its events, the plugins catalog or Notion's page). Each slot has a comment in index.html.
 It lives in `landing/` and ships with `node scripts/deploy-landing.mjs`, one ssh login. It has no npm alias.
 
+- **Ghost.md Docs at /docs/** (2026-10-26, Matt: "build an entire docs book build it using ghost markdown but host it
+  publicly from the website so that people can read the docs"). The book is `docs/book/` at the repository's root
+  (`index.md`, a notebook with `##` parts, and `chapters/NN-slug.md`), drawn by the reader's own site layout
+  (`src/read/Site.tsx`) with the app's read-only editor: `docs.html` and `src/docs/`, built by `npm run build:docs`
+  (`vite.docs.config.ts`, base `/docs/`) into `landing/docs/`, every page also at `landing/docs/<slug>/index.html` with
+  its own title, description and canonical address. It is not committed (about 15 MB of hashed assets):
+  deploy-landing builds it first, `--no-docs` to skip. The Caddy block's `handle /docs/*` sends an address with no
+  page to the index (`try_files`), which says so.
+
 - **The files.** `index.html` (the page), `home.css` and `home.js` (its layout, the downloads, the address to copy and
   the theme picker), `site.css` (the fonts, the colours and the reading column every page shares), `theme.js` (the
   theme a visitor picked, on every page before it draws), and the icons, resized from `src-tauri/icons/icon.png`.

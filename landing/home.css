@@ -121,7 +121,8 @@ code {
   margin-inline-start: auto;
 }
 
-@media (min-width: 760px) {
+/* From where the links, Docs among them, fit beside the brand and Download without the bar running off the page. */
+@media (min-width: 940px) {
   .bar-links {
     display: flex;
   }
