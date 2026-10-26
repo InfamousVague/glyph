@@ -35,9 +35,9 @@ To make a to-do, start any line in any note with `- [ ] `. See [[Lists, to-dos a
 
 ### A note
 
-A note in Simple has a short header: back to your notes, the three dots for More, and **Done**. Notes open formatted, with the marks hidden until you edit a line. A format bar gives you Bold, Italic, Heading, List, To-do, Link, **Add image** and **Add to this line**.
+A note in Simple has a short header: back to your notes, the three dots for More, and **Done**. Notes open formatted, with the marks hidden until you edit a line. A format bar gives you Bold, Italic, Heading, List, To-do and Link, then **Add image**, **Add to this line** and, on Android and the Mac, a microphone to speak into the note. On a phone the bar sits just above the keyboard while you type.
 
-Only one note is open at a time. There are no tabs and no sidebar.
+Only one note is open at a time. There are no tabs and no top bar. On a wide window, such as a Mac or an opened Fold, your list of notes stays in a column beside the note, with **Notes** and **To-dos** under its title.
 
 ### The + beside a line
 
@@ -49,7 +49,11 @@ A note's three dots open a short list: the view switch, Find and replace, Pin to
 
 ### Settings
 
-Simple's Settings has Account, Notifications, Meetings, Appearance and About. Appearance has the Mode, the page's theme and the text size.
+Simple's Settings has **Account**, **Notifications**, **Appearance** and **About**. Appearance has the Mode, the page's theme and the text size. While the Google Meet or Zoom plugin is added (both are at first) and your account has Ghost in meetings, their pages stay too, with **Recording** for where meetings go; the rest of Recording is behind **More**. See [[Settings]].
+
+### The Market
+
+Simple has no Market. A link to something in the Market, such as **Open in Ghost.md** on the website's Market, doesn't open it. A message says "The Market is part of Advanced mode.", with **Mode** to take you to the switch.
 
 ## What Advanced adds
 
@@ -62,7 +66,7 @@ Switch to Advanced and the rest comes into view:
 - **The AI and Claude.**
 - **Organizations and workspaces**, for keeping work apart and writing with a team.
 - **The Market**, where plugins, themes and fonts live.
-- **Every setting**, including Recording, AI, Workspaces, Daily notes, Backup, Export and Import.
+- **Every setting**, including Organizations, Workspaces, Daily notes, Library folder, Backup, Export, Import, Recording, AI, and each added plugin's own page.
 
 A new library in Simple starts with one note, **How to format a note**. Choose Advanced and a few more examples arrive: a notebook of tickets, a board and a journal.
 

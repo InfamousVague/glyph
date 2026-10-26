@@ -74,6 +74,8 @@ Folded, Ghost.md is a phone app. Opened out, it uses the room:
 - All notes shows its cards three or four across.
 - The Market's cards stand two to four across, and a plugin's page opens beside them.
 - Menus and panels keep to their own side of the crease, so nothing is split down the middle.
+- Settings shows its list and a page side by side.
+- As you open the phone, the note unfolds with it. See [[Keys and the command palette]].
 
 See [[Home, tabs and the sidebar]].
 
@@ -85,7 +87,7 @@ Ghost.md has a Wear OS watch app for voice notes from your wrist. Tap, talk, and
 
 ### On the watch
 
-One screen: the ghost in a ring is the button, with "Tap to record" under it. Your last five recordings are listed below, each saying where it is: *Waiting for your phone*, *Sending*, *Sent*, or *On your phone*.
+One screen: the ghost in a ring is the button, with "Tap to record" under it. Your last five recordings are listed below, each with its length and where it is: *Queued*, *Sending*, *Sent*, or *On your phone*.
 
 Other ways to start:
 
@@ -107,11 +109,11 @@ On the phone:
 
 Up to ten minutes, a recording becomes a voice note, written as dictation on the phone is: "new paragraph" and "bullet point" work, but "Hey Ghost" commands are written as words. Over ten minutes it becomes a meeting, written up like one.
 
-If Claude is set up, **Send short watch recordings to Claude** sends recordings of up to ten minutes to Claude instead, as if you'd said them to Talk to Claude. It's on by default where Claude is.
+If Claude is set up, **Send short watch recordings to Claude** sends recordings of up to ten minutes to Claude instead, as if you'd said them to the microphone: to add to a note, make a list and so on. No note of its own is made and no audio is kept. If Claude can't do it, the recording is kept as a voice note. It's on by default where Claude is.
 
 ### Settings › Recording › Watch
 
-Shows each watch with Ghost.md, "Connected" or "Connected, not nearby", the last voice note from the watch, and how many wait to be made notes. The **Send short watch recordings to Claude** switch is here too.
+This card appears once a watch has Ghost.md. It shows each watch, "Connected" or "Connected, not nearby" (or **No watch connected**), the last voice note from the watch, and how many wait to be made notes. The **Send short watch recordings to Claude** switch is here too. Until Claude is added in the Market and your Anthropic API key is in Settings › Claude, the switch can't be used, and says so.
 
 ## Updates
 

@@ -4,9 +4,9 @@ A note can keep every version of itself, like git keeps a project. You see who c
 ## Which notes keep versions
 
 - **A team's note**, filed in an organization, keeps versions from the start. See [[Organizations and shared notes]].
-- **A note of your own** keeps them once you switch it on. Open the note, tap **More for this note**, then **Keep version history**.
+- **A note of your own** keeps them once you switch it on. Open the note, tap **More for this note**, then **Keep version history**. Version history opens, ready to save the first one.
 
-Your choice follows you to every device. Canvases don't keep versions.
+Your choice follows you to every device. Canvases don't keep versions. In Simple mode, **Keep version history** and **Version history** are behind **More…** on the note's sheet.
 
 ## When a version is kept
 
@@ -16,24 +16,34 @@ A version is saved:
 - when you leave the note;
 - whenever you save one by hand.
 
-A version is never saved when nothing has changed.
+A version is never saved when nothing has changed, unless you give it a name.
 
-To save one by hand, open **Version history** from the note's More. Type a **Name** if you like, such as "Sent to the client", then tap **Save a version now**.
+To save one by hand:
+
+1. Open **Version history** from the note's More.
+2. Type a **Name** if you like, such as "Sent to the client".
+3. Tap **Save a version now**.
+
+It says "Version saved.", or "Nothing has changed since the last version." when there is nothing new and no name.
 
 ## The timeline
 
-**Version history** shows every version, newest first, on a line down the page under the day it was kept: Today, Yesterday, or the date. Each version shows:
+**Version history** shows how many versions there are, then every version, newest first, on a line down the page under the day it was kept: Today, Yesterday, or the date. Each version shows:
 
-- who made it;
+- who made it ("You" for your own without an account, else a handle);
 - when;
-- how much it changed, like `+3 −1`, or "Named" for a named version with no new words;
+- how much it changed, like `+3 −1`, "First version" for the first, or "Named" for a named version with no new words;
 - the first line it changed.
 
-Tap a version to open it. You see **What this version changed**, against the version before it. Under that, **Restoring it changes the note like this** shows what going back would do to the note as it is now. Unchanged lines are folded away, so only the changes stand out.
+Tap a version to open it. You see **What this version changed**, against the version before it (for the first, **The note as it began**). Under that, **Restoring it changes the note like this** shows what going back would do to the note as it is now: lines that would come back and lines that would go. Unchanged lines are folded away, so only the changes stand out. **The timeline** takes you back to the list.
+
+### Beside the note
+
+When there's room, the note's toolbar has **Version history** too, in Advanced mode. On a wide window, such as the Mac or an opened Fold, it opens the history in the side panel's **History** tab, beside the note, so you can read a version against the words still on screen. A restore there is one change you can undo in the editor.
 
 ## Going back
 
-Open a version and tap **Restore version** with its number. The note goes back to those words.
+Open a version and tap **Restore version** with its number, such as **Restore version 4**. The note goes back to those words.
 
 Before it does, the note as it is now is kept as a version. So a restore never loses anything, and you can restore your way forward again.
 
@@ -71,12 +81,18 @@ If two devices both kept versions of the same note, their files are merged, so n
 
 ## Stopping
 
-**Stop keeping history**, at the foot of Version history, stops saving new versions. The versions kept so far stay. Switch it on again and they carry on from there.
+**Stop keeping history**, at the foot of Version history, stops saving new versions. The versions kept so far stay, and the file stays beside the note. Switch it on again and they carry on from there.
 
 In an organization, a note's history can be switched off the same way. The organization's audit log then says which notes have it off.
 
 ## The audit log
 
-An organization's page has an **Audit log**, the clock at the top. It reads the version history of every note in the workspace, so it lists every change by who and when, with the team's news beside it. **What the log shows** narrows it to notes or the team, and you can filter it by a note's name. Tap a change to see what it did, and **Open the note**.
+An organization's page has an **Audit log**: the clock at the top, or **Audit log** beside the **Activity** heading. It reads the version history of every note in the workspace, so it lists every change by who and when, with the team's news beside it: who joined, left or was removed, and renames.
+
+- **Everything**, **Notes** or **Team** chooses what it shows.
+- The search field filters it by a note's name.
+- Tap a change to see what it did, and **Open the note**.
+
+The log can only show what the history holds. A note whose history is switched off is named at the top, and a version that couldn't be read is left out and counted.
 
 See also: [[Organizations and shared notes]] · [[Accounts, sync and encryption]] · [[Workspaces, folders and search]] · [[Settings]]

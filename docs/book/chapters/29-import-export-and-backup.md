@@ -2,7 +2,7 @@
 
 Your notes are Markdown files, and they're yours. This chapter covers bringing notes in from another app, taking everything out, backing up to a drive, and keeping your library in a folder of your own.
 
-Works on: Android and Mac. The iPhone has no Library folder, Backup, Import or Export yet. These pages are part of Advanced; see [[Simple and Advanced]].
+Works on: Android and Mac. The iPhone has no Library folder, Backup, Import or Export yet, and its Settings › Account › **Export everything** row can't be used yet. These pages are part of Advanced, except Export everything on Settings › Account; see [[Simple and Advanced]].
 
 ## Importing
 
@@ -25,7 +25,7 @@ Tap **Evernote export (.enex)** and choose one or more `.enex` files. Each becom
 
 ### Todoist
 
-Add the **Todoist** plugin in the Market first. A **Todoist** card then appears on the Import page.
+Add the **Todoist** plugin in the Market first. A **Todoist** card then appears on the Import page, and on the plugin's own page, Settings › **Todoist**.
 
 Each project becomes a note, its sections headings and its tasks to-dos, with their dates, priorities, labels and sub-tasks. Two ways in:
 
@@ -34,14 +34,20 @@ Each project becomes a note, its sections headings and its tasks to-dos, with th
 
 ### Things 3
 
-Add the **Things** plugin in the Market first. Areas become notebooks and projects their pages, with headings, to-dos, When dates, deadlines, tags, notes and checklists.
+Add the **Things** plugin in the Market first. A **Things 3** card then appears on the Import page, and on Settings › **Things**. Areas become notebooks and projects their pages, with headings, to-dos, When dates, deadlines, tags, notes and checklists.
 
-- **From Things on this Mac** reads a copy of Things' own data, every area and project. The Mac may ask first. Switch on **The Logbook too** for done and cancelled to-dos, ticked.
+- **From Things on this Mac**, on the Mac only, reads a copy of Things' own data, every area and project. The Mac may ask first. Switch on **The Logbook too** for done and cancelled to-dos, ticked.
 - **Paste from Things**: in Things, open a list and choose Share › Copy, then press here. The list becomes one note.
 
 ### A .ghostex file
 
-**A .ghostex file** brings back an export from Ghost.md, with its workspaces, pictures and files. If it has a password, Ghost.md asks for it. If some notes are already here, choose **Skip** to leave them as they are, or **Keep copies** to bring the export's in beside them.
+**A .ghostex file** brings back an export from Ghost.md, with its workspaces, pictures and files. It's at the foot of the Import page. You can also open a `.ghostex` file from your phone's Files or the Mac's Finder: Ghost.md opens the Import page with it waiting.
+
+1. Choose the file. If it has a password, Ghost.md asks for it, then **Open**.
+2. Ghost.md says how many notes it holds, and how many are here already. For those, choose **Skip** to leave yours as they are, or **Keep copies** to bring the export's in beside them.
+3. Tap **Import**. It shows how far it has got, with **Stop**.
+
+Notes from a `.ghostex` go back into their own workspaces, not a workspace named for the day.
 
 ### Taking an import back
 
@@ -69,7 +75,7 @@ README.txt     What each folder is.
 
 Open `Library/` in Obsidian or any text editor. No account, password or key is ever in it. The AI and voice models aren't either; Settings downloads them again.
 
-### A .ghostex file
+### Everything as a .ghostex file
 
 Settings › Account › **Export everything** makes one `.ghostex` file: every note, with its pictures and files, to keep or to bring into Ghost.md on another device. Notes in the Trash are never in it. You choose what else goes in:
 

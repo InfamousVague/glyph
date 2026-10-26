@@ -10,6 +10,7 @@ Say what you want written, and it arrives as Markdown. Spoken cues turn into mar
 - **The command palette:** **Speak a new note** or **Talk into this note**. In a journal, **Speak an entry**.
 - **The sidebar's** **Speak** button.
 - **On Android,** press and hold Ghost.md's icon and choose **Voice note**, or add the **Voice note** widget to your home screen. On a Wear OS watch there's a **Record a note** tile.
+- **The side key,** if you've made Ghost.md your phone's assistant. With Claude set up it talks to Claude; without a key on the phone it records a voice note. See [[Android extras and the watch]].
 
 If you've put Claude's microphone on the dock, it takes the place of the voice-note mic there. Speak a note from the palette or the sidebar instead. See [[Claude in Ghost.md]].
 
@@ -17,14 +18,14 @@ If you've put Claude's microphone on the dock, it takes the place of the voice-n
 
 The recording screen shows your words as they're understood, with the cues already turned into marks. The line at the top says where they're going: **New note**, or **Adding to** a note.
 
-Before your first words, a card of **Things to say** suggests cues to try. When you pause, a tip comes up, such as: Say "Check box" to make a to-do.
+Before your first words, a card of **Things to say** suggests cues to try. If you meant to record a meeting, tap **Meeting instead** on that card before you speak. When you pause, a tip comes up, such as: Say "Check box" to make a to-do.
 
 - **Done** stops and keeps the note. The back gesture does the same.
 - **Discard** throws the recording away.
 
 There's no pause button. Stop with Done, and add more later with **Talk into this note**.
 
-If the screen goes off while you're recording, the note is saved as if you'd tapped Done.
+The screen stays on while you record. If the screen goes off (a press of the side key does that) or the microphone stops, the note is saved as if you'd tapped Done. To record with the screen off, record a meeting instead. See [[Meetings and the Meet bot]].
 
 ## Cues for marks
 
@@ -67,7 +68,8 @@ On a to-do you can also say when it's due, its priority, and who it's for: "chec
 Changed your mind mid-sentence? Say so:
 
 - **"Scratch that"**, "strike that", "take that back", "forget that", "delete that", "never mind", "cancel that" or "ignore that" takes back the last thing you said.
-- **"Actually …"**, "I mean …", "or rather …" or "no wait …" replaces it with what comes next.
+- **"Actually …"**, "I mean …", "sorry, …", "no, …", "or rather …" or "no wait …" replaces it with what comes next. These are ordinary words too, so they only count when what follows corrects what you said: "the meeting is at three, actually four".
+- **"Scratch that, add it to Groceries instead"** takes the last thing back out of this note and sends it to the one you name.
 
 A chip shows what was taken back or changed, with **Undo**.
 
@@ -91,17 +93,19 @@ Said first into a note's own **Talk into this note**, these are read as asks rat
 - "Summarise this"
 - "Make this a list"
 - "Tidy this up"
+- "Expand on this"
 - "Carry on"
 
-The AI works on the note, and every change is marked for you to keep or undo. See [[AI on your device]].
+Mid-recording, say **"Hey Ghost"** first: "Hey Ghost, fix the spelling." It's done once you tap Done. The AI works on the note, and every change is marked for you to keep or undo. See [[AI on your device]].
 
 ## After you stop
 
-In Settings › Recording (in Advanced):
+In Settings › Recording. In Simple, these are behind **More** on that page.
 
 - **Review after recording** (on to begin with): after you stop, a slower listen and a read-through, with what it would fix for you to keep. For recordings under three minutes.
 - **Better words** (on to begin with): a larger model goes over the recording and fixes the words. A recording over three minutes gets its better words a little later.
-- **Stop when I go quiet** (off to begin with): saves after four seconds of quiet, once you've started talking.
+- **Stop when I go quiet** (off to begin with): saves after four seconds of quiet, once you've started talking. Done, and the side key, still work.
+- **Summaries** (Meetings, to begin with): choose **Meetings and long voice notes** to have a voice note over three minutes summarised under its title too. See [[Tapes and transcripts]].
 
 The recording is kept with the note, as its tape. See [[Tapes and transcripts]].
 
