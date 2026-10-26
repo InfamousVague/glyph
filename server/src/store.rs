@@ -373,6 +373,7 @@ CREATE TABLE IF NOT EXISTS meet_bookings (
     updated_at INTEGER NOT NULL,
     series     TEXT,
     stopped    INTEGER NOT NULL DEFAULT 0,
+    kind       TEXT,
     UNIQUE (account_id, uid)
 );
 CREATE INDEX IF NOT EXISTS meet_bookings_by_start ON meet_bookings(starts_at);
@@ -386,6 +387,15 @@ CREATE TABLE IF NOT EXISTS meet_takes (
     created_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS meet_takes_by_account ON meet_takes(account_id, created_at);
+-- Which services an account wants Ghost booked into (meet.rs `MeetKinds`; Matt, 2026-10-26: "Make sure the Google Meet
+-- and the Zoom plugins are two different plugins"): the app's plugin switches, as JSON (`{"meet":true,"zoom":false}`),
+-- so a kind added later (Discord's calls) is a key and not a column. Not a secret: which kinds of link Ghost may join
+-- says nothing of a meeting. No row is every kind on.
+CREATE TABLE IF NOT EXISTS meet_kinds (
+    account_id INTEGER PRIMARY KEY REFERENCES accounts(id) ON DELETE CASCADE,
+    kinds      TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+);
 "#;
 
 /// Why a write made from a revision did not happen: the one stored had moved on, and `W` is what won - a note, the
@@ -426,10 +436,23 @@ pub struct Store {
 /// - `meet_bookings.stopped`: 1 on a series' own row once a device has said "Stop joining" (`DELETE
 ///   /api/v1/meet/series/{id}`), so a later invite of the same series (a higher SEQUENCE) does not book it again; 0 on
 ///   every other row (2026-10-24).
+/// - `meet_bookings.kind`: the service a booking is on, `meet` or `zoom` (`meet::ics::kind` of its link), kept when
+///   the sweep blanks the link, so a meeting over still says which plugin's page it is listed on (Matt, 2026-10-26: "I
+///   want settings / meetings to be broken up into three plugins"). NULL on a row blanked before the column was
+///   there, which the device reads as Google Meet, the only kind there was until that same day (2026-10-26).
 const ADDED_COLUMNS: &[(&str, &str, &str)] = &[
     ("meet_bookings", "series", "ALTER TABLE meet_bookings ADD COLUMN series TEXT"),
     ("meet_bookings", "stopped", "ALTER TABLE meet_bookings ADD COLUMN stopped INTEGER NOT NULL DEFAULT 0"),
+    ("meet_bookings", "kind", "ALTER TABLE meet_bookings ADD COLUMN kind TEXT"),
 ];
+
+/// Each booking with a link and no `kind` yet given the one its link says: those booked before the column was added.
+/// Cheap at every open, since only those rows match.
+const KIND_FROM_LINK: &str = "UPDATE meet_bookings SET kind = CASE
+     WHEN url LIKE 'https://meet.google.com/%' THEN 'meet'
+     WHEN url LIKE 'https://zoom.us/%' OR url LIKE 'https://%.zoom.us/%' THEN 'zoom'
+   END
+ WHERE kind IS NULL AND url != ''";
 
 /// Each of ADDED_COLUMNS its table does not have yet, added. Two starts racing to add one: the second's "duplicate
 /// column" is the column being there.
@@ -454,7 +477,8 @@ fn add_missing_columns(conn: &Connection) -> rusqlite::Result<()> {
 fn schema(conn: &Connection) -> rusqlite::Result<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     conn.execute_batch(SCHEMA)?;
-    add_missing_columns(conn)
+    add_missing_columns(conn)?;
+    conn.execute(KIND_FROM_LINK, []).map(|_| ())
 }
 
 impl Store {
@@ -571,6 +595,7 @@ mod tests {
         let store = Store::open(&data).unwrap();
         let old = store.meet_booking("m").unwrap();
         assert_eq!((old.title.as_deref(), old.series), (Some("Old"), None), "what was there is kept, the new column empty");
+        assert_eq!(old.kind.as_deref(), Some("meet"), "the kind read from the link it was booked with");
         store.update_meet_booking(&MeetBooking { series: Some("{}".into()), ..old }, 3).unwrap();
         drop(store);
         // And opened again, nothing is added twice.

@@ -790,6 +790,7 @@ async fn a_v1_booking_of_one_occurrence_becomes_that_occurrence_s_when_the_serie
         detail: None,
         sequence: 0,
         series: None,
+        kind: None,
     };
     h.accounts.store.insert_meet_booking(&v1, 1).unwrap();
     mailed(&h, account, &series("REQUEST", 1, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n"), utc(2030, 1, 10, 12, 0));
@@ -1084,6 +1085,7 @@ fn booking(h: &Harness, account: i64, id: &str, ends_at: i64, state: &str, title
         detail: None,
         sequence: 0,
         series: None,
+        kind: None,
     };
     assert!(h.accounts.store.insert_meet_booking(&b, 1).unwrap());
 }
@@ -1258,4 +1260,162 @@ async fn an_invite_the_bot_and_a_series_moving_on_each_poke_the_meetings_list() 
     // Nothing more to book: nothing said.
     assert_eq!(meet::advance_poking(&other.accounts, utc(2030, 1, 15, 16, 17)), 0);
     assert!(heard_pokes(&mut there).is_empty());
+}
+
+// --- the two plugins: which kinds the account wants (meet.rs, "TWO PLUGINS, ONE ADDRESS") ----------------------------
+
+/// The account's kinds, as a device reads them.
+async fn kinds(h: &Harness, token: &str) -> Value {
+    let (status, body) = h.call(Method::GET, "/api/v1/meet/kinds", Some(token), None).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    body
+}
+
+/// The kinds set as a device sets them when a plugin's switch moves.
+async fn set_kinds(h: &Harness, token: &str, body: Value) -> (StatusCode, Value) {
+    h.call(Method::PUT, "/api/v1/meet/kinds", Some(token), Some(body)).await
+}
+
+/// A sealed mail of the account's, opened with its key: the note's head.
+async fn opened_mail(h: &Harness, token: &str, secret: &p256::SecretKey, id: &str) -> Value {
+    let (_, sealed) = h.call(Method::GET, &format!("/api/v1/mail/{id}"), Some(token), None).await;
+    crate::mail::message::read(&seal::open_with(secret, id, sealed["wrapped"].as_str().unwrap(), sealed["blob"].as_str().unwrap()).unwrap()).0
+}
+
+#[tokio::test]
+async fn the_kinds_start_on_are_kept_per_account_and_refuse_what_is_not_a_kind() {
+    let h = Harness::new("meet");
+    let (sam, _) = with_key(&h, "sam").await;
+    assert_eq!(kinds(&h, &sam).await, json!({ "meet": true, "zoom": true }), "every kind on until a device says otherwise");
+    assert_eq!(set_kinds(&h, &sam, json!({ "zoom": false })).await, (StatusCode::OK, json!({ "meet": true, "zoom": false })), "a kind not named stays");
+    assert_eq!(kinds(&h, &sam).await, json!({ "meet": true, "zoom": false }));
+    assert_eq!(set_kinds(&h, &sam, json!({ "meet": false, "zoom": true })).await.1, json!({ "meet": false, "zoom": true }));
+    for bad in [json!({ "teams": true }), json!({ "zoom": "off" }), json!({ "meet": null })] {
+        assert_eq!(set_kinds(&h, &sam, bad.clone()).await, (StatusCode::BAD_REQUEST, json!({ "error": "Each kind is meet or zoom, true or false." })), "{bad}");
+    }
+    assert_eq!(kinds(&h, &sam).await, json!({ "meet": false, "zoom": true }), "a refused body changes nothing");
+    // Another account's are its own.
+    let (ali, _) = with_key(&h, "ali").await;
+    assert_eq!(kinds(&h, &ali).await, json!({ "meet": true, "zoom": true }));
+    let (status, _) = h.call(Method::GET, "/api/v1/meet/kinds", None, None).await;
+    assert_eq!(status, StatusCode::UNAUTHORIZED);
+}
+
+#[tokio::test]
+async fn join_now_with_a_link_of_a_kind_turned_off_is_refused_saying_which_plugin_to_turn_on() {
+    let h = Harness::new("meet");
+    let (account, _) = with_key(&h, "sam").await;
+    set_kinds(&h, &account, json!({ "zoom": false })).await;
+    let (status, body) = h.call(Method::POST, "/api/v1/meet", Some(&account), Some(json!({ "url": ZOOM_LINK }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "Turn on the Zoom plugin to send Ghost to Zoom calls." })));
+    // Google Meet is on, and books as ever.
+    join_now(&h, &account, "Stand-up").await;
+    set_kinds(&h, &account, json!({ "meet": false, "zoom": true })).await;
+    let (status, body) = h.call(Method::POST, "/api/v1/meet", Some(&account), Some(json!({ "url": "https://meet.google.com/abc-defg-hij" }))).await;
+    assert_eq!((status, body), (StatusCode::BAD_REQUEST, json!({ "error": "Turn on the Google Meet plugin to send Ghost to Google Meet calls." })));
+    join_now_url(&h, &account, ZOOM_LINK).await;
+}
+
+#[tokio::test]
+async fn an_invite_of_a_kind_turned_off_books_nothing_and_its_note_says_so() {
+    let h = Harness::new("meet");
+    let (account, secret) = with_key(&h, "sam").await;
+    let address = turned_on(&h, &account).await;
+    set_kinds(&h, &account, json!({ "zoom": false })).await;
+    let zoom = zoom_invite("20300115T100000", "20300115T110000");
+    let (status, _, bytes) = h.send(post(&address, invite_mail(&address, &zoom).as_bytes(), &token(1))).await;
+    assert_eq!(status, StatusCode::OK, "{}", String::from_utf8_lossy(&bytes));
+    assert!(meetings(&h, &account).await.is_empty(), "nothing booked of the Zoom");
+    // The mail is a note all the same, and the note says why Ghost is not coming.
+    let (_, mail) = h.call(Method::GET, "/api/v1/mail", Some(&account), None).await;
+    let id = mail["mail"][0]["id"].as_str().unwrap().to_string();
+    let head = opened_mail(&h, &account, &secret, &id).await;
+    assert!(head["body"].as_str().unwrap().ends_with("\n\nGhost wasn't booked: the Zoom plugin is off. Turn it on in Ghost.md to have Ghost join."), "{}", head["body"]);
+    // A Meet invite in the same account books as ever, and its note says nothing of plugins.
+    let meet = google_invite("REQUEST", 0, "20300116T110000", "20300116T120000", "CONFIRMED");
+    h.send(post(&address, invite_mail(&address, &meet).as_bytes(), &token(2))).await;
+    let listed = meetings(&h, &account).await;
+    assert_eq!(listed.iter().map(|m| m["kind"].as_str()).collect::<Vec<_>>(), vec![Some("meet")]);
+    let (_, mail) = h.call(Method::GET, "/api/v1/mail", Some(&account), None).await;
+    let other = mail["mail"].as_array().unwrap().iter().map(|m| m["id"].as_str().unwrap().to_string()).find(|m| *m != id).unwrap();
+    assert!(!opened_mail(&h, &account, &secret, &other).await["body"].as_str().unwrap().contains("plugin"));
+    // An update moving that Meet onto Zoom, while Zoom is off, moves it and skips it: Ghost goes to neither link.
+    let onto_zoom = google_zoom_invite("REQUEST", 1, "20300116T110000", "20300116T120000", "CONFIRMED");
+    h.send(post(&address, invite_mail(&address, &onto_zoom).as_bytes(), &token(3))).await;
+    let moved = &meetings(&h, &account).await[0];
+    assert_eq!((moved["state"].as_str(), moved["detail"].as_str(), moved["kind"].as_str()), (Some("skipped"), Some("The Zoom plugin is off."), Some("zoom")));
+    // A cancellation is applied whatever the kind, and turning Zoom on after it books nothing again.
+    let cancel = google_zoom_invite("CANCEL", 2, "20300116T110000", "20300116T120000", "CANCELLED");
+    h.send(post(&address, invite_mail(&address, &cancel).as_bytes(), &token(4))).await;
+    set_kinds(&h, &account, json!({ "zoom": true })).await;
+    let gone = &meetings(&h, &account).await[0];
+    assert_eq!((gone["state"].as_str(), gone["detail"].as_str()), (Some("cancelled"), Some("The organizer called it off.")));
+}
+
+#[tokio::test]
+async fn turning_a_kind_off_skips_what_is_booked_of_it_and_turning_it_on_books_it_again() {
+    let h = Harness::new("meet");
+    let (account, _) = with_key(&h, "sam").await;
+    let address = turned_on(&h, &account).await;
+    h.send(post(&address, invite_mail(&address, &zoom_invite("20300115T100000", "20300115T110000")).as_bytes(), &token(1))).await;
+    h.send(post(&address, invite_mail(&address, &google_invite("REQUEST", 0, "20300116T110000", "20300116T120000", "CONFIRMED")).as_bytes(), &token(2))).await;
+    let state = |list: &[Value], kind: &str| list.iter().find(|m| m["kind"] == kind).map(|m| (m["state"].as_str().unwrap().to_string(), m["detail"].as_str().map(str::to_string))).unwrap();
+    // Ghost is in a Zoom right now, too.
+    let now = join_now_url(&h, &account, "zoom.us/my/sam.lee").await;
+    bot_call(&h, Method::POST, &format!("/api/internal/meet/{now}/state"), Some(json!({ "state": "in_call" }))).await;
+
+    set_kinds(&h, &account, json!({ "zoom": false })).await;
+    let listed = meetings(&h, &account).await;
+    let invited = listed.iter().find(|m| m["title"] == "Design sync").unwrap();
+    assert_eq!((invited["state"].as_str(), invited["detail"].as_str()), (Some("skipped"), Some("The Zoom plugin is off.")));
+    let in_it = listed.iter().find(|m| m["id"] == now.as_str()).unwrap();
+    assert_eq!((in_it["state"].as_str(), in_it["detail"].as_str()), (Some("leave"), Some("The Zoom plugin is off.")), "the bot reads leave and goes");
+    assert_eq!(state(&listed, "meet"), ("booked".to_string(), None), "the Meet is untouched");
+    let (_, due) = bot_call(&h, Method::GET, "/api/internal/meet/due", None).await;
+    assert!(due["meetings"].as_array().unwrap().iter().all(|m| m["title"] != "Design sync"));
+
+    // A skip of the person's own is not undone by the switch.
+    let meet_id = listed.iter().find(|m| m["kind"] == "meet").unwrap()["id"].as_str().unwrap().to_string();
+    h.call(Method::DELETE, &format!("/api/v1/meet/{meet_id}"), Some(&account), None).await;
+    set_kinds(&h, &account, json!({ "meet": false })).await;
+    set_kinds(&h, &account, json!({ "meet": true, "zoom": true })).await;
+    let listed = meetings(&h, &account).await;
+    let invited = listed.iter().find(|m| m["title"] == "Design sync").unwrap();
+    assert_eq!((invited["state"].as_str(), invited["detail"].as_str()), (Some("booked"), None), "booked again, still to come");
+    assert_eq!(listed.iter().find(|m| m["id"] == now.as_str()).unwrap()["state"], "leave", "Ghost left that one, and it stays left");
+    assert_eq!(state(&listed, "meet"), ("skipped".to_string(), Some("You asked Ghost not to be in it.".to_string())));
+}
+
+#[tokio::test]
+async fn a_series_of_a_kind_turned_off_books_no_next_occurrence_until_it_is_on_again() {
+    let h = Harness::new("meet");
+    let (_, account) = sam(&h).await;
+    let daily = series("REQUEST", 0, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n");
+    assert_eq!(mailed(&h, account, &daily, utc(2030, 1, 10, 12, 0)), 1);
+    meet::set_kinds(&h.accounts.store, account, &[("meet", false)], utc(2030, 1, 10, 12, 5)).unwrap();
+    assert_eq!(listed(&h, account).iter().map(|b| b.state.as_str()).collect::<Vec<_>>(), vec!["skipped"]);
+    // Day one passes; no day two is booked while Google Meet is off.
+    assert!(due_at(&h, utc(2030, 1, 15, 16, 0)).is_empty());
+    assert_eq!(meet::advance(&h.accounts.store, utc(2030, 1, 15, 17, 0)), 0);
+    assert_eq!(listed(&h, account).len(), 1);
+    // Nor does an invite update book it.
+    let again = series("REQUEST", 1, "20300115T110000", "20300115T111500", "CONFIRMED", "RRULE:FREQ=DAILY\r\n");
+    assert_eq!(mailed(&h, account, &again, utc(2030, 1, 15, 17, 5)), 0);
+    meet::set_kinds(&h.accounts.store, account, &[("meet", true)], utc(2030, 1, 15, 17, 10)).unwrap();
+    assert_eq!(meet::advance(&h.accounts.store, utc(2030, 1, 15, 17, 15)), 1, "on again: the next one booked");
+    let all = listed(&h, account);
+    assert_eq!(all.iter().map(|b| (b.starts_at, b.state.as_str())).collect::<Vec<_>>(), vec![(utc(2030, 1, 15, 16, 0), "skipped"), (utc(2030, 1, 16, 16, 0), "booked")]);
+}
+
+#[tokio::test]
+async fn a_meeting_keeps_its_kind_once_the_sweep_has_blanked_its_link() {
+    let h = Harness::new("meet");
+    let (account, _) = with_key(&h, "sam").await;
+    let address = turned_on(&h, &account).await;
+    h.send(post(&address, invite_mail(&address, &zoom_invite("20300115T100000", "20300115T110000")).as_bytes(), &token(1))).await;
+    meet::sweep(&h.accounts.store, utc(2030, 1, 15, 21, 0));
+    let listed = h.accounts.store.meet_bookings(h.accounts.store.account_by_handle("sam").unwrap().id, i64::MIN);
+    assert_eq!((listed[0].url.as_str(), listed[0].kind.as_deref()), ("", Some("zoom")));
+    let (_, body) = h.call(Method::GET, "/api/v1/meet?limit=20", Some(&account), None).await;
+    assert_eq!((body["meetings"][0]["url"].clone(), body["meetings"][0]["kind"].as_str()), (Value::Null, Some("zoom")));
 }

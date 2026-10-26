@@ -123,7 +123,14 @@ fn file_name(given: Option<&str>, kind: &str, n: usize) -> String {
 }
 
 /// The raw mail, read and laid out as `GML1`, with `to` the address it was sent to; `now` (ms) where it has no date.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn payload(raw: &[u8], to: &str, now: i64) -> Result<Vec<u8>, Unreadable> {
+    payload_with(raw, to, now, None)
+}
+
+/// `payload`, with `said` a line of the service's own after the body: why an invite in it booked nothing (src/meet.rs
+/// `Booked::note`: "Ghost wasn't booked: the Zoom plugin is off."), so the note says it where the person reads the mail.
+pub fn payload_with(raw: &[u8], to: &str, now: i64, said: Option<&str>) -> Result<Vec<u8>, Unreadable> {
     let message = MessageParser::default().parse(raw).ok_or(Unreadable)?;
     let html = message.html_part(0).and_then(|part| match &part.body {
         PartType::Html(html) => Some(html.as_ref()),
@@ -159,7 +166,10 @@ pub fn payload(raw: &[u8], to: &str, now: i64) -> Result<Vec<u8>, Unreadable> {
         "from": address_of(message.from()),
         "to": to,
         "date": message.date().map(|d| d.to_timestamp() * 1000).unwrap_or(now),
-        "body": kept(body),
+        "body": match said {
+            Some(line) => format!("{}\n\n{line}", kept(body)),
+            None => kept(body),
+        },
         "files": files,
     });
     let head = serde_json::to_vec(&head).map_err(|_| Unreadable)?;

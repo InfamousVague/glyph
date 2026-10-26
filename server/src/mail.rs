@@ -351,12 +351,14 @@ async fn inbound(State(mail): State<Arc<Mail>>, headers: HeaderMap, body: Bytes)
     for (local, account) in &to {
         let Some(public) = mail.accounts.store.account_key(*account).map(|k| k.pub_key) else { continue };
         // A calendar invite in the mail books Ghost into its Google Meet (src/meet.rs, docs/MEET.md); the mail is a
-        // note all the same. Only for an account with a key, as Ghost's recording is sealed to it.
-        if crate::meet::book_from_mail(&mail.accounts.store, *account, &post.mime, now * 1000) > 0 {
+        // note all the same. Only for an account with a key, as Ghost's recording is sealed to it. An invite of a kind
+        // the account turned off books nothing, and its note ends saying so (meet.rs, "TWO PLUGINS").
+        let booked = crate::meet::book_invites(&mail.accounts.store, *account, &post.mime, now * 1000);
+        if booked.written > 0 {
             // Its devices' meetings lists show the booking now (live.rs, POKES).
             mail.accounts.pokes.poke(*account, Poke::Meet);
         }
-        let Ok(mut payload) = message::payload(&post.mime, &mail.full(local), now * 1000) else {
+        let Ok(mut payload) = message::payload_with(&post.mime, &mail.full(local), now * 1000, booked.note().as_deref()) else {
             post.mime.zeroize();
             mail.remember(&post.token, now);
             return refused("That mail could not be read.");

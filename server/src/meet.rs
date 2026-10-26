@@ -13,8 +13,27 @@
 //! Google Calendar events with a Zoom link in place of a Meet), and "join now" - in one form, `https://<host>/j/<id>`
 //! with its `?pwd=`, or a personal `/my/<name>`. The booking keeps the link as it keeps a Meet's; which service it is
 //! (`kind`, `meet` or `zoom`) is read from the link wherever a booking is said, to the bot (which opens Zoom's web
-//! client rather than Meet) and the device (which names the service on the row), and into a take's head. Nothing new
-//! is stored: once the sweep blanks the link the kind is gone with it, and null.
+//! client rather than Meet) and the device (which names the service on the row), and into a take's head. It is kept
+//! too (`meet_bookings.kind`), since the two became plugins: once the sweep blanks the link the kind stays, so a
+//! meeting over is listed on its own plugin's page; null only for one blanked before kinds were kept.
+//!
+//! TWO PLUGINS, ONE ADDRESS (Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different
+//! plugins", and the same day: "I want settings / meetings to be broken up into three plugins where each zoom, Google
+//! meets and discord handle their own meetings"). On the device Google Meet and Zoom are each a plugin with a switch;
+//! here each account keeps which kinds it wants (`MeetKinds`, `GET`/`PUT /api/v1/meet/kinds`, stored in the clear in
+//! `meet_kinds`, since which services Ghost may join says nothing of a meeting), every kind on until a device says
+//! otherwise. Invites are booked here, from mail, with no device awake, so the switch has to be here too:
+//!
+//! - an invite whose link is of a kind turned off books nothing (`book_invites`), and its mail's note says so, "Ghost
+//!   wasn't booked: the Zoom plugin is off." (`Booked::note`); an update that moves a booking onto such a link moves
+//!   it and skips it, with that reason. A cancellation is applied whatever the kind, as it only ever calls one off;
+//! - "join now" with such a link is refused, 400, "Turn on the Zoom plugin to send Ghost to Zoom calls.";
+//! - a series of a kind turned off books no next occurrence (`advance`): it waits, as it waits for room;
+//! - turning a kind off skips what is booked of it and still to come, and has Ghost leave one it is in; turning it on
+//!   again books those skipped for that reason, while they are still to come (`set_kinds`).
+//!
+//! Each booking keeps its kind (`meet_bookings.kind`) after the sweep blanks its link, so a meeting over is still
+//! listed on its own plugin's page. The bot is unchanged: it joins what is due, and nothing of a kind turned off is.
 //!
 //! A RECURRING MEETING is joined every time, with no new mail. Its invite makes a row for the series (`apply_series`;
 //! never listed, due or counted) that keeps what expanding the rule needs (`ics::Series`) and the link, and a booking for
@@ -64,6 +83,8 @@
 //!   GET    /api/v1/meet/takes           the recordings waiting, sealed: id, meeting, size, when, the wrapped key
 //!   GET    /api/v1/meet/takes/{id}      one recording's sealed bytes, raw; the wrapped key in `x-glyph-wrapped`
 //!   DELETE /api/v1/meet/takes/{id}      taken: a device has it
+//!   GET    /api/v1/meet/kinds           { meet, zoom }: which kinds of meeting Ghost is booked into
+//!   PUT    /api/v1/meet/kinds           { meet?, zoom? } the plugins' switches, as the device has them
 //!
 //!   GET    /api/internal/meet/due       what the bot should be in, or on its way to
 //!   POST   /api/internal/meet/{id}/state  { state, detail? } where the bot is with a meeting
@@ -175,7 +196,7 @@ fn meeting_json(b: &MeetBooking) -> Value {
         "id": b.id,
         "title": b.title,
         "url": if b.url.is_empty() { Value::Null } else { json!(b.url) },
-        "kind": ics::kind(&b.url),
+        "kind": ics::kind(&b.url).or(b.kind.as_deref()),
         "startsAt": b.starts_at,
         "endsAt": b.ends_at,
         "state": b.state,
@@ -188,11 +209,18 @@ fn meeting_json(b: &MeetBooking) -> Value {
 /// Books, moves or calls off Ghost for every meeting the calendar parts of the raw mail `mime` name, for `account`, at
 /// `now` (ms). Answers how many bookings it wrote. Called by mail.rs for each account a mail is for, once that account
 /// has an encryption key (a recording could be sealed to nothing else); the mail still becomes a note as before.
+#[cfg_attr(not(test), allow(dead_code))]
 pub fn book_from_mail(store: &Store, account: i64, mime: &[u8], now: i64) -> usize {
-    let Some(message) = MessageParser::default().parse(mime) else { return 0 };
+    book_invites(store, account, mime, now).written
+}
+
+/// `book_from_mail`, saying too which kinds booked nothing for being off (see the header), for the mail's note.
+pub fn book_invites(store: &Store, account: i64, mime: &[u8], now: i64) -> Booked {
+    let mut booked = Booked::default();
+    let Some(message) = MessageParser::default().parse(mime) else { return booked };
+    let kinds = MeetKinds::of(store, account);
     // Google sends the invite twice in one mail, as the `text/calendar` alternative and as `invite.ics`: read once.
     let mut read: Vec<String> = Vec::new();
-    let mut written = 0;
     for part in &message.parts {
         let kind = part.content_type().map(|t| format!("{}/{}", t.ctype(), t.subtype().unwrap_or("")).to_ascii_lowercase()).unwrap_or_default();
         let named = part.attachment_name().is_some_and(|n| n.to_ascii_lowercase().ends_with(".ics"));
@@ -208,13 +236,39 @@ pub fn book_from_mail(store: &Store, account: i64, mime: &[u8], now: i64) -> usi
             continue;
         }
         for invite in ics::invites(&calendar, now) {
+            let off = invite.url.as_deref().and_then(ics::kind).filter(|kind| !kinds.allows(Some(kind)));
+            if let Some(kind) = off.filter(|_| !invite.cancelled) {
+                if !booked.off.contains(&kind) {
+                    booked.off.push(kind);
+                }
+                // Nothing new is booked of it. One booked already, now moved onto a link of a kind turned off, follows
+                // the invite and is then skipped as turning the kind off skips it (`set_kinds`), so Ghost goes to
+                // neither link, and to the new one once the kind is on again. A series is left as it is: what it
+                // booked was skipped as the kind went off, and it books no more while it is (`advance`).
+                if invite.series.is_none() && store.meet_booking_by_uid(account, &invite.uid).is_some() {
+                    if apply_one(store, account, &invite, now) {
+                        booked.written += 1;
+                    }
+                    if let Some(b) = store.meet_booking_by_uid(account, &invite.uid) {
+                        let next = match b.state.as_str() {
+                            "booked" => "skipped",
+                            "joining" | "in_call" => "leave",
+                            _ => "",
+                        };
+                        if !next.is_empty() {
+                            store.set_meet_state(&b.id, next, Some(&off_detail(kind)), now.div_euclid(1000));
+                        }
+                    }
+                }
+                continue;
+            }
             if apply(store, account, &invite, now) {
-                written += 1;
+                booked.written += 1;
             }
         }
         read.push(calendar);
     }
-    written
+    booked
 }
 
 /// One meeting of an invite, applied to the account's bookings: a series (`apply_series`), or one meeting, which may be
@@ -238,11 +292,83 @@ fn series_of(b: &MeetBooking) -> Option<Series> {
 }
 
 /// Why a meeting is called off: the organizer did, or the invite no longer has a Meet or Zoom link.
-fn called_off(invite: &Invite) -> &'static str {
+fn called_off(invite: &Invite) -> String {
     if invite.cancelled {
-        "The organizer called it off."
+        "The organizer called it off.".into()
     } else {
-        "The invite no longer has a Google Meet or Zoom link."
+        "The invite no longer has a Google Meet or Zoom link.".into()
+    }
+}
+
+/// Whether `b` was skipped, or Ghost told to leave it, only because its kind was turned off: what turning the kind on
+/// again books once more, and what an organizer's cancellation turns into a cancellation of its own.
+fn off_only(b: &MeetBooking) -> bool {
+    b.detail.as_deref().is_some_and(|detail| KINDS.iter().any(|kind| off_detail(kind) == detail))
+}
+
+// --- kinds -------------------------------------------------------------------------------------
+
+/// The kinds of meeting an account may turn on and off, each one plugin on the device. Discord's calls join this list
+/// once they are booked here.
+pub const KINDS: &[&str] = &["meet", "zoom"];
+
+/// A kind as a person names it: "Google Meet", "Zoom".
+pub fn kind_words(kind: &str) -> &str {
+    match kind {
+        "meet" => "Google Meet",
+        "zoom" => "Zoom",
+        "discord" => "Discord",
+        other => other,
+    }
+}
+
+/// The detail of a meeting skipped or called off because its kind is off, the one turning it on again looks for.
+pub fn off_detail(kind: &str) -> String {
+    format!("The {} plugin is off.", kind_words(kind))
+}
+
+/// What "join now" with a link of a kind turned off is refused with.
+pub fn turn_on_words(kind: &str) -> String {
+    let words = kind_words(kind);
+    format!("Turn on the {words} plugin to send Ghost to {words} calls.")
+}
+
+/// Which kinds the account wants Ghost booked into: every kind on but those stored off. A link of no kind (none in a
+/// booking blanked) is allowed, as nothing can be booked from it anyway.
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct MeetKinds {
+    off: Vec<String>,
+}
+
+impl MeetKinds {
+    pub fn of(store: &Store, account: i64) -> MeetKinds {
+        let stored: Option<serde_json::Map<String, Value>> = store.meet_kinds(account).and_then(|text| serde_json::from_str(&text).ok());
+        let off = stored.map(|map| map.into_iter().filter(|(_, on)| on == &Value::Bool(false)).map(|(kind, _)| kind).collect()).unwrap_or_default();
+        MeetKinds { off }
+    }
+
+    pub fn allows(&self, kind: Option<&str>) -> bool {
+        kind.is_none_or(|kind| !self.off.iter().any(|off| off == kind))
+    }
+
+    /// `{ meet: true, zoom: false }`, every one of [`KINDS`].
+    pub fn json(&self) -> Value {
+        Value::Object(KINDS.iter().map(|kind| (kind.to_string(), Value::Bool(self.allows(Some(kind))))).collect())
+    }
+}
+
+/// What a mail's invites came to: how many bookings were written, and the kinds that booked nothing for being off.
+#[derive(Debug, Default)]
+pub struct Booked {
+    pub written: usize,
+    pub off: Vec<&'static str>,
+}
+
+impl Booked {
+    /// The line the mail's note ends with when its invite booked nothing for being off; none otherwise.
+    pub fn note(&self) -> Option<String> {
+        let words: Vec<String> = self.off.iter().map(|kind| format!("the {} plugin is off", kind_words(kind))).collect();
+        (!words.is_empty()).then(|| format!("Ghost wasn't booked: {}. Turn it on in Ghost.md to have Ghost join.", words.join(", and ")))
     }
 }
 
@@ -280,9 +406,10 @@ fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
                 starts_at: invite.starts_at,
                 ends_at: invite.ends_at,
                 state: "cancelled".into(),
-                detail: Some(called_off(invite).into()),
+                detail: Some(called_off(invite)),
                 sequence: invite.sequence,
                 series: None,
+                kind: None,
             };
             return store.insert_meet_booking(&booking, secs).unwrap_or(false);
         };
@@ -301,6 +428,7 @@ fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
             detail: None,
             sequence: invite.sequence,
             series: None,
+            kind: None,
         };
         return store.insert_meet_booking(&booking, secs).unwrap_or(false);
     };
@@ -328,11 +456,13 @@ fn apply_one(store: &Store, account: i64, invite: &Invite, now: i64) -> bool {
                 "booked" => "cancelled",
                 // Ghost is in it, or on its way: the bot reads `leave` and goes.
                 "joining" | "in_call" => "leave",
+                // Skipped for its kind being off: called off now, so turning the kind on does not book it again.
+                "skipped" if off_only(&b) => "cancelled",
                 other => other,
             };
             if next != b.state {
                 b.state = next.into();
-                b.detail = Some(why.into());
+                b.detail = Some(why);
             }
         }
     }
@@ -372,6 +502,7 @@ fn apply_series(store: &Store, account: i64, invite: &Invite, series: &Series, n
             detail: None,
             sequence: invite.sequence,
             series: Some(rule),
+            kind: None,
         };
         return store.insert_meet_booking(&own, secs).unwrap_or(false) && apply_one(store, account, &next, now);
     };
@@ -399,11 +530,11 @@ fn apply_series(store: &Store, account: i64, invite: &Invite, series: &Series, n
                 "joining" | "in_call" => "leave",
                 _ => continue,
             };
-            store.set_meet_state(&o.id, next, Some(why), secs);
+            store.set_meet_state(&o.id, next, Some(&why), secs);
         }
         // Its link is blanked an hour from now.
         s.state = "cancelled".into();
-        s.detail = Some(why.into());
+        s.detail = Some(why);
         s.ends_at = s.ends_at.min(now);
         return store.update_meet_booking(&s, secs).is_ok();
     };
@@ -481,8 +612,9 @@ fn advanced(store: &Store, now: i64) -> (usize, Vec<i64>) {
                 }
                 continue;
             }
-            // The limit holds for a series as for any invite: it waits for room.
-            if store.meet_upcoming(s.account, now) >= UPCOMING {
+            // The limit holds for a series as for any invite: it waits for room. And a series of a kind the account
+            // turned off waits for it to be on again.
+            if store.meet_upcoming(s.account, now) >= UPCOMING || !MeetKinds::of(store, s.account).allows(ics::kind(&s.url)) {
                 break;
             }
             let occurrence = MeetBooking {
@@ -497,6 +629,7 @@ fn advanced(store: &Store, now: i64) -> (usize, Vec<i64>) {
                 detail: None,
                 sequence: s.sequence,
                 series: None,
+                kind: None,
             };
             if store.insert_meet_booking(&occurrence, secs).unwrap_or(false) {
                 booked += 1;
@@ -583,7 +716,7 @@ fn series_json(store: &Store, s: &MeetBooking, now: i64) -> Option<Value> {
     Some(json!({
         "id": s.id,
         "title": s.title,
-        "kind": ics::kind(&s.url),
+        "kind": ics::kind(&s.url).or(s.kind.as_deref()),
         "rule": rule.words(),
         "time": format!("{hour:02}:{minute:02}"),
         "zone": rule.zone_name(),
@@ -683,6 +816,10 @@ async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body)
     let Some(url) = ics::typed_meeting_url(&body.url) else {
         return error(StatusCode::BAD_REQUEST, "That is not a Google Meet or Zoom link. It looks like meet.google.com/abc-defg-hij or zoom.us/j/123456789.");
     };
+    // A link of a kind the account turned off (see the header).
+    if let Some(kind) = ics::kind(&url).filter(|kind| !MeetKinds::of(&accounts.store, who.sub).allows(Some(kind))) {
+        return error(StatusCode::BAD_REQUEST, &turn_on_words(kind));
+    }
     // The recording is sealed to the account's encryption key on arrival, so there must be one to seal it to.
     if accounts.store.account_key(who.sub).is_none() {
         return error(StatusCode::CONFLICT, "Your account needs its encryption key first. Sync once, then try again.");
@@ -704,6 +841,7 @@ async fn book_now(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body)
         detail: None,
         sequence: 0,
         series: None,
+        kind: None,
     };
     match accounts.store.insert_meet_booking(&booking, now_secs()) {
         Ok(true) => {
@@ -753,6 +891,67 @@ async fn stop_series(State(accounts): State<Arc<Accounts>>, Path(id): Path<Strin
     let changed = stop(&accounts.store, &s, now_ms());
     accounts.pokes.poke(who.sub, Poke::Meet);
     Json(json!({ "series": { "id": s.id, "stopped": true }, "meetings": changed.iter().map(meeting_json).collect::<Vec<_>>() })).into_response()
+}
+
+async fn get_kinds(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
+    Json(MeetKinds::of(&accounts.store, who.sub).json()).into_response()
+}
+
+/// The plugins' switches, as a device has them: each of [`KINDS`] named, on or off; one not named stays as it was.
+/// What is booked of a kind turned off is skipped (`set_kinds`). Answers every kind as it stands now.
+async fn put_kinds(State(accounts): State<Arc<Accounts>>, who: Claims, Json(body): Json<serde_json::Map<String, Value>>) -> Response {
+    let mut wanted: Vec<(&'static str, bool)> = Vec::new();
+    for (kind, on) in &body {
+        match (KINDS.iter().find(|k| **k == kind.as_str()), on) {
+            (Some(kind), Value::Bool(on)) => wanted.push((kind, *on)),
+            _ => return error(StatusCode::BAD_REQUEST, "Each kind is meet or zoom, true or false."),
+        }
+    }
+    match set_kinds(&accounts.store, who.sub, &wanted, now_ms()) {
+        Some((kinds, changed)) => {
+            if changed {
+                accounts.pokes.poke(who.sub, Poke::Meet);
+            }
+            Json(kinds.json()).into_response()
+        }
+        None => error(StatusCode::INTERNAL_SERVER_ERROR, "That could not be kept just now. Try again."),
+    }
+}
+
+/// The account's kinds set as `wanted` says at `now` (ms), and what is booked of each kind that moved brought along: a
+/// kind turned off has each of its bookings still to come skipped (Ghost leaves one it is joining or in), with
+/// [`off_detail`]; a kind turned on again has those skipped for that reason, and still to come, booked again. Answers the kinds as they stand, and whether anything changed; none when they could not be kept.
+pub fn set_kinds(store: &Store, account: i64, wanted: &[(&str, bool)], now: i64) -> Option<(MeetKinds, bool)> {
+    let before = MeetKinds::of(store, account);
+    let mut map: serde_json::Map<String, Value> = KINDS.iter().map(|kind| (kind.to_string(), Value::Bool(before.allows(Some(kind))))).collect();
+    for (kind, on) in wanted {
+        map.insert(kind.to_string(), Value::Bool(*on));
+    }
+    let secs = now.div_euclid(1000);
+    if !store.set_meet_kinds(account, &Value::Object(map).to_string(), secs) {
+        return None;
+    }
+    let after = MeetKinds::of(store, account);
+    let mut changed = before != after;
+    for kind in KINDS {
+        let is = after.allows(Some(kind));
+        if before.allows(Some(kind)) == is {
+            continue;
+        }
+        let detail = off_detail(kind);
+        for b in store.meet_ahead(account, now).into_iter().filter(|b| b.kind.as_deref() == Some(kind)) {
+            let next = match (is, b.state.as_str()) {
+                (false, "booked") => Some(("skipped", Some(detail.as_str()))),
+                (false, "joining" | "in_call") => Some(("leave", Some(detail.as_str()))),
+                (true, "skipped") if b.detail.as_deref() == Some(detail.as_str()) && !b.url.is_empty() => Some(("booked", None)),
+                _ => None,
+            };
+            if let Some((state, why)) = next {
+                changed |= store.set_meet_state(&b.id, state, why, secs);
+            }
+        }
+    }
+    Some((after, changed))
 }
 
 async fn takes(State(accounts): State<Arc<Accounts>>, who: Claims) -> Response {
@@ -982,7 +1181,7 @@ async fn put_take(State(bot): State<Arc<Bot>>, Path(id): Path<String>, mut multi
         "v": 1,
         "meeting": b.id,
         "title": b.title,
-        "kind": ics::kind(&b.url),
+        "kind": ics::kind(&b.url).or(b.kind.as_deref()),
         "startedAt": started.unwrap_or(b.starts_at),
         "endedAt": ended.unwrap_or_else(now_ms),
         "mime": mime,
@@ -1022,6 +1221,7 @@ pub fn router(accounts: Arc<Accounts>, bot_token: Option<String>) -> Router {
     let mut routes = Router::new()
         .route("/api/v1/meet", get(list).post(book_now))
         .route("/api/v1/meet/takes", get(takes))
+        .route("/api/v1/meet/kinds", get(get_kinds).put(put_kinds))
         .route("/api/v1/meet/takes/{id}", get(get_take).delete(delete_take))
         .route("/api/v1/meet/series/{id}", delete(stop_series))
         .route("/api/v1/meet/{id}", delete(skip))
