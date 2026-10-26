@@ -198,7 +198,7 @@ class WiredAccount {
     final mailIn = offered ? MailIn(account: account, keys: keys, api: api, crypto: crypto) : null;
     // Ghost in a Google Meet (docs/MEET.md): its setting beside the mail's, which it is booked through; its takes
     // filed on every device, an iPhone's from the captions after a day left for one that keeps the sound.
-    final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto) : null;
+    final meetIn = offered ? MeetIn(account: account, keys: keys, api: api, crypto: crypto, kept: device) : null;
     final engine = SyncEngine(
       account: AccountDoor(account),
       api: api,

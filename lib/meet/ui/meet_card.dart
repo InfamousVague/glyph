@@ -18,17 +18,23 @@ import '../../settings/kit/settings_kit.dart';
 import '../../settings/kit/settings_type.dart' show pageText;
 import '../meet_api.dart';
 import '../meet_in.dart';
+import '../meet_kinds.dart';
 import '../meet_note.dart' show awaitsWriteUp;
 
-/// Ghost in meetings, Settings › Meetings (lib/settings/panes/meetings_pane.dart, lib/meet/meet_in.dart, docs/MEET.md):
-/// the mail-to-note address is also the address Ghost is invited by, so the cards are drawn only once there is one
-/// ([meetCardShown]). Two cards. First the ways to invite Ghost (Matt, 2026-10-23: "move the invite card to the top"):
-/// a Google Meet or Zoom link sent now, then the address to put on a Calendar invite, with Copy and, beside it, a new
-/// address in its place (Matt, 2026-10-24: "add a refresh button next to the email so i can regeenrate the email").
-/// This card is the one place the address is shown, mail to a note's as much as Ghost's (Account points here). Then
-/// what Ghost does
-/// and where the sound goes, over the meetings Ghost is booked for and was in with where each stands, and a way to
-/// tell Ghost not to join one or to leave.
+/// Ghost in meetings, on each meeting plugin's own page (lib/plugins/meetings/meeting_pane.dart, lib/meet/meet_in.dart,
+/// docs/MEET.md). Settings › Meetings was one page for every kind until Matt, 2026-10-26: "I want settings / meetings
+/// to be broken up into three plugins where each zoom, Google meets and discord handle their own meetings". So both
+/// cards here take a kind (`meet`, `zoom`, `discord`; meet_kinds.dart) and draw that kind alone:
+///
+/// - [MeetInviteCard], the ways to invite Ghost (Matt, 2026-10-23: "move the invite card to the top"): a link of the
+///   page's kind sent now, then the address to put on a calendar invite, with Copy and, beside it, a new address in its
+///   place (Matt, 2026-10-24: "add a refresh button next to the email so i can regeenrate the email"). The address is
+///   the account's one, for every kind (an invite is booked by the link in it), so the Google Meet and the Zoom pages
+///   each show it and say so, and a new one or a name chosen on either is the other's at once: both read the one
+///   [MailIn]. Drawn only once there is an address ([meetCardShown]).
+/// - [MeetingsList], what Ghost does and where the sound goes, over the meetings of the kind Ghost is booked for and
+///   was in, with where each stands, and a way to tell Ghost not to join one or to leave. The Discord plugin's page
+///   lists its calls with it too, `kind: 'discord'`, which needs no invite card.
 ///
 /// A new address turns the old one off at once, for invites and mail alike, and a Calendar invite that has it as a
 /// guest goes nowhere after, so the refresh asks first, in the card, as Settings asks (the library folder's move):
@@ -49,9 +55,9 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// rather than a step down; also in Simple, as the refresh is.
 ///
 /// Zoom as well as Google Meet (Matt, 2026-10-26: "While you're at it also consider zoom meetings"): the link field
-/// takes either ([meetLink]), the card's words name both, and a meeting's row names the service it is on ("Zoom",
-/// "Google Meet") while the service still has its link, so one booked from a calendar invite says where Ghost will go.
-/// A Zoom Ghost could not join says what its host would have to allow ([meetDetailWords]).
+/// takes the page's own kind ([meetLink], [meetKindOfLink]); a link of the other kind pasted there says which page
+/// takes it, and one whose plugin is off says to turn it on ([meetTurnOnWords]), as the service would. A Zoom Ghost
+/// could not join says what its host would have to allow ([meetDetailWords]).
 ///
 /// A meeting that became a note opens it (Matt, 2026-10-24: "add the ability to click a meeting to jump to the
 /// associated note"): the row is pressed, and [MeetCard.onOpenNote] shuts Settings and opens the note, as the home
@@ -62,7 +68,7 @@ import '../meet_note.dart' show awaitsWriteUp;
 /// Recurring meetings and the history in pages (Matt, 2026-10-24: "show recurring meetings in the meetings UI and
 /// paginate the meeting history"):
 ///
-/// - **Recurring**, a card of its own between the two, where the service lists series ([MeetIn.series]; none from a
+/// - **Recurring**, a card of its own over the list, where the service lists series ([MeetIn.series]; none from a
 ///   service before them, and then no card, and nothing said): a row a series, its title over its rule in words
 ///   ([meetSeriesRule]: "Every weekday at 9:30", the zone named where the phone's clock differs, how it ends) and
 ///   "Next: Mon 27 Oct" ([meetSeriesNext]). Its one word, "Stop joining", asks first, in the card, as a new address
@@ -85,7 +91,10 @@ const String meetNewAddressWarning = 'Invites and mail sent to the old one are t
 /// How long a pause in typing a name is before the service is asked about it.
 const Duration meetNameSettle = Duration(milliseconds: 400);
 
-/// What the card says under itself: where a meeting's sound goes.
+/// What the invite card says of the address on every page that shows it: one address takes every kind of invite.
+const String meetSameAddress = 'The same address works for Meet and Zoom invites.';
+
+/// What the list says under itself: where a meeting's sound goes.
 const String meetCardFooter = 'The meeting’s sound passes through Ghost.md’s server while it records, sealed to your account as it arrives; it is written up on your device.';
 
 /// What the footer adds against a service that pages: how far back the list goes (bookings are kept thirty days,
@@ -146,30 +155,26 @@ String meetWhen(int ms, {required int now}) {
   return '$day, ${_two(at.hour)}:${_two(at.minute)}';
 }
 
-/// The card.
-class MeetCard extends StatefulWidget {
-  const MeetCard({super.key, required this.services, this.onOpenNote});
+/// The invite card for [MeetInviteCard.kind]: Join with a link of that kind, and the address.
+class MeetInviteCard extends StatefulWidget {
+  const MeetInviteCard({super.key, required this.services, required this.kind});
 
   final AccountServices services;
 
-  /// Opens a meeting's note; without it no meeting is pressed.
-  final void Function(String id)? onOpenNote;
+  /// `meet` or `zoom`: the links Join takes, and the words.
+  final String kind;
 
   @override
-  State<MeetCard> createState() => _MeetCardState();
+  State<MeetInviteCard> createState() => _MeetInviteCardState();
 }
 
-class _MeetCardState extends State<MeetCard> {
+class _MeetInviteCardState extends State<MeetInviteCard> {
   String? _said;
   String _link = '';
   bool _busy = false;
 
   /// The question a new address asks first is showing.
   bool _asking = false;
-
-  /// The series whose "Stop joining" is asking first, and what the Recurring card says under itself.
-  String? _stopping;
-  String? _seriesSaid;
 
   /// A name of one's own: the field is open, what is typed in it, what is said under it, whether the service said
   /// the name as typed is free, and whether the question before switching to it is showing. [_nameAsked] counts the
@@ -182,60 +187,10 @@ class _MeetCardState extends State<MeetCard> {
   Timer? _nameWait;
   int _nameAsked = 0;
 
-  /// This device's notes, by id, for which meeting became which; empty until read, or where nothing reads them.
-  Map<String, Note> _notes = const {};
-  Object? _notesFor;
-
-  Listenable? _heard;
-
-  @override
-  void initState() {
-    super.initState();
-    _listen();
-    // Read as the page opens, unless it was a moment ago: the build's [MeetIn.readSoon] waits a minute between reads,
-    // which showed a page just opened as it was up to a minute before.
-    widget.services.meetIn?.readNow(within: MeetIn.openFresh);
-  }
-
-  @override
-  void didUpdateWidget(MeetCard old) {
-    super.didUpdateWidget(old);
-    if (old.services != widget.services) {
-      _heard?.removeListener(_readNotes);
-      _listen();
-    }
-  }
-
   @override
   void dispose() {
-    _heard?.removeListener(_readNotes);
     _nameWait?.cancel();
     super.dispose();
-  }
-
-  void _listen() {
-    final meet = widget.services.meetIn;
-    _heard = Listenable.merge([?meet, widget.services.prefs])..addListener(_readNotes);
-    _notesFor = null;
-    _readNotes();
-  }
-
-  /// The notes read again whenever what decides a meeting's note changes: the meetings, which notes are meetings,
-  /// and which meeting each was kept against.
-  void _readNotes() {
-    final list = widget.services.listNotes;
-    final prefs = widget.services.prefs.value;
-    final now = (widget.services.meetIn?.meetings, prefs.meetings, prefs.more[meetingNotesKey]);
-    if (list == null || now == _notesFor) return;
-    _notesFor = now;
-    unawaited(() async {
-      try {
-        final notes = {for (final note in await list()) note.id: note};
-        if (mounted && now == _notesFor) setState(() => _notes = notes);
-      } catch (_) {
-        // No meeting opens its note; each says where it stands.
-      }
-    }());
   }
 
   Future<void> _run(Future<void> Function() work) async {
@@ -414,6 +369,209 @@ class _MeetCardState extends State<MeetCard> {
     ];
   }
 
+  /// Join: a link of this page's kind sent now. One of the other kind says which page takes it, or, where that
+  /// plugin is off, to turn it on; the service is not asked.
+  Future<void> _send(MeetIn meet) => _run(() async {
+        final link = meetLink(_link);
+        final kind = link == null ? widget.kind : meetKindOfLink(link);
+        if (kind != widget.kind) {
+          setState(() => _said = meetOtherKindWords(kind, on: meet.kindOn(kind)));
+          return;
+        }
+        final booked = await meet.sendNow(_link);
+        if (!mounted) return;
+        setState(() {
+          _link = '';
+          _said = booked == null ? null : 'Ghost is on its way into the meeting.';
+        });
+      });
+
+  @override
+  Widget build(BuildContext context) {
+    final meet = widget.services.meetIn, mail = widget.services.mailIn;
+    if (meet == null || mail == null || mail.address?.address == null) return const SizedBox.shrink();
+    meet.readSoon();
+    return ListenableBuilder(
+      listenable: Listenable.merge([meet, mail]),
+      builder: (context, _) {
+        final address = mail.address?.address;
+        if (address == null) return const SizedBox.shrink();
+        final t = context.tokens;
+        final ready = meetLink(_link) != null && !_busy;
+        final words = meetKindWords(widget.kind);
+        return PaneSection(
+          title: 'Invite Ghost',
+          description: Text('Paste a $words link to send Ghost in now, or add your address as a guest on a calendar invite with a $words link and Ghost joins by itself.'),
+          footer: _said == null ? null : Text(_said!),
+          children: [
+            // The link and Join beside it (Matt, 2026-10-24: "change the \"send ghost to a meeting now\" to be a
+            // button called \"join\" to the right of the meet invite input"), where the line under it said it whole.
+            SettingsForm(
+              children: [
+                Row(
+                  spacing: t.space(3),
+                  children: [
+                    Expanded(
+                      child: GlacierInput(
+                        ariaLabel: '$words link',
+                        placeholder: widget.kind == 'zoom' ? 'zoom.us/j/123456789' : 'meet.google.com/abc-defg-hij',
+                        value: _link,
+                        onChange: (text) => setState(() => _link = text),
+                        onSubmitted: (_) {
+                          if (ready) unawaited(_send(meet));
+                        },
+                      ),
+                    ),
+                    Semantics(
+                      label: 'Send Ghost to this meeting now',
+                      child: FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'Joining…' : 'Join', onPressed: ready ? () => unawaited(_send(meet)) : null),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            SettingRow(
+              key: const ValueKey('meet-address'),
+              icon: const AppIcon(Lucide.calendarPlus, size: 20),
+              // Broken, where a phone's width must break it, after the @ and nowhere in a word.
+              label: address.replaceFirst('@', '@​'),
+              hint: Text('Add this address as a guest on a calendar invite with a $words link. $meetSameAddress Mail sent to it becomes a note in your Inbox.'),
+              // On a phone, Copy and the new address under the words: beside them they leave the address too little
+              // width, and it broke inside the domain.
+              layout: MediaQuery.sizeOf(context).width < 600 ? SettingRowLayout.stacked : SettingRowLayout.trailing,
+              control: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  RowAction(onPress: () => unawaited(_copy(address)), child: const Text('Copy')),
+                  RowAction(key: const ValueKey('meet-name-open'), disabled: _busy, onPress: _toggleNaming, child: const Text('Choose a name…')),
+                  _NewAddressButton(
+                    disabled: _busy,
+                    onPressed: () {
+                      if (_naming) _toggleNaming();
+                      setState(() => _asking = !_asking);
+                    },
+                  ),
+                ],
+              ),
+            ),
+            if (_naming) ..._namingRows(context, mail, address),
+            if (_asking)
+              SettingRow(
+                key: const ValueKey('meet-new-ask'),
+                label: 'Make a new address?',
+                hint: const Text(meetNewAddressWarning),
+                control: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    RowAction(disabled: _busy, onPress: () => unawaited(_renew(mail)), child: const Text('Make it')),
+                    RowAction(onPress: () => setState(() => _asking = false), child: const Text('Cancel')),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// What Join says of a link of [kind] pasted on another kind's page: the page that takes it, or, with its plugin off
+/// ([on] false), to turn the plugin on first.
+String meetOtherKindWords(String kind, {required bool on}) =>
+    on ? 'That is a ${meetKindWords(kind)} link. Send it from the ${meetKindWords(kind)} plugin’s page.' : meetTurnOnWords(kind);
+
+/// The meetings of one kind ([kind]: `meet`, `zoom`, `discord`) Ghost is booked for and was in, each with where it
+/// stands, the recurring ones over them, Check now and Show more (see the header). The one list for every meeting
+/// plugin's page; the Discord plugin's drops it in with `kind: 'discord'`.
+class MeetingsList extends StatefulWidget {
+  const MeetingsList({super.key, required this.services, required this.kind, this.onOpenNote});
+
+  final AccountServices services;
+  final String kind;
+
+  /// Opens a meeting's note; without it no meeting is pressed.
+  final void Function(String id)? onOpenNote;
+
+  @override
+  State<MeetingsList> createState() => _MeetingsListState();
+}
+
+class _MeetingsListState extends State<MeetingsList> {
+  String? _said;
+  bool _busy = false;
+
+  /// The series whose "Stop joining" is asking first, and what the Recurring card says under itself.
+  String? _stopping;
+  String? _seriesSaid;
+
+  /// This device's notes, by id, for which meeting became which; empty until read, or where nothing reads them.
+  Map<String, Note> _notes = const {};
+  Object? _notesFor;
+
+  Listenable? _heard;
+
+  @override
+  void initState() {
+    super.initState();
+    _listen();
+    // Read as the page opens, unless it was a moment ago: the build's [MeetIn.readSoon] waits a minute between reads,
+    // which showed a page just opened as it was up to a minute before.
+    widget.services.meetIn?.readNow(within: MeetIn.openFresh);
+  }
+
+  @override
+  void didUpdateWidget(MeetingsList old) {
+    super.didUpdateWidget(old);
+    if (old.services != widget.services) {
+      _heard?.removeListener(_readNotes);
+      _listen();
+    }
+  }
+
+  @override
+  void dispose() {
+    _heard?.removeListener(_readNotes);
+    super.dispose();
+  }
+
+  void _listen() {
+    final meet = widget.services.meetIn;
+    _heard = Listenable.merge([?meet, widget.services.prefs])..addListener(_readNotes);
+    _notesFor = null;
+    _readNotes();
+  }
+
+  /// The notes read again whenever what decides a meeting's note changes: the meetings, which notes are meetings,
+  /// and which meeting each was kept against.
+  void _readNotes() {
+    final list = widget.services.listNotes;
+    final prefs = widget.services.prefs.value;
+    final now = (widget.services.meetIn?.meetings, prefs.meetings, prefs.more[meetingNotesKey]);
+    if (list == null || now == _notesFor) return;
+    _notesFor = now;
+    unawaited(() async {
+      try {
+        final notes = {for (final note in await list()) note.id: note};
+        if (mounted && now == _notesFor) setState(() => _notes = notes);
+      } catch (_) {
+        // No meeting opens its note; each says where it stands.
+      }
+    }());
+  }
+
+  Future<void> _run(Future<void> Function() work) async {
+    setState(() {
+      _busy = true;
+      _said = null;
+    });
+    try {
+      await work();
+    } catch (failure) {
+      if (mounted) setState(() => _said = accountFailureText(failure));
+    }
+    if (mounted) setState(() => _busy = false);
+  }
+
   /// "Stop joining", once asked: the series goes from the card; a refusal is said under it.
   Future<void> _stop(MeetIn meet, MeetSeries series) async {
     setState(() {
@@ -441,7 +599,7 @@ class _MeetCardState extends State<MeetCard> {
           _ => meeting.series != null ? Lucide.repeat : Lucide.calendarDays,
         }, size: 20),
         label: meeting.title ?? 'A meeting',
-        hint: Text('$when · ${meeting.service == null ? '' : '${meeting.service!.words} · '}${_whereItStands(meeting, noteId == null ? null : _notes[noteId], widget.services.prefs.value)}'),
+        hint: Text('$when · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId], widget.services.prefs.value)}'),
         onPress: noteId == null || open == null ? null : () => open(noteId),
         control: meeting.state.open
             ? RowAction(
@@ -484,104 +642,24 @@ class _MeetCardState extends State<MeetCard> {
         ],
       ];
 
-  Future<void> _send(MeetIn meet) => _run(() async {
-        final booked = await meet.sendNow(_link);
-        if (!mounted) return;
-        setState(() {
-          _link = '';
-          _said = booked == null ? null : 'Ghost is on its way into the meeting.';
-        });
-      });
+  bool _ours(MeetBooking meeting) => meeting.kind == widget.kind;
 
   @override
   Widget build(BuildContext context) {
-    final meet = widget.services.meetIn, mail = widget.services.mailIn;
-    if (meet == null || mail == null || mail.address?.address == null) return const SizedBox.shrink();
+    final meet = widget.services.meetIn;
+    if (meet == null) return const SizedBox.shrink();
     meet.readSoon();
     return ListenableBuilder(
-      listenable: Listenable.merge([meet, mail]),
+      listenable: meet,
       builder: (context, _) {
-        final address = mail.address?.address;
-        if (address == null) return const SizedBox.shrink();
         final now = widget.services.now();
-        final meetings = meet.meetings;
+        final meetings = meet.meetings?.where(_ours).toList();
         final prefs = widget.services.prefs.value;
         final filed = meetingNotesOf(prefs);
         final open = widget.onOpenNote;
         final t = context.tokens;
-        final ready = meetLink(_link) != null && !_busy;
-        final invite = PaneSection(
-          title: 'Invite Ghost',
-          description: const Text('Paste a Google Meet or Zoom link to send Ghost in now, or add your address as a guest on a calendar invite and Ghost joins by itself.'),
-          footer: _said == null ? null : Text(_said!),
-          children: [
-            // The link and Join beside it (Matt, 2026-10-24: "change the \"send ghost to a meeting now\" to be a
-            // button called \"join\" to the right of the meet invite input"), where the line under it said it whole.
-            SettingsForm(
-              children: [
-                Row(
-                  spacing: t.space(3),
-                  children: [
-                    Expanded(
-                      child: GlacierInput(
-                        ariaLabel: 'Meeting link',
-                        placeholder: 'Google Meet or Zoom link',
-                        value: _link,
-                        onChange: (text) => setState(() => _link = text),
-                        onSubmitted: (_) {
-                          if (ready) unawaited(_send(meet));
-                        },
-                      ),
-                    ),
-                    Semantics(
-                      label: 'Send Ghost to this meeting now',
-                      child: FormSubmit(wordKey: const ValueKey('meet-send'), _busy ? 'Joining…' : 'Join', onPressed: ready ? () => unawaited(_send(meet)) : null),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            SettingRow(
-              key: const ValueKey('meet-address'),
-              icon: const AppIcon(Lucide.calendarPlus, size: 20),
-              // Broken, where a phone's width must break it, after the @ and nowhere in a word.
-              label: address.replaceFirst('@', '@​'),
-              hint: const Text('Add this address as a guest on a calendar invite with a Google Meet or Zoom link. Mail sent to it becomes a note in your Inbox.'),
-              // On a phone, Copy and the new address under the words: beside them they leave the address too little
-              // width, and it broke inside the domain.
-              layout: MediaQuery.sizeOf(context).width < 600 ? SettingRowLayout.stacked : SettingRowLayout.trailing,
-              control: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  RowAction(onPress: () => unawaited(_copy(address)), child: const Text('Copy')),
-                  RowAction(key: const ValueKey('meet-name-open'), disabled: _busy, onPress: _toggleNaming, child: const Text('Choose a name…')),
-                  _NewAddressButton(
-                    disabled: _busy,
-                    onPressed: () {
-                      if (_naming) _toggleNaming();
-                      setState(() => _asking = !_asking);
-                    },
-                  ),
-                ],
-              ),
-            ),
-            if (_naming) ..._namingRows(context, mail, address),
-            if (_asking)
-              SettingRow(
-                key: const ValueKey('meet-new-ask'),
-                label: 'Make a new address?',
-                hint: const Text(meetNewAddressWarning),
-                control: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    RowAction(disabled: _busy, onPress: () => unawaited(_renew(mail)), child: const Text('Make it')),
-                    RowAction(onPress: () => setState(() => _asking = false), child: const Text('Cancel')),
-                  ],
-                ),
-              ),
-          ],
-        );
-        final series = meet.series;
+        final words = meetKindWords(widget.kind);
+        final series = meet.series?.where((s) => s.kind == widget.kind).toList();
         final recurring = series == null || (series.isEmpty && _seriesSaid == null)
             ? null
             : PaneSection(
@@ -592,9 +670,9 @@ class _MeetCardState extends State<MeetCard> {
                     : _seriesRows(context, meet, series, now),
               );
         final list = PaneSection(
-          title: 'Ghost in meetings',
+          title: 'Ghost in $words',
           description: const Text('Ghost joins by itself, records the meeting, and files it as a note, written up with who said what.'),
-          footer: Text(meet.pages ? '$meetCardFooter $meetHistoryKept' : meetCardFooter),
+          footer: Text(_said ?? (meet.pages ? '$meetCardFooter $meetHistoryKept' : meetCardFooter)),
           children: [
             // Check now: the list read at once rather than at the minute's read (MeetIn.checkNow), with when it was
             // last read under it.
@@ -608,7 +686,7 @@ class _MeetCardState extends State<MeetCard> {
             if (meetings == null)
               SettingRow(key: const ValueKey('meet-reading'), icon: const AppIcon(Lucide.clock, size: 20), label: meet.problem ?? 'Reading your meetings…')
             else if (meetings.isEmpty)
-              const SettingRow(key: ValueKey('meet-none'), icon: AppIcon(Lucide.ghost, size: 20), label: 'No meetings yet', hint: Text('A meeting Ghost is invited to shows here, with where it stands.'))
+              SettingRow(key: const ValueKey('meet-none'), icon: const AppIcon(Lucide.ghost, size: 20), label: 'No $words meetings yet', hint: const Text('A meeting Ghost is invited to shows here, with where it stands.'))
             else
               for (final (at, (:day, :meeting)) in meetListed(meetings, now: now).indexed) ...[
                 if (day != null) _DayHeading(key: ValueKey('meet-day-$day'), words: day, first: at == 0),
@@ -620,14 +698,14 @@ class _MeetCardState extends State<MeetCard> {
                   open,
                 ),
               ],
-            if (meetings != null && (meet.hasMore || meet.moreProblem != null)) _MoreRow(meet: meet),
+            if (meetings != null && (meet.hasMore || meet.moreProblem != null)) _MoreRow(meet: meet, wanted: _ours),
           ],
         );
         // The cards with the gap a pane puts between its own (PaneBody).
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           mainAxisSize: MainAxisSize.min,
-          children: [invite, SizedBox(height: t.space(4)), if (recurring != null) ...[recurring, SizedBox(height: t.space(4))], list],
+          children: [if (recurring != null) ...[recurring, SizedBox(height: t.space(4))], list],
         );
       },
     );
@@ -688,9 +766,12 @@ class _DayHeading extends StatelessWidget {
 /// "Show more", the list's last row: the next page loaded below those shown ([MeetIn.more]). While it loads the word
 /// says "Loading…" where it stood, and a failure is said beside Retry, so the row keeps its height.
 class _MoreRow extends StatelessWidget implements PaneRow {
-  const _MoreRow({required this.meet});
+  const _MoreRow({required this.meet, required this.wanted});
 
   final MeetIn meet;
+
+  /// The page's own kind: pages are read on until one brings a meeting of it ([MeetIn.more]).
+  final bool Function(MeetBooking meeting) wanted;
 
   @override
   Widget build(BuildContext context) {
@@ -710,7 +791,7 @@ class _MoreRow extends StatelessWidget implements PaneRow {
           RowAction(
             key: const ValueKey('meet-more'),
             disabled: loading,
-            onPress: () => unawaited(meet.more()),
+            onPress: () => unawaited(meet.more(wanted: wanted)),
             child: Text(loading ? 'Loading…' : (problem != null ? 'Retry' : 'Show more')),
           ),
         ],

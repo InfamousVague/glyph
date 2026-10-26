@@ -1,6 +1,7 @@
-/// Settings › Meetings' Post to Discord (meetings.dart), beside Post to Slack, and the line on the Discord plugin's
-/// own page that says where meetings go. Slack's meetings_section.dart, for Discord (Matt, 2026-10-26: "Add a new
-/// plugin to post notes to discord chats").
+/// Post to Discord (meetings.dart), on the Discord plugin's own page, as Post to Slack is on Slack's: a section of
+/// Settings › Meetings until Meetings became the meeting plugins' pages (Matt, 2026-10-26: "I want settings /
+/// meetings to be broken up into three plugins"). Slack's meetings_section.dart, for Discord (Matt, 2026-10-26: "Add a
+/// new plugin to post notes to discord chats").
 ///
 /// Its own section rather than one "Post meetings to" listing both: each chat has its own switch, channel and share
 /// link, a meeting can go to both, and a section that is there only with its plugin on keeps the page of a person
@@ -81,7 +82,7 @@ class _HeardState extends State<_Heard> {
 
 const AppIcon _mark = AppIcon(Lucide.messageSquare, size: 16);
 
-/// Settings › Meetings' Post to Discord; nothing where meetings cannot post there from here.
+/// Post to Discord, on the Discord plugin's page; nothing where meetings cannot post there from here.
 class MeetingsDiscordSection extends StatefulWidget {
   const MeetingsDiscordSection({super.key, required this.prefs});
 
@@ -193,64 +194,6 @@ class _MeetingsDiscordSectionState extends State<MeetingsDiscordSection> {
                 control: RowAction(onPress: () => setState(() => _more = true), child: const Text('Show')),
               ),
             ..._failures(context.tokens),
-          ],
-        );
-      },
-    );
-  }
-}
-
-/// The Discord plugin's page's word on meetings: where they go, any that did not, and the way to Settings ›
-/// Meetings, where it is set ([onOpenMeetings]).
-class DiscordMeetingsLine extends StatefulWidget {
-  const DiscordMeetingsLine({super.key, this.onOpenMeetings});
-
-  final VoidCallback? onOpenMeetings;
-
-  @override
-  State<DiscordMeetingsLine> createState() => _DiscordMeetingsLineState();
-}
-
-class _DiscordMeetingsLineState extends State<DiscordMeetingsLine> {
-  String? _trying;
-
-  Future<void> _tryNow(String noteId) async {
-    final poster = meetingDiscordPoster;
-    if (poster == null) return;
-    setState(() => _trying = noteId);
-    try {
-      await poster.tryNow(noteId);
-    } finally {
-      if (mounted) setState(() => _trying = null);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return _Heard(
-      builder: (context) {
-        if (!meetingDiscordOffered()) return const SizedBox.shrink();
-        final channel = discordMeetingChannel();
-        final on = discordMeetingSettings().on && channel != null;
-        final go = widget.onOpenMeetings;
-        return PaneSection(
-          title: 'Automations',
-          children: [
-            SettingRow(
-              icon: _mark,
-              label: on ? 'Meetings post to ${channel.name}' : 'Meetings aren’t posted',
-              hint: Text(on ? 'Each meeting’s action items and its links, once it is written up. Set in Settings › Meetings.' : 'Choose a channel for them in Settings › Meetings, and each meeting’s action items go there once it is written up.'),
-              control: go == null ? null : RowAction(onPress: go, child: const Text('Meetings')),
-            ),
-            for (final waiting in failedDiscordMeetingPosts())
-              SettingRow(
-                key: ValueKey('discord-line-${waiting.noteId}'),
-                icon: const AppIcon(Lucide.triangleAlert, size: 16),
-                label: 'Not posted: “${waiting.title}”',
-                hint: Text(meetingTryLine(waiting)),
-                layout: SettingRowLayout.stacked,
-                control: RowAction(onPress: () => unawaited(_tryNow(waiting.noteId)), disabled: _trying != null || meetingDiscordPoster == null, child: Text(_trying == waiting.noteId ? 'Posting…' : 'Try now')),
-              ),
           ],
         );
       },

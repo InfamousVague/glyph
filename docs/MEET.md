@@ -7,6 +7,65 @@ page is the service's half (`server/src/meet.rs`, `server/src/meet/ics.rs`, `ser
 joins is a separate service on the box, and the app's half downloads and opens the recordings. The spike that showed
 it can be done is `meet/spike/README.md`.
 
+## Two plugins, one address
+
+Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins", and the same day: "I want
+settings / meetings to be broken up into three plugins where each zoom, Google meets and discord handle their own
+meetings". In the app Ghost in meetings is two plugins (lib/plugins/meetings/), each with its own catalogue entry,
+Market listing, switch and page in Settings; Settings › Meetings, the one page every kind shared, is gone. Discord's
+calls are the Discord plugin's (docs/DISCORD.md), listed with the same list (`MeetingsList(kind: 'discord')`).
+
+| | Google Meet | Zoom |
+|---|---|---|
+| id | `google-meet` | `zoom` |
+| kind (the service's word) | `meet` | `zoom` |
+| icon | Lucide `users` | Lucide `laptop` |
+| hue | orange | mint |
+| ships | on | on |
+
+**The icons are not the services' marks** (docs/store/, "no third-party brands"), as Slack's hash and Discord's speech
+bubble are not theirs; the Lucide set the app carries has no camera, so a group of people for Meet and a laptop, Ghost
+joining from a browser, for Zoom.
+
+**Both ship on.** Google Meet is what every account with Ghost in meetings had before it was a plugin, and Zoom is what
+Matt asked for the same day. Not on an iPhone, where Ghost in meetings is not offered (the Market says "Android ·
+Desktop").
+
+**What a switch governs.**
+
+- **The app**: the plugin's page is listed in Settings (for a signed-in account whose service has the meeting routes,
+  in Simple too, as Meetings was), and Join takes that kind: `MeetIn.sendNow` refuses a kind whose plugin is off with
+  the service's own words, "Turn on the Zoom plugin to send Ghost to Zoom calls.", without asking it. A link of the
+  other kind pasted on a page says which page takes it ("That is a Zoom link. Send it from the Zoom plugin's page.").
+- **The service**: invites are booked there, from mail, while no device is awake, so the account keeps which kinds it
+  wants (`PUT /api/v1/meet/kinds`, below; `meet_kinds`, one JSON row an account, in the clear, since which services
+  Ghost may join says nothing of a meeting; no row is every kind on). An invite whose link is of a kind turned off
+  books nothing, and the mail's note ends "Ghost wasn't booked: the Zoom plugin is off. Turn it on in Ghost.md to have
+  Ghost join."; an update that moves a booking onto such a link moves it and skips it, with "The Zoom plugin is off.";
+  a cancellation is applied whatever the kind. "Join now" with such a link is 400, "Turn on the Zoom plugin to send
+  Ghost to Zoom calls.". A series of a kind turned off books no next occurrence: it waits, as it waits for room.
+  Turning a kind off skips every booking of it still to come (`skipped`, and `leave` for one Ghost is joining or in,
+  the bot reading it and going); turning it on again books those skipped for that reason, while still to come. A skip
+  of the person's own, or a cancellation, is not undone.
+- **Sending it**: the device sends the switches when one moves (MeetIn hears the registry), and keeps what the service
+  has not taken (`glyph-meet-kinds-unsent`) for the next sync pass, which sends it first (lib/meet/meet_kinds.dart).
+  Only a switch that moved is sent, never the switches as a pass finds them: a device yet to have the account's
+  switches would otherwise send its defaults over a choice made elsewhere.
+- **The account's other devices**: the switch travels sealed as Claude's, Slack's and Discord's do
+  (lib/sync/connections.dart `syncedSwitches`, `plugin:google-meet`, `plugin:zoom`).
+- **The bot**: nothing; it joins what is booked, and nothing of a kind turned off is.
+- **Both off**: nothing of meetings is in Settings. The meetings already filed are notes, and stay on the home page's
+  shelf of recordings, every kind.
+
+**One address.** An invite is booked by the link in it, so the Email to a note address takes invites of every kind: the
+Google Meet and the Zoom pages each show it on their invite card, saying "The same address works for Meet and Zoom
+invites.", with Copy, a name of one's own and a new address, and a change on either is the other's. Email to a note
+itself (what a mail becomes, Turn off) is Account's card again, whole, as it was before 2026-10-24.
+
+A link from before to Settings › Meetings (`meetings`) lands on the Google Meet page, or Zoom's where only Zoom is on,
+or the Market with neither; its Post to Slack and Post to Discord land on those plugins' pages, where the two sections
+are now (lib/settings/settings_sections.dart `meetingsLanding`).
+
 ## How a meeting is booked
 
 1. The person adds their mail-to-note address (`sneaky_siren33@in.ghostmarkdown.com`, or a name of their own such as `matt@…`, `tauri/docs/MAIL.md`)
@@ -122,8 +181,10 @@ Meet and back (the same booking), and one that takes the link away (`cancelled`,
 Meet or Zoom link.").
 
 `kind` (`meet` or `zoom`) is read from the link wherever a booking is said: the device's `Meeting` and `Series`, the
-bot's `due`, and a take's `GMT1` head (so the note says "Zoom's captions"). Nothing new is stored; once the sweep blanks
-the link, `kind` is null with it.
+bot's `due`, and a take's `GMT1` head (so the note says "Zoom's captions"). Since the two became plugins it is kept too
+(`meet_bookings.kind`, filled from the link for rows from before): once the sweep blanks the link the kind stays, so a
+meeting over is still listed on its own plugin's page. It is null only for a row blanked before kinds were kept, which
+the app lists as Google Meet's, the one kind there was until then.
 
 ### The bot in a Zoom
 
@@ -233,16 +294,18 @@ All times are ms since the epoch. Ids are base64url.
 | `GET /api/v1/meet` | | `{ meetings: [Meeting], series: [Series], next }`: those not over, and the last 7 days', soonest first, as before pages; `next` the cursor for those older, or null |
 | `GET /api/v1/meet?limit=20` | | `{ meetings, series, next }`: every one not over (`endsAt` after now), soonest first, then the first `limit` (1 to 100) of those over, the latest ended first; `next` the cursor for the page after, or null on the last |
 | `GET /api/v1/meet?before=<next>&limit=20` | | `{ meetings, next }`: the page of those over after the cursor, in the same order; `limit` 20 when not given. 400 a cursor this list did not give |
-| `POST /api/v1/meet` | `{ url, title? }` | `{ meeting: Meeting }`, booked now for 2 h. 400 not a Meet or Zoom link, 409 no encryption key yet, 429 100 already to come |
+| `POST /api/v1/meet` | `{ url, title? }` | `{ meeting: Meeting }`, booked now for 2 h. 400 not a Meet or Zoom link, or one of a kind turned off ("Turn on the Zoom plugin to send Ghost to Zoom calls."), 409 no encryption key yet, 429 100 already to come |
 | `DELETE /api/v1/meet/{id}` | | `{ meeting: Meeting }`: `skipped` if it had not started, `leave` if Ghost is joining or in it, as it was otherwise. 404 not the account's |
 | `DELETE /api/v1/meet/series/{id}` | | `{ series: { id, stopped: true }, meetings: [Meeting] }`: the series stopped (above), with the occurrences that changed. 404 not the account's, or not a series; a series stopped already answers with none changed |
 | `GET /api/v1/meet/takes` | | `{ takes: [{ id, meeting, size, at, wrapped }] }`, oldest first |
 | `GET /api/v1/meet/takes/{id}` | | the sealed take, raw `application/octet-stream`; headers `x-glyph-wrapped` (the wrapped key) and `x-glyph-meeting`. 404 not waiting |
 | `DELETE /api/v1/meet/takes/{id}` | | 204: taken |
+| `GET /api/v1/meet/kinds` | | `{ meet, zoom }`: which kinds Ghost is booked into, each `true` until a device says otherwise |
+| `PUT /api/v1/meet/kinds` | `{ meet?, zoom? }` | `{ meet, zoom }` as they stand; a kind not named stays. What is booked of a kind turned off is skipped, of one turned on again booked again ("Two plugins", above). 400 a key that is not a kind, or a value that is not `true` or `false` |
 
 `Meeting` is `{ id, title, url, kind, startsAt, endsAt, state, detail, series? }`; `title`, `url`, `kind` and `detail`
-may be null (`title` and `url` are null once swept, and the app says "A meeting"; `kind`, `meet` or `zoom`, is read
-from `url` and null with it). `state` is one of `booked`, `joining`,
+may be null (`title` and `url` are null once swept, and the app says "A meeting"; `kind`, `meet` or `zoom`, is kept
+after the link is swept, and null only for a row swept before kinds were kept). `state` is one of `booked`, `joining`,
 `in_call`, `leave`, `done`, `failed`, `skipped`, `cancelled`. `series`, in the list only, is the id of the series an
 occurrence is of.
 
@@ -541,51 +604,37 @@ notification as for any meeting); on the Mac the core's `write_up_run`, run by t
 summary queue's native job where Summaries are on; the Mac's queue now reads the core's write-up states and results as
 Android's does (lib/root/voice_wiring.dart), so Try again, Write up now and a model arriving ask the Mac's runner.
 
-### Settings › Meetings
+### The plugins' pages: Google Meet and Zoom
 
-A section of its own on the Account card, after Notifications (GHST-110; Matt, 2026-10-23: "Make the meeting section
-its own section in settings and move the invite card to the top"). It was a card on Account until then. Settings lists
-it for a signed-in account whose service has the meeting routes (`meetingsOffered`), in Simple too; its row reads
-"Ghost is booked for N meetings", or "Invite Ghost to a Google Meet or Zoom". The page is lib/settings/panes/meetings_pane.dart
-over lib/meet/ui/meet_card.dart. Since 2026-10-24 (Matt: "remove the meetings stuff from the account page the account
-settings page is overwhelming move all google meet related stuff to under the meet section") everything about
-meetings is here and nothing on Account. With no Email to a note address yet it says "Ghost is invited by your Email
-to a note address. Turn one on below, then invite Ghost here.", over the Email to a note card that turns one on. With
-one:
+Settings › Meetings (GHST-110, 2026-10-23 to 2026-10-26) is each meeting plugin's own page now, one a kind
+(lib/plugins/meetings/meeting_pane.dart over lib/meet/ui/meet_card.dart; "Two plugins, one address", above). Each is
+listed while its plugin is on, for a signed-in account whose service has the meeting routes (`meetingPluginOffered`),
+in Simple too; its row reads "Ghost is booked for N meetings" of its kind, or "Invite Ghost to a Google Meet" / "Invite
+Ghost to a Zoom call". With no Email to a note address yet the page says "Ghost is invited by your Email to a note
+address. Turn one on in Settings › Account, then invite Ghost here.", with a word to Account. With one, in order:
 
-- **Invite Ghost**, first: "Send Ghost to a meeting now", a Google Meet or Zoom link sent to `POST meet` after the account's
-  encryption key is seen to; then the address with Copy and a refresh icon ("Make a new address"; Matt, 2026-10-24:
-  "add a refresh button next to the email so i can regeenrate the email"), which asks "Make a new address?" in the
-  card, with Make it and Cancel, then runs `POST mail/address` (the old address takes no more invites or mail) and
-  draws the new one. The only place the address is shown. What a press did, or why it failed, is said under it.
-- **Recurring** (Matt, 2026-10-24: "show recurring meetings in the meetings UI"), above the meetings, where the
-  service lists series: a row a series, its title, its rule in words with its zone where the phone's clock differs
-  ("Every weekday at 9:30, New York time") and how it ends, and "Next: Mon 27 Oct" (", skipped" where Ghost will not
-  join it). "Stop joining" asks first, in the card ("Ghost won’t join Engineering Standup any more. Past recordings
-  stay.", Stop joining and Cancel), then runs `DELETE meet/series/{id}`. Skipping only the next one stays on its
-  occurrence's row, Don't join. Not drawn at all against a service without series. In Simple too.
-- **Ghost in meetings**: what Ghost does; the meetings from `GET meet` with their state in words (Booked, Joining, In
-  the meeting, Leaving, Written up / Being written up / Not written up yet, Couldn't join: Ghost was signed out of
-  Google / nobody let Ghost in / the meeting refused Ghost / …, Skipped, Cancelled), Don't join on one to come and
-  Leave now on one Ghost is in (`DELETE meet/{id}`). A row names the service it is on ("Google Meet", "Zoom") while
-the service has its link, and a Zoom Ghost could not join says what its host would have to allow ("the host turned off
-joining from a browser", "Zoom asked Ghost to prove it is a person", ...). A meeting whose note is here is pressed to open it (Settings
-  shuts; Matt, 2026-10-24: "add the ability to click a meeting to jump to the associated note"): the note kept
-  against it (`meetingNotes`), or, for one filed before that was kept, Ghost's note whose recording began while the
-  meeting was on (`meetingNoteFor`). Those to come first, under Coming up, then those over by day, the latest first,
-  under Today, Yesterday, Mon 20 Oct, each with its time; a meeting of a series has the repeat mark. Twenty of those
-  over at first (`GET meet?limit=20`), and "Show more" at the end loads the next twenty (`?before=<next>`) below them,
-  the page staying where it is; while it loads the row says "Loading…" in the same place, and a failure is said in it
-  with Retry. A meeting read since the page was drawn is folded in by id, so a page loaded keeps its place. Its
-  footer: "The meeting's sound passes through Ghost.md's server while it records, sealed to your account as it
-  arrives; it is written up on your device.", and, against a service that pages, "Meetings are kept here for 30 days
-  after they end."
-- **Email to a note**: what a mail to the address becomes, Turn off, and what the server sees (mail_card.dart).
-  Account keeps a single row pointing here. A service with no meeting routes has no Meetings, and keeps the whole card
-  on Account.
-- **Recordings**: Sync meeting recordings, and how many recordings stayed on this phone (not on an iPhone).
+- **Invite Ghost** (`MeetInviteCard`): a link of the page's kind, Join beside it, sent to `POST meet` after the
+  account's encryption key is seen to; then the address with Copy, "Choose a name…" and a refresh icon ("Make a new
+  address"; Matt, 2026-10-24), which asks "Make a new address?" in the card, then runs `POST mail/address`. Its hint
+  says "The same address works for Meet and Zoom invites." What a press did, or why it failed, is said under it.
+- **Recurring** (Matt, 2026-10-24: "show recurring meetings in the meetings UI"), where the service lists series of
+  the page's kind: a row a series, its rule in words with its zone where the phone's clock differs, how it ends, and
+  "Next: Mon 27 Oct". "Stop joining" asks first, then runs `DELETE meet/series/{id}`.
+- **Ghost in Google Meet** / **Ghost in Zoom** (`MeetingsList`, the one list for every kind, Discord's too): Check now,
+  then the meetings of the page's kind from `GET meet`, their state in words (Booked, Joining, In the meeting, Written
+  up / Being written up / Not written up yet, Couldn't join: …, Skipped, Cancelled), Don't join and Leave now. A Zoom
+  Ghost could not join says what its host would have to allow. A meeting whose note is here is pressed to open it.
+  Those to come first, then those over by day; twenty over at first, and Show more loads on, reading further pages
+  (five at most a press) until one brings a meeting of the page's kind, since the service pages every kind together.
+  Its footer says where the sound goes, and how long meetings are kept.
+- **What the host must allow**, on the Zoom page alone: guests, joining from the browser, the passcode in the link, the
+  waiting room, captions (the Zoom section's list, above).
+- **Recordings** (Sync meeting recordings, and how many stayed on this phone; not on an iPhone) and **Sorting** (Sort
+  meetings into workspaces): about meetings of every kind, one setting each, the same on both pages
+  (lib/meet/ui/meeting_settings.dart).
 
-Decided: "the invite card" read as the ways to invite Ghost, the link and the address together, so both are on top.
+Post to Slack and Post to Discord, which were Settings › Meetings' too, are sections of the Slack and Discord plugins'
+own pages.
 
 ### Home › Upcoming meetings
 
@@ -593,6 +642,7 @@ lib/home/home_meetings.dart (Matt, 2026-10-23: "adding a home page section for u
 notices, on the advanced page and Simple's, listing the meetings still to come or going on (`booked`, `joining`,
 `in_call`, not yet past their end), the soonest first, four at most: a booked one with when it is ("Today, 14:00"),
 one Ghost is joining or in with where it stands ("In the meeting"). Nothing at all when there are none or the service
-has no meeting routes. Its foot, **Meetings**, opens Settings › Meetings. A booked occurrence of a recurring meeting
+has no meeting routes. Its foot, **Meetings**, opened Settings › Meetings. Taken off home on 2026-10-24 (Matt: "remove the
+upcoming meetings from the home page"), with its tests; the shelf of recordings stays, every kind on it. A booked occurrence of a recurring meeting
 (the list's `series`) has the repeat mark for its calendar, as on Settings › Meetings. Tests:
 test/meet/home_meetings_test.dart, test/meet/meet_recurring_test.dart.

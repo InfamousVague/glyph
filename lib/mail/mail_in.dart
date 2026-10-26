@@ -14,8 +14,8 @@
 /// notes step of the same pass then sends the note to the account's other devices as any new note. A note's id is
 /// made from the mail's ([mailNoteId]), so a pass cut short, or two devices at once, file one note and not two.
 ///
-/// [MailIn] is the setting (Settings › Meetings): the address, a new one in its place or a name of one's own
-/// (lib/mail/mail_name.dart), off.
+/// [MailIn] is the setting (Settings › Account's Email to a note, and the meeting plugins' invite cards): the address,
+/// a new one in its place or a name of one's own (lib/mail/mail_name.dart), off.
 library;
 
 import 'package:flutter/foundation.dart';

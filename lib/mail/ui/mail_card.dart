@@ -11,13 +11,12 @@ import '../mail_in.dart';
 /// Email to a note (lib/mail/mail_in.dart, docs/MAIL.md): a private address, shown with Copy, a new one in its place,
 /// and off.
 ///
-/// The address is also the one Ghost is invited to a meeting by (docs/MEET.md), so where the account's service has
-/// Ghost in meetings the card is on Settings › Meetings, after the meetings, and the address itself is drawn once, on
-/// the invite card above it with Copy and a new one (lib/meet/ui/meet_card.dart): [addressAbove], and this card is
-/// what mail to the address becomes, what the server sees of it, and off (Matt, 2026-10-24: "move all google meet
-/// related stuff to under the meet section"). Account then has only a line pointing there. Before there is an address
-/// it is this card that turns one on, on Meetings as it was on Account. A service with no Ghost in meetings has the
-/// whole card on Account, as before.
+/// The address is also the one Ghost is invited to a meeting by (docs/MEET.md). From 2026-10-24 the card was on
+/// Settings › Meetings with the address drawn once, on the invite card above it ([addressAbove]); since Meetings
+/// became the meeting plugins' pages (Matt, 2026-10-26: "I want settings / meetings to be broken up into three
+/// plugins"), the card is Account's again, whole, and the Google Meet and Zoom pages each show the same address on
+/// their invite cards (lib/meet/ui/meet_card.dart `MeetInviteCard`), with Copy, a name and a new one. [addressAbove]
+/// is kept for a page that draws the address above it.
 ///
 /// This is the one setting where the server reads words of the person's in the clear, so the card says so in plain
 /// words before it is turned on, and again under it once it is: the server reads each mail as it arrives, as any
@@ -40,7 +39,7 @@ class MailCard extends StatefulWidget {
 
   final AccountServices services;
 
-  /// The address, with Copy and a new one, is on the invite card above (Settings › Meetings), so it is not drawn here.
+  /// The address, with Copy and a new one, is on an invite card above, so it is not drawn here.
   final bool addressAbove;
 
   @override

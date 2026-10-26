@@ -24,7 +24,8 @@ void main() {
   setUpAll(loadAppFonts);
 
   for (final (where, size, mac) in [('phone', const Size(390, 2900), false), ('mac', const Size(1280, 2200), true)]) {
-    for (final simple in [false, true]) {
+    // Post to Slack is on the Slack plugin's page since 2026-10-26, which Simple puts away with the other plugins'.
+    for (final simple in [false]) {
       testWidgets('meetings with Post to Slack on the $where${simple ? ', simple' : ''}, dark and light', (tester) async {
         if (!autoUpdateGoldenFiles) return;
         final at = DateTime(2026, 10, 26, 9, 0).millisecondsSinceEpoch;
@@ -58,7 +59,7 @@ void main() {
             prefs: Preferences(theme: theme, experience: simple ? 'simple' : 'advanced', experienceChosen: true),
             home: BackScope(
               stack: BackStack(),
-              child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: const SettingsTarget('meetings', nonce: 1))),
+              child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: const SettingsTarget('plugin:slack', setting: 'Post to Slack', nonce: 1))),
             ),
           );
           tester.view.padding = FakeViewPadding.zero;

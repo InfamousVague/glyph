@@ -4,7 +4,7 @@
 /// Ghost joining a Discord call is meet/'s and server/'s, not this plugin's.
 ///
 /// It is the Slack plugin (lib/plugins/slack/slack.dart) for Discord, and keeps its rule: posting is the one moment
-/// words leave the encryption, so it is always a press, or a meeting set up in Settings › Meetings to go. The
+/// words leave the encryption, so it is always a press, or a meeting set up on its page to go. The
 /// channels are incoming webhooks, pasted on the plugin's page and kept in the secure store (channels.dart).
 ///
 /// - On a note's More sheet, once a channel is added: **Post to Discord**, the whole note as a message
@@ -13,7 +13,7 @@
 ///   is cut at a line, with a share link to the rest, made by the app's own share ([discordShareLink]); the row says
 ///   so before it is pressed, since the share is the whole note readable by whoever the link reaches. Signed out, or
 ///   with no share to make, the cut says the rest is in Ghost.md.
-/// - Once a meeting is written up: its action items and its links, to the channel chosen in Settings › Meetings
+/// - Once a meeting is written up: its action items and its links, to the channel chosen on its page's Post to Discord
 ///   (meetings.dart), beside Slack's.
 /// - In Settings: the channels, a test message for each, and where meetings go (discord_pane.dart).
 ///

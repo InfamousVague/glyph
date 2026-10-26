@@ -334,7 +334,7 @@ class SettingsHost extends InheritedWidget {
   final void Function(String url)? onOpenLink;
 
   /// Shuts Settings and opens note [id] where it was left, as the home page opens one: a meeting's note from
-  /// Settings › Meetings (Matt, 2026-10-24: "click a meeting to jump to the associated note").
+  /// a meeting plugin's page (Matt, 2026-10-24: "click a meeting to jump to the associated note").
   final void Function(String id)? onOpenNote;
 
   /// The ids of the notes a workspace's delete would ask about, and the way to put them in the trash.

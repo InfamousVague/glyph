@@ -13,7 +13,7 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/meet/meet_api.dart';
 import 'package:ghost_md/meet/meet_in.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
-import 'package:ghost_md/settings/panes/meetings_pane.dart';
+import 'package:ghost_md/plugins/meetings/meetings.dart';
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -124,9 +124,9 @@ void main() {
     d.meet.series.add(standup());
     d.meet.meetings.addAll([meeting('occ', 'Engineering Standup', 'booked', DateTime(2026, 10, 26, 9, 30).millisecondsSinceEpoch, series: 'stand'), meeting('one', 'Planning', 'booked', at + 3 * hour)]);
     history(d.meet, 3);
-    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
-    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Recurring', 'Ghost in meetings', 'Email to a note', 'Recordings', 'Sorting']));
+    expect(titlesOf(tester), containsAllInOrder(['Invite Ghost', 'Recurring', 'Ghost in Google Meet', 'Recordings', 'Sorting']));
     expect(hintOf(tester, 'meet-series-stand'), allOf(contains('Engineering Standup'), contains('Every weekday at 9:30\nNext: Mon 26 Oct'), contains('Stop joining')));
     expect(find.text('Ghost won’t join Engineering Standup any more. Past recordings stay.'), findsNothing);
     // The occurrence is marked as a series', the meeting of its own is not.
@@ -159,7 +159,7 @@ void main() {
     final d = await made();
     d.meet.series.add(standup());
     d.meet.meetings.add(meeting('occ', 'Engineering Standup', 'booked', DateTime(2026, 10, 26, 9, 30).millisecondsSinceEpoch, series: 'stand'));
-    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
     await bringIntoView(tester, find.byKey(const ValueKey('meet-occ')));
     await tester.tap(find.descendant(of: find.byKey(const ValueKey('meet-occ')), matching: find.text('Don’t join')));
@@ -178,7 +178,7 @@ void main() {
     d.meet.series.add(standup());
     d.meet.meetings.add(meeting('one', 'Planning', 'booked', at + 3 * hour));
     history(d.meet, 30);
-    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
     expect(titlesOf(tester), isNot(contains('Recurring')));
     expect(d.device.meetIn!.series, isNull);
@@ -196,7 +196,7 @@ void main() {
     final d = await made(gate: () => gate);
     history(d.meet, 45);
     d.meet.meetings.add(meeting('ahead', 'Planning', 'booked', at + 3 * hour));
-    await d.device.pump(tester, MeetingsPane(services: d.device.services), size: const Size(390, 900));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'), size: const Size(390, 900));
     await settle(tester, 10);
     expect(rowsOver(tester), 20);
     expect(find.byKey(const ValueKey('meet-day-Coming up')), findsOneWidget);
@@ -239,7 +239,7 @@ void main() {
   testWidgets('a page that fails is said in the row with Retry, which loads it', (tester) async {
     final d = await made();
     history(d.meet, 25);
-    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
     d.meet.failMore = true;
     await tapKey(tester, 'meet-more');
@@ -263,7 +263,7 @@ void main() {
     expect(preferences.value.simple, isTrue);
     d.meet.series.add(standup());
     history(d.meet, 25);
-    await d.device.pump(tester, MeetingsPane(services: d.device.services));
+    await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'));
     await settle(tester, 10);
     expect(titlesOf(tester), contains('Recurring'));
     expect(find.byKey(const ValueKey('meet-series-stop-stand')), findsOneWidget);
@@ -276,7 +276,7 @@ void main() {
       final d = await made();
       d.meet.series.addAll([standup(), {...standup(offset: here(at) + 60), 'id': 'm', 'title': 'Monthly planning with a title long enough to wrap on a phone', 'rule': 'Monthly on the 2nd Tuesday at 11:00', 'count': 12}]);
       history(d.meet, 25);
-      await d.device.pump(tester, MeetingsPane(services: d.device.services), size: size, dark: dark);
+      await d.device.pump(tester, MeetingPluginPane(services: d.device.services, kind: 'meet'), size: size, dark: dark);
       await settle(tester, 10);
       await tapKey(tester, 'meet-series-stop-m');
       await settle(tester);

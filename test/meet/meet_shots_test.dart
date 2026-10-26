@@ -8,7 +8,7 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
-import 'package:ghost_md/settings/panes/meetings_pane.dart';
+import 'package:ghost_md/plugins/meetings/meetings.dart';
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -34,11 +34,11 @@ void main() {
           {'id': 'b', 'title': 'Standup', 'url': 'https://meet.google.com/abc-defg-hij', 'startsAt': at - 600000, 'endsAt': at + 600000, 'state': 'in_call', 'detail': null},
           {'id': 'a', 'title': 'Roadmap review, Q4', 'url': 'https://meet.google.com/abc-defg-hij', 'startsAt': at + 86400000 + 18000000, 'endsAt': at + 86400000 + 21600000, 'state': 'booked', 'detail': null},
         ]);
-        await pumpApp(tester, size: size, ratio: 3, prefs: Preferences(theme: theme), home: BackScope(stack: BackStack(), child: AccountScope(services: device.services, child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: MeetingsPane(services: device.services))))));
+        await pumpApp(tester, size: size, ratio: 3, prefs: Preferences(theme: theme), home: BackScope(stack: BackStack(), child: AccountScope(services: device.services, child: SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(16), child: MeetingPluginPane(services: device.services, kind: 'meet'))))));
         tester.view.padding = FakeViewPadding.zero;
         tester.view.viewPadding = FakeViewPadding.zero;
         await settle(tester, 12);
-        await Scrollable.ensureVisible(tester.element(find.byType(MeetCard)), alignment: 0.05);
+        await Scrollable.ensureVisible(tester.element(find.byType(MeetInviteCard)), alignment: 0.05);
         for (var i = 0; i < 4; i++) {
           await tester.pump(const Duration(milliseconds: 250));
         }

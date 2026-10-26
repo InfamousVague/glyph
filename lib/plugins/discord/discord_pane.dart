@@ -12,9 +12,10 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart' show AccountScope;
 import '../../art/art.dart';
+import '../../core/preferences.dart' show preferences;
 import '../../settings/kit/settings_kit.dart';
-import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
@@ -187,12 +188,6 @@ class _DiscordPaneState extends State<DiscordPane> {
     );
   }
 
-  /// Settings › Meetings, on its Post to Discord, where Settings is round the page; null where it is not.
-  VoidCallback? _openMeetings(BuildContext context) {
-    final host = SettingsHost.maybeOf(context);
-    return host == null ? null : () => host.go('meetings', setting: 'Post to Discord');
-  }
-
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -232,9 +227,11 @@ class _DiscordPaneState extends State<DiscordPane> {
             ),
           ],
         ),
-        // Asked here as well as in the line, which draws nothing where meetings cannot post: an empty child would
-        // still take a gap of the page's.
-        if (list.isNotEmpty && meetingDiscordOffered()) DiscordMeetingsLine(onOpenMeetings: _openMeetings(context)),
+        // Post to Discord, where each meeting's action items go once it is written up: here since Settings › Meetings
+        // became the meeting plugins' pages (Matt, 2026-10-26: "I want settings / meetings to be broken up into three
+        // plugins"). Asked here as well as in the section, which draws nothing where meetings cannot post: an empty
+        // child would still take a gap of the page's.
+        if (list.isNotEmpty && meetingDiscordOffered()) MeetingsDiscordSection(prefs: AccountScope.maybeOf(context)?.prefs ?? preferences),
         const SettingsFootnote(
           child: Text('Nothing goes to Discord unless you post it from a note, or set meetings to go. What is posted leaves Ghost.md’s encryption: Discord, and everyone in the channel, can read it. Nobody is pinged by a post, @everyone included.'),
         ),

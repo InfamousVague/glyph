@@ -107,8 +107,7 @@ const Map<String, String> _hues = {
   'organizations': 'blue',
   'notifications': 'coral',
   // Every row in a colour of its own (Matt, 2026-10-24: "make sure all settings sections icons have a color"): none
-  // in grey or graphite.
-  'meetings': 'orange',
+  // in grey or graphite. Meetings' orange is the Google Meet plugin's now, which brings its own.
   'workspaces': 'indigo',
   'daily': 'indigo',
   'library': 'cyan',

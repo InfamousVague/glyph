@@ -11,7 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/mail/mail_name.dart';
 import 'package:ghost_md/meet/ui/meet_card.dart';
-import 'package:ghost_md/settings/panes/meetings_pane.dart';
+import 'package:ghost_md/plugins/meetings/meetings.dart';
 
 import '../account_ui/support.dart';
 import 'support.dart';
@@ -58,7 +58,7 @@ String said(WidgetTester tester) => tester.widget<Text>(find.descendant(of: find
 bool usable(WidgetTester tester) => pressableOf(tester, 'Use this name').onPressed != null;
 
 Future<void> opened(WidgetTester tester, Device d, {Size size = const Size(390, 1600), bool dark = false}) async {
-  await d.pump(tester, MeetingsPane(services: d.services), size: size, dark: dark);
+  await d.pump(tester, MeetingPluginPane(services: d.services, kind: 'meet'), size: size, dark: dark);
   await settle(tester, 10);
   await tapKey(tester, 'meet-name-open');
   await settle(tester);

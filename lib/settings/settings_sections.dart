@@ -8,6 +8,7 @@ import '../core/workspaces.dart' show Workspace;
 import '../market/market_items.dart' show marketLanding;
 import '../plugins/catalogue.dart' show catalogueOrder;
 import '../plugins/registry.dart' show plugins;
+import '../plugins/types.dart' show PluginSettings;
 import 'appearance_pane.dart';
 import 'kit/settings_icons.dart';
 import 'kit/settings_kit.dart';
@@ -16,7 +17,6 @@ import '../plugins/things/things.dart' show thingsOn;
 import '../plugins/todoist/todoist.dart' show todoistOn;
 import 'panes/backup_pane.dart';
 import 'panes/library_folder_pane.dart';
-import 'panes/meetings_pane.dart';
 import 'panes/about_pane.dart';
 import 'panes/account_pane.dart';
 import 'panes/ai_pane.dart';
@@ -161,8 +161,8 @@ String _static(String line, SettingsFacts _) => line;
 /// pages are lib/settings/panes/, each built with what the sheet hands it, `X.hosted`); the rest name the web file
 /// they will come from. To port a page, write it and put it here.
 ///
-/// The rows: who you are and what leaves the phone (Account, and beside it Organizations, Workspaces, Notifications
-/// and Meetings); how much of the app there is and how it looks, moves and feels (Appearance, on a card of its own
+/// The rows: who you are and what leaves the phone (Account, and beside it Organizations, Workspaces and
+/// Notifications); how much of the app there is and how it looks, moves and feels (Appearance, on a card of its own
 /// under Account's); where the notes are and the ways to carry them off (Library folder, Backup, Export); what
 /// happens to a recording (Recording) and the model (AI); what reaches beyond the phone (Plugins); the app itself
 /// (About); and the hidden pages (Developer, Test results) once unlocked. Appearance stood after Export, beside
@@ -218,19 +218,41 @@ const Map<String, ({String id, String setting})> settingsAliases = {'experience'
 
 /// Where [target] lands: itself, or for an id of [settingsAliases] the page and the card it names, unless the link
 /// named a card of its own. What was Plugins, and a plugin's page in it, is the Market's row, for a Settings with
-/// nowhere to send the link on to (the sheet hands it to the Market itself where it can).
+/// nowhere to send the link on to (the sheet hands it to the Market itself where it can). What was Meetings is a
+/// meeting plugin's page ([meetingsLanding]).
 SettingsTarget settingsLanding(SettingsTarget target) {
+  if (target.id == meetingsSectionId) return meetingsLanding(target);
   if (marketLanding(target.id) != null) return SettingsTarget(marketSectionId, nonce: target.nonce);
   final alias = settingsAliases[target.id];
   return alias == null ? target : SettingsTarget(alias.id, setting: target.setting ?? alias.setting, nonce: target.nonce);
 }
 
-/// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you (with Meetings, which was a card of
-/// Account's until GHST-110), how it looks with the choice itself on its first card, and the app itself with its
-/// cheat sheet. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
+/// What was Settings › Meetings, a page of its own from 2026-10-23 until Matt, 2026-10-26: "I want settings / meetings
+/// to be broken up into three plugins where each zoom, Google meets and discord handle their own meetings". Its id
+/// still lands ([meetingsLanding]), for a link from before.
+const String meetingsSectionId = 'meetings';
+
+/// Where a link to what was Settings › Meetings lands: Post to Slack and Post to Discord on their plugins' pages, where
+/// those cards went; otherwise the Google Meet plugin's page, or Zoom's where only Zoom is on. With neither on there
+/// is no page of meetings, and it lands on the Market's row, where they are added again.
+SettingsTarget meetingsLanding(SettingsTarget target) {
+  bool on(String id) => plugins.byId(id) != null && plugins.isEnabled(id);
+  final page = switch (target.setting) {
+    'Post to Slack' when on('slack') => 'slack',
+    'Post to Discord' when on('discord') => 'discord',
+    _ => on('google-meet') ? 'google-meet' : (on('zoom') ? 'zoom' : null),
+  };
+  if (page == null) return SettingsTarget(marketSectionId, nonce: target.nonce);
+  final card = target.setting == 'Post to Slack' || target.setting == 'Post to Discord' ? target.setting : null;
+  return SettingsTarget(pluginPageId(page), setting: card, nonce: target.nonce);
+}
+
+/// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you, the meeting plugins' pages (which
+/// were Meetings, which was a card of Account's until GHST-110; [PluginSettings.simple]), how it looks with the choice
+/// itself on its first card, and the app itself with its cheat sheet. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, the Market and the plugins' pages, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'account', 'notifications', 'meetings', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -242,7 +264,9 @@ bool _advanced(SettingsFacts facts) => !facts.simple;
 /// category, then by name: Claude, Lovart; Calendar, Contacts, Place reminders; Things, Todoist; Discord, GitHub,
 /// Notion, Slack, Webhooks). A plugin switched off, or held off by Local only, has no row and no page; its page in
 /// the Market offers Add. The page itself is the plugin's, with a word at its foot on where the plugin is in the
-/// Market ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on.
+/// Market ([PluginSettingsPage]). Its id is `plugin:<id>` ([pluginPageId]), which links into Settings land on. A page
+/// may ask more of the account ([PluginSettings.offered], `accountSummary`, `findable`), as the meeting plugins'
+/// pages do, and be kept in Simple ([PluginSettings.simple]), as they are.
 ///
 /// What differs from the web original: there, each was a sub-page behind its card on Plugins, which is where it was
 /// here too until 2026-10-18.
@@ -257,10 +281,10 @@ List<SettingsSectionSpec> pluginPageSections() => [
             icon: (size) => pluginIcon(plugin, size),
             group: pluginsGroup,
             webFile: 'plugins/PluginsPane.tsx',
-            summary: (facts) => own.summary(),
-            settings: (facts) => own.settings,
-            // Plugins are what Simple hides, each one's page with the Market.
-            where: _advanced,
+            summary: (facts) => own.accountSummary?.call(facts.services) ?? own.summary(),
+            settings: (facts) => own.findable?.call(facts.services) ?? own.settings,
+            // Plugins are what Simple hides, each one's page with the Market, but for a page Simple keeps.
+            where: (facts) => (own.simple || _advanced(facts)) && (own.offered?.call(facts.services) ?? true),
             hue: own.hue,
             pane: (context) => PluginSettingsPage(plugin: plugin),
           ),
@@ -337,21 +361,6 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => notificationsSummary(facts.prefs.notifications),
     settings: (facts) => notificationsFindable(orgs: facts.services != null ? facts.services!.joined.isNotEmpty : facts.features.orgs.isNotEmpty),
     pane: NotificationsPane.hosted,
-  ),
-  // Ghost in meetings, a section of its own after the card on Account it was (Matt, 2026-10-23: "Make the meeting
-  // section its own section in settings and move the invite card to the top"). Only where the account's service has
-  // the bot; kept in Simple, as Account's card was. The port's own: the web app has no such page.
-  SettingsSectionSpec(
-    id: 'meetings',
-    label: 'Meetings',
-    words: 'meet google meeting ghost bot invite join record transcribe calendar notetaker',
-    glyph: SettingsGlyph.users,
-    group: 0,
-    webFile: 'settings/AccountPane.tsx',
-    where: (facts) => meetingsOffered(facts.services),
-    summary: (facts) => meetingsSummary(facts.services),
-    settings: (facts) => meetingsFindable(facts.services),
-    pane: MeetingsPane.hosted,
   ),
   // How much of the app there is and how it looks, moves and feels: on a card of its own under Account's (Matt,
   // 2026-10-24: "move the simple or advanced toggle under appearance and move appearnce up in the settings to under

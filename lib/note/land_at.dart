@@ -28,7 +28,7 @@ import 'note_place.dart';
 /// the tape is, and the tape playing (lib/root/note_desk.dart). Not a name a line could have.
 const String atTape = '@tape';
 
-/// Where a meeting is opened from anywhere else (Settings › Meetings, a list of notes, a search, a notification;
+/// Where a meeting is opened from anywhere else (a meeting plugin's page, a list of notes, a search, a notification;
 /// Matt, 2026-10-24: "when clicking on meetings it doesn't load the transcript"): the top of the page, as [atTape],
 /// with the transcript on the page under the tape, and the tape still. Not a name a line could have either.
 const String atTranscript = '@transcript';

@@ -71,6 +71,15 @@ class FakeMeet {
   /// The body a POST was sent.
   Map<String, Object?>? booked;
 
+  /// The account's kinds (server/src/meet.rs `MeetKinds`): every kind on until a device says otherwise.
+  final Map<String, bool> kinds = {'meet': true, 'zoom': true};
+
+  /// Each body `PUT meet/kinds` was sent, in order.
+  final List<Map<String, Object?>> kindsSent = [];
+
+  /// `PUT meet/kinds` is refused, as a connection dropping does, while this is true.
+  bool failKinds = false;
+
   Fetcher over(Fetcher rest) => (request) async {
         final path = request.url.path.replaceFirst(RegExp(r'^.*/v1/'), '');
         if (!path.startsWith('meet')) return rest(request);
@@ -80,6 +89,17 @@ class FakeMeet {
           if (failList) return FetchResponse.json(503, {'error': 'The service is busy.'});
           if (!paging) return FetchResponse.json(200, {'meetings': meetings});
           return _page(request.url.queryParameters);
+        }
+        if (path == 'meet/kinds') {
+          if (request.method == 'PUT') {
+            if (failKinds) return FetchResponse.json(503, {'error': 'The service is busy.'});
+            final body = jsonDecode(utf8.decode(request.body!)) as Map<String, Object?>;
+            kindsSent.add(body);
+            for (final MapEntry(:key, :value) in body.entries) {
+              if (value is bool) kinds[key] = value;
+            }
+          }
+          return FetchResponse.json(200, kinds);
         }
         if (path.startsWith('meet/series/') && request.method == 'DELETE') {
           final id = Uri.decodeComponent(path.substring('meet/series/'.length));

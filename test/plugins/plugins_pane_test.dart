@@ -53,7 +53,7 @@ void main() {
 
   group('the catalogue’s order and words', () {
     test('lists the plugins by category, then by name, and has the categories they are in', () {
-      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Discord', 'GitHub', 'Notion', 'Slack', 'Webhooks', 'Marks', 'Rich embeds']);
+      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Discord', 'GitHub', 'Google Meet', 'Notion', 'Slack', 'Webhooks', 'Zoom', 'Marks', 'Rich embeds']);
       expect([for (final c in categoriesOf(builtIn)) c.label], ['AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
       // Every plugin that ships has a category, a line of its own and what it adds.
       for (final plugin in builtIn) {
@@ -84,7 +84,8 @@ void main() {
               if (inCatalogue(p, query: query, category: category)) p.manifest.name,
           ];
       expect(left('spotify'), ['Rich embeds']);
-      expect(left('google'), ['Calendar']);
+      expect(left('google'), ['Calendar', 'Google Meet']);
+      expect(left('zoom'), ['Zoom']);
       expect(left('zapier'), ['Webhooks']);
       expect(left('', PluginCategory.imports), ['Things', 'Todoist']);
       expect(left('cal', PluginCategory.calendar), ['Calendar', 'Contacts', 'Place reminders']);
@@ -109,7 +110,7 @@ void main() {
       final card = find.byKey(const ValueKey('cluster market'));
       expect([for (final id in ['market', 'plugin:claude', 'plugin:github', 'plugin:notion']) find.descendant(of: card, matching: rowOf(id)).evaluate().length], [1, 1, 1, 1]);
       expect(find.descendant(of: card, matching: rowOf('about')), findsNothing);
-      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '5 of 14 plugins added');
+      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '7 of 16 plugins added');
       expect(tester.widget<AppIcon>(find.descendant(of: rowOf('market'), matching: find.byType(AppIcon)).first).icon, Lucide.store);
       expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
       // Each in its own icon, Claude's its own mark as an icon (Matt, 2026-10-26: "iconize the lovart logo so we can use
@@ -245,7 +246,12 @@ void main() {
       for (final plugin in builtIn) {
         if (plugin.manifest.id != 'contacts') registry.setEnabled(plugin.manifest.id, true);
       }
-      final ids = [for (final spec in settingsSections) if (spec.id == 'market' || spec.id.startsWith('plugin:')) spec.id];
+      // The meeting plugins' pages are listed only for an account with Ghost in meetings, which this sheet has not:
+      // test/meet/meet_card_test.dart holds their pages to what they list.
+      final ids = [
+        for (final spec in settingsSections)
+          if ((spec.id == 'market' || spec.id.startsWith('plugin:')) && spec.id != 'plugin:google-meet' && spec.id != 'plugin:zoom') spec.id,
+      ];
       expect(ids, containsAll(['market', 'plugin:claude', 'plugin:calendar']));
       final missing = <String>[];
       for (final id in ids) {

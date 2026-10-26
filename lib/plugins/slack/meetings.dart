@@ -27,7 +27,7 @@
 ///   ai/meeting_sort.dart's marks are), so a summary made again, here or on another device, posts nothing, and
 ///   nor does a second device that writes the same meeting up.
 /// - **Tried again, a few times.** A post that fails (no connection, a webhook revoked in Slack) waits in this
-///   device's queue ([meetingPostTries]) with Slack's reason, which Settings › Meetings and the plugin's page show,
+///   device's queue ([meetingPostTries]) with Slack's reason, which the plugin's page shows,
 ///   and is tried again the next time the app runs ([MeetingSlackPoster.resume]) or when "Try now" is pressed, up to
 ///   [meetingPostTriesMost] tries. A try is counted as it begins, so an app stopped mid-post tries again at most
 ///   once more, never forever.
@@ -364,7 +364,7 @@ void setMeetingShareLink(bool on) {
   _keepSettings(MeetingSlackSettings(channel: now.channel, on: now.on, share: on));
 }
 
-/// Whether Settings › Meetings offers Post to Slack: the plugin on, on a build and a platform that can post, with a
+/// Whether the Slack plugin's page offers Post to Slack: the plugin on, on a build and a platform that can post, with a
 /// channel on this device.
 bool meetingSlackOffered() => pluginOn(manifest) && slackReadyNow() && notOnIPhone('slack') == null && channels().isNotEmpty;
 

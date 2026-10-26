@@ -28,7 +28,7 @@ extension _RootCommands on _GhostRootState {
   }
 
   /// A note opened from outside it (`openNoteWhereLeft`: the home page, All notes, the sidebar, a note's menu, a
-  /// notification, an organization's page, Settings › Meetings): a notebook goes back to the chapter it was left in
+  /// notification, an organization's page, a meeting plugin's page): a notebook goes back to the chapter it was left in
   /// (lib/book/book_spot.dart). A tab, Back and Forward show the note itself. A meeting with a tape opens at its
   /// transcript, the tape still ([atTranscript]; Matt, 2026-10-24: "when clicking on meetings it doesn't load the
   /// transcript"): from every place a meeting is pressed, as the shelf opens it, but for the Play.

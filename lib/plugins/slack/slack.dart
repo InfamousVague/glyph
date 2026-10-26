@@ -13,7 +13,7 @@
 ///   and "Post the summary to Slack" on a note with a meeting's summary, that section alone. With more than one
 ///   channel the row opens them to choose from.
 /// - After each pass of the feed: an organization's new news to its channel (news.dart).
-/// - Once a meeting is written up: its action items and its links, to the channel chosen in Settings › Meetings
+/// - Once a meeting is written up: its action items and its links, to the channel chosen on its page's Post to Slack
 ///   (meetings.dart; Matt, 2026-10-26: "make the meetings plugin work hand in hand to sending meeting action items
 ///   and a link to the meeting transcript to a specified slack channel").
 /// - In Settings: the channels, a test message for each, and where each organization's news goes

@@ -1,8 +1,8 @@
 /// The Slack plugin's page in Settings: the channels on this device, each with a test message, a new name and a way
 /// to forget it; a channel added by name and pasted webhook; and, for each organization the person is a member of,
-/// the channel its news goes to, if any; and where meetings go once they are written up, set in Settings › Meetings
-/// (meetings.dart; Matt, 2026-10-26), with any that did not post. A port of `src/app/plugins/slack/SlackPane.tsx`
-/// and `SlackPane.module.css`.
+/// the channel its news goes to, if any; and Post to Slack, where meetings go once they are written up
+/// (meetings_section.dart; Matt, 2026-10-26), with any that did not post. A port of
+/// `src/app/plugins/slack/SlackPane.tsx` and `SlackPane.module.css`.
 ///
 /// Everything here is this device's: the webhooks are kept in the secure store (channels.dart) and nothing syncs,
 /// which the page says, so a person with two phones is not surprised that the second has no channels, or that both
@@ -21,9 +21,10 @@ import 'dart:async';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../../account/ui_state.dart' show AccountScope;
 import '../../art/art.dart';
+import '../../core/preferences.dart' show preferences;
 import '../../settings/kit/settings_kit.dart';
-import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
@@ -210,12 +211,6 @@ class _SlackPaneState extends State<SlackPane> {
     );
   }
 
-  /// Settings › Meetings, on its Post to Slack, where Settings is round the page; null where it is not.
-  VoidCallback? _openMeetings(BuildContext context) {
-    final host = SettingsHost.maybeOf(context);
-    return host == null ? null : () => host.go('meetings', setting: 'Post to Slack');
-  }
-
   void _choose(String orgId, String? channelId) {
     setNewsChannel(orgId, channelId);
     setState(() => _choosing = null);
@@ -268,9 +263,11 @@ class _SlackPaneState extends State<SlackPane> {
             ),
           ],
         ),
-        // Asked here as well as in the line, which draws nothing where meetings cannot post: an empty child would
-        // still take a gap of the page's.
-        if (list.isNotEmpty && meetingSlackOffered()) SlackMeetingsLine(onOpenMeetings: _openMeetings(context)),
+        // Post to Slack, where each meeting's action items go once it is written up: here since Settings › Meetings
+        // became the meeting plugins' pages (Matt, 2026-10-26: "I want settings / meetings to be broken up into three
+        // plugins"). Asked here as well as in the section, which draws nothing where meetings cannot post: an empty
+        // child would still take a gap of the page's.
+        if (list.isNotEmpty && meetingSlackOffered()) MeetingsSlackSection(prefs: AccountScope.maybeOf(context)?.prefs ?? preferences),
         if (orgs.isNotEmpty && list.isNotEmpty)
           PaneSection(
             title: 'Organizations’ news',

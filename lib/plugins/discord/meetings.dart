@@ -209,7 +209,7 @@ void setDiscordMeetingShareLink(bool on) {
   _keepSettings(DiscordMeetingSettings(channel: now.channel, on: now.on, share: on));
 }
 
-/// Whether Settings › Meetings offers Post to Discord: the plugin on, not an iPhone, with a channel on this device.
+/// Whether the Discord plugin's page offers Post to Discord: the plugin on, not an iPhone, with a channel here.
 bool meetingDiscordOffered() => pluginOn(manifest) && notOnIPhone('discord') == null && discordChannels().isNotEmpty;
 
 /// Whether a meeting written up now is posted to Discord.

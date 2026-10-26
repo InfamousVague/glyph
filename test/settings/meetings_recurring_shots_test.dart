@@ -4,6 +4,7 @@
 // build/feature-shots/meetings-recurring/ (not committed), on a phone and the Mac's window, light and dark, each before
 // and after Show more: the Recurring card with two series (one on New York's clock, one ending), those to come, and
 // forty-five meetings over across a fortnight, twenty at first.
+// Settings › Meetings is the Google Meet plugin's page since 2026-10-26 (lib/plugins/meetings/), which these draw now.
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,6 +13,8 @@ import 'package:ghost_md/app/ghost_app.dart';
 import 'package:ghost_md/core/back.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
+import 'package:ghost_md/plugins/built_in.dart' show builtIn;
+import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/settings/settings_screen.dart';
 import 'package:ghost_md/settings/settings_sheet.dart';
 
@@ -33,6 +36,8 @@ void main() {
         if (mac) debugDefaultTargetPlatformOverride = TargetPlatform.macOS;
         final meet = FakeMeet(now: () => at)..paging = true;
         final service = await FakeService.start(seed: seeded);
+        usePlugins(createRegistry(builtIn, store: MemorySwitches()));
+        addTearDown(() => usePlugins(createRegistry(const [])));
         final device = await Device.make(service: service, publishing: true, meeting: true, fetcher: meet.over(service.fetcher), now: () => at);
         await device.mailIn!.newAddress();
         final standup = day(26, 9, 30);
@@ -96,7 +101,7 @@ void main() {
           prefs: Preferences(theme: theme, meetings: {'retro': at - hour}, more: const {'meetingNotes': {'p00': 'retro'}}),
           home: BackScope(
             stack: BackStack(),
-            child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: const SettingsTarget('meetings', nonce: 1))),
+            child: AccountScope(services: device.services, child: SettingsSheet(open: true, onClose: () {}, onOpenNote: (_) {}, toPage: const SettingsTarget('plugin:google-meet', nonce: 1))),
           ),
         );
         tester.view.padding = FakeViewPadding.zero;

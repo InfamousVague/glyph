@@ -34,6 +34,7 @@ import 'package:ghost_md/plugins/github/github.dart' show githubPlugin;
 import 'package:ghost_md/plugins/github/manifest.dart' as github show manifest, tokenSecret;
 import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, manifest, secretKeySecret;
+import 'package:ghost_md/plugins/meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
 import 'package:ghost_md/plugins/host.dart';
 import 'package:ghost_md/plugins/registry.dart';
 import 'package:ghost_md/plugins/slack/channels.dart' show channels;
@@ -91,7 +92,7 @@ class KeysDevice {
     githubHost = createHost(github.manifest, ground: ground);
     lovartHost = createHost(lovart.manifest, ground: ground);
     discordHost = createHost(discord.manifest, ground: ground);
-    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin], store: MemorySwitches());
+    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin, googleMeetPlugin, zoomPlugin], store: MemorySwitches());
     claude = ClaudeSettings(claudeStore);
     sealed = keys
         ? SealedKeys(
@@ -554,6 +555,29 @@ void main() {
     await iphone.sync();
     await fold.sync();
     expect(jsonEncode(sealedEntriesOf(fold.prefs.value)['${discord.discordWebhookPrefix}d1']), jsonEncode(before));
+  });
+
+  // Matt, 2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins": which kinds Ghost
+  // joins is the account's, so each switch travels as the others do.
+  test('the Google Meet and Zoom switches follow the account, each its own, and one never moved sends nothing', () async {
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    expect((fold.registry.switchedOn('google-meet'), fold.registry.switchedOn('zoom')), (true, true), reason: 'both ship on');
+    fold.registry.setEnabled('zoom', false);
+    await fold.sync();
+    final entries = sealedEntriesOf(fold.prefs.value).keys;
+    expect(entries, contains('plugin:zoom'));
+    expect(entries, isNot(contains('plugin:google-meet')), reason: 'a switch never moved is not sent');
+    await mac.sync();
+    expect((mac.registry.switchedOn('google-meet'), mac.registry.switchedOn('zoom')), (true, false));
+    // On again on the Mac, and Google Meet off: the Fold has both.
+    mac.clock = 2000;
+    mac.registry.setEnabled('zoom', true);
+    mac.registry.setEnabled('google-meet', false);
+    await mac.sync();
+    fold.clock = 3000;
+    await fold.sync();
+    expect((fold.registry.switchedOn('google-meet'), fold.registry.switchedOn('zoom')), (false, true));
   });
 
   test('signing out takes the entries out of the settings here, and keeps the keys', () async {

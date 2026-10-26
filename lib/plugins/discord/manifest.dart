@@ -41,7 +41,7 @@ const PluginManifest manifest = PluginManifest(
   tagline: 'Post a note to a Discord channel',
   adds: [
     'Post to Discord on a note’s settings, and Post the summary to Discord for a meeting',
-    'A meeting’s action items and its links to the channel chosen in Settings › Meetings, once it is written up',
+    'A meeting’s action items and its links to the channel chosen on its page in Settings, once it is written up',
   ],
   // Off until switched on: it sends words off the phone, and only ever when the person has set a channel up for it.
   standard: false,

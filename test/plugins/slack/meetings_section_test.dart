@@ -115,14 +115,17 @@ void main() {
     await away(tester);
   });
 
-  testWidgets('the Slack page says where meetings go, and that they are set in Settings › Meetings', (tester) async {
+  // Matt, 2026-10-26: "I want settings / meetings to be broken up into three plugins": Post to Slack moved here from
+  // Settings › Meetings, where the Slack page only said where meetings went.
+  testWidgets('the Slack page has Post to Slack itself, where meetings are set to go', (tester) async {
     await addChannel('#launch', hook);
     await pumpPane(tester, const SlackPane());
-    expect(textOf(tester), contains('Meetings aren’t posted'));
+    expect(find.byType(MeetingsSlackSection), findsOneWidget);
+    expect(textOf(tester), contains('Post meetings to Slack'));
+    expect(textOf(tester), isNot(contains('Settings › Meetings')));
     setMeetingPosts(true);
     await settle(tester);
-    expect(textOf(tester), contains('Meetings post to #launch'));
-    expect(textOf(tester), contains('Set in Settings › Meetings.'));
+    expect(textOf(tester), contains('#launch'));
     await away(tester);
   });
 }

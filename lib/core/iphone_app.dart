@@ -44,6 +44,10 @@ String? notOnIPhone(String what, {TargetPlatform? platform}) {
     // Not Rust's: the Discord plugin posts from Dart, and is kept off an iPhone as Slack is, the two being one
     // shape (lib/plugins/discord/discord.dart; Matt, 2026-10-26).
     'discord' => 'Discord is not available on iOS yet.',
+    // Ghost in meetings is not offered on an iPhone (lib/share/sites.dart `publishingOffered`): its meetings arrive
+    // there as notes, but the plugins' pages are not drawn (lib/plugins/meetings/; Matt, 2026-10-26).
+    'google-meet' => 'Google Meet is not available on iOS yet.',
+    'zoom' => 'Zoom is not available on iOS yet.',
     _ => null,
   };
 }
