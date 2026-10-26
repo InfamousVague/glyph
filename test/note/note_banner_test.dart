@@ -1,5 +1,6 @@
 // A note's header banner on its page (lib/note/note_banner.dart, the note screen's `banner` seam, lib/core/banner.dart).
 import 'dart:io';
+import 'dart:ui' as ui;
 import 'dart:typed_data';
 
 import 'package:flutter/rendering.dart' show debugDisableShadows;
@@ -118,5 +119,38 @@ void main() {
       expect(channel(ink.r, paper.r, 0), ink.r);
       expect(channel(ink.r, paper.r, 1), closeTo(paper.r, 1e-9));
     });
+  });
+
+  Future<Uint8List> png(Color fill, {Color? dots}) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawRect(const Rect.fromLTWH(0, 0, 128, 32), Paint()..color = fill);
+    if (dots != null) {
+      for (var x = 4.0; x < 128; x += 8) {
+        canvas.drawCircle(Offset(x, 16), 3, Paint()..color = dots);
+      }
+    }
+    final image = await recorder.endRecording().toImage(128, 32);
+    final data = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
+    return data!.buffer.asUint8List();
+  }
+
+  testWidgets('a banner in colour is drawn in its own colours; one in black and white in the page\'s inks (Matt, 2026-10-26)', (tester) async {
+    forgetBannerColours();
+    final colour = (await tester.runAsync(() => png(const Color(0xFFFFFFFF), dots: const Color(0xFFD9482B))))!;
+    final grey = (await tester.runAsync(() => png(const Color(0xFFFFFFFF), dots: const Color(0xFF222222))))!;
+    expect((await tester.runAsync(() => pictureInColour(colour)))!, isTrue);
+    expect((await tester.runAsync(() => pictureInColour(grey)))!, isFalse);
+    final store = MemoryPictureStore({'lovart-colour.png': colour, 'lovart-grey.png': grey});
+    Future<int> filters(String name) async {
+      await pumpApp(tester, size: const Size(420, 300), prefs: const AppPreferences(theme: 'dark'), home: Align(alignment: Alignment.topCenter, child: NoteBannerView(key: ValueKey(name), name: name, store: store)));
+      await tester.runAsync(() => bannerInColour(store, name));
+      await tester.pump();
+      return tester.widgetList(find.descendant(of: find.byType(NoteBannerView), matching: find.byType(ColorFiltered))).length;
+    }
+    expect(await filters('lovart-colour.png'), 0, reason: 'turned over, its reds would come out cyan');
+    expect(await filters('lovart-grey.png'), 1, reason: 'black dots turn to light on the dark page, as before');
+    debugDisableShadows = true;
   });
 }
