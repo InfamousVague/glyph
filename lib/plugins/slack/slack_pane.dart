@@ -1,6 +1,8 @@
 /// The Slack plugin's page in Settings: the channels on this device, each with a test message, a new name and a way
 /// to forget it; a channel added by name and pasted webhook; and, for each organization the person is a member of,
-/// the channel its news goes to, if any. A port of `src/app/plugins/slack/SlackPane.tsx` and `SlackPane.module.css`.
+/// the channel its news goes to, if any; and where meetings go once they are written up, set in Settings › Meetings
+/// (meetings.dart; Matt, 2026-10-26), with any that did not post. A port of `src/app/plugins/slack/SlackPane.tsx`
+/// and `SlackPane.module.css`.
 ///
 /// Everything here is this device's: the webhooks are kept in the secure store (channels.dart) and nothing syncs,
 /// which the page says, so a person with two phones is not surprised that the second has no channels, or that both
@@ -21,10 +23,13 @@ import 'package:glacier/glacier.dart';
 
 import '../../art/art.dart';
 import '../../settings/kit/settings_kit.dart';
+import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
 import '../github/plain_field.dart';
 import '../host.dart' show onPluginStorage;
 import 'channels.dart';
+import 'meetings.dart' show meetingSlackOffered;
+import 'meetings_section.dart';
 import 'news.dart';
 
 /// What a test post says in the channel (`TEST_TEXT`).
@@ -205,6 +210,12 @@ class _SlackPaneState extends State<SlackPane> {
     );
   }
 
+  /// Settings › Meetings, on its Post to Slack, where Settings is round the page; null where it is not.
+  VoidCallback? _openMeetings(BuildContext context) {
+    final host = SettingsHost.maybeOf(context);
+    return host == null ? null : () => host.go('meetings', setting: 'Post to Slack');
+  }
+
   void _choose(String orgId, String? channelId) {
     setNewsChannel(orgId, channelId);
     setState(() => _choosing = null);
@@ -257,6 +268,9 @@ class _SlackPaneState extends State<SlackPane> {
             ),
           ],
         ),
+        // Asked here as well as in the line, which draws nothing where meetings cannot post: an empty child would
+        // still take a gap of the page's.
+        if (list.isNotEmpty && meetingSlackOffered()) SlackMeetingsLine(onOpenMeetings: _openMeetings(context)),
         if (orgs.isNotEmpty && list.isNotEmpty)
           PaneSection(
             title: 'Organizations’ news',

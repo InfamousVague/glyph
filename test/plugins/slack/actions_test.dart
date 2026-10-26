@@ -114,12 +114,13 @@ void main() {
       expect([for (final p in manifest.permissions) p.kind.name], ['notes', 'network', 'native']);
       expect([for (final p in manifest.permissions) p.why], [
         'Reads the note you post, or its summary, to make the message. Nothing in the note changes.',
-        'Posts to the channels you add, straight from this device. Only what you choose to post goes, and an organization’s news where you set a channel for it.',
+        // The port's own words: meetings post by themselves where a channel is chosen for them (meetings.dart).
+        'Posts to the channels you add, straight from this device. Only what you choose to post goes: a note you post, each meeting’s action items where you chose a channel for meetings, and an organization’s news where you set a channel for it.',
         'Keeps each channel’s webhook inside the app, where no page can read it back, and posts with it.',
       ]);
       expect(manifest.hosts, ['hooks.slack.com']);
       expect([manifest.native!.generation, ...manifest.native!.commands], [25, 'slack_channels', 'slack_save_channel', 'slack_forget_channel', 'slack_post']);
-      expect(manifest.storage, ['glyph-slack-channels', 'glyph-slack-news', 'glyph-slack-posted']);
+      expect(manifest.storage, ['glyph-slack-channels', 'glyph-slack-news', 'glyph-slack-posted', 'glyph-slack-meetings', 'glyph-slack-meeting-queue']);
       expect(manifest.secrets, ['glyph-slack-webhook:']);
       expect([slackPlugin.icon, slackPlugin.settings?.hue], ['hash', 'magenta']);
       expect([for (final found in slackPlugin.settings!.settings) found.name], ['Channels', 'Add a channel']);

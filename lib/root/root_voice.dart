@@ -131,6 +131,29 @@ extension _RootVoice on _GhostRootState {
       },
       warn: debugPrint,
     );
+    // A meeting written up goes to the Slack channel chosen for meetings on this device, once for the account, with
+    // the note's app link and, unless turned off, its share link (lib/plugins/slack/meetings.dart; Matt, 2026-10-26:
+    // "make the meetings plugin work hand in hand to sending meeting action items and a link to the meeting
+    // transcript to a specified slack channel").
+    final slack = MeetingSlackPoster(
+      preferences: () => preferences.value,
+      setPreferences: preferences.update,
+      getNote: _library.get,
+      shareLink: _services?.shares == null
+          ? null
+          : (note) async {
+              final shares = _services!.shares!;
+              return shares.shareNote(note, await shares.listNotes());
+            },
+      teamOf: (id) {
+        final filed = _workspaces.workspaceOf(id);
+        final org = filed == null ? null : orgOfWorkspace(_workspaces.value.list, filed.id);
+        return org == null ? null : _services?.orgs?.orgRow(org)?.name;
+      },
+      me: () => _services?.session?.handle,
+      warn: debugPrint,
+    );
+    _slackMeetings = meetingSlackPoster = slack;
     await voice.start(
       // A better-words pass landed: a tag that waited for it may land too.
       notesChanged: () {
@@ -153,7 +176,20 @@ extension _RootVoice on _GhostRootState {
           ),
         );
       },
-      meetingSummarized: (id, body) => unawaited(sorter.meetingSummarized(id, body).then<void>((_) {}, onError: (Object failure) => debugPrint('[ghost] the meeting was not sorted: $failure'))),
+      // Sorted first, then posted to Slack where meetings post here, so the post names the team whose workspace it
+      // was filed in.
+      meetingSummarized: (id, body) => unawaited(() async {
+        try {
+          await sorter.meetingSummarized(id, body);
+        } catch (failure) {
+          debugPrint('[ghost] the meeting was not sorted: $failure');
+        }
+        try {
+          await slack.meetingSummarized(id, body);
+        } catch (failure) {
+          debugPrint('[ghost] the meeting was not posted to Slack: $failure');
+        }
+      }()),
     );
     // Voice has started: what it can do here (a meeting, the computer's sound) is read again.
     _voiceChanged();
@@ -161,6 +197,8 @@ extension _RootVoice on _GhostRootState {
     // already being recorded.
     await _notesRead.future;
     if (mounted) capture.boot();
+    // A meeting whose post to Slack failed last time is tried again, now the app runs (Matt, 2026-10-26).
+    if (mounted) unawaited(slack.resume().then<void>((_) {}, onError: (Object failure) => debugPrint('[ghost] the meetings were not posted to Slack: $failure')));
   }
 
   /// The AI, once voice has made its engine the app's: whether it can run here, the phone as the strip's card

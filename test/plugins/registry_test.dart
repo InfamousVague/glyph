@@ -128,9 +128,17 @@ void main() {
           continue;
         }
         expect((ours.name, ours.description, ours.version, ours.author, ours.standard), (theirs.name, theirs.description, theirs.version, theirs.author, theirs.standard), reason: id);
-        expect([for (final p in ours.permissions) (p.kind, p.why)], [for (final p in theirs.permissions) (p.kind, p.why)], reason: id);
+        // Slack here posts meetings by themselves too (lib/plugins/slack/meetings.dart; Matt, 2026-10-26): its
+        // network permission says so, and two keys of its own hold where they go and what is still to try.
+        if (id == 'slack') {
+          expect([for (final p in ours.permissions) p.kind], [for (final p in theirs.permissions) p.kind]);
+          expect(ours.permissions[1].why, contains('each meeting’s action items'));
+          expect(ours.storage, [...theirs.storage, 'glyph-slack-meetings', 'glyph-slack-meeting-queue']);
+        } else {
+          expect([for (final p in ours.permissions) (p.kind, p.why)], [for (final p in theirs.permissions) (p.kind, p.why)], reason: id);
+          expect(ours.storage, theirs.storage, reason: id);
+        }
         expect(ours.hosts, theirs.hosts, reason: id);
-        expect(ours.storage, theirs.storage, reason: id);
         expect((ours.native?.generation, ours.native?.commands), (theirs.native?.generation, theirs.native?.commands), reason: id);
         expect(plugin.icon, web[index].icon, reason: id);
         // The page's graphite is a colour here (Matt, 2026-10-24: "make sure all settings sections icons have a color").

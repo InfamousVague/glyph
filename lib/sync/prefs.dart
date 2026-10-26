@@ -89,6 +89,10 @@ const List<String> syncedPrefs = [
   // whichever device writes it up.
   'sortMeetings',
   'meetingSorts',
+  // Which meetings have been posted to Slack (lib/plugins/slack/meetings.dart): marked by the device that writes one
+  // up, so no other device, and no summary made again, posts it twice. Where they go stays with the device, as the
+  // channels do.
+  'slackMeetingPosts',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.

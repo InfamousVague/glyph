@@ -167,6 +167,7 @@ import '../plugins/calendar/calendar.dart' show calendarInUse, calendarManifest,
 import '../plugins/claude/claude.dart' show claudeHandle, claudeInApp;
 import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/registry.dart' show Registry, plugins;
+import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../settings/organization_sheet.dart';
 import '../settings/settings_screen.dart';
 import '../scene/at_work.dart';
@@ -1198,6 +1199,9 @@ class _GhostRootState extends State<GhostRoot> {
   final Set<void Function(String noteId)> _recordingHeard = <void Function(String noteId)>{};
   VoidCallback? _unhearRecordings;
 
+  /// Meetings posted to Slack once written up (lib/plugins/slack/meetings.dart), once voice is made.
+  MeetingSlackPoster? _slackMeetings;
+
   NoteActions? _made;
 
   /// Pin, archive, delete and their Undo (notes/note_actions.dart); made once there is a toast to say them with.
@@ -1545,6 +1549,7 @@ class _GhostRootState extends State<GhostRoot> {
     _embeds.dispose();
     _unwatchMeeting?.call();
     _unhearRecordings?.call();
+    if (identical(meetingSlackPoster, _slackMeetings)) meetingSlackPoster = null;
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();

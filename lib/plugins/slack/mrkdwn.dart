@@ -185,6 +185,19 @@ String noteMessage(String body) {
 /// (`summaryMessage`).
 String summaryMessage(String body, String section) => _fitted('${_titleLine(noteTitle(body))}\n${toMrkdwn(section)}');
 
+/// One line's words as mrkdwn: its inline marks turned and the rest escaped, as a line of [toMrkdwn] is. For a
+/// message made of pieces of a note, not the note: a meeting's action items (meetings.dart).
+String inlineMrkdwn(String line) => _inline(line);
+
+/// Words written into a message as they are: Slack's three escapes and nothing more.
+String escapedMrkdwn(String text) => _escaped(text);
+
+/// An address as the inside of Slack's `<…|…>`.
+String slackLinkUrl(String href) => _slackUrl(href);
+
+/// A message cut to what Slack takes, at a line where it can be, saying so.
+String fittedMrkdwn(String message) => _fitted(message);
+
 /// Whether a note has anything to post: words past its front matter (`hasWords`).
 bool hasWords(String body) {
   final lines = body.split('\n');

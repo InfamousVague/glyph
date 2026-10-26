@@ -9,6 +9,8 @@ import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
 import '../../meet/ui/meet_card.dart';
+import '../../plugins/slack/meetings.dart' show meetingSlackOffered;
+import '../../plugins/slack/meetings_section.dart';
 import '../../sync/notes.dart' show longestSyncedSaid, stayedHere;
 import '../kit/settings_kit.dart';
 import '../settings_search.dart';
@@ -31,6 +33,7 @@ List<SettingsFindable> meetingsFindable(AccountServices? services) {
     if (mail != null && mailCardShown(mail)) const SettingsFindable('Email to a note', 'mail inbox address turn off'),
     if (recordsVoice) const SettingsFindable('Sync meeting recordings', 'audio meeting meetings tapes'),
     if (services != null) const SettingsFindable('Sort meetings into workspaces', 'ai file folder organize sort meetings workspace automatic inbox'),
+    if (services != null && meetingSlackOffered()) const SettingsFindable('Post to Slack', 'slack channel action items share link transcript automatic post meetings'),
   ];
 }
 
@@ -54,6 +57,11 @@ String meetingsSummary(AccountServices? services) {
 /// - **Recordings** ([MeetingRecordings]): Sync meeting recordings, and how many recordings stayed on this phone.
 /// - **Sorting** ([MeetingSorting]): whether a meeting written up is filed into its workspace's Meetings folder by
 ///   the AI (lib/ai/meeting_sort.dart; Matt, 2026-10-24), on unless turned off here. In Simple too.
+/// - **Post to Slack** ([MeetingsSlackSection]): each meeting's action items and its links posted to a Slack channel
+///   once it is written up (lib/plugins/slack/meetings.dart; Matt, 2026-10-26: "make the meetings plugin work hand
+///   in hand to sending meeting action items and a link to the meeting transcript to a specified slack channel"),
+///   drawn only where the Slack plugin is on with a channel on this device. In Simple its switch, the rest behind
+///   More.
 ///
 /// A meeting that became a note opens it ([onOpenNote], the host's: Settings shuts and the note opens).
 class MeetingsPane extends StatelessWidget {
@@ -85,6 +93,9 @@ class MeetingsPane extends StatelessWidget {
           if (services != null && mail != null && mailCardShown(mail)) MailCard(services: services, addressAbove: true),
           if (services != null && recordsVoice) MeetingRecordings(services: services),
           if (services != null) MeetingSorting(prefs: services.prefs),
+          // Asked here as well as in the section, which draws nothing where meetings cannot post: an empty child would
+          // still take a gap of the page's.
+          if (services != null && meetingSlackOffered()) MeetingsSlackSection(prefs: services.prefs),
         ],
       ),
     );
