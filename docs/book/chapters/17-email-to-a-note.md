@@ -110,6 +110,6 @@ The readable copy is never written to disk or to a log. The sealed copy waits un
 
 The same address brings Ghost to your meetings. Add it as a guest on a calendar invite that has a Google Meet or Zoom link. Ghost joins by itself, records the meeting, and files it as a note, written up with who said what. The invite mail becomes a note too.
 
-Make a new address and a calendar invite that still has the old one needs the new one. See [[Meetings]].
+Make a new address and a calendar invite that still has the old one needs the new one. See [[Meetings and the Meet bot]].
 
-See also: [[Meetings]] · [[Accounts, sync and encryption]] · [[Privacy]] · [[Workspaces, folders and search]] · [[Pictures, files and voice memos]]
+See also: [[Meetings and the Meet bot]] · [[Accounts, sync and encryption]] · [[Privacy]] · [[Workspaces, folders and search]] · [[Pictures, files and voice memos]]

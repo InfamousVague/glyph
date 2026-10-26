@@ -54,7 +54,7 @@ const note = "hello";
 ```
 ````
 
-**Tables.** Pipes between the cells, and a row of dashes under the first row. See [[Boards, tables and queries]].
+**Tables.** Pipes between the cells, and a row of dashes under the first row. See [[Boards, tables and live queries]].
 
 **Diagrams.** A code block marked `mermaid` is drawn as the diagram it describes. Tap it to change its words. It's drawn on the device, so it works offline.
 
@@ -129,4 +129,4 @@ Switch with the first round button in a note's tools, or **Show the marks** and 
 
 The cheat sheet, in Settings › About, has every mark with an example. **Ghost.md Academy** teaches them one at a time. The formatting reference at ghostmarkdown.com has them all too, with examples to copy.
 
-See also: [[Links, tags and footnotes]], [[Lists, to-dos and tickets]], [[Speaking a note]], [[The Market]]
+See also: [[Links, tags and footnotes]], [[Lists, to-dos and tickets]], [[Speaking your notes]], [[The Market]]

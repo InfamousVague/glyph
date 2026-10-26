@@ -48,7 +48,7 @@ The names and templates go away at your first letter. A note you leave without w
 
 ## Speak a note
 
-On Android and the Mac, you can say a note instead. Tap the microphone (**Speak a voice note** on the dock, or the round mic in Simple), talk, and tap **Done**. [[Speaking a note]] has the whole story.
+On Android and the Mac, you can say a note instead. Tap the microphone (**Speak a voice note** on the dock, or the round mic in Simple), talk, and tap **Done**. [[Speaking your notes]] has the whole story.
 
 ## Two ways to see a note
 
@@ -93,4 +93,4 @@ If you turn on **Tag new notes with my location** in Settings › Account, each 
 - **Ghost.md Academy** teaches one mark at a time, in short lessons. Open it from Settings › About. If you know Markdown already, switch on **I know Markdown already** to learn only Ghost.md's own marks.
 - **The cheat sheet** puts every mark on one page: Settings › About › **Cheat sheet**, or **Formatting cheat sheet** in a note's More sheet.
 
-See also: [[Markdown and Ghost.md's marks]], [[Speaking a note]], [[Workspaces, folders and search]], [[Notebooks and journals]]
+See also: [[Markdown and Ghost.md's marks]], [[Speaking your notes]], [[Workspaces, folders and search]], [[Notebooks and journals]]

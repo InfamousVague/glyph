@@ -80,7 +80,7 @@ In **Settings › Lovart › Meetings**, switch on **Inspiration for design meet
 
 Once a meeting is written up, if it reads as a design meeting (mockups, a brand, a layout, a logo, wireframes, typography and the like), Lovart makes a moodboard of four from its summary, under **Inspiration** in the meeting's note. A meeting whose title says design counts, and so does one whose summary mentions two different design words. A standup that mentions the UI once is left alone.
 
-It happens once per meeting, with your credits. The switch is kept on each device, and each device that writes a meeting up asks for its own. See [[Meetings]].
+It happens once per meeting, with your credits. The switch is kept on each device, and each device that writes a meeting up asks for its own. See [[Meetings and the Meet bot]].
 
 ## Credits, and costly steps
 

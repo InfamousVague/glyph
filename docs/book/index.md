@@ -19,16 +19,16 @@ Everything Ghost.md does, a page at a time: for the Android, iPhone and Mac apps
 6. [[Markdown and Ghost.md's marks]]
 7. [[Links, tags and footnotes]]
 8. [[Lists, to-dos and tickets]]
-9. [[Boards, tables and queries]]
+9. [[Boards, tables and live queries]]
 10. [[Pictures, files and voice memos]]
 11. [[Notebooks and journals]]
-12. [[Canvases]]
+12. [[Canvases, cards and lines]]
 13. [[Reminders and notifications]]
 
 ## Part III: Voice and meetings
 
-14. [[Speaking a note]]
-15. [[Meetings]]
+14. [[Speaking your notes]]
+15. [[Meetings and the Meet bot]]
 16. [[Tapes and transcripts]]
 17. [[Email to a note]]
 
@@ -41,7 +41,7 @@ Everything Ghost.md does, a page at a time: for the Android, iPhone and Mac apps
 
 20. [[Workspaces, folders and search]]
 21. [[Organizations and shared notes]]
-22. [[Version history]]
+22. [[Versions and history]]
 
 ## Part VI: The Market
 

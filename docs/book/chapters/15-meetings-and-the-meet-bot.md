@@ -1,5 +1,4 @@
-# Meetings
-
+# Meetings and the Meet bot
 Ghost.md can sit in on your meetings. Record one on your phone or Mac, or invite Ghost to a Google Meet call and it joins by itself. Either way you get a note with the transcript, and a summary of what was decided and who does what next.
 
 ## Recording a meeting yourself
@@ -94,4 +93,4 @@ The meeting's sound passes through Ghost.md's server while Ghost records it, sea
 
 Remember that a meeting is other people's voices. Let them know Ghost is there.
 
-See also: [[Tapes and transcripts]], [[Speaking a note]], [[Claude in Ghost.md]], [[Workspaces, folders and search]], [[Organizations and shared notes]]
+See also: [[Tapes and transcripts]], [[Speaking your notes]], [[Claude in Ghost.md]], [[Workspaces, folders and search]], [[Organizations and shared notes]]

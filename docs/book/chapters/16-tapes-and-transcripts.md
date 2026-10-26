@@ -57,7 +57,7 @@ A meeting gets a summary by itself when it's written up. For any other recording
 - If you record more with **Add** after the summary was written, the tape says the summary is from before the last take.
 - Summaries need the AI model on your device, or Claude with your key for meetings. Without either, the tape says it needs a model.
 
-Choose what's summarised by itself in Settings › Recording, under **Summaries**. See [[Meetings]].
+Choose what's summarised by itself in Settings › Recording, under **Summaries**. See [[Meetings and the Meet bot]].
 
 ## Recording more
 
@@ -65,7 +65,7 @@ Choose what's summarised by itself in Settings › Recording, under **Summaries*
 
 ## Playing a meeting from home
 
-In Advanced, the **Meetings** shelf on your home page holds a cassette for each meeting. Tap one and its note opens at the tape, already playing. On a Mac, rest the pointer on a cassette to hear it without opening it. See [[Meetings]].
+In Advanced, the **Meetings** shelf on your home page holds a cassette for each meeting. Tap one and its note opens at the tape, already playing. On a Mac, rest the pointer on a cassette to hear it without opening it. See [[Meetings and the Meet bot]].
 
 ## On your other devices
 
@@ -89,4 +89,4 @@ To free up space without losing any words, use **Remove audio older than a month
 
 **Works on:** recording and the tape's Add on Android and the Mac. The iPhone can read the words of a recorded note, and a meeting's transcript, but can't record.
 
-See also: [[Speaking a note]], [[Meetings]], [[Pictures, files and voice memos]], [[AI on your device]]
+See also: [[Speaking your notes]], [[Meetings and the Meet bot]], [[Pictures, files and voice memos]], [[AI on your device]]

@@ -1,5 +1,4 @@
-# Version history
-
+# Versions and history
 A note can keep every version of itself, like git keeps a project. You see who changed what and when, and you can go back to any version. Going back is kept as a version too, so it can be undone.
 
 ## Which notes keep versions

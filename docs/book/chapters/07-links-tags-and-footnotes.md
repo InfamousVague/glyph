@@ -32,7 +32,7 @@ Now you can point at it:
 - `[[Launch week#^ask-sam]]` opens Launch week on that line.
 - `[[#^ask-sam]]` points at the item of that name in the same note. A tap goes to its line.
 
-Boards use these names too. See [[Boards, tables and queries]].
+Boards use these names too. See [[Boards, tables and live queries]].
 
 ## A canvas inside a note
 
@@ -42,7 +42,7 @@ A link with `!` in front, alone on its line, draws a canvas inside the note:
 ![[Cabin weekend, laid out]]
 ```
 
-The canvas appears in a frame you can pan and zoom, with **Open** to go to the canvas itself. Nothing on it can be changed from the frame. See [[Canvases]].
+The canvas appears in a frame you can pan and zoom, with **Open** to go to the canvas itself. Nothing on it can be changed from the frame. See [[Canvases, cards and lines]].
 
 ## Links to the web
 
@@ -125,6 +125,6 @@ While you speak a note, links have spoken forms too:
 - "footnote Sam said so end footnote" writes a footnote.
 - "bookmark this" at the end of a line puts the bookmark there.
 
-See [[Speaking a note]].
+See [[Speaking your notes]].
 
-See also: [[Markdown and Ghost.md's marks]], [[Lists, to-dos and tickets]], [[Canvases]], [[Workspaces, folders and search]]
+See also: [[Markdown and Ghost.md's marks]], [[Lists, to-dos and tickets]], [[Canvases, cards and lines]], [[Workspaces, folders and search]]

@@ -115,6 +115,6 @@ If there's nothing yet, it says so: invitations, what Claude wrote and your meet
 
 A meeting is written up after it ends. To hear about it, go to Settings › Recording › Meetings, and turn on **Tell me when a meeting is written up**. You get a notification with the first line of the summary, once the phone is unlocked. If Android has notifications off for Ghost.md, the row says so and offers to allow them.
 
-Works on: Android. A meeting written up on another of your devices still reaches the bell, through the **Summaries** switch. See [[Meetings]].
+Works on: Android. A meeting written up on another of your devices still reaches the bell, through the **Summaries** switch. See [[Meetings and the Meet bot]].
 
-See also: [[Lists, to-dos and tickets]] · [[Plugins, one by one]] · [[Meetings]] · [[Claude in Ghost.md]] · [[Organizations and shared notes]] · [[Settings]]
+See also: [[Lists, to-dos and tickets]] · [[Plugins, one by one]] · [[Meetings and the Meet bot]] · [[Claude in Ghost.md]] · [[Organizations and shared notes]] · [[Settings]]

@@ -116,4 +116,4 @@ You can give a format after a colon, with words in square brackets: `{{date:D MM
 
 **Today**, on the **+** sheet, opens the note named by today's date, and makes it the first time. On a Mac, ⇧⌘D does the same. In Settings › Daily notes you can choose a template for it and where it goes, including into a notebook, so your daily notes collect in one place.
 
-See also: [[Your first notes]], [[Lists, to-dos and tickets]], [[Canvases]], [[Sharing and published sites]]
+See also: [[Your first notes]], [[Lists, to-dos and tickets]], [[Canvases, cards and lines]], [[Sharing and published sites]]

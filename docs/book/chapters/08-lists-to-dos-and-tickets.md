@@ -32,7 +32,7 @@ Tap the box to tick it, or type an `x` between the brackets.
 ### Where your to-dos gather
 
 - **In Simple,** the **To-dos** tab collects every open to-do from every note: **Overdue**, **Today**, **Later** and **Someday**. Tick one there and it's ticked in its note.
-- **In Advanced,** put a query in any note to list to-dos however you like: due this week, by person, on a calendar. See [[Boards, tables and queries]].
+- **In Advanced,** put a query in any note to list to-dos however you like: due this week, by person, on a calendar. See [[Boards, tables and live queries]].
 
 ### Due dates, priorities and people
 
@@ -117,7 +117,7 @@ key: GHO
 
 Link to a ticket anywhere with its key: `[[GHO-12]]` shows its title and a dot for its status, and is struck through once it's done.
 
-To see tickets across all your notes, as a board, a table or a timeline, use a query. See [[Boards, tables and queries]].
+To see tickets across all your notes, as a board, a table or a timeline, use a query. See [[Boards, tables and live queries]].
 
 ## Sending items elsewhere
 
@@ -125,6 +125,6 @@ With the Notion or GitHub plugin set up, swipe a list item left to send it as a 
 
 ## Saying lists
 
-When you speak a note, "bullet point" starts a list, "number one" a numbered one, and "check box" or "remember to" a to-do. "Done task" writes one already ticked, and "option" a choice. See [[Speaking a note]].
+When you speak a note, "bullet point" starts a list, "number one" a numbered one, and "check box" or "remember to" a to-do. "Done task" writes one already ticked, and "option" a choice. See [[Speaking your notes]].
 
-See also: [[Boards, tables and queries]], [[Notebooks and journals]], [[Simple and Advanced]], [[Links, tags and footnotes]]
+See also: [[Boards, tables and live queries]], [[Notebooks and journals]], [[Simple and Advanced]], [[Links, tags and footnotes]]

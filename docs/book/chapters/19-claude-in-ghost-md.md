@@ -111,4 +111,4 @@ While it works, Claude shows as online, a small dot on the dock's Claude. Follow
 
 A note Claude makes or changes through the connector lists Claude among its authors, after you: `authors: yourname, Claude`.
 
-See also: [[AI on your device]] · [[Meetings]] · [[Organizations and shared notes]] · [[Plugins, one by one]] · [[Privacy]]
+See also: [[AI on your device]] · [[Meetings and the Meet bot]] · [[Organizations and shared notes]] · [[Plugins, one by one]] · [[Privacy]]

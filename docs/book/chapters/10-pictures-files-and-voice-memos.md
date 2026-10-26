@@ -94,4 +94,4 @@ Pictures, files and recordings are kept beside your notes, in the app's own stor
 
 Delete the line and the picture or file is gone from the note. Undo brings it back.
 
-See also: [[Tapes and transcripts]], [[Links, tags and footnotes]], [[Canvases]], [[Accounts, sync and encryption]]
+See also: [[Tapes and transcripts]], [[Links, tags and footnotes]], [[Canvases, cards and lines]], [[Accounts, sync and encryption]]

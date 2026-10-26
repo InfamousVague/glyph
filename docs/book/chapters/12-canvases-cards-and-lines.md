@@ -1,5 +1,4 @@
-# Canvases
-
+# Canvases, cards and lines
 A canvas is a page you lay out by hand: cards anywhere you like, with lines between them. Use one to plan a trip, map out an idea, or see how the pieces of a project connect.
 
 Canvases are in Advanced. In Simple, they're behind **More** on the **+** sheet.

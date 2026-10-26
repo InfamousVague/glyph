@@ -88,10 +88,10 @@ An AI working through a member's Claude connector is listed under the members wi
 
 ## Version history
 
-Team notes keep their version history from the start, so you can see who changed what and go back. See [[Version history]].
+Team notes keep their version history from the start, so you can see who changed what and go back. See [[Versions and history]].
 
 ## Leaving
 
 **Leave organization**, in its settings, removes you. Its workspace goes from your devices, and nothing new from the team reaches you. The owner can't leave or delete their account while others are in it: hand the organization over first. When someone leaves, the team's key is replaced, so nothing new is sealed with a key they hold.
 
-See also: [[Workspaces, folders and search]] · [[Version history]] · [[Accounts, sync and encryption]] · [[Meetings]] · [[Claude in Ghost.md]]
+See also: [[Workspaces, folders and search]] · [[Versions and history]] · [[Accounts, sync and encryption]] · [[Meetings and the Meet bot]] · [[Claude in Ghost.md]]

@@ -15,7 +15,7 @@ Keep Ghost.md open while an import runs. It shows how far it has got, with **Sto
 Tap **Obsidian vault** and choose the vault's folder. Its notes, folders, pictures, files and canvases come in as they are:
 
 - Every note comes in word for word, with its front matter, `[[links]]` and `![[embeds]]`. Its folder comes too, inside a workspace called something like "Imported from Obsidian 2026-10-16".
-- Every `.canvas` becomes a canvas. See [[Canvases]].
+- Every `.canvas` becomes a canvas. See [[Canvases, cards and lines]].
 - Every attachment a note names is kept, and the note points at the kept copy. Attachments no note names are kept too, listed in one note.
 - Folders starting with a dot, such as `.obsidian` and `.trash`, are left out. So is any very large file. The report at the end says what was left.
 
@@ -112,4 +112,4 @@ If the folder can't be reached, say a drive is unplugged or a permission taken b
 
 To go back, choose **Use Ghost.md's own folder**: **Bring a copy back**, or **Start empty**. Ghost.md never deletes anything in a folder of yours.
 
-See also: [[Accounts, sync and encryption]] · [[Workspaces, folders and search]] · [[The Market]] · [[Plugins, one by one]] · [[Version history]] · [[Settings]]
+See also: [[Accounts, sync and encryption]] · [[Workspaces, folders and search]] · [[The Market]] · [[Plugins, one by one]] · [[Versions and history]] · [[Settings]]

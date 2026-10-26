@@ -36,7 +36,7 @@ Open a note and tap **More for this note** (the three dots). The **AI** group ho
 | **Make a list** | Tasks, a list or a table out of what is there. |
 | **Continue** | Carries on from the last line in the note's own voice. |
 
-Under them is a field, **Ask it to do something with this note**. Type any instruction, such as "make it shorter" or "put the dates in a table", and send it. You can also ask by voice: see [[Speaking a note]].
+Under them is a field, **Ask it to do something with this note**. Type any instruction, such as "make it shorter" or "put the dates in a table", and send it. You can also ask by voice: see [[Speaking your notes]].
 
 The runs keep every fact, name, number, date, link and picture. They never touch the front matter at the top of the note.
 
@@ -105,10 +105,10 @@ After a meeting, the device writes a summary under the note's title: what was de
 
 Once a meeting is written up, the AI files it into the Meetings folder of the workspace it is about. **Sort meetings into workspaces** in Settings › Meetings turns this off.
 
-If Claude is set up in the app, meetings are written up by Claude instead. See [[Claude in Ghost.md]] and [[Meetings]].
+If Claude is set up in the app, meetings are written up by Claude instead. See [[Claude in Ghost.md]] and [[Meetings and the Meet bot]].
 
 ## Local only
 
 **Local only**, in Settings › Account › Privacy, keeps Ghost.md to what is already on the device. Nothing is downloaded and blanks aren't looked up. Models you already have keep working, since they need nothing from outside. With no model and Local only on, the app says so, and asks you to turn it off to get one.
 
-See also: [[Speaking a note]] · [[Meetings]] · [[Claude in Ghost.md]] · [[Privacy]] · [[Settings]]
+See also: [[Speaking your notes]] · [[Meetings and the Meet bot]] · [[Claude in Ghost.md]] · [[Privacy]] · [[Settings]]

@@ -1,5 +1,4 @@
-# Speaking a note
-
+# Speaking your notes
 Say what you want written, and it arrives as Markdown. Spoken cues turn into marks as you go, so "check box" makes a to-do and "heading" starts a section. Your words are heard on the device, and the microphone is on only while you record.
 
 **Works on:** Android and the Mac. The iPhone app doesn't record yet.
@@ -112,4 +111,4 @@ The first time, Ghost.md downloads its voice model, about 60 MB. The home page s
 
 With **Local only** on, the model isn't downloaded. Turn Local only off in Settings to get it.
 
-See also: [[Meetings]], [[Tapes and transcripts]], [[Markdown and Ghost.md's marks]], [[AI on your device]]
+See also: [[Meetings and the Meet bot]], [[Tapes and transcripts]], [[Markdown and Ghost.md's marks]], [[AI on your device]]

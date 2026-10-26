@@ -123,4 +123,4 @@ Settings › About shows where things stand, with **Check for updates**.
 
 From the Play Store, updates come through the Play Store instead. Nothing looks for updates while the app is closed.
 
-See also: [[Install Ghost.md]] · [[Speaking a note]] · [[Claude in Ghost.md]] · [[Plugins, one by one]] · [[Home, tabs and the sidebar]] · [[Meetings]]
+See also: [[Install Ghost.md]] · [[Speaking your notes]] · [[Claude in Ghost.md]] · [[Plugins, one by one]] · [[Home, tabs and the sidebar]] · [[Meetings and the Meet bot]]

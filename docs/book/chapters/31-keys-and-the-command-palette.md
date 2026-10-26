@@ -107,4 +107,4 @@ Opened out, Ghost.md uses the room. Settings shows its list and a page side by s
 
 The iPhone app has the palette on **Search and commands**. It doesn't record, so there is no side key or voice shortcut.
 
-See also: [[Settings]] · [[Speaking a note]] · [[Claude in Ghost.md]] · [[Your first notes]] · [[The Market]]
+See also: [[Settings]] · [[Speaking your notes]] · [[Claude in Ghost.md]] · [[Your first notes]] · [[The Market]]

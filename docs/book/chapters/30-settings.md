@@ -59,7 +59,7 @@ Shown when your account has Ghost in meetings.
 - **Sorting**: **Sort meetings into workspaces**, which files each meeting into the right workspace's Meetings folder.
 - **Post to Slack**, with the Slack plugin added.
 
-See [[Meetings]].
+See [[Meetings and the Meet bot]].
 
 ## Appearance
 
@@ -110,7 +110,7 @@ What happens when you speak a note.
 - **Voice log**: what the app understood, for checking a spoken command.
 - **Watch**: shown when a Wear OS watch is connected, with **Send short watch recordings to Claude**.
 
-On Android and the Mac. Advanced only. See [[Speaking a note]].
+On Android and the Mac. Advanced only. See [[Speaking your notes]].
 
 ## AI
 

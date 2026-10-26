@@ -26,7 +26,7 @@ Depending on the layout, the page is made of a few sections:
 
 ### The Meetings shelf
 
-If you've recorded meetings, a **Meetings** shelf sits near the top: a row of cassettes that scrolls sideways, newest first, each with its note's title on the label. Under each is how long it is and the day it was. A meeting being recorded right now comes first, its reels turning. Tap a cassette to open the meeting's note. **See all** opens the rest. See [[Meetings]].
+If you've recorded meetings, a **Meetings** shelf sits near the top: a row of cassettes that scrolls sideways, newest first, each with its note's title on the label. Under each is how long it is and the day it was. A meeting being recorded right now comes first, its reels turning. Tap a cassette to open the meeting's note. **See all** opens the rest. See [[Meetings and the Meet bot]].
 
 The shelf doesn't show while you're searching, or in Simple.
 
@@ -47,7 +47,7 @@ The dock is the column of round buttons in the bottom corner. From top to bottom
 1. **Claude**, when Claude is on. With Talk to Claude, its microphone takes the place of Speak below, so there's only ever one microphone. See [[Claude in Ghost.md]].
 2. **Search and commands:** your notes by name and everything the app can do, in one list. See [[Keys and the command palette]].
 3. **Write a note:** the + that opens the New sheet.
-4. **Speak a voice note:** the microphone, on Android and the Mac. See [[Speaking a note]].
+4. **Speak a voice note:** the microphone, on Android and the Mac. See [[Speaking your notes]].
 5. **Market:** plugins, themes and fonts. See [[The Market]].
 6. **Settings**, at the foot.
 
@@ -126,4 +126,4 @@ Tap a note there for:
 
 Simple's home is one plain list with a search field on top, notes grouped by when, and two tabs at the bottom: **Notes** and **To-dos**. A round microphone and a round **+** sit beside them. There are no tabs along the top, no sidebar and no Market. See [[Simple and Advanced]].
 
-See also: [[Simple and Advanced]] · [[Your first notes]] · [[Workspaces, folders and search]] · [[Keys and the command palette]] · [[Meetings]] · [[Settings]]
+See also: [[Simple and Advanced]] · [[Your first notes]] · [[Workspaces, folders and search]] · [[Keys and the command palette]] · [[Meetings and the Meet bot]] · [[Settings]]

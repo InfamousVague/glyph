@@ -1,5 +1,4 @@
-# Boards, tables and queries
-
+# Boards, tables and live queries
 Three ways to lay out what's in your notes. A **board** puts list items in columns. A **table** puts words in rows and columns. A **query** gathers what matches from every note and shows it as a list, a table, a board, a calendar, a timeline or a count.
 
 All three are plain Markdown. Opened in another app, a board reads as a list, a table as a table, and a query as a few lines of text.
