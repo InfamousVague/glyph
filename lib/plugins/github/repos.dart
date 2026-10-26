@@ -7,7 +7,8 @@
 ///
 /// - Reading is GitHub's API: the repo's description and default branch, its file tree, and a handful of files that
 ///   say what the project is (the README, AGENTS.md, a few docs, and the manifest). A private repo needs a token,
-///   kept on this phone only.
+///   kept in the secure store and sealed into the synced settings for the account's other devices
+///   (lib/sync/connections.dart; Matt, 2026-10-26: the tokens kept the same on every device).
 /// - Distilling is the phone's own model, asked for a plain summary of names, parts and terms. No model keeps the
 ///   README's opening instead, so a link always gives something.
 /// - What is kept, and which note links to which project, is the plugin's storage: `glyph-github-projects` and
@@ -197,7 +198,7 @@ String? projectContextFor(String noteId) {
 /// (`projectContextVersion`).
 int projectContextVersion(String noteId) => projectFor(noteId)?.packedAt ?? 0;
 
-/// The token kept on this phone, or nothing (`githubToken`): what the host last saw of the secret.
+/// The token kept on this device, or nothing (`githubToken`): what the host last saw of the secret.
 String githubToken() => host.secrets.held(tokenSecret) ?? '';
 
 /// Keeps a token, trimmed; an empty one forgets it (`setGithubToken`). [githubToken] answers it at once; the future

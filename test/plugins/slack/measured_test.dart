@@ -65,7 +65,7 @@ void main() {
           inCard(find.text(title), web['titles']![i], parts: 'yh', what: 'title $title');
         }
         final descs = [
-          'Each is a Slack channel’s incoming webhook, under a name you give it. Kept on this device: not synced, and once kept no page can read the webhook back.',
+          'Each is a Slack channel’s incoming webhook, under a name you give it. Kept on each of your devices, and once kept no page can read the webhook back.',
           'In Slack, add an incoming webhook to the channel (Apps › Incoming WebHooks, or a workflow’s webhook), copy its URL, and paste it here.',
         ];
         for (final (i, words) in descs.indexed) {

@@ -2,9 +2,18 @@
 /// API key, which model to ask, and whether the "Ask Claude" inbox note is worked through as requests are added.
 ///
 /// The key is kept in the device's secure storage (lib/account/device_keys.dart [SecureStore]: the Android Keystore,
-/// the Keychain on a Mac and an iPhone), never in the preferences, never synced, never in the library folder a backup
-/// copies. Each device is given its key by hand. The model and the inbox switch sit beside it there, small strings,
-/// so the three are read together and a device with no key keeps nothing else.
+/// the Keychain on a Mac and an iPhone), never in the preferences in the clear, never in the library folder a backup
+/// copies. The model and the inbox switch sit beside it there, small strings, so they are read together and a device
+/// with no key keeps nothing else.
+///
+/// **They follow the account** (Matt, 2026-10-26: "make it so things like the Claude tokens and other stuff is kept
+/// in sync across all instances of ghost logged in to my account"). Until then each device was given its key by
+/// hand, and a meeting's summary stuck on the Mac, which had none, while the Fold did. Now the key, the model, the
+/// effort, the inbox and watch switches and the spending limit are each sealed under the account key into the synced
+/// settings (lib/sync/sealed_keys.dart, the items in lib/sync/connections.dart), and on another device written back
+/// into its secure store under the same names; [reload] then reads them again, so the next request, and the
+/// summaries' handoff, see the key. Settings › Account › Keep keys and connections in sync turns that off for a
+/// device.
 library;
 
 import 'package:flutter/foundation.dart';
@@ -84,6 +93,10 @@ class ClaudeSettings extends ChangeNotifier {
 
   final SecureStore _store;
 
+  /// Where the key and its choices are kept: the synced keys read and write it by the names above
+  /// (lib/sync/connections.dart), then [reload].
+  SecureStore get store => _store;
+
   /// What Claude has spent this month on this device, and the limit on it (lib/claude/claude_spend.dart), kept in
   /// the same store.
   final ClaudeSpend spend;
@@ -120,23 +133,36 @@ class ClaudeSettings extends ChangeNotifier {
   Future<void> load() => _loading ??= _load();
 
   Future<void> _load() async {
+    await _read();
+    await spend.load();
+    _loaded = true;
+    notifyListeners();
+  }
+
+  /// Reads the store again, once what is kept there was written by another device (lib/sync/sealed_keys.dart), and
+  /// tells whoever listens: the chat, the runner, the write-ups' queue and the summaries' handoff look again.
+  Future<void> reload() async {
+    await load();
+    await _read();
+    await spend.reloadLimit();
+    notifyListeners();
+  }
+
+  Future<void> _read() async {
     try {
       final key = await _store.read(claudeKeyName);
       final model = await _store.read(claudeModelName);
       final inbox = await _store.read(claudeInboxName);
       final effort = await _store.read(claudeEffortName);
       final watch = await _store.read(claudeWatchName);
-      if (effort != null && claudeEfforts.any((e) => e.$1 == effort)) _effort = effort;
+      _effort = effort != null && claudeEfforts.any((e) => e.$1 == effort) ? effort : null;
       _key = (key ?? '').trim().isEmpty ? null : key!.trim();
-      if (model != null && model.isNotEmpty) _model = model;
+      _model = model != null && model.isNotEmpty ? model : defaultClaudeModel;
       _inbox = inbox != 'off';
       _watch = watch != 'off';
     } catch (_) {
       // A store that cannot be read is a device with no key.
     }
-    await spend.load();
-    _loaded = true;
-    notifyListeners();
   }
 
   /// Keeps [key] (trimmed), or forgets it for null or blank.

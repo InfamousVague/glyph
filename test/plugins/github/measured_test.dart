@@ -87,7 +87,7 @@ void main() {
         }
         final descs = [
           'Repos the model on your phone has read. A note linked to one is formatted knowing its names and terms, and its list items can go there as issues.',
-          'A token lets Ghost.md read private repos and make and close issues from your notes. It stays on this phone.',
+          'A token lets Ghost.md read private repos and make and close issues from your notes. It stays on your devices.',
         ];
         for (final (i, words) in descs.indexed) {
           inCard(find.text(words), web['descs']![i], parts: 'yh', what: 'description $i');

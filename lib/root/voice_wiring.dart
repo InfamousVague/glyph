@@ -289,7 +289,8 @@ class Voice {
   VoidCallback? _stopHandoff;
 
   /// What the summaries' handoff looks again on (lib/ai/summary_handoff.dart): the preferences, where the meetings
-  /// waiting arrive from another device, and the notes, where a meeting's note arrives; set by [make].
+  /// waiting arrive from another device, the notes, where a meeting's note arrives, and Claude's settings and the
+  /// plugins' switches, where another device's key arrives (lib/sync/sealed_keys.dart); set by [make].
   Listenable? _handoffHears;
 
   /// Removes the audio of these notes' tapes from this device, their words and phrases kept, and answers which
@@ -704,7 +705,9 @@ class Voice {
         unawaited(assists.close());
       },
     );
-    voice._handoffHears = Listenable.merge([preferences, library]);
+    // And Claude's settings and the plugins' switches: a key or the switch that arrived from another device makes this
+    // one able to write a meeting up (lib/sync/sealed_keys.dart), and it looks again then.
+    voice._handoffHears = Listenable.merge([preferences, library, claudeSettings, plugins]);
     made = true;
     return voice;
   }

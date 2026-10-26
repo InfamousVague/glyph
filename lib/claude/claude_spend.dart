@@ -9,6 +9,13 @@
 /// key (one small JSON string, [claudeSpendName]), never synced, and starts again on the 1st of each month, local
 /// time.
 ///
+/// **The limit follows the account** (lib/sync/sealed_keys.dart; Matt, 2026-10-26: "the Claude tokens and other stuff
+/// is kept in sync across all instances of ghost"): its switch, amount and warning are kept a second time on their
+/// own, [claudeLimitName], written only when the person sets them, so a device that never chose one does not send the
+/// defaults over a choice made elsewhere. That one travels, sealed; the count stays each device's, as above, so each
+/// device holds its own month to the same limit. [ClaudeSpend.reloadLimit] reads it again once another device's
+/// arrives.
+///
 /// **What is counted:** every request through [meterClaude]: each turn of a chat's or a voice ask's tool loop, the
 /// inbox's, the folder tools' (all lib/claude/claude_run.dart), and a meeting's write-up (lib/ai/summary_claude.dart).
 /// A request cut off before Claude gave its last count (stopped, the connection lost) is counted with what it had
@@ -31,6 +38,9 @@ import 'sse.dart' show SseEvent;
 
 /// The name in the secure store.
 const String claudeSpendName = 'anthropic-spend';
+
+/// The limit's own name in the secure store: `{on, limit, warn}`, written when the person sets one (see the header).
+const String claudeLimitName = 'anthropic-limit';
 
 /// The [ClaudeError.type] of a request the limit kept from being sent.
 const String claudeLimitType = 'spending_limit';
@@ -281,6 +291,11 @@ class ClaudeSpend extends ChangeNotifier {
           _warned = json['warned'] == true;
         }
       }
+      // The limit's own copy, which another device's may have been written over (see the header). A limit turned on
+      // before there was one is a choice made all the same: its copy is made now, so it travels.
+      final own = await _store.read(claudeLimitName);
+      if (!_setEarly) _takeLimit(own);
+      if (own == null && json is Map && json['on'] == true) await _saveLimit();
     } catch (_) {
       // A store that cannot be read is a month with nothing counted.
     }
@@ -289,6 +304,52 @@ class ClaudeSpend extends ChangeNotifier {
   }
 
   Map<String, Object?> _json() => {'on': _on, 'limit': _limit, 'warn': _warn, 'month': _month, 'spent': _spent, 'requests': _requests, 'warned': _warned};
+
+  /// The limit as [claudeLimitName] holds it, over what was read: nothing for none, or for one that will not read.
+  /// Answers whether it changed anything.
+  bool _takeLimit(String? kept) {
+    if (kept == null) return false;
+    try {
+      final json = jsonDecode(kept);
+      if (json is! Map) return false;
+      final on = json['on'] == true, warn = json['warn'] != false;
+      final limit = json['limit'] is num && (json['limit'] as num) >= 0.01 ? (json['limit'] as num).toDouble() : _limit;
+      if (on == _on && warn == _warn && limit == _limit) return false;
+      if (limit != _limit) _warned = false;
+      _on = on;
+      _warn = warn;
+      _limit = limit;
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// The limit's settings as [claudeLimitName] holds them.
+  String get limitText => jsonEncode({'on': _on, 'limit': _limit, 'warn': _warn});
+
+  /// Keeps the limit's own copy, after the person set it.
+  Future<void> _saveLimit() async {
+    try {
+      await _store.write(claudeLimitName, limitText);
+    } catch (_) {
+      // Kept in the whole count's copy all the same.
+    }
+  }
+
+  /// Reads [claudeLimitName] again: another device's limit arrived in the store (lib/sync/sealed_keys.dart).
+  Future<void> reloadLimit() async {
+    if (!_loaded) await load();
+    String? kept;
+    try {
+      kept = await _store.read(claudeLimitName);
+    } catch (_) {
+      return;
+    }
+    if (!_takeLimit(kept)) return;
+    notifyListeners();
+    await _save();
+  }
 
   /// Writes what is kept: the whole of it each time, so the last write is the last word (the store takes its writes
   /// in the order they are made). A store that cannot be written keeps the count for this run of the app only.
@@ -331,6 +392,7 @@ class ClaudeSpend extends ChangeNotifier {
     if (!_loaded) _setEarly = true;
     notifyListeners();
     await _save();
+    await _saveLimit();
   }
 
   /// A new limit, in US dollars; nothing under a cent is taken.
@@ -342,6 +404,7 @@ class ClaudeSpend extends ChangeNotifier {
     _warned = false;
     notifyListeners();
     await _save();
+    await _saveLimit();
   }
 
   Future<void> setWarn(bool warn) async {
@@ -350,6 +413,7 @@ class ClaudeSpend extends ChangeNotifier {
     if (!_loaded) _setEarly = true;
     notifyListeners();
     await _save();
+    await _saveLimit();
   }
 
   /// Starts this month's count again.

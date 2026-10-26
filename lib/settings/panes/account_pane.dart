@@ -11,6 +11,7 @@ import '../../core/place_tags.dart';
 import '../../core/preferences.dart';
 import '../../mail/ui/mail_card.dart';
 import '../../sync/engine.dart' show syncSummary, syncedWhen, unsentLine;
+import '../../sync/sealed_keys.dart' show keysInSync;
 import '../account_forms.dart';
 import '../colour_card.dart';
 import '../kit/settings_kit.dart';
@@ -55,6 +56,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
             const SettingsFindable('Sync now', 'devices'),
             // Sync meeting recordings is Meetings' now (meetings_pane.dart `meetingsFindable`).
             const SettingsFindable('Live typing', 'realtime collaborate claude'),
+            const SettingsFindable(keysInSyncLabel, 'claude api key token slack github webhook secrets devices'),
             const SettingsFindable('Password and recovery codes', 'change'),
             const SettingsFindable('Sign out', 'log out logout'),
             // The page lists it always; here only while the card is drawn, so a hit always has somewhere to land.
@@ -73,6 +75,9 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
         ...locationFindable,
         ghostexExportFindable,
       ];
+
+/// The Sync card's switch for the keys and connections (lib/sync/sealed_keys.dart [keysInSync]).
+const String keysInSyncLabel = 'Keep keys and connections in sync';
 
 /// Account's row in the list (SettingsSheet.tsx: `syncSummary` with " · Local only" while that holds the sync off).
 /// Without [services] it is the signed-out line.
@@ -111,6 +116,10 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///   [SettingsFeatures.signedIn] drawing the card that says the signed-in page waits.
 /// - Live typing's switch writes [AccountServices.liveTyping], which the app's account keeps as this device's own
 ///   flag (the page's `glyph-live`; lib/root/account_wiring.dart): a note opened after it is on is live.
+/// - **Keep keys and connections in sync**, the port's own (Matt, 2026-10-26: "make it so things like the Claude tokens
+///   and other stuff is kept in sync across all instances of ghost logged in to my account"), is this device's flag
+///   too ([keysInSync], `glyph-keys-sync`, on unless turned off): off, this device sends none of its keys and takes
+///   none, and keeps the ones it has (lib/sync/sealed_keys.dart).
 /// - The form's fields are the kit's `GlacierInput`; a password manager is not told which is which
 ///   (`autocomplete`) beyond what the kit passes on.
 /// - There is no list of this account's devices: the web's page has none either.
@@ -440,6 +449,16 @@ class _AccountPaneState extends State<AccountPane> {
                 label: 'Live typing',
                 hint: const Text('A note open on two of your devices, or one Claude is writing in, shows the words as they are typed, end to end encrypted like everything else. Starts with the next note you open.'),
                 control: GlacierSwitch(ariaLabel: 'Live typing', checked: services.liveTyping.value, onCheckedChange: (on) => services.liveTyping.value = on),
+              ),
+              // The keys and connections that follow the account (lib/sync/sealed_keys.dart), on unless turned off here
+              // (Matt, 2026-10-26).
+              SettingRow(
+                label: keysInSyncLabel,
+                hint: const Text('Your Claude key, Slack channels and GitHub token on each device you sign in to. End-to-end encrypted: the server can’t read them.'),
+                control: ValueListenableBuilder<bool>(
+                  valueListenable: keysInSync,
+                  builder: (context, on, _) => GlacierSwitch(ariaLabel: keysInSyncLabel, checked: on, onCheckedChange: keysInSync.set),
+                ),
               ),
               SettingRow(icon: const AppIcon(Lucide.keyRound, size: 20), label: 'Password and recovery codes', onPress: () => setState(() => _editing = true)),
               SettingRow(icon: const AppIcon(Lucide.logOut, size: 20), label: 'Sign out', hint: const Text('Your notes stay on this device.'), onPress: () => unawaited(services.signOut())),

@@ -81,8 +81,13 @@ Settings › Plugins › Claude, In the app (lib/plugins/claude/claude_in_app.da
 its own, until 2026-10-17): the key, checked before it is kept (one read of
 `GET /v1/models`), shown only as its start and last four, with Check and Forget (asked twice); the model (Sonnet 5.5
 by default, Opus 5.5, Haiku 5.5); the inbox switch. The key is kept in the device's secure storage
-(lib/account/device_keys.dart: the Android Keystore, the Keychain on a Mac and an iPhone), never in the preferences,
-never synced, never in the library folder a backup copies; each device is given its own. Off a phone and a Mac it is
+(lib/account/device_keys.dart: the Android Keystore, the Keychain on a Mac and an iPhone), never in the preferences
+in the clear, never in the library folder a backup copies. Since 2026-10-26 it follows the account (Matt: "make it so
+things like the Claude tokens and other stuff is kept in sync across all instances of ghost logged in to my
+account"): the key, the model, the effort, the inbox and watch switches, the plugin's switch and the spending limit
+are each sealed under the account key into the synced settings and written into the next device's secure store
+(docs/SYNC.md, "Keys and connections"), unless Settings › Account › Keep keys and connections in sync is off there.
+Before, each device was given its own, and a meeting stuck on the Mac, which had none. Off a phone and a Mac it is
 memory only. What is asked, and the notes Claude reads to answer, go from the device to `api.anthropic.com` and
 nowhere else; Anthropic bills the key. So do meetings' transcripts, while Claude writes meetings up (Meetings,
 below).
@@ -98,7 +103,9 @@ lib/claude/claude_spend.dart). Search finds it by spending, limit, budget and co
   N requests" with Reset count. The card says the count is "Counted on this device from what Claude reports for each
   request; other apps or devices using the same key aren't included": the API cannot report a key's spend without an
   Admin key, so this is the app's own count, per device, never synced, kept as one JSON string in the secure store
-  beside the key (`anthropic-spend`).
+  beside the key (`anthropic-spend`). The limit itself (on, the amount, the warning) is kept a second time on its own,
+  `anthropic-limit`, written only when it is set, and that one follows the account (docs/SYNC.md, "Keys and
+  connections"): each device holds its own month to the same limit.
 - **What is counted.** Every request: each turn of a run's tool loop (the chat, a voice ask, the inbox, the folder
   tools, all through lib/claude/claude_run.dart) and each request of a meeting's write-up (lib/ai/summary_claude.dart),
   both through `meterClaude`, which reads `usage` from `message_start` and `message_delta` (input, output, cache

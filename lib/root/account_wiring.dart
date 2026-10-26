@@ -33,6 +33,7 @@ import '../account/crypto.dart';
 import '../account/crypto_api.dart' show rounds;
 import '../account/device_keys.dart';
 import '../account/ui_state.dart';
+import '../ai/summary_handoff.dart' show thisDevice;
 import '../core/native/core.dart';
 import '../core/native/files.dart';
 import '../core/note.dart';
@@ -53,12 +54,14 @@ import '../orgs/org_keys.dart';
 import '../orgs/orgs.dart';
 import '../share/share.dart';
 import '../share/sites.dart';
+import '../sync/connections.dart';
 import '../sync/device.dart';
 import '../sync/engine.dart';
 import '../sync/feed.dart';
 import '../sync/local.dart';
 import '../sync/phone.dart';
 import '../sync/record.dart';
+import '../sync/sealed_keys.dart';
 import '../team/crdt.dart';
 import '../team/doc.dart';
 import '../team/docs.dart';
@@ -220,6 +223,9 @@ class WiredAccount {
       // What was posted to the account's incoming webhooks (docs/INTEGRATIONS.md, §1): on every device, while the
       // Webhooks plugin is on.
       hooksIn: hooksWhileOn,
+      // Claude's key and choices, the Slack channels, the GitHub token: the same on every device, each sealed on its
+      // own (lib/sync/sealed_keys.dart; Matt, 2026-10-26).
+      sealedKeys: SealedKeys(items: connectionItems, prefs: settings, device: () => thisDevice(device).id, heard: connectionChanges(), kept: device),
     );
     final noteLive = NoteLive(
       live: live,
@@ -320,6 +326,7 @@ class WiredAccount {
     live.dispose();
     phone.dispose();
     engine.dispose();
+    engine.sealedKeys?.dispose();
     unawaited(Future<void>.sync(_docs.forget).catchError((Object _) {}));
   }
 }

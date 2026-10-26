@@ -19,8 +19,9 @@
 ///
 /// - **Only where it is set up.** The plugin on (Local only holds it off), a channel on this device, one chosen for
 ///   meetings and the switch on; never on an iPhone, where Slack is not yet (lib/core/iphone_app.dart
-///   `notOnIPhone`). The choice is this device's ([meetingSlackSettings], in the plugin's storage beside the
-///   channels it names, which do not sync either).
+///   `notOnIPhone`). The choice ([meetingSlackSettings], in the plugin's storage beside the channels it names) follows
+///   the account with them (lib/sync/connections.dart; Matt, 2026-10-26), so whichever device writes a meeting up has
+///   the channel and the switch, and posts it.
 /// - **Once per meeting, for the account.** The device that wrote the meeting up posts it; before the first try the
 ///   meeting is marked in the synced preferences ([slackMeetingPostsKey], merged an entry at a time as
 ///   ai/meeting_sort.dart's marks are), so a summary made again, here or on another device, posts nothing, and

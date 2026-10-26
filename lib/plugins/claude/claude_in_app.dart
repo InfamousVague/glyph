@@ -323,7 +323,7 @@ class _ClaudeInAppState extends State<ClaudeInApp> {
               description: const Text(
                 'Ask Claude from the dock on any page or the command bar, and it reads, makes and changes your notes, typing into the note as you watch. It uses your own Anthropic API key: what you ask, and the notes Claude reads to answer, go from this device to Anthropic, and Anthropic bills the key.',
               ),
-              footer: const Text('The key is kept on this device alone, in its secure storage. It is never synced; give each device its own. Make one at console.anthropic.com.'),
+              footer: const Text('The key is kept in this device’s secure storage, and sealed to your other devices while Keep keys and connections in sync is on (Settings › Account). Make one at console.anthropic.com.'),
               children: [
                 if (key == null)
                   SettingRow(

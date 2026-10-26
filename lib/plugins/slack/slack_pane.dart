@@ -240,7 +240,7 @@ class _SlackPaneState extends State<SlackPane> {
         if (said != null) SettingsCallout(child: Text(said)),
         PaneSection(
           title: 'Channels',
-          description: const Text('Each is a Slack channel’s incoming webhook, under a name you give it. Kept on this device: not synced, and once kept no page can read the webhook back.'),
+          description: const Text('Each is a Slack channel’s incoming webhook, under a name you give it. Kept on each of your devices, and once kept no page can read the webhook back.'),
           children: [
             if (list.isEmpty) const SettingRow(label: 'No channels yet', hint: Text('Add one below: a name, and the webhook Slack gives you.')) else for (final channel in list) _channelRow(t, channel),
           ],

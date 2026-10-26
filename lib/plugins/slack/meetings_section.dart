@@ -160,7 +160,7 @@ class _MeetingsSlackSectionState extends State<MeetingsSlackSection> {
         final open = !simple || _more;
         return PaneSection(
           title: 'Post to Slack',
-          description: const Text('Set on this device, with the channels it has. Each meeting is posted once, from the device that writes it up.'),
+          description: const Text('The same on each of your devices, with your channels. Each meeting is posted once, from the device that writes it up.'),
           children: [
             SettingRow(
               icon: const AppIcon(Lucide.hash, size: 16),

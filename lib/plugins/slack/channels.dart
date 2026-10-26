@@ -14,8 +14,13 @@
 ///   since whoever holds it can post to the channel, so once it is handed over no page shows it again: a post names
 ///   the channel, and the webhook is read here for that post alone.
 ///
-/// Both are this device's only. Nothing here syncs, so a second phone has no channels until they are added there,
-/// and an organization's news is posted from each device that has a channel set for it (news.dart).
+/// Both follow the account (Matt, 2026-10-26: "make it so things like the Claude tokens and other stuff is kept in
+/// sync across all instances of ghost logged in to my account"; until then nothing here synced, and a second phone had
+/// no channels until they were added there). Each webhook and the list are sealed on their own into the synced
+/// settings (lib/sync/sealed_keys.dart, lib/sync/connections.dart) and written back on another device under the same
+/// names, the webhook first, so a channel added on the Fold posts from the Mac and one forgotten anywhere is forgotten
+/// everywhere. Not on an iPhone, where Slack is not yet. Where an organization's news goes stays each device's: it is
+/// posted from each device that has a channel set for it (news.dart), so that choice is made on one.
 ///
 /// What differs:
 /// - **There is no Rust.** The page went through four commands because a WebView has an origin and hooks.slack.com

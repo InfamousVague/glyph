@@ -96,7 +96,7 @@ class _GitHubPaneState extends State<GitHubPane> {
         ),
         PaneSection(
           title: 'Token',
-          description: const Text('A token lets Ghost.md read private repos and make and close issues from your notes. It stays on this phone.'),
+          description: const Text('A token lets Ghost.md read private repos and make and close issues from your notes. It stays on your devices.'),
           children: [
             if (hasToken)
               SettingRow(

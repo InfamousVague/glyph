@@ -32,6 +32,7 @@ import '../account/crypto_api.dart';
 import '../ai/summary_handoff.dart' show mergedHandoffs, summaryHandoffsKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
+import 'sealed_keys.dart' show mergedSealedKeys, sealedKeysKey;
 
 /// The settings that travel (`SYNCED_PREFS`), in the page's order, which is the order they are written in.
 const List<String> syncedPrefs = [
@@ -113,14 +114,29 @@ const List<String> syncedPrefs = [
   // and secret, and each incoming hook's default note, sealed with the rest. How each hook last went stays with the
   // device that sent it.
   'webhooks',
+  // The keys and connections that follow the account (lib/sync/sealed_keys.dart; Matt, 2026-10-26: "things like the
+  // Claude tokens and other stuff is kept in sync across all instances of ghost logged in to my account"): Claude's
+  // key and its choices, the Slack channels with their webhooks, the GitHub token. Each value sealed again on its own,
+  // so the settings kept on a device in the clear hold none of them readable; merged an entry at a time, the later
+  // change winning (`mergedSealedKeys`).
+  sealedKeysKey,
 ];
+
+/// The settings this build syncs: [syncedPrefs], or the list a test gives to be an older build
+/// ([syncedPrefsAsOlderBuild]).
+List<String> _synced = syncedPrefs;
+
+/// For the tests: this app as an older build that syncs only [keys], or as itself again for null.
+@visibleForTesting
+// ignore: avoid_setters_without_getters
+set syncedPrefsAsOlderBuild(List<String>? keys) => _synced = keys ?? syncedPrefs;
 
 typedef _Entries = Map<String, Object?>;
 
 /// The synced settings out of a whole set (`pickSynced`), in [syncedPrefs]' order. A key the set does not have is
 /// left out, as `JSON.stringify` leaves out an `undefined`.
 Map<String, Object?> pickSynced(Map<String, Object?> prefs) => {
-      for (final key in syncedPrefs)
+      for (final key in _synced)
         if (prefs.containsKey(key)) key: prefs[key],
     };
 
@@ -131,7 +147,7 @@ Map<String, Object?> _known(Object? value) {
   final map = _entries(value);
   if (map == null) return {};
   return {
-    for (final key in syncedPrefs)
+    for (final key in _synced)
       if (map.containsKey(key)) key: map[key],
   };
 }
@@ -142,7 +158,7 @@ Map<String, Object?> _unknown(Object? value) {
   if (map == null) return {};
   return {
     for (final entry in map.entries)
-      if (!syncedPrefs.contains(entry.key)) entry.key: entry.value,
+      if (!_synced.contains(entry.key)) entry.key: entry.value,
   };
 }
 
@@ -202,7 +218,7 @@ List<Object?> _madeOnBoth(List<Object?> base, List<Object?> theirs, List<Object?
 /// [now] is when a claim is judged live at, the clock's unless a test says.
 Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine, Map<String, Object?> theirs, {int? now}) {
   final out = <String, Object?>{...mine};
-  for (final key in syncedPrefs) {
+  for (final key in _synced) {
     if (!theirs.containsKey(key)) continue;
     final b = _entries(base[key]), m = _entries(mine[key]), t = _entries(theirs[key]);
     if (_said(mine, key) == _said(base, key)) {
@@ -215,6 +231,9 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
       // A note filed in a workspace the other device removed is in none.
       notes.removeWhere((note, space) => !list.any((each) => each is Map && each['id'] == space));
       out[key] = {...m, 'list': list, 'notes': notes};
+    } else if (key == sealedKeysKey && m != null && t != null) {
+      // The later change of each key stands, a removal among them (lib/sync/sealed_keys.dart).
+      out[key] = mergedSealedKeys(b ?? const {}, m, t);
     } else if (key == summaryHandoffsKey && m != null && t != null) {
       // A live claim the account already held is kept over this device's: a meeting's summary is claimed once.
       out[key] = mergedHandoffs(b ?? const {}, m, t, now: now);
@@ -298,10 +317,16 @@ Future<bool> syncPrefs(PrefsContext ctx, {bool retry = true}) async {
   if (rev != ctx.state.rev && blob != null && (!changedHere || ctx.state.seen == null)) {
     // Another device wrote, and this one has nothing of its own to say - or has never synced, in which case the
     // account's settings are the ones a person signing in expects to see.
-    ctx.write(await open(blob));
-    final now = jsonEncode(pickSynced(ctx.read()));
+    final theirs = await open(blob);
+    ctx.write(theirs);
+    final after = pickSynced(ctx.read());
+    final now = jsonEncode(after);
     took = now != mine;
-    ctx.state = PrefsState(rev: rev, seen: now);
+    // Keys this device holds and an account that never had any does not: this device's to send, so not counted as
+    // seen, and the next pass sends them (lib/sync/sealed_keys.dart). Any other setting the account lacks stays as
+    // it always has.
+    final unsent = !theirs.containsKey(sealedKeysKey) && after.containsKey(sealedKeysKey);
+    ctx.state = PrefsState(rev: rev, seen: unsent ? jsonEncode({...after}..remove(sealedKeysKey)) : now);
     ctx.save(ctx.state);
     return took;
   }
@@ -454,7 +479,7 @@ class PrefsBridge {
     final now = store.value.toJson();
     if (!applying) {
       var let = false;
-      for (final key in syncedPrefs) {
+      for (final key in _synced) {
         final was = _held[key];
         if (!_held.containsKey(key) || was is Map || was is List) continue;
         if (!_alike(now[key], _typed[key])) {
@@ -474,13 +499,13 @@ class PrefsBridge {
     final asRead = Preferences.fromJson({...typed, ..._held}).toJson();
     return {
       for (final entry in typed.entries)
-        entry.key: _held.containsKey(entry.key) && syncedPrefs.contains(entry.key) ? restored(_held[entry.key], asRead[entry.key], entry.value) : entry.value,
+        entry.key: _held.containsKey(entry.key) && _synced.contains(entry.key) ? restored(_held[entry.key], asRead[entry.key], entry.value) : entry.value,
     };
   }
 
   /// The account's settings laid over this device's (`PrefsContext.write`).
   void write(Map<String, Object?> next) {
-    for (final key in syncedPrefs) {
+    for (final key in _synced) {
       if (next.containsKey(key)) _held[key] = next[key];
     }
     _keep();

@@ -50,10 +50,10 @@ void main() {
       await away(tester);
     });
 
-    testWidgets('adds a channel, then lists it by its name alone, kept on this device', (tester) async {
+    testWidgets('adds a channel, then lists it by its name alone, its webhook never shown again', (tester) async {
       await pumpPane(tester, const SlackPane());
       expect(textOf(tester), contains('No channels yet'));
-      expect(textOf(tester), contains('Kept on this device'));
+      expect(textOf(tester), contains('Kept on each of your devices'));
       await type(tester, 'Channel name', '#launch');
       await type(tester, 'Webhook', 'https://example.com/hook');
       expect(textOf(tester), contains('isn’t a Slack webhook'));

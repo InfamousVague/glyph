@@ -149,6 +149,15 @@ class Registry extends ChangeNotifier {
     _told();
   }
 
+  /// The switch as another device set it (lib/sync/connections.dart): kept as set, whatever Local only says here,
+  /// since it is the person's choice and not this device's state, as [switchedOn] reads it.
+  void setSwitch(String id, bool on) {
+    if (byId(id) == null || _switches[id] == on) return;
+    _switches = {..._switches, id: on};
+    _store.write(_switches);
+    _told();
+  }
+
   /// Local only turning on or off changes who is enabled without a switch moving (`onPreferences`): the root calls
   /// this when the preferences change.
   void preferencesChanged() => _told();

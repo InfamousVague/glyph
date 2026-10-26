@@ -25,6 +25,10 @@
 /// - `announceNotesChanged` is the `onNotesChanged` the engine is given (`NoteLibrary.refresh`).
 /// - The settings go through a [PrefsBridge] (prefs.dart), so nothing the typed preferences do not model is lost
 ///   on the way through.
+/// - **The settings step carries the keys too** (sealed_keys.dart; Matt, 2026-10-26: the Claude key and the rest kept
+///   the same on every device): just before the settings' pass, this device's changed keys are sealed into them
+///   ([SealedKeys.gather]); just after it, what another device changed is written into this device's own stores
+///   ([SealedKeys.apply]). A key changed here asks for a sync soon, as a setting does ([SealedKeys.changes]).
 /// - **Step 5's second half is a hook.** The organizations' keys are seen to here (lib/orgs/org_keys.dart), and each
 ///   organization's own channel (`core/team/sync.ts`) is the [TeamNotesPass] the engine is given: team notes wait
 ///   for the CRDT (docs/STAGE7.md, pieces I and J). Without one, the keys are still read, made and filled, and
@@ -62,6 +66,7 @@ import 'feed.dart';
 import 'notes.dart';
 import 'prefs.dart';
 import 'record.dart';
+import 'sealed_keys.dart';
 
 /// How long after the last change a sync follows (`QUIET_MS`).
 const Duration quietWait = Duration(seconds: 4);
@@ -301,6 +306,7 @@ class SyncEngine {
     this.mailIn,
     this.meetIn,
     this.hooksIn,
+    this.sealedKeys,
     NotesPass? notesPass,
     PrefsPass? prefsPass,
     FeedPass? feedPass,
@@ -346,6 +352,10 @@ class SyncEngine {
   /// Incoming webhooks (lib/integrations/webhooks/incoming.dart `syncHooks`): what was posted to the account's hooks,
   /// put into its notes just before the notes step, which then sends them on. Null where it is not offered.
   final HookPass? hooksIn;
+
+  /// The keys and connections that follow the account (sealed_keys.dart), gathered and applied around the settings'
+  /// pass. Null where none travel.
+  final SealedKeys? sealedKeys;
 
   final Stored? _kept;
   final int Function() _now;
@@ -413,6 +423,8 @@ class SyncEngine {
       _device.write(_stateKey(accountId, part), null);
     }
     _bridgeFor(accountId).forget();
+    // The keys this device took, and the sealed entries in the settings here: the next account never sends them.
+    sealedKeys?.forget(accountId);
     // And each organization's channel, kept under `team-<org id>`: read before the organizations go.
     for (final row in orgs.orgRowsOf(accountId)) {
       _device.write(_stateKey(accountId, 'team-${row.id}'), null);
@@ -778,8 +790,13 @@ class SyncEngine {
       final prefsKey = _stateKey(accountId, 'prefs');
       await step('Preferences', () async {
         final bridge = _bridgeFor(accountId);
+        final sealed = sealedKeys;
+        final keysCtx = KeysContext(key: accountKey, crypto: crypto, accountId: accountId);
         bridge.applying = true;
         try {
+          // The keys changed here, sealed into the settings before they go; a key that will not seal is left for the
+          // next pass, and the settings go all the same.
+          if (sealed != null) await _keys('gathered', () => sealed.gather(keysCtx));
           await _prefsPass(PrefsContext(
             token: token,
             key: accountKey,
@@ -798,6 +815,8 @@ class SyncEngine {
         } finally {
           bridge.applying = false;
         }
+        // And another device's keys, into this device's own stores.
+        if (sealed != null) await _keys('applied', () => sealed.apply(keysCtx));
       });
       // The settings in, and the team's notes filed: folders made twice are made one (lib/core/workspaces.dart
       // `mergeTwinFolders`), outside the settings' own write, so what it changes goes with the next pass.
@@ -811,6 +830,16 @@ class SyncEngine {
       // The session lapsed mid-sync: renew it (with this device's key if need be) and go again next time.
       if (failure is ApiError && failure.status == 401) await _resume();
       _phase('error', message: failureText(failure));
+    }
+  }
+
+  /// A move of the sealed keys, its failure said by its kind alone (what a key held is never said) and not the
+  /// settings' own.
+  Future<void> _keys(String move, Future<int> Function() run) async {
+    try {
+      await run();
+    } catch (failure) {
+      debugPrint('[sync] the keys were not $move: ${failure.runtimeType}');
     }
   }
 
@@ -854,6 +883,10 @@ class SyncEngine {
     if (_active) _syncSoon();
   }
 
+  void _onKeys() {
+    if (_active) _syncSoon();
+  }
+
   void _onPrefs() {
     final session = account.session;
     if (session == null) return;
@@ -881,6 +914,8 @@ class SyncEngine {
     }
     touched?.addListener(_onChanged);
     prefs.addListener(_onPrefs);
+    sealedKeys?.start();
+    sealedKeys?.changes.addListener(_onKeys);
     _beat = Timer.periodic(everyWait, (_) {
       if (_active) unawaited(syncNow());
     });
@@ -893,6 +928,7 @@ class SyncEngine {
     _started = false;
     touched?.removeListener(_onChanged);
     prefs.removeListener(_onPrefs);
+    sealedKeys?.changes.removeListener(_onKeys);
     _launch?.cancel();
     _quiet?.cancel();
     _beat?.cancel();
