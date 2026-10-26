@@ -74,6 +74,13 @@
 /// summary the phone or the Mac's core wrote anyway (a config sent before Claude was chosen; the Mac, which is sent
 /// none) is put aside for Claude's.
 ///
+/// HANDED ON (Matt, 2026-10-26: "The engineering standup meeting was not auto summarized and sorted into the hello
+/// trade meetings folder"; ai/summary_handoff.dart). A meeting that needs a model on this device, with no Claude here
+/// to write it, no longer waits for ever: it is marked as waiting in the synced settings, and another of the
+/// account's devices that can write it claims it, once, writes it into the note through this same queue, sorts it,
+/// and marks it done; this device's job waits ("Waiting for a summary: …") until then, and goes. Every meeting's job
+/// is claimed before it runs where another device waits on it ([handoff]).
+///
 /// What differs:
 /// - The web's module is one queue for the page, with its state in module variables. Here it is a [Summaries], made
 ///   once by whoever wires the app, with the module's exported functions as its methods under the web's names.
@@ -121,11 +128,13 @@ import '../core/note_text.dart' show noteTitle;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../format/prompt.dart' show fill, notesContext, pieceContext, recordingNotesBudget, recordingNotesPrompt, recordingSummaryBudget, recordingSummaryPrompt, temperature;
+import '../meet/speakers.dart' show sectionOf;
 import 'available.dart' show modelFor, presentIds;
 import 'backend.dart' show AiFailure, ModelInfo, Run, RunOptions, generate, listModels, unloadModel;
 import 'runs.dart' show RunHandle, RunPhase, anyRunning;
 import 'summary_ask.dart';
 import 'summary_claude.dart' show ClaudeWriting, MeetingClaude, claudeLasting;
+import 'summary_handoff.dart' show HandoffQueue, SummaryHandoff;
 import 'summary_keep.dart' show KeptSummary, keepSummary, readSummary;
 import 'summary_text.dart' show carryTicked, shapeSummary, summaryHeading, summarySection, transcriptPieces, withSummary;
 import 'support/failure.dart' show failureText;
@@ -373,7 +382,7 @@ String _counted(int n) {
 }
 
 /// The summary queue: its jobs, when each runs and when it waits, and what it writes.
-class Summaries {
+class Summaries implements HandoffQueue {
   Summaries({
     required this.isTauri,
     required this.preferences,
@@ -473,6 +482,19 @@ class Summaries {
 
   /// The app's own Claude, which writes meetings up where it is chosen (ai/summary_claude.dart); none is never.
   final MeetingClaude? claude;
+
+  /// A meeting's summary handed on to another of the account's devices where this one cannot write it, and one
+  /// another device could not write taken on here (ai/summary_handoff.dart); given once both are made, none in a
+  /// build with no account to hand on through. What the queue does for it:
+  /// - a meeting's job that needs a model here is marked waiting ([SummaryHandoff.waitingHere], from [_publish]);
+  /// - a meeting's job is claimed before it runs ([SummaryHandoff.claim]), a job held by another device's live claim
+  ///   is passed over, and one the account says is done elsewhere is let go; a Replace the person asked for is
+  ///   theirs and claims nothing;
+  /// - the claim is renewed after every piece of a long transcript, let go when the job fails for good, and the entry
+  ///   marked done when the job ends written or with nothing to write ([_finish]);
+  /// - a native meeting that needed a model is made a page job once Claude is chosen here: its transcript is in the
+  ///   note, and Claude needs nothing of the phone's model to write it.
+  SummaryHandoff? handoff;
 
   // ---- the queue ---------------------------------------------------------------------------------------------------
 
@@ -575,6 +597,15 @@ class Summaries {
           if (stateOf(j.id) case final state? when state.phase == RecordingJobPhase.listening || state.phase == RecordingJobPhase.summarizing) j.id: state.percent,
       },
     ));
+    // A meeting that needs a model here waits for another of the account's devices to write it.
+    final handoff = this.handoff;
+    if (handoff != null) {
+      final needs = _summaries.get().needsModel;
+      handoff.waitingHere([
+        for (final j in queue)
+          if (j.kind == SummaryKind.meeting && needs.contains(j.id)) j.id,
+      ]);
+    }
   }
 
   /// The queue as the shelf and the strip follow it (`useSummaries`).
@@ -674,6 +705,46 @@ class Summaries {
 
   /// Whether the note's job is a native one, waiting on the phone's own write-up.
   bool summaryNative(String id) => _readQueue().any((j) => j.id == id && j.native == true);
+
+  // ---- the handoff's asks (ai/summary_handoff.dart) -----------------------------------------------------------------
+
+  /// The note whose job is being written now, if one is.
+  String? _runningId;
+
+  @override
+  bool hasJob(String id) => _readQueue().any((j) => j.id == id);
+
+  /// Claude, where it is chosen here, decides alone (a meeting it is chosen for is never the model's); else a summary
+  /// model on the device.
+  @override
+  Future<bool> canWriteUpMeetings() async {
+    if (!isTauri()) return false;
+    final claude = this.claude;
+    if (claude != null) {
+      try {
+        await claude.load();
+      } catch (_) {
+        // A store that cannot be read is a device with no key.
+      }
+      if (claude.chosen) return claude.enabled && !claude.limited;
+    }
+    return modelFor(presentIds(await _models()), preferences().formatModel) != null;
+  }
+
+  @override
+  void handOn(String id) {
+    if (!hasJob(id)) enqueueSummary(id, SummaryKind.meeting);
+  }
+
+  /// Let go: the summary is in the note from elsewhere, and a job here, native or the page's, waiting or failed, has
+  /// nothing left to write. A job being written now, or a Replace the person asked for, is theirs and stays.
+  @override
+  void handedOff(String id) {
+    if (_runningId == id) return;
+    final job = _jobOf(id);
+    if (job == null || job.replace == true) return;
+    dropSummary(id);
+  }
 
   /// No run starts while `on`, and the one in flight is cancelled and its job left queued, uncounted: the recorder
   /// wins the cores. Let go, the queue looks again a moment later.
@@ -906,6 +977,14 @@ class Summaries {
     if (away && !(claude?.enabled ?? false)) return;
     if (!away && _anyNative()) {
       await _refreshJobStates();
+      // A meeting whose write-up stopped for a model, with Claude chosen here since: its transcript is in the note, so
+      // it is a page job for Claude now, as a result with no summary makes one (Matt's Mac, 2026-10-26).
+      for (final job in _readQueue().where((j) => j.native == true && j.failed != true && j.kind == SummaryKind.meeting).toList()) {
+        if (!_jobStates.any((s) => s.id == job.id && s.phase == RecordingJobPhase.needsModel) || !await _forClaude(job)) continue;
+        _patch(job.id, (j) => SummaryJob(id: j.id, kind: SummaryKind.meeting, native: false, replace: j.replace));
+        _jobStates = _jobStates.where((s) => s.id != job.id).toList();
+        _askedAfterModel.remove(job.id);
+      }
       // A write-up that needed a model is asked of the service again once one is on the phone.
       if (_jobStates.any((s) => s.phase == RecordingJobPhase.needsModel)) await _afterModelArrived(presentIds(await _models()));
       for (final job in _readQueue().where((j) => j.native == true && j.failed != true).toList()) {
@@ -916,10 +995,11 @@ class Summaries {
     // The hold read at its source: the same answer as `paused`, which follows it and is what the cancel needs.
     if (refineHeld()) return;
     final queue = _readQueue();
-    // The first that is not failed, not native, not in the trash and not waiting for its better words.
+    // The first that is not failed, not native, not in the trash, not waiting for its better words, and not being
+    // written by another device that claimed it (a Replace asked for here is this device's whatever is claimed).
     SummaryJob? found;
     for (final j in queue) {
-      if (j.failed != true && j.native != true && !isTrashed(j.id) && !refinePending(j.id) && (!away || j.kind == SummaryKind.meeting)) {
+      if (j.failed != true && j.native != true && !isTrashed(j.id) && !refinePending(j.id) && (!away || j.kind == SummaryKind.meeting) && !(j.replace != true && (handoff?.claimedElsewhere(j.id) ?? false))) {
         found = j;
         break;
       }
@@ -941,6 +1021,7 @@ class Summaries {
       return;
     }
     _running = true;
+    _runningId = job.id;
     var next = 500;
     try {
       await syncSettled();
@@ -976,6 +1057,18 @@ class Summaries {
         if (_needsModel.remove(job.id)) _publish();
         model = local;
       }
+      // A meeting another device waits on is claimed first, so one device writes it (ai/summary_handoff.dart): one the
+      // account says is done is let go, and one held elsewhere, or a claim not yet seen to be the account's, waits.
+      final handoff = this.handoff;
+      if (handoff != null && job.kind == SummaryKind.meeting && job.replace != true && !await handoff.claim(job.id)) {
+        if (handoff.isDone(job.id)) {
+          _forgetWaits(job.id);
+          _writeQueue(_readQueue().where((j) => j.id != job.id).toList());
+        } else {
+          next = _noModelMs;
+        }
+        return;
+      }
       _patch(job.id, (j) => j.copyWith(started: true));
       _cut = false;
       final outcome = await _summarize(job, model, viaClaude: viaClaude);
@@ -997,10 +1090,13 @@ class Summaries {
         if (error is ClaudeError) _reasons[job.id] = message;
         final tries = claudeLasting(error) ? _maxTries : job.tries + 1;
         _patch(job.id, (j) => j.copyWith(tries: tries, failed: tries >= _maxTries ? true : null));
+        // Given up on here: another of the account's devices may take it.
+        if (tries >= _maxTries) handoff?.release(job.id);
       }
     } finally {
       if (_readQueue().any((j) => j.id == job.id && j.started == true)) _patch(job.id, (j) => j.copyWith(started: false));
       _running = false;
+      _runningId = null;
       _activeRun = null;
       _activeHandle = null;
       _activeClaude = null;
@@ -1030,6 +1126,12 @@ class Summaries {
       warn('[glyph] the write-up’s configuration was not kept: $failure');
     }
     for (final job in waiting) {
+      // A meeting handed on is claimed first, as a page job is: one another device writes, or wrote, is not asked.
+      final handoff = this.handoff;
+      if (handoff != null && job.kind == SummaryKind.meeting && !await handoff.claim(job.id)) {
+        if (handoff.isDone(job.id)) handedOff(job.id);
+        continue;
+      }
       _askedAfterModel.add(job.id);
       writeUpOnHost(job.id, false);
     }
@@ -1134,7 +1236,10 @@ class Summaries {
   Future<_Outcome> _summarize(SummaryJob job, String model, {bool viaClaude = false}) async {
     final note = await getNote(job.id);
     if (note == null) return _Outcome.left;
-    final plain = renderNote(note.segments ?? const <Segment>[]).plain;
+    var plain = renderNote(note.segments ?? const <Segment>[]).plain;
+    // A meeting whose phrases are not on this device (one handed on from another, from a build before its phrases
+    // synced) is summarized from the transcript its note keeps.
+    if (jsTrim(plain).isEmpty && job.kind == SummaryKind.meeting) plain = sectionOf(note.body, '## Transcript') ?? '';
     if (jsTrim(plain).isEmpty) return _Outcome.left;
     final pieces = transcriptPieces(plain);
     final budget = recordingSummaryBudget(plain.length);
@@ -1155,6 +1260,8 @@ class Summaries {
         // Each finished piece is checkpointed, so a kill after four of five starts at the fifth.
         final checkpoint = [...notes];
         _patch(job.id, (j) => j.copyWith(pieces: checkpoint));
+        // A claim on a meeting handed on is kept live while it is written.
+        handoff?.renew(job.id);
       }
       words = notes.join('\n\n');
       context = fill(notesContext, {'words': _counted(plain.split(_spaces).where((word) => word.isNotEmpty).length)});
@@ -1309,9 +1416,12 @@ class Summaries {
     _onSummarized?.call(done);
   }
 
+  /// A job ended, written or with nothing to write: a meeting handed on is marked done, so the device that waited on
+  /// it lets its job go.
   void _finish(SummaryJob job) {
     _forgetWaits(job.id);
     _writeQueue(_readQueue().where((j) => j.id != job.id).toList());
+    if (job.kind == SummaryKind.meeting) handoff?.finished(job.id);
     _publish();
   }
 }

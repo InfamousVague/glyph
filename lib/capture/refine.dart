@@ -49,6 +49,7 @@ import '../core/note.dart' show Note;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../core/summary_text.dart' show summarySection, withSummary;
+import '../meet/speakers.dart' show namedTranscript;
 import 'engine.dart' show CaptureBackend, CaptureEventRefineModelProgress, CaptureEventRefineProgress;
 import 'markdown.dart' show Segment, renderTranscript, withTranscript;
 import 'meeting_live.dart' show ExternalStore;
@@ -549,8 +550,10 @@ class Refining {
     // The editor's landing puts a newline after the note's last line; that is not an edit.
     final asSaved = (ours ? withSummary(job.savedBody, section.text, kept: kept) : job.savedBody).trimRight();
     if (note.body.trimRight() == asSaved) {
-      // A meeting's better phrases are its transcript again, under whatever stands above it (the title, its summary).
-      final better = job.meeting == true ? withTranscript(note.body, renderTranscript(refined)) : refinedBody(job, refined);
+      // A meeting's better phrases are its transcript again, under whatever stands above it (the title, its summary),
+      // with the speakers its words named kept on them (lib/meet/speakers.dart `namedTranscript`; Matt, 2026-10-26),
+      // and unnamed, as before, where they named none.
+      final better = job.meeting == true ? withTranscript(note.body, namedTranscript(refined, note.body) ?? renderTranscript(refined)) : refinedBody(job, refined);
       try {
         await updateNote(job.id, ours && summarySection(better, kept) == null ? withSummary(better, section.text, kept: kept) : better, note.revision);
       } catch (_) {

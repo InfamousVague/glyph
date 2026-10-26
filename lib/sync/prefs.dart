@@ -29,6 +29,7 @@ import 'package:flutter/foundation.dart';
 
 import '../account/api.dart';
 import '../account/crypto_api.dart';
+import '../ai/summary_handoff.dart' show mergedHandoffs, summaryHandoffsKey;
 import '../core/preferences.dart';
 import '../core/stored.dart';
 
@@ -93,6 +94,10 @@ const List<String> syncedPrefs = [
   // up, so no other device, and no summary made again, posts it twice. Where they go stays with the device, as the
   // channels do.
   'slackMeetingPosts',
+  // The meetings waiting for a summary another device can write, who claimed each and which are done
+  // (lib/ai/summary_handoff.dart): marked on the device that could not, claimed and written on one that can. Merged an
+  // entry at a time, and an entry both devices changed by its own rule (`mergedHandoffs`), so it is claimed once.
+  'summaryHandoffs',
   // The notes shared by a link, with their keys: listed, followed and stopped from any device.
   'shares',
   // Which notifications are drawn and counted, and which organizations are muted: chosen once for every device.
@@ -193,8 +198,9 @@ List<Object?> _madeOnBoth(List<Object?> base, List<Object?> theirs, List<Object?
 /// This device's settings and another's, both changed since [base] (`merged`). A setting only one of them changed is
 /// that one's. The maps (which note is filed where, what is in the trash) are merged an entry at a time, since a
 /// filing made on one device and another made elsewhere are two changes, not one. What both changed stays as it is
-/// here.
-Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine, Map<String, Object?> theirs) {
+/// here - but for a meeting's summary claimed on both ([summaryHandoffsKey]), where the account's live claim stands.
+/// [now] is when a claim is judged live at, the clock's unless a test says.
+Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine, Map<String, Object?> theirs, {int? now}) {
   final out = <String, Object?>{...mine};
   for (final key in syncedPrefs) {
     if (!theirs.containsKey(key)) continue;
@@ -209,6 +215,9 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
       // A note filed in a workspace the other device removed is in none.
       notes.removeWhere((note, space) => !list.any((each) => each is Map && each['id'] == space));
       out[key] = {...m, 'list': list, 'notes': notes};
+    } else if (key == summaryHandoffsKey && m != null && t != null) {
+      // A live claim the account already held is kept over this device's: a meeting's summary is claimed once.
+      out[key] = mergedHandoffs(b ?? const {}, m, t, now: now);
     } else if (b != null && m != null && t != null) {
       out[key] = _mergedEntries(b, m, t);
     }

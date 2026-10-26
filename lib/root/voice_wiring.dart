@@ -41,6 +41,7 @@ import '../ai/native_backend.dart';
 import '../ai/review.dart' show reviewAvailable;
 import '../ai/summaries.dart';
 import '../ai/summary_claude.dart' show MeetingClaude;
+import '../ai/summary_handoff.dart' show SummaryHandoff, thisDevice;
 import '../ai/summary_keep.dart' show keptText, summaryUnchanged;
 import '../capture/audio.dart';
 import '../capture/device_mic.dart';
@@ -285,6 +286,11 @@ class Voice {
 
   VoidCallback? _stopSummaries;
   VoidCallback? _stopJobConfig;
+  VoidCallback? _stopHandoff;
+
+  /// What the summaries' handoff looks again on (lib/ai/summary_handoff.dart): the preferences, where the meetings
+  /// waiting arrive from another device, and the notes, where a meeting's note arrives; set by [make].
+  Listenable? _handoffHears;
 
   /// Removes the audio of these notes' tapes from this device, their words and phrases kept, and answers which
   /// went (`core/recordings.ts` `deleteRecordings`); null where nothing can.
@@ -329,6 +335,8 @@ class Voice {
     recorder.start(notesChanged: notesChanged);
     // The summary queue, wired to the notes, and the write-up's configuration kept current for the phone's service.
     _stopSummaries = summaries?.startSummaries(notesChanged ?? () {}, summarized ?? (_) {}, meetingSummarized: meetingSummarized);
+    // Once the queue tells the sorting of a meeting's summary: a meeting handed on is sorted where it is written.
+    _stopHandoff = summaries?.handoff?.start(_handoffHears ?? preferences);
     final claude = summaries?.claude;
     if (summaries != null) {
       _stopJobConfig = keepJobConfigCurrent(
@@ -366,6 +374,7 @@ class Voice {
     watch?.dispose();
     _stopSummaries?.call();
     _stopJobConfig?.call();
+    _stopHandoff?.call();
     _notesListeners.clear();
     recorder.dispose();
     models?.dispose();
@@ -376,7 +385,9 @@ class Voice {
   /// a shared link, which a recording over the lock screen never writes to.
   ///
   /// The summary queue's part of the app is given too: [isTrashed] (a note in the trash is not summarised), and the
-  /// account's [syncNow], [syncSettled] and [record] (a row in the feed), each nothing in a build with no account.
+  /// account's [syncNow], [syncSettled] and [record] (a row in the feed), each nothing in a build with no account;
+  /// and [accountPrefs], the settings as the account holds them, which a claim on a meeting's summary is read back
+  /// from (lib/ai/summary_handoff.dart).
   static Future<Voice> make(
     VoiceMaking making, {
     required NoteLibrary library,
@@ -386,6 +397,7 @@ class Voice {
     Future<void> Function()? syncNow,
     Future<void> Function()? syncSettled,
     Future<void> Function(String kind, Map<String, Object?> details)? record,
+    Map<String, Object?>? Function()? accountPrefs,
   }) async {
     final core = making.core;
     final host = making.host;
@@ -509,6 +521,18 @@ class Voice {
       },
       sendJobConfig: sendConfig,
     );
+    // A meeting this device cannot summarize is handed on to another of the account's devices that can, and one
+    // another device could not is taken on here (lib/ai/summary_handoff.dart; Matt, 2026-10-26).
+    summaries.handoff = SummaryHandoff(
+      device: thisDevice,
+      preferences: () => preferences.value,
+      setPreferences: preferences.update,
+      syncNow: syncNow ?? () async {},
+      accountHeld: accountPrefs,
+      getNote: store.getNote,
+      notes: () => library.value,
+      isTrashed: isTrashed,
+    )..attach(summaries);
 
     // A meeting Ghost was in (docs/MEET.md, "On the device"): its sound kept as the note's recording, and its write-up
     // asked for as a meeting recorded here asks for it, Write up straight away honoured. Nowhere that writes nothing up.
@@ -680,6 +704,7 @@ class Voice {
         unawaited(assists.close());
       },
     );
+    voice._handoffHears = Listenable.merge([preferences, library]);
     made = true;
     return voice;
   }

@@ -418,6 +418,29 @@ void main() {
       expect(q.queued(), isEmpty);
     });
 
+    // Matt's Mac, 2026-10-26: its write-up stopped at "needs a model" with the transcript in the note, and turning on
+    // Claude there must write it, as the waiting line says.
+    claudeTest('stopped for a model with its transcript in, becomes the page’s job once Claude is chosen, and Claude writes it up', (tester) async {
+      switchedOn = false;
+      q.present = [];
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting, native: true);
+      q.phoneStates = [RecordingJobState.fromJson({'id': 'n1', 'title': 'Standup', 'phase': 'needsModel', 'percent': 100, 'updatedAt': 1})];
+      await advance(tester, 15000);
+      expect(q.summaries.summariesNow().needsModel, {'n1'});
+      expect(api.asked, isEmpty);
+      switchedOn = true;
+      changes.tell();
+      await advance(tester, 15000);
+      expect(q.summaries.summaryNative('n1'), isFalse);
+      expect(api.asked, hasLength(1));
+      expect(api.asked.single.prompt, transcript);
+      api.asked.single.answer(q.answer);
+      await advance(tester, 0);
+      expect(q.notes['n1']?.body, body);
+      expect(q.queued(), isEmpty);
+      expect(q.summaries.summariesNow().needsModel, isEmpty);
+    });
+
     claudeTest('puts aside a summary the phone wrote anyway, for Claude’s', (tester) async {
       q.summaries.enqueueSummary('n1', SummaryKind.meeting, native: true);
       q.phoneResults['n1'] = const RecordingResult(summary: '# Not this\n- From the phone.', model: 'qwen3.5-2b', transcriptChars: 60, finishedAt: 1);

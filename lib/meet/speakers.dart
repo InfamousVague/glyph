@@ -12,6 +12,20 @@
 /// - **The captions kept in the note** until the write-up comes are the turns with when each began,
 ///   `**Name (0:12):** words` under `## Captions` ([captionsSection]), which [turnsOf] reads back: so the alignment
 ///   needs nothing but the note, on whichever of the account's devices writes it up.
+/// - **The written-up transcript keeps its times too** (Matt, 2026-10-26: "Also after some time all the speaker
+///   labels disappeared"): the paragraphs `withSpeakers` leaves (meet_note.dart) are `**Name (0:12):** words`, each
+///   with when its first phrase began ([speakerParagraphs] `timed`), so the names, and the moments they spoke at,
+///   travel with the note to every device and outlive the captions, which the write-up drops. The transcript's view
+///   shows Whisper's timed phrases once they have come, and a phrase carries no speaker: [phraseSpeakers] gives each
+///   one its name back from the note's words - the captions while they are kept, else the transcript's timed
+///   paragraphs, else, for a meeting written up before the times were kept (`**Name:** words`), the paragraphs matched
+///   to the phrases by where their words fall. A recording made on the device has no captions and no names, and its
+///   phrases stay unnamed.
+/// - **Meet's icons are no names** ([captionIcons]; Matt's engineering standup, 2026-10-26, had a speaker called
+///   `groups`): Meet draws its icons from Material Symbols, whose glyph is drawn from a word, so a caption block read
+///   as text can start with one where the speaker's name should be. The bot drops them as it reads the page
+///   (meet/bot/lib/captions.mjs `parseBlock`); a name kept before it did is read here as no name, rather than as a
+///   person called "groups".
 library;
 
 import 'dart:math' as math;
@@ -52,8 +66,38 @@ class CaptionTurn {
 /// How long the last turn is taken to last: a fifth of a second a character, at least two seconds.
 int _guessMs(String text) => math.max(2000, text.length * 200 ~/ 3);
 
-/// A name as a note writes it: no asterisks, no brackets, no colon at its end, one space between words.
-String _name(String speaker) => speaker.replaceAll(RegExp(r'[*\[\]()]'), '').replaceAll(RegExp(r'\s+'), ' ').trim().replaceFirst(RegExp(r':+$'), '');
+/// The Material Symbols words Meet draws icons with inside its captions, which a block read as text can begin with
+/// (see the header): never a speaker's name. Lower case, as a ligature is written; a person's name is not, so only
+/// the word exactly is taken.
+const Set<String> captionIcons = {
+  'groups',
+  'group',
+  'group_add',
+  'person',
+  'people',
+  'account_circle',
+  'meeting_room',
+  'devices',
+  'co_present',
+  'present_to_all',
+  'frame_person',
+  'mic',
+  'mic_off',
+  'keep',
+  'keep_off',
+  'push_pin',
+  'more_vert',
+  'more_horiz',
+  'closed_caption',
+  'arrow_downward',
+};
+
+/// A name as a note writes it: no asterisks, no brackets, no colon at its end, one space between words; and none at
+/// all for one of Meet's icons ([captionIcons]).
+String _name(String speaker) {
+  final name = speaker.replaceAll(RegExp(r'[*\[\]()]'), '').replaceAll(RegExp(r'\s+'), ' ').trim().replaceFirst(RegExp(r':+$'), '');
+  return captionIcons.contains(name) ? '' : name;
+}
 
 /// The captions as turns (see the header).
 List<CaptionTurn> captionTurns(List<CaptionLine> lines) {
@@ -115,16 +159,23 @@ String? _speakerOf(Segment segment, List<CaptionTurn> turns, int lagMs) {
   return nearest?.speaker;
 }
 
-/// The transcript's paragraphs from Whisper's [segments] and each one's speaker (see the header).
-List<String> speakerParagraphs(List<Segment> segments, List<String?> speakers) {
+/// The transcript's paragraphs from Whisper's [segments] and each one's speaker (see the header). With [timed], each
+/// paragraph says when its first phrase began, `**Sam Lee (0:12):** words`, and one with no speaker `(0:40) words`:
+/// the shape the captions are kept in ([captionsSection]), which the transcript's view lights by.
+List<String> speakerParagraphs(List<Segment> segments, List<String?> speakers, {bool timed = false}) {
   final out = <String>[];
   String? current;
   var words = <String>[];
+  var startMs = 0;
   var open = false;
   void flush() {
     if (!open) return;
     final text = words.join(' ').trim();
-    if (text.isNotEmpty) out.add(current == null ? text : '**$current:** $text');
+    if (text.isNotEmpty) {
+      final at = counter(startMs);
+      final name = current;
+      out.add(name == null ? (timed ? '($at) $text' : text) : (timed ? '**$name ($at):** $text' : '**$name:** $text'));
+    }
     words = <String>[];
     open = false;
   }
@@ -136,12 +187,120 @@ List<String> speakerParagraphs(List<Segment> segments, List<String?> speakers) {
     if (!open || speaker != current) {
       flush();
       current = speaker;
+      startMs = segment.startMs;
       open = true;
     }
     words.add(text);
   }
   flush();
   return out;
+}
+
+/// One paragraph of a meeting's written transcript, as [transcriptParagraphs] reads it: who spoke (null for nobody
+/// named, or one of Meet's icons), when it began where it says so (`**Sam Lee (0:12):**`, `(0:12)`), and how many
+/// words it has past the name.
+typedef WrittenTurn = ({String? speaker, int? startMs, int words});
+
+final RegExp _writtenTimed = RegExp(r'^\*\*(.+?) \((\d+(?::\d{2}){1,2})\):\*\*\s*(.*)$', dotAll: true);
+final RegExp _writtenBare = RegExp(r'^\((\d+(?::\d{2}){1,2})\)\s*(.*)$', dotAll: true);
+final RegExp _writtenNamed = RegExp(r'^\*\*([^*\n]+?):\*\*\s*(.*)$', dotAll: true);
+
+int _wordsIn(String text) => text.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).length;
+
+String? _nameOrNone(String raw) {
+  final name = _name(raw);
+  return name.isEmpty ? null : name;
+}
+
+/// The paragraphs of [body]'s `## Transcript`, each with its speaker and time where it says them (see the header);
+/// empty where it has none.
+List<WrittenTurn> transcriptParagraphs(String body) {
+  final section = sectionOf(body, '## Transcript');
+  if (section == null) return const [];
+  final out = <WrittenTurn>[];
+  for (final paragraph in section.split(RegExp(r'\n\s*\n'))) {
+    final line = paragraph.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (line.isEmpty) continue;
+    if (_writtenTimed.firstMatch(line) case final m?) {
+      out.add((speaker: _nameOrNone(m.group(1)!), startMs: _ms(m.group(2)!), words: _wordsIn(m.group(3)!)));
+    } else if (_writtenBare.firstMatch(line) case final m?) {
+      out.add((speaker: null, startMs: _ms(m.group(1)!), words: _wordsIn(m.group(2)!)));
+    } else if (_writtenNamed.firstMatch(line) case final m?) {
+      out.add((speaker: _nameOrNone(m.group(1)!), startMs: null, words: _wordsIn(m.group(2)!)));
+    } else {
+      out.add((speaker: null, startMs: null, words: _wordsIn(line)));
+    }
+  }
+  return out;
+}
+
+/// How far a phrase may begin before the time the paragraph it opens was written with and still be that
+/// paragraph's, in ms: the times are written to the second, cut down.
+const int _writtenSlackMs = 999;
+
+/// The speaker of each of [segments] as [body] names them (see the header): by the captions while the note keeps
+/// them ([alignSpeakers]); else by the transcript's timed paragraphs, each phrase the speaker of the last paragraph
+/// begun by its start (a paragraph with no time after a timed one is more words of it); else by the named paragraphs
+/// of a transcript written with no times, each phrase the speaker of the paragraph its middle word falls in, the
+/// words counted through both as a share of each whole, so a transcript written from these very phrases matches them
+/// exactly and one corrected by hand nearly. All null where the note names nobody: a recording made on the device.
+List<String?> phraseSpeakers(List<Segment> segments, String body) {
+  final none = List<String?>.filled(segments.length, null);
+  if (segments.isEmpty) return none;
+  final turns = turnsOf(body);
+  if (turns.any((turn) => turn.speaker.isNotEmpty)) return alignSpeakers(segments, turns);
+  final written = transcriptParagraphs(body);
+  if (!written.any((p) => p.speaker != null)) return none;
+  if (written.first.startMs != null) {
+    final starts = [
+      for (final p in written)
+        if (p.startMs case final at?) (at: at, speaker: p.speaker),
+    ];
+    return [
+      for (final segment in segments)
+        () {
+          String? speaker;
+          for (final s in starts) {
+            if (s.at > segment.startMs + _writtenSlackMs) break;
+            speaker = s.speaker;
+          }
+          return speaker;
+        }(),
+    ];
+  }
+  final paragraphWords = written.fold<int>(0, (sum, p) => sum + p.words);
+  final segmentWords = segments.fold<int>(0, (sum, s) => sum + _wordsIn(s.text));
+  if (paragraphWords == 0 || segmentWords == 0) return none;
+  final ends = <double>[];
+  var counted = 0;
+  for (final p in written) {
+    counted += p.words;
+    ends.add(counted / paragraphWords);
+  }
+  var before = 0;
+  return [
+    for (final segment in segments)
+      () {
+        final words = _wordsIn(segment.text);
+        final middle = (before + words / 2) / segmentWords;
+        before += words;
+        var at = 0;
+        while (at < ends.length - 1 && middle >= ends[at]) {
+          at += 1;
+        }
+        return written[at].speaker;
+      }(),
+  ];
+}
+
+/// [segments] as a meeting's transcript, `## Transcript` and its paragraphs, each named and timed where [body] names
+/// its speakers ([phraseSpeakers]): what a write-up that writes the transcript again from its phrases leaves, so
+/// the names the captions gave are not lost to it. Null where [body] names nobody, for the caller's own shape.
+String? namedTranscript(List<Segment> segments, String body) {
+  final speakers = phraseSpeakers(segments, body);
+  if (!speakers.any((s) => s != null)) return null;
+  final paragraphs = speakerParagraphs(segments, speakers, timed: true);
+  return paragraphs.isEmpty ? null : '## Transcript\n\n${paragraphs.join('\n\n')}';
 }
 
 /// The transcript's paragraphs from the captions alone: each turn, `**Name:** words`.

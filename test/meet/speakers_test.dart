@@ -29,6 +29,7 @@ OpenedTake take({String title = 'Launch sync', List<CaptionLine> captions = line
 
 void main() {
   setUp(() => toldLocale = null);
+  group('names kept on the phrases (2026-10-26)', namesKept);
 
   test('captions become turns, each lasting until the next begins', () {
     final turns = captionTurns(lines);
@@ -113,7 +114,7 @@ void main() {
       const Segment(startMs: 10200, endMs: 12500, text: 'The pricing page is drafted.'),
     ];
     expect(withSpeakers(written, segments), '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n'
-        '## Transcript\n\n**Sam Lee:** Good morning everyone. Launch checklist first.\n\n**Daniel:** The pricing page is drafted.\n');
+        '## Transcript\n\n**Sam Lee (0:00):** Good morning everyone. Launch checklist first.\n\n**Daniel (0:10):** The pricing page is drafted.\n');
     // A summary landed above it stays where it is.
     final summarised = written.replaceFirst('\n\nGhost was', '\n## Summary\nA call.\n\nGhost was');
     expect(withSpeakers(summarised, segments), startsWith('# Launch sync\n## Summary\nA call.\n\nGhost was in this meeting'));
@@ -129,5 +130,62 @@ void main() {
     final done = withSpeakers(written, const [Segment(startMs: 0, endMs: 2000, text: 'Good morning everyone.')])!;
     expect(done, '# Launch sync\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n## Transcript\n\nGood morning everyone.\n');
     expect(awaitsWriteUp(done), isFalse);
+  });
+}
+
+// Matt, 2026-10-26: "Also after some time all the speaker labels disappeared". The note kept its names; the
+// transcript's view showed Whisper's phrases, which carry none. And one speaker of his standup read as `groups`.
+void namesKept() {
+  const segments = [
+    Segment(startMs: 0, endMs: 3000, text: 'Good morning everyone.'),
+    Segment(startMs: 3000, endMs: 8000, text: 'Launch checklist first.'),
+    Segment(startMs: 10200, endMs: 12500, text: 'The pricing page is drafted.'),
+  ];
+
+  test('each phrase is given its speaker from the captions while the note keeps them', () {
+    final filed = meetNoteBody(take(), now: 0, writeUp: true);
+    expect(phraseSpeakers(segments, filed), ['Sam Lee', 'Sam Lee', 'Daniel']);
+  });
+
+  test('once written up, from the transcript’s timed paragraphs, which keep the names and when each began', () {
+    final filed = meetNoteBody(take(), now: 0, writeUp: true);
+    final written = withSpeakers('${filed.trimRight()}\n\n## Transcript\n\nGood morning everyone. Launch checklist first. The pricing page is drafted.\n', segments)!;
+    expect(written, isNot(contains('## Captions')));
+    expect(transcriptParagraphs(written), [(speaker: 'Sam Lee', startMs: 0, words: 6), (speaker: 'Daniel', startMs: 10000, words: 5)]);
+    expect(phraseSpeakers(segments, written), ['Sam Lee', 'Sam Lee', 'Daniel']);
+  });
+
+  test('a meeting written up before the times were kept is named by where its words fall', () {
+    const body = '# Standup\n\n## Transcript\n\n**Phil Mulliken:** Good morning everyone. Launch checklist first.\n\n**Matt:** The pricing page is drafted.\n';
+    expect(phraseSpeakers(segments, body), ['Phil Mulliken', 'Phil Mulliken', 'Matt']);
+    // Corrected by hand a little, it still matches.
+    const edited = '# Standup\n\n## Transcript\n\n**Phil Mulliken:** Good morning, everyone! The launch checklist first.\n\n**Matt:** Pricing page drafted.\n';
+    expect(phraseSpeakers(segments, edited), ['Phil Mulliken', 'Phil Mulliken', 'Matt']);
+  });
+
+  test('a recording made on the device names nobody', () {
+    expect(phraseSpeakers(segments, '# A walk\n\n## Transcript\n\nGood morning everyone. Launch checklist first. The pricing page is drafted.\n'), [null, null, null]);
+    expect(namedTranscript(segments, '# A walk\n\n## Transcript\n\nGood morning everyone.\n'), isNull);
+  });
+
+  test('a transcript written again from its phrases keeps the names (a write-up, the better words)', () {
+    const body = '# Standup\n\n## Transcript\n\n**Phil Mulliken:** Good morning everyone. Launch checklist first.\n\n**Matt:** The pricing page is drafted.\n';
+    const better = [
+      Segment(startMs: 0, endMs: 3000, text: 'Good morning, everyone.'),
+      Segment(startMs: 3000, endMs: 8000, text: 'Launch checklist first.'),
+      Segment(startMs: 10200, endMs: 12500, text: 'The pricing page is drafted.'),
+    ];
+    expect(namedTranscript(better, body), '## Transcript\n\n**Phil Mulliken (0:00):** Good morning, everyone. Launch checklist first.\n\n**Matt (0:10):** The pricing page is drafted.');
+  });
+
+  test('one of Meet’s icons is no speaker: `groups` is read as nobody named', () {
+    final turns = captionTurns(const [
+      CaptionLine(at: 0, speaker: 'groups', text: 'Let us start with the board.'),
+      CaptionLine(at: 3000, speaker: 'Sam Lee', text: 'Sure.'),
+    ]);
+    expect([for (final t in turns) t.speaker], ['', 'Sam Lee']);
+    expect(captionParagraphs(turns), ['Let us start with the board.', '**Sam Lee:** Sure.']);
+    expect(turnsOf('# Call\n\n## Captions\n\n**groups (0:00):** Hello.\n\n**Groups Inc (0:04):** Hi.').map((t) => t.speaker), ['', 'Groups Inc']);
+    expect(transcriptParagraphs('# Call\n\n## Transcript\n\n**groups:** Hello.\n').single.speaker, isNull);
   });
 }

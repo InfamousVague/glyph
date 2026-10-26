@@ -60,13 +60,17 @@ class TapeSummary {
 /// asked about the one note).
 @immutable
 class TapeQueue {
-  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false, this.claudeHeld = false, this.failedWhy});
+  const TapeQueue({this.pending = false, this.needsModel = false, this.failed = false, this.refining = false, this.running = false, this.claudeHeld = false, this.failedWhy, this.waitWords});
 
   /// A summary of this note is queued or being written (`summaries.pending.has(id)`).
   final bool pending;
 
   /// The summary waits for a model to be downloaded (`summaries.needsModel.has(id)`).
   final bool needsModel;
+
+  /// What a meeting waiting for its summary says in place of "Needs a model.": what to do here, or where it is being
+  /// written (ai/summary_handoff.dart `meetingWaitWords`; Matt, 2026-10-26). The port's own.
+  final String? waitWords;
 
   /// The summary was given up on (`summaries.failed.has(id)`).
   final bool failed;
@@ -162,7 +166,8 @@ class _NoteTapeState extends State<NoteTape> {
     final summary = widget.summary;
     final summarizing = queue.summarizing;
     final held = queue.held;
-    final summaryLine = queue.needsModel
+    final summaryLine = queue.waitWords ??
+        (queue.needsModel
         ? 'Needs a model.'
         : queue.claudeHeld
             ? (queue.failedWhy != null ? 'The summary waits for Claude. ${queue.failedWhy}' : 'The summary waits for Claude: Local only is on.')
@@ -174,7 +179,7 @@ class _NoteTapeState extends State<NoteTape> {
                     ? null
                     : (summary?.behind ?? false)
                         ? 'Summary is from before the last take.'
-                        : null;
+                        : null);
     final title = widget.title.isEmpty ? 'Untitled' : widget.title;
     final label = title.length > _clip ? '${title.substring(0, _clip - 1).trimRight()}…' : title;
     final moved = tape.playing || tape.at > 0;

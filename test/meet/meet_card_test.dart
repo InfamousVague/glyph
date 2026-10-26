@@ -7,6 +7,7 @@
 // wide window, light and dark.
 import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/ai/summary_handoff.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/mail/ui/mail_card.dart';
@@ -317,6 +318,32 @@ void main() {
       await tapKey(tester, 'meet-d');
       await settle(tester);
       expect(opened, ['old']);
+      await endSettings(tester);
+    });
+
+    // Matt, 2026-10-26: "The engineering standup meeting was not auto summarized": the row said Written up while the
+    // summary waited for a model the Mac did not have (lib/ai/summary_handoff.dart).
+    testWidgets('says where a meeting waits for its summary, and what to do, until another device has written it', (tester) async {
+      final d = await made();
+      d.meet.meetings.add(meeting('d', 'Engineering standup', 'done', startsAt: at));
+      d.device.keep('retro', ghostBody);
+      final here = thisDevice();
+      final now = DateTime.now().millisecondsSinceEpoch;
+      Preferences marked(Preferences was, Handoff entry) => withHandoff(was, 'retro', entry, now: now);
+      preferences.update((was) => marked(withMeetingNote(was.copyWith(meetings: {'retro': at}), 'd', 'retro'), Handoff(from: here.id, fromName: here.name, at: now)));
+      await d.device.pump(tester, MeetingsPane(services: d.device.services, onOpenNote: (_) {}));
+      await settle(tester, 10);
+      expect(hintOf(tester, 'd'), contains(summaryWaitWords(here.name)));
+      if (here.name == 'Mac') {
+        expect(hintOf(tester, 'd'), contains('Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone.'));
+      }
+      preferences.update((was) => marked(was, Handoff(from: here.id, at: now, claimBy: 'fold-1', claimName: 'phone', claimAt: now)));
+      await settle(tester, 10);
+      expect(hintOf(tester, 'd'), contains('Being summarized on your phone.'));
+      preferences.update((was) => marked(was, Handoff(from: here.id, at: now, done: now, doneBy: 'fold-1')));
+      await settle(tester, 10);
+      expect(hintOf(tester, 'd'), contains('Written up'));
+      expect(hintOf(tester, 'd'), isNot(contains('Waiting')));
       await endSettings(tester);
     });
 

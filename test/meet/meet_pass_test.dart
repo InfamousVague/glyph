@@ -214,7 +214,7 @@ void main() {
     );
     expect(await syncMeet(context(d, device: FakeMeetDevice(), now: 5)), 1);
     final named = d.device.notes.held[id]!;
-    expect(named.body, endsWith('.\n\n## Transcript\n\n**Sam Lee:** Good morning everyone.\n\n**Daniel:** The pricing page is drafted.\n'));
+    expect(named.body, endsWith('.\n\n## Transcript\n\n**Sam Lee (0:00):** Good morning everyone.\n\n**Daniel (0:10):** The pricing page is drafted.\n'), reason: 'each part with when it began, so its names outlive the captions (2026-10-26)');
     expect(named.body, isNot(contains('## Captions')));
     expect(named.body, isNot(contains('being written up')));
     expect((named.updatedAt, named.recordingMs, named.segments?.length), (5, 90000, 2));

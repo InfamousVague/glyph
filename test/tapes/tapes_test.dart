@@ -233,6 +233,38 @@ void main() {
       await away(tester);
     });
 
+    // Matt, 2026-10-26: "Also after some time all the speaker labels disappeared": the phrases took the transcript's
+    // place once they had come, and a phrase keeps no name.
+    testWidgets('names the speaker at the start of each run of phrases, from the transcript the write-up left, still lit and tapped as before', (tester) async {
+      List<String?> speakers() => [for (final phrase in tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase))) phrase.speaker];
+      const written = '# Trip\n\n## Transcript\n\n**Sam Lee (0:00):** Pack the tent. And the stove.\n\n**Daniel (0:02):** Leave at six.\n';
+      await probe(tester, makeNote('t', written, recordingMs: 3000, segments: phrases));
+      expect(speakers(), ['Sam Lee', null, 'Daniel'], reason: 'once a run, on its first phrase');
+      expect(find.text('Sam Lee: Pack the tent.', findRichText: true), findsOneWidget);
+      expect(find.text('And the stove.'), findsOneWidget);
+      expect(find.text('Daniel: Leave at six.', findRichText: true), findsOneWidget);
+      await tape.toggle();
+      await tester.pump(const Duration(milliseconds: 1200));
+      expect(phraseLights(tester), [p, c, n]);
+      await tester.tap(find.text('Daniel: Leave at six.', findRichText: true));
+      await tester.pump();
+      expect(tape.at, 2000);
+      expect(phraseLights(tester), [p, p, c]);
+      await away(tester);
+    });
+
+    testWidgets('names the phrases of a meeting written up before the times were kept, and none of a recording made here', (tester) async {
+      List<String?> speakers() => [for (final phrase in tester.widgetList<TranscriptPhrase>(find.byType(TranscriptPhrase))) phrase.speaker];
+      const untimed = '# Trip\n\n## Transcript\n\n**Phil Mulliken:** Pack the tent. And the stove.\n\n**Matt:** Leave at six.\n';
+      await probe(tester, makeNote('t', untimed, recordingMs: 3000, segments: phrases));
+      expect(speakers(), ['Phil Mulliken', null, 'Matt']);
+      await away(tester);
+      await probe(tester, makeNote('u', '# Trip\n\n## Transcript\n\nPack the tent. And the stove. Leave at six.\n', recordingMs: 3000, segments: phrases));
+      expect(speakers(), [null, null, null]);
+      expect(find.text('Pack the tent.'), findsOneWidget);
+      await away(tester);
+    });
+
     testWidgets('keeps the line lit while paused, and through a quiet between phrases', (tester) async {
       const gaps = [Segment(text: 'Pack the tent.', startMs: 0, endMs: 800), Segment(text: 'And the stove.', startMs: 1000, endMs: 1400), Segment(text: 'Leave at six.', startMs: 2500, endMs: 3000)];
       await probe(tester, makeNote('t', '# Trip', recordingMs: 3000, segments: gaps));
@@ -508,6 +540,11 @@ void main() {
       expect(said('The summary comes after the better words.'), findsOneWidget);
       await strip(tester, summary: summary(), queue: const TapeQueue(needsModel: true));
       expect(said('Needs a model.'), findsOneWidget);
+      // A meeting says what to do, or where it is being written (lib/ai/summary_handoff.dart; Matt, 2026-10-26).
+      const waiting = 'Waiting for a summary: turn on Claude or download the summary model on this Mac, or open Ghost.md on your phone.';
+      await strip(tester, summary: summary(), queue: const TapeQueue(needsModel: true, waitWords: waiting));
+      expect(said(waiting), findsOneWidget);
+      expect(said('Needs a model.'), findsNothing);
       await strip(tester, summary: summary(), queue: const TapeQueue(failed: true));
       expect(said('The summary didn’t come.'), findsOneWidget);
       // A meeting Claude writes up: held by Local only, and failed in Claude's words (lib/ai/summary_claude.dart).

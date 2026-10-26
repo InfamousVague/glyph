@@ -23,13 +23,41 @@ export function parseBlock(raw) {
   const lines = String(raw ?? '')
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line && !NOISE.test(line));
+    .filter((line) => line && !NOISE.test(line) && !ICONS.has(line));
   if (!lines.length) return null;
   return { speaker: lines[0], text: lines.slice(1).join(' ') };
 }
 
 /** Icon ligatures and buttons that can sit inside the captions region beside the blocks. */
 const NOISE = /^(arrow_downward|jump to bottom|settings|format_size|close|more_vert)$/i;
+
+/**
+ * Material Symbols ligatures Meet can draw inside a caption block, beside or in place of the avatar: the icon's glyph
+ * is drawn from the word, so the block's text has the word in it, on a line of its own above the name. Matt's
+ * engineering standup (2026-10-26) had a speaker read as `groups`, the people icon. Matched exactly and in lower case,
+ * as a ligature is written, so a person who says "Groups." is still heard. The device drops the same words as a
+ * speaker's name (lib/meet/speakers.dart `captionIcons`) for captions kept before this.
+ */
+export const ICONS = new Set([
+  'groups',
+  'group',
+  'group_add',
+  'person',
+  'people',
+  'account_circle',
+  'meeting_room',
+  'devices',
+  'co_present',
+  'present_to_all',
+  'frame_person',
+  'mic',
+  'mic_off',
+  'keep',
+  'keep_off',
+  'push_pin',
+  'more_horiz',
+  'closed_caption',
+]);
 
 /** The words of a text, each with the key it is compared by: lower case, no punctuation. Pure punctuation is dropped. */
 export function tokens(text) {

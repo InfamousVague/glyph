@@ -33,6 +33,8 @@ extension _RootVoice on _GhostRootState {
                   syncSettled: _services?.engine?.syncSettled,
                   // "A meeting was written up", in the bell.
                   record: feedRecord(() => _services),
+                  // Where a claim on a meeting's summary is read back from (lib/ai/summary_handoff.dart).
+                  accountPrefs: () => _services?.engine?.accountPrefs,
                 )
               : null);
     } catch (failure) {

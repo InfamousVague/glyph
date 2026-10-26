@@ -98,7 +98,21 @@ function readCaptions() {
   // Down through the wrappers to the element whose children are the blocks.
   let list = region;
   while (list.children.length === 1 && list.firstElementChild.innerText === list.innerText) list = list.firstElementChild;
-  const blocks = [...list.children].map((el) => el.innerText).filter((t) => t && t.trim());
+  // A block's icons are drawn from words (Material Symbols ligatures: `groups` read as a speaker, 2026-10-26), so a
+  // line that is only an icon's word is taken out; captions.mjs `ICONS` drops the known ones again.
+  const iconWords = (el) =>
+    new Set(
+      [...el.querySelectorAll('i, [class*="material" i], [class*="symbol" i], [class*="icon" i]')]
+        .map((icon) => (icon.innerText || '').trim())
+        .filter((word) => /^[a-z_]+$/.test(word)),
+    );
+  const blocks = [...list.children]
+    .map((el) => {
+      const icons = iconWords(el);
+      const text = el.innerText || '';
+      return icons.size ? text.split('\n').filter((line) => !icons.has(line.trim())).join('\n') : text;
+    })
+    .filter((t) => t && t.trim());
   return blocks.length ? blocks : list.innerText.trim() ? [list.innerText] : [];
 }
 

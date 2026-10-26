@@ -23,11 +23,15 @@
 /// ```markdown
 /// ## Transcript
 ///
-/// **Sam Lee:** Good morning everyone. Let's start with the launch checklist.
+/// **Sam Lee (0:04):** Good morning everyone. Let's start with the launch checklist.
 /// ```
 ///
+/// Each part says when its first phrase began, as the captions did (Matt, 2026-10-26: "Also after some time all the
+/// speaker labels disappeared"): the transcript's view shows Whisper's phrases, which carry no names, and names them
+/// again from these (speakers.dart `phraseSpeakers`) on every device, long after the captions have gone.
+///
 /// Filed where nothing will write it up (no sound came, the sound could not be kept here, or the device has no
-/// write-up: an iPhone), the captions are the transcript at once, in the same `**Name:** words` shape, and the first
+/// write-up: an iPhone), the captions are the transcript at once, in the `**Name:** words` shape, and the first
 /// line says so.
 ///
 /// The title is the invite's; with none, the date's, as a meeting recorded on the device is named
@@ -131,7 +135,7 @@ String? withSpeakers(String body, List<Segment> segments) {
   final turns = turnsOf(body);
   var out = withoutSection(body, captionsHeading).replaceFirst(_writingUp, '');
   if (segments.isEmpty || turns.isEmpty) return out;
-  final paragraphs = speakerParagraphs(segments, alignSpeakers(segments, turns));
+  final paragraphs = speakerParagraphs(segments, alignSpeakers(segments, turns), timed: true);
   if (paragraphs.isEmpty) return out;
   out = withTranscript(out, '## Transcript\n\n${paragraphs.join('\n\n')}');
   return out.endsWith('\n') ? out : '$out\n';

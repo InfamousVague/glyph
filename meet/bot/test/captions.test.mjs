@@ -12,6 +12,13 @@ test('a block is a name over text; furniture is not a block', () => {
   assert.equal(parseBlock('  \n '), null);
 });
 
+test('an icon Meet draws from a word is not the speaker (2026-10-26: Matt read as "groups")', () => {
+  assert.deepEqual(parseBlock('groups\nMatt Wilson\nLet us start with the board.'), { speaker: 'Matt Wilson', text: 'Let us start with the board.' });
+  assert.deepEqual(parseBlock('Matt Wilson\ngroups\nLet us start.'), { speaker: 'Matt Wilson', text: 'Let us start.' });
+  assert.deepEqual(parseBlock('Sam\nGroups.'), { speaker: 'Sam', text: 'Groups.' }, 'a word said is heard');
+  assert.equal(parseBlock('groups'), null);
+});
+
 test('similar: growth, a revision, a trimmed head; not a different sentence', () => {
   assert.ok(similar('Good morning', 'Good morning everyone this is Alice'));
   assert.ok(similar('Good morning everyone this is', 'Good morning everyone, this is Alice.'));

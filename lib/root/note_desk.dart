@@ -97,6 +97,7 @@ import '../ai/note_review.dart' show ReviewHost;
 import '../ai/review.dart' show ReviewHandoff;
 import '../ai/runs.dart' show RunState, ended, useRun;
 import '../ai/summaries.dart' show SummariesState, SummaryStarter;
+import '../ai/summary_handoff.dart' show meetingWaitWords;
 import '../ai/summary_keep.dart' show summaryBehind;
 import '../capture/refine.dart' show RefineState;
 import '../capture/recorder.dart' show SpokenAsk;
@@ -1006,6 +1007,8 @@ class NoteDeskState extends State<NoteDesk> {
       return percent == null || percent <= 0 ? 'Writing up…' : 'Writing up… ${percent.clamp(0, 100).round()}%';
     }
     if (summaries != null && summaries.waiting.contains(id)) return 'The write-up waits for the phone to charge.';
+    // A meeting says what to do, or where it is being written (lib/ai/summary_handoff.dart; Matt, 2026-10-26).
+    if (_meetingWait(summaries) case final words?) return words;
     if (summaries != null && summaries.needsModel.contains(id)) return 'The write-up needs a model.';
     if (awaitsWriteUp(note.body)) return 'Being written up on another device.';
     return null;
@@ -1040,6 +1043,15 @@ class NoteDeskState extends State<NoteDesk> {
     return _tapeHears = Listenable.merge([summaries, refining, _run]);
   }
 
+  /// What a meeting waiting for its summary says, here or on another device (lib/ai/summary_handoff.dart
+  /// `meetingWaitWords`); null for a note that is no meeting, or waits for none.
+  String? _meetingWait(SummariesState? summaries) {
+    final id = widget.noteId;
+    final prefs = preferences.value;
+    if (!prefs.meetings.containsKey(id)) return null;
+    return meetingWaitWords(prefs, id, needsModelHere: summaries?.needsModel.contains(id) ?? false);
+  }
+
   /// What the queues say of this note (tapes/NoteTape.tsx): Summarizing, "Needs a model.", "The summary didn't
   /// come.", "The summary comes after the better words."
   TapeQueue _tapeQueue() {
@@ -1049,6 +1061,7 @@ class NoteDeskState extends State<NoteDesk> {
     return TapeQueue(
       pending: summaries?.pending.contains(id) ?? false,
       needsModel: summaries?.needsModel.contains(id) ?? false,
+      waitWords: _meetingWait(summaries),
       failed: summaries?.failed.contains(id) ?? false,
       claudeHeld: summaries?.claudeHeld.contains(id) ?? false,
       failedWhy: summaries?.reasons[id],

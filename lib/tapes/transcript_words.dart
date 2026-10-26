@@ -28,15 +28,24 @@
 /// - **Paragraphs** are lit by the time they were written with: Meet's captions keep when each turn began,
 ///   `**Sam Lee (0:04):** …` (lib/meet/speakers.dart `captionsSection`), and a paragraph is current from that
 ///   moment to the next one's ([paragraphStartMs]). A paragraph with no time of its own after one that has is more
-///   words of it, as `turnsOf` reads them, and is lit with it. The transcript a write-up leaves, `**Sam Lee:** …`,
-///   and the captions a note was filed from where no sound was kept, say no time, and nothing here makes one up:
-///   they stay as they were, not lit and not buttons. The phrases beside a written-up meeting are what is timed.
+///   words of it, as `turnsOf` reads them, and is lit with it. A write-up's transcript is timed the same way since
+///   2026-10-26 (lib/meet/meet_note.dart `withSpeakers`); one written before, `**Sam Lee:** …`, and the captions a
+///   note was filed from where no sound was kept, say no time, and nothing here makes one up: they stay as they were,
+///   not lit and not buttons. The phrases beside a written-up meeting are what is timed.
 /// - **Only what changed is built again.** The lines are made once for the words shown and kept; each asks the
 ///   transcript's light ([_Lit], an [InheritedModel] by line) for its own, so a tick builds nothing, and a new line
 ///   lit builds the two whose light moved, not the meeting.
 /// - **Following.** While the tape plays the lit line is kept in the middle of the transcript. Scrolling it oneself
 ///   stops that, and a Follow pill over its foot takes it back, as does tapping a line, which takes the tape there.
 /// - Phrases are lit whole: a phrase keeps no times for its words ([Segment] has its start and end alone).
+///
+/// And named (Matt, 2026-10-26: "Also after some time all the speaker labels disappeared"): a meeting's phrases came
+/// to stand in for its written transcript once Whisper's were in, and a phrase carries no speaker, so every name the
+/// captions gave went from the view though the note still had them. Each phrase is given its speaker from the note's
+/// own words (lib/meet/speakers.dart `phraseSpeakers`: the captions while kept, the transcript's timed paragraphs, or
+/// its named ones matched by their words), and the first phrase of each speaker's run starts with the name in bold,
+/// as a written paragraph does ([TranscriptPhrase.speaker]). The light, a tap to seek and Follow are the phrases' as
+/// before; a recording made on the device names nobody and its phrases are drawn as they were.
 library;
 
 import 'dart:async';
@@ -50,6 +59,7 @@ import '../art/app_icon.dart';
 import '../art/lucide.g.dart';
 import '../core/library.dart' show transcriptOf;
 import '../core/note.dart';
+import '../meet/speakers.dart' show phraseSpeakers;
 import 'player.dart';
 
 /// The heading Meet's captions wait under for a meeting's write-up (lib/meet/speakers.dart `captionsHeading`).
@@ -292,12 +302,14 @@ class _TranscriptWordsState extends State<TranscriptWords> {
 
     if (segments != null && phrasesWhole(segments, written)) {
       final keys = [for (final _ in segments) GlobalKey()];
+      // Who said each, where the note's words name them: the name before the first phrase of each speaker's run.
+      final speakers = phraseSpeakers(segments, body);
       var latest = 0;
       return shown(
         [
           for (final (i, segment) in segments.indexed) ...[
             if (i > 0) const _Gap(),
-            _PhraseLine(key: keys[i], unit: i, segment: segment, onSeek: _seek),
+            _PhraseLine(key: keys[i], unit: i, segment: segment, speaker: speakers[i] != null && (i == 0 || speakers[i - 1] != speakers[i]) ? speakers[i] : null, onSeek: _seek),
           ],
         ],
         // Never falling, so the halves hold where two phrases came out of order.
@@ -427,14 +439,17 @@ class _Gap extends StatelessWidget {
 
 /// A phrase, with its light.
 class _PhraseLine extends StatelessWidget {
-  const _PhraseLine({super.key, required this.unit, required this.segment, required this.onSeek});
+  const _PhraseLine({super.key, required this.unit, required this.segment, this.speaker, required this.onSeek});
 
   final int unit;
   final Segment segment;
+
+  /// The speaker, on the first phrase of their run alone.
+  final String? speaker;
   final ValueChanged<int> onSeek;
 
   @override
-  Widget build(BuildContext context) => TranscriptPhrase(segment: segment, light: _Lit.of(context, unit), onPressed: () => onSeek(segment.startMs));
+  Widget build(BuildContext context) => TranscriptPhrase(segment: segment, speaker: speaker, light: _Lit.of(context, unit), onPressed: () => onSeek(segment.startMs));
 }
 
 /// A timed paragraph, or one of the untimed after it, with its light: a press takes the tape to its unit's start.
@@ -547,11 +562,16 @@ class WrittenParagraph extends StatelessWidget {
 }
 
 /// One phrase, as a button the width of the page (`.phrase`): in the second ink to be read and once heard, the
-/// first on the wash while it is ([current]), and the third while it is still to come.
+/// first on the wash while it is ([current]), and the third while it is still to come. The first phrase of a
+/// speaker's run starts with their name in bold ([speaker]), as a written paragraph's does.
 class TranscriptPhrase extends StatelessWidget {
-  const TranscriptPhrase({super.key, required this.segment, required this.light, required this.onPressed});
+  const TranscriptPhrase({super.key, required this.segment, this.speaker, required this.light, required this.onPressed});
 
   final Segment segment;
+
+  /// Who began speaking with this phrase, where the note names them (lib/meet/speakers.dart `phraseSpeakers`); null
+  /// for a phrase that goes on the same speaker's words, or one nobody is named for.
+  final String? speaker;
   final TranscriptLight light;
   final VoidCallback onPressed;
 
@@ -565,7 +585,13 @@ class TranscriptPhrase extends StatelessWidget {
   bool get reading => light == TranscriptLight.reading;
 
   @override
-  Widget build(BuildContext context) => _Line(light: light, onPressed: onPressed, child: Text(segment.text));
+  Widget build(BuildContext context) {
+    final name = speaker;
+    if (name == null) return _Line(light: light, onPressed: onPressed, child: Text(segment.text));
+    final t = context.tokens;
+    final style = t.textAt(t.len('app-body'), height: 1.4, weight: 'semibold', color: t.color(light == TranscriptLight.coming ? 'app-ink-2' : 'app-ink'));
+    return _Line(light: light, onPressed: onPressed, child: Text.rich(TextSpan(children: [TextSpan(text: '$name:', style: style), TextSpan(text: ' ${segment.text}')])));
+  }
 }
 
 /// Follow, over the transcript's foot once it has been scrolled away from the line being heard: takes it back there,

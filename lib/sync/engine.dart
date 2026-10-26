@@ -386,6 +386,16 @@ class SyncEngine {
     return _bridge = PrefsBridge(store: prefs, kept: _device, key: _stateKey(accountId, 'prefs-held'));
   }
 
+  /// The synced settings as the account holds them, as far as this device has seen (lib/sync/prefs.dart
+  /// [PrefsBridge.held]): what the last pass of the settings sent or took, never a change made here since. Null signed
+  /// out, or with Local only on, where nothing is synced. A claim on a meeting's summary is read here once a sync has
+  /// run (lib/ai/summary_handoff.dart): it is the account's only once it is in this.
+  Map<String, Object?>? get accountPrefs {
+    final session = account.session;
+    if (session == null || prefs.value.localOnly) return null;
+    return _bridgeFor(session.accountId).held;
+  }
+
   /// Whether this device's copy of a note has changes the pass sync has not sent: its fingerprint against the one
   /// kept at its last sync, or no record of it at all (`hasUnsyncedChanges`). Live sync asks when a device joins a
   /// note another device already has open: a device that was only behind adopts the room's words; one with changes

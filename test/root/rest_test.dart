@@ -477,7 +477,9 @@ void main() {
       await settle(tester, 8);
       expect(find.text('Being written up on another device.'), findsNothing);
       expect(find.byType(TranscriptPhrase), findsOneWidget);
-      expect(find.text('Good morning everyone.'), findsOneWidget);
+      // Named from the transcript beside it, as the captions named it (Matt, 2026-10-26: "all the speaker labels
+      // disappeared").
+      expect(find.text('Sam Lee: Good morning everyone.', findRichText: true), findsOneWidget);
       await close(tester);
     });
 

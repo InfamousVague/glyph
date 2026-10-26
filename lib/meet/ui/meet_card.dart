@@ -5,9 +5,11 @@ import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart';
+import '../../ai/summary_handoff.dart' show meetingWaitWords;
 import '../../art/art.dart';
 import '../../core/locale_dates.dart';
 import '../../core/note.dart';
+import '../../core/preferences.dart' show Preferences;
 import '../../editor/band/menu_band.dart' show BandTip;
 import '../../mail/mail_in.dart' show MailIn;
 import '../../mail/mail_name.dart';
@@ -433,7 +435,7 @@ class _MeetCardState extends State<MeetCard> {
           _ => meeting.series != null ? Lucide.repeat : Lucide.calendarDays,
         }, size: 20),
         label: meeting.title ?? 'A meeting',
-        hint: Text('$when · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId])}'),
+        hint: Text('$when · ${_whereItStands(meeting, noteId == null ? null : _notes[noteId], widget.services.prefs.value)}'),
         onPress: noteId == null || open == null ? null : () => open(noteId),
         control: meeting.state.open
             ? RowAction(
@@ -638,11 +640,14 @@ String meetCheckedSaid(int? at, {required int now}) {
 
 /// Where a meeting stands, as its row says it: [meetStateWords], but a meeting done is "Written up" only once its
 /// [note] is here, "Being written up" while the note waits for its write-up, and "Not written up yet" before it has
-/// come.
-String _whereItStands(MeetBooking meeting, Note? note) {
+/// come; and, once written up, where it waits for its summary, what to do or where it is being written
+/// (lib/ai/summary_handoff.dart `meetingWaitWords`; Matt, 2026-10-26: "The engineering standup meeting was not auto
+/// summarized").
+String _whereItStands(MeetBooking meeting, Note? note, Preferences prefs) {
   if (meeting.state != MeetState.done) return meetStateWords(meeting);
   if (note == null) return 'Not written up yet';
-  return awaitsWriteUp(note.body) ? 'Being written up' : meetStateWords(meeting);
+  if (awaitsWriteUp(note.body)) return 'Being written up';
+  return meetingWaitWords(prefs, note.id, needsModelHere: false) ?? meetStateWords(meeting);
 }
 
 /// A meeting's time of day, "14:00", under its day's heading.
