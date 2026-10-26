@@ -169,6 +169,7 @@ import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs;
+import '../note/note_banner.dart' show bannerInColour;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartMeetings, bannerRunEndWords, bannerRunLine, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
@@ -462,6 +463,11 @@ class _GhostRootState extends State<GhostRoot> {
       accountHeld: () => _services?.engine?.accountPrefs,
     ),
     background: ChannelBackgroundJobs(),
+    // Redo black-and-white headers in colour: which banners are, read from the pictures as the page reads them.
+    inColour: (name) {
+      final store = lovartPictureStore;
+      return store == null ? Future<bool>.value(true) : bannerInColour(store, name);
+    },
     ended: _bannerRunEnded,
   );
 

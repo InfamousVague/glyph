@@ -119,11 +119,12 @@ void _markDone(PluginHost on, String id) {
 
 final RegExp _word = RegExp(r'[\p{L}\p{N}]+', unicode: true);
 
-/// Whether [note] is one a banner is made for by itself (the rules above), banner and keys aside.
-bool wantsBanner(Note note) {
+/// Whether [note] is one a banner is made for by itself (the rules above), banner and keys aside. [replacing], one
+/// that may have one already: a run's Redo black-and-white headers in colour (banner_run.dart).
+bool wantsBanner(Note note, {bool replacing = false}) {
   if (note.archivedAt != null) return false;
   final body = note.body;
-  if (bannerOf(body) != null) return false;
+  if (!replacing && bannerOf(body) != null) return false;
   final facts = NoteFacts.read(body);
   if (facts.isTicket || facts.isBook || facts.isCanvas || facts.isTemplatePage || facts.isTemplatesBook) return false;
   // A mail as it arrived, and a meeting: Ghost's own, or a recording written up.
@@ -176,12 +177,19 @@ class LovartBanners {
 
   /// Gives the note [id] its banner, where it is one to have, the switch aside. Answers whether it was. A failure is
   /// said to the log, or thrown where [rethrowStopping] and it is one that stops a run (anything but Lovart declining).
-  Future<bool> make(String id, {bool rethrowStopping = false}) async {
+  ///
+  /// Asked by a run the person started, two more ways (Matt, 2026-10-26: "remove the header banner images on the
+  /// docs as we will regenerate them"): [again], a note given one before whose banner was taken off, made once more
+  /// although it is marked given; and [replacing], the black-and-white banner of that name made again in colour and
+  /// put in its place. Either way only while the note still has what it had: a banner given by hand meanwhile, or a
+  /// different one, stands. Leaving a note never asks either: there a banner taken off stays off.
+  Future<bool> make(String id, {bool rethrowStopping = false, bool again = false, String? replacing}) async {
     if (!pluginOn(manifest) || !hasLovartKeys(_on)) return false;
     if ((pictures ?? lovartPictureStore) == null) return false;
-    if (_done(_on).contains(id) || lovartBannerMaking.value.contains(id)) return false;
+    final asked = again || replacing != null;
+    if ((!asked && _done(_on).contains(id)) || lovartBannerMaking.value.contains(id)) return false;
     final note = await getNote(id);
-    if (note == null || !wantsBanner(note)) return false;
+    if (note == null || !wantsBanner(note, replacing: replacing != null) || bannerOf(note.body) != replacing) return false;
     // Marked before Lovart is asked: once per note, whatever happens next.
     _markDone(_on, id);
     final lovart = client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host));
@@ -193,8 +201,9 @@ class LovartBanners {
         images = await lovart.generate(bannerPrompt(note.body));
       } on LovartFailure catch (failure) {
         if (rethrowStopping && failure is! LovartRefused) {
-          // Not this note's fault: a run started again later tries it again.
-          _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
+          // Not this note's fault: a run started again later tries it again. One asked again was given one before,
+          // and stays so for leaving it.
+          if (!asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
           rethrow;
         }
         warn?.call('[lovart] no banner for the note: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
@@ -208,8 +217,8 @@ class LovartBanners {
           var wrote = false;
           try {
             await into(id, (body) {
-              // Given one by hand meanwhile: that one stands.
-              if (bannerOf(body) != null) return body;
+              // Given one by hand meanwhile (or, one being replaced, another one): that one stands.
+              if (bannerOf(body) != replacing) return body;
               wrote = true;
               return withBanner(body, names.first);
             });
@@ -223,8 +232,8 @@ class LovartBanners {
       }
       for (var attempt = 0; attempt < 2; attempt += 1) {
         final now = await getNote(id);
-        // Gone, or given one by hand meanwhile: that one stands.
-        if (now == null || bannerOf(now.body) != null) return false;
+        // Gone, or given one by hand meanwhile (or, one being replaced, another one): that one stands.
+        if (now == null || bannerOf(now.body) != replacing) return false;
         try {
           await update(id, withBanner(now.body, names.first), now.revision);
           done?.call(id);

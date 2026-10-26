@@ -15,6 +15,15 @@
 /// Credits spent, keys refused, a costly step waiting, or pictures with nowhere to go stop the rest, and say why;
 /// Lovart declining one note goes on, and that note is counted skipped.
 ///
+/// TWO CHOICES FOR A RUN, on the page beside Make them, for that run alone (Matt, 2026-10-26: "remove the header banner
+/// images on the docs as we will regenerate them"; [bannerAsks]):
+/// - **Include notes whose header was taken off**: a note given one before is marked given (banners.dart), so a run
+///   never picked it again once its banner went. With this it is asked again, where it is still a note to have one.
+/// - **Redo black-and-white headers in colour**: the banners made before they were made in colour (the picture read
+///   as lib/note/note_banner.dart reads it, `bannerInColour`) are made again and put in their place; one changed
+///   meanwhile stands.
+/// Leaving a note asks neither: there a banner is made once per note, and one taken off on purpose stays off.
+///
 /// KEPT AS IT GOES, in the plugin's storage on this device ([bannerRunKey]; the summary queue's pattern, a job kept
 /// in the device's memory so one the app did not finish runs at the next launch): the notes left, the ones being
 /// made now, and how many were made and skipped, written as each note starts and as each is done. A run the app was
@@ -56,6 +65,7 @@ import '../../core/preferences.dart' show Preferences;
 import '../host.dart' show onPluginStorage;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
+import '../../core/banner.dart' show bannerOf;
 import 'banners.dart';
 import 'client.dart';
 import 'manifest.dart';
@@ -72,6 +82,43 @@ List<Note> bannerCandidates(List<Note> notes, {int most = bannerRunMost, PluginH
   final done = bannersGiven(via).toSet();
   final sorted = [...notes]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   return [for (final note in sorted) if (!done.contains(note.id) && wantsBanner(note)) note].take(most).toList();
+}
+
+/// What one note of a run is asked for: a banner where it has none, made [again] where it had one that was taken off,
+/// or one in colour [replacing] the black-and-white banner of that name.
+typedef BannerAsk = ({String id, bool again, String? replacing});
+
+/// A run's notes as Make them picks them, newest first, at most [most] (Matt, 2026-10-26: "add the banner to 100 of
+/// the most recent notes that are not tickets or meetings"; then "remove the header banner images on the docs as we
+/// will regenerate them"): the notes never given one ([bannerCandidates]); with [takenOff], the ones given one before
+/// whose banner is not there now, which leaving a note never makes again; and with [inColour] (whether a kept
+/// picture is in colour: lib/note/note_banner.dart `bannerInColour`), the ones whose banner is black and white, to be
+/// made again in colour. Each must still be a note to have one.
+Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Future<bool> Function(String name)? inColour, int most = bannerRunMost, PluginHost? via}) async {
+  final done = bannersGiven(via).toSet();
+  final sorted = [...notes]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  final asks = <BannerAsk>[];
+  for (final note in sorted) {
+    if (asks.length >= most) break;
+    final banner = bannerOf(note.body);
+    if (banner == null) {
+      if (!wantsBanner(note)) continue;
+      if (!done.contains(note.id)) {
+        asks.add((id: note.id, again: false, replacing: null));
+      } else if (takenOff) {
+        asks.add((id: note.id, again: true, replacing: null));
+      }
+    } else if (inColour != null && wantsBanner(note, replacing: true)) {
+      var colour = true;
+      try {
+        colour = await inColour(banner);
+      } catch (_) {
+        // A picture that cannot be read is left as it is.
+      }
+      if (!colour) asks.add((id: note.id, again: true, replacing: banner));
+    }
+  }
+  return asks;
 }
 
 // ---- where it stands ----------------------------------------------------------------------------------------------
@@ -132,7 +179,7 @@ String bannerElsewhereWords(BannerClaim claim) => 'Header images are being made 
 /// counts so far.
 @immutable
 class BannerQueue {
-  const BannerQueue({required this.total, required this.left, this.going = const [], this.made = 0, this.skipped = 0});
+  const BannerQueue({required this.total, required this.left, this.going = const [], this.made = 0, this.skipped = 0, this.again = const [], this.replacing = const {}});
 
   final int total;
 
@@ -144,7 +191,15 @@ class BannerQueue {
   final int made;
   final int skipped;
 
-  Map<String, Object?> toJson() => {'total': total, 'left': left, 'going': going, 'made': made, 'skipped': skipped};
+  /// Of [left], the notes asked again although they were given one before (a banner taken off, or one to redo in
+  /// colour), and of those, the black-and-white banner each replaces, by note.
+  final List<String> again;
+  final Map<String, String> replacing;
+
+  /// What [id] is asked for.
+  BannerAsk ask(String id) => (id: id, again: again.contains(id) || replacing.containsKey(id), replacing: replacing[id]);
+
+  Map<String, Object?> toJson() => {'total': total, 'left': left, 'going': going, 'made': made, 'skipped': skipped, if (again.isNotEmpty) 'again': again, if (replacing.isNotEmpty) 'replacing': replacing};
 
   /// A queue as kept, or null for anything that is not one.
   static BannerQueue? fromJson(Object? raw) {
@@ -154,7 +209,16 @@ class BannerQueue {
     final left = ids(raw['left']);
     final total = n(raw['total']);
     if (raw['left'] is! List || total <= 0) return null;
-    return BannerQueue(total: total, left: left, going: ids(raw['going']), made: n(raw['made']), skipped: n(raw['skipped']));
+    final replacing = raw['replacing'];
+    return BannerQueue(
+      total: total,
+      left: left,
+      going: ids(raw['going']),
+      made: n(raw['made']),
+      skipped: n(raw['skipped']),
+      again: ids(raw['again']),
+      replacing: replacing is Map ? {for (final MapEntry(:key, :value) in replacing.entries) if (key is String && value is String) key: value} : const {},
+    );
   }
 }
 
@@ -296,7 +360,7 @@ class BannerClaims {
 
 /// The app's one run over the recent notes (see the header): made by the root, and handed to [lovartBannerJob].
 class BannerJob {
-  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.ended, PluginHost? via})
+  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.inColour, this.ended, PluginHost? via})
       : background = background ?? const NoBackgroundJobs(),
         _host = via {
     this.background.onStop((id) {
@@ -315,6 +379,10 @@ class BannerJob {
 
   /// The phone's half: the service and its notifications, the Mac's hold.
   final BackgroundJobs background;
+
+  /// Whether the kept picture of that name is in colour (lib/note/note_banner.dart `bannerInColour`, the root's);
+  /// none, and Redo black-and-white headers in colour finds nothing to redo.
+  final Future<bool> Function(String name)? inColour;
 
   /// Told as a run ends, however it ends: the root's toast.
   final void Function(BannerRun run)? ended;
@@ -342,9 +410,10 @@ class BannerJob {
     return bannerUnready();
   }
 
-  /// Make them: a run over the recent notes. Answers why it did not start, or null where it did (or one was
-  /// already going, which it leaves be).
-  Future<String?> start() async {
+  /// Make them: a run over the recent notes ([bannerAsks]), with the notes whose banner was [takenOff] and, with
+  /// [recolour], the black-and-white banners made again in colour where the job was told how to tell ([inColour]).
+  /// Answers why it did not start, or null where it did (or one was already going, which it leaves be).
+  Future<String?> start({bool takenOff = false, bool recolour = false}) async {
     if (_running) return null;
     _running = true;
     try {
@@ -353,7 +422,7 @@ class BannerJob {
         lovartBannerRun.value = BannerRun(total: 0, running: false, stopped: unready);
         return unready;
       }
-      final queue = bannerCandidates(notes(), via: _host);
+      final queue = await bannerAsks(notes(), takenOff: takenOff, inColour: recolour ? inColour : null, via: _host);
       if (queue.isEmpty) {
         final run = lovartBannerRun.value = const BannerRun(total: 0, running: false);
         ended?.call(run);
@@ -364,7 +433,12 @@ class BannerJob {
         lovartBannerRun.value = BannerRun(total: 0, running: false, stopped: refused, elsewhere: elsewhere());
         return refused;
       }
-      await _run(BannerQueue(total: queue.length, left: [for (final note in queue) note.id]));
+      await _run(BannerQueue(
+        total: queue.length,
+        left: [for (final ask in queue) ask.id],
+        again: [for (final ask in queue) if (ask.again && ask.replacing == null) ask.id],
+        replacing: {for (final ask in queue) if (ask.replacing != null) ask.id: ask.replacing!},
+      ));
       return null;
     } finally {
       _running = false;
@@ -403,15 +477,16 @@ class BannerJob {
     if (_running || kept == null) return;
     _running = true;
     try {
-      // The ones being made as the app went were marked given before Lovart was asked: asked for again.
-      forgetBannersGiven(kept.going, _host);
+      // The ones being made as the app went were marked given before Lovart was asked: asked for again. Not the ones
+      // asked again on purpose, given one before, which leaving them never makes again.
+      forgetBannersGiven([for (final id in kept.going) if (!kept.ask(id).again) id], _host);
       final refused = await claims?.claim(done: kept.total - kept.left.length, total: kept.total);
       if (refused != null) {
         lovartBannerRun.value = BannerRun(total: kept.total, done: kept.total - kept.left.length, made: kept.made, running: false, stopped: refused, elsewhere: elsewhere());
         _on.storage.remove(bannerRunKey);
         return;
       }
-      await _run(BannerQueue(total: kept.total, left: kept.left, made: kept.made, skipped: kept.skipped));
+      await _run(BannerQueue(total: kept.total, left: kept.left, made: kept.made, skipped: kept.skipped, again: kept.again, replacing: kept.replacing));
     } finally {
       _running = false;
     }
@@ -432,7 +507,18 @@ class BannerJob {
     var made = queue.made, skipped = queue.skipped;
     String? stopped;
 
-    void keep() => _on.storage.set(bannerRunKey, BannerQueue(total: total, left: left, going: going.toList(), made: made, skipped: skipped).toJson());
+    void keep() => _on.storage.set(
+          bannerRunKey,
+          BannerQueue(
+            total: total,
+            left: left,
+            going: going.toList(),
+            made: made,
+            skipped: skipped,
+            again: [for (final id in queue.again) if (left.contains(id)) id],
+            replacing: {for (final MapEntry(:key, :value) in queue.replacing.entries) if (left.contains(key)) key: value},
+          ).toJson(),
+        );
     BannerRun now() => BannerRun(total: total, done: made + skipped, made: made, running: true);
     void say() {
       final run = lovartBannerRun.value = now();
@@ -461,7 +547,8 @@ class BannerJob {
         going.add(id);
         keep();
         try {
-          final ok = await banners.make(id, rethrowStopping: true);
+          final ask = queue.ask(id);
+          final ok = await banners.make(id, rethrowStopping: true, again: ask.again, replacing: ask.replacing);
           ok ? made += 1 : skipped += 1;
           left.remove(id);
         } on LovartFailure catch (failure) {
@@ -493,10 +580,10 @@ class BannerJob {
 /// The app's job, set by the root as it starts; null where there is no library (a test, the page alone).
 BannerJob? lovartBannerJob;
 
-/// Settings › Lovart's Make them.
-Future<void> runBanners() async {
+/// Settings › Lovart's Make them, with its two choices for the run.
+Future<void> runBanners({bool takenOff = false, bool recolour = false}) async {
   final job = lovartBannerJob;
-  if (job != null) await job.start();
+  if (job != null) await job.start(takenOff: takenOff, recolour: recolour);
 }
 
 /// Its Stop, and the line's: after the pictures being made now.

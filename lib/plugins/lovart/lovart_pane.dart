@@ -59,6 +59,12 @@ class _LovartPaneState extends State<LovartPane> {
   String? _problem;
   String? _said;
   bool _armed = false;
+
+  /// Make them's two choices, for the next run (Matt, 2026-10-26: "remove the header banner images on the docs as we
+  /// will regenerate them"): the notes whose banner was taken off, and the black-and-white banners made again in
+  /// colour. The page's own, never kept: each run is asked for as it is wanted.
+  bool _takenOff = false;
+  bool _recolour = false;
   Timer? _timer;
 
   @override
@@ -215,13 +221,32 @@ class _LovartPaneState extends State<LovartPane> {
             if (lovartBannerJob != null)
               ValueListenableBuilder<BannerRun?>(
                 valueListenable: lovartBannerRun,
-                builder: (context, run, _) => SettingRow(
-                  key: const ValueKey('lovart-banner-run'),
-                  label: 'Header images for recent notes',
-                  hint: Text(_runWords(run)),
-                  value: run?.running == true
-                      ? RowAction(onPress: stopBannerRun, child: const Text('Stop'))
-                      : RowAction(onPress: () => unawaited(runBanners()), disabled: keys == null, child: const Text('Make them')),
+                builder: (context, run, _) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SettingRow(
+                      key: const ValueKey('lovart-banner-run'),
+                      label: 'Header images for recent notes',
+                      hint: Text(_runWords(run)),
+                      value: run?.running == true
+                          ? RowAction(onPress: stopBannerRun, child: const Text('Stop'))
+                          : RowAction(onPress: () => unawaited(runBanners(takenOff: _takenOff, recolour: _recolour)), disabled: keys == null, child: const Text('Make them')),
+                    ),
+                    if (run?.running != true) ...[
+                      SettingRow(
+                        key: const ValueKey('lovart-banner-taken-off'),
+                        label: 'Include notes whose header was taken off',
+                        hint: const Text('Makes them again for notes that had one. Leaving a note never does.'),
+                        control: GlacierSwitch(ariaLabel: 'Include notes whose header was taken off', checked: _takenOff, onCheckedChange: (on) => setState(() => _takenOff = on)),
+                      ),
+                      SettingRow(
+                        key: const ValueKey('lovart-banner-recolour'),
+                        label: 'Redo black-and-white headers in colour',
+                        hint: const Text('The dotwork banners made before colour, made again in colour and put in their place.'),
+                        control: GlacierSwitch(ariaLabel: 'Redo black-and-white headers in colour', checked: _recolour, onCheckedChange: (on) => setState(() => _recolour = on)),
+                      ),
+                    ],
+                  ],
                 ),
               ),
           ],

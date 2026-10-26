@@ -428,6 +428,95 @@ void main() {
       expect(lovartBannerRun.value!.made, 5);
     });
 
+    group('made again, on purpose', () {
+      setUp(() => gated.open = true);
+
+      test('a note whose banner was taken off is asked again only where the run says so, never by leaving it', () async {
+        five();
+        // n4 had one, and it was taken off.
+        lovart.host.storage.set(bannersDoneKey, ['n4']);
+        await job.start();
+        expect(bannerOf(notes['n4']!.body), isNull, reason: 'not by Make them alone');
+        expect(lovartBannerRun.value!.made, 4);
+        expect(await banners.noteLeft('n4'), isFalse, reason: 'nor by leaving it');
+        expect(await job.start(takenOff: true), isNull);
+        expect(bannerOf(notes['n4']!.body), isNotNull);
+        expect((lovartBannerRun.value!.made, lovartBannerRun.value!.total), (1, 1));
+        expect(bannersGiven(), contains('n4'));
+      });
+
+      test('black-and-white banners are made again in colour and put in their place; colour ones and changed ones stand', () async {
+        dated('bw', withBanner('# Black and white\n\n$_words', 'lovart-old-bw.png'), 3);
+        dated('colour', withBanner('# Colour\n\n$_words', 'lovart-colour.png'), 2);
+        dated('plain', '# Plain\n\n$_words', 1);
+        lovart.host.storage.set(bannersDoneKey, ['bw', 'colour']);
+        final read = <String>[];
+        lovartBannerJob = job = BannerJob(
+          notes: () => notes.values.toList(),
+          banners: banners,
+          background: jobs,
+          inColour: (name) async {
+            read.add(name);
+            return !name.startsWith('lovart-old-');
+          },
+        );
+        // Without the choice, the pictures are not even read.
+        await job.start();
+        expect(read, isEmpty);
+        expect(bannerOf(notes['bw']!.body), 'lovart-old-bw.png');
+        expect(bannerOf(notes['plain']!.body), isNotNull);
+        await job.start(recolour: true);
+        expect(read, unorderedEquals(['lovart-old-bw.png', 'lovart-colour.png', bannerOf(notes['plain']!.body)]));
+        final redone = bannerOf(notes['bw']!.body)!;
+        expect(redone, isNot('lovart-old-bw.png'));
+        expect(pictures.kept, contains(redone));
+        expect(notes['bw']!.body, withBanner('# Black and white\n\n$_words', redone));
+        expect(bannerOf(notes['colour']!.body), 'lovart-colour.png');
+        expect((lovartBannerRun.value!.made, lovartBannerRun.value!.total), (1, 1));
+        // One given another banner while Lovart worked keeps it.
+        notes['bw'] = notes['bw']!.copyWith(body: withBanner(notes['bw']!.body, 'lovart-old-bw2.png'));
+        gated.onAsk = () => notes['bw'] = notes['bw']!.copyWith(body: withBanner(notes['bw']!.body, 'mine.png'), revision: notes['bw']!.revision + 1);
+        await job.start(recolour: true);
+        expect(bannerOf(notes['bw']!.body), 'mine.png');
+        expect(lovartBannerRun.value!.made, 0);
+      });
+
+      test('what each note was asked for is kept with the run, and a restart asks it the same', () async {
+        dated('bw', withBanner('# Black and white\n\n$_words', 'lovart-old-bw.png'), 2);
+        dated('off', '# Taken off\n\n$_words', 1);
+        lovart.host.storage.set(bannersDoneKey, ['bw', 'off']);
+        lovart.host.storage.set(
+          bannerRunKey,
+          const BannerQueue(total: 2, left: ['bw', 'off'], going: ['bw', 'off'], again: ['off'], replacing: {'bw': 'lovart-old-bw.png'}).toJson(),
+        );
+        await job.resume();
+        expect(bannerOf(notes['bw']!.body), isNot('lovart-old-bw.png'));
+        expect(bannerOf(notes['off']!.body), isNotNull);
+        expect(lovartBannerRun.value!.made, 2);
+        expect(bannersGiven(), containsAll(['bw', 'off']), reason: 'asked again on purpose, still given for leaving them');
+      });
+
+      testWidgets('the page\'s two choices go with Make them', (tester) async {
+        five();
+        lovart.host.storage.set(bannersDoneKey, ['n4']);
+        await pumpPane(tester, const LovartPane());
+        final takenOff = find.byKey(const ValueKey('lovart-banner-taken-off'));
+        await tester.ensureVisible(takenOff);
+        expect(find.byKey(const ValueKey('lovart-banner-recolour')), findsOneWidget);
+        await tester.tap(find.descendant(of: takenOff, matching: find.byType(GlacierSwitch)));
+        await tester.pump();
+        final row = find.byKey(const ValueKey('lovart-banner-run'));
+        await tester.ensureVisible(row);
+        await tester.tap(find.descendant(of: row, matching: find.text('Make them')));
+        for (var i = 0; i < 20 && job.running; i += 1) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        expect(bannerOf(notes['n4']!.body), isNotNull);
+        expect(lovartBannerRun.value!.made, 5);
+        await away(tester);
+      });
+    });
+
     group('across the account\'s devices', () {
       late Preferences prefs;
       late Map<String, Object?> account;
