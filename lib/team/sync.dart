@@ -183,6 +183,7 @@ class TeamSyncContext {
     required this.api,
     required this.crypto,
     required this.isTeamNote,
+    this.leftTeam,
     required this.file,
     this.folders,
     this.now,
@@ -209,6 +210,12 @@ class TeamSyncContext {
 
   /// Whether a note on this device is filed in this organization's workspace, or in a folder under it.
   final bool Function(String id) isTeamNote;
+
+  /// Whether a note still on this device has left the team, by positive evidence: filed in a workspace this device
+  /// knows, outside the organization. Without it, or answering false, a note that is no longer a team note here but
+  /// is still on the device keeps its row: the team's notes are never taken from every member because this device
+  /// could not place a folder.
+  final bool Function(String id)? leftTeam;
 
   /// A note from the team, filed in the organization's workspace on this device: one at the organization's own
   /// folder, or any, where this device has no [folders].
@@ -716,18 +723,30 @@ Future<void> _counted(_Tally tally, Future<void> Function() work) async {
 }
 
 Future<void> _push(TeamSyncContext ctx, _Tally tally) async {
+  final all = await ctx.notes.list();
   final here = [
-    for (final note in await ctx.notes.list())
+    for (final note in all)
       if (ctx.isTeamNote(note.id)) note,
   ];
+  final onDevice = {for (final note in all) note.id};
   final present = <String>{};
   for (final note in here) {
     present.add(note.id);
     await _counted(tally, () => _pushOne(ctx, note, tally));
   }
-  // Gone from here, or taken out of the organization's workspace: gone from the team.
+  // Gone from here, or taken out of the organization's workspace: gone from the team. Only on evidence (2026-10-26:
+  // 108 team notes were deleted for every member by a build that read the organizations' folders as personal): a
+  // note deleted on this device, or one filed in a workspace this device knows outside the organization
+  // ([TeamSyncContext.leftTeam]). One that is here but not placed in the team - unfiled, or in a folder this device
+  // cannot place - keeps its row. And a library that reads as empty while the team has notes deletes nothing: that
+  // is a library not read, not every note deleted.
+  if (all.isEmpty && ctx.state.notes.isNotEmpty) {
+    ctx.save(ctx.state);
+    return;
+  }
   for (final id in ctx.state.notes.keys.toList()) {
     if (present.contains(id)) continue;
+    if (onDevice.contains(id) && !(ctx.leftTeam?.call(id) ?? false)) continue;
     await _counted(tally, () async {
       final known = ctx.state.notes[id]!;
       final path = ctx._route('notes/${Uri.encodeComponent(id)}');
@@ -849,6 +868,7 @@ TeamSyncContext teamContext(TeamPass pass, TeamDocs docs, {int Function()? now})
       crypto: pass.crypto,
       now: now,
       isTeamNote: pass.isTeamNote,
+      leftTeam: pass.leftTeam,
       file: pass.file,
       folders: pass.folders,
       pulled: pass.pulled,

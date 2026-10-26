@@ -176,6 +176,7 @@ void main() {
       expect(mac.notes.keys.toList()..sort(), ['n1', 'n2']);
       phone.notes.remove('n1');
       phone.filed.remove('n2');
+      phone.personal.add('n2');
       await phone.sync();
       expect(service.teamNotes(orgId)['n1']!.deleted, isTrue);
       expect(service.teamNotes(orgId)['n2']!.deleted, isTrue);
@@ -184,6 +185,29 @@ void main() {
       expect(phone.docs.held(), isEmpty);
       await mac.sync();
       expect(mac.notes.keys, isEmpty);
+    }, skip: skip);
+
+    // 2026-10-26: a build that read the organizations' folders as personal deleted 108 team notes for every member.
+    // A note still here but not placed in the team (unfiled, or in a folder this device cannot place) keeps its row;
+    // so does every note when the library reads as empty.
+    test('never takes a note from the team for want of evidence: one unfiled or unplaced keeps its row, and an empty library deletes nothing', () async {
+      final phone = device();
+      phone.put('n1', 'in a folder this device lost');
+      phone.put('n2', 'still here');
+      await phone.sync();
+      final mac = device();
+      await mac.sync();
+      phone.filed.remove('n1');
+      await phone.sync();
+      expect(service.teamNotes(orgId)['n1']!.deleted, isFalse);
+      await mac.sync();
+      expect(mac.notes.keys.toList()..sort(), ['n1', 'n2']);
+      // A library that reads as empty: nothing is taken from the team.
+      final held = Map.of(phone.notes);
+      phone.notes.clear();
+      await phone.sync();
+      expect([for (final row in service.teamNotes(orgId).values) row.deleted], everyElement(isFalse));
+      phone.notes.addAll(held);
     }, skip: skip);
 
     test('carries a note\'s versions file, merged, and its pictures, under the organization', () async {
@@ -347,6 +371,7 @@ void main() {
       await phone.sync();
       expect(phone.state.files.keys, contains(recordingId('n1')));
       phone.filed.remove('n1');
+      phone.personal.add('n1');
       await phone.sync();
       expect(service.teamNotes(orgId)['n1']!.deleted, isTrue);
       expect(phone.state.files.keys, isNot(contains(recordingId('n1'))));
