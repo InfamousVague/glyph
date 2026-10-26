@@ -132,8 +132,8 @@ void main() {
         command.run();
       }
       expect(calls.said.take(8), ['newNote', 'newNotebook', 'newJournal', 'speak', 'showList', 'browseNotes', 'chooseWorkspace work', 'chooseWorkspace home']);
-      expect(calls.said.skip(calls.said.length - 11), [
-        'setTheme system', 'setTheme light', 'setTheme dawn', 'setTheme boreal', 'setTheme ember', //
+      expect(calls.said.skip(calls.said.length - 15), [
+        'setTheme system', 'setTheme light', 'setTheme dawn', 'setTheme boreal', 'setTheme ember', 'setTheme sakura', 'setTheme meadow', 'setTheme tide', 'setTheme dusk', //
         'settings', 'notifications', 'organizations', 'cheatSheet', 'academy', 'guide',
       ]);
     });

@@ -251,6 +251,10 @@ export function paletteCommands(world: PaletteWorld, doing: PaletteDoing, query 
     ['dawn', 'Dawn'],
     ['boreal', 'Boreal'],
     ['ember', 'Ember'],
+    ['sakura', 'Sakura'],
+    ['meadow', 'Meadow'],
+    ['tide', 'Tide'],
+    ['dusk', 'Dusk'],
   ];
   for (const [value, label] of themes) {
     if (value === world.theme) continue;

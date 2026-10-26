@@ -10,7 +10,7 @@ import type { SettingsFindable } from './settingsSearch.ts';
  */
 export function findable({ wide, haptics }: { wide: boolean; haptics: boolean }): SettingsFindable[] {
   return [
-    { name: 'Page', words: 'theme light dark system dawn boreal ember' },
+    { name: 'Page', words: 'theme light dark system dawn boreal ember sakura meadow tide dusk' },
     { name: 'Home page', words: 'dashboard layout home cards list timeline spotlight grid' },
     { name: 'Top bar', words: 'header toolbar tabs bar ledger strip masthead islands thumb classic capsules' },
     { name: 'Accent', words: 'colour color highlight' },

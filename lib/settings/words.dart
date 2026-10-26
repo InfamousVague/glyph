@@ -13,7 +13,16 @@ import '../core/preferences.dart';
 const Map<String, String> sizeWords = {'large': 'Large', 'larger': 'Larger', 'largest': 'Largest'};
 
 /// `FACE_WORDS`.
-const Map<String, String> faceWords = {'maple': 'Maple Mono', 'fira': 'Fira Code', 'inter': 'Inter', 'noto': 'Noto', 'plex': 'Plex'};
+const Map<String, String> faceWords = {
+  'maple': 'Maple Mono',
+  'fira': 'Fira Code',
+  'jetbrains': 'JetBrains Mono',
+  'inter': 'Inter',
+  'noto': 'Noto',
+  'plex': 'Plex',
+  'atkinson': 'Atkinson',
+  'lora': 'Lora',
+};
 
 /// `DENSITY_WORDS`: how much air the app gives itself, the kit's own density stops in Ghost.md's words. Two stops
 /// either side of Comfortable, which is the kit's own default and the app's.
@@ -43,7 +52,7 @@ const Map<String, String> accentWords = {
 };
 
 /// `THEME_WORDS`.
-const Map<String, String> themeWords = {'system': 'System', 'light': 'Light', 'dark': 'Dark', 'dawn': 'Dawn', 'boreal': 'Boreal', 'ember': 'Ember'};
+const Map<String, String> themeWords = {'system': 'System', 'light': 'Light', 'dark': 'Dark', 'dawn': 'Dawn', 'boreal': 'Boreal', 'ember': 'Ember', 'sakura': 'Sakura', 'meadow': 'Meadow', 'tide': 'Tide', 'dusk': 'Dusk'};
 
 /// The interface-size steps in words (`WORDS`, ScaleCards.tsx): "85%", not "0.85".
 final Map<double, String> scaleWords = {0.85: '85%', 0.925: '93%', 1: 'Default', 1.1: '110%', 1.25: '125%'};

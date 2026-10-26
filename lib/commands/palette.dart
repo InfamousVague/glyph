@@ -282,6 +282,10 @@ const List<(String, String)> _themes = [
   ('dawn', 'Dawn'),
   ('boreal', 'Boreal'),
   ('ember', 'Ember'),
+  ('sakura', 'Sakura'),
+  ('meadow', 'Meadow'),
+  ('tide', 'Tide'),
+  ('dusk', 'Dusk'),
 ];
 
 /// The commands for the app as it stands (`paletteCommands`). [query], what is typed so far, decides only which

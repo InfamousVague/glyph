@@ -157,3 +157,22 @@ flutter:
     - family: IBM Plex Sans LatinExt
       fonts:
         - asset: assets/fonts/IBMPlexSans-latin-ext-400.ttf
+    # Three more faces for the Market (Matt, 2026-10-26: "include some more themes, fonts"), Latin only, each variable
+    # in weight and with its italic: Lora, a serif to read notes in; Atkinson Hyperlegible Next, a sans for the
+    # interface drawn to be told apart letter from letter; JetBrains Mono, a coding face and the kit's own mono
+    # (tokens.css `--glacier-font-mono`). OFL, as every face here is (assets/fonts/OFL.txt).
+    - family: Lora Variable
+      fonts:
+        - asset: assets/fonts/LoraVariable-latin.ttf
+        - asset: assets/fonts/LoraVariable-latin-Italic.ttf
+          style: italic
+    - family: Atkinson Hyperlegible Next Variable
+      fonts:
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin.ttf
+        - asset: assets/fonts/AtkinsonHyperlegibleNextVariable-latin-Italic.ttf
+          style: italic
+    - family: JetBrains Mono Variable
+      fonts:
+        - asset: assets/fonts/JetBrainsMonoVariable-latin.ttf
+        - asset: assets/fonts/JetBrainsMonoVariable-latin-Italic.ttf
+          style: italic

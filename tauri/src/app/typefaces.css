@@ -17,6 +17,15 @@
 @import '@fontsource/maple-mono/400-italic.css';
 @import '@fontsource/maple-mono/700-italic.css';
 @import '@fontsource-variable/fira-code/index.css';
+/*
+ * Three more for the Market (Matt, 2026-10-26: "include some more themes, fonts"): Lora, a serif to read a note in;
+ * Atkinson Hyperlegible Next, a sans for the interface drawn so no two letters are mistaken for each other; and
+ * JetBrains Mono, a coding face with its own ligatures, and the kit's mono already (fonts.css loads its upright). All
+ * OFL and variable in weight, upright and italic. The phone app ships all three (pubspec.yaml); the page has only
+ * JetBrains Mono's package so far, and sets Lora and Atkinson in the fallbacks below until
+ * `@fontsource-variable/lora` and `@fontsource-variable/atkinson-hyperlegible-next` are added and imported here.
+ */
+@import '@fontsource-variable/jetbrains-mono/wght-italic.css';
 
 /*
  * The ligatures: `->` drawn as one arrow, `!=` as one sign, `<=` as one. They are the fonts' contextual alternates and
@@ -55,6 +64,18 @@
   --app-note-font: 'IBM Plex Sans', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
+:root[data-note-font='jetbrains'] {
+  --app-note-font: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-note-font='lora'] {
+  --app-note-font: 'Lora Variable', ui-serif, Georgia, 'Times New Roman', serif;
+}
+
+:root[data-note-font='atkinson'] {
+  --app-note-font: 'Atkinson Hyperlegible Next Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
 /* A coding face is the note's code face too, so a code block reads as part of the words round it. */
 :root:not([data-note-font]),
 :root[data-note-font='maple'] {
@@ -63,6 +84,10 @@
 
 :root[data-note-font='fira'] {
   --glacier-font-mono: 'Fira Code Variable', ui-monospace, 'SF Mono', Menlo, monospace;
+}
+
+:root[data-note-font='jetbrains'] {
+  --glacier-font-mono: 'JetBrains Mono Variable', ui-monospace, 'SF Mono', Menlo, monospace;
 }
 
 /*
@@ -76,12 +101,12 @@
  * interface's face, so both rules are kept off it, and the face has its own features (app.css's `cv11`, `ss01`), its
  * optical sizes and its headings' tightening. Scoping only the spacing would leave Maple's `calt` and `liga` on Inter.
  */
-:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor:not([data-look='reading']) {
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira'], [data-note-font='jetbrains']) .cm-editor:not([data-look='reading']) {
   font-feature-settings: var(--app-mono-features);
   font-optical-sizing: none;
 }
 
-:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira']) .cm-editor:not([data-look='reading']) * {
+:root:is(:not([data-note-font]), [data-note-font='maple'], [data-note-font='fira'], [data-note-font='jetbrains']) .cm-editor:not([data-look='reading']) * {
   letter-spacing: 0 !important;
 }
 

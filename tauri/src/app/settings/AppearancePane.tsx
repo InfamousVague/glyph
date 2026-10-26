@@ -53,7 +53,7 @@ export function AppearancePane() {
   const wide = useSidebar();
   return (
     <>
-      <PaneSection title="Page" description="Ink on paper, paper on ink, or one of three tinted themes. System follows the phone.">
+      <PaneSection title="Page" description="Ink on paper, paper on ink, or one of seven tinted themes. System follows the phone.">
         {/* The kit's theme cards (ThemeCards.tsx): each is the page painted small in that theme, System split light and dark. */}
         <div className="setk-row">
           <ThemeCards value={prefs.theme} onValueChange={(value) => setPreferences(themeChoice(value, prefs))} />
