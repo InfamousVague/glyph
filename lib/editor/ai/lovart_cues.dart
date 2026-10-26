@@ -3,8 +3,12 @@
 ///
 /// A cue is recognised once its closing brace is there and its prompt has words (lib/plugins/lovart/cues.dart
 /// [imageCues]): its words get a faint wash, and Lovart's mark is drawn just after its `}`. A tap on the mark makes
-/// that one cue into its picture; while it is being made the mark turns into a turning ring. Nothing else changes: the
-/// cue is the note's own words, edited as any, and with the plugin off it is plain text.
+/// that one cue into its picture; while it is being made the mark turns into a turning ring. Return at the end of a line
+/// whose last words are a cue makes it too, the caret going on to the new line (Matt, 2026-10-26: "when hitting return
+/// start to generate the image"); and while a cue is being made, a stand-in is drawn under its line, a blurred abstract
+/// with Lovart's mark and a ring turning round it (lib/editor/media/lovart_pending.dart), until the picture takes the
+/// cue's place. Nothing else changes: the cue is the note's own words, edited as any, and with the plugin off it is
+/// plain text.
 ///
 /// Read over the lines on screen, as the blanks are (blanks.dart), leaving code, an address, front matter, HTML and
 /// maths as written. Plugins cannot add to the editor, so the note's screen adds this itself
@@ -20,6 +24,8 @@ import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../plugins/lovart/cues.dart' show ImageCue, imageCues;
 import '../../plugins/lovart/lovart_mark.dart';
+import '../media/images.dart' show gutterOf;
+import '../media/lovart_pending.dart';
 import '../editor.dart';
 import '../looks/look.dart';
 import '../looks/sheets.dart';
@@ -102,8 +108,49 @@ class _Cues extends PluginValue {
 
   @override
   void update(ViewUpdate update) {
+    _enterAfterCue(update);
     if (update.docChanged || update.viewportChanged || update.transactions.any((tr) => tr.effects.any((e) => e.isOf(_redraw))) || !identical(syntaxTree(update.startState), syntaxTree(update.state))) {
       decorations = _decorate(update.view, hooks);
+    }
+  }
+
+  /// Return typed at the end of a line that ends in a cue: that cue is made, once the update is done.
+  void _enterAfterCue(ViewUpdate update) {
+    if (!update.docChanged || !hooks.on()) return;
+    final lines = <int>[];
+    for (final tr in update.transactions) {
+      if (!tr.isUserEvent('input')) continue;
+      tr.changes.iterChanges((fromA, toA, fromB, toB, inserted) {
+        if (fromA != toA || !inserted.toString().startsWith('\n')) return;
+        final before = tr.startState.doc.lineAt(fromA);
+        if (fromA != before.to || !before.text.contains('{')) return;
+        final cues = imageCues(before.text);
+        if (cues.isEmpty || before.text.substring(cues.last.to).trim().isNotEmpty) return;
+        lines.add(before.number);
+      });
+    }
+    if (lines.isEmpty) return;
+    final state = update.state;
+    final tree = syntaxTree(state);
+    final ready = <ImageCue>[];
+    for (final n in lines) {
+      if (n > state.doc.lines) continue;
+      final line = state.doc.line(n);
+      final found = imageCues(line.text);
+      if (found.isEmpty) continue;
+      final cue = found.last;
+      final from = line.from + cue.from;
+      if (inQuietText(tree, from) || hooks.making(cue.text)) continue;
+      ready.add(ImageCue(prompt: cue.prompt, text: cue.text, from: from, to: line.from + cue.to, line: n));
+    }
+    // Not inside the update: making it changes what the view draws.
+    if (ready.isNotEmpty) {
+      scheduleMicrotask(() {
+        if (_gone) return;
+        for (final cue in ready) {
+          hooks.press(cue);
+        }
+      });
     }
   }
 
@@ -225,11 +272,60 @@ class _TurningState extends State<_Turning> with SingleTickerProviderStateMixin 
   Widget build(BuildContext context) => RotationTransition(turns: _turn, child: widget.child);
 }
 
+/// The stand-in under the line of each cue being made: a block, so a state field, read from the hooks the view plugin
+/// keeps in step ([_redraw] when they say otherwise).
+DecorationSet _pendingOf(EditorState state) {
+  final hooks = state.facet(_hooks);
+  if (hooks == null || !hooks.on()) return Decoration.none;
+  final found = <Range<Decoration>>[];
+  final doc = state.doc;
+  for (var n = 1; n <= doc.lines; n += 1) {
+    final line = doc.line(n);
+    if (!line.text.contains('{')) continue;
+    for (final cue in imageCues(line.text)) {
+      if (hooks.making(cue.text)) found.add(Decoration.widget(widget: LovartPendingWidget(cue.prompt), block: true, side: 1).range(line.to));
+    }
+  }
+  return found.isEmpty ? Decoration.none : Decoration.set(found, true);
+}
+
+final StateField<DecorationSet> _pending = StateField.define<DecorationSet>(
+  create: _pendingOf,
+  update: (decorations, tr) {
+    if (tr.docChanged || tr.effects.any((e) => e.isOf(_redraw))) return _pendingOf(tr.state);
+    return decorations;
+  },
+  provide: (field) => EditorViewLike.decorations.from<DecorationSet>(field),
+);
+
+/// The stand-in, at a picture's place and width (images.dart `ImageWidget`).
+class LovartPendingWidget extends EditorWidget {
+  const LovartPendingWidget(this.prompt);
+
+  final String prompt;
+
+  @override
+  bool eq(LovartPendingWidget other) => other.prompt == prompt;
+
+  @override
+  bool takesPointer(_) => false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Padding(
+      padding: EdgeInsets.only(top: t.space(2), bottom: t.space(3)).add(EdgeInsets.symmetric(horizontal: gutterOf(context))),
+      child: LovartPending(prompt: prompt, maxHeight: MediaQuery.sizeOf(context).height * 0.4),
+    );
+  }
+}
+
 final Facet<LovartCueHooks?, LovartCueHooks?> _hooks = Facet.define<LovartCueHooks?, LovartCueHooks?>(combine: (values) => values.where((v) => v != null).firstOrNull);
 
 /// The cues of a note, marked and pressable while [hooks] says Lovart is on.
 Extension lovartCues(LovartCueHooks hooks) => Extension.list(<Extension>[
       _hooks.of(hooks),
+      _pending,
       ViewPlugin.define<_Cues>((view) => _Cues(view, hooks), decorations: (value) => value.decorations),
       baseTheme(_theme),
     ]);

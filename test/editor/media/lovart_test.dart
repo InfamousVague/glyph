@@ -16,6 +16,7 @@ import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/items/note_plugins.dart' show noteEditing;
 import 'package:ghost_md/editor/media/images.dart' show KeptPicture;
 import 'package:ghost_md/editor/media/lovart_badge.dart';
+import 'package:ghost_md/editor/media/lovart_pending.dart';
 import 'package:ghost_md/editor/view/base.dart';
 import 'package:ghost_md/editor/view/column.dart';
 import 'package:ghost_md/editor/view/editor_view.dart';
@@ -182,6 +183,66 @@ void main() {
       await away(tester);
     });
 
+    // Matt, 2026-10-26: "when hitting return start to generate the image, place a blurry abstract image with the lovart
+    // logo and a loading circle around it".
+    testWidgets('Return at the end of a cue’s line makes it; Return anywhere else does not', (tester) async {
+      final stage = Stage();
+      await stage.show(tester, 'The hero {image: a misty forest} goes on top.\n{image: a red chair}\n{image: a lamp} and more');
+      Future<void> enterAt(int at) async {
+        stage.view.dispatch(TransactionSpec(changes: ChangeSpec(from: at, insert: '\n'), userEvent: 'input'));
+        await tester.pump();
+        await tester.pump();
+      }
+
+      final doc = stage.view.state.doc;
+      // In the middle of a line with a cue in it, and at the end of one whose last words are not the cue: nothing.
+      await enterAt(doc.line(1).from + 4);
+      await enterAt(stage.view.state.doc.line(4).to);
+      expect(stage.pressed, isEmpty);
+      // At the end of a line that ends in its cue: that cue.
+      await enterAt(stage.view.state.doc.line(3).to);
+      expect(stage.pressed, ['a red chair']);
+      // Not again while it is being made.
+      stage.busy.add('{image: a red chair}');
+      stage.tell();
+      await tester.pump();
+      await enterAt(stage.view.state.doc.line(3).to);
+      expect(stage.pressed, ['a red chair']);
+      // With the plugin off, Return is only Return.
+      stage
+        ..on = false
+        ..busy.clear();
+      stage.tell();
+      await tester.pump();
+      await enterAt(stage.view.state.doc.line(3).to);
+      expect(stage.pressed, ['a red chair']);
+      await away(tester);
+    });
+
+    testWidgets('while a cue is made, a blurred stand-in with Lovart’s mark and a turning ring is under its line, and goes when it is done', (tester) async {
+      final stage = Stage();
+      await stage.show(tester, '{image: a red chair}\nAfter it.');
+      expect(find.byType(LovartPending), findsNothing);
+      stage.busy.add('{image: a red chair}');
+      stage.tell();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(LovartPending), findsOneWidget);
+      expect(find.byKey(const ValueKey('lovart-working')), findsOneWidget);
+      expect(find.bySemanticsLabel('Lovart is making: a red chair'), findsOneWidget);
+      expect(find.byType(ImageFiltered), findsOneWidget);
+      // Under the cue's line: below the cue's mark.
+      expect(tester.getRect(find.byType(LovartPending)).top, greaterThanOrEqualTo(tester.getRect(chip).bottom));
+      // Nothing of it is in the note.
+      expect(stage.view.state.doc.toString(), '{image: a red chair}\nAfter it.');
+      stage.busy.clear();
+      stage.tell();
+      await tester.pump();
+      await tester.pump();
+      expect(find.byType(LovartPending), findsNothing);
+      await away(tester);
+    });
+
     testWidgets('a tap makes that cue into its picture, with Lovart', (tester) async {
       final bytes = (await tester.runAsync(() => paintedPng(dark: false)))!;
       final ground = TestGround();
@@ -227,7 +288,7 @@ void main() {
           theme: theme,
           pictures: pictures,
           below: ['lovart-light.png', 'lovart-dark.png'],
-          height: 1060,
+          height: 1400,
         );
         stage.busy.add('{image: three logo marks for a fox brand}');
         stage.tell();
