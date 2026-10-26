@@ -87,6 +87,25 @@ function* listItems(body: string): Generator<{ item: RegExpExecArray; n: number 
   }
 }
 
+/**
+ * The part each chapter opens, in the index's order: the last `##` heading (or deeper) between the chapter before it
+ * and this one, in its words; null where none is. "## Part I: Getting started" over "1. [[Welcome]]" names Part I
+ * there, and the chapters after it are in Part I until the next heading. The book's own `# ` title is not a part.
+ */
+export function chapterParts(body: string, chapters: readonly Chapter[] = chaptersOf(body)): (string | null)[] {
+  const lines = body.split('\n');
+  let from = frontMatterEnd(lines);
+  return chapters.map((chapter) => {
+    let part: string | null = null;
+    for (let n = from; n < chapter.line; n += 1) {
+      const heading = /^#{2,6}\s+(.+?)(?:\s+#+)?\s*$/.exec(lines[n]!);
+      if (heading) part = heading[1]!;
+    }
+    from = chapter.line + 1;
+    return part;
+  });
+}
+
 /** The chapter numbers as the index shows them: "1", "2", "2.1", "2.2", "3". */
 export function numbered(chapters: readonly Chapter[]): string[] {
   let major = 0;

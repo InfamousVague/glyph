@@ -50,6 +50,26 @@
   grid-template-columns: 2em minmax(0, 1fr);
 }
 
+/* A part's heading over the chapters it opens (BookView's `parts`, the reader's site and docs). */
+.part {
+  list-style: none;
+  padding: var(--glacier-space-5) 0 var(--glacier-space-1);
+  border-block-end: 1px solid var(--glacier-border-subtle);
+}
+
+.index > .part:first-child {
+  padding-block-start: 0;
+}
+
+.partTitle {
+  margin: 0;
+  color: var(--glacier-text-muted);
+  font-family: var(--glacier-font-sans, inherit);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+  letter-spacing: 0.01em;
+}
+
 .row[data-depth='1'] {
   padding-inline-start: 1.6em;
 }

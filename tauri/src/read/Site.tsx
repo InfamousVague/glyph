@@ -1,11 +1,13 @@
-import { useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type MouseEvent } from 'react';
 import { ChevronLeft, ChevronRight, Menu } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
 import { Editor } from '../app/editor/Editor.tsx';
 import { CanvasView } from '../app/canvas/CanvasView.tsx';
 import { canvasOf, isCanvasBody } from '../app/canvas/jsonCanvas.ts';
 import { BookView } from '../app/book/BookView.tsx';
+import { chapterParts, chaptersOf } from '../app/book/book.ts';
 import { usePreferences } from '../app/core/preferences.ts';
+import type { NoteView } from '../app/editor/viewMode.ts';
 import { lendImages } from '../app/core/images.ts';
 import { sameTitle } from '../app/editor/wikiLinks.ts';
 import { authorsOf } from '../app/core/authors.ts';
@@ -15,6 +17,7 @@ import type { Shared } from '../app/share/share.ts';
 import { drawnBody } from './drawn.ts';
 import { INSTALL_URL } from './places.ts';
 import { readSite, readSiteAddress, sitePath, siteSlugs } from './site.ts';
+import { useSystemDark } from './systemDark.ts';
 import styles from './Site.module.css';
 
 /**
@@ -30,28 +33,44 @@ import styles from './Site.module.css';
  * download. A site is a thing to read, passed round as an address, and the person who published it chose that.
  */
 
-const dark = () => typeof matchMedia !== 'undefined' && matchMedia('(prefers-color-scheme: dark)').matches;
+type State = { kind: 'loading' } | { kind: 'failed'; title: string; message: string } | { kind: 'ready'; shared: Shared; place: SitePlace };
 
-type State = { kind: 'loading' } | { kind: 'failed'; title: string; message: string } | { kind: 'ready'; shared: Shared };
+/**
+ * Where a site's pages are: how an address names a page, and a page's address. A published site's are `/s/<id>/<slug>`
+ * with its key after the # ([sitePlace]); the public docs' are `/docs/<slug>` (src/docs), with a way home in the bar.
+ */
+export interface SitePlace {
+  /** The slug a path asks for, null for the first page. */
+  slugAt: (pathname: string) => string | null;
+  /** A page's address, by its slug ('' for the first page). */
+  path: (slug: string) => string;
+  /** What the browser's tab says, for the site's first page (null) or another by its title. */
+  title: (page: string | null) => string;
+  /** A link to the site's home, its icon before the title in the bar: the docs' to ghostmarkdown.com. */
+  home?: { href: string; label: string; icon: string };
+  /** How every page is drawn, whatever this browser's Ghost.md preference says: the docs' formatted, marks folded away. */
+  display?: NoteView;
+}
+
+/** A published site's place: `/s/<id>/<page>`, its key carried after the # as it came. */
+function sitePlace(id: string, siteTitle: string): SitePlace {
+  return {
+    slugAt: (pathname) => readSiteAddress(pathname, '')?.slug ?? null,
+    path: (slug) => sitePath(id, slug, location.hash),
+    title: (page) => (page === null ? `${siteTitle} · Ghost.md` : `${page} · ${siteTitle}`),
+  };
+}
 
 /** The page an address asks for: its place among the slugs, the first for none, -1 for one the site does not have. */
-function pageAt(slugs: string[], pathname: string): number {
-  const asked = readSiteAddress(pathname, '')?.slug ?? null;
+function pageAt(slugs: string[], place: SitePlace, pathname: string): number {
+  const asked = place.slugAt(pathname);
   if (asked === null) return 0;
   return slugs.indexOf(asked);
 }
 
 export function Site() {
   const [state, setState] = useState<State>({ kind: 'loading' });
-  const [isDark, setDark] = useState(dark);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = isDark ? 'dark' : 'light';
-    const query = matchMedia('(prefers-color-scheme: dark)');
-    const change = () => setDark(query.matches);
-    query.addEventListener('change', change);
-    return () => query.removeEventListener('change', change);
-  }, [isDark]);
+  const isDark = useSystemDark();
 
   useEffect(() => {
     const address = readSiteAddress(location.pathname, location.hash);
@@ -62,7 +81,7 @@ export function Site() {
     readSite(address.id, address.key).then(
       (shared) => {
         lendImages(shared.pictures ?? {});
-        setState({ kind: 'ready', shared });
+        setState({ kind: 'ready', shared, place: sitePlace(address.id, shared.title) });
       },
       (failure: unknown) => setState({ kind: 'failed', title: 'Nothing to read here', message: failureText(failure) }),
     );
@@ -78,7 +97,7 @@ export function Site() {
       </main>
     );
   }
-  return <Pages shared={state.shared} dark={isDark} />;
+  return <Pages shared={state.shared} dark={isDark} place={state.place} />;
 }
 
 function Foot() {
@@ -92,31 +111,31 @@ function Foot() {
   );
 }
 
-function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
+/** A site's pages, read: a published site's (above), or the public docs' (src/docs/main.tsx), told where by `place`. */
+export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; place: SitePlace }) {
   const slugs = useMemo(() => siteSlugs(shared), [shared]);
-  const [page, setPage] = useState(() => pageAt(slugs, location.pathname));
+  const [page, setPage] = useState(() => pageAt(slugs, place, location.pathname));
   const [listOpen, setListOpen] = useState(false);
   const { noteView } = usePreferences();
-  const id = readSiteAddress(location.pathname, location.hash)!.id;
   // A notebook opens on its index, drawn as the app draws one; its pages are listed when it has any written.
   const book = shared.kind === 'book';
   const isBook = book && shared.pages.length > 1;
 
   // The browser's Back and Forward go between the pages read, as between the pages of any site.
   useEffect(() => {
-    const back = () => setPage(pageAt(slugs, location.pathname));
+    const back = () => setPage(pageAt(slugs, place, location.pathname));
     addEventListener('popstate', back);
     return () => removeEventListener('popstate', back);
-  }, [slugs]);
+  }, [slugs, place]);
 
   const current = page >= 0 ? shared.pages[page] : undefined;
   useEffect(() => {
-    document.title = !current || page === 0 ? `${shared.title} · Ghost.md` : `${current.title} · ${shared.title}`;
-  }, [current, page, shared.title]);
+    document.title = place.title(!current || page === 0 ? null : current.title);
+  }, [current, page, place]);
 
   const canvas = current && isCanvasBody(current.body) ? canvasOf(current.body) : null;
   const indexOf = (title: string) => shared.pages.findIndex((p) => sameTitle(p.title, title));
-  const href = (at: number) => sitePath(id, slugs[at] ?? '', location.hash);
+  const href = (at: number) => place.path(slugs[at] ?? '');
   const go = (at: number) => {
     if (at < 0 || at >= shared.pages.length) return;
     history.pushState(null, '', href(at));
@@ -134,22 +153,47 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
   const known = (title: string) => indexOf(title) >= 0;
   const bodyOf = (title: string) => shared.pages[indexOf(title)]?.body ?? null;
   const titles = () => shared.pages.map((p) => p.title);
+  // The part of the index each page is in (book.ts `chapterParts`), for the list down the side.
+  const parts = useMemo(() => {
+    const index = shared.pages[0]?.body ?? '';
+    const chapters = chaptersOf(index);
+    const named = chapterParts(index, chapters);
+    return chapters.map((chapter, i) => ({ title: chapter.title, part: named[i] ?? null }));
+  }, [shared]);
+  const partOf = (title: string) => parts.find((c) => sameTitle(c.title, title))?.part ?? null;
 
   const list = isBook ? (
     <ol className={styles.list}>
-      {shared.pages.map((p, at) => (
-        <li key={`${at}:${p.title}`}>
-          <a className={styles.item} href={href(at)} aria-current={at === page ? 'page' : undefined} onClick={follow(at)}>
-            {at === 0 ? 'Contents' : p.title}
-          </a>
-        </li>
-      ))}
+      {shared.pages.map((p, at) => {
+        // A part's heading over the first of its pages there is: a part none of whose pages is written is not listed.
+        const part = at > 0 ? (partOf(p.title) ?? null) : null;
+        const opens = part !== null && (at === 1 || partOf(shared.pages[at - 1]!.title) !== part);
+        return (
+          <Fragment key={`${at}:${p.title}`}>
+            {opens ? (
+              <li className={styles.part} role="presentation">
+                {part}
+              </li>
+            ) : null}
+            <li>
+              <a className={styles.item} href={href(at)} aria-current={at === page ? 'page' : undefined} onClick={follow(at)}>
+                {at === 0 ? 'Contents' : p.title}
+              </a>
+            </li>
+          </Fragment>
+        );
+      })}
     </ol>
   ) : null;
 
   return (
     <div className={styles.site} data-book={isBook ? '' : undefined}>
       <header className={styles.bar}>
+        {place.home ? (
+          <a className={styles.home} href={place.home.href} aria-label={place.home.label} title={place.home.label}>
+            <img src={place.home.icon} width={24} height={24} alt="" />
+          </a>
+        ) : null}
         <a className={styles.siteTitle} href={href(0)} onClick={follow(0)}>
           {shared.title}
         </a>
@@ -186,7 +230,7 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
           ) : book && page === 0 ? (
             <article className={styles.note}>
               <h1 className={styles.title}>{shared.title}</h1>
-              <BookView body={current.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} videos="shared" />
+              <BookView body={current.body} title={shared.title} known={(t) => indexOf(t) > 0} open={open} titles={titles} bodyOf={bodyOf} onChange={readOnly} readOnly dark={dark} videos="shared" parts />
             </article>
           ) : canvas ? (
             <article className={styles.note}>
@@ -206,7 +250,7 @@ function Pages({ shared, dark }: { shared: Shared; dark: boolean }) {
                 dark={dark}
                 assist={false}
                 readOnly
-                display={noteView}
+                display={place.display ?? noteView}
                 wiki={{ known, open }}
                 places="ask"
                 videos="shared"
