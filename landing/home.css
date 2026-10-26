@@ -839,6 +839,45 @@ code {
   fill: var(--ink);
 }
 
+/* Lovart's mark in the ink, as Notion's is (lovart.html, and its section on the home page). */
+.brand-lovart {
+  fill: var(--ink);
+}
+
+.eyebrow-brand .brand-mark {
+  inline-size: 1.3rem;
+  block-size: 1.3rem;
+}
+
+/* A section's own link under its words, at their start (the home page's Lovart). */
+.ctas-start {
+  justify-content: start;
+  margin-block-start: var(--glacier-space-5, 1.25rem);
+}
+
+/* lovart.html: the cue as it is typed, beside what it does; the steps numbered. */
+.cue-fig {
+  margin: 0;
+  align-self: center;
+}
+
+.cue-fig .mark-code {
+  font-size: 0.9rem;
+}
+
+.steps {
+  counter-reset: step;
+}
+
+.steps li {
+  counter-increment: step;
+}
+
+.steps li > b:first-child::before {
+  content: counter(step) '. ';
+  color: var(--ink-3);
+}
+
 .asks {
   display: grid;
   gap: var(--glacier-space-3, 0.75rem);

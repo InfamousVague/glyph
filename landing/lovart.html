@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Lovart · Ghost.md</title>
+    <meta name="description" content="Ghost.md's Lovart plugin makes images from your notes with Lovart's design agent: write {image: …} where a picture should go, ask any note for a moodboard, and get inspiration for design meetings." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta property="og:title" content="Lovart · Ghost.md" />
+    <meta property="og:description" content="Images from your notes, by Lovart's design agent: {image: …} in a note, a moodboard from any note, inspiration for design meetings." />
+    <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <!--
+      The Lovart plugin's page (Matt, 2026-10-26: "add a lovart section to the website that describes this integration
+      give it it's own page and a small section on the main page"). What it says is what lib/plugins/lovart/ does, and
+      docs/LOVART.md is the source: the {image: …} cue, Make images, Inspiration images, Inspiration for design meetings,
+      the keys (AK/SK) kept on the device and synced sealed, Lovart's credits. Lovart's mark is theirs (landing/brands/
+      lovart.svg, from lovart.ai's header), shown only where it names Lovart. Styled as the home page is (home.css).
+    -->
+    <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="glacier/tokens.css" />
+    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="home.css" />
+    <script src="theme.js"></script>
+  </head>
+  <body>
+    <!-- Lovart's own mark (landing/brands/lovart.svg), drawn once, used by <use>. -->
+    <svg class="unseen" aria-hidden="true" focusable="false">
+      <symbol id="lovart-mark" viewBox="0 0 24 24"><path d="M12 0c6.627 0 12 5.373 12 12s-5.373 12-12 12S0 18.627 0 12 5.373 0 12 0M9.682 17.947h4.586v-1.609h-2.795v-5.773h-1.79zM17.05 7.51a3.37 3.37 0 0 0-3.367 3.373 3.37 3.37 0 0 0 3.367 3.373c1.86 0 3.37-1.51 3.37-3.373a3.37 3.37 0 0 0-3.37-3.373m-1.2 2.17a1.697 1.697 0 0 1 2.404 0c.664.666.664 1.74 0 2.406a1.697 1.697 0 0 1-2.404 0 1.7 1.7 0 0 1 0-2.405M3.956 12.284h4.03v-1.88h-4.03z" /></symbol>
+    </svg>
+    <a class="skip" href="#main">Skip to the page</a>
+
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="/"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
+        <ul class="bar-links">
+          <li><a href="#cue">Images in a note</a></li>
+          <li><a href="#inspiration">Inspiration</a></li>
+          <li><a href="#meetings">Meetings</a></li>
+          <li><a href="#setup">Set it up</a></li>
+        </ul>
+        <a class="pill pill-ink bar-cta" href="/#download"><svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg><span>Download</span></a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="top" aria-labelledby="hero-title">
+        <div class="wrap hero-words">
+          <p class="eyebrow eyebrow-brand"><svg class="brand-mark brand-lovart" viewBox="0 0 24 24" role="img" aria-label="Lovart"><use href="#lovart-mark"/></svg>Lovart, in Ghost.md</p>
+          <h1 id="hero-title">Images from your notes,<br />by Lovart&rsquo;s design&nbsp;agent.</h1>
+          <p class="lead">Write <code>{image: …}</code> where a picture should go, ask any note for a moodboard, and let a design meeting come back with inspiration. Lovart makes the images; Ghost.md puts them in your note.</p>
+          <div class="ctas">
+            <a class="pill pill-ink pill-lg" href="/#download"><svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg><span>Get Ghost.md</span></a>
+            <a class="pill pill-lg" href="#setup"><span>Set it up</span></a>
+          </div>
+        </div>
+      </section>
+
+      <section class="band" id="cue" aria-labelledby="cue-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-file-image"/></svg>Images in a note</p>
+              <h2 id="cue-title">Write the picture you want, where you want it.</h2>
+              <p>Type <code>{image:</code> and what you have in mind, and close it with <code>}</code>. As soon as it is closed, Lovart&rsquo;s mark appears beside it: tap the mark to make that one, or choose <b>Make images</b> from the note&rsquo;s menu to make them all.</p>
+            </header>
+            <ul class="points points-stack">
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-image"/></svg>It takes the cue&rsquo;s place.</b> The picture goes where you wrote it. A cue in the middle of a sentence leaves the sentence whole, with the picture on the line after it.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-message-square-text"/></svg>Say it in the words.</b> Lovart&rsquo;s agent picks the model and the size from what you write, so &ldquo;a wide banner&rdquo; or &ldquo;square, flat colours&rdquo; is how you ask for them.</li>
+              <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-signature"/></svg>Marked as Lovart&rsquo;s.</b> A picture Lovart made carries its mark in the corner, on every device, so it is never mistaken for a photo you took.</li>
+            </ul>
+          </div>
+          <figure class="cue-fig">
+            <pre class="mark-code"><code>## Homepage
+
+The hero {image: a misty forest at dawn, soft light} goes on top.
+
+{image: three logo marks for a fox brand, flat colours}</code></pre>
+            <figcaption class="fine">A <code>{?question}</code> stays an AI fill: only <code>{image: …}</code> goes to Lovart.</figcaption>
+          </figure>
+        </div>
+      </section>
+
+      <section class="band band-tint" id="inspiration" aria-labelledby="inspiration-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-sparkles"/></svg>Inspiration</p>
+            <h2 id="inspiration-title">A moodboard from any note.</h2>
+            <p>Choose <b>Inspiration images</b> from a note&rsquo;s menu. Lovart reads the note&rsquo;s title and its summary, or its opening words, and makes four images for the ideas in it, under <code>## Inspiration</code>. Ask again and they join the ones already there.</p>
+          </header>
+        </div>
+      </section>
+
+      <section class="band" id="meetings" aria-labelledby="meetings-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-users"/></svg>Design meetings</p>
+            <h2 id="meetings-title">The design review comes back with ideas.</h2>
+            <p>Switch on <b>Inspiration for design meetings</b> and a meeting about design (mockups, a brand, a layout, a logo) gets a moodboard of four from its summary once it is written up, under Inspiration in its note. Once per meeting, and only when it reads as a design meeting: a standup that mentions the UI once is left alone.</p>
+          </header>
+        </div>
+      </section>
+
+      <section class="band band-tint" id="setup" aria-labelledby="setup-title">
+        <div class="wrap split">
+          <div>
+            <header class="band-head band-head-start">
+              <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-key-round"/></svg>Set it up</p>
+              <h2 id="setup-title">Your Lovart account, your keys.</h2>
+            </header>
+            <ol class="points points-stack steps">
+              <li><b>Make a key pair in Lovart.</b> On lovart.ai, open your avatar menu, then <b>AK/SK Management</b>, and make an access key and a secret key.</li>
+              <li><b>Add the plugin.</b> In Ghost.md, Settings &rsaquo; Plugins, find Lovart under AI and add it.</li>
+              <li><b>Keep the keys.</b> Paste both on Lovart&rsquo;s page. They are checked with Lovart before they are kept.</li>
+            </ol>
+          </div>
+          <ul class="points points-stack">
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Sealed, on your devices.</b> The keys are kept in your device&rsquo;s secure store, and reach your other devices sealed to your account, never readable on the way. Only signatures go to Lovart; the secret key never leaves your devices.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-gauge"/></svg>Your credits.</b> Images are made with your Lovart plan&rsquo;s credits. A step Lovart says costs more (a premium model, a video) is never approved for you: Ghost.md tells you, and you approve it in Lovart.</li>
+            <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye"/></svg>Only what you ask about.</b> The words of a cue, or the title and summary of the note you ask inspiration for, go to Lovart. Nothing else of your notes does.</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="band" aria-labelledby="fine-title">
+        <div class="wrap">
+          <h2 class="unseen" id="fine-title">The fine print</h2>
+          <p class="fine center">In the app on Android, iPhone and the Mac. Lovart is a separate service with its own terms and plans, and not part of Ghost.md; ask Lovart which plans include API keys. Lovart&rsquo;s name and mark are theirs.</p>
+          <p class="fine center"><a href="/#plugins">Every plugin</a> · <a href="/">Ghost.md</a></p>
+        </div>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p class="brand"><img src="icon.png" width="28" height="28" alt="" /><span>Ghost.md</span></p>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="reference.html">Formatting reference</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>
