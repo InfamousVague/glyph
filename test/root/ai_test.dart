@@ -28,7 +28,7 @@ import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/marks/marks.dart' show wispStill;
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
-import 'package:ghost_md/format/gist.dart' show forgetGistRunner;
+import 'package:ghost_md/format/gist.dart' show forgetGistRunner, gistHeld;
 import 'package:ghost_md/note/note_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
 import 'package:ghost_md/root/voice_wiring.dart';
@@ -158,6 +158,37 @@ void main() {
     // The gists' runner and a run's own waits are the app's, not a screen's: let them come due.
     await tester.pump(const Duration(seconds: 30));
   }
+
+  // Matt, 2026-10-26: "Hold the gist while the note is open": the model was loaded under a note being written, each
+  // picture Lovart put in it a new body to gist.
+  testWidgets('a note open on the screen is not gisted while it is, and is once it is closed', (tester) async {
+    forgetGistRunner();
+    final library = await open(tester, engine: true);
+    // The home page's own cards first: their lines are written, and the runner falls quiet.
+    for (var i = 0; i < 40; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+      await tester.pump(const Duration(seconds: 1));
+    }
+    bool gisted(String text) => backend.calls('ai_generate').any((call) => call.args.toString().contains(text));
+    final note = (await tester.runAsync(() => library.createNote('# Held\n\nWords still moving while the note is open, a cue and a picture on the way.')))!;
+    await tester.pump();
+    shellOf(tester).openNote(note.id);
+    await tester.pump();
+    expect(shellOf(tester).shown, note.id);
+    expect(gistHeld(note.id), isTrue);
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(gisted('Words still moving'), isFalse, reason: 'held while it is open');
+    shellOf(tester).backToList();
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 2)));
+      await tester.pump(const Duration(seconds: 1));
+    }
+    expect(gisted('Words still moving'), isTrue, reason: 'gisted once it is closed');
+    await close(tester);
+  });
 
   testWidgets('with no model on the phone the gists\' runner looks once and asks nothing more, and writes for the home page\'s first cards once one is there', (tester) async {
     forgetGistRunner();

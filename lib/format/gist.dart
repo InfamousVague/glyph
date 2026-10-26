@@ -147,6 +147,24 @@ void pauseGists(bool on) {
   }
 }
 
+/// The notes open on the screen: none of them is gisted while it is, and a gist in flight for one is cancelled,
+/// uncounted (Matt, 2026-10-26, on the model loading under a note being written and made pictures in: "Hold the gist
+/// while the note is open"). The runner looks again once they are let go, for the words they were left with.
+Set<String> _held = const <String>{};
+
+/// The notes open now, from the shell as its screen changes (lib/root/root_parts.dart); none, back on a list.
+void holdGistsFor(Iterable<String> ids) {
+  final next = Set<String>.unmodifiable(ids);
+  if (setEquals(next, _held)) return;
+  final released = _held.any((id) => !next.contains(id));
+  _held = next;
+  if (_active != null && _held.contains(_active)) _activeRun?.cancel();
+  if (released) _kick();
+}
+
+/// Whether [id]'s gist waits for its note to be closed.
+bool gistHeld(String id) => _held.contains(id);
+
 int _hashOf(String id, String body) {
   final known = _hashes[id];
   if (known != null && known.body == body) return known.hash;
@@ -191,7 +209,7 @@ String? activeGist() => _active;
 (String, String)? _owed() {
   for (final entry in _bodies.entries) {
     final id = entry.key, body = entry.value;
-    if (jsTrim(_wordsOf(body)).isEmpty || _failed.contains(id) || gistFor(id, body) != null || isRunning(id)) continue;
+    if (jsTrim(_wordsOf(body)).isEmpty || _failed.contains(id) || _held.contains(id) || gistFor(id, body) != null || isRunning(id)) continue;
     return (id, body);
   }
   return null;
@@ -229,8 +247,8 @@ Future<void> _pump() async {
     return;
   }
   _noModel = false;
-  // The recorder may have come up while the catalogue was read: nothing starts under it.
-  if (_paused || _active != null) return;
+  // The recorder may have come up while the catalogue was read, or the note been opened: nothing starts under either.
+  if (_paused || _active != null || _held.contains(id)) return;
   _active = id;
   // The card being worked on shows it (home/note_card.dart).
   _speak();
@@ -251,8 +269,8 @@ Future<void> _pump() async {
     }
     _speak();
   } catch (failure) {
-    // Cancelled for the recorder: the note is asked about again once the recorder has gone.
-    if (_paused) return;
+    // Cancelled for the recorder, or for the note being opened: asked about again once it has gone, or been closed.
+    if (_paused || _held.contains(id)) return;
     gistWarn('[glyph] the gist did not come:', failure);
     _failed.add(id);
   } finally {

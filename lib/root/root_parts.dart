@@ -180,6 +180,8 @@ extension _RootParts on _GhostRootState {
       // And the walkthrough steps aside for a recorder, so the parts that read the screen are told.
       onScreenChanged: (screen) {
         _left();
+        // The note on the screen is not gisted while it is open: its words are still moving (lib/format/gist.dart).
+        holdGistsFor(screen is ScreenNote ? <String>[screen.note.id] : const <String>[]);
         _extras?.screen(screen);
         _tick.tell();
       },

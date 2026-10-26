@@ -110,7 +110,7 @@ import '../diag/built_report.dart';
 import '../diag/scene_bench.dart' show showSceneBench;
 import '../editor/queries/queries.dart' show NoteChange;
 import '../format/device_facts.dart' show DeviceFactsController;
-import '../format/gist.dart' show gistVisible, gistsCameBack, pauseGists, wakeGistsOn;
+import '../format/gist.dart' show gistVisible, gistsCameBack, holdGistsFor, pauseGists, wakeGistsOn;
 import '../guide/guide.dart';
 import '../guide/guide_state.dart';
 import '../guide/guidebook.dart';
