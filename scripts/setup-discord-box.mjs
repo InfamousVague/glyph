@@ -15,7 +15,7 @@
  *              Chrome profile, and shares nothing with the Meet bot but the loopback port both call.
  *   files      /opt/glyph-discord/app (discord/bot with its dependencies installed HERE, for linux-x64 - `npm ci --os=
  *              linux --cpu=x64 --libc=glibc`, no install scripts, so the DAVE library's prebuilt Linux binary comes
- *              and nothing is compiled - and the three files of meet/bot/lib it shares, decide.mjs, api.mjs and
+ *              and nothing is compiled - and the four files of meet/bot/lib it shares, decide.mjs, zoomtext.mjs, api.mjs and
  *              log.mjs, at the same relative paths), made root's, the previous kept as app.prev;
  *              /opt/glyph-discord/glyph-discord.env (DISCORD_BOT_TOKEN, GLYPH_DISCORD_TOKEN, DISCORD_APP_ID,
  *              root:glyph-discord 0640) when .env has them.
@@ -50,7 +50,8 @@ import { dim, fail, ok, step } from '../tauri/scripts/lib/say.mjs';
 const BOT = join(ROOT, 'discord/bot');
 const UNIT = join(ROOT, 'discord/box/glyph-discord.service');
 /** The Meet bot's files the Discord bot imports, by their path from the repository's root. */
-const SHARED = ['meet/bot/lib/decide.mjs', 'meet/bot/lib/api.mjs', 'meet/bot/lib/log.mjs'];
+// decide.mjs reads Zoom's hosts from zoomtext.mjs since the Zoom bot (2026-10-26: the first run crash-looped without it).
+const SHARED = ['meet/bot/lib/decide.mjs', 'meet/bot/lib/zoomtext.mjs', 'meet/bot/lib/api.mjs', 'meet/bot/lib/log.mjs'];
 const STAGE = '.glyph-discord-stage';
 /** The bot's Node: the 22 line's release of 2026-10-20 (a security release), and its tarball's SHA-256 from
  * https://nodejs.org/dist/v22.23.4/SHASUMS256.txt. Move both together. */

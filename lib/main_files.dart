@@ -128,7 +128,11 @@ class _FilesState extends State<_FilesApp> {
   String _sorted(String link) => switch (readAppLink(link)) {
         JoinAppLink(:final code) => 'join $code',
         NoteAppLink(:final noteId) => 'note $noteId',
-        PlaceAppLink(:final place) => place is OrganizationPlace ? 'organization ${place.orgId}' : 'notifications',
+        PlaceAppLink(:final place) => switch (place) {
+            OrganizationPlace(:final orgId) => 'organization $orgId',
+            MarketPlace() => 'market $place',
+            NotificationsPlace() => 'notifications',
+          },
         ShareAppLink(:final id) => 'share $id',
         null => 'none of the app\'s',
       };

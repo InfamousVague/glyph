@@ -7,7 +7,11 @@
 /// (lib/sync/connections.dart), which the page says. What a note posts is chosen on the note, from its More sheet.
 ///
 /// First on the page, Discord calls (calls_section.dart; Matt, 2026-10-26: Discord calls belong to the Discord
-/// plugin): linking a Discord account, Join Discord calls, how to start one, and the calls Ghost recorded.
+/// plugin): linking a Discord account, Join Discord calls, how to start one, and the calls Ghost recorded. Under
+/// them, signed in where this device records, **Where meetings go** (lib/meet/ui/meeting_settings.dart
+/// `MeetingsGoSection`), the row the Google Meet and Zoom pages have too: a Discord call is filed, written up and sorted
+/// as every meeting is, by the one Meetings card on Settings › Recording (Matt, 2026-10-26: "All meetings plugins
+/// should sort meetings to the same place on the recordings but have different settings").
 library;
 
 import 'dart:async';
@@ -17,7 +21,9 @@ import 'package:glacier/glacier.dart';
 
 import '../../account/ui_state.dart' show AccountScope;
 import '../../art/art.dart';
+import '../../core/iphone_app.dart' show recordsVoice;
 import '../../core/preferences.dart' show preferences;
+import '../../meet/ui/meeting_settings.dart' show MeetingsGoSection, meetingsGoName, recordingSectionId;
 import '../../settings/kit/settings_kit.dart';
 import '../../settings/panes/settings_host.dart' show SettingsHost;
 import '../details_cache.dart' show failureWords;
@@ -199,10 +205,13 @@ class _DiscordPaneState extends State<DiscordPane> {
     final list = discordChannels();
     final typedProblem = _typedProblem;
     final said = _said;
+    final services = AccountScope.maybeOf(context);
+    final host = SettingsHost.maybeOf(context);
     return PaneBody(
       children: [
         if (said != null) SettingsCallout(child: Text(said)),
-        DiscordCallsSection(services: AccountScope.maybeOf(context), onOpenNote: SettingsHost.maybeOf(context)?.onOpenNote, onOpenLink: SettingsHost.maybeOf(context)?.onOpenLink),
+        DiscordCallsSection(services: services, onOpenNote: host?.onOpenNote, onOpenLink: host?.onOpenLink),
+        if (services != null && services.signedIn && recordsVoice) MeetingsGoSection(prefs: services.prefs, onOpen: host == null ? null : () => host.go(recordingSectionId, setting: meetingsGoName)),
         PaneSection(
           title: 'Channels',
           description: const Text('Each is a Discord channel’s webhook, under a name you give it. The same on each of your devices, end-to-end encrypted, and once kept no page can read the webhook back.'),

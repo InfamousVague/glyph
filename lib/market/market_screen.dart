@@ -21,7 +21,15 @@
 /// back gesture. With room (a Fold open, a Mac), the cards stand two to four across, and a plugin's page opens beside
 /// them, the shelves still there to press another.
 ///
-/// Advanced mode's: simple mode hides every way in, as it hid Settings › Plugins.
+/// A link opens it at one thing (`ghostmd://market/<kind>/<id>`, [MarketScreen.link]; Matt, 2026-10-26: "add a
+/// browsable marketplace listed under the plugins section on the website that deeplinks to the app"): the website's
+/// market page (landing/market.html) lists what this Market lists (landing/market.json, made from the same lists by
+/// test/market/market_listing_test.dart), and each thing's Open in Ghost.md comes here. A plugin opens on its page
+/// with Add; a theme or a face is held at the head of its shelf ([_Linked]), with the way to use it, since neither has
+/// a page of its own; a link naming nothing this build has opens the front with a word saying so ([_LinkNote]).
+///
+/// Advanced mode's: simple mode hides every way in, as it hid Settings › Plugins, and a link that comes in Simple is
+/// answered with a word instead (lib/root/ghost_root.dart `_marketInSimple`).
 library;
 
 import 'dart:math' as math;
@@ -39,6 +47,8 @@ import '../plugins/types.dart';
 import '../settings/accent_swatch.dart';
 import '../settings/kit/settings_type.dart';
 import '../settings/theme_cards.dart';
+import '../settings/words.dart' show faceWords;
+import '../share/app_links.dart' show MarketPlace;
 import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import 'market_cards.dart';
@@ -50,13 +60,17 @@ import 'market_plugins.dart';
 const double marketWide = 720;
 
 class MarketScreen extends StatefulWidget {
-  const MarketScreen({super.key, required this.onBack, this.plugin, this.onPluginSettings, this.onLocalOnly, this.registry, this.prefs, this.dock, this.shelf});
+  const MarketScreen({super.key, required this.onBack, this.plugin, this.link, this.onPluginSettings, this.onLocalOnly, this.registry, this.prefs, this.dock, this.shelf});
 
   /// Home, from the bar's arrow.
   final VoidCallback onBack;
 
   /// The plugin whose page it opens on, from a link (an old Settings › Plugins › its name).
   final String? plugin;
+
+  /// Where a `ghostmd://market` link said to open it (lib/share/app_links.dart [MarketPlace]): a plugin's page, a
+  /// theme or a face at the head of its shelf, a shelf, or the front with a word for a link it cannot follow.
+  final MarketPlace? link;
 
   /// Opens a plugin's own page in Settings, by the plugin's id.
   final ValueChanged<String>? onPluginSettings;
@@ -81,14 +95,25 @@ class MarketScreen extends StatefulWidget {
 }
 
 class _MarketScreenState extends State<MarketScreen> {
-  late MarketShelf _shelf = widget.shelf ?? MarketShelf.all;
+  /// Where [MarketScreen.link] lands, read once as the screen is made: a link is followed when it comes, and the
+  /// Market is made anew for the next one (lib/shell/app_shell.dart keys it by the link).
+  late final MarketLanding? _landing = widget.link == null ? null : marketLinkLanding(widget.link!, plugins: _registry.all());
+
+  late MarketShelf _shelf = widget.shelf ?? _landing?.shelf ?? MarketShelf.all;
   String _query = '';
 
   /// The category chosen on the Plugins shelf; null is every one.
   PluginCategory? _category;
 
   /// The plugin whose page is open.
-  late String? _open = widget.plugin;
+  late String? _open = widget.plugin ?? _landing?.plugin;
+
+  /// The theme or the face a link named, held at the head of its shelf until it is put away or the shelf is left.
+  late String? _linkedTheme = _landing?.theme;
+  late String? _linkedFace = _landing?.face;
+
+  /// The word for a link the Market could not follow, until it is put away.
+  late String? _missing = _landing?.missing;
 
   final ScrollController _scroll = ScrollController();
 
@@ -106,7 +131,12 @@ class _MarketScreenState extends State<MarketScreen> {
   void _close() => setState(() => _open = null);
 
   void _toShelf(MarketShelf shelf) {
-    setState(() => _shelf = shelf);
+    setState(() {
+      _shelf = shelf;
+      // What a link held at the head of its shelf goes with the shelf.
+      if (shelf != MarketShelf.themes) _linkedTheme = null;
+      if (shelf != MarketShelf.fonts) _linkedFace = null;
+    });
     if (_scroll.hasClients) _scroll.jumpTo(0);
   }
 
@@ -261,8 +291,40 @@ class _MarketScreenState extends State<MarketScreen> {
     // A phone's All shows the themes and the fonts as rows that scroll sideways; everywhere else they stand across.
     final rows = !wide && shelf == MarketShelf.all;
 
+    final linkedTheme = [for (final option in options) if (option.value == _linkedTheme) option].firstOrNull;
+    final linkedFace = typefaces.contains(_linkedFace) ? _linkedFace : null;
     final parts = <Widget>[
       _Band(plugins: all, themes: options.length, faces: typefaces.length, wide: wide),
+      if (_missing case final missing?) ...[SizedBox(height: t.space(4)), _LinkNote(words: missing, onDismiss: () => setState(() => _missing = null))],
+      if (linkedTheme != null) ...[
+        SizedBox(height: t.space(4)),
+        _Linked(
+          key: ValueKey('market-linked-theme-${linkedTheme.value}'),
+          kind: 'Theme',
+          name: linkedTheme.label,
+          line: linkedTheme.description,
+          wide: wide,
+          picture: MarketThemeCard(option: linkedTheme, selected: prefs.theme == linkedTheme.value, onPress: () => _prefs.update((now) => themeChoice(linkedTheme.value, now))),
+          uses: [(label: 'Use this theme', inUse: prefs.theme == linkedTheme.value, use: () => _prefs.update((now) => themeChoice(linkedTheme.value, now)))],
+          onDismiss: () => setState(() => _linkedTheme = null),
+        ),
+      ],
+      if (linkedFace != null) ...[
+        SizedBox(height: t.space(4)),
+        _Linked(
+          key: ValueKey('market-linked-face-$linkedFace'),
+          kind: 'Font',
+          name: faceWords[linkedFace] ?? linkedFace,
+          line: faceRoles(linkedFace).join(' · '),
+          wide: wide,
+          picture: MarketFontCard(face: linkedFace, role: FaceRole.note, selected: prefs.faces.note == linkedFace, onPress: () => _prefs.update((now) => now.copyWith(noteFace: linkedFace))),
+          uses: [
+            (label: 'Use for notes', inUse: prefs.faces.note == linkedFace, use: () => _prefs.update((now) => now.copyWith(noteFace: linkedFace))),
+            if (interfaceFaces.contains(linkedFace)) (label: 'Use for the interface', inUse: prefs.faces.ui == linkedFace, use: () => _prefs.update((now) => now.copyWith(typeface: linkedFace))),
+          ],
+          onDismiss: () => setState(() => _linkedFace = null),
+        ),
+      ],
       SizedBox(height: t.space(4)),
       GlacierSearchField(
         key: const ValueKey('market-find'),
@@ -570,6 +632,134 @@ class _Band extends StatelessWidget {
             },
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One way to use what a link held ([_Linked]): its word, whether it is what is in use already, and the doing of it.
+typedef _Use = ({String label, bool inUse, VoidCallback use});
+
+/// A theme or a face a link named (`ghostmd://market/theme/<id>`, `…/font/<id>`), at the head of its shelf: its card
+/// as the shelf draws it, its name and line, and the way to use it, which is the Market's Add for a thing that is
+/// built in and only chosen. Once in use the button says so, ticked. Put away with its cross, or by leaving the shelf.
+class _Linked extends StatelessWidget {
+  const _Linked({super.key, required this.kind, required this.name, required this.line, required this.picture, required this.uses, required this.onDismiss, required this.wide});
+
+  /// "Theme" or "Font": the word over its name.
+  final String kind;
+  final String name;
+  final String line;
+  final Widget picture;
+  final List<_Use> uses;
+  final VoidCallback onDismiss;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    final size = t.lenOf('0.72rem');
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(kind.toUpperCase(), style: pageText(t, size, weight: 'semibold', color: t.color('app-ink-3'), tracking: t.len('app-tracking-caps', em: size))),
+        SizedBox(height: t.space(1)),
+        Semantics(header: true, child: Text(name, style: pageText(t, t.fontSize('xl'), weight: 'bold', color: t.color('app-ink')))),
+        SizedBox(height: t.space(1)),
+        Text(line, style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3'))),
+        SizedBox(height: t.space(3)),
+        Wrap(
+          spacing: t.space(2),
+          runSpacing: t.space(2),
+          children: [
+            for (final each in uses)
+              MarketButton(
+                key: ValueKey('market-use ${each.label}'),
+                label: each.inUse ? 'In use' : each.label,
+                semantics: each.inUse ? '$name, in use' : '${each.label}: $name',
+                icon: each.inUse ? Lucide.check : Lucide.plus,
+                look: each.inUse ? MarketButtonLook.ring : MarketButtonLook.ink,
+                large: true,
+                onPress: each.inUse ? null : each.use,
+              ),
+          ],
+        ),
+      ],
+    );
+    // The card at the size its shelf's row gives it (the phone's MarketRow for themes and fonts), and a breath taller,
+    // since using a face for the interface sets the card's own words in it, and a taller face would not fit the row's.
+    final theme = kind == 'Theme';
+    final cardWidth = t.lenOf(theme ? '10.5rem' : '14rem');
+    final cardHeight = (theme ? t.lenOf('7rem') + t.lenOf('3.6rem') : t.lenOf('6.2rem') + t.lenOf('3.6rem')) + t.space(1);
+    final card = SizedBox(width: cardWidth, height: cardHeight, child: picture);
+    return MarketCard(
+      key: const ValueKey('market-linked'),
+      padding: EdgeInsets.all(t.space(4)),
+      child: Stack(
+        children: [
+          Padding(
+            padding: EdgeInsetsDirectional.only(end: t.space(8)),
+            child: wide
+                ? Row(children: [card, SizedBox(width: t.space(5)), Expanded(child: words)])
+                : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [card, SizedBox(height: t.space(4)), words]),
+          ),
+          PositionedDirectional(top: 0, end: 0, child: _Dismiss(label: 'Put $name away', onPress: onDismiss)),
+        ],
+      ),
+    );
+  }
+}
+
+/// The word over the front for a link the Market could not follow ([MarketLanding.missing]): a link from a newer
+/// website to an older Ghost.md, most likely. Put away with its cross.
+class _LinkNote extends StatelessWidget {
+  const _LinkNote({required this.words, required this.onDismiss});
+
+  final String words;
+  final VoidCallback onDismiss;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return Container(
+      key: const ValueKey('market-link-note'),
+      padding: EdgeInsets.all(t.space(3)),
+      decoration: BoxDecoration(
+        color: t.color('app-paper-2'),
+        borderRadius: BorderRadius.circular(t.radius('lg')),
+        border: Border.all(color: t.color('app-rule'), width: t.len('glacier-hairline')),
+      ),
+      child: Row(
+        children: [
+          AppIcon(Lucide.info, size: 18, strokeWidth: 2.1, color: t.color('app-ink-2')),
+          SizedBox(width: t.space(3)),
+          Expanded(child: Text(words, style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-2')))),
+          SizedBox(width: t.space(2)),
+          _Dismiss(label: 'Put the note away', onPress: onDismiss),
+        ],
+      ),
+    );
+  }
+}
+
+/// A small cross that puts a word or a linked card away.
+class _Dismiss extends StatelessWidget {
+  const _Dismiss({required this.label, required this.onPress});
+
+  final String label;
+  final VoidCallback onPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = context.tokens;
+    return GlacierPressable(
+      key: const ValueKey('market-link-dismiss'),
+      onPressed: onPress,
+      semanticLabel: label,
+      builder: (context, state) => GlacierFocusRing(
+        visible: state.focused,
+        child: SizedBox.square(dimension: t.space(8), child: Center(child: AppIcon(Lucide.x, size: 16, strokeWidth: 2.2, color: t.color('app-ink-3')))),
       ),
     );
   }

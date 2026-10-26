@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Market · Ghost.md</title>
+    <meta name="description" content="Every plugin, theme and font in Ghost.md's Market: Claude, Notion, GitHub, Slack, Discord, Google Meet, Zoom, Lovart and more, each built in and a switch away. Browse them here and open any of them in the app." />
+    <link rel="icon" type="image/png" href="favicon.png" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta property="og:title" content="Market · Ghost.md" />
+    <meta property="og:description" content="Plugins, themes and fonts, all built in. Browse Ghost.md's Market and open any of them in the app." />
+    <meta property="og:image" content="https://ghostmarkdown.com/icon.png" />
+    <meta name="theme-color" content="#0b0b0b" />
+    <!--
+      The Market, on the website (Matt, 2026-10-26: "add a browsable marketplace listed under the plugins section on the
+      website that deeplinks to the app"). Everything on it is read from market.json, which is the app's own Market
+      listed: lib/market/market_listing.dart makes it from the registry, the catalogue, the themes and the faces, and
+      test/market/market_listing_test.dart fails when the two part (`--update-goldens` makes it again). Nothing here is
+      written by hand but the page around it.
+
+      Each thing opens in the app by its link, `ghostmd://market/<kind>/<id>` (lib/share/app_links.dart `MarketPlace`):
+      a plugin on its page with Add, a theme or a font at the head of its shelf with Use. Where nothing answers the link
+      (no app, or a browser that will not hand it on), the page says so after a moment and offers the download.
+
+      Marks: Claude's, Notion's and Lovart's are the site's own files (brands/), as the home page shows them; every
+      other plugin wears its Lucide icon, the app's. Styled as the home page is (home.css), and its own in market.css.
+    -->
+    <link rel="preload" href="fonts/inter.woff2" as="font" type="font/woff2" crossorigin />
+    <link rel="stylesheet" href="glacier/tokens.css" />
+    <link rel="stylesheet" href="site.css" />
+    <link rel="stylesheet" href="home.css" />
+    <link rel="stylesheet" href="market.css" />
+    <script src="theme.js"></script>
+    <script src="market.js" defer></script>
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to the page</a>
+
+    <header class="bar">
+      <nav class="bar-in" aria-label="Ghost.md">
+        <a class="brand" href="/"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
+        <ul class="bar-links">
+          <li><a href="#plugins" data-shelf-link="plugins">Plugins</a></li>
+          <li><a href="#themes" data-shelf-link="themes">Themes</a></li>
+          <li><a href="#fonts" data-shelf-link="fonts">Fonts</a></li>
+          <li><a href="/#plugins">About plugins</a></li>
+          <li><a href="/docs/">Docs</a></li>
+        </ul>
+        <a class="pill pill-ink bar-cta" href="/#download"><svg class="i" aria-hidden="true"><use href="icons.svg#i-download"/></svg><span>Download</span></a>
+      </nav>
+    </header>
+
+    <main id="main">
+      <section class="mk-hero" id="top" aria-labelledby="hero-title">
+        <div class="wrap">
+          <div class="mk-band">
+            <div class="mk-band-words">
+              <p class="mk-eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-shopping-bag"/></svg>Market</p>
+              <h1 id="hero-title">Plugins, themes and fonts.</h1>
+              <p class="mk-lead">Everything in Ghost.md&rsquo;s Market, all built in: adding one is a switch, with nothing to download. Browse them here, and open any of them in the app.</p>
+              <p class="mk-count" id="mk-count" aria-live="polite">&nbsp;</p>
+            </div>
+            <div class="mk-band-tiles" id="mk-band-tiles" aria-hidden="true"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="mk-shop" aria-label="The Market">
+        <div class="wrap">
+          <div class="mk-tools">
+            <label class="mk-search">
+              <svg class="i" aria-hidden="true"><use href="icons.svg#i-search"/></svg>
+              <span class="unseen">Search the Market</span>
+              <input type="search" id="mk-find" placeholder="Search plugins, themes and fonts" autocomplete="off" spellcheck="false" />
+            </label>
+            <div class="mk-shelves" role="group" aria-label="Shelves" id="mk-shelves"></div>
+          </div>
+          <div class="mk-chips" role="group" aria-label="Categories" id="mk-chips" hidden></div>
+          <div id="mk-list" aria-live="polite">
+            <p class="mk-loading">Opening the Market&hellip;</p>
+          </div>
+          <noscript><p class="fine center">The Market needs JavaScript to list what is in it. Everything on it is in the app: <a href="/#download">get Ghost.md</a>.</p></noscript>
+        </div>
+      </section>
+    </main>
+
+    <!-- A plugin's, a theme's or a font's own page, at its own anchor (#plugin/notion, #theme/dusk, #font/lora). -->
+    <dialog class="mk-detail" id="mk-detail" aria-labelledby="mk-detail-name">
+      <div class="mk-detail-in" id="mk-detail-in"></div>
+    </dialog>
+
+    <footer class="foot">
+      <div class="wrap foot-in">
+        <p class="brand"><img src="icon.png" width="28" height="28" alt="" /><span>Ghost.md</span></p>
+        <ul>
+          <li><a href="/">Home</a></li>
+          <li><a href="/docs/">Docs</a></li>
+          <li><a href="reference.html">Formatting reference</a></li>
+          <li><a href="privacy.html">Privacy</a></li>
+        </ul>
+      </div>
+    </footer>
+  </body>
+</html>

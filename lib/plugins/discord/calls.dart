@@ -69,11 +69,13 @@ class DiscordCallsApi {
   const DiscordCallsApi(this.api);
   final Api api;
 
-  /// The link, or none; null from a service with no Discord routes.
-  Future<({DiscordLink? link})?> link(String token) async {
+  /// The link, or none, and the Discord application's id the service has (for "Add Ghost to a server"); null from a
+  /// service with no Discord routes.
+  Future<({DiscordLink? link, String? appId})?> link(String token) async {
     try {
       final said = await api.callMap('GET', 'discord/link', token: token);
-      return (link: DiscordLink.fromJson(said['link']));
+      final appId = said['appId'];
+      return (link: DiscordLink.fromJson(said['link']), appId: appId is String && RegExp(r'^[0-9]{15,21}$').hasMatch(appId) ? appId : null);
     } catch (failure) {
       if (notYet(failure)) return null;
       rethrow;
@@ -105,6 +107,7 @@ class DiscordCalls extends ChangeNotifier {
   final AccountCrypto crypto;
 
   DiscordLink? _link;
+  String? _appId;
   bool _read = false;
   bool _available = true;
   DiscordCode? _code;
@@ -114,6 +117,10 @@ class DiscordCalls extends ChangeNotifier {
 
   /// The link; null until read, or with none.
   DiscordLink? get link => _link;
+
+  /// The Discord application's id, from the service (or this build's `GHOST_DISCORD_APP_ID`); null where neither has
+  /// one.
+  String? get appId => _appId;
 
   /// Whether the link has been read at least once.
   bool get read => _read;
@@ -150,6 +157,7 @@ class DiscordCalls extends ChangeNotifier {
       _available = said != null;
       final was = _link;
       _link = said?.link;
+      _appId = said?.appId ?? _appId;
       _read = true;
       // Linked with the code that was showing: it is used.
       if (_link != null && (was == null || was.linkedAt != _link!.linkedAt)) _code = null;

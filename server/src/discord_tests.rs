@@ -88,7 +88,8 @@ async fn a_code_from_the_device_links_the_discord_user_once_and_the_device_shows
     let h = Harness::new("discord");
     let (token, _) = with_key(&h, "sam").await;
     let (status, body) = h.call(Method::GET, "/api/v1/discord/link", Some(&token), None).await;
-    assert_eq!((status, body), (StatusCode::OK, json!({ "link": null })));
+    // The application's id rides along for the device's "Add Ghost to a server" link.
+    assert_eq!((status, body), (StatusCode::OK, json!({ "link": null, "appId": crate::discord::TEST_DISCORD_APP_ID })));
     let (status, made) = h.call(Method::POST, "/api/v1/discord/link-code", Some(&token), None).await;
     assert_eq!(status, StatusCode::OK);
     let shown = made["code"].as_str().unwrap();
@@ -307,4 +308,14 @@ async fn the_plugin_s_switch_turns_joining_off_and_on_and_needs_a_link() {
     assert_eq!(listed["meetings"], json!([]), "nothing booked");
     h.call(Method::PUT, "/api/v1/discord/calls", Some(&token), Some(json!({ "on": true }))).await;
     assert_eq!(join(&h, SAM).await.0, StatusCode::OK);
+}
+
+#[test]
+fn an_app_id_is_a_discord_snowflake_and_nothing_else() {
+    use crate::discord::is_app_id;
+    assert!(is_app_id("123456789012345678"));
+    assert!(!is_app_id(""));
+    assert!(!is_app_id("12345"));
+    assert!(!is_app_id("12345678901234567x"));
+    assert!(!is_app_id("1234567890123456789012"));
 }

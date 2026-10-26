@@ -181,7 +181,10 @@ Slack or Discord where those are set. What is Discord's own:
   on first then by day, each with where it stands ("In the meeting", "Written up", "Couldn't join: Ghost heard nobody
   in the call"), Leave now on one going on, and one written up opening its note. The shared meetings list filtered by
   kind that the Meet and Zoom plugin pages are getting was not on main when this was written; this is the same rows
-  built the same way (`meetListed`, `meetWhen`, `meetStateWords`, `meetingNoteFor`), to move onto it.
+  built the same way (`meetListed`, `meetWhen`, `meetStateWords`, `meetingNoteFor`), to move onto it. Under them,
+  signed in where the device records, **Where meetings go**, the row the Google Meet and Zoom pages have: a call is
+  sorted as every meeting is, by the one Meetings card on Settings › Recording (docs/MEET.md, "One place for every
+  meeting").
 
 ## The bot and the box
 

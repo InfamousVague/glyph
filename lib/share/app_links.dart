@@ -4,7 +4,8 @@
 ///
 /// Four kinds: a share link, `ghostmd://fork#<id>.<key>`, the reader page's "Open in the Ghost.md app"; an invite
 /// link, `ghostmd://join/<code>` (lib/orgs/join_links.dart); a note link, `ghostmd://note/<id>`, the tap on the
-/// notification that says a meeting was written up; and a place, `ghostmd://notifications` or `ghostmd://org/<id>`.
+/// notification that says a meeting was written up; and a place, `ghostmd://notifications`, `ghostmd://org/<id>` or
+/// the Market, `ghostmd://market/<kind>/<id>` (ghostmarkdown.com/market.html's Open in Ghost.md).
 ///
 /// What differs:
 /// - **The plumbing is not here.** On the page the native side keeps each link until asked (`links_take`), says when
@@ -58,16 +59,53 @@ class OrganizationPlace extends LinkedPlace {
   int get hashCode => orgId.hashCode;
 }
 
+/// What a link into the Market names: a plugin, a theme or a font.
+enum MarketKind { plugin, theme, font }
+
+/// `ghostmd://market`, the Market (lib/market/market_screen.dart), at one thing on its shelves when the link names it
+/// (Matt, 2026-10-26: "add a browsable marketplace listed under the plugins section on the website that deeplinks to
+/// the app"). The website's market page (landing/market.html) opens each plugin, theme and font by
+/// `ghostmd://market/<kind>/<id>`: `ghostmd://market/plugin/notion`, `ghostmd://market/theme/dusk`,
+/// `ghostmd://market/font/lora`. A kind alone, `ghostmd://market/theme`, is that shelf; an id alone,
+/// `ghostmd://market/notion`, is whichever of the three has it, a plugin first. Not on the page, which had no Market.
+///
+/// [kind] and [id] are as the link has them, not yet looked up: whether the id is one this build carries is the
+/// Market's to say ([marketLinkLanding], lib/market/market_items.dart), and one it does not carry lands on the
+/// Market's front with a word saying so.
+class MarketPlace extends LinkedPlace {
+  const MarketPlace({this.kind, this.id});
+  final MarketKind? kind;
+  final String? id;
+
+  @override
+  bool operator ==(Object other) => other is MarketPlace && other.kind == kind && other.id == id;
+
+  @override
+  int get hashCode => Object.hash(kind, id);
+
+  @override
+  String toString() => 'ghostmd://market${kind == null ? '' : '/${kind!.name}'}${id == null ? '' : '/$id'}';
+}
+
 final RegExp _notificationsLink = RegExp(r'^ghostmd://notifications/?$');
 final RegExp _orgLink = RegExp(r'^ghostmd://org/([A-Za-z0-9_-]{1,64})/?$');
 
-/// The notifications drawer, `ghostmd://notifications`, or an organization's dashboard, `ghostmd://org/<id>`, the id
-/// as the service makes one. Null for any other link (`readPlaceLink`).
+/// `ghostmd://market`, then a kind or an id or both: an id as the app's lists keep one, lowercase letters, digits and
+/// dashes. A link from a page may carry a query or a fragment after it (`?from=site`); they say nothing here.
+final RegExp _marketLink = RegExp(r'^ghostmd://market(?:/(plugin|theme|font)s?)?(?:/([a-z0-9][a-z0-9_-]{0,63}))?/?(?:[?#].*)?$');
+
+/// The notifications drawer, `ghostmd://notifications`, an organization's dashboard, `ghostmd://org/<id>`, the id
+/// as the service makes one, or the Market, `ghostmd://market/<kind>/<id>` ([MarketPlace]). Null for any other link
+/// (`readPlaceLink`).
 LinkedPlace? readPlaceLink(String link) {
   final trimmed = link.trim();
   if (_notificationsLink.hasMatch(trimmed)) return const NotificationsPlace();
   final org = _orgLink.firstMatch(trimmed)?.group(1);
-  return org != null ? OrganizationPlace(org) : null;
+  if (org != null) return OrganizationPlace(org);
+  final market = _marketLink.firstMatch(trimmed.toLowerCase());
+  if (market == null) return null;
+  final kind = market.group(1);
+  return MarketPlace(kind: kind == null ? null : MarketKind.values.byName(kind), id: market.group(2));
 }
 
 /// A link that opened the app, sorted.
@@ -90,7 +128,7 @@ class NoteAppLink extends AppLink {
   final String noteId;
 }
 
-/// `ghostmd://notifications` or `ghostmd://org/<id>`.
+/// `ghostmd://notifications`, `ghostmd://org/<id>` or `ghostmd://market/<kind>/<id>`.
 class PlaceAppLink extends AppLink {
   const PlaceAppLink(super.link, this.place);
   final LinkedPlace place;
@@ -124,7 +162,7 @@ abstract interface class AppLinkDoor {
   /// A note link: open that note where it was left.
   Future<void> openNote(String id);
 
-  /// The notifications drawer, or an organization's dashboard.
+  /// The notifications drawer, an organization's dashboard, or the Market at a plugin, a theme or a font.
   void openPlace(LinkedPlace place);
 
   /// An invitation: hold the code and ask "Join it?" ([takeJoin]).

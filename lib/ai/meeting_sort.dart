@@ -7,8 +7,10 @@
 /// spoke in it, and its summary; and the note is filed into that workspace's "Meetings" folder, made where it is
 /// missing (lib/core/workspaces.dart `addWorkspace`, whose id is the folder's place's, so every device makes the same
 /// one). Matt's answers: filed automatically, with no question, an organization's workspace included, though filing
-/// there shares the note with every member of it; and on by default, with a switch on each meeting plugin's
-/// page ([sortMeetingsKey]; lib/meet/ui/meeting_settings.dart).
+/// there shares the note with every member of it; and on by default, with its switch once for every kind of meeting
+/// on Settings › Recording's Meetings card ([sortMeetingsKey]; lib/meet/ui/meeting_settings.dart; Matt, 2026-10-26:
+/// "All meetings plugins should sort meetings to the same place on the recordings but have different settings"). The
+/// meeting's kind is never asked: a Google Meet's, a Zoom's and a Discord call's are sorted alike.
 ///
 /// The rules, each a test (test/ai/meeting_sort_test.dart):
 /// - **Only a meeting the person has not filed.** One in no workspace (the Inbox: a meeting Ghost was in lands

@@ -107,6 +107,11 @@ class _EndHalf extends CustomClipper<Rect> {
   bool shouldReclip(_EndHalf old) => false;
 }
 
+/// The accent a miniature draws in [p]: Ink's accent is no colour, so on the dark page it is the page's ink, not the
+/// light page's black (the app's accent is read as it is now, whichever page that is). The website's miniatures draw
+/// the same (lib/market/market_listing.dart).
+Color miniatureAccent(ThemePalette p) => (p.accent.computeLuminance() - p.background.computeLuminance()).abs() < 0.2 ? p.text : p.accent;
+
 /// A note in a theme's colours, small: the sidebar's strip with its dots, the title, three lines, a tag in the
 /// accent and a to-do ticked in it. Every colour is the palette's.
 class ThemeMiniature extends StatelessWidget {
@@ -117,9 +122,7 @@ class ThemeMiniature extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = palette;
-    // Ink's accent is no colour: on the dark page it is the page's ink, not the light page's black (the app's
-    // accent is read as it is now, whichever page that is).
-    final accent = (p.accent.computeLuminance() - p.background.computeLuminance()).abs() < 0.2 ? p.text : p.accent;
+    final accent = miniatureAccent(p);
     Widget bar(double width, double height, Color color, {double opacity = 1}) => Opacity(
           opacity: opacity,
           child: Container(width: width, height: height, decoration: ShapeDecoration(color: color, shape: const StadiumBorder())),
@@ -245,6 +248,10 @@ TextStyle faceText(Tokens t, String face, double px, {String weight = 'regular',
 /// Which of the two faces a font card sets: a note's, or the interface's.
 enum FaceRole { note, interface }
 
+/// The line a face's card sets in it: a scrap of a note for a note's face, the app's own words for the interface's.
+/// The website's market page sets the same two (lib/market/market_listing.dart).
+const Map<FaceRole, String> faceSamples = {FaceRole.note: 'The quick brown ghost -> drifts past **bold** notes.', FaceRole.interface: 'Notes, Notebooks & Settings'};
+
 /// One face: "Aa" large in it and a line of a note in it, its name, what it can be set as, and whether it is the one
 /// in use for [role]; pressed, it is.
 class MarketFontCard extends StatelessWidget {
@@ -259,7 +266,7 @@ class MarketFontCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = context.tokens;
     final name = faceWords[face] ?? face;
-    final sample = role == FaceRole.note ? 'The quick brown ghost -> drifts past **bold** notes.' : 'Notes, Notebooks & Settings';
+    final sample = faceSamples[role]!;
     final roles = faceRoles(face);
     return MarketCard(
       key: ValueKey('market-face-${role.name}-$face'),

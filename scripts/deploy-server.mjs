@@ -121,6 +121,9 @@ function loadServerEnv() {
   }
   // The Discord bot's key to glyph-api's internal routes (server/src/discord.rs, docs/DISCORD_CALLS.md): not Discord's
   // own bot token, which glyph-api never sees. Optional the same way: without it no Discord route is mounted.
+  if (env.DISCORD_APP_ID && !/^[0-9]{15,21}$/.test(env.DISCORD_APP_ID)) {
+    fail('DISCORD_APP_ID in .env must be the Discord application id: 15 to 21 digits.');
+  }
   if (env.GLYPH_DISCORD_TOKEN && !/^[A-Za-z0-9_-]{32,200}$/.test(env.GLYPH_DISCORD_TOKEN)) {
     fail('GLYPH_DISCORD_TOKEN in .env must be 32 to 200 letters, digits, - or _.');
   }
@@ -214,6 +217,10 @@ if [ "$MCP_ONLY" != 1 ]; then
   fi
   if [ -n "$DISCORD_TOKEN_NEW" ]; then
     printf 'GLYPH_DISCORD_TOKEN=%s\\n' "$DISCORD_TOKEN_NEW"
+  fi
+  # The Discord application's id: public (the invite link carries it), for the app's "Add Ghost to a server".
+  if [ -n "$DISCORD_APP_ID_NEW" ]; then
+    printf 'DISCORD_APP_ID=%s\\n' "$DISCORD_APP_ID_NEW"
   fi
 } | $SUDO tee ${REMOTE}/glyph-api.env.new >/dev/null
 $SUDO chown root:root ${REMOTE}/glyph-api.env.new
@@ -322,14 +329,14 @@ function ship(env) {
     const bundle = tarball(local, 256 * 1024 * 1024);
     const remote =
       `set -e; IFS= read -r GLYPH_API_TOKEN_NEW; IFS= read -r NOTION_CLIENT_ID_NEW; IFS= read -r NOTION_CLIENT_SECRET_NEW; ` +
-      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; IFS= read -r DISCORD_TOKEN_NEW; ` +
-      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW; ` +
+      `IFS= read -r GOOGLE_CLIENT_ID_NEW; IFS= read -r GOOGLE_CLIENT_SECRET_NEW; IFS= read -r MAILGUN_SIGNING_KEY_NEW; IFS= read -r MEET_TOKEN_NEW; IFS= read -r DISCORD_TOKEN_NEW; IFS= read -r DISCORD_APP_ID_NEW; ` +
+      `export GLYPH_API_TOKEN_NEW NOTION_CLIENT_ID_NEW NOTION_CLIENT_SECRET_NEW GOOGLE_CLIENT_ID_NEW GOOGLE_CLIENT_SECRET_NEW MAILGUN_SIGNING_KEY_NEW MEET_TOKEN_NEW DISCORD_TOKEN_NEW DISCORD_APP_ID_NEW; ` +
       `rm -rf "$HOME/${STAGE}"; mkdir -p "$HOME/${STAGE}"; tar xzf - -C "$HOME/${STAGE}"; bash "$HOME/${STAGE}/install.sh"`;
     const result = openBox(env, SSH_OPTS).exec(remote, {
       input: Buffer.concat([
         Buffer.from(`${env.VITE_GLYPH_API_TOKEN}\n${env.NOTION_CLIENT_ID ?? ''}\n${env.NOTION_CLIENT_SECRET ?? ''}\n` +
             `${env.GOOGLE_CLIENT_ID ?? ''}\n${env.GOOGLE_CLIENT_SECRET ?? ''}\n${env.GLYPH_MAILGUN_SIGNING_KEY ?? ''}\n` +
-            `${env.GLYPH_MEET_TOKEN ?? ''}\n${env.GLYPH_DISCORD_TOKEN ?? ''}\n`,
+            `${env.GLYPH_MEET_TOKEN ?? ''}\n${env.GLYPH_DISCORD_TOKEN ?? ''}\n${env.DISCORD_APP_ID ?? ''}\n`,
         ),
         bundle,
       ]),

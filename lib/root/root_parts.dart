@@ -306,6 +306,7 @@ extension _RootParts on _GhostRootState {
         () => (screen, _claudeShown, _canTalk),
         (context) => MarketScreen(
           plugin: screen.plugin,
+          link: screen.link,
           onBack: shell.backToList,
           onPluginSettings: (id) => _openSettingsAt(pluginPageId(id)),
           onLocalOnly: () => _openSettingsAt('account', setting: 'Privacy'),

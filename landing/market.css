@@ -1,0 +1,1022 @@
+/*
+ * ghostmarkdown.com's Market (market.html, market.js; Matt, 2026-10-26: "add a browsable marketplace listed under the
+ * plugins section on the website that deeplinks to the app"). After the home page's sheet (home.css), whose bar,
+ * pills, wrap and foot it wears; this is the Market's own, drawn as the app's Market is (lib/market/): a band in
+ * colour with the plugins' tiles on it, a search and the shelves, the plugins as tiles in their hues, the themes as
+ * miniatures in their own colours, the faces set in themselves, and a thing's page over the shelves.
+ *
+ * Every colour that is a thing's own (a plugin's hue, a theme's palette) comes from market.json as the app has it;
+ * everything else is the site's ink (site.css), light or dark as the visitor's page is.
+ */
+
+/* The faces the Market sets its fonts in, past the two every page has (site.css): the @fontsource Latin files the
+   app's own are made from (fonts/market/, OFL.txt there). A face loads only when a card is set in it. */
+@font-face {
+  font-family: 'Maple Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/market/maple-mono.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Fira Code Variable';
+  font-style: normal;
+  font-weight: 300 700;
+  font-display: swap;
+  src: url('fonts/market/fira-code.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Noto Sans Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('fonts/market/noto-sans.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'IBM Plex Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('fonts/market/ibm-plex-sans.woff2') format('woff2');
+}
+
+@font-face {
+  font-family: 'Atkinson Hyperlegible Next Variable';
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+  src: url('fonts/market/atkinson-hyperlegible-next.woff2') format('woff2-variations');
+}
+
+@font-face {
+  font-family: 'Lora Variable';
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url('fonts/market/lora.woff2') format('woff2-variations');
+}
+
+/* A plugin's ink on its page: its hue's deep shade on a light page, its bright one on a dark page (the app's
+   `t.isDark ? bright : deep`); the page's own ink for a theme or a font. Read where the page's colours are set
+   (market.js `show`), since a custom property is settled where it is declared. */
+.mk-detail-in {
+  --mk-tone: var(--deep, var(--ink));
+}
+
+:root[data-theme='dark'] .mk-detail-in {
+  --mk-tone: var(--bright, var(--ink));
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .mk-detail-in {
+    --mk-tone: var(--bright, var(--ink));
+  }
+}
+
+/* ---- the band ---------------------------------------------------------------------------------------------------- */
+
+.mk-hero {
+  padding-block: clamp(1.25rem, 4vw, 2.5rem) 0;
+}
+
+/* The app's band: indigo to purple to rose to orange, with a soft light from the top start corner. */
+.mk-band {
+  position: relative;
+  display: grid;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.25), transparent 55%),
+    linear-gradient(135deg, #4f5bd5 0%, #9a45c9 38%, #d6336c 72%, #d9600d 100%);
+}
+
+.mk-band-words {
+  position: relative;
+  z-index: 1;
+  padding: 1.4rem 1.25rem 0.5rem;
+}
+
+.mk-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0 0 0.5rem;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: rgb(255 255 255 / 0.85);
+}
+
+.mk-band h1 {
+  margin: 0;
+  font-size: clamp(2rem, 6vw, 3.6rem);
+  line-height: 1.02;
+  letter-spacing: -0.04em;
+  font-weight: 750;
+  text-wrap: balance;
+}
+
+.mk-lead {
+  max-inline-size: 34rem;
+  margin: 0.75rem 0 0;
+  font-size: var(--glacier-font-size-md, 1rem);
+  line-height: 1.5;
+  color: rgb(255 255 255 / 0.92);
+  text-wrap: pretty;
+}
+
+.mk-count {
+  margin: 1rem 0 0;
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  font-weight: 600;
+  color: rgb(255 255 255 / 0.8);
+}
+
+/* The plugins' tiles, scattered at the band's end as the app scatters them (market_screen.dart `_Band`): on a phone
+   a strip over the words, with room beside them from a tablet's width. */
+.mk-band-tiles {
+  position: relative;
+  block-size: 6.5rem;
+  margin: 0.5rem 1rem 0.75rem;
+}
+
+.mk-band-tile {
+  position: absolute;
+  inset-inline-end: calc(var(--x) * 100%);
+  inset-block-start: calc(var(--y) * 100%);
+  transform: rotate(var(--turn));
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 0.2));
+}
+
+.mk-band-tile .mk-tile {
+  inline-size: var(--size);
+  block-size: var(--size);
+  border-radius: calc(var(--size) * 0.28);
+}
+
+.mk-band-tile-0 { --x: 0.06; --y: 0.08; --size: 3.6rem; --turn: -0.1rad; }
+.mk-band-tile-1 { --x: 0.3; --y: 0.4; --size: 3rem; --turn: 0.08rad; }
+.mk-band-tile-2 { --x: 0.55; --y: 0.12; --size: 2.6rem; --turn: 0.14rad; }
+.mk-band-tile-3 { --x: 0.78; --y: 0.36; --size: 2.4rem; --turn: 0.06rad; }
+.mk-band-tile-4,
+.mk-band-tile-5,
+.mk-band-tile-6 {
+  display: none;
+}
+
+@media (min-width: 720px) {
+  .mk-band {
+    min-block-size: 16rem;
+    align-content: end;
+  }
+
+  .mk-band-words {
+    max-inline-size: calc(100% - min(40%, 26rem));
+    padding: 2.5rem 2rem 2rem;
+  }
+
+  .mk-band-tiles {
+    position: absolute;
+    inset-block: 0;
+    inset-inline-end: 0;
+    inline-size: min(40%, 26rem);
+    block-size: auto;
+    margin: 0;
+  }
+
+  .mk-band-tile-0 { --x: 0.06; --y: 0.12; --size: 4.6rem; }
+  .mk-band-tile-1 { --x: 0.3; --y: 0.46; --size: 3.8rem; }
+  .mk-band-tile-2 { --x: 0.03; --y: 0.62; --size: 3.3rem; }
+  .mk-band-tile-3 { --x: 0.24; --y: 0.04; --size: 3rem; }
+  .mk-band-tile-4 { --x: 0.52; --y: 0.12; --size: 2.8rem; --turn: -0.12rad; display: block; }
+  .mk-band-tile-5 { --x: 0.47; --y: 0.6; --size: 3.3rem; --turn: -0.04rad; display: block; }
+  .mk-band-tile-6 { --x: 0.72; --y: 0.4; --size: 2.5rem; --turn: 0.1rad; display: block; }
+}
+
+/* ---- a plugin's tile: a wash across its hue, its mark in white ----------------------------------------------------- */
+
+.mk-tile {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 3rem;
+  block-size: 3rem;
+  border-radius: 0.85rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.25), transparent 60%),
+    linear-gradient(135deg, var(--deep), color-mix(in srgb, var(--deep) 45%, var(--bright)), var(--bright));
+}
+
+.mk-tile-lg {
+  inline-size: 3.6rem;
+  block-size: 3.6rem;
+  border-radius: 1rem;
+}
+
+.mk-tile .i {
+  inline-size: 52%;
+  block-size: 52%;
+  stroke-width: 1.8;
+}
+
+/* A brand's own mark, from the site's file (brands/), in white. */
+.mk-mark {
+  display: block;
+  inline-size: 50%;
+  block-size: 50%;
+  background: currentColor;
+  -webkit-mask: var(--mark) center / contain no-repeat;
+  mask: var(--mark) center / contain no-repeat;
+}
+
+/* ---- the search and the shelves --------------------------------------------------------------------------------- */
+
+.mk-shop {
+  padding-block: 1.25rem clamp(3rem, 8vw, 5rem);
+}
+
+.mk-tools {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (min-width: 720px) {
+  .mk-tools {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 26rem);
+    align-items: center;
+  }
+}
+
+.mk-search {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-block-size: 2.9rem;
+  padding: 0 1rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--paper);
+  color: var(--ink-3);
+}
+
+.mk-search:focus-within {
+  border-color: var(--ink-3);
+  outline: 2px solid color-mix(in oklch, var(--ink) 20%, transparent);
+  outline-offset: 1px;
+}
+
+.mk-search input {
+  flex: 1;
+  min-inline-size: 0;
+  border: 0;
+  outline: 0;
+  background: none;
+  color: var(--ink);
+  font: inherit;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.mk-search input::placeholder {
+  color: var(--ink-3);
+}
+
+.mk-shelves {
+  display: flex;
+  padding: 3px;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--paper-2);
+}
+
+.mk-seg {
+  flex: 1;
+  min-block-size: 2.4rem;
+  padding: 0 0.6rem;
+  border: 0;
+  border-radius: var(--glacier-radius-full, 999px);
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mk-seg[aria-pressed='true'] {
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow:
+    0 0 0 1px var(--rule),
+    0 1px 3px rgb(0 0 0 / 0.08);
+}
+
+.mk-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.9rem;
+}
+
+.mk-chips[hidden] {
+  display: none;
+}
+
+.mk-chip {
+  min-block-size: 2.1rem;
+  padding: 0 0.9rem;
+  border: 1px solid var(--rule);
+  border-radius: var(--glacier-radius-full, 999px);
+  background: var(--paper);
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mk-chip[aria-pressed='true'] {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--paper);
+}
+
+/* ---- a shelf ---------------------------------------------------------------------------------------------------- */
+
+.mk-section {
+  margin-block-start: 2.25rem;
+}
+
+.mk-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.25rem 0.75rem;
+  margin-block-end: 0.9rem;
+}
+
+.mk-heading h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: var(--glacier-font-size-xl, 1.35rem);
+  letter-spacing: -0.02em;
+}
+
+.mk-heading h2 .i {
+  color: var(--ink-3);
+}
+
+.mk-meta {
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.mk-more {
+  margin-inline-start: auto;
+  padding: 0.25rem 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.mk-more:hover {
+  color: var(--ink);
+}
+
+.mk-note {
+  margin: -0.4rem 0 1rem;
+  max-inline-size: 44rem;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+.mk-loading {
+  margin-block: 3rem;
+  color: var(--ink-3);
+  text-align: center;
+}
+
+.mk-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mk-grid-looks {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 9.5rem), 1fr));
+}
+
+.mk-grid-fonts {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
+}
+
+.mk-grid-featured {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+
+/* ---- the cards -------------------------------------------------------------------------------------------------- */
+
+.mk-card {
+  display: flex;
+  block-size: 100%;
+  overflow: hidden;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+  background: var(--paper);
+  color: inherit;
+  text-decoration: none;
+  transition:
+    transform 160ms var(--ease),
+    border-color 160ms var(--ease),
+    box-shadow 160ms var(--ease);
+}
+
+.mk-card:hover {
+  border-color: var(--ink-4);
+  box-shadow: 0 10px 30px -18px rgb(0 0 0 / 0.45);
+  transform: translateY(-1px);
+}
+
+.mk-card-words {
+  display: grid;
+  align-content: start;
+  gap: 0.15rem;
+  min-inline-size: 0;
+}
+
+.mk-name {
+  font-weight: 650;
+  letter-spacing: -0.01em;
+}
+
+.mk-line {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  line-height: 1.4;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.mk-reach {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  margin-block-start: 0.35rem;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  font-weight: 600;
+}
+
+.mk-reach .i {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+}
+
+.mk-plugin {
+  align-items: flex-start;
+  gap: 0.85rem;
+  padding: 0.9rem;
+}
+
+/* A featured plugin: its whole card in its hue, as the app's Featured shelf has it, the words on the colour. */
+.mk-featured {
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 1.5rem;
+  min-block-size: 12.5rem;
+  padding: 1.1rem;
+  border-color: transparent;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.22), transparent 55%),
+    linear-gradient(135deg, var(--deep), color-mix(in srgb, var(--deep) 45%, var(--bright)), var(--bright));
+}
+
+.mk-featured:hover {
+  border-color: transparent;
+}
+
+.mk-featured .mk-tile {
+  background: rgb(255 255 255 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+}
+
+.mk-featured .mk-name {
+  font-size: var(--glacier-font-size-lg, 1.2rem);
+}
+
+.mk-featured .mk-line,
+.mk-featured .mk-reach {
+  color: rgb(255 255 255 / 0.88);
+}
+
+.mk-theme,
+.mk-font {
+  flex-direction: column;
+}
+
+.mk-theme .mk-card-words,
+.mk-font .mk-card-words {
+  padding: 0.65rem 0.8rem 0.8rem;
+}
+
+.mk-picture {
+  display: block;
+  block-size: 7rem;
+  border-block-end: 1px solid var(--rule);
+}
+
+/* ---- a theme's miniature: a note in its colours (market_looks.dart `ThemeMiniature`) ----------------------------- */
+
+.mk-mini {
+  display: flex;
+  block-size: 100%;
+  background: var(--bg);
+}
+
+.mk-mini-side {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  inline-size: 22px;
+  padding: 10px 7px;
+  border-inline-end: 1px solid var(--border);
+  background: var(--side);
+}
+
+.mk-mini-side i {
+  display: block;
+  inline-size: 8px;
+  block-size: 8px;
+  border-radius: 2.5px;
+  background: color-mix(in srgb, var(--muted) 50%, transparent);
+}
+
+.mk-mini-side i:first-child {
+  background: var(--accent);
+}
+
+.mk-mini-note {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 5px;
+  padding: 12px 12px 8px;
+}
+
+.mk-mini-note i,
+.mk-mini-title {
+  display: block;
+  inline-size: var(--w, 100%);
+  block-size: 4.5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--muted) 70%, transparent);
+}
+
+.mk-mini-title {
+  inline-size: 50%;
+  block-size: 8px;
+  margin-block-end: 4px;
+  background: var(--text);
+}
+
+.mk-mini-todo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-block-start: 4px;
+}
+
+.mk-mini-todo em {
+  inline-size: 10px;
+  block-size: 10px;
+  border-radius: 2.5px;
+  background: var(--accent);
+}
+
+.mk-mini-todo i {
+  flex: 1;
+  inline-size: auto;
+  max-inline-size: 55%;
+}
+
+.mk-mini-tabs {
+  display: flex;
+  gap: 5px;
+  margin-block-start: auto;
+}
+
+.mk-mini-tabs em,
+.mk-mini-tabs b {
+  display: block;
+  block-size: 10px;
+  border-radius: 99px;
+}
+
+.mk-mini-tabs em {
+  inline-size: 36px;
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  box-shadow: inset 0 0 0 3px transparent;
+}
+
+.mk-mini-tabs b {
+  inline-size: 30px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+/* System: the light note, and the dark one over its end half. */
+.mk-mini-pair {
+  position: relative;
+  display: block;
+  block-size: 100%;
+}
+
+.mk-mini-half {
+  position: absolute;
+  inset: 0;
+  clip-path: inset(0 0 0 50%);
+}
+
+/* ---- a face, set in itself ------------------------------------------------------------------------------------ */
+
+.mk-specimen {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  block-size: 6.2rem;
+  padding: 0.6rem 0.8rem;
+  border-block-end: 1px solid var(--rule);
+  background: var(--paper-2);
+  color: var(--ink);
+}
+
+.mk-aa {
+  flex: none;
+  font-size: 2.6rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.mk-sample {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* ---- nothing found ---------------------------------------------------------------------------------------------- */
+
+.mk-nothing {
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  margin-block: 3rem;
+  text-align: center;
+}
+
+.mk-nothing img {
+  border-radius: 1rem;
+  opacity: 0.6;
+  filter: grayscale(1);
+}
+
+.mk-nothing .pill {
+  margin-block-start: 0.75rem;
+}
+
+/* ---- a thing's page, over the shelves --------------------------------------------------------------------------- */
+
+.mk-detail {
+  inline-size: min(36rem, calc(100% - 32px));
+  max-inline-size: none;
+  max-block-size: calc(100dvh - 32px);
+  padding: 0;
+  overflow: auto;
+  border: 0;
+  border-radius: 1.4rem;
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 40px 80px -30px rgb(0 0 0 / 0.55);
+  overscroll-behavior: contain;
+}
+
+.mk-detail::backdrop {
+  background: rgb(0 0 0 / 0.45);
+  -webkit-backdrop-filter: blur(4px);
+  backdrop-filter: blur(4px);
+}
+
+.mk-head {
+  position: relative;
+  overflow: hidden;
+  padding: 1.4rem 1.4rem 1.3rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.25), transparent 55%),
+    linear-gradient(135deg, var(--deep), color-mix(in srgb, var(--deep) 45%, var(--bright)), var(--bright));
+}
+
+.mk-head .mk-tile {
+  background: rgb(255 255 255 / 0.18);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.28);
+}
+
+/* Its mark large and faint, its picture (the app's plugin page). */
+.mk-head-art {
+  position: absolute;
+  inset-inline-end: -2rem;
+  inset-block-end: -2.5rem;
+  display: grid;
+  place-items: center;
+  inline-size: 12rem;
+  block-size: 12rem;
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+.mk-head-art .i,
+.mk-head-art .mk-mark {
+  inline-size: 100%;
+  block-size: 100%;
+}
+
+.mk-head h2 {
+  margin: 1rem 0 0.2rem;
+  font-size: var(--glacier-font-size-2xl, 1.6rem);
+  letter-spacing: -0.03em;
+}
+
+.mk-head p {
+  position: relative;
+  margin: 0;
+  color: rgb(255 255 255 / 0.9);
+}
+
+.mk-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-block-start: 0.85rem !important;
+}
+
+.mk-tags span {
+  padding: 0.2rem 0.65rem;
+  border-radius: 99px;
+  background: rgb(0 0 0 / 0.2);
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  font-weight: 600;
+}
+
+.mk-head-plain {
+  color: var(--ink);
+  background: var(--paper);
+  border-block-end: 1px solid var(--rule);
+}
+
+.mk-head-plain p {
+  color: var(--ink-3);
+}
+
+.mk-head-plain h2 {
+  margin-block-start: 0.15rem;
+}
+
+.mk-kind {
+  margin-block-start: 1.1rem !important;
+  font-size: var(--glacier-font-size-xs, 0.8rem);
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.mk-picture-lg,
+.mk-specimen-lg {
+  overflow: hidden;
+  margin-block-start: 2rem;
+  border: 1px solid var(--rule);
+  border-radius: 1rem;
+}
+
+.mk-picture-lg {
+  block-size: 11rem;
+}
+
+.mk-specimen-lg {
+  flex-wrap: wrap;
+  block-size: auto;
+  min-block-size: 8rem;
+  padding: 1rem 1.1rem;
+}
+
+.mk-specimen-lg .mk-aa {
+  font-size: 3.6rem;
+}
+
+.mk-specimen-lg .mk-sample {
+  flex: 1 1 12rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.mk-sample-ui {
+  flex-basis: 100% !important;
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.mk-close {
+  position: absolute;
+  z-index: 1;
+  inset-block-start: 1rem;
+  inset-inline-end: 1rem;
+  display: grid;
+  place-items: center;
+  inline-size: 2.2rem;
+  block-size: 2.2rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: rgb(0 0 0 / 0.2);
+  color: #fff;
+  cursor: pointer;
+}
+
+.mk-head-plain .mk-close {
+  background: var(--paper-2);
+  color: var(--ink-2);
+}
+
+.mk-close .i {
+  inline-size: 1rem;
+  block-size: 1rem;
+  stroke-width: 2.4;
+}
+
+.mk-body {
+  padding: 1.2rem 1.4rem 1.6rem;
+}
+
+.mk-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.mk-open .pill-ink {
+  background: var(--mk-tone);
+  border-color: var(--mk-tone);
+}
+
+.mk-fine {
+  margin: 0.6rem 0 0;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+/* Nothing took the link: the app may not be here. */
+.mk-fallback {
+  margin-block-start: 1rem;
+  padding: 0.9rem 1rem;
+  border: 1px solid var(--rule);
+  border-radius: 0.9rem;
+  background: var(--paper-2);
+}
+
+.mk-fallback[hidden] {
+  display: none;
+}
+
+.mk-fallback p {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.mk-fallback b {
+  color: var(--ink);
+}
+
+.mk-open-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-block-start: 0.7rem !important;
+}
+
+.mk-part {
+  margin-block-start: 1.6rem;
+}
+
+.mk-part h3 {
+  margin: 0 0 0.55rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.mk-part p {
+  margin: 0;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.mk-points {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mk-points li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+}
+
+.mk-point-i {
+  inline-size: 1.9rem;
+  block-size: 1.9rem;
+  padding: 0.45rem;
+  border-radius: 0.55rem;
+  background: color-mix(in srgb, var(--mk-tone) 14%, transparent);
+  color: var(--mk-tone);
+  stroke-width: 2.2;
+}
+
+.mk-point {
+  display: block;
+  padding-block-start: 0.2rem;
+  line-height: 1.35;
+}
+
+.mk-hint {
+  display: block;
+  margin-block-start: 0.15rem;
+  color: var(--ink-3);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  line-height: 1.4;
+}
+
+.mk-platforms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.mk-platforms li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid color-mix(in srgb, var(--mk-tone) 35%, transparent);
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--mk-tone) 12%, transparent);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  font-weight: 500;
+}
+
+.mk-platforms .i {
+  inline-size: 0.95rem;
+  block-size: 0.95rem;
+  color: var(--mk-tone);
+}
+
+.mk-platforms .mk-not {
+  border-color: var(--rule);
+  background: none;
+  color: var(--ink-3);
+}
+
+.mk-platforms .mk-not .i {
+  color: var(--ink-4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mk-card {
+    transition: none;
+  }
+
+  .mk-card:hover {
+    transform: none;
+  }
+}

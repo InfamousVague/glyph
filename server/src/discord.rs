@@ -27,6 +27,7 @@
 //! bot says it in Meet's (discord/bot/lib/words.mjs), and anyone in the channel can send it away with `/ghost leave`.
 //!
 //!   POST   /api/v1/discord/link-code       a code to link a Discord user with: { code, expiresAt }
+//!   (GET /api/v1/discord/link also answers `appId`, the Discord application's id from DISCORD_APP_ID, or null)
 //!   GET    /api/v1/discord/link            { link: { name, linkedAt, calls } | null }
 //!   DELETE /api/v1/discord/link            the link let go: { link: null }
 //!   PUT    /api/v1/discord/calls           { on } the plugin's "Join Discord calls": { link }; 404 not linked
@@ -187,6 +188,27 @@ async fn link_code(State(d): State<Arc<Discord>>, who: Claims) -> Response {
     Json(json!({ "code": shown_code(&code), "expiresAt": millis(now + CODE_FOR) })).into_response()
 }
 
+/// The Discord application's id, from DISCORD_APP_ID (digits, as Discord shows it), for the device's "Add Ghost to a
+/// server" link: public, the same id the invite URL carries. None when unset or not an id, and the device then says to
+/// ask for the link. Matt, 2026-10-26: "add the invite to server button from inside the plugin itself".
+#[cfg(not(test))]
+pub fn app_id() -> Option<String> {
+    std::env::var("DISCORD_APP_ID").ok().map(|id| id.trim().to_string()).filter(|id| is_app_id(id))
+}
+
+#[cfg(test)]
+pub fn app_id() -> Option<String> {
+    Some(TEST_DISCORD_APP_ID.into())
+}
+
+#[cfg(test)]
+pub const TEST_DISCORD_APP_ID: &str = "123456789012345678";
+
+/// A Discord snowflake: 15 to 21 digits.
+pub fn is_app_id(id: &str) -> bool {
+    (15..=21).contains(&id.len()) && id.bytes().all(|b| b.is_ascii_digit())
+}
+
 fn link_json(d: &Discord, account: i64) -> Value {
     match d.accounts.store.discord_link_of_account(account) {
         Some(link) => json!({ "name": link.name, "linkedAt": millis(link.linked_at), "calls": link.calls }),
@@ -195,7 +217,7 @@ fn link_json(d: &Discord, account: i64) -> Value {
 }
 
 async fn get_link(State(d): State<Arc<Discord>>, who: Claims) -> Response {
-    Json(json!({ "link": link_json(&d, who.sub) })).into_response()
+    Json(json!({ "link": link_json(&d, who.sub), "appId": app_id() })).into_response()
 }
 
 #[derive(Deserialize)]

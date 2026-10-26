@@ -18,7 +18,8 @@
 ///    captions alone, so a person with only an iPhone still gets the meeting.
 /// 4. The note is written through the door a note from another device comes in by ([LocalNotes.apply]), with the
 ///    recording's length; marked a meeting (`prefs.meetings`, {noteId: startedAtMs}), as a meeting recorded here
-///    is, so sync treats its audio as a meeting's (Settings › Meetings › Sync meeting recordings); the meeting it
+///    is, so sync treats its audio as a meeting's (Settings › Recording › Meetings › Sync meeting recordings, one
+///    switch for every kind; lib/meet/ui/meeting_settings.dart); the meeting it
 ///    was of is kept against it ([meetingNotesKey]), so the meetings' list opens it; and its write-up asked for
 ///    ([MeetDevice.writeUp]: Whisper over the recording, then the summary, honouring Write up straight away), as a
 ///    meeting recorded here is.

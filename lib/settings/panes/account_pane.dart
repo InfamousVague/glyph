@@ -53,7 +53,7 @@ List<SettingsFindable> accountFindable({required bool signedIn, bool ported = fa
     ? (ported
         ? [
             const SettingsFindable('Sync now', 'devices'),
-            // Sync meeting recordings is the meeting plugins' pages' (lib/plugins/meetings/meetings.dart).
+            // Sync meeting recordings is Settings › Recording's, on its Meetings card (lib/meet/ui/meeting_settings.dart).
             const SettingsFindable('Live typing', 'realtime collaborate claude'),
             const SettingsFindable(keysInSyncLabel, 'claude api key token slack discord github webhook secrets devices'),
             const SettingsFindable('Password and recovery codes', 'change'),
@@ -101,7 +101,8 @@ String accountSummary(Preferences prefs, [AccountServices? services]) =>
 ///
 /// **Nothing of meetings** (Matt, 2026-10-24: "remove the meetings stuff from the account page the account settings
 /// page is overwhelming move all google meet related stuff to under the meet section"): Sync meeting recordings and
-/// how many recordings stayed on this phone are on the meeting plugins' pages (lib/plugins/meetings/). **Email to a
+/// how many recordings stayed on this phone are on Settings › Recording's Meetings card, once for every kind of meeting
+/// (lib/meet/ui/meeting_settings.dart; on the meeting plugins' pages from 2026-10-26 until later that day). **Email to a
 /// note** is here whole again ([MailCard]): it was Settings › Meetings' while that was one page, since its address is
 /// Ghost's invite too, but once Meetings became a plugin for each service (Matt, 2026-10-26: "I want settings /
 /// meetings to be broken up into three plugins"), the address belongs to no one of them, and with every meeting
