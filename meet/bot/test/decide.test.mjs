@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { LIMITS, busyMisses, isMeetUrl, isSafeId, leaveReason, planIdle, trackAlone } from '../lib/decide.mjs';
+import { LIMITS, busyMisses, isMeetUrl, isSafeId, leaveReason, nextPeak, planIdle, trackAlone, trackFew } from '../lib/decide.mjs';
 
 const MIN = 60_000;
 const START = 1_800_000_000_000;
@@ -60,6 +60,41 @@ test('time up: ten minutes past the booked end, or three hours in', () => {
   const long = { ...base, endsAt: START + 8 * 60 * MIN };
   assert.equal(leaveReason({ ...long, now: START + 3 * 60 * MIN - 1 }), null);
   assert.equal(leaveReason({ ...long, now: START + 3 * 60 * MIN }), 'time_up');
+});
+
+// Matt, 2026-10-26: "it doesn't leave meetings that are running over it should leave when it's one of the last
+// people in chat after a big group".
+test('running over: stays while people are in the call, and goes at ten minutes past only when it cannot count them', () => {
+  const late = base.endsAt + 45 * MIN;
+  assert.equal(leaveReason({ ...base, now: late, count: 4 }), null, 'four still talking, three quarters of an hour over');
+  assert.equal(leaveReason({ ...base, now: base.endsAt + 10 * MIN, count: null }), 'time_up', 'never counted');
+  // A read fumbled for a moment (a side panel opened, the tiles laid out again) is not uncountable.
+  const counted = base.endsAt + 9 * MIN;
+  assert.equal(leaveReason({ ...base, now: base.endsAt + 10 * MIN, count: null, countedAt: counted }), null);
+  assert.equal(leaveReason({ ...base, now: counted + LIMITS.uncountedMs - 1, count: null, countedAt: counted }), null);
+  assert.equal(leaveReason({ ...base, now: counted + LIMITS.uncountedMs, count: null, countedAt: counted }), 'time_up');
+  // Three hours in, whatever else.
+  assert.equal(leaveReason({ ...base, now: START + 3 * 60 * MIN, count: 4 }), 'time_up');
+});
+
+test('after a big group: down to the bot and one more for two minutes, it goes; a small meeting it does not', () => {
+  // The timer: only once the call has held a big group, only at the bot and one more, and reset by more or by no count.
+  assert.equal(trackFew(null, 2, 6, START), START);
+  assert.equal(trackFew(START, 2, 6, START + MIN), START);
+  assert.equal(trackFew(START, 3, 6, START + MIN), null);
+  assert.equal(trackFew(START, null, 6, START + MIN), null);
+  assert.equal(trackFew(null, 2, LIMITS.bigGroup - 1, START), null, 'a meeting of four is never "a big group"');
+  assert.equal(trackFew(null, 1, 6, START), null, 'alone is the alone rule\'s');
+  const fewSince = START + 50 * MIN;
+  assert.equal(leaveReason({ ...base, now: fewSince + 2 * MIN - 1, fewSince, count: 2, seenOthers: true }), null);
+  assert.equal(leaveReason({ ...base, now: fewSince + 2 * MIN, fewSince, count: 2, seenOthers: true }), 'few_left');
+  // The peak is the People button's alone: a presentation can be a tile of its own.
+  assert.equal(nextPeak(3, { count: 6, from: 'tiles' }), 3);
+  assert.equal(nextPeak(3, { count: 6, from: 'button' }), 6);
+  assert.equal(nextPeak(6, { count: 2, from: 'button' }), 6);
+  assert.equal(nextPeak(3, null), 3);
+  // Two people after a one-to-one: the bot stays as long as they talk.
+  assert.equal(leaveReason({ ...base, now: base.endsAt + 30 * MIN, fewSince: null, count: 2, seenOthers: true }), null);
 });
 
 test('the page, the server and a stop come first', () => {

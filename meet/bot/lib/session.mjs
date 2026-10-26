@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, renameSync, rmSync, statSync, writeFileSync, app
 import { join } from 'node:path';
 import { withRetry } from './api.mjs';
 import { CaptionTimeline } from './captions.mjs';
-import { LIMITS, busyMisses, leaveReason, trackAlone } from './decide.mjs';
+import { LIMITS, busyMisses, leaveReason, nextPeak, trackAlone, trackFew } from './decide.mjs';
 import { errorField, log } from './log.mjs';
 import * as meet from './meet.mjs';
 
@@ -85,7 +85,10 @@ export async function runMeeting(meeting, ctx) {
 
     const live = { goneFor: 0 };
     let aloneSince = null;
+    let fewSince = null;
+    let peak = 0;
     let count = null;
+    let countedAt = null;
     let seenOthers = false;
     let serverLeave = false;
     let lastPoll = Date.now();
@@ -109,9 +112,13 @@ export async function runMeeting(meeting, ctx) {
       if (now - lastSlow >= 5000) {
         lastSlow = now;
         ended = await meet.endedReason(page, live);
-        count = await meet.people(page);
+        const read = await meet.people(page);
+        count = read?.count ?? null;
+        if (count != null) countedAt = now;
         if (count > 1) seenOthers = true;
+        peak = nextPeak(peak, read);
         aloneSince = trackAlone(aloneSince, count, now);
+        fewSince = trackFew(fewSince, count, peak, now, limits);
       }
       if (now - lastPoll >= limits.pollMs) {
         lastPoll = now;
@@ -133,7 +140,7 @@ export async function runMeeting(meeting, ctx) {
         lastLevel = now;
         log('in_call', { id, seconds: Math.round((now - t0) / 1000), bytes: size(audio), level: await meet.soundLevel(page), people: count });
       }
-      reason = leaveReason({ now, joinedAt, startsAt: meeting.startsAt, endsAt: meeting.endsAt, aloneSince, seenOthers, serverLeave, ended, stopping: stopping() }, limits);
+      reason = leaveReason({ now, joinedAt, startsAt: meeting.startsAt, endsAt: meeting.endsAt, aloneSince, fewSince, count, countedAt, seenOthers, serverLeave, ended, stopping: stopping() }, limits);
       if (reason) break;
       await sleep(500);
     }

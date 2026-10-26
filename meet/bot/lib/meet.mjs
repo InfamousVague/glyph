@@ -112,13 +112,15 @@ function readPeople() {
   );
   if (button) {
     const label = /(\d+)/.exec(button.getAttribute('aria-label'));
-    if (label) return Number(label[1]);
+    if (label) return { count: Number(label[1]), from: 'button' };
     const around = (button.parentElement ?? button).innerText ?? '';
     const badge = /(?:^|\n)\s*(\d{1,4})\s*(?:\n|$)/.exec(around);
-    if (badge) return Number(badge[1]);
+    if (badge) return { count: Number(badge[1]), from: 'button' };
   }
+  // The tiles, where the button says no number: a presentation can be a tile of its own, so a count from them is
+  // never taken for a big group (decide.mjs nextPeak).
   const tiles = new Set([...document.querySelectorAll('[data-participant-id]')].map((el) => el.getAttribute('data-participant-id')));
-  return tiles.size || null;
+  return tiles.size ? { count: tiles.size, from: 'tiles' } : null;
 }
 
 export async function openBrowser(profile) {
@@ -249,6 +251,8 @@ export async function captionBlocks(page) {
   return page.evaluate(readCaptions).catch(() => null);
 }
 
+/** The people in the call, the bot counted, and where the number was read: `{ count, from: 'button' | 'tiles' }`,
+ * or null where the page would not say. */
 export async function people(page) {
   return page.evaluate(readPeople).catch(() => null);
 }
