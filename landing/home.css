@@ -865,6 +865,95 @@ code {
   font-size: 0.9rem;
 }
 
+/* lovart.html: what Lovart made, its words under it; and the steps as the app draws them, side by side. */
+.made,
+.shots {
+  display: grid;
+  gap: var(--glacier-space-6, 1.5rem);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+@media (min-width: 760px) {
+  .made {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    align-items: start;
+  }
+}
+
+.made figure {
+  margin: 0;
+}
+
+.made-pic {
+  position: relative;
+  display: block;
+}
+
+.made-pic img {
+  display: block;
+  inline-size: 100%;
+  block-size: auto;
+  border-radius: var(--glacier-radius-lg, 1rem);
+  box-shadow: var(--shadow);
+}
+
+/* Lovart's mark at the corner of what it made, as the app draws it (lib/editor/media/lovart_badge.dart). */
+.made-mark {
+  position: absolute;
+  inset-inline-end: 0.6rem;
+  inset-block-end: 0.6rem;
+  inline-size: 1.6rem;
+  block-size: 1.6rem;
+  padding: 0.22rem;
+  border-radius: 0.5rem;
+  background: rgb(0 0 0 / 0.6);
+  fill: #fff;
+}
+
+.made figcaption {
+  margin-block-start: var(--glacier-space-3, 0.75rem);
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+  overflow-wrap: anywhere;
+}
+
+.shots {
+  grid-auto-flow: column;
+  grid-auto-columns: min(78%, 16rem);
+  margin: 0 calc(var(--gutter) * -1);
+  padding: 0 var(--gutter) var(--glacier-space-3, 0.75rem);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: var(--gutter);
+}
+
+.shots li {
+  scroll-snap-align: start;
+}
+
+.shots h3 {
+  margin: var(--glacier-space-4, 1rem) 0 0.2rem;
+  font-size: var(--glacier-font-size-md, 1rem);
+}
+
+.shots p {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: var(--glacier-font-size-sm, 0.9rem);
+}
+
+@media (min-width: 1000px) {
+  .shots {
+    grid-auto-flow: row;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin: 0;
+    padding: 0;
+    overflow: visible;
+  }
+}
+
 .steps {
   counter-reset: step;
 }

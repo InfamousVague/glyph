@@ -35,6 +35,8 @@
       <nav class="bar-in" aria-label="Ghost.md">
         <a class="brand" href="/"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
         <ul class="bar-links">
+          <li><a href="#made">Examples</a></li>
+          <li><a href="#steps">How it goes</a></li>
           <li><a href="#cue">Images in a note</a></li>
           <li><a href="#inspiration">Inspiration</a></li>
           <li><a href="#meetings">Meetings</a></li>
@@ -82,6 +84,53 @@ The hero {image: a misty forest at dawn, soft light} goes on top.
         </div>
       </section>
 
+      <!-- What Lovart made from three cues, in Ghost.md (Matt's own, 2026-10-26), each with its words as written. -->
+      <section class="band band-tint" id="made" aria-labelledby="made-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-image"/></svg>Made with Lovart</p>
+            <h2 id="made-title">Three cues, three pictures.</h2>
+            <p>Each of these was a line in a note. Lovart made it, and Ghost.md put it where the line was.</p>
+          </header>
+          <ul class="made">
+            <li>
+              <figure>
+                <span class="made-pic"><img src="shots/lovart/nook.webp" width="1200" height="1200" loading="lazy" alt="A cozy reading nook by a rainy window: a lamp lit on a bookshelf, a cat asleep on a plaid blanket, a cup of tea on a side table." /><svg class="made-mark" viewBox="0 0 24 24" role="img" aria-label="Made with Lovart"><use href="#lovart-mark"/></svg></span>
+                <figcaption><code>{image: a cozy reading nook by a rainy window, warm lamp light, soft film photo}</code></figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure>
+                <span class="made-pic"><img src="shots/lovart/hills.webp" width="1200" height="675" loading="lazy" alt="A wide banner of misty pine hills at dawn, the sun low and pale gold over layers of fog." /><svg class="made-mark" viewBox="0 0 24 24" role="img" aria-label="Made with Lovart"><use href="#lovart-mark"/></svg></span>
+                <figcaption><code>{image: a wide banner of misty pine hills at dawn, pale gold light, minimal}</code></figcaption>
+              </figure>
+            </li>
+            <li>
+              <figure>
+                <span class="made-pic"><img src="shots/lovart/ui-kit.webp" width="1200" height="1200" loading="lazy" alt="A mobile UI kit in dark mode with vibrant colours: a welcome screen, home, messages, profile, calendar, tasks, settings and a music player." /><svg class="made-mark" viewBox="0 0 24 24" role="img" aria-label="Made with Lovart"><use href="#lovart-mark"/></svg></span>
+                <figcaption><code>{image: mobile dark UI kit with vibrant colors}</code></figcaption>
+              </figure>
+            </li>
+          </ul>
+        </div>
+      </section>
+
+      <!-- The steps, as the app draws them (test/site/lovart_site_shots_test.dart, scripts/lovart-site-shots.sh). -->
+      <section class="band" id="steps" aria-labelledby="steps-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-list-ordered"/></svg>How it goes</p>
+            <h2 id="steps-title">From a line to a picture.</h2>
+          </header>
+          <ol class="shots">
+            <li><figure class="phone"><img src="shots/lovart-cue.webp" width="390" height="844" loading="lazy" alt="A note with two {image: …} cues, each lightly shaded with Lovart's mark after it." /></figure><h3>Write the cue</h3><p>Close it with <code>}</code> and Lovart&rsquo;s mark appears beside it.</p></li>
+            <li><figure class="phone"><img src="shots/lovart-making.webp" width="390" height="844" loading="lazy" alt="Under the first cue, a blurred abstract in soft colours with Lovart's mark in the middle and a ring turning round it." /></figure><h3>Press Return</h3><p>Lovart starts on it, and a blurred stand-in waits where the picture will be.</p></li>
+            <li><figure class="phone"><img src="shots/lovart-done.webp" width="390" height="844" loading="lazy" alt="The note with the cue's picture in its place: a reading nook by a rainy window, Lovart's mark at its bottom right." /></figure><h3>It lands</h3><p>The picture takes the cue&rsquo;s place, Lovart&rsquo;s mark in its corner, on every device.</p></li>
+            <li><figure class="phone"><img src="shots/lovart-menu.webp" width="390" height="844" loading="lazy" alt="The note's menu, with Make images and Inspiration images among its rows." /></figure><h3>Or all at once</h3><p><b>Make images</b> does every cue; <b>Inspiration images</b> makes a moodboard of the note.</p></li>
+          </ol>
+        </div>
+      </section>
+
       <section class="band band-tint" id="inspiration" aria-labelledby="inspiration-title">
         <div class="wrap">
           <header class="band-head">
@@ -114,12 +163,13 @@ The hero {image: a misty forest at dawn, soft light} goes on top.
               <li><b>Add the plugin.</b> In Ghost.md, Settings &rsaquo; Plugins, find Lovart under AI and add it.</li>
               <li><b>Keep the keys.</b> Paste both on Lovart&rsquo;s page. They are checked with Lovart before they are kept.</li>
             </ol>
-          </div>
-          <ul class="points points-stack">
+            <ul class="points points-stack">
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-shield-check"/></svg>Sealed, on your devices.</b> The keys are kept in your device&rsquo;s secure store, and reach your other devices sealed to your account, never readable on the way. Only signatures go to Lovart; the secret key never leaves your devices.</li>
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-gauge"/></svg>Your credits.</b> Images are made with your Lovart plan&rsquo;s credits. A step Lovart says costs more (a premium model, a video) is never approved for you: Ghost.md tells you, and you approve it in Lovart.</li>
             <li><b><svg class="i i-lead" aria-hidden="true"><use href="icons.svg#i-eye"/></svg>Only what you ask about.</b> The words of a cue, or the title and summary of the note you ask inspiration for, go to Lovart. Nothing else of your notes does.</li>
-          </ul>
+            </ul>
+          </div>
+          <figure class="phone"><img src="shots/lovart-settings.webp" width="390" height="844" loading="lazy" alt="Lovart's page in Settings: the keys kept, Check and Forget, and the switch for inspiration in design meetings." /></figure>
         </div>
       </section>
 
