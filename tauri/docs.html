@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <!-- Ghost.md Docs (src/docs): public, and meant to be found. The build writes each page a copy of this file with its
+         own title and description (vite.docs.config.ts); these two are the index's. -->
+    <title>Ghost.md Docs</title>
+    <meta name="description" content="How to use Ghost.md, the Markdown notes app for Android, iPhone, Mac, Windows and the browser." />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script>
+      // Light or dark before the page draws, as the reader's system is (read/Site.tsx useSystemDark keeps it after).
+      document.documentElement.dataset.theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    </script>
+    <style>
+      html { background: oklch(0.11 0 0); }
+      html[data-theme='light'] { background: oklch(0.995 0 0); }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/docs/main.tsx"></script>
+  </body>
+</html>

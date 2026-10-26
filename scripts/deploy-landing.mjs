@@ -13,6 +13,11 @@
  * release published, beside the app on attack.fm. A published site's addresses, /s/<id>/<page>, are the same page
  * (docs/SITES.md), so a block that predates them needs --caddy once.
  *
+ * Ghost.md Docs, the public book at /docs/ (tauri/src/docs, from docs/book/), is built here first into landing/docs/
+ * (`npm run build:docs` in tauri/), so what ships is the book as it is now; --no-docs ships the landing/docs/ there is.
+ * A page's own address, /docs/<page>, opens its own copy of the page, or the index's for one the build did not write,
+ * which is the block's try_files: a block that predates the docs needs --caddy once.
+ *
  * THE CADDYFILE IS SHARED: attack.fm, the registry, prettycardboard.com and more are on it. So --caddy touches only
  * ghostmarkdown.com's own block (from its first line to the closing brace at the start of a line), and only this way:
  * a timestamped backup; every other site on it asked for its page, on the box, before; the block written; `caddy
@@ -39,6 +44,7 @@ const SITE = '/opt/ghostmarkdown-site';
 const RELEASE = '/opt/attackfm-site/glyph';
 const DOMAIN = 'ghostmarkdown.com';
 const withCaddy = process.argv.includes('--caddy');
+const printOnly = process.argv.includes('--print');
 
 if (!existsSync(join(LANDING, 'index.html'))) fail('No landing/index.html to ship.');
 
@@ -86,6 +92,13 @@ ${DOMAIN} {
 	handle @release {
 		root * ${RELEASE}
 		header Cache-Control "no-cache"
+		file_server
+	}
+	# Ghost.md Docs (tauri/src/docs, built into landing/docs/): a page's own copy where the build wrote one, and the
+	# index for any other address under /docs/, which reads the page from the path and says when it has none.
+	handle /docs/* {
+		root * ${SITE}
+		try_files {path} {path}/index.html /docs/index.html
 		file_server
 	}
 	handle {
@@ -139,6 +152,14 @@ echo "after:"; echo "$AFTER" | sed 's/^/  /'
 echo "ok ${DOMAIN}'s block written and live"
 `;
 
+// The docs, built from the book as it is now (tauri/vite.docs.config.ts): its own build, not the app's.
+if (!printOnly && !process.argv.includes('--no-docs')) {
+  console.log('> Building the docs into landing/docs/');
+  const built = spawnSync('npm', ['run', 'build:docs'], { cwd: join(ROOT, 'tauri'), stdio: 'inherit' });
+  if (built.status !== 0) fail('The docs did not build (output above); --no-docs ships the landing/docs/ there is.');
+}
+if (!existsSync(join(LANDING, 'docs', 'index.html'))) console.log('  (no landing/docs/ to ship: /docs/ will answer 404)');
+
 const site = tarball(LANDING, 64 * 1024 * 1024);
 // The shared connection (lib/box.mjs): after `tauri/scripts/deploy-ota.mjs --keep-connection` this rides that deploy's login, and
 // alone it opens one of its own. It had a connection to itself until 2026-10-06, so a chain thought to be one login
@@ -146,7 +167,7 @@ const site = tarball(LANDING, 64 * 1024 * 1024);
 const SSH_OPTS = boxSshOptions({ connectTimeout: 20, knownHosts: join(homedir(), '.ssh', 'known_hosts') });
 console.log(`> Shipping ${DOMAIN}${withCaddy ? ' and its Caddy block' : ''} (one ssh session)`);
 // --print: the script the box would run, for reading before it does.
-if (process.argv.includes('--print')) {
+if (printOnly) {
   process.stdout.write(REMOTE);
   process.exit(0);
 }

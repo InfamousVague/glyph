@@ -1,11 +1,11 @@
-import { useMemo, useRef, useState, type RefObject } from 'react';
+import { Fragment, useMemo, useRef, useState, type RefObject } from 'react';
 import { createPortal } from 'react-dom';
 import { BookOpen, Check, ChevronDown, ChevronUp, GripVertical, List, Plus, Ticket, Workflow, X } from '@glacier/icons';
 import { isCanvasBody } from '../canvas/jsonCanvas.ts';
 import { sameTitle } from '../editor/wikiLinks.ts';
 import { authorsAcross } from '../core/authors.ts';
 import { Byline } from '../authors/Byline.tsx';
-import { bodyWithoutTitle, bookWords, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
+import { bodyWithoutTitle, bookWords, chapterParts, chaptersOf, numbered, toggledTitle, withChapter, withChapterAt, withChapterMoved, withoutChapter } from './book.ts';
 import { CanvasMark } from './CanvasMark.tsx';
 import { notebookKey, statusesOf, ticketOf } from '../core/properties.ts';
 import { FieldPicker } from '../editor/FieldPicker.tsx';
@@ -77,6 +77,11 @@ interface BookViewProps {
    * status is drawn and not pressed.
    */
   setStatus?: (title: string, status: string | null) => void;
+  /**
+   * The index's `##` headings drawn over the chapters they open (book.ts `chapterParts`): the published site and the
+   * public docs (read/Site.tsx), where a long book's parts are how a reader finds their way. Absent, the list is plain.
+   */
+  parts?: boolean;
   /** Dark or light, where the page decides rather than the preference (the reader page follows the reader's system). */
   dark?: boolean;
   /**
@@ -101,7 +106,7 @@ export function BookWords({ words, known, open, dark, videos = 'still' }: { word
   );
 }
 
-export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, openTicket, ticketTemplates = NO_TEMPLATES, readOnly = false, dark: darkGiven, spot, videos = 'still', setStatus }: BookViewProps) {
+export function BookView({ body, known, open, titles, title, onChange, bodyOf, openCanvas, openNew, openTicket, ticketTemplates = NO_TEMPLATES, readOnly = false, dark: darkGiven, spot, videos = 'still', setStatus, parts: withParts = false }: BookViewProps) {
   /** The page whose status sheet is open, by its title. */
   const [statusOf, setStatusOf] = useState<string | null>(null);
   const isCanvas = (name: string) => {
@@ -110,6 +115,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
   };
   const chapters = useMemo(() => chaptersOf(body), [body]);
   const numbers = useMemo(() => numbered(chapters), [chapters]);
+  const parts = useMemo(() => (withParts ? chapterParts(body, chapters) : []), [withParts, body, chapters]);
   const words = useMemo(() => bookWords(body), [body]);
   // Everyone who wrote the book: its own authors, then each chapter's, first met first (core/authors.ts). Read again
   // only when a body changed: `bodyOf` is a new function on every draw of App, and a journal of a year has a page a day.
@@ -262,9 +268,15 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
           {chapters.map((chapter, i) => {
             const there = known(chapter.title);
             const canvas = there && isCanvas(chapter.title);
+            const part = parts[i];
             return (
+              <Fragment key={`${chapter.line}-${chapter.title}`}>
+              {part ? (
+                <li className={styles.part} role="presentation">
+                  <h2 className={styles.partTitle}>{part}</h2>
+                </li>
+              ) : null}
               <li
-                key={`${chapter.line}-${chapter.title}`}
                 ref={(el) => {
                   rowEls.current[i] = el;
                 }} className={styles.row} data-depth={chapter.depth} data-waiting={there ? undefined : ''}
@@ -307,6 +319,7 @@ export function BookView({ body, known, open, titles, title, onChange, bodyOf, o
                 </span>
                 )}
               </li>
+              </Fragment>
             );
           })}
         </ol>
