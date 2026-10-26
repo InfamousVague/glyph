@@ -97,6 +97,18 @@ class TeamDevice {
     }
   }
 
+  /// Notes filed in a personal workspace on a device with no [workspaces]: out of the organization, by evidence.
+  final Set<String> personal = <String>{};
+
+  /// Whether a note still here has left the team, as the engine says it (lib/sync/engine.dart `leftTeam`): filed in a
+  /// workspace this device knows outside the organization; never because it is unfiled or its folder is unknown.
+  bool leftTeam(String id) {
+    final spaces = workspaces;
+    if (spaces == null) return personal.contains(id);
+    final space = spaces.workspaceOf(id);
+    return space != null && spaces.orgOf(space.id) != orgId;
+  }
+
   /// Whether a note is the team's: filed in the organization's workspace or a folder under it.
   bool isTeamNote(String id) {
     final spaces = workspaces;
@@ -142,6 +154,7 @@ class TeamDevice {
         crypto: crypto,
         now: () => clock,
         isTeamNote: isTeamNote,
+        leftTeam: leftTeam,
         file: file,
         folders: folders,
         generation: generation,
