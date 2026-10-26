@@ -309,7 +309,7 @@ extension _RootParts on _GhostRootState {
           onBack: shell.backToList,
           onPluginSettings: (id) => _openSettingsAt(pluginPageId(id)),
           onLocalOnly: () => _openSettingsAt('account', setting: 'Privacy'),
-          dock: _notesDock(),
+          dock: _notesDock(market: false),
         ),
       ),
       sidebarBuilder: (context, shell, close) => _part(
@@ -618,6 +618,8 @@ extension _RootParts on _GhostRootState {
       // Talk to Claude under it, where Claude is on and the build can hear.
       claudeTalk: simple ? null : _claudeTalkDock(),
       onSettings: _openSettings,
+      // The Market on the dock, over Settings; an advanced surface, so not in simple mode.
+      onMarket: simple ? null : () => _showMarket(),
       // `tabs.drop(note.id)` before an archive or a delete (App.tsx `onSwipe`): the swiped note's tab goes too.
       onSwipe: (note, action) {
         if (action.name != 'pin') _shell.currentState?.dropTab(note.id);
@@ -670,7 +672,10 @@ extension _RootParts on _GhostRootState {
   /// The dock a page of notes carries, as the home page's (docs/DOCK.md): Claude, Search, a new note, Speak where the
   /// build records, and Settings at its foot. In simple mode (GHST-103) the same less Claude, as home's. One
   /// microphone only (GHST-104): where Talk to Claude is on the dock, Speak is not, as on home.
-  PageDockSeam _notesDock() {
+  ///
+  /// The Market over Settings (Matt, 2026-10-26: "The market icon isn't showing up in the dock with settings new note
+  /// search and the mic icon"), not in simple mode, and not on the Market's own page ([market] false).
+  PageDockSeam _notesDock({bool market = true}) {
     final talk = preferences.value.simple ? null : _claudeTalkForDock;
     return PageDockSeam(
       claude: preferences.value.simple ? null : _claudeForDock,
@@ -680,6 +685,7 @@ extension _RootParts on _GhostRootState {
         DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
         DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _plus),
         if (_capture != null && talk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+        if (market && !preferences.value.simple) DockAction(id: 'market', label: 'Market', icon: Lucide.store, onPressed: _showMarket),
       ],
       foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _openSettings),
     );

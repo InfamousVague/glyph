@@ -174,6 +174,7 @@ class HomeScreen extends StatefulWidget {
     this.onCapture,
     this.onSearch,
     this.onSettings,
+    this.onMarket,
     required this.onAllNotes,
     this.onSwipe,
     this.onRefresh,
@@ -232,6 +233,10 @@ class HomeScreen extends StatefulWidget {
 
   /// The app's Settings, at the dock's foot (docs/DOCK.md); absent, the dock has none.
   final VoidCallback? onSettings;
+
+  /// The Market (lib/market/market_screen.dart), on the dock above Settings (Matt, 2026-10-26: "The market icon isn't
+  /// showing up in the dock with settings new note search and the mic icon"). Absent, in simple mode, it is not there.
+  final VoidCallback? onMarket;
 
   /// Claude at the head of the dock (lib/claude/claude_dock.dart): Ask Claude, and Claude at work or online. It
   /// hears what it shows for itself; absent, the dock has no Claude.
@@ -1121,6 +1126,8 @@ class _HomeScreenState extends State<HomeScreen> {
           // than the phone's own models (Matt, 2026-10-18: "When Claude mode is enabled there should only be one
           // microphone icon still it should just use Claude instead of the local models").
           if (widget.onCapture != null && widget.claudeTalk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
+          // The Market: plugins, themes and fonts, over Settings at the foot.
+          if (widget.onMarket != null) DockAction(id: 'market', label: 'Market', icon: Lucide.store, onPressed: () => widget.onMarket!()),
         ],
         foot: widget.onSettings == null ? null : DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _settings),
       ),
