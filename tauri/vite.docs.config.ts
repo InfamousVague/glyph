@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync
 import { join } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
-import { DOCS_BASE, docsPages, docsShared } from './src/docs/book.ts';
+import { DOCS_BASE, docsPages, docsSearchIndex, docsShared } from './src/docs/book.ts';
 
 /**
  * Ghost.md Docs, the public book at ghostmarkdown.com/docs (src/docs; Matt, 2026-10-26: "build an entire docs book
@@ -16,6 +16,10 @@ import { DOCS_BASE, docsPages, docsShared } from './src/docs/book.ts';
  * Every page gets a copy of the HTML at its own address, `/docs/<slug>/index.html`, with its own title, description and
  * canonical address in it: a search engine reads what the page is without running it, and a page's address opens even
  * where the web server sends a missing path nowhere (the Caddy block's try_files sends it to the index instead).
+ *
+ * And the search's index beside them, `/docs/search.json` (book.ts `docsSearchIndex`; Matt, 2026-10-26: "add the
+ * ability to search the book"): every chapter's sections as plain words, which the search box fetches the first time
+ * it is used (src/docs/DocsSearch.tsx).
  */
 
 const root = import.meta.dirname;
@@ -51,7 +55,9 @@ function docsPagesHtml(): Plugin {
       const built = join(OUT, 'docs.html');
       const html = readFileSync(built, 'utf8');
       rmSync(built);
-      for (const page of docsPages(readBook())) {
+      const book = readBook();
+      writeFileSync(join(OUT, 'search.json'), JSON.stringify(docsSearchIndex(book)));
+      for (const page of docsPages(book)) {
         const address = `${SITE}${DOCS_BASE}${page.slug ? encodeURIComponent(page.slug) : ''}`;
         const head = [
           `<title>${escape(page.title)}</title>`,

@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState, type MouseEvent } from 'react';
+import { Fragment, useEffect, useMemo, useState, type MouseEvent, type ReactNode } from 'react';
+import type { EditorView } from '@codemirror/view';
 import { ChevronLeft, ChevronRight, Menu } from '@glacier/icons';
 import { failureText } from '../app/core/failure.ts';
 import { Editor } from '../app/editor/Editor.tsx';
@@ -50,6 +51,37 @@ export interface SitePlace {
   home?: { href: string; label: string; icon: string };
   /** How every page is drawn, whatever this browser's Ghost.md preference says: the docs' formatted, marks folded away. */
   display?: NoteView;
+  /**
+   * Something more in the bar, after the title: the docs' search (src/docs/DocsSearch.tsx), handed the way to open a
+   * page, by its slug, at a heading with words marked.
+   */
+  bar?: (open: (slug: string, target: SiteTarget) => void) => ReactNode;
+  /**
+   * Headings as places, the docs' (src/docs/reveal.ts): `#<anchor>` after a page's address scrolls to that heading,
+   * and words a search found are marked under it, by this, which is handed the page's editor and gives back what
+   * takes the marks away. Never a published site's: the part after its # is its key.
+   */
+  reveal?: (view: EditorView, target: SiteTarget) => () => void;
+}
+
+/** A place on a page: a heading by its anchor ('' for the top), and the words a search found there, to mark. */
+export interface SiteTarget {
+  anchor: string;
+  find: string;
+}
+
+/** The heading an address names after its #, and the words the search that went there found (its history entry's). */
+function targetAt(): (SiteTarget & { n: number }) | null {
+  const raw = location.hash.replace(/^#/, '');
+  const find = (history.state as { find?: unknown } | null)?.find;
+  if (!raw && typeof find !== 'string') return null;
+  let anchor = raw;
+  try {
+    anchor = decodeURIComponent(raw);
+  } catch {
+    // A # the page did not write is read as it is.
+  }
+  return { anchor, find: typeof find === 'string' ? find : '', n: 0 };
 }
 
 /** A published site's place: `/s/<id>/<page>`, its key carried after the # as it came. */
@@ -116,6 +148,9 @@ export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; 
   const slugs = useMemo(() => siteSlugs(shared), [shared]);
   const [page, setPage] = useState(() => pageAt(slugs, place, location.pathname));
   const [listOpen, setListOpen] = useState(false);
+  // Where on the page to go once it is drawn (place.reveal), and the editor drawing it, with the page it was made for.
+  const [target, setTarget] = useState(() => (place.reveal ? targetAt() : null));
+  const [view, setView] = useState<{ view: EditorView; page: number } | null>(null);
   const { noteView } = usePreferences();
   // A notebook opens on its index, drawn as the app draws one; its pages are listed when it has any written.
   const book = shared.kind === 'book';
@@ -123,7 +158,10 @@ export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; 
 
   // The browser's Back and Forward go between the pages read, as between the pages of any site.
   useEffect(() => {
-    const back = () => setPage(pageAt(slugs, place, location.pathname));
+    const back = () => {
+      setPage(pageAt(slugs, place, location.pathname));
+      setTarget(place.reveal ? targetAt() : null);
+    };
     addEventListener('popstate', back);
     return () => removeEventListener('popstate', back);
   }, [slugs, place]);
@@ -136,13 +174,21 @@ export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; 
   const canvas = current && isCanvasBody(current.body) ? canvasOf(current.body) : null;
   const indexOf = (title: string) => shared.pages.findIndex((p) => sameTitle(p.title, title));
   const href = (at: number) => place.path(slugs[at] ?? '');
-  const go = (at: number) => {
+  const go = (at: number, to?: SiteTarget) => {
     if (at < 0 || at >= shared.pages.length) return;
-    history.pushState(null, '', href(at));
+    const there = to && place.reveal ? to : null;
+    history.pushState(there?.find ? { find: there.find } : null, '', there?.anchor ? `${href(at)}#${encodeURIComponent(there.anchor)}` : href(at));
     setPage(at);
     setListOpen(false);
-    window.scrollTo({ top: 0 });
+    setTarget(there ? { ...there, n: performance.now() } : null);
+    if (!there) window.scrollTo({ top: 0 });
   };
+  const openAt = (slug: string, to: SiteTarget) => go(slug ? slugs.indexOf(slug) : 0, to);
+
+  // A heading asked for, gone to once the page's editor is drawn; and again for each search that asks, the same page's too.
+  const reveal = place.reveal;
+  const drawn = view && view.page === page ? view.view : null;
+  useEffect(() => (reveal && drawn && target ? reveal(drawn, target) : undefined), [reveal, drawn, target]);
   /** A link's click, kept on this page: the address changes, nothing is fetched. A click that opens a tab is the browser's. */
   const follow = (at: number) => (event: MouseEvent<HTMLAnchorElement>) => {
     if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -197,6 +243,7 @@ export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; 
         <a className={styles.siteTitle} href={href(0)} onClick={follow(0)}>
           {shared.title}
         </a>
+        {place.bar?.(openAt)}
         {isBook ? (
           <button type="button" className={styles.pagesButton} aria-expanded={listOpen} aria-controls="site-pages" onClick={() => setListOpen(!listOpen)}>
             <Menu size={16} aria-hidden="true" />
@@ -256,6 +303,7 @@ export function Pages({ shared, dark, place }: { shared: Shared; dark: boolean; 
                 videos="shared"
                 look={lookOf(current.body)}
                 grow
+                onView={reveal ? (made) => setView(made ? { view: made, page } : null) : undefined}
               />
             </article>
           )}

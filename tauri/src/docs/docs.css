@@ -1,0 +1,21 @@
+/*
+ * The docs' own rules over the reader's look (src/docs/main.tsx imports this after the app's sheets).
+ *
+ * The words a search found, marked where the reader lands (reveal.ts): the browser's highlight named `docs-find`,
+ * laid over the editor's text without touching its lines. The page's ink behind the word and a line under it, so it
+ * reads in light and dark alike, in the app's monochrome.
+ */
+::highlight(docs-find) {
+  background-color: color-mix(in srgb, var(--glacier-text) 22%, transparent);
+  color: var(--glacier-text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 0.18em;
+}
+
+/* A phone's edge: 16px, as the website's pages have it, and not the app's wider gutter. */
+@media (max-width: 40rem) {
+  :root {
+    --app-gutter: 1rem;
+  }
+}

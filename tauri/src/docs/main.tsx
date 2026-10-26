@@ -11,6 +11,7 @@ import '../app/art/wisp.css';
 import '../app/ink.css';
 import '../app/typefaces.css';
 import '../app/editor/codeThemes.css';
+import './docs.css';
 import { Docs } from './Docs.tsx';
 
 createRoot(document.getElementById('root')!).render(
