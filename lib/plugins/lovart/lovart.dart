@@ -25,8 +25,10 @@ library;
 import 'package:flutter/foundation.dart';
 
 import '../../core/banner.dart' show bannerOf;
+import '../../core/book.dart' show isBookBody, isJournalBody;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
+import 'banner_run.dart';
 import 'banners.dart';
 import 'client.dart';
 import 'cues.dart';
@@ -187,9 +189,22 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
       label: 'Header image',
       icon: lovartIcon,
       visible: (noteId, body) => body.trim().isNotEmpty,
-      hint: (noteId, body) => bannerUnready() ?? '${bannerOf(body) == null ? 'A banner' : 'A new banner'} across the top of this note, in the ghost’s dotwork, made by Lovart with your credits.',
+      hint: (noteId, body) => bannerUnready() ?? '${bannerOf(body) == null ? 'A banner' : 'A new banner'} across the top of this note, in the ghost’s dotwork, made by Lovart with your credits: ${aboutCredits(1)}.',
       enabled: (noteId, body) => bannerUnready() == null && !lovartBannerMaking.value.contains(noteId),
       run: (editing, [choice]) => makeBanner(editing),
+    ),
+    // Header images for every page of a notebook, as the app's own job (banner_run.dart; Matt, 2026-10-26: "Also add a
+    // feature to add header images to all pages in a book"). Its choices are the question asked before anything is
+    // spent: how many pages, and about how many credits.
+    NoteAction(
+      id: 'lovart-book-banners',
+      label: 'Header images for every page',
+      icon: lovartIcon,
+      visible: (noteId, body) => lovartBannerJob != null && isBookBody(body) && !isJournalBody(body),
+      hint: (noteId, body) => bannerUnready() ?? 'A banner across the top of each of this notebook’s pages, made by Lovart in the background with your credits.',
+      enabled: (noteId, body) => bannerUnready() == null && lovartBannerJob?.running != true,
+      choices: bookBannerChoices,
+      run: (editing, [choice]) => makeBookBanners(editing, choice),
     ),
     NoteAction(
       id: 'lovart-inspiration',

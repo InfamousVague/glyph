@@ -21,7 +21,7 @@ import '../host.dart' show onPluginStorage;
 import 'client.dart';
 import 'lovart_mark.dart';
 import 'manifest.dart';
-import 'banner_run.dart' show BannerRun, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
+import 'banner_run.dart' show BannerRun, bannerCandidates, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
 import 'banners.dart' show bannersOn, setBanners;
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
@@ -34,8 +34,14 @@ const List<SettingsFindable> lovartFindable = [
 
 /// What the run over the recent notes says: what it does, before one; how far it is while it runs, here or on
 /// another of the account's devices; and how it ended.
-String _runWords(BannerRun? run) {
-  const about = 'Banners for your $bannerRunMost most recent notes that are not tickets, meetings, mail or short, and have none yet. Three at a time, with your credits. They go on being made while you use the app.';
+/// Before a run, what Make them would cost (Matt, 2026-10-26: "Estimate about 6 credits per image for now"): "About
+/// 600 credits for 100 notes", for the notes it would pick now, the ones taken off with them where [takenOff];
+/// black-and-white and square ones to redo are read from their pictures as the run starts, and are on top.
+String _runWords(BannerRun? run, {bool takenOff = false, bool redoOld = false}) {
+  final job = lovartBannerJob;
+  final count = job == null ? 0 : (bannerCandidates(job.notes()).length + (takenOff ? bannerTakenOff(job.notes()).length : 0)).clamp(0, bannerRunMost);
+  final cost = count == 0 && !redoOld ? 'None of your recent notes is waiting for one now.' : '${aboutCredits(count).replaceFirst('a', 'A')} for ${count == 1 ? '1 note' : '$count notes'}${redoOld ? ', and about $lovartCreditsPerImage more for each header redone' : ''}.';
+  final about = 'Banners for your $bannerRunMost most recent notes that are not tickets, meetings, mail or short, and have none yet. Three at a time, with your credits. They go on being made while you use the app. $cost';
   final elsewhere = lovartBannerJob?.elsewhere();
   if (run?.running != true && elsewhere != null) return bannerElsewhereWords(elsewhere);
   if (run == null) return about;
@@ -61,10 +67,10 @@ class _LovartPaneState extends State<LovartPane> {
   bool _armed = false;
 
   /// Make them's two choices, for the next run (Matt, 2026-10-26: "remove the header banner images on the docs as we
-  /// will regenerate them"): the notes whose banner was taken off, and the black-and-white banners made again in
+  /// will regenerate them"): the notes whose banner was taken off, and the black-and-white or square banners made again in
   /// colour. The page's own, never kept: each run is asked for as it is wanted.
   bool _takenOff = false;
-  bool _recolour = false;
+  bool _redoOld = false;
   Timer? _timer;
 
   @override
@@ -227,10 +233,10 @@ class _LovartPaneState extends State<LovartPane> {
                     SettingRow(
                       key: const ValueKey('lovart-banner-run'),
                       label: 'Header images for recent notes',
-                      hint: Text(_runWords(run)),
+                      hint: Text(_runWords(run, takenOff: _takenOff, redoOld: _redoOld)),
                       value: run?.running == true
                           ? RowAction(onPress: stopBannerRun, child: const Text('Stop'))
-                          : RowAction(onPress: () => unawaited(runBanners(takenOff: _takenOff, recolour: _recolour)), disabled: keys == null, child: const Text('Make them')),
+                          : RowAction(onPress: () => unawaited(runBanners(takenOff: _takenOff, redoOld: _redoOld)), disabled: keys == null, child: const Text('Make them')),
                     ),
                     if (run?.running != true) ...[
                       SettingRow(
@@ -240,10 +246,10 @@ class _LovartPaneState extends State<LovartPane> {
                         control: GlacierSwitch(ariaLabel: 'Include notes whose header was taken off', checked: _takenOff, onCheckedChange: (on) => setState(() => _takenOff = on)),
                       ),
                       SettingRow(
-                        key: const ValueKey('lovart-banner-recolour'),
-                        label: 'Redo black-and-white headers in colour',
-                        hint: const Text('The dotwork banners made before colour, made again in colour and put in their place.'),
-                        control: GlacierSwitch(ariaLabel: 'Redo black-and-white headers in colour', checked: _recolour, onCheckedChange: (on) => setState(() => _recolour = on)),
+                        key: const ValueKey('lovart-banner-redo'),
+                        label: 'Redo black-and-white and square headers',
+                        hint: const Text('The banners made before they were in colour and wide, made again and put in their place.'),
+                        control: GlacierSwitch(ariaLabel: 'Redo black-and-white and square headers', checked: _redoOld, onCheckedChange: (on) => setState(() => _redoOld = on)),
                       ),
                     ],
                   ],

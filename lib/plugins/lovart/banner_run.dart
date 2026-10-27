@@ -66,6 +66,9 @@ import '../host.dart' show onPluginStorage;
 import '../registry.dart' show pluginOn;
 import '../types.dart';
 import '../../core/banner.dart' show bannerOf;
+import '../../core/book.dart' show chaptersOf, isBookBody, isJournalBody;
+import '../../core/note_text.dart' show noteTitle;
+import '../../core/title_key.dart' show titleKey;
 import 'banners.dart';
 import 'client.dart';
 import 'manifest.dart';
@@ -84,17 +87,42 @@ List<Note> bannerCandidates(List<Note> notes, {int most = bannerRunMost, PluginH
   return [for (final note in sorted) if (!done.contains(note.id) && wantsBanner(note)) note].take(most).toList();
 }
 
-/// What one note of a run is asked for: a banner where it has none, made [again] where it had one that was taken off,
-/// or one in colour [replacing] the black-and-white banner of that name.
+/// The notes given a banner before whose banner is not there now, still ones to have one, newest first: the ones
+/// Include notes whose header was taken off adds.
+List<Note> bannerTakenOff(List<Note> notes, {int most = bannerRunMost, PluginHost? via}) {
+  final done = bannersGiven(via).toSet();
+  final sorted = [...notes]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  return [for (final note in sorted) if (done.contains(note.id) && wantsBanner(note)) note].take(most).toList();
+}
+
+/// What one note of a run is asked for: a banner where it has none, made [again] although it is marked given (one
+/// taken off, or a page of a notebook asked for by name), or one made anew [replacing] the banner of that name.
 typedef BannerAsk = ({String id, bool again, String? replacing});
+
+/// Whether a banner, read as lib/note/note_banner.dart reads it (`BannerLook`), is one to make again when asked: black
+/// and white (made before banners were in colour), or square (Lovart's first ones, 1254×1254, drawn into a strip with
+/// most of each cut off): narrower than [bannerRedoNarrower] to its height.
+bool bannerToRedo({required bool colour, required double aspect}) => !colour || aspect < bannerRedoNarrower;
+
+/// A banner narrower than this, width over height, is square enough to make again: between a square and 16:9.
+const double bannerRedoNarrower = 1.5;
+
+Future<bool> _redoes(Future<bool> Function(String name) redo, String name) async {
+  try {
+    return await redo(name);
+  } catch (_) {
+    // A picture that cannot be read is left as it is.
+    return false;
+  }
+}
 
 /// A run's notes as Make them picks them, newest first, at most [most] (Matt, 2026-10-26: "add the banner to 100 of
 /// the most recent notes that are not tickets or meetings"; then "remove the header banner images on the docs as we
 /// will regenerate them"): the notes never given one ([bannerCandidates]); with [takenOff], the ones given one before
-/// whose banner is not there now, which leaving a note never makes again; and with [inColour] (whether a kept
-/// picture is in colour: lib/note/note_banner.dart `bannerInColour`), the ones whose banner is black and white, to be
-/// made again in colour. Each must still be a note to have one.
-Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Future<bool> Function(String name)? inColour, int most = bannerRunMost, PluginHost? via}) async {
+/// whose banner is not there now, which leaving a note never makes again; and with [redo] (whether the banner of that
+/// name is one to make again: [bannerToRedo], read from the picture by the root), the ones whose banner is black and
+/// white or square. Each must still be a note to have one.
+Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Future<bool> Function(String name)? redo, int most = bannerRunMost, PluginHost? via}) async {
   final done = bannersGiven(via).toSet();
   final sorted = [...notes]..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   final asks = <BannerAsk>[];
@@ -108,17 +136,85 @@ Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Fut
       } else if (takenOff) {
         asks.add((id: note.id, again: true, replacing: null));
       }
-    } else if (inColour != null && wantsBanner(note, replacing: true)) {
-      var colour = true;
-      try {
-        colour = await inColour(banner);
-      } catch (_) {
-        // A picture that cannot be read is left as it is.
-      }
-      if (!colour) asks.add((id: note.id, again: true, replacing: banner));
+    } else if (redo != null && wantsBanner(note, replacing: true) && await _redoes(redo, banner)) {
+      asks.add((id: note.id, again: true, replacing: banner));
     }
   }
   return asks;
+}
+
+// ---- a notebook's pages -------------------------------------------------------------------------------------------
+
+/// The pages of the notebook [book], in its index's order (Matt, 2026-10-26: "Also add a feature to add header images
+/// to all pages in a book"): each chapter's note, the ones indented under a chapter with them, and the pages of a
+/// notebook that is itself a chapter, once each. A chapter is found by its title among [notes], one in the same
+/// organization as the notebook first (a team's notebook lists the team's pages). Not the notebook itself, and none
+/// in the archive.
+List<Note> bookPages(Note book, List<Note> notes) {
+  String orgOf(Note note) {
+    final path = note.path ?? '';
+    if (!path.startsWith('orgs/')) return '';
+    final cut = path.indexOf('/', 5);
+    return cut < 0 ? path : path.substring(0, cut);
+  }
+
+  final byTitle = <String, List<Note>>{};
+  for (final note in notes) {
+    if (note.archivedAt != null) continue;
+    byTitle.putIfAbsent(titleKey(noteTitle(note.body)), () => []).add(note);
+  }
+  final pages = <Note>[];
+  final seen = <String>{book.id};
+  void walk(Note from, int depth) {
+    final here = orgOf(from);
+    for (final chapter in chaptersOf(from.body)) {
+      final found = byTitle[titleKey(chapter.title)] ?? const <Note>[];
+      if (found.isEmpty) continue;
+      final note = found.firstWhere((n) => orgOf(n) == here, orElse: () => found.first);
+      if (!seen.add(note.id)) continue;
+      // A notebook that is a chapter: its pages, in its own order, a level or two down at most.
+      if (isBookBody(note.body) && !isJournalBody(note.body)) {
+        if (depth < 2) walk(note, depth + 1);
+        continue;
+      }
+      pages.add(note);
+    }
+  }
+
+  walk(book, 0);
+  return pages;
+}
+
+/// What "Header images for every page" asks of a notebook's pages ([bookPages]): every page that is one to have a
+/// banner and has none, whatever the once-per-note marks say, since the person asked for these by name; with [redo],
+/// the ones whose banner is black and white or square, made again; with [redoAll], every one that has a banner. A
+/// ticket, a meeting, a mail, a canvas, a template or a short page is left as it is ([wantsBanner]).
+Future<List<BannerAsk>> bookBannerAsks(Note book, List<Note> notes, {Future<bool> Function(String name)? redo, bool redoAll = false}) async {
+  final asks = <BannerAsk>[];
+  for (final page in bookPages(book, notes)) {
+    if (!wantsBanner(page, replacing: true)) continue;
+    final banner = bannerOf(page.body);
+    if (banner == null) {
+      asks.add((id: page.id, again: true, replacing: null));
+    } else if (redoAll || (redo != null && await _redoes(redo, banner))) {
+      asks.add((id: page.id, again: true, replacing: banner));
+    }
+  }
+  return asks;
+}
+
+/// The counts a notebook's action says before it starts: its pages to have a banner with none, and those with one.
+({int missing, int existing}) bookBannerCounts(Note book, List<Note> notes) {
+  var missing = 0, existing = 0;
+  for (final page in bookPages(book, notes)) {
+    if (!wantsBanner(page, replacing: true)) continue;
+    if (bannerOf(page.body) == null) {
+      missing += 1;
+    } else {
+      existing += 1;
+    }
+  }
+  return (missing: missing, existing: existing);
 }
 
 // ---- where it stands ----------------------------------------------------------------------------------------------
@@ -158,16 +254,16 @@ String _notes(int n) => n == 1 ? '1 note' : '$n notes';
 
 /// The line while it runs, on the home page, in the sidebar and in the notification's title and text:
 /// "Making header images · 12 of 100".
-String bannerRunLine(BannerRun run) => 'Making header images · ${run.done} of ${run.total}';
+String bannerRunLine(BannerRun run) => 'Making header images · ${run.done} of ${run.total}${run.made > 0 ? ' · ${aboutCredits(run.made)}' : ''}';
 
 /// What is said as it ends, in the toast and the notification: "Header images made for 97 notes · 3 skipped", or
 /// where it stopped and why.
 String bannerRunEndWords(BannerRun run) {
   final skipped = run.skipped > 0 ? ' · ${run.skipped} skipped' : '';
   if (run.stopped != null && !run.asked) return 'Header images stopped at ${run.done} of ${run.total}: ${run.stopped}';
-  if (run.asked) return 'Header images stopped · ${run.made} made$skipped';
+  if (run.asked) return 'Header images stopped · ${run.made} made$skipped${run.made > 0 ? ' · ${aboutCredits(run.made)}' : ''}';
   if (run.total == 0) return 'Every recent note has a header image already, or is not one to have one.';
-  return 'Header images made for ${_notes(run.made)}$skipped';
+  return 'Header images made for ${_notes(run.made)}$skipped${run.made > 0 ? ' · ${aboutCredits(run.made)}' : ''}';
 }
 
 /// What a claim of another device's says where Make them is pressed here.
@@ -360,7 +456,7 @@ class BannerClaims {
 
 /// The app's one run over the recent notes (see the header): made by the root, and handed to [lovartBannerJob].
 class BannerJob {
-  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.inColour, this.ended, PluginHost? via})
+  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.redo, this.ended, PluginHost? via})
       : background = background ?? const NoBackgroundJobs(),
         _host = via {
     this.background.onStop((id) {
@@ -380,9 +476,9 @@ class BannerJob {
   /// The phone's half: the service and its notifications, the Mac's hold.
   final BackgroundJobs background;
 
-  /// Whether the kept picture of that name is in colour (lib/note/note_banner.dart `bannerInColour`, the root's);
-  /// none, and Redo black-and-white headers in colour finds nothing to redo.
-  final Future<bool> Function(String name)? inColour;
+  /// Whether the banner of that name is one to make again when asked ([bannerToRedo], read from the kept picture by
+  /// the root, lib/note/note_banner.dart `bannerLook`); none, and nothing is redone but by [start]'s `asks`.
+  final Future<bool> Function(String name)? redo;
 
   /// Told as a run ends, however it ends: the root's toast.
   final void Function(BannerRun run)? ended;
@@ -411,9 +507,10 @@ class BannerJob {
   }
 
   /// Make them: a run over the recent notes ([bannerAsks]), with the notes whose banner was [takenOff] and, with
-  /// [recolour], the black-and-white banners made again in colour where the job was told how to tell ([inColour]).
-  /// Answers why it did not start, or null where it did (or one was already going, which it leaves be).
-  Future<String?> start({bool takenOff = false, bool recolour = false}) async {
+  /// [redoOld], the black-and-white and square banners made again where the job was told how to tell ([redo]); or
+  /// over [asks] where given (a notebook's pages, [bookBannerAsks]). Answers why it did not start, or null where it
+  /// did (or one was already going, which it leaves be).
+  Future<String?> start({bool takenOff = false, bool redoOld = false, List<BannerAsk>? asks}) async {
     if (_running) return null;
     _running = true;
     try {
@@ -422,7 +519,7 @@ class BannerJob {
         lovartBannerRun.value = BannerRun(total: 0, running: false, stopped: unready);
         return unready;
       }
-      final queue = await bannerAsks(notes(), takenOff: takenOff, inColour: recolour ? inColour : null, via: _host);
+      final queue = asks ?? await bannerAsks(notes(), takenOff: takenOff, redo: redoOld ? redo : null, via: _host);
       if (queue.isEmpty) {
         final run = lovartBannerRun.value = const BannerRun(total: 0, running: false);
         ended?.call(run);
@@ -577,13 +674,61 @@ class BannerJob {
   }
 }
 
+/// "Header images for every page", asked on a notebook's More sheet: its choices are the question before anything is
+/// spent (Matt, 2026-10-26: "Also add a feature to add header images to all pages in a book"), "Make header images for
+/// 24 pages?" with about how many credits, "Redo existing too" where some pages have one, and Not now. Pages whose
+/// banner is black and white or square are made again with the first, on top of its count.
+List<ActionChoice> bookBannerChoices(String noteId) {
+  final job = lovartBannerJob;
+  final notes = job?.notes() ?? const <Note>[];
+  Note? book;
+  for (final note in notes) {
+    if (note.id == noteId) book = note;
+  }
+  if (job == null || book == null) return const [];
+  final counts = bookBannerCounts(book, notes);
+  String pages(int n) => n == 1 ? '1 page' : '$n pages';
+  final all = counts.missing + counts.existing;
+  return [
+    if (counts.missing > 0 || counts.existing > 0)
+      ActionChoice(
+        id: 'missing',
+        label: counts.missing == 0 ? 'Redo black-and-white and square ones only?' : 'Make header images for ${pages(counts.missing)}?',
+        hint: '${aboutCredits(counts.missing).replaceFirst('a', 'A')}. ${counts.existing == 0 ? 'Uses your Lovart credits.' : 'Of the ${pages(counts.existing)} with one, any in black and white or square is made again too, $lovartCreditsPerImage credits or so each.'}',
+      ),
+    if (counts.existing > 0) ActionChoice(id: 'all', label: 'Redo existing too: ${pages(all)}?', hint: '${aboutCredits(all).replaceFirst('a', 'A')}. Every page’s header made again.'),
+    const ActionChoice(id: 'not-now', label: 'Not now', hint: 'Nothing is made.'),
+  ];
+}
+
+/// The notebook's pages given their banners by the app's job ([bookBannerAsks]), as [choice] says; the run's line
+/// and notification say how far it is.
+Future<void> makeBookBanners(NoteEditing editing, String? choice) async {
+  final job = lovartBannerJob;
+  if (job == null || choice == null || choice == 'not-now') return;
+  final unready = bannerUnready();
+  if (unready != null) return editing.say(unready);
+  Note? book;
+  final notes = job.notes();
+  for (final note in notes) {
+    if (note.id == editing.noteId) book = note;
+  }
+  if (book == null) return;
+  // The index as the editor has it, where it is open.
+  final asks = await bookBannerAsks(book.copyWith(body: editing.body()), notes, redo: job.redo, redoAll: choice == 'all');
+  if (asks.isEmpty) return editing.say('Every page has a header image already, or is not one to have one.');
+  editing.say(asks.length == 1 ? 'Making a header image for 1 page.' : 'Making header images for ${asks.length} pages.');
+  final refused = await job.start(asks: asks);
+  if (refused != null) editing.say(refused);
+}
+
 /// The app's job, set by the root as it starts; null where there is no library (a test, the page alone).
 BannerJob? lovartBannerJob;
 
 /// Settings › Lovart's Make them, with its two choices for the run.
-Future<void> runBanners({bool takenOff = false, bool recolour = false}) async {
+Future<void> runBanners({bool takenOff = false, bool redoOld = false}) async {
   final job = lovartBannerJob;
-  if (job != null) await job.start(takenOff: takenOff, recolour: recolour);
+  if (job != null) await job.start(takenOff: takenOff, redoOld: redoOld);
 }
 
 /// Its Stop, and the line's: after the pictures being made now.

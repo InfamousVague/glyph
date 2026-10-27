@@ -125,6 +125,16 @@ String? pictureExtension(Uint8List bytes) {
   return null;
 }
 
+/// About how many Lovart credits one image costs: Matt's working estimate (2026-10-26: "Estimate about 6 credits per
+/// image for now"). Lovart's API says nothing of a cost or a balance for an ordinary image; only a step it holds for
+/// the person's yes carries an estimate (`pending_confirmation`'s `estimated_cost`, [LovartNeedsConfirmation.cost]).
+/// So every sum the app says is this times the images, and always said as about ([aboutCredits]). The one place to
+/// change it.
+const int lovartCreditsPerImage = 6;
+
+/// "about 144 credits", for [images] images at [lovartCreditsPerImage] each.
+String aboutCredits(int images) => 'about ${images * lovartCreditsPerImage} credits';
+
 /// The person's Lovart, with their keys.
 class LovartClient {
   LovartClient({required this.accessKey, required this.secretKey, PluginHost? via, DateTime Function()? now, Future<void> Function(Duration wait)? sleep, String Function()? idempotency})

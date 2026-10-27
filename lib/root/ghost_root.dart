@@ -169,8 +169,8 @@ import '../plugins/contacts/contacts.dart' show contactsSwitch;
 import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanShare, discordShareLink, meetingDiscordPoster;
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs;
-import '../note/note_banner.dart' show bannerInColour;
-import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartMeetings, bannerRunEndWords, bannerRunLine, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
+import '../note/note_banner.dart' show BannerLook, bannerLook;
+import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, bannerToRedo, LovartMeetings, bannerRunEndWords, bannerRunLine, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
@@ -463,10 +463,13 @@ class _GhostRootState extends State<GhostRoot> {
       accountHeld: () => _services?.engine?.accountPrefs,
     ),
     background: ChannelBackgroundJobs(),
-    // Redo black-and-white headers in colour: which banners are, read from the pictures as the page reads them.
-    inColour: (name) {
+    // Which banners to make again when asked (black and white, or square), read from the pictures as the page reads
+    // them; one whose picture is not here (not yet synced) is left as it is.
+    redo: (name) async {
       final store = lovartPictureStore;
-      return store == null ? Future<bool>.value(true) : bannerInColour(store, name);
+      if (store == null) return false;
+      final look = await bannerLook(store, name);
+      return !identical(look, BannerLook.unread) && bannerToRedo(colour: look.colour, aspect: look.aspect);
     },
     ended: _bannerRunEnded,
   );

@@ -98,7 +98,7 @@ void main() {
     await settle(tester, 3);
     expect(lovartBannerRun.value!.asked, isTrue);
     expect(find.byKey(const ValueKey('job-notice')), findsNothing, reason: 'a run the person stopped leaves no line');
-    expect(find.text('Header images stopped · 4 made'), findsOneWidget, reason: 'the toast');
+    expect(find.text('Header images stopped · 4 made · about 24 credits'), findsOneWidget, reason: 'the toast');
     await leave(tester);
   });
 

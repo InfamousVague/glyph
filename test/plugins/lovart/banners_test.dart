@@ -8,6 +8,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/ai/summary_handoff.dart' show SummaryDevice;
 import 'package:ghost_md/core/background_jobs.dart';
 import 'package:ghost_md/core/banner.dart';
+import 'package:ghost_md/core/book.dart' show bookNoteBody;
 import 'package:ghost_md/core/images.dart';
 import 'package:ghost_md/core/note.dart';
 import 'package:ghost_md/core/preferences.dart';
@@ -310,7 +311,7 @@ void main() {
       expect(job.running, isFalse);
       expect([for (final n in notes.values) bannerOf(n.body) != null], everyElement(isTrue));
       expect((lovartBannerRun.value!.made, lovartBannerRun.value!.running), (5, false));
-      expect(jobs.ends.single, 'Header images made for 5 notes');
+      expect(jobs.ends.single, 'Header images made for 5 notes · about 30 credits');
       expect(keptBannerQueue(), isNull, reason: 'a run that ended takes its queue with it');
     });
 
@@ -329,7 +330,7 @@ void main() {
       gated.openAll();
       await running;
       expect(jobs.said.map((r) => r.done), containsAllInOrder([0, 1, 2, 3, 4, 5]));
-      expect(jobs.ends, ['Header images made for 5 notes']);
+      expect(jobs.ends, ['Header images made for 5 notes · about 30 credits']);
     });
 
     test('Stop ends it after the pictures being made, and leaves the rest for another run', () async {
@@ -342,8 +343,8 @@ void main() {
       final run = lovartBannerRun.value!;
       expect((run.made, run.asked, run.running), (3, true, false));
       expect(gated.asked, hasLength(3));
-      expect(bannerRunEndWords(run), 'Header images stopped · 3 made');
-      expect(jobs.ends.single, 'Header images stopped · 3 made');
+      expect(bannerRunEndWords(run), 'Header images stopped · 3 made · about 18 credits');
+      expect(jobs.ends.single, 'Header images stopped · 3 made · about 18 credits');
       expect(keptBannerQueue(), isNull);
       // The two it did not reach are the next run's.
       expect(bannerCandidates(notes.values.toList()).map((n) => n.id), unorderedEquals(['n0', 'n1']));
@@ -455,9 +456,9 @@ void main() {
           notes: () => notes.values.toList(),
           banners: banners,
           background: jobs,
-          inColour: (name) async {
+          redo: (name) async {
             read.add(name);
-            return !name.startsWith('lovart-old-');
+            return name.startsWith('lovart-old-');
           },
         );
         // Without the choice, the pictures are not even read.
@@ -465,7 +466,7 @@ void main() {
         expect(read, isEmpty);
         expect(bannerOf(notes['bw']!.body), 'lovart-old-bw.png');
         expect(bannerOf(notes['plain']!.body), isNotNull);
-        await job.start(recolour: true);
+        await job.start(redoOld: true);
         expect(read, unorderedEquals(['lovart-old-bw.png', 'lovart-colour.png', bannerOf(notes['plain']!.body)]));
         final redone = bannerOf(notes['bw']!.body)!;
         expect(redone, isNot('lovart-old-bw.png'));
@@ -476,7 +477,7 @@ void main() {
         // One given another banner while Lovart worked keeps it.
         notes['bw'] = notes['bw']!.copyWith(body: withBanner(notes['bw']!.body, 'lovart-old-bw2.png'));
         gated.onAsk = () => notes['bw'] = notes['bw']!.copyWith(body: withBanner(notes['bw']!.body, 'mine.png'), revision: notes['bw']!.revision + 1);
-        await job.start(recolour: true);
+        await job.start(redoOld: true);
         expect(bannerOf(notes['bw']!.body), 'mine.png');
         expect(lovartBannerRun.value!.made, 0);
       });
@@ -502,7 +503,7 @@ void main() {
         await pumpPane(tester, const LovartPane());
         final takenOff = find.byKey(const ValueKey('lovart-banner-taken-off'));
         await tester.ensureVisible(takenOff);
-        expect(find.byKey(const ValueKey('lovart-banner-recolour')), findsOneWidget);
+        expect(find.byKey(const ValueKey('lovart-banner-redo')), findsOneWidget);
         await tester.tap(find.descendant(of: takenOff, matching: find.byType(GlacierSwitch)));
         await tester.pump();
         final row = find.byKey(const ValueKey('lovart-banner-run'));
@@ -583,6 +584,163 @@ void main() {
         final later = merged(const {}, {bannerClaimKey: phoneClaim}, {bannerClaimKey: macClaim}, now: 1000000 + bannerClaimMs);
         expect(BannerClaim.fromJson(later[bannerClaimKey])!.by, 'phone-1');
       });
+    });
+  });
+
+  group('credits, estimated', () {
+    test('about six an image, in one place, always said as about', () {
+      expect(lovartCreditsPerImage, 6);
+      expect(aboutCredits(1), 'about 6 credits');
+      expect(aboutCredits(24), 'about 144 credits');
+      expect(bannerRunLine(const BannerRun(total: 100, done: 12, made: 12)), 'Making header images · 12 of 100 · about 72 credits');
+      expect(bannerRunLine(const BannerRun(total: 100)), 'Making header images · 0 of 100');
+      expect(bannerRunEndWords(const BannerRun(total: 100, done: 100, made: 97, running: false)), 'Header images made for 97 notes · 3 skipped · about 582 credits');
+    });
+
+    test('the note\'s own Header image says it', () {
+      final row = lovartPlugin.noteActions.singleWhere((action) => action.id == 'lovart-banner');
+      return keys().then((_) => expect(row.hint('n', '# Trip'), endsWith('with your credits: about 6 credits.')));
+    });
+
+    testWidgets('Make them says what the run would cost before it starts', (tester) async {
+      await keys();
+      for (var i = 0; i < 4; i += 1) {
+        notes['n$i'] = Note(id: 'n$i', body: '# Note $i\n\n$_words', createdAt: 0, updatedAt: i);
+      }
+      notes['off'] = Note(id: 'off', body: '# Taken off\n\n$_words', createdAt: 0, updatedAt: 9);
+      lovart.host.storage.set(bannersDoneKey, ['off']);
+      lovartBannerRun.value = null;
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners);
+      await pumpPane(tester, const LovartPane());
+      expect(find.textContaining('About 24 credits for 4 notes.'), findsOneWidget);
+      final takenOff = find.byKey(const ValueKey('lovart-banner-taken-off'));
+      await tester.ensureVisible(takenOff);
+      await tester.tap(find.descendant(of: takenOff, matching: find.byType(GlacierSwitch)));
+      await tester.pump();
+      expect(find.textContaining('About 30 credits for 5 notes.'), findsOneWidget);
+      await away(tester);
+      lovartBannerJob = null;
+    });
+  });
+
+  group('redo', () {
+    test('black and white, or square, is made again; wide and in colour is not', () {
+      expect(bannerToRedo(colour: false, aspect: 16 / 9), isTrue);
+      expect(bannerToRedo(colour: true, aspect: 1), isTrue, reason: 'Lovart\'s first ones, 1254×1254');
+      expect(bannerToRedo(colour: true, aspect: 16 / 9), isFalse);
+      expect(bannerToRedo(colour: true, aspect: 2.5), isFalse);
+    });
+  });
+
+  group('header images for every page of a notebook', () {
+    late GatedClient gated;
+
+    Note page(String id, String title, {String? banner, String? path, String body = _words}) {
+      final text = '# $title\n\n$body';
+      return notes[id] = Note(id: id, body: banner == null ? text : withBanner(text, banner), createdAt: 0, updatedAt: 0, path: path);
+    }
+
+    setUp(() async {
+      await keys();
+      gated = GatedClient()..open = true;
+      lovartClient = () => gated;
+      lovartBannerRun.value = null;
+      lovartBannerMaking.value = const {};
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners, redo: (name) async => name.startsWith('lovart-old-'));
+    });
+    tearDown(() => lovartBannerJob = null);
+
+    /// "Ghost.md Docs", the Ghost.md organization's notebook (Matt's case, 33 chapters), as invented pages: a team's
+    /// notebook in its organization's folder, a section indented under a chapter, a nested notebook, a ticket, a
+    /// short page, one with a banner in colour, one in black and white, one taken off before (marked given), and a
+    /// page of the same title in the account's own notes, which is not the team's.
+    Note docs() {
+      const org = 'orgs/ghost';
+      for (var i = 1; i <= 26; i += 1) {
+        page('d$i', 'Chapter $i', path: '$org/Docs/Chapter $i.md');
+      }
+      page('mine', 'Chapter 1', path: 'Inbox/Chapter 1.md');
+      page('section', 'Install on a phone', path: '$org/Docs/Install on a phone.md');
+      page('ticket', 'Fix the docs', path: '$org/Docs/Fix the docs.md', body: '---\ntype: ticket\n---\n$_words');
+      notes['ticket'] = notes['ticket']!.copyWith(body: '---\ntype: ticket\n---\n# Fix the docs\n\n$_words');
+      page('short', 'Glossary', path: '$org/Docs/Glossary.md', body: 'Words.');
+      page('colour', 'Colour', banner: 'lovart-new.png', path: '$org/Docs/Colour.md');
+      page('bw', 'Black and white', banner: 'lovart-old-bw.png', path: '$org/Docs/Black and white.md');
+      page('off', 'Taken off', path: '$org/Docs/Taken off.md');
+      notes['inner'] = Note(id: 'inner', body: bookNoteBody('Appendix', ['Appendix page']), createdAt: 0, updatedAt: 0, path: '$org/Docs/Appendix.md');
+      page('appendix-page', 'Appendix page', path: '$org/Docs/Appendix page.md');
+      lovart.host.storage.set(bannersDoneKey, ['off', 'colour', 'bw']);
+      final index = [
+        for (var i = 1; i <= 26; i += 1) '$i. [[Chapter $i]]',
+        '   - [[Install on a phone]]',
+        '27. [[Fix the docs]]',
+        '28. [[Glossary]]',
+        '29. [[Colour]]',
+        '30. [[Black and white]]',
+        '31. [[Taken off]]',
+        '32. [[Appendix]]',
+        '33. [[Not written yet]]',
+      ].join('\n');
+      return notes['book'] = Note(id: 'book', body: '---\ntitle: "Ghost.md Docs"\nbook: true\n---\n# Ghost.md Docs\n\n$index\n', createdAt: 0, updatedAt: 0, path: '$org/Docs/Ghost.md Docs.md');
+    }
+
+    test('its pages, in order, the team\'s own, with a section and a nested notebook\'s', () {
+      final book = docs();
+      final pages = bookPages(book, notes.values.toList()).map((n) => n.id).toList();
+      expect(pages.first, 'd1', reason: 'the team\'s Chapter 1, not the account\'s');
+      expect(pages, isNot(contains('mine')));
+      expect(pages.indexOf('section'), pages.indexOf('d26') + 1);
+      expect(pages, containsAllInOrder(['ticket', 'short', 'colour', 'bw', 'off', 'appendix-page']));
+      expect(pages, isNot(contains('book')));
+      expect(pages, isNot(contains('inner')), reason: 'a notebook that is a chapter gives its pages, not itself');
+    });
+
+    test('asks for every page that is one to have one, marks aside; black-and-white made again; Redo existing, all', () async {
+      final book = docs();
+      final asks = await bookBannerAsks(book, notes.values.toList(), redo: lovartBannerJob!.redo);
+      final ids = asks.map((a) => a.id).toList();
+      expect(ids, hasLength(26 + 1 + 1 + 1 + 1), reason: '26 chapters, the section, the one taken off, the black-and-white one, the appendix\'s page');
+      expect(ids, isNot(anyOf(contains('ticket'), contains('short'), contains('colour'))));
+      expect(asks.firstWhere((a) => a.id == 'off'), (id: 'off', again: true, replacing: null));
+      expect(asks.firstWhere((a) => a.id == 'bw'), (id: 'bw', again: true, replacing: 'lovart-old-bw.png'));
+      final all = await bookBannerAsks(book, notes.values.toList(), redoAll: true);
+      expect(all.firstWhere((a) => a.id == 'colour').replacing, 'lovart-new.png');
+      expect(all, hasLength(31));
+    });
+
+    test('says the count and about the credits before it starts, and Not now makes nothing', () {
+      docs();
+      final choices = bookBannerChoices('book');
+      expect(choices.map((c) => c.id), ['missing', 'all', 'not-now']);
+      expect(choices[0].label, 'Make header images for 29 pages?');
+      expect(choices[0].hint, startsWith('About 174 credits. Of the 2 pages with one, any in black and white or square is made again too'));
+      expect(choices[1].label, 'Redo existing too: 31 pages?');
+      expect(choices[1].hint, startsWith('About 186 credits.'));
+      final action = lovartPlugin.noteActions.singleWhere((a) => a.id == 'lovart-book-banners');
+      expect(action.label, 'Header images for every page');
+      expect(action.visible('book', notes['book']!.body), isTrue);
+      expect(action.visible('d1', notes['d1']!.body), isFalse);
+    });
+
+    test('runs as the app\'s job over the pages, writing each through the same writer, and Not now runs nothing', () async {
+      final book = docs();
+      final action = lovartPlugin.noteActions.singleWhere((a) => a.id == 'lovart-book-banners');
+      final open = TestNote(book.body, noteId: 'book');
+      await action.run(open, 'not-now');
+      expect(gated.asked, isEmpty);
+      await action.run(open, 'missing');
+      expect(open.said.first, 'Making header images for 30 pages.');
+      final run = lovartBannerRun.value!;
+      expect((run.total, run.made, run.running), (30, 30, false));
+      for (final id in ['d1', 'd26', 'section', 'off', 'appendix-page']) {
+        expect(bannerOf(notes[id]!.body), isNotNull, reason: id);
+      }
+      expect(bannerOf(notes['bw']!.body), isNot('lovart-old-bw.png'));
+      expect(bannerOf(notes['colour']!.body), 'lovart-new.png');
+      expect(bannerOf(notes['ticket']!.body), isNull);
+      expect(bannerOf(notes['mine']!.body), isNull, reason: 'the account\'s own Chapter 1 is not the team\'s page');
+      expect(notes.containsKey('book'), isTrue, reason: 'nothing is deleted');
+      expect(bannerOf(notes['book']!.body), isNull);
     });
   });
 

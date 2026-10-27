@@ -122,6 +122,21 @@ ghost scenes do. Made by itself only for a note of 25 words or more that is not 
 recording with a summary), a mail (`from:`), a notebook, a canvas or a template, has no banner, and was never given
 one: remembered by id before Lovart is asked, so a banner taken off is not made again.
 
+**Header images for many notes, in the background** (lib/plugins/lovart/banner_run.dart; Matt, 2026-10-26: "Make the
+header generation async and a background task that runs while the app is generating the images"). Two ways in:
+**Make them** on the plugin's page (the 100 most recent notes waiting for one, with two choices for the run: *Include
+notes whose header was taken off*, and *Redo black-and-white and square headers*), and **Header images for every
+page** on a notebook's More sheet ("Also add a feature to add header images to all pages in a book"), which asks
+first how many pages and about how many credits, with *Redo existing too* and *Not now*. Either is one job of the
+app's own (`BannerJob`, made by the root): three at a time, its queue kept in the plugin's storage as it goes so a run
+the app was closed under goes on at the next launch, written into an open note through its editor (the root's
+`_changeNote`, as Claude's edits are). A line on home and in the sidebar says "Making header images · 12 of 100" with
+Stop; a toast says how it ended. On Android a foreground service holds the app up while it runs, with its own
+notification and Stop (android/…/ghost_md/BackgroundJobs.kt, `ghost_md/jobs`); on the Mac the app is kept out of App
+Nap. A run is claimed in the synced settings (`lovartBannerRun`) before it starts, so two of the account's devices
+never make the same notes' pictures. Credits are said as an estimate, about 6 an image (`lovartCreditsPerImage`,
+client.dart), since the API gives no cost for an ordinary image.
+
 **The badge.** A picture whose name begins `lovart-` carries Lovart's mark at its bottom right (20 px on a dark rounded
 ground, inset 8 px, "Made with Lovart" to a screen reader) wherever it is drawn: the editor's figures, an embedded
 note, a canvas picture card, on every device, plugin on or not (lib/editor/media/lovart_badge.dart).
