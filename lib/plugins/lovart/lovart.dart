@@ -22,7 +22,6 @@
 library;
 
 
-import 'package:flutter/foundation.dart';
 
 import '../../core/banner.dart' show bannerOf;
 import '../../core/book.dart' show isBookBody, isJournalBody;
@@ -34,6 +33,7 @@ import 'client.dart';
 import 'cues.dart';
 import 'inspiration.dart';
 import 'keep.dart';
+import 'making.dart';
 import 'lovart_mark.dart';
 import 'lovart_pane.dart';
 import 'manifest.dart';
@@ -47,20 +47,8 @@ export 'keep.dart';
 export 'lovart_mark.dart';
 export 'lovart_pane.dart';
 export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey, bannerRunKey;
+export 'making.dart';
 export 'meetings.dart';
-
-/// The cues being made now, by note and cue (`noteId\ncue`): the chip by each draws a spinner while it is here.
-final ValueNotifier<Set<String>> lovartMaking = ValueNotifier<Set<String>>(const {});
-
-String _making(String noteId, String cueText) => '$noteId\n$cueText';
-
-/// Whether the cue [cueText] of [noteId] is being made.
-bool lovartIsMaking(String noteId, String cueText) => lovartMaking.value.contains(_making(noteId, cueText));
-
-void _mark(String key, bool on) {
-  final next = {...lovartMaking.value};
-  if (on ? next.add(key) : next.remove(key)) lovartMaking.value = Set.unmodifiable(next);
-}
 
 /// What the person is told when Lovart cannot be asked here.
 String? lovartUnready() {
@@ -92,9 +80,9 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
   }
   final lovart = lovartClient();
   if (lovart == null) return false;
-  final key = _making(editing.noteId, cue.text);
+  final key = makingKey(editing.noteId, cue.text);
   if (lovartMaking.value.contains(key)) return false;
-  _mark(key, true);
+  markMaking(key, true);
   try {
     final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
     if (names.isEmpty) return false;
@@ -105,7 +93,7 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
     editing.say(lovartSaid(failure));
     return false;
   } finally {
-    _mark(key, false);
+    markMaking(key, false);
   }
 }
 
@@ -120,8 +108,8 @@ Future<void> makeAllCues(NoteEditing editing) async {
     editing.say(cues.length == 1 ? 'Lovart is making the image…' : 'Lovart is making image ${index + 1} of ${cues.length}…');
     final lovart = lovartClient();
     if (lovart == null) return;
-    final key = _making(editing.noteId, cue.text);
-    _mark(key, true);
+    final key = makingKey(editing.noteId, cue.text);
+    markMaking(key, true);
     try {
       final names = await keepLovartImages(await lovart.generate(cuePrompt(cue.prompt)));
       if (names.isNotEmpty && placeCue(editing, cue, names)) made += 1;
@@ -131,7 +119,7 @@ Future<void> makeAllCues(NoteEditing editing) async {
       editing.say(lovartSaid(failure));
       return;
     } finally {
-      _mark(key, false);
+      markMaking(key, false);
     }
   }
   if (made > 0) editing.say(made == 1 ? 'Made 1 image with Lovart.' : 'Made $made images with Lovart.');
@@ -144,6 +132,7 @@ Future<void> makeInspiration(NoteEditing editing) async {
   final lovart = lovartClient();
   if (lovart == null) return;
   editing.say('Lovart is making inspiration images…');
+  markInspiring(editing.noteId, true);
   try {
     final names = await keepLovartImages(await lovart.generate(inspirationPrompt(editing.body())));
     if (names.isEmpty) return;
@@ -152,6 +141,8 @@ Future<void> makeInspiration(NoteEditing editing) async {
     editing.say(names.length == 1 ? 'Added 1 inspiration image.' : 'Added ${names.length} inspiration images.');
   } on LovartFailure catch (failure) {
     editing.say(lovartSaid(failure));
+  } finally {
+    markInspiring(editing.noteId, false);
   }
 }
 

@@ -137,6 +137,13 @@ Nap. A run is claimed in the synced settings (`lovartBannerRun`) before it start
 never make the same notes' pictures. Credits are said as an estimate, about 6 an image (`lovartCreditsPerImage`,
 client.dart), since the API gives no cost for an ordinary image.
 
+**The queue** (Settings › Lovart › Queue; Matt, 2026-10-27: "Please show the lovart image queue in the lovart
+settings"): every picture being made on this device and the ones waiting, by note title, "Making" or its place in
+line, with what is left to make in credits (lib/plugins/lovart/lovart_queue.dart). It reads the run's kept queue
+(`keptBannerQueue`), the header being made as a note is left (`lovartBannerMaking`), `{image: …}` cues
+(`lovartMaking`) and moodboards (`lovartInspiring`, lib/plugins/lovart/making.dart); a run on another device is one
+line, its notes being that device's to list. Twenty waiting are listed, the rest counted.
+
 **The badge.** A picture whose name begins `lovart-` carries Lovart's mark at its bottom right (20 px on a dark rounded
 ground, inset 8 px, "Made with Lovart" to a screen reader) wherever it is drawn: the editor's figures, an embedded
 note, a canvas picture card, on every device, plugin on or not (lib/editor/media/lovart_badge.dart).

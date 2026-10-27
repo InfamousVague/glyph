@@ -122,6 +122,10 @@ Once a meeting is written up, if it reads as a design meeting (mockups, a brand,
 
 It happens once per meeting, with your credits, even if the summary is written again. To ask again, use **Inspiration images** on the note. The switch is kept on each device, and each device that writes a meeting up asks for its own. See [[Meetings and the Meet bot]].
 
+## The queue
+
+**Settings › Lovart › Queue** shows what Lovart is making on this device right now, and what's waiting its turn: each note by its title, with what's being made for it (a header image, a picture from `{image: …}`, or a moodboard). The ones in progress say **Making**; the rest show their place in line. Above the list is how much the rest will cost in credits. A run going on another of your devices shows as one line saying where, and how far it's got.
+
 ## Credits, and costly steps
 
 Every image costs Lovart credits from your plan. Some steps cost more, such as a premium model or a video. **Ghost.md never approves those for you.** It tells you, in words like "Lovart wants your go-ahead before a step costing about … credits. Approve it in Lovart if you want it.", and the cue stays in your note. If you want it, approve it in Lovart.

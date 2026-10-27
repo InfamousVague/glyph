@@ -25,6 +25,7 @@ import '../types.dart';
 import 'client.dart';
 import 'inspiration.dart';
 import 'keep.dart';
+import 'making.dart';
 import 'manifest.dart';
 
 /// How many meetings are remembered as done: the newest.
@@ -71,11 +72,14 @@ class LovartMeetings {
     final lovart = client != null ? client!() : (_host == null ? lovartClient() : LovartClient.kept(via: _host));
     if (lovart == null) return false;
     final List<Uint8List> images;
+    markInspiring(id, true);
     try {
       images = await lovart.generate(inspirationPrompt(body));
     } on LovartFailure catch (failure) {
       warn?.call('[lovart] no inspiration for the meeting: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
       return false;
+    } finally {
+      markInspiring(id, false);
     }
     final names = await keepLovartImages(images, into: pictures);
     if (names.isEmpty) return false;

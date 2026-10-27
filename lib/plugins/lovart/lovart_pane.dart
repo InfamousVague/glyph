@@ -23,12 +23,14 @@ import 'lovart_mark.dart';
 import 'manifest.dart';
 import 'banner_run.dart' show BannerRun, bannerCandidates, bannerElsewhereWords, bannerRunEndWords, bannerRunLine, bannerRunMost, bannerTakenOff, lovartBannerJob, lovartBannerRun, runBanners, stopBannerRun;
 import 'banners.dart' show bannersOn, setBanners;
+import 'lovart_queue.dart';
 import 'meetings.dart' show designMeetingsOn, setDesignMeetings;
 
 /// What Settings' search finds on the page.
 const List<SettingsFindable> lovartFindable = [
   SettingsFindable('Lovart keys', 'access key secret key ak sk lovart api credits'),
   SettingsFindable('Header images for notes', 'banner header cover image ghost dotwork automatic'),
+  SettingsFindable('Queue', 'queue waiting making progress pictures header images credits'),
   SettingsFindable('Inspiration for design meetings', 'meetings design moodboard inspiration images automatic'),
 ];
 
@@ -257,6 +259,8 @@ class _LovartPaneState extends State<LovartPane> {
               ),
           ],
         ),
+        // What is being made now and what waits, on this device (lovart_queue.dart).
+        const LovartQueueSection(),
         PaneSection(
           title: 'Meetings',
           children: [
