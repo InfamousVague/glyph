@@ -91,7 +91,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch', 'Dock']);
       await endSettings(tester);
     });
 
@@ -112,7 +112,7 @@ void main() {
 
     testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Dock']);
       expect(find.text('Haptics'), findsNothing);
       expect(find.text('Sidebar'), findsNothing);
       expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));

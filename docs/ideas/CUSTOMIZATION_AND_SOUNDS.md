@@ -34,6 +34,7 @@ icon packs set: a card to try, a switch to keep, synced with the account.
 9. **Dock editor.** Choose and order the floating dock's buttons (Claude, search, +, mic, Market, Settings), and
    which sit on the phone versus the Fold. The dock is now fixed; this is the most-asked kind of setting in apps with
    one.
+   Built 2026-10-27: Settings, Appearance, Dock (docs/DOCK.md, "The dock editor").
 10. **Home sections.** Show, hide and order the home page's sections (pinned, to do, meetings shelf, recent,
     journal), not only pick a layout.
 11. **Swipe actions.** What a swipe left or right on a note card does: archive, pin, Trash, move to a workspace.

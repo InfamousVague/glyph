@@ -1124,8 +1124,10 @@ class _HomeScreenState extends State<HomeScreen> {
           // Speak is the screen's one ink pill: the thing Ghost.md is for, where the thumb already is. One microphone
           // only: where Talk to Claude is on the dock, it is the microphone, and what is said goes to Claude rather
           // than the phone's own models (Matt, 2026-10-18: "When Claude mode is enabled there should only be one
-          // microphone icon still it should just use Claude instead of the local models").
-          if (widget.onCapture != null && widget.claudeTalk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
+          // microphone icon still it should just use Claude instead of the local models"). The dock itself keeps to
+          // that (lib/core/dock_layout.dart `DockLayout.arrange`), so with Talk hidden in the dock editor, Speak is
+          // back.
+          if (widget.onCapture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _capture),
           // The Market: plugins, themes and fonts, over Settings at the foot.
           if (widget.onMarket != null) DockAction(id: 'market', label: 'Market', icon: Lucide.store, onPressed: () => widget.onMarket!()),
         ],

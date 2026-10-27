@@ -22,6 +22,12 @@
 ///
 /// While the page is scrolled the dock grows smaller, to two thirds of itself, and its own size again once the page
 /// is still. Matt, 2026-10-17: "when we scroll make the dock bar animate to be 33% smaller". See [DockShrink].
+///
+/// Which of the app's buttons it draws, and in what order, is the person's (Settings, Appearance, Dock; Matt,
+/// 2026-10-27: "build the dock editor"): every dock reads the choice ([dockPrefs]) for the window it is in, a phone's
+/// or a wide one's, and orders and hides Claude, Talk to Claude, Search, +, Speak, the Market and Settings by it
+/// (lib/core/dock_layout.dart `DockLayout.arrange`). A page's own rings keep their places. Nothing chosen is the dock
+/// as it was.
 library;
 
 import 'dart:async';
@@ -36,8 +42,9 @@ import 'package:glacier/glacier.dart';
 
 import '../app/plain.dart';
 import '../art/art.dart' show AppIcon, LucideIcon;
+import '../core/preferences.dart' show DockLayout, DockPrefs, preferences;
 import '../home/home_icons.dart';
-import 'wide_screen.dart' show mousePointer;
+import 'wide_screen.dart' show mousePointer, wideScreen;
 
 /// How a ring moves when it is pressed, as the home page's own do: Search's magnifier leans in, the + gives a
 /// quarter turn, the rest dip.
@@ -85,10 +92,17 @@ class DockAction {
   Object get look => (id, label, tip, icon?.name, glyph, motion, ink, busy, badge, onPressed != null);
 }
 
-/// The pill: Claude at the head, the page's rings, and [foot] last. A port of the home page's `.dock`, which it was
-/// written from and still draws (lib/home/home_screen.dart).
+/// The person's choice of the dock's buttons, told when it changes and not when a tab is opened.
+final ValueListenable<DockPrefs> dockPrefs = preferences.select((prefs) => prefs.dock);
+
+/// The dock a window of [context]'s size draws from [prefs]: the wide one's on the Fold opened, a tablet or a
+/// desktop ([wideScreen]), the phone's otherwise.
+DockLayout dockLayoutAt(BuildContext context, DockPrefs prefs) => prefs.layoutFor(wide: wideScreen(MediaQuery.maybeSizeOf(context) ?? Size.zero));
+
+/// The pill: Claude at the head, the page's rings, and [foot] last, as the person ordered and chose them ([layout]).
+/// A port of the home page's `.dock`, which it was written from and still draws (lib/home/home_screen.dart).
 class PageDock extends StatelessWidget {
-  const PageDock({super.key, this.claude, this.talk, this.actions = const <DockAction>[], this.foot, this.label = 'Page actions', this.claudeTip = 'Ask Claude'});
+  const PageDock({super.key, this.claude, this.talk, this.actions = const <DockAction>[], this.foot, this.label = 'Page actions', this.claudeTip = 'Ask Claude', this.layout, this.keyPrefix = 'dock'});
 
   /// Claude's ring (lib/claude/claude_dock.dart), drawn by itself: it hears what it shows.
   final Widget? claude;
@@ -106,20 +120,38 @@ class PageDock extends StatelessWidget {
   /// Claude's tip on a desktop.
   final String claudeTip;
 
-  /// How many rings it draws.
+  /// Which of the app's buttons it draws and in what order; the person's choice for this window when null.
+  final DockLayout? layout;
+
+  /// What its rings' keys start with (`dock-<id>`): the dock editor's picture of the dock has its own, so a test,
+  /// or anything else finding the dock's rings by key, never finds the picture's.
+  final String keyPrefix;
+
+  /// How many rings it draws at most: the ones it is given, before the person's choice hides any.
   int get count => (claude != null ? 1 : 0) + (talk != null ? 1 : 0) + actions.length + (foot != null ? 1 : 0);
 
   @override
   Widget build(BuildContext context) {
+    final layout = this.layout;
+    if (layout != null) return _drawn(context, layout);
+    return ValueListenableBuilder<DockPrefs>(valueListenable: dockPrefs, builder: (context, prefs, _) => _drawn(context, dockLayoutAt(context, prefs)));
+  }
+
+  Widget _drawn(BuildContext context, DockLayout layout) {
     final t = context.tokens;
     final gap = t.space(2);
     final radius = BorderRadius.circular(t.radius('full'));
-    final rings = <Widget>[
-      if (claude != null) DockTip(message: claudeTip, child: claude!),
-      if (talk != null) DockTip(message: 'Talk to Claude', child: talk!),
-      for (final action in actions) DockRing(key: ValueKey('dock-${action.id}'), action: action),
-      if (foot != null) DockRing(key: ValueKey('dock-${foot!.id}'), action: foot!),
-    ];
+    // Each ring by its id, as given; then as the person ordered them. Claude's two are keyed by their places too, so
+    // reordered they keep their state (Claude's turning) rather than taking a neighbour's.
+    final given = <String, Widget>{
+      if (claude != null) 'claude': DockTip(key: const ValueKey<Object>((#dockRing, 'claude')), message: claudeTip, child: claude!),
+      if (talk != null) 'talk': DockTip(key: const ValueKey<Object>((#dockRing, 'talk')), message: 'Talk to Claude', child: talk!),
+      for (final action in actions) action.id: DockRing(key: ValueKey('$keyPrefix-${action.id}'), action: action),
+      if (foot != null) foot!.id: DockRing(key: ValueKey('$keyPrefix-${foot!.id}'), action: foot!),
+    };
+    final rings = [for (final id in layout.arrange(given.keys.toList())) given[id]!];
+    // Every ring hidden (Settings' dock is Claude alone): no pill at all, rather than an empty one.
+    if (rings.isEmpty) return const SizedBox.shrink();
     return Semantics(
       container: true,
       label: label,
