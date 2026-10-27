@@ -168,6 +168,7 @@ import '../editor/queries/queries.dart';
 import '../editor/ai/blanks.dart' show blanks;
 import '../editor/ai/lovart_cues.dart' show LovartCueHooks, lovartCues;
 import '../editor/ai/wisp_arrivals.dart' show wispArrivals;
+import '../editor/focus/focus_mode.dart' show FocusModeHooks, focusMode;
 import '../editor/semantics/line_semantics.dart' show semanticsOpenLink;
 import '../editor/spell/spell.dart' show PhoneSpellChecker, spellCheck;
 import '../editor/suggestions/suggestions.dart' show suggestions;
@@ -783,6 +784,16 @@ class NoteDeskState extends State<NoteDesk> {
     markExtensions(_formats),
     wispStill.of(_still),
     wispPace.of(_pace),
+    // Focus mode (Matt, 2026-10-27: "build ... focus mode"): every block but the caret's dimmed while the note is
+    // written in, and the caret's line kept in the middle. Its switches are asked as they are used, so turning it on
+    // in the More sheet, the palette or Settings changes the note already open.
+    focusMode(FocusModeHooks(
+      dim: () => _prefs.value.focusMode,
+      typewriter: () => _prefs.value.focusTypewriter,
+      changes: _prefs,
+      still: _still,
+      pace: _pace,
+    )),
     // The AI's own, or what a note without one has in their place; changed for the AI's when the engine comes up
     // after the editor was made.
     _aiSlot.of(_aiAtStart()),
@@ -2063,6 +2074,8 @@ class NoteDeskState extends State<NoteDesk> {
       // The run that is on wears a dot on its row.
       aiRunning: ai == null ? null : () => ai.runningKind?.id,
       onFind: _openFind,
+      // Its editor has focus mode (`_extensions`): the More sheet's row for it.
+      focusMode: true,
       // The dock's Add: the +'s list for the caret's line.
       onAdd: _openAdd,
       // Simple mode's Format bar puts a picture in from its tail, as the band's Add image does (GHST-105).

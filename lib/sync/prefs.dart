@@ -73,6 +73,9 @@ const List<String> syncedPrefs = [
   'wisp',
   'wispEdge',
   'ripples',
+  // Focus mode and its typewriter scroll: a way of writing, the same on every device.
+  'focusMode',
+  'focusTypewriter',
   'motionSpeed',
   'linkPreviews',
   // Whether a canvas's cards land on its dots: a way of working, the same on every device.

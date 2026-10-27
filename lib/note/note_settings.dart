@@ -216,6 +216,15 @@ class NoteViewSwitch {
   final VoidCallback onSwitch;
 }
 
+/// Focus mode, for its row (Matt, 2026-10-27: "build ... focus mode"): whether it is on, and the switch. Every
+/// note's at once, as the preference is (lib/core/preferences.dart `focusMode`); its typewriter scroll is Settings'.
+@immutable
+class NoteFocus {
+  const NoteFocus({required this.on, required this.onToggle});
+  final bool on;
+  final VoidCallback onToggle;
+}
+
 /// The note's look, for its row of choices (`look`).
 @immutable
 class NoteLook {
@@ -298,6 +307,7 @@ class NoteSettings extends StatefulWidget {
     this.startAtItem,
     this.simple,
     this.viewSwitch,
+    this.focus,
   });
 
   final String noteId;
@@ -380,6 +390,10 @@ class NoteSettings extends StatefulWidget {
   /// view switch move into ⋯"): the first row of Reading it. Advanced mode's sheet never draws it, the bar's ring
   /// being there.
   final NoteViewSwitch? viewSwitch;
+
+  /// Focus mode's switch, where the note's words can be written in; no row where it is null. In both modes: it is one
+  /// switch, and what it does is plain to see.
+  final NoteFocus? focus;
 
   @override
   State<NoteSettings> createState() => _NoteSettingsState();
@@ -714,7 +728,21 @@ class _NoteSettingsState extends State<NoteSettings> {
     final Widget? findRow = widget.onFind == null ? null : SheetRow(icon: _lucide(Lucide.textSearch, 2.2), label: 'Find and replace', onPress: widget.onFind);
     // A list laid out as columns, in the note's own words (docs/BOARDS.md).
     final Widget? boardRow = widget.onMakeBoard == null ? null : SheetRow(icon: _drawn(AppIcons.board), label: 'Make a board', hint: 'Every item in this note becomes a card.', onPress: widget.onMakeBoard);
-    final readingFirst = <Widget>[?switchRow, ?lookRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
+    final focus = widget.focus;
+    final Widget? focusRow = focus == null
+        ? null
+        : SheetRow(
+            key: const ValueKey<String>('note-focus-mode'),
+            icon: _lucide(Lucide.scanText, 2.1),
+            label: focus.on ? 'Leave focus mode' : 'Focus mode',
+            hint: focus.on ? 'Every paragraph drawn whole again.' : 'Dims every paragraph but the one you are writing.',
+            on: focus.on,
+            onPress: () {
+              widget.onClose();
+              focus.onToggle();
+            },
+          );
+    final readingFirst = <Widget>[?switchRow, ?lookRow, ?focusRow, if (!simple) ?bookmarkRow, ?findRow, if (!simple) ?boardRow];
     final readingMore = <Widget>[if (simple) ?bookmarkRow, if (simple) ?boardRow];
     final reading = <Widget>[if (readingFirst.isNotEmpty) ...[const SheetHeading('Reading it'), SheetGroup(children: readingFirst)]];
     final readingRest = <Widget>[if (readingMore.isNotEmpty) ...[const SheetHeading('More ways to read it'), SheetGroup(children: readingMore)]];

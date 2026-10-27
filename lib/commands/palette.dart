@@ -71,6 +71,7 @@ class PaletteWorld {
     this.tabGroup,
     this.smartNotebooks = const [],
     this.simple = false,
+    this.focusMode = false,
   });
 
   /// Every note, newest first: each is an "Open …".
@@ -115,6 +116,9 @@ class PaletteWorld {
   /// filter, a tab's groups, Forward, Notifications and Organizations. The doings are still given; the rule is
   /// here, so it is one rule and a test.
   final bool simple;
+
+  /// Whether focus mode is on (lib/editor/focus/focus_mode.dart), so the command says which way it goes.
+  final bool focusMode;
 }
 
 /// What the palette can set off (`PaletteDoing`). Every one of these is something the app already does by hand. A
@@ -161,6 +165,7 @@ class PaletteDoing {
     this.market,
     this.trash,
     this.openSmart,
+    this.setFocusMode,
   });
 
   final void Function(String id) openNote;
@@ -235,6 +240,9 @@ class PaletteDoing {
 
   /// The Trash, as a section of its own (lib/notes/trash_sheet.dart, 2026-10-23); offered in simple mode too.
   final VoidCallback? trash;
+
+  /// Focus mode on or off (Matt, 2026-10-27: "build ... focus mode"); offered in simple mode too, being one switch.
+  final void Function(bool on)? setFocusMode;
 }
 
 /// A row of the palette and what choosing it does (`PaletteCommand`).
@@ -425,6 +433,11 @@ List<PaletteCommand> paletteCommands(PaletteWorld world, PaletteDoing doing, [St
   for (final (value, label) in _themes) {
     if (value == world.theme) continue;
     add('theme:$value', 'Theme: $label', 'Look', 'dark light appearance paper', () => doing.setTheme(value));
+  }
+  final setFocusMode = doing.setFocusMode;
+  if (setFocusMode != null) {
+    final on = world.focusMode;
+    add('focus', on ? 'Leave focus mode' : 'Focus mode', 'Look', 'focus typewriter dim zen distraction free writing concentrate centre center', () => setFocusMode(!on));
   }
 
   // ---- the app ----------------------------------------------------------------------------------------------------

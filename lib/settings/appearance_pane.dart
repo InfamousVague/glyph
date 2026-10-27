@@ -6,6 +6,7 @@ import '../core/preferences.dart';
 import '../market/market_icons.dart' show IconStyleChooser;
 import 'accent_swatch.dart';
 import 'dock_editor.dart';
+import 'focus_section.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
@@ -37,6 +38,8 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
         const SettingsFindable('Text size', 'font bigger smaller larger'),
         // The dock's buttons, in either mode: Simple's pages have a dock too.
         dockFindable,
+        // Its typewriter scroll is behind Simple's More: "typewriter" lands on the switch.
+        const SettingsFindable('Focus mode', _focusWords),
       ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
     ];
 
@@ -50,6 +53,8 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Interface font', 'font typeface ui app tabs menus inter noto plex'),
       const SettingsFindable('Text size', 'font bigger smaller larger'),
       const SettingsFindable('Scale', 'size zoom interface ui bigger smaller'),
+      const SettingsFindable('Focus mode', _focusWords),
+      const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
@@ -64,6 +69,9 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
       dockFindable,
     ];
+
+/// What finds focus mode (lib/settings/focus_section.dart), besides its name.
+const String _focusWords = 'focus dim fade typewriter zen distraction free writing concentrate paragraph';
 
 /// A map of a preference's words as the options a segmented control takes, in the map's own order (`optionsOf`).
 List<GlacierSegmentedOption> _options(Map<String, String> words) => [
@@ -175,8 +183,10 @@ class AppearancePane extends StatelessWidget {
         // The dock's buttons (Matt, 2026-10-27: "build the dock editor"): in either mode, since Simple's pages have a
         // dock too; Simple's lists Simple's buttons, with the wide window's own dock behind More.
         final dock = DockEditor(store: store);
+        // Focus mode, in both modes, after the type it dims (Matt, 2026-10-27: "build ... focus mode").
+        final focus = FocusSection(store: store);
 
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), dock]);
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), focus, dock]);
 
         return PaneBody(
           children: [
@@ -230,6 +240,7 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
+            focus,
             // How the icons are drawn: the style, seen in the pack in use as it is chosen.
             PaneSection(
               title: 'Icons',

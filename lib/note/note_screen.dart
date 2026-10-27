@@ -70,6 +70,7 @@
 library;
 
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart' show ValueListenable, defaultTargetPlatform;
 import 'package:flutter/gestures.dart';
@@ -88,6 +89,7 @@ import '../core/library.dart';
 import '../core/live_titles.dart';
 import '../core/banner.dart' show bannerOf;
 import '../core/look.dart';
+import '../editor/looks/look.dart' show LookEnv;
 import '../core/note.dart';
 import '../core/note_names.dart';
 import '../core/place_tags.dart';
@@ -190,6 +192,7 @@ class NoteSeams {
     this.headRoom,
     this.problem,
     this.links,
+    this.focusMode = false,
   });
 
   /// Find and replace opened in the note with its first words (editor/FindBar.tsx, piece K).
@@ -321,6 +324,10 @@ class NoteSeams {
 
   /// The links between notes: the Links tool and its count, and the More sheet's rows for them.
   final NoteLinksSeam? links;
+
+  /// Whether the note's editor has focus mode in it (lib/editor/focus/focus_mode.dart, which lib/root/note_desk.dart
+  /// puts there): then the More sheet has its row, and the page room under the last line for the typewriter.
+  final bool focusMode;
 }
 
 class NoteScreen extends StatefulWidget {
@@ -1748,6 +1755,9 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       // The line being typed stays above the page's foot blur, where there is a blur to keep clear of.
       footClear: !_isCanvas && blurs ? blurEdgeFootClear : 0,
       meHue: null,
+      // Focus mode's typewriter (lib/editor/focus/focus_mode.dart) keeps the caret's line in the middle of the page,
+      // the last line's too: half a page under it to come up into, where the page has less.
+      contentBottom: seams.focusMode && prefs.focusMode && prefs.focusTypewriter && !widget.readOnly ? math.max(LookEnv.roomUnder(t), MediaQuery.sizeOf(context).height / 2) : null,
       // Behind a canvas, a journal or an index the editor is kept and not drawn: its words are not read there.
       shown: _words,
       extensions: _ownExtensions,
@@ -2072,6 +2082,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
       simple: _simple,
       // Simple mode's view switch, a row where advanced has the header's ring (GHST-105).
       viewSwitch: _raw ? NoteViewSwitch(kind: _kind, page: _onPage, onSwitch: _switchView) : null,
+      // Focus mode, where there are words to write in (lib/editor/focus/focus_mode.dart).
+      focus: seams.focusMode && view != null && _raw && !_typed && !widget.readOnly ? NoteFocus(on: _prefs.value.focusMode, onToggle: () => _prefs.update((now) => now.copyWith(focusMode: !now.focusMode))) : null,
       cheatSheet: seams.cheatSheet,
       say: widget.say,
       around: _typed ? null : seams.links?.section(context, view, _scroll.hasClients ? _scroll.position : null),
