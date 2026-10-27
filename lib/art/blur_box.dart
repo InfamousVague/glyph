@@ -20,7 +20,8 @@ import 'edge_strips.dart';
 /// read the box as it was just drawn and not a backdrop a page around it read before; each band's softness is its
 /// strip's as much as the end shows, and its blur clears again toward the edge over the fade's length
 /// ([EdgeBackdropBand.clear]), so nothing the blur gathered stands past the fade. Two bands at most, no picture. Where
-/// the engine cannot filter by a shader ([EdgeLook.fade]) the ends are their fades alone.
+/// the engine cannot filter by a shader ([EdgeLook.fade]) the ends are their fades alone, each run over its blur's
+/// whole depth ([fadedEnds]).
 
 /// A lane's foot: how deep its blur runs at most (half the lane, on a short one), and how soft at the edge.
 const double blurFootDepth = 32;
@@ -67,7 +68,11 @@ class _BlurBoxedState extends State<BlurBoxed> {
 
   @override
   Widget build(BuildContext context) {
-    List<EdgeStrip> strips(Size size) => widget.build(size, BlurEdgeSettings.instance.wanted);
+    List<EdgeStrip> strips(Size size) {
+      final made = widget.build(size, BlurEdgeSettings.instance.wanted);
+      return edgeLook == EdgeLook.fade ? fadedEnds(made) : made;
+    }
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final Widget drawn;
@@ -102,6 +107,49 @@ class _BlurBoxedState extends State<BlurBoxed> {
       },
     );
   }
+}
+
+/// A box's blurred ends where nothing can be blurred ([EdgeLook.fade]): each end's fade runs the whole of its blur's
+/// depth, as much of it as the end shows ([EdgeBlurStrip.opacity]), where it ran the box's own short fade alone.
+///
+/// A page's edge with nothing blurred is the page's ground over its strip's whole depth ([EdgeShade]); a box's end
+/// was its own fade alone, the row's 12px, and a tab cut off by the row's end stood crisp up to it. The test's
+/// engine cannot filter by a shader and draws Android's edges so: the next tab's pill at the right end of the
+/// Classic bar on a phone, which the strips' blur had gathered into the ground in the picture saved 2026-10-24, was
+/// drawn with its outline sharp and nearly half its ink (test/shell/shots, redrawn 2026-10-27; before and after in
+/// build/feature-shots/tab-strip-end/). Now the end goes from whole at the blur's inner end to clear at the box's
+/// edge, the strip a backdrop band's blur and the strips' run over, and the pill is a faint line going out: a box
+/// whose next thing is cut off goes into the ground there in every look, the tab row, the meetings' shelf and a
+/// board lane's foot alike. Android's own ends are the bands over the short fade, as they were ([BoxBands]).
+/// With the edges' blur switched off the ends are their short fades ([EdgeFadeStrip]), which this leaves as they
+/// are. The ends of one box are one mask ([EdgeMasked] draws the strips of one mask as one), so every end is
+/// lengthened on it and every strip wears the one mask.
+List<EdgeStrip> fadedEnds(List<EdgeStrip> strips) {
+  final blurs = strips.whereType<EdgeBlurStrip>().toList();
+  if (blurs.isEmpty) return strips;
+  const nowhere = 1e8;
+  var mask = blurs.first.fade ?? EdgeFade.none;
+  for (final strip in blurs) {
+    final rect = strip.rect;
+    final across = strip.side == EdgeSide.left || strip.side == EdgeSide.right;
+    final long = (across ? rect.width : rect.height) * strip.opacity.clamp(0.0, 1.0);
+    if (long <= 0) continue;
+    switch (strip.side) {
+      case EdgeSide.left || EdgeSide.top:
+        final edge = mask.wholeFrom > -nowhere ? mask.clearUntil : (across ? rect.left : rect.top);
+        mask = EdgeFade(clearUntil: edge, wholeFrom: math.max(mask.wholeFrom, edge + long), wholeUntil: mask.wholeUntil, clearFrom: mask.clearFrom);
+      case EdgeSide.right || EdgeSide.bottom:
+        final edge = mask.wholeUntil < nowhere ? mask.clearFrom : (across ? rect.right : rect.bottom);
+        mask = EdgeFade(clearUntil: mask.clearUntil, wholeFrom: mask.wholeFrom, wholeUntil: math.min(mask.wholeUntil, edge - long), clearFrom: edge);
+    }
+  }
+  return [
+    for (final strip in strips)
+      if (strip is EdgeBlurStrip)
+        EdgeBlurStrip(rect: strip.rect, side: strip.side, sigma: strip.sigma, wash: strip.wash, opacity: strip.opacity, fade: mask, bleed: strip.bleed)
+      else
+        strip,
+  ];
 }
 
 /// How much of a box's fade its band's blur clears over again at the edge ([EdgeBackdropBand.clear]): all of it. On

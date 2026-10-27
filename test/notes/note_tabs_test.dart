@@ -673,7 +673,10 @@ void main() {
       expect(row.fade, 12);
       expect(blurs(), hasLength(1));
       expect(blurs().single.side, EdgeSide.right, reason: 'nothing is out of sight at the start');
-      expect(blurs().single.fade!.clearFrom - blurs().single.fade!.wholeUntil, 12);
+      // The twelve pixels are the fade the blur's strips and Android's bands are laid over; this engine blurs
+      // nothing, and the end it draws fades over the blur's whole depth (2026-10-27, lib/art/blur_box.dart
+      // fadedEnds), so a tab cut off by the row's end is not crisp up to the last twelve.
+      expect(blurs().single.fade!.clearFrom - blurs().single.fade!.wholeUntil, blurSidesDepth);
       await tester.drag(find.bySemanticsLabel('Groceries, in Home'), const Offset(-2000, 0));
       await tester.pump(const Duration(milliseconds: 600));
       expect(find.byType(BlurSides), findsOneWidget);

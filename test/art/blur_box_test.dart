@@ -103,6 +103,34 @@ void main() {
       expect(find.byType(EdgeBackdropBand), findsNothing, reason: 'an engine that cannot filter by a shader fades alone');
     });
 
+    // 2026-10-27: where nothing is blurred, a box's end had the row's own 12px fade alone, and a tab cut off by the
+    // row's end stood crisp up to it (test/shell/tab_strip_end_test.dart). Its fade runs its blur's whole depth now.
+    testWidgets('a box\'s ends fade over their blurs\' whole depth, as much as each shows, on the one mask', (tester) async {
+      final row = (await boxed(tester, const SizedBox(width: 390, height: 44, child: BlurSides(start: true, end: true, endShown: 0.5, child: SizedBox.expand())))).cast<EdgeBlurStrip>();
+      expect(row.map((s) => s.fade).toSet(), hasLength(1), reason: 'both ends one mask');
+      final mask = row.first.fade!;
+      expect((mask.clearUntil, mask.wholeFrom), (0.0, blurSidesDepth), reason: 'the left end, whole');
+      expect((mask.wholeUntil, mask.clearFrom), (390 - blurSidesDepth / 2, 390.0), reason: 'the right end half shown: half the depth');
+      expect(tester.layers.whereType<ShaderMaskLayer>(), hasLength(2), reason: 'still a ramp at each end');
+      await tester.pumpWidget(const SizedBox());
+      final lane = await boxed(tester, const SizedBox(width: 390, height: 300, child: BlurFoot(more: true, plainFade: 17, child: SizedBox.expand())));
+      expect((lane.single as EdgeBlurStrip).fade, const EdgeFade(wholeUntil: 300 - blurFootDepth, clearFrom: 300), reason: 'a lane\'s foot over its blur\'s depth');
+      await tester.pumpWidget(const SizedBox());
+      BlurEdgeSettings.instance.wanted = false;
+      final plain = await boxed(tester, const SizedBox(width: 390, height: 44, child: BlurSides(start: false, end: true, child: SizedBox.expand())));
+      expect((plain.single as EdgeFadeStrip).fade.wholeUntil, 390 - blurSidesFade, reason: 'with the blur switched off, the row\'s own fade as it was');
+    });
+
+    testWidgets('a box\'s ends keep their short fades under Android\'s bands, and on the Mac under the strips', variant: TargetPlatformVariant.only(TargetPlatform.macOS), (tester) async {
+      final row = (await boxed(tester, const SizedBox(width: 390, height: 44, child: BlurSides(start: false, end: true, child: SizedBox.expand())))).cast<EdgeBlurStrip>();
+      expect(row.single.fade!.wholeUntil, 390 - blurSidesFade);
+      await tester.pumpWidget(const SizedBox());
+      debugEdgeLook = EdgeLook.backdrop;
+      addTearDown(() => debugEdgeLook = null);
+      final banded = (await boxed(tester, const SizedBox(width: 390, height: 44, child: BlurSides(start: false, end: true, child: SizedBox.expand())))).cast<EdgeBlurStrip>();
+      expect(banded.single.fade!.wholeUntil, 390 - blurSidesFade, reason: 'the band\'s blur clears over the short fade ([BoxBands.fadeAt])');
+    });
+
     // Matt, 2026-10-25, on the Fold: "the cassette area needs to have a blur not a gradient". Where the engine
     // filters by a shader, a box's ends are blurred as backdrop bands over its fade. The test's engine cannot run the
     // shader: the look was seen on the ghostflutter2 emulator (build/feature-shots/shelf-blur/).
