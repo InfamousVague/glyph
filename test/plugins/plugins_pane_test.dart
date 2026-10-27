@@ -106,11 +106,11 @@ void main() {
       install(shipped());
       await pumpSettings(tester, SettingsSheet(open: true, onClose: () {}), size: const Size(390, 1600));
       final listed = [for (final s in sectionsOf(tester)) if (s.listed) s.id];
-      expect(listed.sublist(listed.indexOf('ai'), listed.indexOf('about') + 1), ['ai', 'market', 'plugin:claude', 'plugin:github', 'plugin:notion', 'about']);
+      expect(listed.sublist(listed.indexOf('ai'), listed.indexOf('about') + 1), ['ai', 'snippets', 'market', 'plugin:claude', 'plugin:github', 'plugin:notion', 'about']);
       final card = find.byKey(const ValueKey('cluster market'));
       expect([for (final id in ['market', 'plugin:claude', 'plugin:github', 'plugin:notion']) find.descendant(of: card, matching: rowOf(id)).evaluate().length], [1, 1, 1, 1]);
       expect(find.descendant(of: card, matching: rowOf('about')), findsNothing);
-      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '7 of 16 plugins added');
+      expect(tester.widget<Text>(find.descendant(of: rowOf('market'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, '7 of 17 plugins added');
       expect(tester.widget<AppIcon>(find.descendant(of: rowOf('market'), matching: find.byType(AppIcon)).first).icon, Lucide.store);
       expect(tester.widget<Text>(find.descendant(of: rowOf('plugin:claude'), matching: find.byKey(const ValueKey('settings-row-summary')))).data, pluginOf('claude').settings!.summary());
       // Each in its own icon, Claude's its own mark as an icon (Matt, 2026-10-26: "iconize the lovart logo so we can use

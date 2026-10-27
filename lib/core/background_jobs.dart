@@ -28,7 +28,7 @@ abstract interface class BackgroundJobs {
   Future<void> running(String id, {required String title, required String text, int? done, int? total});
 
   /// It ended: the device lets it go, and says [title] (with [text] under it) where it notifies; [quiet], it says
-  /// nothing (a picture or two made, which the app shows itself). A job that is not the one held is let be.
+  /// nothing (a picture or two made, which the app shows itself). Others still running keep the device holding on.
   Future<void> ended(String id, {required String title, String? text, bool quiet = false});
 
   /// Who is told when the person stops the job from the device's own notification.

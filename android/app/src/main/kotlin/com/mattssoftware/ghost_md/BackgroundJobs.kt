@@ -38,6 +38,9 @@ import io.flutter.plugin.common.MethodChannel
  *   made for 97 notes · 3 skipped"), as a meeting's "Written up" does; tapping it opens the app.
  * - Stop on the notification is said back to Dart as `stop {id}`.
  *
+ * Several jobs at once (a voice-over read while Lovart's pictures are made) share the one service: each is kept by its
+ * id, the notification says whichever spoke last, and the service and its wake lock go only when the last has ended.
+ *
  * Swiped out of the recents, the activity goes and its engine with it, and the job with the engine: the service lets
  * itself go and says the job goes on when Ghost.md is opened, which is when the app takes it up again from where it
  * kept it.
@@ -106,9 +109,8 @@ class BackgroundJobService : Service() {
   /** The app's task swiped away: the engine, and the job in it, are gone. */
   override fun onTaskRemoved(rootIntent: Intent?) {
     super.onTaskRemoved(rootIntent)
-    val job = said
-    if (job != null) postEnded(this, job.id, job.title, "Paused. It goes on when you open Ghost.md.")
-    said = null
+    for (job in jobs.values.toList()) postEnded(this, job.id, job.title, "Paused. It goes on when you open Ghost.md.")
+    jobs.clear()
     finish()
   }
 
@@ -119,7 +121,6 @@ class BackgroundJobService : Service() {
   }
 
   private fun show(job: Said) {
-    said = job
     holdWakeLock()
     try {
       NotificationManagerCompat.from(this).notify(ONGOING_ID, notification(this, job))
@@ -175,34 +176,40 @@ class BackgroundJobService : Service() {
 
     @Volatile private var current: BackgroundJobService? = null
 
-    /** The job's last word, null once it has ended. */
-    @Volatile private var said: Said? = null
+    /** The jobs running, by id, each with its last word; the last to speak is the one shown. */
+    private val jobs = LinkedHashMap<String, Said>()
+
+    /** The job the notification says: the one that spoke last, null once every job has ended. */
+    private val said: Said? get() = synchronized(jobs) { jobs.values.lastOrNull() }
 
     fun running(context: Context, id: String, title: String, text: String, done: Int?, total: Int?): String {
       val job = Said(id, title, text, done, total)
       val service = current
-      if (service != null && said != null) {
+      val held = synchronized(jobs) {
+        val any = jobs.isNotEmpty()
+        jobs.remove(id)
+        jobs[id] = job
+        any
+      }
+      if (service != null && held) {
         service.show(job)
         return "running"
       }
-      said = job
       return try {
         ContextCompat.startForegroundService(context, Intent(context, BackgroundJobService::class.java).setAction(ACTION_RUN))
         "started"
       } catch (error: Exception) {
         // ForegroundServiceStartNotAllowedException and its kin: the job runs while the app does.
-        said = null
+        synchronized(jobs) { jobs.remove(id) }
         Log.w(TAG, "the job's service was refused", error)
         "refused"
       }
     }
 
     fun ended(context: Context, id: String, title: String, text: String?, quiet: Boolean = false) {
-      val had = said
-      // Another job holds the service now (the header run took over from a picture or two): it is let be.
-      if (had != null && had.id != id) return
-      said = null
-      current?.finish()
+      val (had, left) = synchronized(jobs) { jobs.remove(id) to jobs.values.lastOrNull() }
+      // Another job still runs (a voice-over while Lovart's pictures are made): the service stays for it, saying it.
+      if (left != null) current?.show(left) else current?.finish()
       if (had != null && !quiet) postEnded(context, id, title, text)
     }
 
