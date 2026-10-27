@@ -101,15 +101,14 @@ void main() {
       expect(fake.asked, isEmpty);
     });
 
-    test('lists the voices, the chosen one first, then the rest and the person’s own', () async {
+    test('lists only the eight voices, the chosen one first, the person’s own hidden', () async {
       await key();
       keepOwnVoices(const [ElevenVoice(id: 'mine1', name: 'Matt', line: 'Cloned from a memo')]);
       setVoice('6WwXjDDEMyNmFG95zycZ');
       final choices = voiceOver().choices!('n');
       expect(choices.first.label, 'Eldrin');
-      expect(choices.length, offeredVoices.length + 1);
-      expect(choices.last.label, 'Matt');
-      expect(choices.last.hint, 'Cloned from a memo · Your own voice');
+      expect({for (final choice in choices) choice.label}, {'Elara', 'Darian', 'Talia', 'Eldrin', 'Elowen', 'Finley', 'Florence', 'Baxter'});
+      expect(choices.length, 8);
     });
 
     test('reads the note in the voice pressed, keeps the parts joined as one MP3, and puts it under the title', () async {

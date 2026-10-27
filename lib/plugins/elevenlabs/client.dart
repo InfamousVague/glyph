@@ -60,7 +60,8 @@ class ElevenFailure implements Exception {
   bool get badKey => status == 401 && !missingPermission && !spent;
 
   /// The key is good but may not do this: ElevenLabs' restricted keys name what they may.
-  bool get missingPermission => code == 'missing_permissions';
+  /// Said by its code, or, where ElevenLabs words it otherwise, by a 401 whose message names a permission.
+  bool get missingPermission => code == 'missing_permissions' || (status == 401 && message.toLowerCase().contains('permission'));
 
   /// The month's characters, or the account's credits, are spent.
   bool get spent => status == 402 || code == 'quota_exceeded' || code == 'insufficient_credits';
@@ -319,7 +320,8 @@ ElevenFailure elevenTrouble(FetchResponse answer) {
   } else {
     words = 'ElevenLabs answered $status.';
   }
-  return ElevenFailure(words, status: status, code: code);
+  // Kept by its code, whatever words ElevenLabs used for it.
+  return ElevenFailure(words, status: status, code: failure.missingPermission ? 'missing_permissions' : code);
 }
 
 /// The client the voice-over and the page ask: the one with the kept key, unless a test gives its own.

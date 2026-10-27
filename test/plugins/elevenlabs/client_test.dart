@@ -54,6 +54,10 @@ void main() {
     answer = (request) async => failing(401, {'status': 'missing_permissions', 'message': 'The API key you used is missing the permission user_read'});
     final limited = await client().check();
     expect((limited!.badKey, limited.missingPermission), (false, true));
+    answer = (request) async => failing(401, {'type': 'authorization_error', 'code': 'unauthorized', 'message': 'This API key lacks the user_read permission'});
+    final worded = await client().check();
+    expect((worded!.badKey, worded.missingPermission), (false, true));
+    expect(worded.message, contains('Give it Text to Speech'));
   });
 
   test('lists the person’s own voices, leaving out the ones ElevenLabs ships, each with a few words', () async {

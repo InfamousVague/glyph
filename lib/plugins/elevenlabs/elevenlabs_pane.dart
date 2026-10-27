@@ -99,11 +99,6 @@ class _ElevenLabsPaneState extends State<ElevenLabsPane> {
     } on ElevenFailure {
       // A key that may not read its account still reads aloud.
     }
-    try {
-      keepOwnVoices(await client.voices());
-    } on ElevenFailure {
-      // The voices it had stay.
-    }
   }
 
   Future<void> _keep() async {

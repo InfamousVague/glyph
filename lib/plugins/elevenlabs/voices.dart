@@ -1,7 +1,6 @@
 /// The voices a voice-over can be read in, and the model it is read with (Matt, 2026-10-27: "with several voices to
-/// choose from"): a choice of eight from ElevenLabs' own, each with a line on how it sounds, then the person's own
-/// voices as ElevenLabs lists them (client.dart [ElevenLabsClient.voices]); and the choice kept, which follows the
-/// account (lib/sync/connections.dart).
+/// choose from"): a choice of eight from ElevenLabs' own, each with a line on how it sounds, and only those (the
+/// person's own voices are hidden); and the choice kept, which follows the account (lib/sync/connections.dart).
 ///
 /// **The eight** are ElevenLabs' current default voices, by the ids its help page "What are Default voices?" gives as
 /// read on 2026-10-27. Not the older ones (Rachel, Adam, Roger, Sarah …): that page says those stop working at the end
@@ -103,16 +102,9 @@ class VoiceChoice {
   final bool own;
 }
 
-/// Every voice to choose from: the eight, then the person's own, each once.
-List<VoiceChoice> voiceChoices() {
-  final seen = <String>{};
-  return [
-    for (final voice in offeredVoices)
-      if (seen.add(voice.id)) VoiceChoice(id: voice.id, name: voice.name, line: voice.line),
-    for (final voice in ownVoices())
-      if (seen.add(voice.id)) VoiceChoice(id: voice.id, name: voice.name, line: voice.line.isEmpty ? 'Your own voice' : voice.line, own: true),
-  ];
-}
+/// Every voice to choose from: the eight and no others (Matt, 2026-10-27: "Restrict the voice options to elara Darian
+/// Talia eldrin elowen Finley Florence and Baxter hide the rest"). The person's own voices are not offered.
+List<VoiceChoice> voiceChoices() => [for (final voice in offeredVoices) VoiceChoice(id: voice.id, name: voice.name, line: voice.line)];
 
 /// The voice of [id] among the choices, or null.
 VoiceChoice? voiceOf(String? id) {
