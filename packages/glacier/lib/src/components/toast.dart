@@ -336,6 +336,10 @@ class GlacierToastProvider extends StatefulWidget {
   const GlacierToastProvider({super.key, required this.child});
   final Widget child;
 
+  /// Told of every toast as it is shown, by its tone: the app's one place to hear them all, for a sound under a
+  /// failure (an addition, the app's Settings › Sounds). Null hears nothing.
+  static void Function(GlacierToastTone tone)? onShown;
+
   @override
   State<GlacierToastProvider> createState() => _GlacierToastProviderState();
 }
@@ -373,6 +377,7 @@ class _GlacierToastProviderState extends State<GlacierToastProvider> {
     }
     _nextId += 1;
     entry.id = _nextId;
+    GlacierToastProvider.onShown?.call(entry.tone);
     setState(() {
       for (final old in _entries) {
         old.present = false;

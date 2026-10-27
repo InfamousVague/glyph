@@ -66,6 +66,9 @@ class MainActivity : FlutterActivity() {
     /** The player of the voice memos left in a note: its own, so a memo never moves the tape (TapePlayer.kt). */
     private var clips: TapePlayer? = null
 
+    /** The app's sounds inside the app, a pool let go with the activity (Sounds.kt; lib/sounds/sounds.dart). */
+    private var sounds: Sounds? = null
+
     /** The system's pickers, each answered when its activity result arrives (FilesBridge.kt). */
     private val files = FilesBridge(this)
 
@@ -154,6 +157,9 @@ class MainActivity : FlutterActivity() {
         // A note's recording, played (TapePlayer.kt; lib/tapes/phone_player.dart).
         tape = TapePlayer(applicationContext).also { it.register(messenger) }
         clips = TapePlayer(applicationContext, TapePlayer.CLIPS).also { it.register(messenger) }
+        // The to-do's tick, the recorder's start and stop and the rest of Settings › Sounds (Sounds.kt;
+        // lib/sounds/sounds.dart).
+        sounds = Sounds(applicationContext).also { it.register(messenger) }
         // The phone's pickers: a folder for the library, a drive to back up to, where an export goes
         // (FilesBridge.kt; lib/core/library_folder.dart, lib/core/backup.dart, lib/core/export_all.dart).
         files.register(messenger)
@@ -243,6 +249,7 @@ class MainActivity : FlutterActivity() {
         DictationMic.released()
         tape?.release()
         clips?.release()
+        sounds?.release()
         film?.release()
         documents.release()
         diagrams?.destroy()

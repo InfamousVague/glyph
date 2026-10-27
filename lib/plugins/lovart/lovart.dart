@@ -37,6 +37,8 @@ import 'making.dart';
 import 'lovart_mark.dart';
 import 'lovart_pane.dart';
 import 'manifest.dart';
+import '../../sounds/sound_pack.dart' show SoundEvent;
+import '../../sounds/sounds.dart' show sounds;
 
 export 'banner_run.dart';
 export 'banners.dart';
@@ -89,6 +91,8 @@ Future<bool> makeCue(NoteEditing editing, ImageCue cue) async {
     if (names.isEmpty) return false;
     final written = placeCue(editing, cue, names);
     if (!written) editing.say('The image was made, but its {image: …} was gone from the note.');
+    // Lovart's picture is ready (Settings › Sounds; Matt, 2026-10-27).
+    if (written) sounds.play(SoundEvent.lovartReady);
     return written;
   } on LovartFailure catch (failure) {
     editing.say(lovartSaid(failure));
@@ -123,7 +127,10 @@ Future<void> makeAllCues(NoteEditing editing) async {
       markMaking(key, false);
     }
   }
-  if (made > 0) editing.say(made == 1 ? 'Made 1 image with Lovart.' : 'Made $made images with Lovart.');
+  if (made > 0) {
+    editing.say(made == 1 ? 'Made 1 image with Lovart.' : 'Made $made images with Lovart.');
+    sounds.play(SoundEvent.lovartReady);
+  }
 }
 
 /// A moodboard of four for the open note, under its `## Inspiration`.

@@ -85,15 +85,15 @@ void main() {
   setUpAll(loadAppFonts);
 
   group('the table', () {
-    test('in Simple is Account, Notifications, Appearance and About with its cheat sheet, and in Advanced everything', () {
-      expect(_among(_facts(_simple)), ['account', 'notifications', 'theme', 'about', 'cheatsheet']);
+    test('in Simple is Account, Notifications, Appearance, Sounds and About with its cheat sheet, and in Advanced everything', () {
+      expect(_among(_facts(_simple)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet']);
       // The hidden pages answer to their own switch, in either mode.
-      expect(_among(_facts(_simple, developer: true)), ['account', 'notifications', 'theme', 'about', 'cheatsheet', 'developer', 'test-results']);
+      expect(_among(_facts(_simple, developer: true)), ['account', 'notifications', 'theme', 'sounds', 'about', 'cheatsheet', 'developer', 'test-results']);
       // The meeting plugins' pages, which were Meetings, are kept in Simple too, but listed only for an account whose
       // service has Ghost in meetings, and these facts have no account (test/plugins/meetings_test.dart lists them).
       // Recording with them, for the Meetings card every kind shares (test/meet/meeting_sorting_test.dart).
       expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections.difference({'plugin:google-meet', 'plugin:zoom', 'recording'}));
-      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
+      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'sounds', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
       expect(_among(_facts(_advanced)), everything);
       // Until the choice is made the app is advanced, and so is Settings.
       expect(_among(_facts(const Preferences(theme: 'light'))), everything);
@@ -108,18 +108,18 @@ void main() {
       expect(simpleSections, contains('theme'));
     });
 
-    test('puts Appearance on a card of its own right after Account’s, in Simple and in Advanced', () {
+    test('puts Appearance, and Sounds under it, on a card of their own right after Account’s, in Simple and in Advanced', () {
       for (final prefs in [_simple, _advanced, const Preferences(theme: 'light')]) {
         for (final developer in [false, true]) {
           final cards = _cards(_facts(prefs, developer: developer));
           expect(cards.first.first, 'account', reason: '${prefs.experience} $developer');
-          expect(cards[1], ['theme'], reason: '${prefs.experience} $developer');
+          expect(cards[1], ['theme', 'sounds'], reason: '${prefs.experience} $developer');
         }
       }
       expect(settingsSections.singleWhere((spec) => spec.id == 'theme').group, appearanceGroup);
       expect(_cards(_facts(_simple)), [
         ['account', 'notifications'],
-        ['theme'],
+        ['theme', 'sounds'],
         ['about'],
       ]);
     });
@@ -152,13 +152,13 @@ void main() {
   group('the sheet', () {
     testWidgets('lists the short list in Simple with Appearance under Account’s card, and the rest comes back with Advanced', (tester) async {
       await _open(tester);
-      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'About']);
+      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds', 'About']);
       expect(_line(tester, 'Appearance'), 'Simple · Light · Maple Mono');
       expect(find.text('Simple or advanced', skipOffstage: false), findsNothing);
       // Another device, or the walkthrough, choosing Advanced: the list is read from the preferences, live.
       preferences.update((now) => now.choosing('advanced'));
       await tester.pump();
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
       expect(_line(tester, 'Appearance'), 'Advanced · Light · Maple Mono');
       await endSettings(tester);
     });
@@ -190,7 +190,7 @@ void main() {
       await tester.pump();
       await settleSettings(tester);
       expect(_display(tester), isNull);
-      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'About']);
+      expect(_labels(tester), ['Account', 'Notifications', 'Appearance', 'Sounds', 'About']);
       expect(_line(tester, 'Appearance'), 'Simple · Light · Maple Mono');
 
       // And back again, from the same card.
@@ -201,7 +201,7 @@ void main() {
       testBack.goBack();
       await tester.pump();
       await settleSettings(tester);
-      expect(_labels(tester), hasLength(12));
+      expect(_labels(tester), hasLength(13));
       await endSettings(tester);
     });
 

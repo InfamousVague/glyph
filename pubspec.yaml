@@ -73,6 +73,10 @@ flutter:
     # www.lovart.ai, as read on 2026-10-26 (docs/LOVART.md). A third party's mark: drawn only in the Lovart plugin's
     # own places (its page, its actions, the chip by a cue, the badge on a picture it made), never in the store's.
     - assets/plugins/lovart/lovart-mark.svg
+    # The sound packs (lib/sounds/sound_pack.dart; Matt, 2026-10-27: "build ... the sounds settings"): each event's
+    # file, .ogg for Android and .caf for Apple's. Ghostly's are placeholders until Matt's own drop in
+    # (assets/sounds/README.md).
+    - assets/sounds/ghostly/
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

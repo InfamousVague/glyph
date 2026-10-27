@@ -33,6 +33,7 @@ import 'panes/organizations_pane.dart';
 import 'panes/plugins_pane.dart';
 import 'panes/recording_pane.dart';
 import 'panes/settings_host.dart';
+import 'panes/sounds_pane.dart';
 import 'panes/spec_pane.dart';
 import 'panes/test_results_pane.dart';
 import 'panes/workspaces_pane.dart';
@@ -283,11 +284,11 @@ bool meetingPagesInSimple(SettingsFacts facts) {
 
 /// The sections Simple keeps (Matt, 2026-10-18): who you are and what reaches you, the meeting plugins' pages (which
 /// were Meetings, which was a card of Account's until GHST-110; [PluginSettings.simple]), how it looks with the choice
-/// itself on its first card, and the app itself with its cheat sheet. Recording too wherever a meeting plugin's page is
+/// itself on its first card, how it sounds (Matt, 2026-10-27), and the app itself with its cheat sheet. Recording too wherever a meeting plugin's page is
 /// ([meetingPagesInSimple]), for its Meetings card, the rest of it behind More. Appearance is never put away: the way back to Advanced is on it. Everything else, Organizations, Workspaces, Library folder, Backup,
 /// Export, Recording, AI, the Market and the plugins' pages, the Specification and the Examples, waits behind Advanced; Developer and Test
 /// results answer to their own switch alone. The ids, so a test can hold the table to the list.
-const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'recording', 'theme', 'about', 'cheatsheet', 'developer', 'test-results'};
+const Set<String> simpleSections = {'account', 'notifications', 'plugin:google-meet', 'plugin:zoom', 'recording', 'theme', 'sounds', 'about', 'cheatsheet', 'developer', 'test-results'};
 
 /// `where` for a section Simple puts away: the one gate, AND-ed with the section's own where it has one.
 bool _advanced(SettingsFacts facts) => !facts.simple;
@@ -414,6 +415,21 @@ final List<SettingsSectionSpec> _sections = [
     // In Simple the page is the mode, the theme and the text size alone, and so is what the search finds on it.
     settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
     pane: (context) => const AppearancePane(),
+  ),
+  // What the app sounds like (Matt, 2026-10-27: "build ... the sounds settings"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md):
+  // on Appearance's card, under it, since a pack is a look for the ears. In Simple too, its page the pack and the
+  // switch with the rest behind More.
+  SettingsSectionSpec(
+    id: 'sounds',
+    label: 'Sounds',
+    words: 'sound sounds audio chime tick pack ghostly volume mute quiet notification',
+    glyph: SettingsGlyph.volume,
+    group: appearanceGroup,
+    // The port's own (2026-10-27): the web app has no Sounds page, so its file is Appearance's, the card it is on.
+    webFile: 'settings/AppearancePane.tsx',
+    summary: (facts) => soundsSummary(facts.prefs),
+    settings: (facts) => soundsFindable(),
+    pane: SoundsPane.hosted,
   ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
   // files (not an iPhone), and Export everywhere.

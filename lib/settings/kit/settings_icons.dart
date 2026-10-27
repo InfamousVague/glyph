@@ -33,6 +33,8 @@ enum SettingsGlyph {
   // Meetings' row: the people in a meeting (Matt, 2026-10-24: "use a different icon for meetings"), where it was the
   // ghost (GHST-110).
   users,
+  // Sounds' row (Matt, 2026-10-27: "build ... the sounds settings"): a speaker.
+  volume,
   x,
 }
 
@@ -91,5 +93,6 @@ LucideIcon? _kit(SettingsGlyph glyph) => switch (glyph) {
       SettingsGlyph.terminal => Lucide.terminal,
       SettingsGlyph.userGroup => Lucide.userGroup,
       SettingsGlyph.users => Lucide.users,
+      SettingsGlyph.volume => Lucide.volume2,
       SettingsGlyph.x => Lucide.x,
     };

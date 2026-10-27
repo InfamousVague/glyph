@@ -70,6 +70,11 @@ const List<String> syncedPrefs = [
   'wisp',
   'wispEdge',
   'ripples',
+  // Settings › Sounds (Matt, 2026-10-27): the pack, whether the app makes sounds, and each event's switch travel, as a
+  // look does. The volume does not (`soundVolume`): a phone and a Mac are not equally loud.
+  'soundPack',
+  'interfaceSounds',
+  'soundEvents',
   'motionSpeed',
   'linkPreviews',
   // Whether a canvas's cards land on its dots: a way of working, the same on every device.

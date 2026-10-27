@@ -116,6 +116,8 @@ const Map<String, String> _hues = {
   'import': 'rose',
   'ai': 'magenta',
   'theme': 'purple',
+  // Sounds, under Appearance (Matt, 2026-10-27: "build ... the sounds settings"), in the amber no row had yet.
+  'sounds': 'amber',
   'recording': 'red',
   'market': 'green',
   'about': 'yellow',

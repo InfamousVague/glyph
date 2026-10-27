@@ -134,6 +134,15 @@ bool isTypeface(Object? value) => value is String && typefaces.contains(value);
 /// preferences read without the packs' drawings; test/art/icon_packs_test.dart holds the two lists the same.
 const List<String> iconPackChoices = ['lucide', 'phosphor', 'tabler', 'material', 'remix'];
 
+/// The sound packs (lib/sounds/sound_pack.dart `soundPacks`; Matt, 2026-10-27: "build ... the sounds settings"),
+/// Ghostly first and the default, then Off. Words here, as the icon packs are, so the preferences read without the
+/// packs' files; test/sounds/sound_pack_test.dart holds the two lists the same.
+const List<String> soundPackChoices = ['ghostly', 'off'];
+
+/// The steps of the interface sounds' volume, quietest first: Settings › Sounds draws them as a segmented control,
+/// since the kit has no slider and four steps are all a tap needs.
+const List<double> soundVolumes = [0.25, 0.5, 0.75, 1];
+
 /// The three ways they are drawn (`IconStyle`, lib/art/icon_pack.dart): outline, solid, filled.
 const List<String> iconStyleChoices = ['outline', 'solid', 'filled'];
 
@@ -421,6 +430,10 @@ class Preferences {
     this.wisp = true,
     this.wispEdge = true,
     this.ripples = true,
+    this.soundPack = 'ghostly',
+    this.interfaceSounds = true,
+    this.soundVolume = 0.75,
+    this.soundEvents = const {},
     this.motionSpeed = 'normal',
     this.linkPreviews = true,
     this.canvasSnap = true,
@@ -521,6 +534,12 @@ class Preferences {
       wisp: flag('wisp', d.wisp),
       wispEdge: flag('wispEdge', d.wispEdge),
       ripples: flag('ripples', d.ripples),
+      // A pack from a later build, which this one has no files for, is Ghostly; a volume that is not a step is the
+      // default; a switch that is not a yes or a no is left out, and so reads as its event's default.
+      soundPack: soundPackChoices.contains(map['soundPack']) ? map['soundPack'] as String : d.soundPack,
+      interfaceSounds: flag('interfaceSounds', d.interfaceSounds),
+      soundVolume: map['soundVolume'] is num && soundVolumes.contains((map['soundVolume'] as num).toDouble()) ? (map['soundVolume'] as num).toDouble() : d.soundVolume,
+      soundEvents: _readById<bool>(map['soundEvents'], (on) => on is bool),
       motionSpeed: motionScales.containsKey(motionSpeed) ? motionSpeed as String : d.motionSpeed,
       linkPreviews: flag('linkPreviews', d.linkPreviews),
       canvasSnap: flag('canvasSnap', d.canvasSnap),
@@ -665,6 +684,16 @@ class Preferences {
   final bool wispEdge;
   final bool ripples;
 
+  /// Settings › Sounds (lib/settings/panes/sounds_pane.dart): the pack every sound is played from
+  /// ([soundPackChoices]), whether sounds inside the app play at all, how loud they are ([soundVolumes]), and each
+  /// event's own switch, by its id (lib/sounds/sound_pack.dart `SoundEvent`), only those that were switched: an
+  /// event not in it is its default (`SoundEvent.on`), so a default changed later reaches everyone who never touched
+  /// it. The volume stays on this device, since a phone and a Mac are not equally loud; the rest travel.
+  final String soundPack;
+  final bool interfaceSounds;
+  final double soundVolume;
+  final Map<String, bool> soundEvents;
+
   /// The pace of all of it ([motionScales]).
   final String motionSpeed;
 
@@ -700,6 +729,7 @@ class Preferences {
     'assist', 'textSize', 'typeface', //
     'noteFace', 'iconPack', 'iconStyle', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
+    'soundPack', 'interfaceSounds', 'soundVolume', 'soundEvents', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
 
@@ -745,6 +775,10 @@ class Preferences {
     bool? wisp,
     bool? wispEdge,
     bool? ripples,
+    String? soundPack,
+    bool? interfaceSounds,
+    double? soundVolume,
+    Map<String, bool>? soundEvents,
     String? motionSpeed,
     bool? linkPreviews,
     bool? canvasSnap,
@@ -798,6 +832,10 @@ class Preferences {
         wisp: wisp ?? this.wisp,
         wispEdge: wispEdge ?? this.wispEdge,
         ripples: ripples ?? this.ripples,
+        soundPack: soundPack ?? this.soundPack,
+        interfaceSounds: interfaceSounds ?? this.interfaceSounds,
+        soundVolume: soundVolume ?? this.soundVolume,
+        soundEvents: soundEvents ?? this.soundEvents,
         motionSpeed: motionSpeed ?? this.motionSpeed,
         linkPreviews: linkPreviews ?? this.linkPreviews,
         canvasSnap: canvasSnap ?? this.canvasSnap,
@@ -854,6 +892,10 @@ class Preferences {
         'wisp': wisp,
         'wispEdge': wispEdge,
         'ripples': ripples,
+        'soundPack': soundPack,
+        'interfaceSounds': interfaceSounds,
+        'soundVolume': _number(soundVolume),
+        'soundEvents': soundEvents,
         'motionSpeed': motionSpeed,
         'linkPreviews': linkPreviews,
         'canvasSnap': canvasSnap,

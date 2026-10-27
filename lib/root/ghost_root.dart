@@ -226,6 +226,8 @@ import 'take_back.dart';
 import 'iphone_wiring.dart';
 import 'update_wiring.dart';
 import 'voice_wiring.dart';
+import '../sounds/sound_pack.dart' show SoundEvent;
+import '../sounds/sounds.dart' show sounds;
 
 part 'root_claude.dart';
 part 'root_commands.dart';

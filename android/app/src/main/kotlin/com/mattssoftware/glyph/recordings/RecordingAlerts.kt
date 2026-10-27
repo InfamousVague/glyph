@@ -18,6 +18,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.mattssoftware.ghost_md.LinkDoor
 import com.mattssoftware.ghost_md.MainActivity
+import com.mattssoftware.ghost_md.SoundChannels
 import com.mattssoftware.glyph.capture.MeetingService
 
 /**
@@ -167,13 +168,16 @@ internal object RecordingAlerts {
       .setClass(context, LinkDoor::class.java)
       .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     val pending = PendingIntent.getActivity(context, noteId.hashCode(), open, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-    val public = NotificationCompat.Builder(context, CHANNEL_ID)
+    // With the pack's write-up sound where Settings › Sounds has it on (SoundChannels.kt): a channel of its own beside
+    // this one, since a channel's sound is fixed once it is made. The ongoing ones above stay here, silent.
+    val channel = SoundChannels.channel(context, SoundChannels.WRITEUP, CHANNEL_ID, "Recordings", NotificationManager.IMPORTANCE_DEFAULT)
+    val public = NotificationCompat.Builder(context, channel)
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setContentTitle("A recording was written up")
       .setContentIntent(pending)
       .setAutoCancel(true)
       .build()
-    val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+    val notification = NotificationCompat.Builder(context, channel)
       .setSmallIcon(android.R.drawable.ic_btn_speak_now)
       .setContentTitle("Written up: $title")
       .setContentText(text)

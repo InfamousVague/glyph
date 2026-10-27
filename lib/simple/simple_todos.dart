@@ -30,6 +30,8 @@ import '../core/days.dart';
 import '../core/note.dart';
 import '../core/trash.dart';
 import '../home/home_text.dart' show pageText, tabular;
+import '../sounds/sound_pack.dart' show SoundEvent;
+import '../sounds/sounds.dart' show sounds;
 import 'todos_groups.dart';
 
 /// How long a ticked row stays, ticked, before it leaves the open groups.
@@ -138,6 +140,10 @@ class _SimpleTodosState extends State<SimpleTodos> {
       _held ??= _current();
       _ticking.add(todo.key);
     });
+    // The tick's sound, or the ghost's moment where this was the last open one and its switch is on (Settings ›
+    // Sounds; Matt, 2026-10-27); with it off, the last is a tick like the rest.
+    final left = _held!.any((group) => group.todos.any((each) => !_doneKeys.contains(each.key) && !_ticking.contains(each.key)));
+    sounds.play(!left && sounds.wants(SoundEvent.allTicked) ? SoundEvent.allTicked : SoundEvent.todoTicked);
     _beatTimer?.cancel();
     // Under reduced motion the beat is still a pause, not a movement: the row leaving at once would be the jump.
     _beatTimer = Timer(_beat, _afterBeat);
