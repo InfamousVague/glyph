@@ -93,7 +93,7 @@ void main() {
     });
 
     testWidgets('shows Next at once on a page that fits the screen', (tester) async {
-      await guide(tester, at(GuidePage.theme));
+      await guide(tester, at(GuidePage.market));
       expect(shown(tester, pill('Next')), isTrue);
       await tester.pump(nudgeAfter);
       expect(shown(tester, nudge()), isFalse);
@@ -112,14 +112,14 @@ void main() {
     });
 
     testWidgets('steps with Next and Back, and the back gesture steps back until the first page, where it closes the guide', (tester) async {
-      final it = await guide(tester, at(GuidePage.model));
+      final it = await guide(tester, at(GuidePage.market));
       await tester.tap(pill('Next'));
-      expect(it.turned.last, at(GuidePage.model) + 1);
+      expect(it.turned.last, at(GuidePage.market) + 1);
       await tester.tap(word('Back'));
-      expect(it.turned.last, at(GuidePage.model) - 1);
+      expect(it.turned.last, at(GuidePage.market) - 1);
       it.turned.clear();
       testBack.goBack();
-      expect(it.turned, [at(GuidePage.model) - 1]);
+      expect(it.turned, [at(GuidePage.market) - 1]);
       expect(it.calls, isEmpty);
       await it.again(0);
       expect(tester.widget<GuideWord>(word('Back')).onPressed, isNull);
@@ -130,15 +130,17 @@ void main() {
     });
 
     testWidgets('says where the reader is, and offers Skip until the last page, which offers Close, the Academy and Start', (tester) async {
-      final it = await guide(tester, at(GuidePage.theme));
-      expect(find.bySemanticsLabel('Page ${at(GuidePage.theme) + 1} of ${walkthroughPages.length}'), findsOneWidget);
+      final it = await guide(tester, at(GuidePage.market));
+      expect(find.bySemanticsLabel('Page ${at(GuidePage.market) + 1} of ${walkthroughPages.length}'), findsOneWidget);
       await tester.tap(word('Skip'));
       expect(it.calls, ['close']);
       await it.again(walkthroughPages.length - 1);
       await wait(tester, 400);
-      expect(words(tester), contains('Learn it, or just start.'));
+      expect(words(tester), contains('You’re ready.'));
       await tester.tap(pill('Take the Ghost.md Academy'));
       expect(it.calls, ['close', 'academy']);
+      // The last page asks light or dark under its words, so Start waits for the bottom like any Next.
+      await toTheEnd(tester);
       await tester.tap(pill('Start'));
       expect(it.calls, ['close', 'academy', 'close']);
       expect(word('Close'), findsOneWidget);
@@ -158,10 +160,12 @@ void main() {
     });
 
     testWidgets('teaches no page of marks and no habits: those are the Academy’s', (tester) async {
+      // The side key may be named now: the page on speaking a note says it is one way to start (Matt, 2026-10-27,
+      // the brief for the tour: "speaking a note (the recorder / side key / mic)").
       final it = await guide(tester, 0);
       for (final page in walkthroughPages) {
         await it.again(at(page));
-        expect(words(tester), isNot(matches(RegExp('Every mark, side by side|A few habits|side key'))), reason: page.name);
+        expect(words(tester), isNot(matches(RegExp('Every mark, side by side|A few habits'))), reason: page.name);
       }
       await away(tester);
     });
