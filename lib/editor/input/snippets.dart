@@ -81,7 +81,8 @@ TransactionSpec _step(ChangeSet changes, int caret) => TransactionSpec(
       scrollIntoView: true,
     );
 
-/// The words a transaction put in where it ends at the caret: what a keyboard typed last.
+/// Whether what a transaction put in ends with a space where the caret is: a keyboard's space, alone or committing
+/// the word before it.
 bool _endsWithSpaceAtCaret(Transaction tr) {
   final head = tr.newSelection.main;
   if (!head.empty) return false;
