@@ -22,12 +22,14 @@ library;
 import 'dart:math' as math;
 
 import 'package:flutter/rendering.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
 import '../../perf/frame_log.dart' show Perf, ghostPerf;
 import '../looks/look.dart';
 import 'editor_view.dart';
+import 'entry_shade.dart';
 import 'plugin.dart';
 
 /// The editor as a sliver. `env` is the sizes and tokens it is drawn with: the page's own unless given.
@@ -314,6 +316,7 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
 
   void _remove(RenderBox child) {
     _kids.remove(child);
+    _dims.remove(child)?.layer = null;
     dropChild(child);
   }
 
@@ -338,6 +341,8 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
     for (final child in _kids) {
       child.detach();
     }
+    // Listened to again at the next paint, if it is ever attached again.
+    _letShadesGo();
   }
 
   @override
@@ -477,12 +482,97 @@ class RenderSliverEditor extends RenderSliver with RenderSliverHelpers implement
   void paint(PaintingContext context, Offset offset) {
     final began = ghostPerf ? Perf.now() : 0;
     final extent = constraints.remainingPaintExtent;
+    final shades = _shadesNow();
     for (final child in _kids) {
       final y = childMainAxisPosition(child);
       // What is wholly off the painted stretch is left out; the cache keeps it built.
-      if (y < extent && y + child.size.height > 0) context.paintChild(child, offset + Offset(0, y));
+      if (y < extent && y + child.size.height > 0) {
+        final at = offset + Offset(0, y);
+        final opacity = shades.isEmpty ? 1.0 : _opacityOf(child, shades);
+        if (opacity >= 1) {
+          _dims.remove(child)?.layer = null;
+          context.paintChild(child, at);
+        } else if (opacity > 0) {
+          // An entry focus mode dims (lib/editor/view/entry_shade.dart): through a layer of its own, kept from frame
+          // to frame of a fade.
+          final handle = _dims[child] ??= LayerHandle<OpacityLayer>();
+          handle.layer = context.pushOpacity(at, (opacity * 255).round(), (context, at) => context.paintChild(child, at), oldLayer: handle.layer);
+        }
+      }
     }
     if (ghostPerf) Perf.add('editor.sliver.painted', began);
+  }
+
+  // -- shades ------------------------------------------------------------------------------------------------------
+
+  /// The layers of the entries drawn dimmed, by entry.
+  final Map<RenderBox, LayerHandle<OpacityLayer>> _dims = <RenderBox, LayerHandle<OpacityLayer>>{};
+
+  /// The shades this sliver listens to, so a fade's next frame paints it again.
+  final Set<EntryShade> _heard = <EntryShade>{};
+
+  /// The view's shades now, listened to; the ones it has let go of no longer.
+  List<EntryShade> _shadesNow() {
+    final shades = <EntryShade>[
+      for (final source in _view.state.facet(entryShades)) ?source(_view),
+    ];
+    if (shades.isEmpty && _heard.isEmpty) return shades;
+    for (final gone in _heard.where((shade) => !shades.contains(shade)).toList()) {
+      gone.removeListener(_shadeChanged);
+      _heard.remove(gone);
+    }
+    for (final shade in shades) {
+      if (_heard.add(shade)) {
+        shade.addListener(_shadeChanged);
+        // Heard first while it already dims (the sliver attached again under a dimmed page): composited from the
+        // next frame, its bits being settled for this one.
+        if (shade.dims) SchedulerBinding.instance.addPostFrameCallback((_) => attached ? _shadeChanged() : null);
+      }
+    }
+    if (shades.isEmpty) {
+      for (final handle in _dims.values) {
+        handle.layer = null;
+      }
+      _dims.clear();
+    }
+    return shades;
+  }
+
+  double _opacityOf(RenderBox child, List<EntryShade> shades) {
+    final first = _data(child).line;
+    final last = _view.blocks.lastLineOf(first);
+    var opacity = 1.0;
+    for (final shade in shades) {
+      opacity *= shade.opacityOf(first, last);
+    }
+    return opacity;
+  }
+
+  /// A shade changed: painted again, and composited while any dims, since a dimmed entry is a layer of its own
+  /// and a clip above has to be one too to clip it.
+  void _shadeChanged() {
+    markNeedsCompositingBitsUpdate();
+    markNeedsPaint();
+  }
+
+  @override
+  bool get alwaysNeedsCompositing => _heard.any((shade) => shade.dims);
+
+  void _letShadesGo() {
+    for (final shade in _heard) {
+      shade.removeListener(_shadeChanged);
+    }
+    _heard.clear();
+    for (final handle in _dims.values) {
+      handle.layer = null;
+    }
+    _dims.clear();
+  }
+
+  @override
+  void dispose() {
+    _letShadesGo();
+    super.dispose();
   }
 
   // -- scrolling into view -----------------------------------------------------------------------------------------

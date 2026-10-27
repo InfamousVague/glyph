@@ -421,6 +421,8 @@ class Preferences {
     this.wisp = true,
     this.wispEdge = true,
     this.ripples = true,
+    this.focusMode = false,
+    this.focusTypewriter = true,
     this.motionSpeed = 'normal',
     this.linkPreviews = true,
     this.canvasSnap = true,
@@ -521,6 +523,8 @@ class Preferences {
       wisp: flag('wisp', d.wisp),
       wispEdge: flag('wispEdge', d.wispEdge),
       ripples: flag('ripples', d.ripples),
+      focusMode: flag('focusMode', d.focusMode),
+      focusTypewriter: flag('focusTypewriter', d.focusTypewriter),
       motionSpeed: motionScales.containsKey(motionSpeed) ? motionSpeed as String : d.motionSpeed,
       linkPreviews: flag('linkPreviews', d.linkPreviews),
       canvasSnap: flag('canvasSnap', d.canvasSnap),
@@ -665,6 +669,14 @@ class Preferences {
   final bool wispEdge;
   final bool ripples;
 
+  /// Focus mode (Matt, 2026-10-27: "build ... focus mode"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md, idea 14: "Dim every
+  /// paragraph but the one being written, with a typewriter scroll that keeps the line in the middle"). [focusMode]
+  /// is the switch, and dims every block of a note but the caret's while the note is being written in
+  /// (lib/editor/focus/focus_mode.dart); [focusTypewriter], on by default under it, keeps the caret's line in the
+  /// middle of the page as it goes. A way of writing, so it travels with the person (lib/sync/prefs.dart).
+  final bool focusMode;
+  final bool focusTypewriter;
+
   /// The pace of all of it ([motionScales]).
   final String motionSpeed;
 
@@ -699,7 +711,7 @@ class Preferences {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
     'noteFace', 'iconPack', 'iconStyle', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
-    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
+    'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', 'focusMode', 'focusTypewriter', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
 
@@ -745,6 +757,8 @@ class Preferences {
     bool? wisp,
     bool? wispEdge,
     bool? ripples,
+    bool? focusMode,
+    bool? focusTypewriter,
     String? motionSpeed,
     bool? linkPreviews,
     bool? canvasSnap,
@@ -798,6 +812,8 @@ class Preferences {
         wisp: wisp ?? this.wisp,
         wispEdge: wispEdge ?? this.wispEdge,
         ripples: ripples ?? this.ripples,
+        focusMode: focusMode ?? this.focusMode,
+        focusTypewriter: focusTypewriter ?? this.focusTypewriter,
         motionSpeed: motionSpeed ?? this.motionSpeed,
         linkPreviews: linkPreviews ?? this.linkPreviews,
         canvasSnap: canvasSnap ?? this.canvasSnap,
@@ -854,6 +870,8 @@ class Preferences {
         'wisp': wisp,
         'wispEdge': wispEdge,
         'ripples': ripples,
+        'focusMode': focusMode,
+        'focusTypewriter': focusTypewriter,
         'motionSpeed': motionSpeed,
         'linkPreviews': linkPreviews,
         'canvasSnap': canvasSnap,
