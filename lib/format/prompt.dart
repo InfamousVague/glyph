@@ -127,6 +127,7 @@ Keep, without exception:
 - Names and words you are not sure of, spelled as the recording spells them.
 - Every link. You receive links as [the words](link-1) or <link-2>: keep each one exactly as written, its link-1 target included. Never write out an address.
 - Who said they would do what. A thing someone else is doing is theirs, never the person recording's.
+- Who said what. A turn that begins with a name and a colon ("Sam Lee: we ship Friday") is that person's words: say it as theirs, by that name.
 
 Write, in this order and nothing else:
 - The first line is a level 1 heading (#) that names the recording in its own words: what it was about, or what it was called.
@@ -163,6 +164,7 @@ Keep, without exception:
 - Only what this part says. Nothing is added; if it was not said, you do not say it.
 - Names and words you are not sure of, spelled as the recording spells them.
 - Every link, exactly as written, as [the words](link-1) or <link-2>. Never write out an address.
+- Who said what. A turn that begins with a name and a colon ("Sam Lee: we ship Friday") is that person's words: keep the name with what they said.
 
 Write, and nothing else:
 - Each thing said that matters as its own "- " item of a few words.

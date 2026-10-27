@@ -22,7 +22,10 @@ import 'package:ghost_md/claude/claude_settings.dart' show ClaudeSettings;
 import 'package:ghost_md/claude/claude_spend.dart' show ClaudeUsage;
 import 'package:ghost_md/claude/messages_api.dart';
 import 'package:ghost_md/claude/sse.dart' show SseEvent;
+import 'package:ghost_md/core/background_jobs.dart';
+import 'package:ghost_md/core/note.dart' show Segment;
 import 'package:ghost_md/core/preferences.dart' show Preferences;
+import 'package:ghost_md/meet/speakers.dart' show CaptionTurn, captionsSection;
 import 'package:ghost_md/format/prompt.dart' show recordingNotesPrompt, recordingSummaryPrompt;
 
 import 'summaries_test.dart' as q;
@@ -282,6 +285,32 @@ void main() {
       expect(ask.body.containsKey('thinking'), isFalse);
     });
 
+    claudeTest('a meeting\'s words go with who said them, from the captions the note keeps', (tester) async {
+      const turns = [
+        CaptionTurn(speaker: 'Sam Lee', startMs: 0, endMs: 4000, text: 'That is the March launch settled.'),
+        CaptionTurn(speaker: 'Ana Ruiz', startMs: 4000, endMs: 9000, text: 'Sam owns the press list.'),
+      ];
+      final segments = [
+        const Segment(startMs: 0, endMs: 3800, text: 'That is the March launch settled.'),
+        const Segment(startMs: 4200, endMs: 8800, text: 'Sam owns the press list.'),
+      ];
+      q.notes['n1'] = q.note('n1', '# March launch\n\n${captionsSection(turns)}', recordingMs: 9000, segments: segments);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      final ask = api.asked.single;
+      expect(ask.prompt, 'Sam Lee: That is the March launch settled.\n\nAna Ruiz: Sam owns the press list.');
+      expect(ask.system, contains('A turn that begins with a name and a colon'));
+    });
+
+    claudeTest('a meeting with only its written-up transcript here reads the names from it, times left out', (tester) async {
+      q.notes['n1'] = q.note('n1', '# March launch\n\n## Transcript\n\n**Sam Lee (0:00):** That is the March launch settled.\n\n**Ana Ruiz (0:04):** Sam owns the press list.', recordingMs: 9000);
+      q.summaries.enqueueSummary('n1', SummaryKind.meeting);
+      await advance(tester, 0);
+      expect(api.asked.single.prompt, contains('Sam Lee: That is the March launch settled.'));
+      expect(api.asked.single.prompt, contains('Ana Ruiz: Sam owns the press list.'));
+      expect(api.asked.single.prompt, isNot(contains('**')));
+    });
+
     claudeTest('sends the effort chosen, and no fallback for Haiku, which has none', (tester) async {
       await settings.setModel('claude-haiku-5-5');
       await settings.setEffort('low');
@@ -309,6 +338,25 @@ void main() {
       expect(api.asked[2].system, recordingSummaryPrompt);
       expect(api.asked[2].prompt, endsWith('notes one\n\nnotes two'));
       expect(q.fakes, isEmpty);
+    });
+  });
+
+  group('in the background', () {
+    test('the device is held while Claude is asked, and let go quietly once the last answer is read', () async {
+      final jobs = _Jobs();
+      final store = ClaudeSettings(MemorySecureStore());
+      await store.setKey('sk-ant-test');
+      final fake = FakeClaudeApi();
+      final claude = MeetingClaude(settings: store, switchedOn: () => true, localOnly: () => false, api: (_) => fake, background: jobs);
+      final one = claude.write(system: 's', prompt: 'p1');
+      final two = claude.write(system: 's', prompt: 'p2');
+      expect(jobs.heard, ['running $claudeWriteUpJobId']);
+      fake.asked[0].answer('First.');
+      await one.done;
+      expect(jobs.heard, ['running $claudeWriteUpJobId'], reason: 'one still being asked');
+      fake.asked[1].answer('Second.');
+      await two.done;
+      expect(jobs.heard, ['running $claudeWriteUpJobId', 'ended $claudeWriteUpJobId quiet']);
     });
   });
 
@@ -486,4 +534,17 @@ void main() {
       expect(config(true).model, config(false).model);
     });
   });
+}
+
+class _Jobs implements BackgroundJobs {
+  final List<String> heard = [];
+
+  @override
+  Future<void> running(String id, {required String title, required String text, int? done, int? total}) async => heard.add('running $id');
+
+  @override
+  Future<void> ended(String id, {required String title, String? text, bool quiet = false}) async => heard.add('ended $id${quiet ? ' quiet' : ''}');
+
+  @override
+  void onStop(void Function(String id)? stop) {}
 }

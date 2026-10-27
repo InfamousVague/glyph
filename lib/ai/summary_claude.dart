@@ -26,13 +26,18 @@
 /// once the limit is raised or the count reset; it is never failed for it.
 library;
 
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 
 import '../claude/claude_settings.dart' show ClaudeSettings;
+import '../core/background_jobs.dart';
 import '../claude/claude_spend.dart' show claudeLimitError, claudeLimitType, meterClaude;
 import '../claude/messages_api.dart';
+
+/// The device's name for a write-up being asked of Claude (lib/core/background_jobs.dart).
+const String claudeWriteUpJobId = 'claude-write-up';
 
 /// The room a write-up's request is given: its thinking and its words.
 const int claudeSummaryMaxTokens = 16000;
@@ -67,8 +72,17 @@ class ClaudeWriting {
 
 /// Claude, as the summary queue asks it for a meeting's write-up.
 class MeetingClaude {
-  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes})
-      : _api = api ?? ((key) => ClaudeApi(key: key));
+  MeetingClaude({required this.settings, required this.switchedOn, required this.localOnly, ClaudeApi Function(String key)? api, this.changes, BackgroundJobs? background})
+      : _api = api ?? ((key) => ClaudeApi(key: key)),
+        background = background ?? const NoBackgroundJobs();
+
+  /// The device, told while a write-up is being asked of Claude, so it goes on with the app behind another (Matt,
+  /// 2026-10-27: "Claude times out when the app loses focus please background the activity"): Android's foreground
+  /// service and the Mac out of App Nap, as Lovart's pictures are held (lib/core/background_jobs.dart). The phone's
+  /// own model writes up natively, held by its own work; Claude's answer is read here, in the app, which a phone
+  /// freezes behind another app within seconds.
+  final BackgroundJobs background;
+  int _asking = 0;
 
   /// The key, the model and the effort (lib/claude/claude_settings.dart).
   final ClaudeSettings settings;
@@ -129,7 +143,13 @@ class MeetingClaude {
     final body = requestFor(system: system, prompt: prompt);
     final asked = _api(key).streamWith(body, betas: body.containsKey('fallbacks') ? const [claudeFallbackBeta] : const []);
     final call = meterClaude(asked, model: body['model']! as String, spend: settings.spend);
-    return ClaudeWriting(_read(call), call.cancel);
+    _asking += 1;
+    if (_asking == 1) unawaited(background.running(claudeWriteUpJobId, title: 'Writing up with Claude', text: 'A meeting’s summary'));
+    final read = _read(call).whenComplete(() {
+      _asking -= 1;
+      if (_asking == 0) unawaited(background.ended(claudeWriteUpJobId, title: 'Written up', quiet: true));
+    });
+    return ClaudeWriting(read, call.cancel);
   }
 
   static Future<String> _read(ClaudeCall call) async {

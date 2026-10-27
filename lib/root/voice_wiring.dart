@@ -36,6 +36,7 @@ import 'package:flutter/foundation.dart';
 import 'package:glacier/glacier.dart' show HapticKind, fireMotor;
 
 import '../ai/backend.dart' as ai;
+import '../core/background_jobs.dart' show ChannelBackgroundJobs;
 import '../ai/job_config.dart' show keepJobConfigCurrent, sendJobConfig;
 import '../ai/native_backend.dart';
 import '../ai/review.dart' show reviewAvailable;
@@ -454,6 +455,8 @@ class Voice {
       switchedOn: () => plugins.all().isEmpty ? claudeManifest.standard : plugins.switchedOn(claudeManifest.id),
       localOnly: () => preferences.value.localOnly,
       changes: Listenable.merge([claudeSettings, plugins, preferences]),
+      // Held up while it is asked, so a write-up goes on with the app behind another (lib/core/background_jobs.dart).
+      background: ChannelBackgroundJobs(),
     );
     Future<void> sendConfig() async {
       try {

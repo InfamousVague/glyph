@@ -128,7 +128,7 @@ import '../core/note_text.dart' show noteTitle;
 import '../core/preferences.dart' show Preferences;
 import '../core/stored.dart';
 import '../format/prompt.dart' show fill, notesContext, pieceContext, recordingNotesBudget, recordingNotesPrompt, recordingSummaryBudget, recordingSummaryPrompt, temperature;
-import '../meet/speakers.dart' show sectionOf;
+import '../meet/speakers.dart' show phraseSpeakers, sectionOf, speakerParagraphs;
 import 'available.dart' show modelFor, presentIds;
 import 'backend.dart' show AiFailure, ModelInfo, Run, RunOptions, generate, listModels, unloadModel;
 import 'runs.dart' show RunHandle, RunPhase, anyRunning;
@@ -1236,10 +1236,10 @@ class Summaries implements HandoffQueue {
   Future<_Outcome> _summarize(SummaryJob job, String model, {bool viaClaude = false}) async {
     final note = await getNote(job.id);
     if (note == null) return _Outcome.left;
-    var plain = renderNote(note.segments ?? const <Segment>[]).plain;
+    var plain = meetingWords(note) ?? renderNote(note.segments ?? const <Segment>[]).plain;
     // A meeting whose phrases are not on this device (one handed on from another, from a build before its phrases
     // synced) is summarized from the transcript its note keeps.
-    if (jsTrim(plain).isEmpty && job.kind == SummaryKind.meeting) plain = sectionOf(note.body, '## Transcript') ?? '';
+    if (jsTrim(plain).isEmpty && job.kind == SummaryKind.meeting) plain = plainTurns(sectionOf(note.body, '## Transcript') ?? '');
     if (jsTrim(plain).isEmpty) return _Outcome.left;
     final pieces = transcriptPieces(plain);
     final budget = recordingSummaryBudget(plain.length);
@@ -1424,4 +1424,22 @@ class Summaries implements HandoffQueue {
     if (job.kind == SummaryKind.meeting) handoff?.finished(job.id);
     _publish();
   }
+}
+
+final RegExp _boldName = RegExp(r'^\*\*(.+?)(?: \(\d+:\d{2}(?::\d{2})?\))?:\*\*\s*', multiLine: true);
+
+/// A transcript's `**Sam Lee (0:12):** words` turns as `Sam Lee: words`, for a model to read.
+String plainTurns(String transcript) => transcript.replaceAllMapped(_boldName, (m) => '${m[1]}: ');
+
+/// A meeting's words with who said them (Matt, 2026-10-27: "When summarizing the meeting the meeting transcript loses
+/// the peoples names and Claude can't summarize correctly since it's missing"): the recording's phrases, each given
+/// its speaker back from the note's captions or written-up transcript (lib/meet/speakers.dart [phraseSpeakers]), one
+/// paragraph a turn, `Sam Lee: words`. Null where no phrase has a name (a recording made on the device), for the plain
+/// phrases as before.
+String? meetingWords(Note note) {
+  final segments = note.segments ?? const <Segment>[];
+  if (segments.isEmpty) return null;
+  final speakers = phraseSpeakers(segments, note.body);
+  if (!speakers.any((name) => name != null && name.isNotEmpty)) return null;
+  return plainTurns(speakerParagraphs(segments, speakers).join('\n\n'));
 }
