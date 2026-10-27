@@ -871,8 +871,12 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   void writeNotebook(String Function(String body) change) {
     final next = change(_saving.body);
     if (next == _saving.body) return;
-    if (_source && _view != null) {
+    // Into the editor kept behind a notebook as well, so it (and, in a team's notebook, the team's document bound to
+    // it) holds what the notebook writes, and a change that comes through it later is made to these words.
+    if (_view != null && (_source || _isBook)) {
       _external(next);
+      // An editor that answered with nothing (no listener yet) has its words kept here all the same.
+      if (_saving.body != next) _onChange(next);
     } else {
       _onChange(next);
     }
@@ -893,7 +897,19 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     final editor = _view;
     if (editor == null) return;
     final now = editor.state.doc.toString();
-    if (now != next) editor.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: now.length, insert: next)));
+    if (now == next) return;
+    // Only the stretch that differs: in a team's note the editor is bound to the team's document, where the whole
+    // words taken out and put back would be every line deleted and typed again over anyone else's at the same time.
+    var start = 0;
+    while (start < now.length && start < next.length && now.codeUnitAt(start) == next.codeUnitAt(start)) {
+      start += 1;
+    }
+    var endNow = now.length, endNext = next.length;
+    while (endNow > start && endNext > start && now.codeUnitAt(endNow - 1) == next.codeUnitAt(endNext - 1)) {
+      endNow -= 1;
+      endNext -= 1;
+    }
+    editor.dispatch(TransactionSpec(changes: ChangeSpec(from: start, to: endNow, insert: next.substring(start, endNext))));
   }
 
   /// Saves what is waiting, and looks at whether the library is still taking this screen's words.
@@ -917,6 +933,11 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
   void _onChange(String next) {
     if (widget.readOnly) return;
     _saving.onChange(next);
+    // A notebook's or a canvas's view draws its own copy of the words and writes them back whole: a change that came
+    // through the editor kept behind it (a header image written in, a team member's edit arriving, a plugin's) is
+    // that copy's too, or the view's next write puts the old words back over it (Matt, 2026-10-27: a notebook's
+    // header image "disappeared after generation").
+    if (_isBook && !_source && next != _typedBody) _redraw(() => _typedBody = next);
     _watch();
     _versioning?.changed();
     final tag = geoTagOf(next) ?? _tags?.pendingTag(_id);
@@ -1574,7 +1595,13 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
 
   /// What the view wrote: the note's words from here, saved as typing is.
   void _writeTyped(String next) {
-    _onChange(next);
+    // A notebook's own write goes through the editor kept behind it, as [writeNotebook]'s does; a canvas's as before.
+    if (_isBook && _view != null) {
+      _external(next);
+      if (_saving.body != next) _onChange(next);
+    } else {
+      _onChange(next);
+    }
     setState(() => _typedBody = next);
   }
 

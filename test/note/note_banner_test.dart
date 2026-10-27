@@ -104,6 +104,34 @@ void main() {
     await closeNote(tester);
   });
 
+  testWidgets('a header written into an open notebook survives the notebook\'s own next write', (tester) async {
+    final world = NoteWorld();
+    final seams = NoteSeams(banner: (context, id, name) => SizedBox(key: ValueKey('banner ${name ?? 'none'}'), height: 40));
+    final book = await seeded(tester, world, '---\nbook: true\n---\n# Trip book\n\n1. [[Day one]]\n2. [[Day two]]');
+    final screen = await pumpNote(tester, world, book, seams: seams);
+    // Written as the root's writer and the note's menu write it: into the editor kept behind the notebook.
+    final view = screen.view!;
+    final doc = view.state.doc.toString();
+    final with_ = withBanner(doc, 'lovart-cover.png');
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: doc.length, insert: with_)));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 600));
+    expect(find.byKey(const ValueKey('banner lovart-cover.png')), findsOneWidget);
+    // The notebook's view writes next, from its own copy of the words: a chapter added.
+    final other = tester.widget(find.byWidgetPredicate((w) => w.runtimeType.toString() == '_OtherView', skipOffstage: false)) as dynamic;
+    final copy = other.body as String;
+    expect(bannerOf(copy), 'lovart-cover.png', reason: 'the view\'s copy holds what came through the editor');
+    (other.write as void Function(String))('$copy\n3. [[Day three]]');
+    await tester.pump(const Duration(seconds: 2));
+    expect(find.byKey(const ValueKey('banner lovart-cover.png')), findsOneWidget);
+    // And the editor behind it holds the notebook's write, so the next change through it is made to these words.
+    expect(screen.view!.state.doc.toString(), contains('3. [[Day three]]'));
+    await closeNote(tester);
+    final kept = await tester.runAsync(() => world.library.get(book.id));
+    expect(bannerOf(kept!.body), 'lovart-cover.png');
+    expect(kept.body, contains('3. [[Day three]]'));
+  });
+
   group('the banner', () {
     testWidgets('draws the kept picture four times as wide as tall, with Lovart\'s mark', (tester) async {
       final store = MemoryPictureStore();
