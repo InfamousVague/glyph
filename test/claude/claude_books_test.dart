@@ -208,18 +208,18 @@ void main() {
       await expectLater(books.answer(ClaudeBookTool.notebook, {'title': 'plans'}), throwsA(isA<ClaudeBookProblem>()));
     });
 
-    test('trash a note of the person\'s own, or one Claude made, never another team note', () async {
+    test('trash a note of the person\'s own, never a team\'s, even one Claude made', () async {
       final mine = await books.answer(ClaudeBookTool.trash, {'id': 'mine'});
       expect(jsonDecode(mine.said), containsPair('trashed', true));
       expect(shelf.trashed, {'mine'});
       await expectLater(books.answer(ClaudeBookTool.trash, {'id': 'team-note'}), throwsA(isA<ClaudeBookProblem>().having((p) => p.message, 'says', contains('every member'))));
       expect(shelf.trashed, {'mine'});
-      // Made by Claude in the team's folder: Claude may take it back.
+      // Made by Claude in the team's folder: still the team's, and the person's to remove.
       final made = await books.answer(ClaudeBookTool.notebook, {'title': 'Wrong one', 'folder': 'HelloTrade'});
       final id = (jsonDecode(made.said) as Map)['id'] as String;
       expect(shelf.isTeams(id), isTrue);
-      await books.answer(ClaudeBookTool.trash, {'id': id});
-      expect(shelf.trashed, contains(id));
+      await expectLater(books.answer(ClaudeBookTool.trash, {'id': id}), throwsA(isA<ClaudeBookProblem>()));
+      expect(shelf.trashed, isNot(contains(id)));
     });
   });
 

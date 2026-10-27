@@ -234,8 +234,8 @@ the functionality of the Claude in app to better prevent this". lib/claude/claud
   (`newTicketBody`, `nextTicketId`, `withChapter`): the next key, the notebook's first open status, filed where the
   notebook is, its page put in the index through the open screen where the notebook is open. A title another note has
   is refused (a notebook's pages are claimed by title).
-- **`trash_note`** `{id}`: to the Trash. A note of the person's own, or one Claude made since the app opened
-  (`claudeMade`); another member's team note is refused, since taking it away takes it from every member.
+- **`trash_note`** `{id}`: to the Trash. Only a note of the person's own: a team's note, even one Claude made, is
+  refused, since taking it away takes it from every member for good (an organization's deletes skip the Trash).
 - **`create_note`'s `folder`**: the note it makes is filed there, by the same rule.
 - **A create cut off** (the stream failed, the input never closed, invalid JSON) takes back the half-made note to
   the Trash, and the run's steps say so.

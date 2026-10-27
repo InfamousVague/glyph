@@ -9,9 +9,9 @@
 /// - **create_ticket**: a ticket in a notebook as the app makes one ([newTicketBody]): its next key (`HT-4`), the
 ///   notebook's first open status, the fields given (status, assignee, due, priority), its page put in the notebook's
 ///   index and filed where the notebook is.
-/// - **trash_note**: to the Trash, from where the person brings it back. Only a note of the person's own, or one Claude
-///   made since the app opened ([claudeMade]): a team's note taken away is taken from every member, and no run asks
-///   the person first.
+/// - **trash_note**: to the Trash, from where the person brings it back. Only a note of the person's own: a team's note
+///   taken away is taken from every member for good (an organization's deletes skip the Trash; 2026-10-26, 108 team
+///   notes), and no run asks the person first, so a team's note, even one Claude made, is the person's to remove.
 ///
 /// And create_note's `folder`, which files the note it makes there, an organization's too, by the same rule.
 library;
@@ -104,7 +104,7 @@ final List<Map<String, Object?>> claudeBookTools = [
   ),
   _tool(
     ClaudeBookTool.trash,
-    'Moves a note to the Trash, from where the person can bring it back. Only a note of the person’s own, or one you made yourself (in this conversation or since the app opened): an organization’s note made by someone else is refused, since taking it away takes it from every member. Say what you moved and why.',
+    'Moves a note of the person’s own to the Trash, from where they can bring it back. An organization’s note is refused, even one you made: taking it away takes it from every member. For one of those, tell the person which note and why, and they remove it. Say what you moved and why.',
     {'id': _string('The note’s id.')},
     const ['id'],
   ),
@@ -172,8 +172,8 @@ class ClaudeBooks {
         final id = (input['id'] as String? ?? '').trim();
         final title = id.isEmpty ? null : shelf.titleOf(id);
         if (title == null) throw const ClaudeBookProblem('No such note. List or search to find its id.');
-        if (shelf.isTeams(id) && !claudeMade.contains(id)) {
-          throw ClaudeBookProblem('“$title” is the team’s and was not made by you: taking it away would take it from every member. Ask the person to move it to the Trash themselves.');
+        if (shelf.isTeams(id)) {
+          throw ClaudeBookProblem('“$title” is the team’s: taking it away would take it from every member. Tell the person which note and why, and ask them to remove it themselves.');
         }
         await shelf.trash(id);
         claudeMade.remove(id);
