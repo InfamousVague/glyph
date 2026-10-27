@@ -395,7 +395,8 @@ void main() {
       expect(find.text('SIDEBAR', skipOffstage: false), findsOneWidget);
       await tester.enterText(field, 'dock');
       await tester.pump();
-      expect(_labels(tester), ['Sidebar']);
+      // And the dock's own card (lib/settings/dock_editor.dart).
+      expect(_labels(tester), ['Sidebar', 'Dock']);
       await endSettings(tester);
     });
   });

@@ -88,6 +88,37 @@ Meeting and a shared link (lib/notes/new_sheet.dart `NewSheet.simple`).
 
 Nothing is taken out of the top bars: the dock is another place for what is already there.
 
+## The dock editor (2026-10-27)
+
+Matt, 2026-10-27: "build the dock editor", from docs/ideas/CUSTOMIZATION_AND_SOUNDS.md idea 9: "Choose and order the
+floating dock's buttons (Claude, search, +, mic, Market, Settings), and which sit on the phone versus the Fold. The dock
+is now fixed."
+
+Settings, Appearance, **Dock** (the last card, in Simple too): the app's buttons as a list, dragged into order by their
+grips (lib/book/row_drag.dart, the notebook's own drag; Move up and Move down for a screen reader), each with a switch,
+beside the dock drawn as it will be, and Reset to default. "Its own dock when wide" gives the Fold opened, a tablet or a
+desktop window a dock of its own, copied from the phone's to start, and Phone or Wide chooses which is edited. In Simple
+the list is Simple's four buttons (Search, Write a note, Speak, Settings) and the wide dock is behind More, opened in
+place. Settings' search finds the card by "dock", "buttons", "reorder", "mic" and the buttons' names.
+
+- **Kept as** `Preferences.dock` (lib/core/dock_layout.dart `DockPrefs`, `DockLayout`): `{"order": [...], "hidden":
+  [...], "wide": {...}}`, synced with the rest of the settings. An empty order is the default one, and nothing chosen
+  is the dock as the tables above have it.
+- **Settings is never hidden** (`dockKeptIds`): on a phone the dock's cog is the way into Settings that is always in
+  reach. Its switch is held on and its row says why; a store that hid it shows it anyway.
+- **Every dock reads it** (`PageDock`, through `dockPrefs` for the window's width): home, All notes, the collections,
+  the Market, a note, an organization and Settings. The app's buttons among a page's rings are ordered and hidden;
+  a page's own rings (a note's Find and Add, a canvas's Fit, an organization's Invite, a note's ⋯) keep their places.
+  A dock with every ring hidden (Settings' own, Claude alone) draws no pill.
+- **One microphone is the dock's rule now** (`DockLayout.arrange`): the pages hand it Speak whether or not Talk to
+  Claude is there, and where Talk is drawn, Speak and a note's own mic are not. So hiding Talk in the editor brings
+  Speak back, as it would be with the Claude plugin off.
+- The room a page keeps at its foot is still for every ring it was handed: a hidden ring leaves a little more air.
+
+Tests: test/core/dock_layout_test.dart (the default, the JSON, the sync, the order, the one microphone, Settings kept),
+test/settings/dock_editor_test.dart (dragged, switched, reset, the wide dock, Simple's list and More, a page's dock
+following each), and pictures in build/feature-shots/dock-editor/ (test/settings/dock_editor_shots_test.dart).
+
 ## Claude's subject
 
 The chat with Claude holds no subject of its own. A note's dock (a canvas, a notebook and a journal are notes) opens

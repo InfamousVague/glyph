@@ -5,6 +5,7 @@ import '../art/icon_packs.dart' show IconStyle, iconPackOf;
 import '../core/preferences.dart';
 import '../market/market_icons.dart' show IconStyleChooser;
 import 'accent_swatch.dart';
+import 'dock_editor.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
@@ -34,6 +35,8 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
       if (simple) ...[
         const SettingsFindable('Type', 'text font'),
         const SettingsFindable('Text size', 'font bigger smaller larger'),
+        // The dock's buttons, in either mode: Simple's pages have a dock too.
+        dockFindable,
       ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
     ];
 
@@ -59,6 +62,7 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Blur at the edges', 'wisp smoke fade scroll'),
       if (recordsVoice) const SettingsFindable('Ripples while recording', 'waves voice'),
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
+      dockFindable,
     ];
 
 /// A map of a preference's words as the options a segmented control takes, in the map's own order (`optionsOf`).
@@ -79,6 +83,10 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// the type: Outline, Solid or Filled, with twelve of the app's icons drawn in the chosen one under it, in the pack in
 /// use (chosen in the Market, lib/market/market_icons.dart). Advanced's alone, as the faces are; a style or a pack
 /// chosen there is still what Simple is drawn in.
+///
+/// The dock's buttons (Matt, 2026-10-27: "build the dock editor") are the last card: their order, which are shown,
+/// the wide window's own dock, and Reset (lib/settings/dock_editor.dart). Simple has the card too, after the text
+/// size, since Simple's pages have a dock.
 ///
 /// In Simple (GHST-103; Matt, 2026-10-18) the page is the mode, the theme cards and the text size alone: a new person
 /// asked for less, and twelve cards of looks are the most of Settings there is. The rest comes back the moment
@@ -164,7 +172,11 @@ class AppearancePane extends StatelessWidget {
         // How much of the app there is, first in either mode: in Simple it is the way to the rest of these cards.
         final mode = modeSection(prefs: prefs, store: store);
 
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize])]);
+        // The dock's buttons (Matt, 2026-10-27: "build the dock editor"): in either mode, since Simple's pages have a
+        // dock too; Simple's lists Simple's buttons, with the wide window's own dock behind More.
+        final dock = DockEditor(store: store);
+
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), dock]);
 
         return PaneBody(
           children: [
@@ -336,6 +348,8 @@ class AppearancePane extends StatelessWidget {
                   ),
                 ],
               ),
+            // Last, so every card above it stays where the web page measured it (appearance_pane_test.dart).
+            dock,
           ],
         );
       },
