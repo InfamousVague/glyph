@@ -328,6 +328,54 @@ class ShareEntry {
       };
 }
 
+/// A text expansion of the person's own (Matt, 2026-10-27: "build ... snippets"; docs/ideas/CUSTOMIZATION_AND_SOUNDS.md
+/// idea 15, "Personal text expansions (;sig, ;addr, today's date in a format) in Settings, offered on the +"): a
+/// [trigger] typed in a note, `;sig`, becomes its [text] (lib/core/snippets.dart says what may be in it). Written
+/// structurally, as a workspace is, with an [id] of its own, so a trigger renamed on one device and the words changed
+/// on another are still the one snippet when the two are merged (lib/sync/prefs.dart).
+@immutable
+class Snippet {
+  const Snippet({required this.id, required this.trigger, required this.text});
+
+  final String id;
+
+  /// What is typed, `;sig` (lib/core/snippets.dart `snippetTriggerRule`).
+  final String trigger;
+
+  /// What it becomes: Markdown, any number of lines, with `{date}`, `{time}`, `{datetime}` and `{cursor}` in it.
+  final String text;
+
+  Snippet copyWith({String? trigger, String? text}) => Snippet(id: id, trigger: trigger ?? this.trigger, text: text ?? this.text);
+
+  Map<String, Object?> toJson() => {'id': id, 'trigger': trigger, 'text': text};
+
+  @override
+  bool operator ==(Object other) => other is Snippet && other.id == id && other.trigger == trigger && other.text == text;
+
+  @override
+  int get hashCode => Object.hash(id, trigger, text);
+}
+
+/// The snippets a device has before any is chosen: the day and the time, which nobody types by accident. Anything
+/// more personal (a signature, an address) is the person's to write. Only a store with no `snippets` at all has
+/// these: a list emptied on purpose stays empty.
+const List<Snippet> defaultSnippets = [
+  Snippet(id: 'date', trigger: ';date', text: '{date}'),
+  Snippet(id: 'time', trigger: ';time', text: '{time}'),
+];
+
+/// Snippets from another build, or a half-written store: only entries with an id, a trigger and words, each id
+/// once. Not a list at all is the defaults, as a store from before there were snippets is.
+List<Snippet> _readSnippets(Object? raw) {
+  if (raw is! List) return defaultSnippets;
+  final seen = <String>{};
+  return List.unmodifiable(<Snippet>[
+    for (final each in raw)
+      if (each is Map && each['id'] is String && each['trigger'] is String && each['text'] is String && seen.add(each['id'] as String))
+        Snippet(id: each['id'] as String, trigger: each['trigger'] as String, text: each['text'] as String),
+  ]);
+}
+
 final RegExp _linkPart = RegExp(r'^[A-Za-z0-9_-]{16,64}$');
 
 /// Shares from another build, or a half-written store: only entries with an id and a key a link can carry.
@@ -433,6 +481,7 @@ class Preferences {
     this.lookUpBlanks = true,
     this.autoFill = true,
     this.notifications = const NotificationPrefs(),
+    this.snippets = defaultSnippets,
     this.more = const {},
   });
 
@@ -535,6 +584,7 @@ class Preferences {
       lookUpBlanks: flag('lookUpBlanks', d.lookUpBlanks),
       autoFill: flag('autoFill', d.autoFill),
       notifications: NotificationPrefs.fromJson(map['notifications']),
+      snippets: _readSnippets(map['snippets']),
       more: Map.unmodifiable({
         for (final entry in map.entries)
           if (entry.key is String && !_keys.contains(entry.key)) entry.key as String: entry.value,
@@ -701,6 +751,10 @@ class Preferences {
   /// Which notifications are drawn and counted.
   final NotificationPrefs notifications;
 
+  /// The person's text expansions, in the order Settings › Snippets lists them ([Snippet]); [defaultSnippets] until
+  /// the list is changed. Travels, so `;sig` is the same on the phone and the Mac.
+  final List<Snippet> snippets;
+
   /// What a store held under keys this build does not know, written back as it was read.
   final Map<String, Object?> more;
 
@@ -709,7 +763,7 @@ class Preferences {
     'assist', 'textSize', 'typeface', //
     'noteFace', 'iconPack', 'iconStyle', 'dock', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
-    'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
+    'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications', 'snippets',
   };
 
   Preferences copyWith({
@@ -764,6 +818,7 @@ class Preferences {
     bool? lookUpBlanks,
     bool? autoFill,
     NotificationPrefs? notifications,
+    List<Snippet>? snippets,
     Map<String, Object?>? more,
   }) =>
       Preferences(
@@ -818,6 +873,7 @@ class Preferences {
         lookUpBlanks: lookUpBlanks ?? this.lookUpBlanks,
         autoFill: autoFill ?? this.autoFill,
         notifications: notifications ?? this.notifications,
+        snippets: snippets ?? this.snippets,
         more: more ?? this.more,
       );
 
@@ -875,6 +931,9 @@ class Preferences {
         'lookUpBlanks': lookUpBlanks,
         'autoFill': autoFill,
         'notifications': notifications.toJson(),
+        // Written once they are not the defaults: a store with none reads as the defaults, so a device that chose
+        // nothing keeps the web's stored shape to the letter, and a list emptied on purpose is written, empty.
+        if (!listEquals(snippets, defaultSnippets)) 'snippets': [for (final each in snippets) each.toJson()],
       };
 
   /// The two faces these preferences draw with ([facesOf]).

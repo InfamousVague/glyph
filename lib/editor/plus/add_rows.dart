@@ -49,7 +49,8 @@ library;
 
 import 'package:flutter/widgets.dart' show BuildContext, Widget;
 
-import '../../art/app_icon.dart' show LucideIcon;
+import '../../art/app_icon.dart' show AppIcon, LucideIcon;
+import '../../art/lucide.g.dart' show Lucide;
 import '../../core/boards/fence.dart';
 import '../../core/boards/items.dart';
 import '../../core/boards/make.dart';
@@ -57,7 +58,9 @@ import '../../core/days.dart';
 import '../../core/front_matter.dart';
 import '../../core/item_syntax.dart';
 import '../../core/locale_dates.dart';
+import '../../core/preferences.dart' show Snippet;
 import '../../core/properties.dart';
+import '../../core/snippets.dart';
 import '../../core/task_fields.dart';
 import '../../notes/note_templates.dart' show clockTime, formatStamp;
 import '../commands/format.dart';
@@ -118,9 +121,9 @@ class PlusEffect {
 /// lovart plugin to have an icon in the more menu expansion"): Lovart's `{image: what to draw}`, with what to write
 /// over selected, as the tag row leaves `tag`. Drawn with the plugin's own [mark] beside its [words].
 class PlusInsert {
-  const PlusInsert({required this.id, required this.words, required this.text, this.select, this.mark});
+  const PlusInsert({required this.id, required this.words, required this.text, this.select, this.mark, this.make});
 
-  /// Its plugin's id and its own, `lovart-image`: the row is `insert:<id>`.
+  /// Its plugin's id and its own, `lovart-image`: the row is `insert:<id>`. A snippet's is `snippet-<its id>`.
   final String id;
   final String words;
   final String text;
@@ -130,7 +133,30 @@ class PlusInsert {
 
   /// The plugin's mark in the list, at the size asked; the sparkles where null.
   final Widget Function(BuildContext context, double size)? mark;
+
+  /// The words made at the moment the row is pressed, in place of [text] and [select]: a snippet's (Settings ›
+  /// Snippets; Matt, 2026-10-27: "build ... snippets"), whose `{date}` is the day it is written, not the day the
+  /// list was opened.
+  final ({String text, ({int from, int to})? select}) Function(DateTime now)? make;
 }
+
+/// The person's snippets as rows at More's end and in the `/` palette (docs/ideas/CUSTOMIZATION_AND_SOUNDS.md idea
+/// 15: "offered on the +"), after the plugins' words, each under the snippet mark: its trigger and what it writes,
+/// `;date · 27 October 2026`, so the palette finds it by either. Pressed, it writes the words filled at that moment,
+/// the caret where `{cursor}` is.
+List<PlusInsert> snippetInserts(List<Snippet> snippets, DateTime now) => <PlusInsert>[
+  for (final snippet in snippets)
+    PlusInsert(
+      id: 'snippet-${snippet.id}',
+      words: '${snippet.trigger} · ${snippetPreviewLine(snippet, now, most: 40)}',
+      text: snippet.text,
+      mark: (context, size) => AppIcon(Lucide.textCursorInput, size: size),
+      make: (at) {
+        final made = expandSnippet(snippet.text, at);
+        return (text: made.text, select: (from: made.caret, to: made.caret));
+      },
+    ),
+];
 
 /// What the screen can do, read once when the list opens.
 class AddGates {
@@ -577,7 +603,9 @@ RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> 
   }
   if (id.startsWith('insert:')) {
     for (final each in inserts) {
-      if ('insert:${each.id}' == id) return RowPlan(wordsPlan(state, at, each.text, each.select ?? (from: each.text.length, to: each.text.length)));
+      if ('insert:${each.id}' != id) continue;
+      final made = each.make?.call(now) ?? (text: each.text, select: each.select);
+      return RowPlan(wordsPlan(state, at, made.text, made.select ?? (from: made.text.length, to: made.text.length)));
     }
     return null;
   }

@@ -122,6 +122,9 @@ const List<String> syncedPrefs = [
   // (lib/notes/daily_notes.dart): the person's, on every device.
   'smartNotebooks',
   'dailyNotes',
+  // The person's text expansions (Settings › Snippets; Matt, 2026-10-27: "build ... snippets"): `;sig` written on the
+  // phone is `;sig` on the Mac. Merged a snippet at a time, by its id, where two devices changed the list.
+  'snippets',
   // The calendars read (lib/calendar/setup.dart, docs/CALENDAR.md): the iCal addresses and Google's sign-in, sealed
   // with the rest, so a calendar added on one device is on every one. What each device fetched stays with it.
   'calendars',
@@ -247,6 +250,9 @@ Map<String, Object?> merged(Map<String, Object?> base, Map<String, Object?> mine
       // A note filed in a workspace the other device removed is in none.
       notes.removeWhere((note, space) => !list.any((each) => each is Map && each['id'] == space));
       out[key] = {...m, 'list': list, 'notes': notes};
+    } else if (key == 'snippets' && base[key] is List && mine[key] is List && theirs[key] is List) {
+      // A snippet added here and another added there are two snippets; one changed on both is this device's.
+      out[key] = _mergedList(base[key] as List, mine[key] as List, theirs[key] as List);
     } else if (key == sealedKeysKey && m != null && t != null) {
       // The later change of each key stands, a removal among them (lib/sync/sealed_keys.dart).
       out[key] = mergedSealedKeys(b ?? const {}, m, t);

@@ -33,6 +33,7 @@ import 'panes/organizations_pane.dart';
 import 'panes/plugins_pane.dart';
 import 'panes/recording_pane.dart';
 import 'panes/settings_host.dart';
+import 'panes/snippets_pane.dart';
 import 'panes/spec_pane.dart';
 import 'panes/test_results_pane.dart';
 import 'panes/workspaces_pane.dart';
@@ -215,6 +216,9 @@ const String marketSectionId = 'market';
 /// account"). Its own rather than a row of Account's: that card is who you are and what leaves the phone, and a row
 /// in the middle of it would split it in two, since consecutive rows of one group are what share a card.
 const int appearanceGroup = 6;
+
+/// The card Snippets has to itself, before the Market's (Matt, 2026-10-27: "build ... snippets").
+const int snippetsGroup = 7;
 
 /// Ids that were a page once and are a card on another page now, each to its page and the card there, lit as a
 /// search's find is: a link from outside or from a page that still says the old id lands where the thing is now
@@ -504,6 +508,23 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => aiSummary(facts.prefs, facts.features.models),
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
+  ),
+  // The person's own text expansions (Matt, 2026-10-27: "build ... snippets"; lib/core/snippets.dart): on a card of
+  // their own, since they are about writing, which no other card is, before the Market's, so the cards the web's
+  // page has stand where they stood. Advanced's, as the +'s More they are offered in is behind More in Simple. The
+  // port's own: the web app has no page for them, so its file is the sheet's.
+  SettingsSectionSpec(
+    id: 'snippets',
+    label: 'Snippets',
+    words: 'snippet text expansion expand shortcut abbreviation trigger semicolon sig address',
+    glyph: SettingsGlyph.puzzle,
+    icon: (size) => AppIcon(Lucide.textCursorInput, size: size),
+    group: snippetsGroup,
+    webFile: 'settings/SettingsSheet.tsx',
+    where: _advanced,
+    summary: (facts) => snippetsSummary(facts.prefs),
+    settings: (facts) => snippetsFindable,
+    pane: SnippetsPane.hosted,
   ),
   // The Market (lib/market/market_screen.dart), first on a card of its own, with each added plugin's page after it
   // (settingsSections): its row shuts Settings and opens the Market, where the plugins, themes and fonts are.

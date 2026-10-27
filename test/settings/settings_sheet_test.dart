@@ -79,11 +79,13 @@ void main() {
         'Export': 'Everything as one zip',
         'Recording': 'Better words',
         'AI': 'Qwen3.5 4B, 2.7 GB to get',
+        // The port's own (2026-10-27), on a card of its own before the Market's: the triggers a new device has.
+        'Snippets': ';date, ;time',
         // The app's registry is empty until the built-in plugins are put in place (lib/plugins/built_in.dart).
         'Market': '0 of 0 plugins added',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
       await endSettings(tester);
     });
 
@@ -106,6 +108,8 @@ void main() {
         ('import', 1, SettingsGlyph.folderInput),
         ('recording', 2, SettingsGlyph.mic),
         ('ai', 2, SettingsGlyph.sparkles),
+        // The port's own (2026-10-27): the person's text expansions, on a card of their own before the Market's.
+        ('snippets', 7, SettingsGlyph.puzzle),
         // Ask Claude, Calendar and Contacts were the port's own sections until they were plugins (2026-10-17): their
         // pages are the Claude, Calendar and Contacts plugins' now. Plugins, the catalogue, headed a card of its own
         // from 2026-10-18; the Market's row does since 2026-10-26, the plugins' own pages as rows after it once they
@@ -131,12 +135,12 @@ void main() {
       }
     });
 
-    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, the Market green, About yellow; none grey', (tester) async {
+    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, Snippets amber, the Market green, About yellow; none grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
       // Appearance's purple under Account's card since 2026-10-24; no row grey since the same day (Matt: "make sure all
       // settings sections icons have a color").
-      final want = ['#0a6fe0', '#0a6fe0', '#4f5bd5', '#c8643f', '#9a45c9', '#0a86a8', '#5a8a00', '#d6336c', '#dd3a30', '#b5279f', '#2a9d4b', '#b58400'];
+      final want = ['#0a6fe0', '#0a6fe0', '#4f5bd5', '#c8643f', '#9a45c9', '#0a86a8', '#5a8a00', '#d6336c', '#dd3a30', '#b5279f', '#c27c00', '#2a9d4b', '#b58400'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');
@@ -173,7 +177,7 @@ void main() {
     testWidgets('leave out what an iPhone has no use for, and add the hidden pages once they are unlocked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await _open(tester, size: const Size(390, 1200));
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Export', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Export', 'Snippets', 'Market', 'About']);
       debugDefaultTargetPlatformOverride = null;
       await endSettings(tester);
 
@@ -181,7 +185,7 @@ void main() {
       expect(_labels(tester), isNot(contains('Developer')));
       developerMode.set(true);
       await tester.pump();
-      expect(_labels(tester).sublist(12), ['Developer', 'Test results']);
+      expect(_labels(tester).sublist(13), ['Developer', 'Test results']);
       expect(_rows(tester)['Developer'], 'Benches, reset');
       await endSettings(tester);
     });
