@@ -51,7 +51,11 @@ class Home extends StatefulWidget {
     this.simple = false,
     this.talk = false,
     this.meetings = const {},
+    this.rings = false,
   });
+
+  /// The dock's Market and Settings rings, as the root gives them (test/art/icon_pack_shots_test.dart draws them).
+  final bool rings;
 
   /// What the shelf's cassettes play under a resting mouse.
   final TapePlayer? tapePlayer;
@@ -112,6 +116,8 @@ class _HomeState extends State<Home> {
         onNew: () => asked.add('new'),
         onCapture: widget.speak ? () => asked.add('speak') : null,
         onSearch: widget.search ? () => asked.add('search') : null,
+        onSettings: widget.rings ? () => asked.add('settings') : null,
+        onMarket: widget.rings ? () => asked.add('market') : null,
         onAllNotes: () => asked.add('all notes'),
         onSwipe: widget.swipes
             ? (note, action) {

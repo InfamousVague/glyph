@@ -424,6 +424,52 @@
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 10.5rem), 1fr));
 }
 
+/* The icon packs (Matt, 2026-10-27): a card's twelve glyphs in three rows, one a style. */
+.mk-grid-packs {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 17rem), 1fr));
+}
+
+.mk-pack {
+  flex-direction: column;
+}
+
+.mk-pack-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 0.85rem 0.9rem;
+  background: var(--paper-2, rgba(127, 127, 127, 0.08));
+}
+
+.mk-pack-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.35rem;
+}
+
+.mk-pack-style {
+  flex: 0 0 4.6rem;
+  font-size: 0.75rem;
+  color: var(--ink-3, currentColor);
+}
+
+.mk-pg {
+  inline-size: 1.15rem;
+  block-size: 1.15rem;
+  flex: 0 0 auto;
+  overflow: visible;
+}
+
+.mk-pack-big .mk-pack-preview {
+  background: none;
+}
+
+.mk-pack-big .mk-pg {
+  inline-size: 1.35rem;
+  block-size: 1.35rem;
+}
+
 .mk-grid-featured {
   grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
 }

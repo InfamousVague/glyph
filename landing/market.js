@@ -2,9 +2,11 @@
  * ghostmarkdown.com's Market (market.html; Matt, 2026-10-26: "add a browsable marketplace listed under the plugins
  * section on the website that deeplinks to the app"). Plain script, no build, and no server but this site's own
  * files: it reads market.json, which the app's own Market is listed into (lib/market/market_listing.dart), and draws
- * its shelves as the app does - All, Plugins, Themes, Fonts - with a search across them and the plugins' categories.
+ * its shelves as the app does - All, Plugins, Themes, Fonts, Icons - with a search across them and the plugins'
+ * categories. The icon packs (Matt, 2026-10-27) are drawn from the glyphs the listing carries for each, in each of
+ * the three styles, inked as the app inks them (lib/art/icon_packs.dart `PackIconPainter`).
  *
- * Each thing has a page of its own at its own anchor (#plugin/notion, #theme/dusk, #font/lora), opened over the
+ * Each thing has a page of its own at its own anchor (#plugin/notion, #theme/dusk, #font/lora, #icons/phosphor), opened over the
  * shelves, and its Open in Ghost.md follows the thing's link into the app (`ghostmd://market/<kind>/<id>`). A browser
  * gives no word on whether anything answered a link, so the page watches for the app taking over instead: if after a
  * moment and a half the page is still here, in front and in focus, it says Ghost.md may not be on this device yet and
@@ -158,6 +160,91 @@
     );
   }
 
+  // ---- the icon packs -------------------------------------------------------------------------------------------
+
+  var masks = 0;
+
+  /*
+   * One glyph of a pack as the app paints it: lines stroked (Lucide's 2, or 2.8 for Solid), the wash a third of the
+   * ink on the body, shapes filled, a pack with no bolder set thickened, and a Filled made of lines filled on its body
+   * with the lines inside it cut out (two masks standing in for the app's exclusive-or).
+   */
+  function packGlyph(d) {
+    var path = function (p, attrs) {
+      return '<path d="' + escape(p) + '"' + (attrs || '') + '/>';
+    };
+    var all = function (list, attrs) {
+      return (list || []).map(function (p) {
+        return path(p, attrs);
+      }).join('');
+    };
+    var line = 'fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"';
+    var wash = d.wash || [];
+    var solids = d.solids || [];
+    var out = '';
+    if (d.ink === 'lines' || d.ink === 'heavyLines' || (d.ink === 'cutLines' && !wash.length)) {
+      var width = d.ink === 'lines' ? 2 : 2.8;
+      if (d.ink !== 'cutLines') {
+        out += wash.map(function (i) {
+          return path(d.paths[i], ' fill="currentColor" fill-opacity="0.33"');
+        }).join('');
+      }
+      out += d.paths.map(function (p, i) {
+        return solids.indexOf(i) >= 0 ? path(p, ' fill="currentColor"') : '';
+      }).join('');
+      out += '<g ' + line + ' stroke-width="' + width + '">' + all(d.paths) + '</g>';
+    } else if (d.ink === 'cutLines') {
+      var n = ++masks;
+      var body = d.paths.filter(function (p, i) {
+        return wash.indexOf(i) >= 0;
+      });
+      var rest = d.paths.filter(function (p, i) {
+        return wash.indexOf(i) < 0;
+      });
+      var box = 'x="-4" y="-4" width="32" height="32"';
+      out +=
+        '<defs><mask id="mkc' + n + '" maskUnits="userSpaceOnUse" ' + box + '><rect ' + box + ' fill="white"/><g fill="none" stroke="black" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' + all(rest) + '</g></mask>' +
+        '<mask id="mkb' + n + '" maskUnits="userSpaceOnUse" ' + box + '><rect ' + box + ' fill="white"/><g fill="black" stroke="black" stroke-width="2.8" stroke-linejoin="round">' + all(body) + '</g></mask></defs>' +
+        '<g mask="url(#mkc' + n + ')" fill="currentColor" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">' + all(body) + '</g>' +
+        '<g mask="url(#mkb' + n + ')" ' + line + ' stroke-width="2.8">' + all(rest) + '</g>';
+    } else {
+      out += all(d.under, ' fill="currentColor" fill-opacity="0.33"');
+      out += d.ink === 'thickShapes' ? '<g fill="currentColor" stroke="currentColor" stroke-width="0.7" stroke-linejoin="round">' + all(d.paths) + '</g>' : all(d.paths, ' fill="currentColor"');
+    }
+    return '<svg class="mk-pg" viewBox="0 0 24 24" aria-hidden="true">' + out + '</svg>';
+  }
+
+  /* A pack's twelve in one style, a row; with [label], the style's word before it. */
+  function packRow(pack, style, label) {
+    return '<span class="mk-pack-row">' + (label ? '<span class="mk-pack-style">' + escape(pack.styles[style].label) + '</span>' : '') + pack.preview[style].map(packGlyph).join('') + '</span>';
+  }
+
+  function packPreview(pack, labels) {
+    return '<span class="mk-pack-preview">' + ['outline', 'solid', 'filled'].map(function (style) {
+      return packRow(pack, style, labels);
+    }).join('') + '</span>';
+  }
+
+  function packCard(pack) {
+    return (
+      '<li><a class="mk-card mk-pack" href="#icons/' +
+      escape(pack.id) +
+      '">' +
+      packPreview(pack, false) +
+      '<span class="mk-card-words"><span class="mk-name">' +
+      escape(pack.name) +
+      '</span><span class="mk-line">' +
+      escape(pack.line) +
+      '</span><span class="mk-line">' +
+      pack.coverage.own + ' of ' + pack.coverage.of + ' icons · ' + escape(pack.licence) +
+      '</span></span></a></li>'
+    );
+  }
+
+  function packFound(p) {
+    return found(state.query, [p.name, p.line, p.author, p.licence, 'icon icons pack glyphs symbols style outline solid filled']);
+  }
+
   function heading(title, glyph, meta, shelf) {
     var more = shelf && state.shelf === 'all' && !state.query.trim() ? '<button type="button" class="mk-more" data-shelf="' + shelf + '">See all</button>' : '';
     return '<div class="mk-heading"><h2>' + icon(glyph) + '<span>' + escape(title) + '</span></h2>' + (meta ? '<span class="mk-meta">' + escape(meta) + '</span>' : '') + more + '</div>';
@@ -223,9 +310,11 @@
     });
     var themes = listing.themes.filter(themeFound);
     var fonts = listing.fonts.filter(fontFound);
+    var packs = (listing.iconPacks || []).filter(packFound);
     var showPlugins = shelf === 'all' || shelf === 'plugins';
     var showThemes = shelf === 'all' || shelf === 'themes';
     var showFonts = shelf === 'all' || shelf === 'fonts';
+    var showIcons = shelf === 'all' || shelf === 'icons';
     var html = '';
 
     if (shelf === 'all' && !searching) {
@@ -257,12 +346,15 @@
     if (showFonts && fonts.length) {
       html += '<section class="mk-section" id="mk-fonts" aria-label="Fonts">' + heading('Fonts', 'type', 'For your notes, and the app itself', 'fonts') + '<ul class="mk-grid mk-grid-fonts">' + fonts.map(fontCard).join('') + '</ul></section>';
     }
-    var any = (showPlugins && plugins.length) || (showThemes && themes.length) || (showFonts && fonts.length);
+    if (showIcons && packs.length) {
+      html += '<section class="mk-section" id="mk-icons" aria-label="Icons">' + heading('Icons', 'shapes', packs.length + ' packs, each outline, solid or filled', 'icons') + '<ul class="mk-grid mk-grid-packs">' + packs.map(packCard).join('') + '</ul></section>';
+    }
+    var any = (showPlugins && plugins.length) || (showThemes && themes.length) || (showFonts && fonts.length) || (showIcons && packs.length);
     if (!any && searching) {
       html =
         '<div class="mk-nothing"><img src="icon.png" width="64" height="64" alt="" /><p class="mk-name">' +
         (searching ? 'Nothing matches &ldquo;' + escape(state.query.trim()) + '&rdquo;' : 'Nothing here yet') +
-        '</p><p class="mk-line">Try a plugin&rsquo;s name, a theme or a font.</p><button type="button" class="pill" id="mk-everything">Show everything</button></div>';
+        '</p><p class="mk-line">Try a plugin&rsquo;s name, a theme, a font or an icon pack.</p><button type="button" class="pill" id="mk-everything">Show everything</button></div>';
     }
     $('#mk-list').innerHTML = html;
   }
@@ -276,7 +368,7 @@
   // ---- a thing's own page ----------------------------------------------------------------------------------------
 
   function byId(kind, id) {
-    var list = { plugin: listing.plugins, theme: listing.themes, font: listing.fonts }[kind] || [];
+    var list = { plugin: listing.plugins, theme: listing.themes, font: listing.fonts, icons: listing.iconPacks || [] }[kind] || [];
     return (
       list.filter(function (item) {
         return item.id === id;
@@ -286,7 +378,7 @@
 
   /* Open in Ghost.md, and the word that waits under it for a device without the app. */
   function opener(item, kind) {
-    var does = { plugin: 'Opens its page in the Market, with Add.', theme: 'Opens it in the Market, with Use this theme.', font: 'Opens it in the Market, with Use for notes.' }[kind];
+    var does = { plugin: 'Opens its page in the Market, with Add.', theme: 'Opens it in the Market, with Use this theme.', font: 'Opens it in the Market, with Use for notes.', icons: 'Opens its page in the Market, with Use this pack and the style.' }[kind];
     return (
       '<div class="mk-open"><a class="pill pill-ink pill-lg" data-open href="' +
       escape(item.link) +
@@ -394,6 +486,30 @@
     );
   }
 
+  function packPage(p) {
+    var styles = ['outline', 'solid', 'filled']
+      .map(function (style) {
+        return '<li><span class="mk-point">' + escape(p.styles[style].label) + '</span><span class="mk-hint">' + escape(p.styles[style].words) + '</span></li>';
+      })
+      .join('');
+    var lucide = p.coverage.lucide;
+    var much = lucide.length
+      ? p.coverage.own + ' of the app’s ' + p.coverage.of + ' icons. ' + p.name + ' has nothing for the other ' + (lucide.length === 1 ? 'one, which is' : lucide.length + ', which are') + ' drawn as Lucide’s, in the same style.'
+      : 'All ' + p.coverage.of + ' of the app’s icons.';
+    return (
+      '<header class="mk-head mk-head-plain">' + close() + '<span class="mk-picture mk-picture-lg mk-pack-big">' + packPreview(p, true) + '</span>' +
+      '<p class="mk-kind">Icon pack</p><h2 id="mk-detail-name">' + escape(p.name) + '</h2><p>' + escape(p.line) + '</p></header>' +
+      '<div class="mk-body">' + opener(p, 'icons') +
+      section('All three styles', '<ul class="mk-points mk-styles">' + styles + '</ul>') +
+      section('How much of Ghost.md it draws', '<p>' + escape(much) + '</p>') +
+      section('About it', '<p>' + escape(p.about) + '</p>') +
+      section('Works on', platforms(p)) +
+      section('What it needs', '<ul class="mk-points">' + point('shield-check', 'Nothing', 'Every pack ships inside the app: choosing one redraws every icon at once, on every device you use.') + '</ul>') +
+      '<p class="mk-fine">' + escape(p.author) + ' · ' + escape(p.licence) + ' · ' + escape(p.version) + ' · ' + escape(p.home) + '</p>' +
+      '</div>'
+    );
+  }
+
   var dialog = $('#mk-detail');
   var shown = null;
 
@@ -410,7 +526,7 @@
       inner.style.removeProperty('--deep');
       inner.style.removeProperty('--bright');
     }
-    inner.innerHTML = kind === 'plugin' ? pluginPage(item) : kind === 'theme' ? themePage(item) : fontPage(item);
+    inner.innerHTML = kind === 'plugin' ? pluginPage(item) : kind === 'theme' ? themePage(item) : kind === 'icons' ? packPage(item) : fontPage(item);
     document.title = item.name + ' · Market · Ghost.md';
     if (!dialog.open) dialog.showModal();
     dialog.scrollTop = 0;
@@ -422,13 +538,13 @@
     if (dialog.open) dialog.close();
   }
 
-  /* What the address says: a thing's page (#plugin/notion), or a shelf (#plugins, #themes, #fonts). */
+  /* What the address says: a thing's page (#plugin/notion, #icons/phosphor), or a shelf (#plugins, #themes, #fonts, #icons). */
   function follow() {
     var hash = decodeURIComponent(location.hash.replace(/^#/, ''));
-    var thing = /^(plugin|theme|font)\/([a-z0-9_-]+)$/.exec(hash);
+    var thing = /^(plugin|theme|font|icons)\/([a-z0-9_-]+)$/.exec(hash);
     if (thing) return show(thing[1], thing[2]);
     hide();
-    if (hash === 'plugins' || hash === 'themes' || hash === 'fonts') choose(hash);
+    if (hash === 'plugins' || hash === 'themes' || hash === 'fonts' || hash === 'icons') choose(hash);
   }
 
   /* Back to the shelves, leaving the address as it was before the page was opened. */
@@ -549,7 +665,7 @@
         return '<span class="mk-band-tile mk-band-tile-' + i + '">' + tile(p, 'band') + '</span>';
       })
       .join('');
-    $('#mk-count').textContent = listing.plugins.length + ' plugins · ' + listing.themes.length + ' themes · ' + listing.fonts.length + ' fonts';
+    $('#mk-count').textContent = listing.plugins.length + ' plugins · ' + listing.themes.length + ' themes · ' + listing.fonts.length + ' fonts · ' + (listing.iconPacks || []).length + ' icon packs';
   }
 
   fetch('market.json')

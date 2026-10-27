@@ -1,0 +1,1423 @@
+{
+  "about": [
+    "The app's icons in each icon pack (lib/art/icon_packs.dart): every glyph the app draws, by its Lucide name (lib/art/lucide.g.dart, and the app's own drawings by the Lucide name of what they draw), to the name of the same glyph in each pack.",
+    "null is a pack with no such glyph: the app draws Lucide's there, in the chosen style. Read by tool/icons/generate.dart, which writes lib/art/packs/*.g.dart from the packs' own SVGs (fetched by tool/icons/fetch.sh into a folder outside the repository) and says how many fell back."
+  ],
+  "sources": {
+    "phosphor": {
+      "npm": "@phosphor-icons/core",
+      "version": "2.1.1",
+      "licence": "MIT"
+    },
+    "tabler": {
+      "npm": "@tabler/icons",
+      "version": "3.49.0",
+      "licence": "MIT"
+    },
+    "material-400": {
+      "npm": "@material-symbols/svg-400",
+      "version": "0.48.0",
+      "licence": "Apache-2.0"
+    },
+    "material-700": {
+      "npm": "@material-symbols/svg-700",
+      "version": "0.48.0",
+      "licence": "Apache-2.0"
+    },
+    "remix": {
+      "npm": "remixicon",
+      "version": "4.9.1",
+      "licence": "Apache-2.0"
+    }
+  },
+  "drawn": {
+    "ArrowLeft": "arrow-left",
+    "ArrowRight": "arrow-right",
+    "Cog": "settings",
+    "Plus": "plus",
+    "Magnifier": "search",
+    "Pin": "pin",
+    "Cassette": "cassette-tape",
+    "TickBox": "square-check-big",
+    "Book": "book",
+    "Notebook": "notebook",
+    "Clock": "clock",
+    "Grid": "layout-grid",
+    "ArchiveBox": "archive",
+    "Bin": "trash",
+    "Workspace": "folder",
+    "Board": "square-kanban",
+    "Locate": "locate",
+    "House": "house"
+  },
+  "icons": {
+    "activity": {
+      "phosphor": "pulse",
+      "tabler": "activity",
+      "material": "ecg",
+      "remix": "pulse"
+    },
+    "alarm-clock": {
+      "phosphor": "alarm",
+      "tabler": "alarm",
+      "material": "alarm",
+      "remix": "alarm"
+    },
+    "anchor": {
+      "phosphor": "anchor",
+      "tabler": "anchor",
+      "material": "anchor",
+      "remix": "anchor"
+    },
+    "archive": {
+      "phosphor": "archive",
+      "tabler": "archive",
+      "material": "archive",
+      "remix": "archive"
+    },
+    "archive-restore": {
+      "phosphor": "box-arrow-up",
+      "tabler": "restore",
+      "material": "unarchive",
+      "remix": "inbox-unarchive"
+    },
+    "arrow-down": {
+      "phosphor": "arrow-down",
+      "tabler": "arrow-down",
+      "material": "arrow_downward",
+      "remix": "arrow-down"
+    },
+    "arrow-down-to-line": {
+      "phosphor": "arrow-line-down",
+      "tabler": "arrow-bar-to-down",
+      "material": "vertical_align_bottom",
+      "remix": "skip-down"
+    },
+    "arrow-left": {
+      "phosphor": "arrow-left",
+      "tabler": "arrow-left",
+      "material": "arrow_back",
+      "remix": "arrow-left"
+    },
+    "arrow-right": {
+      "phosphor": "arrow-right",
+      "tabler": "arrow-right",
+      "material": "arrow_forward",
+      "remix": "arrow-right"
+    },
+    "arrow-up": {
+      "phosphor": "arrow-up",
+      "tabler": "arrow-up",
+      "material": "arrow_upward",
+      "remix": "arrow-up"
+    },
+    "arrow-up-to-line": {
+      "phosphor": "arrow-line-up",
+      "tabler": "arrow-bar-to-up",
+      "material": "vertical_align_top",
+      "remix": "skip-up"
+    },
+    "asterisk": {
+      "phosphor": "asterisk",
+      "tabler": "asterisk",
+      "material": "emergency",
+      "remix": "asterisk"
+    },
+    "at-sign": {
+      "phosphor": "at",
+      "tabler": "at",
+      "material": "alternate_email",
+      "remix": "at"
+    },
+    "audio-lines": {
+      "phosphor": "waveform",
+      "tabler": "wave-sine",
+      "material": "graphic_eq",
+      "remix": "voiceprint"
+    },
+    "ban": {
+      "phosphor": "prohibit",
+      "tabler": "ban",
+      "material": "block",
+      "remix": "forbid"
+    },
+    "baseline": {
+      "phosphor": "text-a-underline",
+      "tabler": "baseline",
+      "material": "format_color_text",
+      "remix": "font-color"
+    },
+    "bell": {
+      "phosphor": "bell",
+      "tabler": "bell",
+      "material": "notifications",
+      "remix": "notification-3"
+    },
+    "bold": {
+      "phosphor": "text-b",
+      "tabler": "bold",
+      "material": "format_bold",
+      "remix": "bold"
+    },
+    "book": {
+      "phosphor": "book",
+      "tabler": "book-2",
+      "material": "book",
+      "remix": "book"
+    },
+    "book-open": {
+      "phosphor": "book-open",
+      "tabler": "book",
+      "material": "menu_book",
+      "remix": "book-open"
+    },
+    "book-open-text": {
+      "phosphor": "book-open-text",
+      "tabler": "book",
+      "material": "auto_stories",
+      "remix": "book-read"
+    },
+    "bookmark": {
+      "phosphor": "bookmark",
+      "tabler": "bookmark",
+      "material": "bookmark",
+      "remix": "bookmark"
+    },
+    "bookmark-check": {
+      "phosphor": null,
+      "tabler": null,
+      "material": "bookmark_added",
+      "remix": null
+    },
+    "bot": {
+      "phosphor": "robot",
+      "tabler": "robot",
+      "material": "smart_toy",
+      "remix": "robot-2"
+    },
+    "braces": {
+      "phosphor": "brackets-curly",
+      "tabler": "braces",
+      "material": "data_object",
+      "remix": "braces"
+    },
+    "brain": {
+      "phosphor": "brain",
+      "tabler": "brain",
+      "material": "psychology",
+      "remix": "brain"
+    },
+    "brush-cleaning": {
+      "phosphor": "broom",
+      "tabler": "brush",
+      "material": "cleaning_services",
+      "remix": "brush"
+    },
+    "calculator": {
+      "phosphor": "calculator",
+      "tabler": "calculator",
+      "material": "calculate",
+      "remix": "calculator"
+    },
+    "calendar-days": {
+      "phosphor": "calendar-dots",
+      "tabler": "calendar",
+      "material": "calendar_month",
+      "remix": "calendar"
+    },
+    "calendar-plus": {
+      "phosphor": "calendar-plus",
+      "tabler": "calendar-plus",
+      "material": "calendar_add_on",
+      "remix": "calendar-schedule"
+    },
+    "calendar-search": {
+      "phosphor": null,
+      "tabler": "calendar-search",
+      "material": null,
+      "remix": null
+    },
+    "calendar-x": {
+      "phosphor": "calendar-x",
+      "tabler": "calendar-x",
+      "material": "event_busy",
+      "remix": "calendar-close"
+    },
+    "cassette-tape": {
+      "phosphor": "cassette-tape",
+      "tabler": "device-audio-tape",
+      "material": null,
+      "remix": "tape"
+    },
+    "chart-gantt": {
+      "phosphor": "chart-bar-horizontal",
+      "tabler": "timeline",
+      "material": "view_timeline",
+      "remix": "timeline-view"
+    },
+    "chart-no-axes-combined": {
+      "phosphor": "chart-line-up",
+      "tabler": "chart-line",
+      "material": "monitoring",
+      "remix": "line-chart"
+    },
+    "check": {
+      "phosphor": "check",
+      "tabler": "check",
+      "material": "check",
+      "remix": "check"
+    },
+    "check-check": {
+      "phosphor": "checks",
+      "tabler": "checks",
+      "material": "done_all",
+      "remix": "check-double"
+    },
+    "chevron-down": {
+      "phosphor": "caret-down",
+      "tabler": "chevron-down",
+      "material": "keyboard_arrow_down",
+      "remix": "arrow-down-s"
+    },
+    "chevron-left": {
+      "phosphor": "caret-left",
+      "tabler": "chevron-left",
+      "material": "chevron_left",
+      "remix": "arrow-left-s"
+    },
+    "chevron-right": {
+      "phosphor": "caret-right",
+      "tabler": "chevron-right",
+      "material": "chevron_right",
+      "remix": "arrow-right-s"
+    },
+    "chevron-up": {
+      "phosphor": "caret-up",
+      "tabler": "chevron-up",
+      "material": "keyboard_arrow_up",
+      "remix": "arrow-up-s"
+    },
+    "chevrons-down": {
+      "phosphor": "caret-double-down",
+      "tabler": "chevrons-down",
+      "material": "keyboard_double_arrow_down",
+      "remix": "arrow-down-double"
+    },
+    "chevrons-down-up": {
+      "phosphor": "arrows-in-line-vertical",
+      "tabler": "fold",
+      "material": "unfold_less",
+      "remix": "contract-up-down"
+    },
+    "chevrons-up": {
+      "phosphor": "caret-double-up",
+      "tabler": "chevrons-up",
+      "material": "keyboard_double_arrow_up",
+      "remix": "arrow-up-double"
+    },
+    "chevrons-up-down": {
+      "phosphor": "caret-up-down",
+      "tabler": "selector",
+      "material": "unfold_more",
+      "remix": "expand-up-down"
+    },
+    "circle": {
+      "phosphor": "circle",
+      "tabler": "circle",
+      "material": "circle",
+      "remix": "checkbox-blank-circle"
+    },
+    "circle-alert": {
+      "phosphor": "warning-circle",
+      "tabler": "alert-circle",
+      "material": "error",
+      "remix": "error-warning"
+    },
+    "circle-check": {
+      "phosphor": "check-circle",
+      "tabler": "circle-check",
+      "material": "check_circle",
+      "remix": "checkbox-circle"
+    },
+    "circle-dashed": {
+      "phosphor": "circle-dashed",
+      "tabler": "circle-dashed",
+      "material": null,
+      "remix": null
+    },
+    "circle-dot": {
+      "phosphor": "radio-button",
+      "tabler": "circle-dot",
+      "material": "radio_button_checked",
+      "remix": "radio-button"
+    },
+    "circle-minus": {
+      "phosphor": "minus-circle",
+      "tabler": "circle-minus",
+      "material": "do_not_disturb_on",
+      "remix": "indeterminate-circle"
+    },
+    "circle-question-mark": {
+      "phosphor": "question",
+      "tabler": "help-circle",
+      "material": "help",
+      "remix": "question"
+    },
+    "circle-stop": {
+      "phosphor": "stop-circle",
+      "tabler": "circle-square",
+      "material": "stop_circle",
+      "remix": "stop-circle"
+    },
+    "circle-user": {
+      "phosphor": "user-circle",
+      "tabler": "user-circle",
+      "material": "account_circle",
+      "remix": "account-circle"
+    },
+    "circle-x": {
+      "phosphor": "x-circle",
+      "tabler": "circle-x",
+      "material": "cancel",
+      "remix": "close-circle"
+    },
+    "clipboard-paste": {
+      "phosphor": "clipboard-text",
+      "tabler": "clipboard",
+      "material": "content_paste",
+      "remix": "clipboard"
+    },
+    "clock": {
+      "phosphor": "clock",
+      "tabler": "clock",
+      "material": "schedule",
+      "remix": "time"
+    },
+    "code": {
+      "phosphor": "code",
+      "tabler": "code",
+      "material": "code",
+      "remix": "code"
+    },
+    "compass": {
+      "phosphor": "compass",
+      "tabler": "compass",
+      "material": "explore",
+      "remix": "compass-3"
+    },
+    "contact-round": {
+      "phosphor": "address-book",
+      "tabler": "address-book",
+      "material": "contacts",
+      "remix": "contacts-book"
+    },
+    "copy": {
+      "phosphor": "copy",
+      "tabler": "copy",
+      "material": "content_copy",
+      "remix": "file-copy"
+    },
+    "copy-plus": {
+      "phosphor": null,
+      "tabler": "copy-plus",
+      "material": "library_add",
+      "remix": null
+    },
+    "crown": {
+      "phosphor": "crown",
+      "tabler": "crown",
+      "material": "crown",
+      "remix": "vip-crown"
+    },
+    "database": {
+      "phosphor": "database",
+      "tabler": "database",
+      "material": "database",
+      "remix": "database-2"
+    },
+    "door-open": {
+      "phosphor": "door-open",
+      "tabler": "door-enter",
+      "material": "door_open",
+      "remix": "door-open"
+    },
+    "download": {
+      "phosphor": "download-simple",
+      "tabler": "download",
+      "material": "download",
+      "remix": "download"
+    },
+    "ear": {
+      "phosphor": "ear",
+      "tabler": "ear",
+      "material": "hearing",
+      "remix": null
+    },
+    "ellipsis": {
+      "phosphor": "dots-three",
+      "tabler": "dots",
+      "material": "more_horiz",
+      "remix": "more"
+    },
+    "ellipsis-vertical": {
+      "phosphor": "dots-three-vertical",
+      "tabler": "dots-vertical",
+      "material": "more_vert",
+      "remix": "more-2"
+    },
+    "equal": {
+      "phosphor": "equals",
+      "tabler": "equal",
+      "material": "equal",
+      "remix": "equal"
+    },
+    "eraser": {
+      "phosphor": "eraser",
+      "tabler": "eraser",
+      "material": "ink_eraser",
+      "remix": "eraser"
+    },
+    "external-link": {
+      "phosphor": "arrow-square-out",
+      "tabler": "external-link",
+      "material": "open_in_new",
+      "remix": "external-link"
+    },
+    "eye": {
+      "phosphor": "eye",
+      "tabler": "eye",
+      "material": "visibility",
+      "remix": "eye"
+    },
+    "eye-off": {
+      "phosphor": "eye-slash",
+      "tabler": "eye-off",
+      "material": "visibility_off",
+      "remix": "eye-off"
+    },
+    "feather": {
+      "phosphor": "feather",
+      "tabler": "feather",
+      "material": "history_edu",
+      "remix": "quill-pen"
+    },
+    "file": {
+      "phosphor": "file",
+      "tabler": "file",
+      "material": "draft",
+      "remix": "file"
+    },
+    "file-code": {
+      "phosphor": "file-code",
+      "tabler": "file-code",
+      "material": "code_blocks",
+      "remix": "file-code"
+    },
+    "file-plus": {
+      "phosphor": "file-plus",
+      "tabler": "file-plus",
+      "material": "note_add",
+      "remix": "file-add"
+    },
+    "file-text": {
+      "phosphor": "file-text",
+      "tabler": "file-text",
+      "material": "description",
+      "remix": "file-text"
+    },
+    "film": {
+      "phosphor": "film-strip",
+      "tabler": "movie",
+      "material": "movie",
+      "remix": "film"
+    },
+    "flag": {
+      "phosphor": "flag",
+      "tabler": "flag",
+      "material": "flag",
+      "remix": "flag"
+    },
+    "flame": {
+      "phosphor": "flame",
+      "tabler": "flame",
+      "material": "local_fire_department",
+      "remix": "fire"
+    },
+    "flask-conical": {
+      "phosphor": "flask",
+      "tabler": "flask",
+      "material": "science",
+      "remix": "flask"
+    },
+    "folder": {
+      "phosphor": "folder",
+      "tabler": "folder",
+      "material": "folder",
+      "remix": "folder"
+    },
+    "folder-input": {
+      "phosphor": null,
+      "tabler": "folder-symlink",
+      "material": "drive_file_move",
+      "remix": "folder-transfer"
+    },
+    "folder-open": {
+      "phosphor": "folder-open",
+      "tabler": "folder-open",
+      "material": "folder_open",
+      "remix": "folder-open"
+    },
+    "folder-plus": {
+      "phosphor": "folder-plus",
+      "tabler": "folder-plus",
+      "material": "create_new_folder",
+      "remix": "folder-add"
+    },
+    "gauge": {
+      "phosphor": "gauge",
+      "tabler": "gauge",
+      "material": "speed",
+      "remix": "dashboard-3"
+    },
+    "ghost": {
+      "phosphor": "ghost",
+      "tabler": "ghost",
+      "material": null,
+      "remix": "ghost"
+    },
+    "git-branch": {
+      "phosphor": "git-branch",
+      "tabler": "git-branch",
+      "material": "fork_right",
+      "remix": "git-branch"
+    },
+    "globe": {
+      "phosphor": "globe",
+      "tabler": "world",
+      "material": "language",
+      "remix": "global"
+    },
+    "graduation-cap": {
+      "phosphor": "graduation-cap",
+      "tabler": "school",
+      "material": "school",
+      "remix": "graduation-cap"
+    },
+    "grid-2x2-plus": {
+      "phosphor": null,
+      "tabler": "layout-grid-add",
+      "material": "dashboard_customize",
+      "remix": "function-add"
+    },
+    "grip-vertical": {
+      "phosphor": "dots-six-vertical",
+      "tabler": "grip-vertical",
+      "material": "drag_indicator",
+      "remix": "draggable"
+    },
+    "group": {
+      "phosphor": "selection",
+      "tabler": "box-multiple",
+      "material": "select",
+      "remix": null
+    },
+    "hard-drive": {
+      "phosphor": "hard-drive",
+      "tabler": "server",
+      "material": "hard_drive",
+      "remix": "hard-drive-2"
+    },
+    "hard-drive-download": {
+      "phosphor": "tray-arrow-down",
+      "tabler": "database-import",
+      "material": "download_2",
+      "remix": "download-2"
+    },
+    "hard-drive-upload": {
+      "phosphor": "tray-arrow-up",
+      "tabler": "database-export",
+      "material": "upload_2",
+      "remix": "upload-2"
+    },
+    "hash": {
+      "phosphor": "hash",
+      "tabler": "hash",
+      "material": "tag",
+      "remix": "hashtag"
+    },
+    "heading": {
+      "phosphor": "text-h",
+      "tabler": "heading",
+      "material": "title",
+      "remix": "heading"
+    },
+    "heading-1": {
+      "phosphor": "text-h-one",
+      "tabler": "h-1",
+      "material": "format_h1",
+      "remix": "h-1"
+    },
+    "heading-2": {
+      "phosphor": "text-h-two",
+      "tabler": "h-2",
+      "material": "format_h2",
+      "remix": "h-2"
+    },
+    "heading-3": {
+      "phosphor": "text-h-three",
+      "tabler": "h-3",
+      "material": "format_h3",
+      "remix": "h-3"
+    },
+    "highlighter": {
+      "phosphor": "highlighter",
+      "tabler": "highlight",
+      "material": "ink_highlighter",
+      "remix": "mark-pen"
+    },
+    "hourglass": {
+      "phosphor": "hourglass",
+      "tabler": "hourglass",
+      "material": "hourglass",
+      "remix": "hourglass"
+    },
+    "house": {
+      "phosphor": "house",
+      "tabler": "home",
+      "material": "home",
+      "remix": "home"
+    },
+    "image": {
+      "phosphor": "image",
+      "tabler": "photo",
+      "material": "image",
+      "remix": "image"
+    },
+    "image-plus": {
+      "phosphor": null,
+      "tabler": "photo-plus",
+      "material": "add_photo_alternate",
+      "remix": "image-add"
+    },
+    "info": {
+      "phosphor": "info",
+      "tabler": "info-circle",
+      "material": "info",
+      "remix": "information"
+    },
+    "italic": {
+      "phosphor": "text-italic",
+      "tabler": "italic",
+      "material": "format_italic",
+      "remix": "italic"
+    },
+    "key-round": {
+      "phosphor": "key",
+      "tabler": "key",
+      "material": "key",
+      "remix": "key-2"
+    },
+    "laptop": {
+      "phosphor": "laptop",
+      "tabler": "device-laptop",
+      "material": "laptop_mac",
+      "remix": "macbook"
+    },
+    "layout-grid": {
+      "phosphor": "squares-four",
+      "tabler": "layout-grid",
+      "material": "grid_view",
+      "remix": "layout-grid"
+    },
+    "layout-list": {
+      "phosphor": "rows",
+      "tabler": "layout-list",
+      "material": "view_agenda",
+      "remix": "layout-row"
+    },
+    "lightbulb": {
+      "phosphor": "lightbulb",
+      "tabler": "bulb",
+      "material": "lightbulb",
+      "remix": "lightbulb"
+    },
+    "link": {
+      "phosphor": "link",
+      "tabler": "link",
+      "material": "link",
+      "remix": "link"
+    },
+    "link-2": {
+      "phosphor": "link-simple-horizontal",
+      "tabler": "link",
+      "material": "link",
+      "remix": "link-m"
+    },
+    "list": {
+      "phosphor": "list-bullets",
+      "tabler": "list",
+      "material": "format_list_bulleted",
+      "remix": "list-unordered"
+    },
+    "list-checks": {
+      "phosphor": "list-checks",
+      "tabler": "list-check",
+      "material": "checklist",
+      "remix": "list-check-2"
+    },
+    "list-filter": {
+      "phosphor": "funnel-simple",
+      "tabler": "filter",
+      "material": "filter_list",
+      "remix": "filter-3"
+    },
+    "list-ordered": {
+      "phosphor": "list-numbers",
+      "tabler": "list-numbers",
+      "material": "format_list_numbered",
+      "remix": "list-ordered"
+    },
+    "list-plus": {
+      "phosphor": "list-plus",
+      "tabler": "playlist-add",
+      "material": "playlist_add",
+      "remix": "play-list-add"
+    },
+    "list-todo": {
+      "phosphor": "list-checks",
+      "tabler": "list-check",
+      "material": "checklist",
+      "remix": "todo"
+    },
+    "list-tree": {
+      "phosphor": "tree-structure",
+      "tabler": "list-tree",
+      "material": "account_tree",
+      "remix": "node-tree"
+    },
+    "loader-circle": {
+      "phosphor": "circle-notch",
+      "tabler": "loader-2",
+      "material": "progress_activity",
+      "remix": "loader-4"
+    },
+    "locate": {
+      "phosphor": "gps",
+      "tabler": "focus-2",
+      "material": "location_searching",
+      "remix": "focus-2"
+    },
+    "locate-fixed": {
+      "phosphor": "crosshair",
+      "tabler": "current-location",
+      "material": "my_location",
+      "remix": "focus-3"
+    },
+    "lock": {
+      "phosphor": "lock",
+      "tabler": "lock",
+      "material": "lock",
+      "remix": "lock"
+    },
+    "log-out": {
+      "phosphor": "sign-out",
+      "tabler": "logout",
+      "material": "logout",
+      "remix": "logout-box-r"
+    },
+    "magnet": {
+      "phosphor": "magnet",
+      "tabler": "magnet",
+      "material": null,
+      "remix": null
+    },
+    "mail": {
+      "phosphor": "envelope",
+      "tabler": "mail",
+      "material": "mail",
+      "remix": "mail"
+    },
+    "map-pin": {
+      "phosphor": "map-pin",
+      "tabler": "map-pin",
+      "material": "location_on",
+      "remix": "map-pin"
+    },
+    "map-pinned": {
+      "phosphor": "map-pin-area",
+      "tabler": "map-pins",
+      "material": "pin_drop",
+      "remix": "map-pin-range"
+    },
+    "maximize": {
+      "phosphor": "corners-out",
+      "tabler": "maximize",
+      "material": "fullscreen",
+      "remix": "fullscreen"
+    },
+    "megaphone": {
+      "phosphor": "megaphone",
+      "tabler": "speakerphone",
+      "material": "campaign",
+      "remix": "megaphone"
+    },
+    "menu": {
+      "phosphor": "list",
+      "tabler": "menu-2",
+      "material": "menu",
+      "remix": "menu"
+    },
+    "message-circle-question-mark": {
+      "phosphor": null,
+      "tabler": "message-circle-question",
+      "material": "contact_support",
+      "remix": "question-answer"
+    },
+    "message-square": {
+      "phosphor": "chat",
+      "tabler": "message",
+      "material": "chat_bubble",
+      "remix": "message-2"
+    },
+    "message-square-dashed": {
+      "phosphor": "chat-centered-dots",
+      "tabler": "message-dots",
+      "material": "chat_dashed",
+      "remix": null
+    },
+    "message-square-plus": {
+      "phosphor": null,
+      "tabler": "message-plus",
+      "material": "add_comment",
+      "remix": "chat-new"
+    },
+    "message-square-quote": {
+      "phosphor": "chat-centered-text",
+      "tabler": "message-2",
+      "material": "format_quote",
+      "remix": "chat-quote"
+    },
+    "mic": {
+      "phosphor": "microphone",
+      "tabler": "microphone",
+      "material": "mic",
+      "remix": "mic"
+    },
+    "minus": {
+      "phosphor": "minus",
+      "tabler": "minus",
+      "material": "remove",
+      "remix": "subtract"
+    },
+    "network": {
+      "phosphor": "share-network",
+      "tabler": "sitemap",
+      "material": "lan",
+      "remix": "organization-chart"
+    },
+    "notebook": {
+      "phosphor": "notebook",
+      "tabler": "notebook",
+      "material": "book_2",
+      "remix": "booklet"
+    },
+    "palette": {
+      "phosphor": "palette",
+      "tabler": "palette",
+      "material": "palette",
+      "remix": "palette"
+    },
+    "panel-left": {
+      "phosphor": "sidebar",
+      "tabler": "layout-sidebar",
+      "material": "side_navigation",
+      "remix": "side-bar"
+    },
+    "pause": {
+      "phosphor": "pause",
+      "tabler": "player-pause",
+      "material": "pause",
+      "remix": "pause"
+    },
+    "pen-line": {
+      "phosphor": "pencil-line",
+      "tabler": "writing-sign",
+      "material": "edit_note",
+      "remix": "edit-2"
+    },
+    "pencil": {
+      "phosphor": "pencil-simple",
+      "tabler": "pencil",
+      "material": "edit",
+      "remix": "pencil"
+    },
+    "pencil-line": {
+      "phosphor": "pencil-simple-line",
+      "tabler": "writing-sign",
+      "material": "border_color",
+      "remix": "edit-2"
+    },
+    "phone": {
+      "phosphor": "phone",
+      "tabler": "phone",
+      "material": "call",
+      "remix": "phone"
+    },
+    "pin": {
+      "phosphor": "push-pin",
+      "tabler": "pin",
+      "material": "keep",
+      "remix": "pushpin"
+    },
+    "pin-off": {
+      "phosphor": "push-pin-slash",
+      "tabler": "pinned-off",
+      "material": "keep_off",
+      "remix": "unpin"
+    },
+    "play": {
+      "phosphor": "play",
+      "tabler": "player-play",
+      "material": "play_arrow",
+      "remix": "play"
+    },
+    "plus": {
+      "phosphor": "plus",
+      "tabler": "plus",
+      "material": "add",
+      "remix": "add"
+    },
+    "puzzle": {
+      "phosphor": "puzzle-piece",
+      "tabler": "puzzle",
+      "material": "extension",
+      "remix": "puzzle-2"
+    },
+    "refresh-cw": {
+      "phosphor": "arrows-clockwise",
+      "tabler": "refresh",
+      "material": "refresh",
+      "remix": "refresh"
+    },
+    "repeat": {
+      "phosphor": "repeat",
+      "tabler": "repeat",
+      "material": "repeat",
+      "remix": "repeat"
+    },
+    "replace": {
+      "phosphor": "swap",
+      "tabler": "replace",
+      "material": "find_replace",
+      "remix": "find-replace"
+    },
+    "rotate-ccw": {
+      "phosphor": "arrow-counter-clockwise",
+      "tabler": "rotate",
+      "material": "rotate_left",
+      "remix": "anticlockwise"
+    },
+    "rotate-ccw-clock": {
+      "phosphor": "clock-counter-clockwise",
+      "tabler": "history",
+      "material": "history",
+      "remix": "history"
+    },
+    "rotate-cw": {
+      "phosphor": "arrow-clockwise",
+      "tabler": "rotate-clockwise",
+      "material": "rotate_right",
+      "remix": "clockwise"
+    },
+    "scan-text": {
+      "phosphor": "scan",
+      "tabler": "scan",
+      "material": "document_scanner",
+      "remix": "scan"
+    },
+    "scissors": {
+      "phosphor": "scissors",
+      "tabler": "scissors",
+      "material": "content_cut",
+      "remix": "scissors"
+    },
+    "scroll-text": {
+      "phosphor": "scroll",
+      "tabler": "script",
+      "material": "receipt_long",
+      "remix": "file-list-3"
+    },
+    "search": {
+      "phosphor": "magnifying-glass",
+      "tabler": "search",
+      "material": "search",
+      "remix": "search"
+    },
+    "send": {
+      "phosphor": "paper-plane-tilt",
+      "tabler": "send",
+      "material": "send",
+      "remix": "send-plane"
+    },
+    "settings": {
+      "phosphor": "gear",
+      "tabler": "settings",
+      "material": "settings",
+      "remix": "settings-3"
+    },
+    "shapes": {
+      "phosphor": "shapes",
+      "tabler": "triangle-square-circle",
+      "material": "shapes",
+      "remix": "shapes"
+    },
+    "share-2": {
+      "phosphor": "share-network",
+      "tabler": "share",
+      "material": "share",
+      "remix": "share"
+    },
+    "shield-check": {
+      "phosphor": "shield-check",
+      "tabler": "shield-check",
+      "material": "verified_user",
+      "remix": "shield-check"
+    },
+    "sigma": {
+      "phosphor": "sigma",
+      "tabler": "sum",
+      "material": "functions",
+      "remix": "functions"
+    },
+    "sliders-horizontal": {
+      "phosphor": "sliders-horizontal",
+      "tabler": "adjustments-horizontal",
+      "material": "tune",
+      "remix": "equalizer"
+    },
+    "smartphone": {
+      "phosphor": "device-mobile",
+      "tabler": "device-mobile",
+      "material": "mobile",
+      "remix": "smartphone"
+    },
+    "snowflake": {
+      "phosphor": "snowflake",
+      "tabler": "snowflake",
+      "material": "ac_unit",
+      "remix": "snowflake"
+    },
+    "sparkles": {
+      "phosphor": "sparkle",
+      "tabler": "sparkles",
+      "material": "star_shine",
+      "remix": "sparkling"
+    },
+    "spell-check": {
+      "phosphor": null,
+      "tabler": "text-spellcheck",
+      "material": "spellcheck",
+      "remix": null
+    },
+    "spline": {
+      "phosphor": "bezier-curve",
+      "tabler": "vector-spline",
+      "material": "line_curve",
+      "remix": "pen-nib"
+    },
+    "square": {
+      "phosphor": "square",
+      "tabler": "square",
+      "material": "square",
+      "remix": "checkbox-blank"
+    },
+    "square-arrow-out-up-right": {
+      "phosphor": "arrow-square-out",
+      "tabler": "external-link",
+      "material": "open_in_new",
+      "remix": "share-box"
+    },
+    "square-check-big": {
+      "phosphor": "check-square",
+      "tabler": "square-check",
+      "material": "check_box",
+      "remix": "checkbox"
+    },
+    "square-code": {
+      "phosphor": "code-block",
+      "tabler": "code-dots",
+      "material": "code_blocks",
+      "remix": "code-box"
+    },
+    "square-dashed": {
+      "phosphor": "selection",
+      "tabler": "square-dashed",
+      "material": "select",
+      "remix": null
+    },
+    "square-dashed-text": {
+      "phosphor": "textbox",
+      "tabler": "forms",
+      "material": null,
+      "remix": "input-field"
+    },
+    "square-kanban": {
+      "phosphor": "kanban",
+      "tabler": "layout-kanban",
+      "material": "view_kanban",
+      "remix": "kanban-view"
+    },
+    "square-pen": {
+      "phosphor": "note-pencil",
+      "tabler": "edit",
+      "material": "edit_square",
+      "remix": "edit-box"
+    },
+    "square-radical": {
+      "phosphor": null,
+      "tabler": "square-root",
+      "material": "function",
+      "remix": "formula"
+    },
+    "sticker": {
+      "phosphor": "sticker",
+      "tabler": "sticker",
+      "material": "sticky_note_2",
+      "remix": "sticky-note"
+    },
+    "store": {
+      "phosphor": "storefront",
+      "tabler": "building-store",
+      "material": "storefront",
+      "remix": "store-2"
+    },
+    "strikethrough": {
+      "phosphor": "text-strikethrough",
+      "tabler": "strikethrough",
+      "material": "format_strikethrough",
+      "remix": "strikethrough"
+    },
+    "subscript": {
+      "phosphor": "text-subscript",
+      "tabler": "subscript",
+      "material": "subscript",
+      "remix": "subscript"
+    },
+    "sun": {
+      "phosphor": "sun",
+      "tabler": "sun",
+      "material": "light_mode",
+      "remix": "sun"
+    },
+    "sun-moon": {
+      "phosphor": "circle-half",
+      "tabler": "sun-moon",
+      "material": "contrast",
+      "remix": "contrast-2"
+    },
+    "sunrise": {
+      "phosphor": "sun-horizon",
+      "tabler": "sunrise",
+      "material": "wb_twilight",
+      "remix": "sun-foggy"
+    },
+    "superscript": {
+      "phosphor": "text-superscript",
+      "tabler": "superscript",
+      "material": "superscript",
+      "remix": "superscript"
+    },
+    "swatch-book": {
+      "phosphor": "swatches",
+      "tabler": "color-swatch",
+      "material": "style",
+      "remix": "paint"
+    },
+    "table": {
+      "phosphor": "table",
+      "tabler": "table",
+      "material": "table",
+      "remix": "table"
+    },
+    "tag": {
+      "phosphor": "tag",
+      "tabler": "tag",
+      "material": "sell",
+      "remix": "price-tag-3"
+    },
+    "terminal": {
+      "phosphor": "terminal-window",
+      "tabler": "terminal-2",
+      "material": "terminal",
+      "remix": "terminal-box"
+    },
+    "text-align-start": {
+      "phosphor": "text-align-left",
+      "tabler": "align-left",
+      "material": "format_align_left",
+      "remix": "align-left"
+    },
+    "text-cursor-input": {
+      "phosphor": "textbox",
+      "tabler": "cursor-text",
+      "material": "text_fields",
+      "remix": "input-cursor-move"
+    },
+    "text-quote": {
+      "phosphor": "quotes",
+      "tabler": "quote",
+      "material": "format_quote",
+      "remix": "double-quotes-l"
+    },
+    "text-search": {
+      "phosphor": "list-magnifying-glass",
+      "tabler": "file-search",
+      "material": "manage_search",
+      "remix": "file-search"
+    },
+    "ticket": {
+      "phosphor": "ticket",
+      "tabler": "ticket",
+      "material": "confirmation_number",
+      "remix": "ticket"
+    },
+    "trash": {
+      "phosphor": "trash",
+      "tabler": "trash",
+      "material": "delete",
+      "remix": "delete-bin"
+    },
+    "triangle-alert": {
+      "phosphor": "warning",
+      "tabler": "alert-triangle",
+      "material": "warning",
+      "remix": "alert"
+    },
+    "type": {
+      "phosphor": "text-t",
+      "tabler": "typography",
+      "material": "text_fields",
+      "remix": "text"
+    },
+    "underline": {
+      "phosphor": "text-underline",
+      "tabler": "underline",
+      "material": "format_underlined",
+      "remix": "underline"
+    },
+    "undo-2": {
+      "phosphor": "arrow-u-up-left",
+      "tabler": "arrow-back-up",
+      "material": "undo",
+      "remix": "arrow-go-back"
+    },
+    "unlink": {
+      "phosphor": "link-break",
+      "tabler": "unlink",
+      "material": "link_off",
+      "remix": "link-unlink"
+    },
+    "usb": {
+      "phosphor": "usb",
+      "tabler": "usb",
+      "material": "usb",
+      "remix": "usb"
+    },
+    "user-check": {
+      "phosphor": "user-check",
+      "tabler": "user-check",
+      "material": "how_to_reg",
+      "remix": "user-follow"
+    },
+    "user-group": {
+      "phosphor": "users-three",
+      "tabler": "users-group",
+      "material": "groups",
+      "remix": "group"
+    },
+    "user-minus": {
+      "phosphor": "user-minus",
+      "tabler": "user-minus",
+      "material": "person_remove",
+      "remix": "user-unfollow"
+    },
+    "user-plus": {
+      "phosphor": "user-plus",
+      "tabler": "user-plus",
+      "material": "person_add",
+      "remix": "user-add"
+    },
+    "user-round": {
+      "phosphor": "user",
+      "tabler": "user",
+      "material": "person",
+      "remix": "user"
+    },
+    "user-x": {
+      "phosphor": null,
+      "tabler": "user-x",
+      "material": "person_off",
+      "remix": "user-forbid"
+    },
+    "users": {
+      "phosphor": "users",
+      "tabler": "users",
+      "material": "group",
+      "remix": "team"
+    },
+    "volume-2": {
+      "phosphor": "speaker-high",
+      "tabler": "volume",
+      "material": "volume_up",
+      "remix": "volume-up"
+    },
+    "wand-sparkles": {
+      "phosphor": "magic-wand",
+      "tabler": "wand",
+      "material": "wand_stars",
+      "remix": "magic"
+    },
+    "waves-horizontal": {
+      "phosphor": "waves",
+      "tabler": "ripple",
+      "material": "waves",
+      "remix": null
+    },
+    "wifi": {
+      "phosphor": "wifi-high",
+      "tabler": "wifi",
+      "material": "wifi",
+      "remix": "wifi"
+    },
+    "wifi-off": {
+      "phosphor": "wifi-slash",
+      "tabler": "wifi-off",
+      "material": "wifi_off",
+      "remix": "wifi-off"
+    },
+    "workflow": {
+      "phosphor": "flow-arrow",
+      "tabler": "schema",
+      "material": "schema",
+      "remix": "flow-chart"
+    },
+    "x": {
+      "phosphor": "x",
+      "tabler": "x",
+      "material": "close",
+      "remix": "close"
+    },
+    "zoom-in": {
+      "phosphor": "magnifying-glass-plus",
+      "tabler": "zoom-in",
+      "material": "zoom_in",
+      "remix": "zoom-in"
+    },
+    "zoom-out": {
+      "phosphor": "magnifying-glass-minus",
+      "tabler": "zoom-out",
+      "material": "zoom_out",
+      "remix": "zoom-out"
+    }
+  }
+}

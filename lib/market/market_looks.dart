@@ -20,8 +20,8 @@ import 'market_cards.dart';
 import 'market_items.dart';
 
 /// The tick on the card in use: a filled round in the ink with a check, never colour alone.
-class _InUse extends StatelessWidget {
-  const _InUse({required this.on});
+class MarketInUse extends StatelessWidget {
+  const MarketInUse({super.key, required this.on});
   final bool on;
 
   @override
@@ -86,7 +86,7 @@ class MarketThemeCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: t.space(2)),
-                _InUse(on: selected),
+                MarketInUse(on: selected),
               ],
             ),
           ),
@@ -304,7 +304,7 @@ class MarketFontCard extends StatelessWidget {
                   ),
                 ),
                 SizedBox(width: t.space(2)),
-                _InUse(on: selected),
+                MarketInUse(on: selected),
               ],
             ),
           ),

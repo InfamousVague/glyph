@@ -91,7 +91,7 @@ void main() {
   group('the Appearance page', () {
     testWidgets('holds the look, the type, the motion and, on a phone, the touch, in that order', (tester) async {
       await _open(tester);
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion', 'Touch']);
       await endSettings(tester);
     });
 
@@ -112,7 +112,7 @@ void main() {
 
     testWidgets('has no Touch where there is no motor, and no Sidebar on a phone, where it changes nothing', (tester) async {
       await _alone(tester, const AppearancePane(hasMotor: false));
-      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion']);
+      expect(_titles(tester), ['Mode', 'Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Icons', 'Spacing', 'Corners', 'Code', 'Motion']);
       expect(find.text('Haptics'), findsNothing);
       expect(find.text('Sidebar'), findsNothing);
       expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), isNot(anyOf(contains('Sidebar'), contains('Haptics'))));
@@ -281,6 +281,34 @@ void main() {
       // Across the page's own words: back to the list.
       await swipeFrom(tester.getCenter(find.text('PAGE')));
       expect(find.byKey(const ValueKey('settings-display')), findsNothing);
+      await endSettings(tester);
+    });
+  });
+
+  group('the icons’ style (Matt, 2026-10-27: "add three icon styles (outline, solid and filled)")', () {
+    testWidgets('chooses Outline, Solid or Filled, with the pack in use drawn in it underneath as it is chosen', (tester) async {
+      await _open(tester, prefs: const Preferences(theme: 'light', iconPack: 'material'));
+      expect(_labels(tester, 'Icons'), ['Style']);
+      expect(find.text('Drawn from Material Symbols. More icon packs are in the Market.'), findsOneWidget);
+      final preview = find.byKey(const ValueKey('icon-style-preview-material-outline'));
+      expect(preview, findsOneWidget);
+      expect(tester.widgetList<AppIcon>(find.descendant(of: preview, matching: find.byType(AppIcon))), hasLength(12));
+      await _tap(tester, find.descendant(of: find.byKey(const ValueKey('settings-icon-style')), matching: find.text('Solid')));
+      expect(preferences.value.iconStyle, 'solid');
+      expect(find.byKey(const ValueKey('icon-style-preview-material-solid')), findsOneWidget);
+      await _tap(tester, find.descendant(of: find.byKey(const ValueKey('settings-icon-style')), matching: find.text('Filled')));
+      expect(preferences.value.iconStyle, 'filled');
+      expect(find.byKey(const ValueKey('icon-style-preview-material-filled')), findsOneWidget);
+      await endSettings(tester);
+    });
+
+    testWidgets('is Advanced’s alone, as the faces are, and found by its words', (tester) async {
+      await _open(tester, prefs: const Preferences(theme: 'light', experience: 'simple', experienceChosen: true, iconStyle: 'solid'));
+      expect(_titles(tester), isNot(contains('Icons')));
+      // The style chosen still draws Simple's page.
+      expect(preferences.value.iconStyle, 'solid');
+      expect(appearanceFindable(wide: false, haptics: false, simple: true).map((f) => f.name), isNot(contains('Icons')));
+      expect(appearanceFindable(wide: false, haptics: false).map((f) => f.name), contains('Icons'));
       await endSettings(tester);
     });
   });
@@ -556,12 +584,17 @@ void main() {
       final market = _marketRows(tester);
       expect(market.page, greaterThan(0));
       expect(market.type, greaterThan(0));
+      // The icons' style (Matt, 2026-10-27), a card of the port's own after Type: one card and the web's gap between
+      // cards (17.84) further down for every card under it.
+      const gap = 3646.19 - (2274.83 + 1353.52);
+      final icons = card('Icons');
+      expect(icons.top, closeTo(card('Type').bottom + gap, 3.5));
       const order = ['Page', 'Home page', 'Top bar', 'Accent', 'Type', 'Spacing', 'Corners', 'Code', 'Motion'];
       for (final entry in web.entries) {
         final rect = card(entry.key);
         final at = order.indexOf(entry.key);
         final grown = entry.key == 'Page' ? market.page : entry.key == 'Type' ? market.type : 0.0;
-        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type : 0.0);
+        final below = (at > 0 ? market.page : 0.0) + (at > order.indexOf('Type') ? market.type + icons.height + gap : 0.0);
         expect(rect.left, closeTo(22.31, 0.05), reason: entry.key);
         expect(rect.width, closeTo(345.38, 0.05), reason: entry.key);
         expect(rect.height, closeTo(entry.value.$2 + grown, 2), reason: '${entry.key}’s height');

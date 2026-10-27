@@ -34,6 +34,7 @@ export 'edge_strips.dart';
 export 'gears.dart';
 export 'ghost.dart';
 export 'ghost_mark.dart';
+export 'icon_packs.dart';
 export 'icon_wash.dart';
 export 'icons.dart';
 export 'lucide.g.dart';

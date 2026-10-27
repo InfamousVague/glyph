@@ -30,6 +30,11 @@
 ///
 /// Advanced mode's: simple mode hides every way in, as it hid Settings › Plugins, and a link that comes in Simple is
 /// answered with a word instead (lib/root/ghost_root.dart `_marketInSimple`).
+///
+/// The icon packs have a shelf of their own, Icons (Matt, 2026-10-27: "add three icon styles (outline, solid and
+/// filled) and add a few different icon packs for the app to choose from"; lib/market/market_icons.dart): a card for
+/// each pack with twelve of the app's icons in all three styles, the style to draw them in under the cards, and a
+/// page for each pack that opens as a plugin's does, with Use this pack (`ghostmd://market/icons/<id>` opens on it).
 library;
 
 import 'dart:math' as math;
@@ -53,6 +58,7 @@ import '../shell/header_pane.dart';
 import '../shell/page_dock.dart';
 import 'market_cards.dart';
 import 'market_items.dart';
+import 'market_icons.dart';
 import 'market_looks.dart';
 import 'market_plugins.dart';
 
@@ -108,6 +114,9 @@ class _MarketScreenState extends State<MarketScreen> {
   /// The plugin whose page is open.
   late String? _open = widget.plugin ?? _landing?.plugin;
 
+  /// The icon pack whose page is open, where no plugin's is.
+  late String? _openPack = widget.plugin == null ? _landing?.icons : null;
+
   /// The theme or the face a link named, held at the head of its shelf until it is put away or the shelf is left.
   late String? _linkedTheme = _landing?.theme;
   late String? _linkedFace = _landing?.face;
@@ -126,9 +135,20 @@ class _MarketScreenState extends State<MarketScreen> {
     super.dispose();
   }
 
-  void _openPlugin(String id) => setState(() => _open = id);
+  void _openPlugin(String id) => setState(() {
+        _open = id;
+        _openPack = null;
+      });
 
-  void _close() => setState(() => _open = null);
+  void _openIcons(String id) => setState(() {
+        _openPack = id;
+        _open = null;
+      });
+
+  void _close() => setState(() {
+        _open = null;
+        _openPack = null;
+      });
 
   void _toShelf(MarketShelf shelf) {
     setState(() {
@@ -148,7 +168,11 @@ class _MarketScreenState extends State<MarketScreen> {
       builder: (context, _) => LayoutBuilder(
         builder: (context, box) {
           final wide = box.maxWidth >= marketWide;
-          final open = _open == null ? null : _registry.byId(_open!);
+          final plugin = _open == null ? null : _registry.byId(_open!);
+          final pack = plugin == null && _openPack != null && isIconPack(_openPack) ? iconPackOf(_openPack) : null;
+          // The page open, a plugin's or an icon pack's: its key, its name for the bar, and the page itself.
+          final open = plugin == null ? (pack == null ? null : (id: 'icons-${pack.id}', name: pack.name)) : (id: plugin.manifest.id, name: plugin.manifest.name);
+          Widget detail({required bool close}) => plugin != null ? _detail(plugin, close: close) : _packDetail(pack!, close: close);
           final safeTop = t.len('app-safe-top');
           final hairline = t.len('glacier-hairline');
           final bar = safeTop + t.space(2) * 2 + t.space(8) + hairline * 2;
@@ -165,7 +189,7 @@ class _MarketScreenState extends State<MarketScreen> {
             body = OnBack(
               key: const ValueKey('back:market-plugin'),
               onBack: _close,
-              child: SingleChildScrollView(key: ValueKey('market-page-${open.manifest.id}'), padding: pad, child: _detail(open, close: false)),
+              child: SingleChildScrollView(key: ValueKey('market-page-${open.id}'), padding: pad, child: detail(close: false)),
             );
           } else {
             final shelves = SingleChildScrollView(
@@ -193,9 +217,9 @@ class _MarketScreenState extends State<MarketScreen> {
                           width: paneWidth,
                           decoration: BoxDecoration(color: t.color('app-paper'), border: Border(left: BorderSide(color: t.color('app-rule'), width: hairline))),
                           child: SingleChildScrollView(
-                            key: ValueKey('market-page-${open.manifest.id}'),
+                            key: ValueKey('market-page-${open.id}'),
                             padding: EdgeInsets.fromLTRB(t.space(4), top, t.space(4), foot),
-                            child: _detail(open, close: true),
+                            child: detail(close: true),
                           ),
                         ),
                       ),
@@ -203,7 +227,7 @@ class _MarketScreenState extends State<MarketScreen> {
                   );
           }
 
-          final title = open != null && !wide ? open.manifest.name : 'Market';
+          final title = open != null && !wide ? open.name : 'Market';
           return ColoredBox(
             color: t.color('glacier-bg'),
             child: ClipRect(
@@ -263,6 +287,19 @@ class _MarketScreenState extends State<MarketScreen> {
     );
   }
 
+  /// An icon pack's page: Use this pack, and the style, each written to the preferences, which the app is drawn from.
+  Widget _packDetail(IconPack pack, {required bool close}) {
+    final prefs = _prefs.value;
+    return IconPackDetail(
+      pack: pack,
+      inUse: iconPackOf(prefs.iconPack).id == pack.id,
+      style: IconStyle.of(prefs.iconStyle),
+      onUse: () => _prefs.update((now) => now.copyWith(iconPack: pack.id)),
+      onStyle: (style) => _prefs.update((now) => now.copyWith(iconStyle: style.name)),
+      onClose: close ? _close : null,
+    );
+  }
+
   /// Everything above the plugin's page: the band, the search, the shelves' control and what the shelf holds.
   List<Widget> _page(Tokens t, {required bool wide, required bool narrowed}) {
     final registry = _registry;
@@ -284,17 +321,19 @@ class _MarketScreenState extends State<MarketScreen> {
     final themesFound = [for (final option in options) if (themeFound(option, query)) option];
     final noteFaces = [for (final face in typefaces) if (faceFound(face, query)) face];
     final uiFaces = [for (final face in interfaceFaces) if (faceFound(face, query)) face];
+    final packsFound = [for (final pack in iconPacks) if (iconPackFound(pack, query)) pack];
     final showPlugins = shelf == MarketShelf.all || shelf == MarketShelf.plugins;
     final showThemes = shelf == MarketShelf.all || shelf == MarketShelf.themes;
     final showFonts = shelf == MarketShelf.all || shelf == MarketShelf.fonts;
-    final nothing = (!showPlugins || found.isEmpty) && (!showThemes || themesFound.isEmpty) && (!showFonts || (noteFaces.isEmpty && uiFaces.isEmpty));
+    final showIcons = shelf == MarketShelf.all || shelf == MarketShelf.icons;
+    final nothing = (!showPlugins || found.isEmpty) && (!showThemes || themesFound.isEmpty) && (!showFonts || (noteFaces.isEmpty && uiFaces.isEmpty)) && (!showIcons || packsFound.isEmpty);
     // A phone's All shows the themes and the fonts as rows that scroll sideways; everywhere else they stand across.
     final rows = !wide && shelf == MarketShelf.all;
 
     final linkedTheme = [for (final option in options) if (option.value == _linkedTheme) option].firstOrNull;
     final linkedFace = typefaces.contains(_linkedFace) ? _linkedFace : null;
     final parts = <Widget>[
-      _Band(plugins: all, themes: options.length, faces: typefaces.length, wide: wide),
+      _Band(plugins: all, themes: options.length, faces: typefaces.length, packs: iconPacks.length, wide: wide),
       if (_missing case final missing?) ...[SizedBox(height: t.space(4)), _LinkNote(words: missing, onDismiss: () => setState(() => _missing = null))],
       if (linkedTheme != null) ...[
         SizedBox(height: t.space(4)),
@@ -330,14 +369,14 @@ class _MarketScreenState extends State<MarketScreen> {
         key: const ValueKey('market-find'),
         value: query,
         onValueChange: (value) => setState(() => _query = value),
-        placeholder: 'Search plugins, themes and fonts',
+        placeholder: 'Search plugins, themes, fonts and icons',
         ariaLabel: 'Search the Market',
       ),
       SizedBox(height: t.space(3)),
       Align(
         alignment: AlignmentDirectional.centerStart,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: wide ? 440 : double.infinity),
+          constraints: BoxConstraints(maxWidth: wide ? 520 : double.infinity),
           child: GlacierSegmentedControl(
             key: const ValueKey('market-shelves'),
             ariaLabel: 'Shelves',
@@ -450,6 +489,47 @@ class _MarketScreenState extends State<MarketScreen> {
       }
     }
 
+    if (showIcons && packsFound.isNotEmpty) {
+      final using = iconPackOf(prefs.iconPack);
+      final style = IconStyle.of(prefs.iconStyle);
+      final cards = [
+        for (final pack in packsFound) MarketIconPackCard(pack: pack, selected: using.id == pack.id, open: _openPack == pack.id, onPress: () => _openIcons(pack.id)),
+      ];
+      parts.addAll([
+        SizedBox(height: gap),
+        MarketHeading(
+          title: 'Icons',
+          icon: Lucide.shapes,
+          meta: '${packsFound.length} packs, each outline, solid or filled',
+          more: shelf == MarketShelf.all ? 'See all' : null,
+          onMore: () => _toShelf(MarketShelf.icons),
+        ),
+        if (rows)
+          MarketRow(width: t.lenOf('17rem'), height: t.lenOf('11.6rem'), children: cards)
+        else
+          MarketGrid(minWidth: t.lenOf('16rem'), most: narrowed ? 2 : 3, children: cards),
+      ]);
+      // The style under the packs on their own shelf, as the accent is under the themes.
+      if (shelf == MarketShelf.icons) {
+        parts.addAll([
+          SizedBox(height: gap),
+          MarketHeading(title: 'Style', icon: Lucide.sparkles, meta: '${style.label}, in ${using.name}'),
+          MarketCard(
+            key: const ValueKey('market-icon-style'),
+            padding: EdgeInsets.all(t.space(4)),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                IconStyleChooser(pack: using, style: style, onStyle: (style) => _prefs.update((now) => now.copyWith(iconStyle: style.name))),
+                SizedBox(height: t.space(3)),
+                Text('Outline is the pack’s own line, Solid the same icons bolder, and Filled each one filled in. Every icon in Ghost.md changes at once.', style: pageText(t, t.fontSize('sm'), height: 1.4, color: t.color('app-ink-3'))),
+              ],
+            ),
+          ),
+        ]);
+      }
+    }
+
     if (showPlugins && (found.isNotEmpty || category != null)) parts.addAll([SizedBox(height: gap), ..._plugins(t, all: all, found: found, categories: categories, category: category, wide: wide)]);
     return parts;
   }
@@ -554,11 +634,12 @@ class _MarketScreenState extends State<MarketScreen> {
 /// The Market's head: a band in colour, its name and what it is, how much is on its shelves, and the plugins' tiles
 /// scattered at its end, the brands' marks first.
 class _Band extends StatelessWidget {
-  const _Band({required this.plugins, required this.themes, required this.faces, required this.wide});
+  const _Band({required this.plugins, required this.themes, required this.faces, required this.packs, required this.wide});
 
   final List<GlyphPlugin> plugins;
   final int themes;
   final int faces;
+  final int packs;
   final bool wide;
 
   @override
@@ -614,12 +695,12 @@ class _Band extends StatelessWidget {
                         children: [
                           Text('Market', style: pageText(t, t.fontSize(wide ? '3xl' : '2xl'), weight: 'bold', color: const Color(0xFFFFFFFF))),
                           SizedBox(height: t.space(1)),
-                          Text('Plugins, themes and fonts, all built in. Adding one is a switch.', maxLines: 3, overflow: TextOverflow.ellipsis, style: lineStyle),
+                          Text('Plugins, themes, fonts and icons, all built in. Adding one is a switch.', maxLines: 3, overflow: TextOverflow.ellipsis, style: lineStyle),
                           SizedBox(height: t.space(3)),
                           Text(
-                            '${plugins.length} plugins · $themes themes · $faces fonts',
+                            '${plugins.length} plugins · $themes themes · $faces fonts · $packs icon packs',
                             key: const ValueKey('market-band-count'),
-                            maxLines: 1,
+                            maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: pageText(t, t.fontSize('xs'), weight: 'semibold', color: const Color(0xCCFFFFFF)),
                           ),
@@ -810,7 +891,7 @@ class _Nothing extends StatelessWidget {
         SizedBox(height: t.space(3)),
         Text(query.isEmpty ? 'Nothing here yet' : 'Nothing matches “$query”', textAlign: TextAlign.center, style: pageText(t, t.fontSize('md'), weight: 'semibold', color: t.color('app-ink'))),
         SizedBox(height: t.space(1)),
-        Text('Try a plugin’s name, a theme or a font.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
+        Text('Try a plugin’s name, a theme, a font or an icon pack.', textAlign: TextAlign.center, style: pageText(t, t.fontSize('sm'), color: t.color('app-ink-3'))),
         SizedBox(height: t.space(4)),
         MarketButton(key: const ValueKey('market-everything'), label: 'Show everything', look: MarketButtonLook.ring, onPress: onEverything),
       ],

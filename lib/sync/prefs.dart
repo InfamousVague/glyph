@@ -50,6 +50,9 @@ const List<String> syncedPrefs = [
   'textSize',
   'typeface',
   'noteFace',
+  // The icon pack and its style (Matt, 2026-10-27): a look, chosen once for every device, as the faces are.
+  'iconPack',
+  'iconStyle',
   'refine',
   'quietStop',
   'review',

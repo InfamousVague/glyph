@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/icon_packs.dart' show IconLook, IconLookScope, IconStyle;
 import '../core/page_scroll.dart';
 import '../core/preferences.dart';
 import 'iphone_page.dart';
@@ -71,7 +72,9 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
     (prefs) => (prefs.attrs, prefs.uiScale, prefs.motionSpeed),
     same: (a, b) => a.$2 == b.$2 && a.$3 == b.$3 && mapEquals(a.$1, b.$1),
   );
-  static final Listenable _choices = Listenable.merge([_worn, hapticsPref]);
+  /// The icon pack and its style (lib/art/icon_packs.dart): every icon redrawn in them the moment either is chosen.
+  static final ValueListenable<(String, String)> _icons = preferences.select((prefs) => (prefs.iconPack, prefs.iconStyle));
+  static final Listenable _choices = Listenable.merge([_worn, _icons, hapticsPref]);
 
   /// Taken, and nothing pushed (see the class's comment). This observer is added before the `WidgetsApp`'s own, so
   /// it is asked first.
@@ -157,7 +160,7 @@ class _GhostAppState extends State<GhostApp> with WidgetsBindingObserver {
                 // One reading of what lies behind for every glass in the window (the bars and the dock ask for theirs
                 // with `BackdropFilter.grouped`): each used to copy the screen for itself. Compared on the Mac's own
                 // engine with content scrolled under the two bars of the split layout: at most 4 of 255 apart.
-                child: BackdropGroup(child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!)))))),
+                child: IconLookScope(look: IconLook(prefs.iconPack, IconStyle.of(prefs.iconStyle)), child: BackdropGroup(child: HapticsProvider(enabled: hapticsPref.value, child: _InkOverrides(child: _Page(child: IPhonePage(child: GlacierToastProvider(child: child!))))))),
               ),
             ),
           ),

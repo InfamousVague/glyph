@@ -129,6 +129,14 @@ const List<String> interfaceFaces = ['inter', 'noto', 'plex', 'atkinson'];
 
 bool isTypeface(Object? value) => value is String && typefaces.contains(value);
 
+/// The icon packs the app draws in (`iconPacks`, lib/art/icon_packs.dart; Matt, 2026-10-27: "add a few different icon
+/// packs for the app to choose from"), Lucide first and the default. Kept here as words, as the faces are, so the
+/// preferences read without the packs' drawings; test/art/icon_packs_test.dart holds the two lists the same.
+const List<String> iconPackChoices = ['lucide', 'phosphor', 'tabler', 'material', 'remix'];
+
+/// The three ways they are drawn (`IconStyle`, lib/art/icon_pack.dart): outline, solid, filled.
+const List<String> iconStyleChoices = ['outline', 'solid', 'filled'];
+
 bool isInterfaceFace(Object? value) => value is String && interfaceFaces.contains(value);
 
 /// Whether a face is one of the monospace coding faces, which set the note's code as well as its words.
@@ -387,6 +395,8 @@ class Preferences {
     this.textSize = 'large',
     this.typeface = 'inter',
     this.noteFace = 'maple',
+    this.iconPack = 'lucide',
+    this.iconStyle = 'outline',
     this.refine = true,
     this.quietStop = false,
     this.review = true,
@@ -457,6 +467,7 @@ class Preferences {
     final accent = at('accent', d.accent), rounding = at('rounding', d.rounding);
     // The two faces, settled: one face for everything, as a store from before the pair has it, is read as a pair.
     final faces = facesOf(typeface: at('typeface', d.typeface), noteFace: at('noteFace', d.noteFace));
+    final iconPack = at('iconPack', d.iconPack), iconStyle = at('iconStyle', d.iconStyle);
 
     return Preferences(
       // A theme from a later build, or from a device with one this build lacks, reads as the default.
@@ -478,6 +489,9 @@ class Preferences {
       textSize: word('textSize', d.textSize),
       typeface: faces.ui,
       noteFace: faces.note,
+      // A pack or a style from a later build, which this one cannot draw, is Lucide's outline.
+      iconPack: iconPackChoices.contains(iconPack) ? iconPack as String : d.iconPack,
+      iconStyle: iconStyleChoices.contains(iconStyle) ? iconStyle as String : d.iconStyle,
       refine: flag('refine', d.refine),
       quietStop: flag('quietStop', d.quietStop),
       review: flag('review', d.review),
@@ -577,6 +591,11 @@ class Preferences {
 
   /// The note's face: its words and its code ([typefaces]).
   final String noteFace;
+
+  /// The icon pack every icon is drawn in ([iconPackChoices]), and how ([iconStyleChoices]): one choice for the
+  /// person, so a phone and a Mac match, as the faces do.
+  final String iconPack;
+  final String iconStyle;
 
   /// Better words after recording: a larger, slower model goes over the kept recording in the background.
   final bool refine;
@@ -679,7 +698,7 @@ class Preferences {
   static const Set<String> _keys = {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
-    'noteFace', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
+    'noteFace', 'iconPack', 'iconStyle', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
@@ -700,6 +719,8 @@ class Preferences {
     String? textSize,
     String? typeface,
     String? noteFace,
+    String? iconPack,
+    String? iconStyle,
     bool? refine,
     bool? quietStop,
     bool? review,
@@ -751,6 +772,8 @@ class Preferences {
         textSize: textSize ?? this.textSize,
         typeface: typeface ?? this.typeface,
         noteFace: noteFace ?? this.noteFace,
+        iconPack: iconPack ?? this.iconPack,
+        iconStyle: iconStyle ?? this.iconStyle,
         refine: refine ?? this.refine,
         quietStop: quietStop ?? this.quietStop,
         review: review ?? this.review,
@@ -805,6 +828,8 @@ class Preferences {
         'textSize': textSize,
         'typeface': typeface,
         'noteFace': noteFace,
+        'iconPack': iconPack,
+        'iconStyle': iconStyle,
         'refine': refine,
         'quietStop': quietStop,
         'review': review,

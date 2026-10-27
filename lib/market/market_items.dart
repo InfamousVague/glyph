@@ -32,7 +32,9 @@ enum MarketShelf {
   all('All'),
   plugins('Plugins'),
   themes('Themes'),
-  fonts('Fonts');
+  fonts('Fonts'),
+  // The icon packs (lib/market/market_icons.dart; Matt, 2026-10-27).
+  icons('Icons');
 
   const MarketShelf(this.label);
   final String label;
@@ -217,11 +219,13 @@ String accentName(String accent) => accentWords[accent] ?? accent;
 /// opens on its page, as an old Settings › Plugins › its name does; a theme or a face is held at the head of its
 /// shelf with the way to use it, since neither has a page of its own.
 ///
+/// An icon pack (`ghostmd://market/icons/<id>`) opens on its page, as a plugin does.
+///
 /// A link that names nothing this build carries ([missing]) lands on the Market's front, All, with a word saying so:
 /// the website lists what the newest Ghost.md has, and a device a version behind is told so rather than shown nothing.
 @immutable
 class MarketLanding {
-  const MarketLanding({this.shelf = MarketShelf.all, this.plugin, this.theme, this.face, this.missing});
+  const MarketLanding({this.shelf = MarketShelf.all, this.plugin, this.theme, this.face, this.icons, this.missing});
 
   final MarketShelf shelf;
 
@@ -232,23 +236,28 @@ class MarketLanding {
   final String? theme;
   final String? face;
 
+  /// The icon pack whose page it opens on (`iconPacks`, lib/art/icon_packs.dart).
+  final String? icons;
+
   /// The word over the front for a link the Market cannot follow; null for one it can.
   final String? missing;
 
   @override
-  bool operator ==(Object other) => other is MarketLanding && other.shelf == shelf && other.plugin == plugin && other.theme == theme && other.face == face && other.missing == missing;
+  bool operator ==(Object other) =>
+      other is MarketLanding && other.shelf == shelf && other.plugin == plugin && other.theme == theme && other.face == face && other.icons == icons && other.missing == missing;
 
   @override
-  int get hashCode => Object.hash(shelf, plugin, theme, face, missing);
+  int get hashCode => Object.hash(shelf, plugin, theme, face, icons, missing);
 
   @override
-  String toString() => 'MarketLanding(${shelf.name}, plugin: $plugin, theme: $theme, face: $face, missing: $missing)';
+  String toString() => 'MarketLanding(${shelf.name}, plugin: $plugin, theme: $theme, face: $face, icons: $icons, missing: $missing)';
 }
 
-/// Where [link] lands among [plugins] (the registry's), the themes ([themeIds], `themes`) and the faces ([faces],
-/// `typefaces`): a kind alone is its shelf; an id with its kind is that thing, or the front with a word when this build
-/// has no such thing; an id alone is the plugin of that id, else the theme, else the face.
-MarketLanding marketLinkLanding(MarketPlace link, {required Iterable<GlyphPlugin> plugins, Iterable<String> themeIds = themes, Iterable<String> faces = typefaces}) {
+/// Where [link] lands among [plugins] (the registry's), the themes ([themeIds], `themes`), the faces ([faces],
+/// `typefaces`) and the icon packs ([packs], `iconPackChoices`): a kind alone is its shelf; an id with its kind is that
+/// thing, or the front with a word when this build has no such thing; an id alone is the plugin of that id, else the
+/// theme, else the face, else the pack.
+MarketLanding marketLinkLanding(MarketPlace link, {required Iterable<GlyphPlugin> plugins, Iterable<String> themeIds = themes, Iterable<String> faces = typefaces, Iterable<String> packs = iconPackChoices}) {
   final id = link.id;
   final kind = link.kind;
   if (id == null) {
@@ -257,6 +266,7 @@ MarketLanding marketLinkLanding(MarketPlace link, {required Iterable<GlyphPlugin
         MarketKind.plugin => MarketShelf.plugins,
         MarketKind.theme => MarketShelf.themes,
         MarketKind.font => MarketShelf.fonts,
+        MarketKind.icons => MarketShelf.icons,
         null => MarketShelf.all,
       },
     );
@@ -264,11 +274,13 @@ MarketLanding marketLinkLanding(MarketPlace link, {required Iterable<GlyphPlugin
   if ((kind == null || kind == MarketKind.plugin) && plugins.any((p) => p.manifest.id == id)) return MarketLanding(shelf: MarketShelf.plugins, plugin: id);
   if ((kind == null || kind == MarketKind.theme) && themeIds.contains(id)) return MarketLanding(shelf: MarketShelf.themes, theme: id);
   if ((kind == null || kind == MarketKind.font) && faces.contains(id)) return MarketLanding(shelf: MarketShelf.fonts, face: id);
+  if ((kind == null || kind == MarketKind.icons) && packs.contains(id)) return MarketLanding(shelf: MarketShelf.icons, icons: id);
   final what = switch (kind) {
     MarketKind.plugin => 'plugin',
     MarketKind.theme => 'theme',
     MarketKind.font => 'font',
-    null => 'plugin, theme or font',
+    MarketKind.icons => 'icon pack',
+    null => 'plugin, theme, font or icon pack',
   };
   return MarketLanding(missing: 'This Ghost.md has no $what called “$id”. It may be in a newer version: here is everything this one has.');
 }

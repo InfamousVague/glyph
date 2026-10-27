@@ -296,7 +296,7 @@ void main() {
       final newer = land('ghostmd://market/plugin/teams');
       expect((newer.shelf, newer.plugin), (MarketShelf.all, null));
       expect(newer.missing, 'This Ghost.md has no plugin called “teams”. It may be in a newer version: here is everything this one has.');
-      expect(land('ghostmd://market/nothing-like-it').missing, contains('no plugin, theme or font called “nothing-like-it”'));
+      expect(land('ghostmd://market/nothing-like-it').missing, contains('no plugin, theme, font or icon pack called “nothing-like-it”'));
     });
 
     testWidgets('to a plugin opens its page, with Add', (tester) async {

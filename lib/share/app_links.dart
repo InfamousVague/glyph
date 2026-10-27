@@ -59,14 +59,14 @@ class OrganizationPlace extends LinkedPlace {
   int get hashCode => orgId.hashCode;
 }
 
-/// What a link into the Market names: a plugin, a theme or a font.
-enum MarketKind { plugin, theme, font }
+/// What a link into the Market names: a plugin, a theme, a font, or an icon pack (`icons`, Matt, 2026-10-27).
+enum MarketKind { plugin, theme, font, icons }
 
 /// `ghostmd://market`, the Market (lib/market/market_screen.dart), at one thing on its shelves when the link names it
 /// (Matt, 2026-10-26: "add a browsable marketplace listed under the plugins section on the website that deeplinks to
 /// the app"). The website's market page (landing/market.html) opens each plugin, theme and font by
 /// `ghostmd://market/<kind>/<id>`: `ghostmd://market/plugin/notion`, `ghostmd://market/theme/dusk`,
-/// `ghostmd://market/font/lora`. A kind alone, `ghostmd://market/theme`, is that shelf; an id alone,
+/// `ghostmd://market/font/lora`, and each icon pack by `ghostmd://market/icons/phosphor`. A kind alone, `ghostmd://market/theme`, is that shelf; an id alone,
 /// `ghostmd://market/notion`, is whichever of the three has it, a plugin first. Not on the page, which had no Market.
 ///
 /// [kind] and [id] are as the link has them, not yet looked up: whether the id is one this build carries is the
@@ -92,7 +92,7 @@ final RegExp _orgLink = RegExp(r'^ghostmd://org/([A-Za-z0-9_-]{1,64})/?$');
 
 /// `ghostmd://market`, then a kind or an id or both: an id as the app's lists keep one, lowercase letters, digits and
 /// dashes. A link from a page may carry a query or a fragment after it (`?from=site`); they say nothing here.
-final RegExp _marketLink = RegExp(r'^ghostmd://market(?:/(plugin|theme|font)s?)?(?:/([a-z0-9][a-z0-9_-]{0,63}))?/?(?:[?#].*)?$');
+final RegExp _marketLink = RegExp(r'^ghostmd://market(?:/(plugin|theme|font|icon)s?)?(?:/([a-z0-9][a-z0-9_-]{0,63}))?/?(?:[?#].*)?$');
 
 /// The notifications drawer, `ghostmd://notifications`, an organization's dashboard, `ghostmd://org/<id>`, the id
 /// as the service makes one, or the Market, `ghostmd://market/<kind>/<id>` ([MarketPlace]). Null for any other link
@@ -105,7 +105,8 @@ LinkedPlace? readPlaceLink(String link) {
   final market = _marketLink.firstMatch(trimmed.toLowerCase());
   if (market == null) return null;
   final kind = market.group(1);
-  return MarketPlace(kind: kind == null ? null : MarketKind.values.byName(kind), id: market.group(2));
+  // `icon` and `icons` are both the icon packs' shelf, whose kind is written `icons` (`ghostmd://market/icons`).
+  return MarketPlace(kind: kind == null ? null : (kind == 'icon' ? MarketKind.icons : MarketKind.values.byName(kind)), id: market.group(2));
 }
 
 /// A link that opened the app, sorted.

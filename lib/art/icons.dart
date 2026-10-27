@@ -3,17 +3,24 @@ import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 
 import 'app_icon.dart';
+import 'icon_packs.dart';
 import 'icon_wash.dart';
 import 'svg_path.dart';
 
 /// One of the app's own icons (art/Icons.tsx `icon`): its line on the 24 grid, and under it the wash on its body
 /// when it has one. The body is its own path, the closed part of the drawing alone, so the wash never lands on a
 /// handle, a needle or a tick; where the body has a hole in it it is filled even-odd, and the hole stays clear.
+///
+/// In another icon pack (lib/art/icon_packs.dart) it is that pack's glyph for what it draws, [like], by Lucide's
+/// name (tool/icons/map.json's `drawn`); in Lucide, or a pack with no such glyph, it is this drawing in the chosen
+/// style, Filled with the body filled and [cut], the lines inside it, cut out of the fill.
 @immutable
 class DrawnIcon {
-  const DrawnIcon(this.d, [this.body]);
+  const DrawnIcon(this.d, {this.body, required this.like, this.cut = const []});
   final String d;
   final String? body;
+  final String like;
+  final List<String> cut;
 }
 
 /// A cog: eight square-shouldered teeth round a ring, with the hole in the middle. Worked out once from its radii
@@ -47,49 +54,49 @@ const String placePath = 'M12 21.5c-4.2-4.4-6.5-8-6.5-11a6.5 6.5 0 0 1 13 0c0 3-
 /// The app's few icons, drawn rather than typed (art/Icons.tsx): strokes on the text's colour, a line 2.4 of 24
 /// wide with round ends, sized by the text they sit in. Each under the name the web app exports it by.
 abstract final class AppIcons {
-  static const arrowLeft = DrawnIcon('M20 12H5m6-7-7 7 7 7');
-  static const arrowRight = DrawnIcon('M4 12h15m-6-7 7 7-7 7');
-  static final cog = DrawnIcon(_cog, _cog);
-  static const plus = DrawnIcon('M12 5v14M5 12h14');
+  static const arrowLeft = DrawnIcon('M20 12H5m6-7-7 7 7 7', like: 'arrow-left');
+  static const arrowRight = DrawnIcon('M4 12h15m-6-7 7 7-7 7', like: 'arrow-right');
+  static final cog = DrawnIcon(_cog, body: _cog, like: 'settings');
+  static const plus = DrawnIcon('M12 5v14M5 12h14', like: 'plus');
 
   /// A magnifier: a ring, and its handle down to the right.
-  static const magnifier = DrawnIcon('M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15ZM21 21l-5.2-5.2', 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15Z');
+  static const magnifier = DrawnIcon('M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15ZM21 21l-5.2-5.2', body: 'M10.5 18a7.5 7.5 0 1 1 0-15a7.5 7.5 0 1 1 0 15Z', like: 'search');
 
   /// A pushpin: a cap, a flared body, and the needle below it.
-  static const pin = DrawnIcon('M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21', 'M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3z');
+  static const pin = DrawnIcon('M8.5 3h7M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3M12 12.4V21', body: 'M10 3l-.9 5.6L6 12.4h12l-3.1-3.8L14 3z', like: 'pin');
 
   /// A cassette: the shell of the tape with its two reels, the shell washed and the reels left clear through it.
-  static const cassette = DrawnIcon(_cassette, _cassette);
+  static const cassette = DrawnIcon(_cassette, body: _cassette, like: 'cassette-tape');
 
   /// A to-do's box with its tick.
-  static const tickBox = DrawnIcon('M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3', 'M4.5 4.5h15v15h-15z');
+  static const tickBox = DrawnIcon('M4.5 4.5h15v15h-15zM8.3 12.3l2.6 2.6 4.9-5.3', body: 'M4.5 4.5h15v15h-15z', like: 'square-check-big', cut: ['M8.3 12.3l2.6 2.6 4.9-5.3']);
 
   /// A book, closed, seen from its fore-edge: the spine's curve and the cover.
-  static const book = DrawnIcon(_bookPath, _bookBody);
+  static const book = DrawnIcon(_bookPath, body: _bookBody, like: 'book');
 
   /// A notebook: the book with three rings across its spine.
-  static const notebook = DrawnIcon('${_bookPath}M2.5 6.5h4M2.5 10.5h4M2.5 14.5h4', _bookBody);
+  static const notebook = DrawnIcon('${_bookPath}M2.5 6.5h4M2.5 10.5h4M2.5 14.5h4', body: _bookBody, like: 'notebook');
 
   /// A clock at twenty past two.
-  static const clock = DrawnIcon('M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18zM12 7.5V12l3 2', 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18z');
+  static const clock = DrawnIcon('M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18zM12 7.5V12l3 2', body: 'M12 21a9 9 0 1 1 0-18a9 9 0 0 1 0 18z', like: 'clock', cut: ['M12 7.5V12l3 2']);
 
   /// Four squares: the grid of every note.
-  static const grid = DrawnIcon(_grid, _grid);
+  static const grid = DrawnIcon(_grid, body: _grid, like: 'layout-grid');
 
   /// An archive box: a lid, the box, and the handle slot.
-  static const archiveBox = DrawnIcon('M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4', 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5z');
+  static const archiveBox = DrawnIcon('M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5M10 12.5h4', body: 'M3.5 4.5h17v4h-17zM5.5 8.5V19a1 1 0 0 0 1 1h11a1 1 0 0 0 1-1V8.5z', like: 'archive', cut: ['M3.5 8.5h17', 'M10 12.5h4']);
 
   /// A bin: lid, handle, can and two ribs.
-  static const bin = DrawnIcon('M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6', 'M6.2 6.5 7.1 20h9.8l.9-13.5z');
+  static const bin = DrawnIcon('M4 6.5h16M9.5 6.5V4h5v2.5M6.2 6.5 7.1 20h9.8l.9-13.5M10 10.5v6M14 10.5v6', body: 'M6.2 6.5 7.1 20h9.8l.9-13.5z', like: 'trash', cut: ['M10 10.5v6M14 10.5v6']);
 
   /// A folder: a tab at the top left, then the pocket. Where a note is filed.
-  static const workspace = DrawnIcon(_workspace, _workspace);
+  static const workspace = DrawnIcon(_workspace, body: _workspace, like: 'folder');
 
   /// A board: three columns, the first two with a card in them.
-  static const board = DrawnIcon('M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5', 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5z');
+  static const board = DrawnIcon('M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5', body: 'M4 5.5h4.5v13H4zM9.75 5.5h4.5v8.5h-4.5zM15.5 5.5H20v11h-4.5z', like: 'square-kanban');
 
   /// My location: a ring with four short ticks.
-  static const locate = DrawnIcon('M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3', 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0z');
+  static const locate = DrawnIcon('M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0zM12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3', body: 'M18.5 12a6.5 6.5 0 1 1-13 0a6.5 6.5 0 0 1 13 0z', like: 'locate');
 
   /// Every one, by the name the web app exports it by: for a screen that draws them all.
   static final Map<String, DrawnIcon> all = {
@@ -143,15 +150,43 @@ class DrawnIconView extends StatelessWidget {
     return ExcludeSemantics(
       child: CustomPaint(
         size: Size.square(em),
-        painter: DrawnIconPainter(strokes: [icon.d], washed: [if (wash && icon.body != null) icon.body!], color: ink, strokeWidth: 2.4, evenOdd: true),
+        painter: drawnIn(
+          context,
+          like: icon.like,
+          color: ink,
+          wash: wash,
+          body: icon.body != null,
+          own: (style) => DrawnIconPainter(
+            strokes: [icon.d],
+            washed: [if ((wash || style == IconStyle.filled) && icon.body != null) icon.body!],
+            color: ink,
+            strokeWidth: style == IconStyle.outline ? 2.4 : 2.4 + solidStroke,
+            evenOdd: true,
+            filled: style == IconStyle.filled,
+            cut: style == IconStyle.filled ? icon.cut : const [],
+          ),
+        ),
       ),
     );
   }
 }
 
+/// How the app's own drawings ([DrawnIconView], [HouseIcon]) are drawn in the look round [context]
+/// (lib/art/icon_packs.dart): another pack's glyph for what the drawing draws ([like]) where the pack has one, and
+/// otherwise the drawing itself in the chosen style, [own]'s painter. A pack of lines is stroked at 2.2 there, the
+/// weight the app's kit icons mostly ask for beside them.
+CustomPainter drawnIn(BuildContext context, {required String like, required Color color, required bool wash, required bool body, required CustomPainter Function(IconStyle style) own}) {
+  final look = IconLook.of(context);
+  if (!look.isStandard) {
+    final entry = packGlyphsFor(look, like);
+    if (entry != null) return PackIconPainter(drawing: drawingFor(entry, look.style, body: body), color: color, strokeWidth: 2.2, wash: wash);
+  }
+  return own(look.style);
+}
+
 /// A modern house, for the button that goes home (art/Icons.tsx `House`): a single-pitch roof rising to the right
 /// with its overhang drawn past the walls, and a door. The wash is on the house's body alone; the door and the
-/// roof's line are strokes over it.
+/// roof's line are strokes over it. In another pack it is that pack's house ([drawnIn]).
 class HouseIcon extends StatelessWidget {
   const HouseIcon({super.key, this.size = 20, this.strokeWidth = 2.1, this.color});
 
@@ -167,7 +202,22 @@ class HouseIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final ink = color ?? inkAt(context);
     return ExcludeSemantics(
-      child: CustomPaint(size: Size.square(size), painter: DrawnIconPainter(strokes: const [_body, _roof, _door], washed: const [_body], color: ink, strokeWidth: strokeWidth)),
+      child: CustomPaint(
+        size: Size.square(size),
+        painter: drawnIn(
+          context,
+          like: 'house',
+          color: ink,
+          wash: true,
+          body: true,
+          own: (style) => switch (style) {
+            IconStyle.outline => DrawnIconPainter(strokes: const [_body, _roof, _door], washed: const [_body], color: ink, strokeWidth: strokeWidth),
+            IconStyle.solid => DrawnIconPainter(strokes: const [_body, _roof, _door], washed: const [_body], color: ink, strokeWidth: strokeWidth + solidStroke),
+            // The house filled, with its door cut out of it.
+            IconStyle.filled => DrawnIconPainter(strokes: const [_body, _roof], washed: const [_body], color: ink, strokeWidth: strokeWidth + solidStroke, filled: true, cut: const [_door]),
+          },
+        ),
+      ),
     );
   }
 }

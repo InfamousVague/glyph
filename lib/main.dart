@@ -9,6 +9,7 @@ import 'account/crypto.dart';
 import 'app/front_frames.dart';
 import 'app/ghost_app.dart';
 import 'app/token_sheet.g.dart';
+import 'art/icon_packs.dart' show registerIconPackLicences;
 import 'account/device_keys.dart' show deviceSecureStore;
 import 'carry/iphone_carry.dart';
 import 'carry/mac_carry.dart';
@@ -130,6 +131,8 @@ Future<void> main() async {
   // And on the Mac, a few for the home page's shelf, which loads the cassettes in view into them ahead so a
   // resting mouse only presses Play (Matt, 2026-10-24). The other computers have no player of a recording yet.
   final previews = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? TapePreviews.mac() : null;
+  // The icon packs' licences among the app's (lib/art/icon_packs.dart), read only if something asks for them.
+  registerIconPackLicences();
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   // A place by its name, for Remind me at a place: asked as the app, a second apart, never under Local only.

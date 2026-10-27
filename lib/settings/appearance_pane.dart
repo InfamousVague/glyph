@@ -1,7 +1,9 @@
 import 'package:flutter/widgets.dart';
 import 'package:glacier/glacier.dart';
 
+import '../art/icon_packs.dart' show IconStyle, iconPackOf;
 import '../core/preferences.dart';
+import '../market/market_icons.dart' show IconStyleChooser;
 import 'accent_swatch.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
@@ -45,6 +47,7 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Interface font', 'font typeface ui app tabs menus inter noto plex'),
       const SettingsFindable('Text size', 'font bigger smaller larger'),
       const SettingsFindable('Scale', 'size zoom interface ui bigger smaller'),
+      const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
       const SettingsFindable('Code', 'syntax highlighting colours colors'),
@@ -71,6 +74,11 @@ List<GlacierSegmentedOption> _options(Map<String, String> words) => [
 /// Every control writes the app's preferences ([store], the app's own unless a test brings one), and the app's theme
 /// is built from them, so each choice is seen at once. The sidebar's choice is drawn only on a window wide enough
 /// for the sidebar, and Touch only where there is a motor.
+///
+/// The icons' style (Matt, 2026-10-27: "add three icon styles (outline, solid and filled)") is a card of its own after
+/// the type: Outline, Solid or Filled, with twelve of the app's icons drawn in the chosen one under it, in the pack in
+/// use (chosen in the Market, lib/market/market_icons.dart). Advanced's alone, as the faces are; a style or a pack
+/// chosen there is still what Simple is drawn in.
 ///
 /// In Simple (GHST-103; Matt, 2026-10-18) the page is the mode, the theme cards and the text size alone: a new person
 /// asked for less, and twelve cards of looks are the most of Settings there is. The rest comes back the moment
@@ -207,6 +215,24 @@ class AppearancePane extends StatelessWidget {
                   hint: const Text('Everything, buttons and bars as well as words. Stays with this device.'),
                   layout: SettingRowLayout.stacked,
                   control: ScaleCards(value: prefs.uiScale, onValueChange: (uiScale) => set((now) => now.copyWith(uiScale: uiScale))),
+                ),
+              ],
+            ),
+            // How the icons are drawn: the style, seen in the pack in use as it is chosen.
+            PaneSection(
+              title: 'Icons',
+              description: Text('Drawn from ${iconPackOf(prefs.iconPack).name}. More icon packs are in the Market.'),
+              children: [
+                SettingRow(
+                  label: 'Style',
+                  hint: const Text('Outline is the pack’s own line, Solid the same icons bolder, Filled each one filled in.'),
+                  layout: SettingRowLayout.stacked,
+                  control: IconStyleChooser(
+                    key: const ValueKey('settings-icon-style'),
+                    pack: iconPackOf(prefs.iconPack),
+                    style: IconStyle.of(prefs.iconStyle),
+                    onStyle: (style) => set((now) => now.copyWith(iconStyle: style.name)),
+                  ),
                 ),
               ],
             ),

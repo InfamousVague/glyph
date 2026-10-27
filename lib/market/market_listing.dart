@@ -20,6 +20,11 @@
 ///
 /// Every thing carries its link into the app, `ghostmd://market/<kind>/<id>` (lib/share/app_links.dart `MarketPlace`),
 /// which the page's Open in Ghost.md follows.
+///
+/// The icon packs (Matt, 2026-10-27; lib/art/icon_packs.dart) are listed with their twelve preview glyphs in each
+/// style as the app draws them ([IconDrawing]): each glyph's paths on the 24 grid and how they are inked (stroked,
+/// stroked heavier, filled with the inside lines cut out, filled, filled and thickened) and the wash under it, so the
+/// page draws a pack's card as the app's Market does.
 library;
 
 import 'dart:convert';
@@ -27,6 +32,7 @@ import 'dart:convert';
 import 'package:flutter/painting.dart' show Color;
 
 import '../art/app_icon.dart';
+import '../art/icon_packs.dart';
 import '../art/lucide.g.dart';
 import '../core/preferences.dart';
 import '../plugins/catalogue.dart';
@@ -36,6 +42,7 @@ import '../settings/theme_cards.dart' show ThemeOption, ThemePalette;
 import '../settings/typeface_cards.dart' show typefaceFamilies;
 import '../settings/words.dart';
 import '../share/app_links.dart' show MarketKind, MarketPlace;
+import 'market_icons.dart' show packColours, packCoverage;
 import 'market_items.dart';
 import 'market_looks.dart';
 import 'market_plugins.dart' show permissionIcon;
@@ -58,7 +65,26 @@ const List<LucideIcon> _pageIcons = [
   Lucide.globe,
   Lucide.download,
   Lucide.squareArrowOutUpRight,
+  Lucide.shapes,
 ];
+
+/// One preview glyph as the page draws it: how it is inked, its paths, the places of those washed or filled as well,
+/// and the wash under it, as [PackIconPainter] paints them.
+Map<String, Object?> _drawing(IconDrawing drawing) => {
+      'ink': drawing.ink.name,
+      'paths': drawing.glyph.paths,
+      if (drawing.glyph.wash.isNotEmpty) 'wash': drawing.glyph.wash,
+      if (drawing.glyph.solids.isNotEmpty) 'solids': drawing.glyph.solids,
+      if (drawing.under != null) 'under': drawing.under!.paths,
+      if (drawing.fallback) 'lucide': true,
+    };
+
+/// [name] in [pack] and [style], as the app draws it.
+IconDrawing _packDrawing(IconPack pack, String name, IconStyle style) {
+  final icon = Lucide.all[name]!;
+  final entry = pack.glyphs?[name];
+  return entry == null ? lucideDrawing(icon.shapes, icon.wash, style, fallback: pack.glyphs != null) : drawingFor(entry, style, body: icon.wash.isNotEmpty);
+}
 
 /// `#rrggbb`, as the page's stylesheet takes a colour.
 String _hex(Color colour) => '#${(colour.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
@@ -171,6 +197,31 @@ Map<String, Object?> marketListing({required Iterable<GlyphPlugin> plugins, requ
           'platforms': everywhere,
           'link': _link(MarketKind.font, face),
         },
+    ],
+    'iconPacks': [
+      for (final pack in iconPacks)
+        () {
+          final coverage = packCoverage(pack);
+          final (deep, bright) = packColours(pack);
+          return {
+            'id': pack.id,
+            'name': pack.name,
+            'line': pack.line,
+            'about': pack.about,
+            'author': pack.author,
+            'licence': pack.licence,
+            'version': pack.version,
+            'home': pack.home,
+            'colours': [_hex(deep), _hex(bright)],
+            'coverage': {'own': coverage.own, 'of': coverage.of, 'lucide': coverage.lucides},
+            'styles': {for (final style in IconStyle.values) style.name: {'label': style.label, 'source': pack.styles[style]!.source.name, 'words': pack.styles[style]!.words}},
+            'preview': {
+              for (final style in IconStyle.values) style.name: [for (final name in iconPreviewNames) {'name': name, ..._drawing(_packDrawing(pack, name, style))}],
+            },
+            'platforms': everywhere,
+            'link': _link(MarketKind.icons, pack.id),
+          };
+        }(),
     ],
     'samples': {for (final MapEntry(:key, :value) in faceSamples.entries) key.name: value},
     'icons': {for (final name in icons.keys.toList()..sort()) name: icons[name]},
