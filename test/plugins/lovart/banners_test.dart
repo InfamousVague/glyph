@@ -25,6 +25,27 @@ import 'lovart_test.dart' show FakeClient;
 const String _words = 'We drove down on Friday, stayed in the old house by the river, walked the market on Saturday morning, '
     'ate far too much at the corner place, and came home on Sunday with a bag of oranges and a plan to go back in spring.';
 
+/// Lovart on a plan of one job at a time: a job asked while another runs is refused, code 2011.
+class _OneAtATime extends FakeClient {
+  int running = 0, most = 0, refused = 0;
+
+  @override
+  Future<List<Uint8List>> generate(String prompt, {Duration timeout = lovartTimeout}) async {
+    if (running > 0) {
+      refused += 1;
+      throw const LovartFailure('Concurrent job limit reached.', code: 2011);
+    }
+    running += 1;
+    if (running > most) most = running;
+    try {
+      await Future<void>.delayed(Duration.zero);
+      return super.generate(prompt, timeout: timeout);
+    } finally {
+      running -= 1;
+    }
+  }
+}
+
 void main() {
   late MemoryPictureStore pictures;
   late FakeClient fake;
@@ -187,6 +208,16 @@ void main() {
       expect(fake.asked, hasLength(1));
     });
 
+    test('Lovart busy leaves the note to be asked again when it is next left', () async {
+      await keys();
+      fake.fails = const LovartFailure('Concurrent job limit reached.', code: 2011);
+      note('t1', '# Trip\n\n$_words');
+      expect(await banners.noteLeft('t1'), isFalse);
+      fake.fails = null;
+      expect(await banners.noteLeft('t1'), isTrue);
+      expect(fake.asked, hasLength(2));
+    });
+
     test('a banner given by hand meanwhile stands', () async {
       await keys();
       note('t1', '# Trip\n\n$_words');
@@ -251,6 +282,50 @@ void main() {
       fake.fails = null;
       await runBanners();
       expect(lovartBannerRun.value!.made, 6);
+    });
+
+    test('Lovart at its limit of jobs at once slows the run to what it takes, and the run finishes', () async {
+      await keys();
+      for (var i = 0; i < 6; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      // A plan that takes one job at a time: a second asked while one runs is refused as Lovart refuses it.
+      final busy = _OneAtATime();
+      lovartClient = () => busy;
+      final waits = <Duration>[];
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners, wait: (wait) async => waits.add(wait));
+      await runBanners();
+      expect((lovartBannerRun.value!.made, lovartBannerRun.value!.running, lovartBannerRun.value!.stopped), (6, false, null));
+      expect(busy.refused, greaterThan(0));
+      expect(busy.most, 1, reason: 'never more than one at once once it had said so');
+      expect(waits, isNotEmpty);
+      expect([for (final n in notes.values) bannerOf(n.body) != null], everyElement(isTrue));
+    });
+
+    test('a limit that never lifts stops the run, saying so, and keeps the rest for later', () async {
+      await keys();
+      for (var i = 0; i < 2; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      fake.fails = const LovartFailure('You have reached the concurrent job limit for your plan.', code: 2011);
+      expect(fake.fails!.busy, isTrue);
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners, wait: (_) async {});
+      await runBanners();
+      expect(lovartBannerRun.value!.running, isFalse);
+      expect(lovartBannerRun.value!.stopped, contains('limit of jobs at once'));
+      expect(lovartBannerRun.value!.made, 0);
+      fake.fails = null;
+      await runBanners();
+      expect(lovartBannerRun.value!.made, 2);
+    });
+
+    test('reads Lovart\'s refusals as busy only where they are', () {
+      expect(const LovartFailure('x', status: 429).busy, isTrue);
+      expect(const LovartFailure('x', status: 409).busy, isTrue);
+      expect(const LovartFailure('x', code: 2011).busy, isTrue);
+      expect(const LovartFailure('Too many concurrent tasks').busy, isTrue);
+      expect(const LovartFailure('Your Lovart credits have run out.', code: 2012).busy, isFalse);
+      expect(const LovartFailure('Lovart didn’t accept these keys.', status: 401).busy, isFalse);
     });
 
     test('says what is missing without keys', () async {

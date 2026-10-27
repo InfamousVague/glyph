@@ -77,6 +77,11 @@ import 'manifest.dart';
 const int bannerRunMost = 100;
 const int bannerRunAtOnce = 3;
 
+/// How long a worker waits when Lovart has no room for another job, times how many times running it had none (at most
+/// four), and how many refusals running, at one at a time, stop the run.
+const Duration bannerBusyWait = Duration(seconds: 20);
+const int bannerBusyMost = 12;
+
 /// The job's name to the phone (lib/core/background_jobs.dart).
 const String bannerJobId = 'lovart-banners';
 
@@ -456,8 +461,9 @@ class BannerClaims {
 
 /// The app's one run over the recent notes (see the header): made by the root, and handed to [lovartBannerJob].
 class BannerJob {
-  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.redo, this.ended, PluginHost? via})
+  BannerJob({required this.notes, required this.banners, this.claims, BackgroundJobs? background, this.redo, this.ended, Future<void> Function(Duration wait)? wait, PluginHost? via})
       : background = background ?? const NoBackgroundJobs(),
+        _wait = wait ?? _sleep,
         _host = via {
     this.background.onStop((id) {
       if (id == bannerJobId) stop();
@@ -484,6 +490,10 @@ class BannerJob {
   final void Function(BannerRun run)? ended;
   final PluginHost? _host;
 
+  /// How a worker waits for Lovart to have room: a timer, or a test's own.
+  final Future<void> Function(Duration wait) _wait;
+  static Future<void> _sleep(Duration wait) => Future<void>.delayed(wait);
+
   PluginHost get _on => _host ?? host;
 
   bool _running = false;
@@ -499,6 +509,17 @@ class BannerJob {
 
   /// Stops the run after the pictures being made now.
   void stop() => _stop = true;
+
+  /// Waits [wait], or less where the run is stopped meanwhile.
+  Future<void> _waitFor(Duration wait) async {
+    const step = Duration(seconds: 1);
+    var waited = Duration.zero;
+    while (waited < wait && !_stop && !_gone) {
+      final next = wait - waited < step ? wait - waited : step;
+      await _wait(next);
+      waited += next;
+    }
+  }
 
   /// What says a run cannot start here, or null.
   String? _unready() {
@@ -625,8 +646,14 @@ class BannerJob {
 
     keep();
     say();
-    Future<void> worker() async {
+    // Lovart at the account's limit of jobs at once ([LovartFailure.busy]): the run makes fewer at a time, down to
+    // one, and the note waits its turn rather than the run stopping. Only one at a time refused [bannerBusyMost]
+    // times running stops it.
+    var allowed = bannerRunAtOnce;
+    var refusals = 0;
+    Future<void> worker(int index) async {
       while (!_stop && stopped == null) {
+        if (index >= allowed) return;
         // The plugin switched off, or its keys forgotten, meanwhile: the rest wait for another run.
         final unready = _unready();
         if (unready != null) {
@@ -648,7 +675,21 @@ class BannerJob {
           final ok = await banners.make(id, rethrowStopping: true, again: ask.again, replacing: ask.replacing);
           ok ? made += 1 : skipped += 1;
           left.remove(id);
+          refusals = 0;
         } on LovartFailure catch (failure) {
+          if (failure.busy) {
+            // Lovart has no room for another: this note waits its turn (it is still first in [left]), one worker
+            // fewer asks, and this one waits before it asks again.
+            going.remove(id);
+            refusals += 1;
+            if (allowed > 1) {
+              allowed -= 1;
+            } else if (refusals >= bannerBusyMost) {
+              stopped ??= 'Lovart stayed at its limit of jobs at once. Make them again later to go on.';
+            }
+            if (stopped == null && !_stop) await _waitFor(bannerBusyWait * refusals.clamp(1, 4));
+            continue;
+          }
           // Not this note's fault: it stays in the queue for the next run, and the rest wait for it.
           stopped ??= failure is LovartNeedsConfirmation ? failure.said : failure.message;
         } catch (failure) {
@@ -664,7 +705,7 @@ class BannerJob {
       }
     }
 
-    await Future.wait([for (var i = 0; i < bannerRunAtOnce; i += 1) worker()]);
+    await Future.wait([for (var i = 0; i < bannerRunAtOnce; i += 1) worker(i)]);
     _on.storage.remove(bannerRunKey);
     claims?.release();
     final asked = _stop && stopped == null && left.isNotEmpty;

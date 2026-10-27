@@ -137,6 +137,13 @@ Nap. A run is claimed in the synced settings (`lovartBannerRun`) before it start
 never make the same notes' pictures. Credits are said as an estimate, about 6 an image (`lovartCreditsPerImage`,
 client.dart), since the API gives no cost for an ordinary image.
 
+**At the limit of jobs at once** (Matt, 2026-10-27: "It keeps stopping from hitting the concurrent job limit"): a
+refusal that is Lovart having no room (`LovartFailure.busy`: 409, 429, code 2011, or words like "concurrent job
+limit") never stops a run. The note goes back in line, the run asks one fewer at a time (down to one), and the worker
+waits 20 s times how many refusals running (at most 80 s) before asking again. Only twelve refusals running at one at
+a time stop it, saying so; the rest wait for Make them. A header made as a note is left that meets it is not marked
+given, so leaving the note again asks again.
+
 **The queue** (Settings › Lovart › Queue; Matt, 2026-10-27: "Please show the lovart image queue in the lovart
 settings"): every picture being made on this device and the ones waiting, by note title, "Making" or its place in
 line, with what is left to make in credits (lib/plugins/lovart/lovart_queue.dart). It reads the run's kept queue

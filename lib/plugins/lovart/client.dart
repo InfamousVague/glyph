@@ -67,6 +67,8 @@ Map<String, String> lovartHeaders({required String accessKey, required String se
       'Idempotency-Key': ?idempotencyKey,
     };
 
+final RegExp _busyWords = RegExp(r'concurren|too many (jobs|tasks|requests)|(job|task)s? limit|limit of (jobs|tasks)|rate.?limit|slow down|still busy', caseSensitive: false);
+
 /// What Lovart refused, or what went wrong asking it, in a sentence a person can act on.
 class LovartFailure implements Exception {
   const LovartFailure(this.message, {this.status, this.code});
@@ -80,6 +82,12 @@ class LovartFailure implements Exception {
 
   /// The keys were refused.
   bool get badKeys => status == 401;
+
+  /// Lovart is at the account's limit of jobs at once, or asking for less: a 409 or 429, its code 2011 (a task already
+  /// running), or words that say so ("concurrent job limit"). Not the person's to fix: the same ask goes through
+  /// once one of the running jobs is done (Matt, 2026-10-27: "It keeps stopping from hitting the concurrent job
+  /// limit").
+  bool get busy => status == 409 || status == 429 || code == 2011 || _busyWords.hasMatch(message);
 
   @override
   String toString() => message;
