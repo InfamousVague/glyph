@@ -4,5 +4,69 @@
     "id": "cgSgspJ2msm6clMCkdW9",
     "name": "Jessica"
   },
-  "files": {}
+  "files": {
+    "ai": {
+      "words": "b8c05eeb53d82ce6",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95129,
+      "seconds": 11.83
+    },
+    "market": {
+      "words": "1e815016ae266813",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95338,
+      "seconds": 11.84
+    },
+    "meetings": {
+      "words": "963b3da9f3aa0e63",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 93457,
+      "seconds": 11.6
+    },
+    "mode": {
+      "words": "0bc138a54f9114cf",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 97219,
+      "seconds": 12.08
+    },
+    "model": {
+      "words": "4b330e343f8fbd87",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 72768,
+      "seconds": 9.02
+    },
+    "speak": {
+      "words": "42c72bb76fd2d37c",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 106205,
+      "seconds": 13.2
+    },
+    "start": {
+      "words": "92ee9e5f0d5271e9",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 70261,
+      "seconds": 8.72
+    },
+    "sync": {
+      "words": "c82f854eee105ced",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 95965,
+      "seconds": 11.92
+    },
+    "welcome": {
+      "words": "bfecff7d0ba6d2c9",
+      "model": "eleven_v4",
+      "voice": "cgSgspJ2msm6clMCkdW9",
+      "bytes": 81128,
+      "seconds": 10.08
+    }
+  }
 }
