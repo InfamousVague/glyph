@@ -31,6 +31,7 @@
     <script src="theme.js"></script>
     <script src="home.js" defer></script>
     <script src="files.js" defer></script>
+    <script src="home-market.js" defer></script>
     <script type="module" src="parts/parts.js"></script>
   </head>
   <body>
@@ -46,11 +47,11 @@
       <nav class="bar-in" aria-label="Ghost.md">
         <a class="brand" href="#top"><img src="icon.png" width="32" height="32" alt="" /><span>Ghost.md</span></a>
         <ul class="bar-links">
+          <li><a href="market.html">Market</a></li>
           <li><a href="#claude">Claude</a></li>
           <li><a href="#calendar">Calendar</a></li>
           <li><a href="#meetings">Meetings</a></li>
           <li><a href="#plugins">Plugins</a></li>
-          <li><a href="market.html">Market</a></li>
           <li><a href="#organize">Markdown</a></li>
           <li><a href="#teams">Teams</a></li>
           <li><a href="#private">Privacy</a></li>
@@ -89,6 +90,27 @@
             <img src="shots/desk.webp" width="1280" height="800" alt="Ghost.md on a wide screen: a search with its filters, two pinned notes, recent notes as cards, and the week's notes below." />
           </div>
         </figure>
+      </section>
+
+      <!-- The Market, high on the page (Matt, 2026-10-27: "also show the market page high on the list of the website with
+           the dedicated market page that opens plugins in the app"): a few of its plugins drawn from market.json, the
+           listing market.html reads (lib/market/market_listing.dart), each opening its own page there, where Open in
+           Ghost.md takes it into the app (ghostmd://market/plugin/<id>). Filled by home-market.js; without it, the two
+           ways in still stand. -->
+      <section class="band band-tint" id="market" aria-labelledby="market-title">
+        <div class="wrap">
+          <header class="band-head">
+            <p class="eyebrow"><svg class="i" aria-hidden="true"><use href="icons.svg#i-shopping-bag"/></svg>The Market</p>
+            <h2 id="market-title">Plugins, themes, fonts and icons.</h2>
+            <p>Everything in the Market is built in: adding one is a switch, with nothing to download. Browse it here, and open any of it straight in the app.</p>
+            <p class="ctas">
+              <a class="pill pill-ink pill-lg" href="market.html"><svg class="i" aria-hidden="true"><use href="icons.svg#i-shopping-bag"/></svg><span>Browse the Market</span></a>
+              <a class="pill pill-lg" id="market-open-app" href="ghostmd://market"><svg class="i" aria-hidden="true"><use href="icons.svg#i-square-arrow-out-up-right"/></svg><span>Open it in Ghost.md</span></a>
+            </p>
+          </header>
+          <ul class="market-picks" id="market-picks" aria-label="From the Market"></ul>
+          <p class="fine center" id="market-count"></p>
+        </div>
       </section>
 
       <!-- Claude (2026-10-18; Matt: "highlight more important features that set us apart like the claude integrations"):

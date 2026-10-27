@@ -1404,3 +1404,90 @@ a.store:hover {
     transform: none;
   }
 }
+
+/* ---- The Market band (index.html #market, home-market.js): a few plugins, each a card to its page on market.html. */
+.market-picks {
+  list-style: none;
+  margin: var(--glacier-space-6, 2rem) 0 var(--glacier-space-4, 1.25rem);
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr));
+}
+
+.market-picks:empty {
+  display: none;
+}
+
+.mp-card {
+  display: flex;
+  gap: 0.85rem;
+  align-items: center;
+  block-size: 100%;
+  padding: 0.85rem 1rem;
+  border-radius: 1rem;
+  background: var(--paper);
+  box-shadow: inset 0 0 0 1px var(--rule);
+  color: inherit;
+  text-decoration: none;
+  transition: box-shadow 120ms ease, transform 120ms ease;
+}
+
+.mp-card:hover,
+.mp-card:focus-visible {
+  box-shadow: inset 0 0 0 1px var(--ink-4);
+  transform: translateY(-1px);
+}
+
+.mp-tile {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  inline-size: 2.75rem;
+  block-size: 2.75rem;
+  border-radius: 0.8rem;
+  color: #fff;
+  background:
+    radial-gradient(circle at 10% 5%, rgb(255 255 255 / 0.25), transparent 60%),
+    linear-gradient(135deg, var(--deep), color-mix(in srgb, var(--deep) 45%, var(--bright)), var(--bright));
+}
+
+.mp-tile .i {
+  inline-size: 52%;
+  block-size: 52%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.mp-mark {
+  display: block;
+  inline-size: 50%;
+  block-size: 50%;
+  background: currentColor;
+  -webkit-mask: var(--mark) center / contain no-repeat;
+  mask: var(--mark) center / contain no-repeat;
+}
+
+.mp-words {
+  display: grid;
+  gap: 0.1rem;
+  min-inline-size: 0;
+}
+
+.mp-words b {
+  font-weight: 600;
+}
+
+.mp-words span,
+.mp-words small {
+  color: var(--ink-3);
+  font-size: 0.875rem;
+  line-height: 1.35;
+}
+
+.mp-words small {
+  font-size: 0.78rem;
+}
