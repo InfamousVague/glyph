@@ -47,6 +47,8 @@
 ///   reads as they are, so nothing is quoted.
 library;
 
+import 'package:flutter/widgets.dart' show BuildContext, Widget;
+
 import '../../art/app_icon.dart' show LucideIcon;
 import '../../core/boards/fence.dart';
 import '../../core/boards/items.dart';
@@ -112,6 +114,24 @@ class PlusEffect {
   final LucideIcon? icon;
 }
 
+/// Words a plugin puts in a line from the list, at More's end (Matt, 2026-10-27: "Extend some of the plugins like the
+/// lovart plugin to have an icon in the more menu expansion"): Lovart's `{image: what to draw}`, with what to write
+/// over selected, as the tag row leaves `tag`. Drawn with the plugin's own [mark] beside its [words].
+class PlusInsert {
+  const PlusInsert({required this.id, required this.words, required this.text, this.select, this.mark});
+
+  /// Its plugin's id and its own, `lovart-image`: the row is `insert:<id>`.
+  final String id;
+  final String words;
+  final String text;
+
+  /// The stretch of [text] left selected to write over; the caret after it where null.
+  final ({int from, int to})? select;
+
+  /// The plugin's mark in the list, at the size asked; the sparkles where null.
+  final Widget Function(BuildContext context, double size)? mark;
+}
+
 /// What the screen can do, read once when the list opens.
 class AddGates {
   const AddGates({
@@ -123,6 +143,7 @@ class AddGates {
     required this.note,
     required this.canvas,
     this.effects = const <PlusEffect>[],
+    this.inserts = const <PlusInsert>[],
     this.tableAbove = false,
     this.ticket = false,
     this.board = true,
@@ -142,6 +163,9 @@ class AddGates {
   final bool note;
   final bool canvas;
   final List<PlusEffect> effects;
+
+  /// What the switched-on plugins put in a line, each a row at More's end ([PlusInsert]).
+  final List<PlusInsert> inserts;
 
   /// The +'s empty line sits straight under a table with an empty body cell: Blanks in the empty cells
   /// (docs/DESIGN.md §145).
@@ -185,6 +209,7 @@ AddGates readGates({
   bool person = false,
   bool simple = false,
   List<PlusEffect> effects = const <PlusEffect>[],
+  List<PlusInsert> inserts = const <PlusInsert>[],
 }) => AddGates(
   picture: picture,
   video: video,
@@ -194,6 +219,7 @@ AddGates readGates({
   note: note,
   canvas: canvas,
   effects: effects,
+  inserts: inserts,
   tableAbove: tableAbove,
   ticket: ticket,
   board: board,
@@ -345,6 +371,7 @@ List<AddRow> _fullMoreRows(AddGates gates) => <AddRow>[
   if (gates.blank) const AddRow(id: 'blank', words: 'A blank for the AI'),
   if (gates.blank && gates.tableAbove) const AddRow(id: 'blankCells', words: 'Blanks in the empty cells', label: 'Blanks in the empty cells of the table above'),
   for (final effect in gates.effects) AddRow(id: 'effect:${effect.name}', words: effectWords(effect)),
+  for (final insert in gates.inserts) AddRow(id: 'insert:${insert.id}', words: insert.words),
 ];
 
 /// Simple mode's More: everything the list offers that is not on simple's first page, in the order it has today
@@ -490,7 +517,7 @@ class RowBlock extends RowWrite {
 
 /// What a row that writes at once writes at the caret; null for a row that is not one of those. `effects` are the
 /// effects the list was given, for an `effect:` row.
-RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> effects = const <PlusEffect>[]}) {
+RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> effects = const <PlusEffect>[], List<PlusInsert> inserts = const <PlusInsert>[]}) {
   final at = state.selection.main.head;
   switch (id) {
     case 'time':
@@ -547,6 +574,12 @@ RowWrite? planFor(EditorState state, String id, DateTime now, {List<PlusEffect> 
   if (id.startsWith('query:')) {
     final block = querySeed(id);
     return block != null ? RowBlock(block.text, block.select) : null;
+  }
+  if (id.startsWith('insert:')) {
+    for (final each in inserts) {
+      if ('insert:${each.id}' == id) return RowPlan(wordsPlan(state, at, each.text, each.select ?? (from: each.text.length, to: each.text.length)));
+    }
+    return null;
   }
   if (id.startsWith('effect:')) {
     PlusEffect? effect;
@@ -625,8 +658,8 @@ Plan? emptyCellsPlan(EditorState state, int at) {
 bool _focused(StateCommandTarget view) => view is EditorViewLike && view.hasFocus;
 
 /// Writes a row that writes at once, as one Undo; answers whether it wrote.
-bool writeRow(StateCommandTarget view, String id, DateTime now, {List<PlusEffect> effects = const <PlusEffect>[]}) {
-  final found = planFor(view.state, id, now, effects: effects);
+bool writeRow(StateCommandTarget view, String id, DateTime now, {List<PlusEffect> effects = const <PlusEffect>[], List<PlusInsert> inserts = const <PlusInsert>[]}) {
+  final found = planFor(view.state, id, now, effects: effects, inserts: inserts);
   switch (found) {
     case null:
       return false;

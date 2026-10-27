@@ -67,6 +67,15 @@ void main() {
     usePlugins(createRegistry(const []));
   });
 
+  test('offers an image in the +\'s list while it is on, under its own mark, the words to draw selected', () {
+    final insert = plugins.inserts().single;
+    expect((insert.id, insert.words, insert.text), ('lovart-image', 'An image by Lovart', '{image: what to draw}'));
+    expect(insert.text.substring(insert.select!.from, insert.select!.to), 'what to draw');
+    expect(identical(insert.icon, lovartIcon), isTrue);
+    plugins.setEnabled('lovart', false);
+    expect(plugins.inserts(), isEmpty);
+  });
+
   group('cues', () {
     test('a cue becomes its picture, kept before its line is written, named lovart-…', () async {
       await keys();

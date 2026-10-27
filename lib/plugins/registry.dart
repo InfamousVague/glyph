@@ -184,6 +184,9 @@ class Registry extends ChangeNotifier {
 
   List<NoteAction> noteActions() => [for (final p in enabled()) ...p.noteActions];
 
+  /// What the switched-on plugins put in a line from the +'s list.
+  List<PluginInsert> inserts() => [for (final p in enabled()) ...p.inserts];
+
   ItemAction? itemAction(String noteId) {
     for (final p in enabled()) {
       final action = p.itemAction;

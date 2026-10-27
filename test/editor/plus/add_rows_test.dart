@@ -196,6 +196,22 @@ void main() {
       expect(writeRow(viewOf('Lunch\n'), 'effect:Heat', now), isFalse);
     });
 
+    test('a plugin\'s words at More\'s end, what to write over left selected (Lovart\'s image)', () {
+      const image = PlusInsert(id: 'lovart-image', words: 'An image by Lovart', text: '{image: what to draw}', select: (from: 8, to: 20));
+      final view = viewOf('Lunch\n');
+      expect(writeRow(view, 'insert:lovart-image', now, inserts: const [image]), isTrue);
+      final main = view.state.selection.main;
+      expect(view.text, 'Lunch\n{image: what to draw}');
+      expect(view.text.substring(main.from, main.to), 'what to draw');
+      // In the list, after the effects, in either mode; and nothing where the plugin is off.
+      final gates = readGates(picture: true, video: false, place: false, note: true, canvas: false, effects: const [heat], inserts: const [image]);
+      final ids = [for (final row in moreRows(gates, now)) row.id];
+      expect(ids.sublist(ids.length - 2), ['effect:Heat', 'insert:lovart-image']);
+      final simple = readGates(picture: true, video: false, place: false, note: true, canvas: false, inserts: const [image], simple: true);
+      expect([for (final row in moreRows(simple, now)) row.words], contains('An image by Lovart'));
+      expect(writeRow(viewOf('Lunch\n'), 'insert:lovart-image', now), isFalse);
+    });
+
     test('a to-do, a choice and the lists as a line’s lead', () {
       expect(written('todo'), 'Lunch\n- [ ] |');
       expect(written('choice'), 'Lunch\n- ( ) |');

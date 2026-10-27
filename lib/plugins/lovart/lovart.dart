@@ -147,6 +147,9 @@ Future<void> makeInspiration(NoteEditing editing) async {
   }
 }
 
+/// What an image row from the +'s list leaves to write over.
+const String lovartInsertWords = 'what to draw';
+
 String _summary() => hasLovartKeys() ? 'Keys kept' : 'Not set up';
 
 /// Whether the cues of notes are marked in the editor: the plugin on.
@@ -161,6 +164,10 @@ final GlyphPlugin lovartPlugin = GlyphPlugin(
     settings: lovartFindable,
     summary: _summary,
   ),
+  // The +'s More: an image by Lovart, written as its cue with what to draw selected to write over.
+  inserts: [
+    PluginInsert(id: 'lovart-image', words: 'An image by Lovart', text: '{image: $lovartInsertWords}', select: (from: 8, to: 8 + lovartInsertWords.length), icon: lovartIcon),
+  ],
   noteActions: [
     NoteAction(
       id: 'lovart-cues',

@@ -112,6 +112,7 @@ class AddConfig {
     this.own = '',
     this.localOnly = false,
     this.effects = const <PlusEffect>[],
+    this.inserts = const <PlusInsert>[],
     this.boards = false,
     this.databases = false,
     this.tickets = false,
@@ -147,6 +148,9 @@ class AddConfig {
 
   /// The effects that are on, each a row at More's end (the marks' piece hands them over).
   final List<PlusEffect> effects;
+
+  /// What the switched-on plugins put in a line, each a row at More's end with the plugin's mark ([PlusInsert]).
+  final List<PlusInsert> inserts;
 
   /// Whether a board, a database, Make this a ticket and a blank for the AI are offered: each is on once the editor
   /// draws what the row writes (stages 5 and 8).
@@ -439,6 +443,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       person: config.onPerson != null,
       simple: config.simple,
       effects: config.effects,
+      inserts: config.inserts,
     );
     // `/` on an empty line opens straight onto the filterable palette of everything.
     _page = _by == PlusBy.slash ? _Page.all : _Page.top;
@@ -619,7 +624,7 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
       config.onPlace?.call();
     } else if (row.id == 'person') {
       config.onPerson?.call();
-    } else if (writeRow(view, row.id, now, effects: config.effects) && !view.hasFocus) {
+    } else if (writeRow(view, row.id, now, effects: config.effects, inserts: config.inserts) && !view.hasFocus) {
       view.focus();
     }
   }
@@ -993,6 +998,13 @@ class AddListState extends State<AddList> with SingleTickerProviderStateMixin {
     if (id.startsWith('query:')) return AppIcon(_databaseIcons[id.substring('query:'.length)] ?? Lucide.database, size: 18, color: ink);
     // The place is the app's own mark, the one on the More sheet's Add my location.
     if (id == 'place') return DrawnIconView(AppIcons.locate, size: 18, color: ink);
+    if (id.startsWith('insert:')) {
+      for (final insert in widget.config.inserts) {
+        final mark = insert.mark;
+        if ('insert:${insert.id}' == id && mark != null) return Builder(builder: (context) => mark(context, 18));
+      }
+      return AppIcon(Lucide.sparkles, size: 18, color: ink);
+    }
     if (id.startsWith('effect:')) {
       LucideIcon? mark;
       for (final effect in widget.config.effects) {

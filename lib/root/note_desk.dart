@@ -230,6 +230,11 @@ List<PlusEffect> plusEffects() => <PlusEffect>[
         if (mark.look is EffectLook) PlusEffect(name: mark.name, delimiter: mark.delimiter, cue: mark.cue, icon: Lucide.all[mark.icon]),
     ];
 
+/// What the switched-on plugins put in a line, at More's end of the +'s list, each under its plugin's mark.
+List<PlusInsert> plusInserts() => <PlusInsert>[
+      for (final insert in plugins.inserts()) PlusInsert(id: insert.id, words: insert.words, text: insert.text, select: insert.select, mark: insert.icon),
+    ];
+
 /// A list item's fields as the band's pages: lib/editor/items' rows (`fieldItems`), drawn as the band's own.
 final band.BandFields bandFields = band.BandFields(
   // Remind me, where the phone reminds: the editor was given its calendar and clock.
@@ -1689,6 +1694,7 @@ class NoteDeskState extends State<NoteDesk> {
           own: widget.title,
           localOnly: _prefs.value.localOnly,
           effects: plusEffects(),
+          inserts: plusInserts(),
           // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
           canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
           boards: true,

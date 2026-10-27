@@ -201,6 +201,22 @@ abstract interface class PluginHost {
 /// A plugin's mark, drawn [size] pixels square in the colour of the text around it.
 typedef PluginIcon = Widget Function(BuildContext context, double size);
 
+/// Words a plugin offers to put in a line from the +'s list, at More's end, under its own mark (Matt, 2026-10-27:
+/// "Extend some of the plugins like the lovart plugin to have an icon in the more menu expansion"): Lovart's
+/// `{image: what to draw}`, its [select] the words to write over.
+class PluginInsert {
+  const PluginInsert({required this.id, required this.words, required this.text, this.select, required this.icon});
+
+  /// Its id, the plugin's own first (`lovart-image`).
+  final String id;
+  final String words;
+  final String text;
+
+  /// What of [text] is left selected to write over; the caret after it where null.
+  final ({int from, int to})? select;
+  final PluginIcon icon;
+}
+
 /// A row under "Linked to" on a note's cog sheet, and the page it opens.
 class NoteLink {
   const NoteLink({required this.id, required this.label, required this.icon, required this.hint, this.unavailable, required this.picker, this.linked});
@@ -352,6 +368,7 @@ class GlyphPlugin {
     this.settings,
     this.noteLinks = const [],
     this.noteActions = const [],
+    this.inserts = const [],
     this.itemAction,
     this.tips,
     this.formatContext,
@@ -368,6 +385,9 @@ class GlyphPlugin {
   final PluginSettings? settings;
   final List<NoteLink> noteLinks;
   final List<NoteAction> noteActions;
+
+  /// What it puts in a line from the +'s list ([PluginInsert]).
+  final List<PluginInsert> inserts;
   final ItemAction? itemAction;
 
   /// Things to say in a pause while recording, for the note the routing tip names.
