@@ -6,6 +6,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/core/locale_dates.dart';
+import 'package:ghost_md/core/preferences.dart' show Snippet;
 import 'package:ghost_md/editor/plus/add_rows.dart';
 import 'package:ghost_md/editor/state/history.dart';
 
@@ -210,6 +211,32 @@ void main() {
       final simple = readGates(picture: true, video: false, place: false, note: true, canvas: false, inserts: const [image], simple: true);
       expect([for (final row in moreRows(simple, now)) row.words], contains('An image by Lovart'));
       expect(writeRow(viewOf('Lunch\n'), 'insert:lovart-image', now), isFalse);
+    });
+
+    test('the person\'s snippets at More\'s end after the plugins\' words, in the palette too, written at the moment pressed', () {
+      const image = PlusInsert(id: 'lovart-image', words: 'An image by Lovart', text: '{image: what to draw}');
+      const snippets = [Snippet(id: 's1', trigger: ';date', text: 'Due {date}'), Snippet(id: 's2', trigger: ';dear', text: 'Dear {cursor},\nMatt')];
+      final listed = DateTime(2026, 10, 27, 9);
+      final rows = snippetInserts(snippets, listed);
+      expect([for (final row in rows) row.id], ['snippet-s1', 'snippet-s2']);
+      // The trigger and what it writes, so the palette finds it by either.
+      expect([for (final row in rows) row.words], [';date · Due 27 October 2026', ';dear · Dear , · Matt']);
+      expect(rows.every((row) => row.mark != null), isTrue);
+      final inserts = [image, ...rows];
+      final gates = readGates(picture: true, video: false, place: false, note: true, canvas: false, inserts: inserts);
+      final ids = [for (final row in moreRows(gates, now)) row.id];
+      expect(ids.sublist(ids.length - 3), ['insert:lovart-image', 'insert:snippet-s1', 'insert:snippet-s2']);
+      expect([for (final row in allRows(gates, now)) row.id], containsAll(['insert:snippet-s1', 'insert:snippet-s2']));
+      final simple = readGates(picture: true, video: false, place: false, note: true, canvas: false, inserts: inserts, simple: true);
+      expect([for (final row in moreRows(simple, now)) row.id], contains('insert:snippet-s2'));
+      // Written with the day it is pressed on, not the day the list was made.
+      final dated = viewOf('Lunch\n');
+      expect(writeRow(dated, 'insert:snippet-s1', DateTime(2026, 10, 28, 9), inserts: inserts), isTrue);
+      expect(dated.text, 'Lunch\nDue 28 October 2026');
+      // The caret where {cursor} is.
+      final dear = viewOf('Lunch\n');
+      expect(writeRow(dear, 'insert:snippet-s2', now, inserts: inserts), isTrue);
+      expect('${dear.text.substring(0, dear.head)}|${dear.text.substring(dear.head)}', 'Lunch\nDear |,\nMatt');
     });
 
     test('a to-do, a choice and the lists as a line’s lead', () {

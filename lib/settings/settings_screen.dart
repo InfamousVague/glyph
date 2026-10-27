@@ -116,6 +116,8 @@ const Map<String, String> _hues = {
   'import': 'rose',
   'ai': 'magenta',
   'theme': 'purple',
+  // Snippets (2026-10-27) in the amber no other row wears.
+  'snippets': 'amber',
   'recording': 'red',
   'market': 'green',
   'about': 'yellow',

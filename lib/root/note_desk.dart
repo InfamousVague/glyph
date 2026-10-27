@@ -159,6 +159,7 @@ import '../editor/media/source_line.dart';
 import '../links/note_links.dart' show NoteLinksHere;
 import '../meet/meet_note.dart' show awaitsWriteUp;
 import '../editor/plus/plus.dart';
+import '../editor/input/snippets.dart' show snippetExpansion;
 import '../integrations/contacts/contact_card.dart' show PersonCardAction, showPersonCard;
 import '../integrations/contacts/contact_match.dart' show mentionOf;
 import '../integrations/contacts/contact_picker.dart' show pickContact;
@@ -774,6 +775,9 @@ class NoteDeskState extends State<NoteDesk> {
     // NoteScreen.tsx `assist={prefs.assist}`: the keyboard's aids and the spell checker, on unless the preference
     // says otherwise, read as the editor is made.
     editorInput(assist: _prefs.value.assist),
+    // `;sig` and a space becomes the snippet (Settings › Snippets; lib/editor/input/snippets.dart): the list asked as
+    // a trigger is typed, so one added in Settings works in a note already open.
+    if (!widget.readOnly) snippetExpansion(() => _prefs.value.snippets),
     // Empty until the note is live: then the binding to its document, and the others' carets.
     liveBindingSlot(),
     markExtensions(_formats),
@@ -1694,7 +1698,8 @@ class NoteDeskState extends State<NoteDesk> {
           own: widget.title,
           localOnly: _prefs.value.localOnly,
           effects: plusEffects(),
-          inserts: plusInserts(),
+          // The plugins' words, then the person's snippets, each at More's end and in the `/` palette.
+          inserts: <PlusInsert>[...plusInserts(), ...snippetInserts(_prefs.value.snippets, DateTime.now())],
           // Every canvas among the notes, for the +'s A canvas: a frame of it drawn in the words.
           canvases: _world.bodyOf == null ? null : () => <String>[for (final title in _world.titles()) if (isCanvasBody(_world.bodyOf!(title) ?? '')) title],
           boards: true,
