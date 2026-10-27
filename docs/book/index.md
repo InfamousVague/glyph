@@ -4,7 +4,7 @@ book: true
 ---
 # Ghost.md Docs
 
-Everything Ghost.md does, a page at a time: for the Android, iPhone and Mac apps, Windows and the browser.
+Everything Ghost.md does, a page at a time: for the Android, iPhone and Mac apps, and the older app for Windows. A browser version is coming back.
 
 ## Part I: Getting started
 

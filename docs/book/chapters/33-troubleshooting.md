@@ -37,7 +37,8 @@ The iPhone app updates through the App Store.
 - **Nothing is heard, or "Permission denied".** Ghost.md needs the microphone. On Android, open the phone's Settings › Apps › Ghost.md › Permissions › Microphone and allow it. On a Mac, open System Settings › Privacy & Security › Microphone and switch Ghost.md on.
 - **"This device has no microphone Ghost.md can open."** Plug in or choose a microphone, then try again.
 - **"The microphone could not be opened."** Another app may be using it, such as a call. Close it and try again.
-- **On a Mac, the other side of a call is missing.** Switch on **Include sound from other apps** in **Settings › Recording**. macOS asks the first time.
+- **On a Mac, the other side of a call is missing.** Switch on **Record the computer's sound too** on the **Meetings** card in **Settings › Recording**. macOS asks the first time.
+- **On Android, a call's other side is missing.** Android lets Ghost.md hear media and games, never calls. **Include sound from other apps** in **Settings › Recording** asks to share your screen each time; only the sound is kept.
 - **The iPhone doesn't record.** The iPhone app is notes only for now.
 
 The microphone is only ever open while you are recording.
@@ -75,11 +76,24 @@ Also check:
 
 The words of the note are here, but its audio stayed on the device that made it. That happens when:
 
-- **It is a meeting, and Sync meeting recordings is off.** Turn it on in **Settings › Meetings**, then open Ghost.md on the device that recorded it and let it sync.
+- **It is a meeting, and Sync meeting recordings is off.** Turn it on in the **Meetings** card of **Settings › Recording**, then open Ghost.md on the device that recorded it and let it sync.
 - **It is longer than about 2 hours 19 minutes**, the most a recording can be to sync. Play it on the device that made it.
 - **The audio was removed** by **Remove audio older than a month** in **Settings › Recording**. Then it says "The audio was removed." The words stay; the sound can't come back.
 
-**Settings › Meetings** says how many recordings stayed on this device, and why.
+The **Meetings** card in **Settings › Recording** says how many recordings stayed on this device, and why.
+
+## Ghost didn't join a meeting
+
+Ghost joins Google Meet and Zoom calls it's invited to by your Email to a note address. If it didn't turn up:
+
+- **The plugin is added.** Google Meet and Zoom are each a plugin, both added at first. Check in the Market, then open its page in Settings.
+- **You have an address.** The page says "Ghost is invited by your Email to a note address" until you turn one on in **Settings › Account**. See [[Email to a note]].
+- **The invite has the address as a guest**, on a calendar invite with a Meet or Zoom link. Or paste the link on the plugin's page and choose **Send Ghost to this meeting now**.
+- **It's booked.** The page's **Ghost in Google Meet** or **Ghost in Zoom** list shows what Ghost is booked into. **Check for new meetings** looks again.
+- **For Zoom, the host's settings let it in.** Zoom's page lists **What the host must allow**: guests who aren't signed in, joining from the browser, the passcode in the link, someone letting it out of the waiting room within 10 minutes, and captions for who said what.
+- **You made a new address.** Invites to the old one are turned away. A calendar invite needs the new one.
+
+Ghost leaves a meeting when you choose **Leave now** on its row, and skips one when you choose **Don't join**. See [[Meetings and the Meet bot]].
 
 ## A plugin is held off by Local only
 
@@ -89,9 +103,10 @@ Tap **Local only** in that message to go to the switch, in **Settings › Accoun
 
 ## A plugin isn't there
 
-- **Simple mode** hides the Market and every plugin's settings. Switch to Advanced in **Settings › Appearance › Mode**.
+- **Simple mode** hides the Market and every plugin's settings but Google Meet's and Zoom's. Switch to Advanced in **Settings › Appearance › Mode**.
 - **Not added**: open the Market and tap **Add to Ghost.md**.
-- **Not on this device**: Notion and Slack aren't on the iPhone yet; Place reminders is Android only; Todoist and Things are Android and Mac. The plugin's Market page says where it works.
+- **Not on this device**: Discord, Google Meet, Notion, Slack and Zoom aren't on the iPhone yet; Place reminders is Android only; Todoist and Things are Android and Mac. The plugin's Market page says where it works, under **Works on**.
+- **Held off by Local only**: see the section above.
 - **"… needs the newest Ghost.md."** Update the app.
 
 ## Lovart errors
@@ -105,6 +120,8 @@ Tap **Local only** in that message to go to the switch, in **Settings › Accoun
 | Lovart is asking this device to slow down. | Wait a minute and try again. |
 | Lovart made no image: … | Lovart declined the prompt. Change the words. |
 | Lovart took more than 5 minutes. | What it made is in your Lovart project. |
+
+**Header images** are made when you leave a note of 25 words or more that isn't a ticket, a meeting, mail, a notebook, a canvas or a template, once per note, while **Header images for notes** is on in **Settings › Lovart**. If one is missing, choose **Header image** on the note's menu to make it now. **Make them** on the same card stops by itself when credits run out or the keys are refused.
 
 If the mark doesn't appear beside a `{image: …}`, check the plugin is added, the `}` is there and the prompt has words. See [[Lovart]].
 

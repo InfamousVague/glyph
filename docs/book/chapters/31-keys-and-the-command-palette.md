@@ -24,9 +24,9 @@ What it offers depends on where you are. Over a note, that note's commands come 
 | **Fix spelling**, **Make a list**, **Continue** | Ask the AI to work on the note. |
 | **Fill the blanks** | When the note has blanks to fill. |
 | **Links to this note**, **Local graph of this note** | What links here. |
-| **Pin it to the top**, **Archive this note**, **Delete this note** | |
+| **Pin it to the top** / **Unpin it from the top**, **Archive this note**, **Delete this note** | |
 | **File it in …**, **Take it out of its workspace** | Move it between workspaces. |
-| **Close the … tab**, **Put this tab in a new group** | Tabs and their groups. |
+| **Close the … tab**, **Put this tab in a new group**, **Put this tab in …**, **Take this tab out of its group** | Tabs and their groups. |
 
 Then the rest of the app:
 
@@ -46,7 +46,7 @@ Then the rest of the app:
 
 Search matches more than the names. `dark` finds the themes, `plugins` finds the Market, `bin` finds Trash. Rows that have a shortcut show it on the right.
 
-Simple mode keeps the palette, with fewer rows. See [[Simple and Advanced]].
+Simple mode keeps the palette, with fewer rows: a new note, Speak, Home, All notes, Trash, Today's note, your tabs, Back, every note by name, filing a note, the themes, Settings and Help. It leaves out what Simple has no place for: new notebooks, journals and entries, the graph and a note's links, Ask Claude, Tags, smart notebooks, a workspace's filter, tab groups, Forward, the Market, Notifications and Organizations. See [[Simple and Advanced]].
 
 ## Shortcuts on a Mac
 
@@ -71,9 +71,16 @@ The editor has the keys you'd expect from a text editor:
 | `⌘A` | Select all. |
 | `⌘]` / `⌘[` | Indent / outdent. |
 | `⌘/` | Comment out the line. |
+| `⌥↑` / `⌥↓` | Move the line up / down. |
+| `⇧⌥↑` / `⇧⌥↓` | Copy the line up / down. |
+| `⇧⌘K` | Delete the line. |
 | `⌥⌘↑` / `⌥⌘↓` | Add a cursor above / below. |
 | `⌘Return` | A blank line below, from anywhere in the line. |
 | `⌥←` / `⌥→` | Move a word at a time. |
+| `⌥⌫` | Delete the word before the caret. |
+| `⌘↑` / `⌘↓` | The start / end of the note. |
+
+Return on a list item starts the next one, and on a quote carries the quote on. Backspace at a list marker takes the whole marker. Off the Mac, Control takes Command's place for most of these: `Ctrl+←` / `Ctrl+→` move a word at a time, and `Ctrl+Home` / `Ctrl+End` go to the start and end of the note.
 
 **`/` on an empty line**, with a hardware keyboard, opens the list of things to add at the caret, the same list as the **+** beside an empty line. Keep typing to filter it, then press Return. The `/` itself isn't written.
 
@@ -83,7 +90,7 @@ In a list, a board's card or the + list, the arrow keys move, Return chooses and
 
 ### Launcher shortcuts
 
-Long-press Ghost.md's icon for its shortcuts: **New note**, **Voice note**, **Today**, **Search** and **Scan**. Drag one to your home screen to keep it there.
+Long-press Ghost.md's icon for its shortcuts: **New note**, **Voice note**, **Today**, **Search** and **Scan**, then the notes you opened last. Drag one to your home screen to keep it there. With Ghost.md as the phone's assistant, **Voice note** becomes **Record note**. See [[Android extras and the watch]].
 
 ### The side key
 

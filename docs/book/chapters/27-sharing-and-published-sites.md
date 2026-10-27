@@ -10,7 +10,11 @@ Links and sites need an account, because each is kept with the account that made
 
 ## A read-only link
 
-Open the note and tap **Share** in the note's toolbar, or **More for this note** and look under **Sharing**. Choose **Share a read-only link**. The link is made and copied.
+1. Open the note.
+2. Tap **Share** in the note's toolbar, or **More for this note** and look under **Sharing**. In Simple mode, Sharing is behind **More…** on the note's sheet.
+3. Choose **Share a read-only link**. The link is made and copied.
+
+**Works on:** Android, iPhone, Mac and Windows.
 
 From then on, the Sharing section has:
 
@@ -50,7 +54,10 @@ The pictures a page shows travel inside the share, since a reader has no account
 
 The link opens a small reading page in any browser. The reader needs no account and no app. A note reads as it does in Ghost.md, and nothing on it can be changed. A notebook opens on its index, with **Previous** and **Next** on each page. The page follows the reader's light or dark setting and asks search engines not to index it.
 
-The reader can download it as Markdown, a `.md` file or a `.zip` with its pictures, or save a copy into Ghost.md.
+A banner across the top says what it is, with **Get the app**, and two ways to keep it:
+
+- **.md** downloads it as a Markdown file, or **.zip** when it has pictures or is a notebook.
+- **Save a copy** offers **Open in the Ghost.md app**, which saves a copy there and opens it. If the app doesn't open, the page says how to paste the link instead, below.
 
 ### Keeping a copy of something shared with you
 
@@ -79,7 +86,7 @@ A site's link looks like `https://ghostmarkdown.com/s/…#…`, and each page ha
 
 Every site your account has published is listed in **Settings › Account › Published sites**, from whichever device published it, each with **Copy** and **Unpublish**. An account keeps up to 100 sites.
 
-Works on: Android and Mac. Not on the iPhone yet. A journal has no site.
+**Works on:** Android, Mac and Windows. Not on the iPhone yet. A journal has no site.
 
 ## Shared links, all in one place
 
@@ -91,9 +98,9 @@ An account keeps up to 500 shared links. Deleting your account takes every link 
 
 ## Sharing with an organization
 
-To share notes with a team for them to edit, not just read, file them in the organization's workspace. Open **More for this note**, then **Workspace**, and pick the organization's. The picker says what it means: filed there, the note is the team's, and everyone in it reads and edits it. Members who have it open at once see each other's typing.
+To share notes with a team for them to edit, not just read, file them in the organization's workspace. Open **More for this note**, then **Workspace**, and pick the organization's, or one of its folders. The picker says what it means: filed there, the note is the team's, and everyone in it reads and edits it. Members who have it open at once see each other's typing.
 
-Taking a note out of the organization's workspace takes it away from everyone in it, so the picker asks you to press twice.
+Filing a team's note in a workspace of your own takes it away from everyone in the organization, so the picker asks you to press twice. A team note that is only unfiled stays the team's.
 
 Team notes are encrypted with a key only the organization's members hold. See [[Organizations and shared notes]].
 

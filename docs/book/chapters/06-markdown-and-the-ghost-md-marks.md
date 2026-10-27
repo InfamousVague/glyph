@@ -1,7 +1,7 @@
 # Markdown and the Ghost.md marks
 A note is words with a few marks around them. Type a mark and Ghost.md draws what it means, as you type. The characters stay in the file, so any other Markdown app reads the same thing.
 
-Ghost.md reads standard Markdown first. On top of that it adds a few marks of its own, from the Marks plugin.
+Ghost.md reads standard Markdown first: CommonMark, with GitHub's tables, task lists, strikethrough and bare links. On top of that it adds a few marks other apps share, and a few of its own from the Marks plugin.
 
 ## Around words
 
@@ -18,7 +18,9 @@ Type the mark on both sides of the words.
 
 `*one star*` works for italic too. A backslash makes a mark mean itself: `\*not italic\*` keeps its stars.
 
-An emoji name between colons, spelled the way GitHub spells it, becomes its emoji. The name comes back while the caret is on its line. A name Ghost.md doesn't know stays as you typed it.
+**Raised and lowered.** One word between single carets is raised; between single tildes, lowered. Neither runs across a space.
+
+**Emoji.** An emoji name between colons, spelled the way GitHub spells it, becomes its emoji. Ghost.md knows the names people type most, not every emoji there is. The name comes back while the caret is on its line. A name Ghost.md doesn't know stays as you typed it.
 
 ## At the start of a line
 
@@ -32,14 +34,18 @@ An emoji name between colons, spelled the way GitHub spells it, becomes its emoj
 | `> [!NOTE]` | A callout, on the first line of a quote |
 | `---` | A line across the page |
 
-A callout is a quote set apart as a box. Its kind goes on its first line: `NOTE`, `TIP`, `IMPORTANT`, `WARNING` or `CAUTION`. The last two are drawn a shade stronger.
+Only `#` makes a heading. A line of dashes or equals signs under a paragraph is never a heading: dashes are always a dividing line.
+
+A heading with to-dos under it counts them for you. Lists, to-dos, choices, counters and sums have a chapter of their own: [[Lists, to-dos and tickets]].
+
+### Callouts
+
+A callout is a quote set apart as a box. Its kind goes on its first line: `NOTE`, `TIP`, `IMPORTANT`, `WARNING` or `CAUTION`, in capitals or not. The last two are drawn a shade stronger. Words after the kind, on the same line, are the callout's heading.
 
 ```
-> [!TIP]
+> [!TIP] Before you go
 > Pack the coffee the night before.
 ```
-
-Only `#` makes a heading. A line of dashes under a paragraph is always a dividing line, never a heading.
 
 ## Blocks
 
@@ -53,7 +59,7 @@ const note = "hello";
 
 **Tables.** Pipes between the cells, and a row of dashes under the first row. See [[Boards, tables and live queries]].
 
-**Diagrams.** A code block marked `mermaid` is drawn as the diagram it describes. Tap it to change its words. It's drawn on the device, so it works offline.
+**Diagrams.** A code block marked `mermaid` is drawn as the diagram it describes: flowcharts, timelines, gantt charts and the rest. Tap it to change its words; leave it and it's drawn again. A diagram written wrong stays as its words, with a quiet line saying why. The button in a diagram's corner shows it full screen, to pinch and pan. It's drawn on the device, so it works offline.
 
 ````
 ```mermaid
@@ -62,16 +68,28 @@ flowchart TD
 ```
 ````
 
-**Maths.** A dollar sign on each side, `$\pi r^2$`, is drawn as a formula. Two on each side, alone on a line, set it on its own in the middle. With the caret on the line you see what you typed. A formula Ghost.md can't read stays as code, with a dotted line under it.
+**Maths.** A dollar sign on each side, `$\pi r^2$`, is drawn as a formula in the line. For a formula set on its own in the middle, put `$$` on a line of its own above it and below it. With the caret on the line you see what you typed.
 
-**Definitions.** A term on one line, and its meaning on the next after a colon and a space:
+- Prices stay prices: in "It costs $5, or $6" there's no formula. A formula's first `$` needs a letter straight after it, and its last needs one straight before it.
+- `\$` is always a dollar sign, and so is a `$` in code.
+- A formula Ghost.md can't read stays as you typed it, as code with a dotted line under it. Press and hold it to see what's wrong.
+
+**Definitions.** A term on one line, and its meaning on the next after a colon and a space. The colon is hidden off the caret's line.
 
 ```
 Deposit
 : what you pay up front
 ```
 
-**Front matter.** `key: value` lines between two `---` lines at the very top of a note. Ghost.md folds them out of the way. Tickets, notebooks and journals keep their settings here.
+**Front matter.** `key: value` lines between two `---` lines at the very top of a note. Ghost.md folds them into one quiet line naming the keys; tap it to open them. Tickets, notebooks, journals, a note's place and its header image keep their settings here. Keys Ghost.md doesn't use are kept just as you wrote them.
+
+```
+---
+tags: [errands, home]
+---
+```
+
+**Raw HTML** is shown as the text you typed. It never runs.
 
 ## Ghost.md's own marks
 
@@ -89,11 +107,15 @@ These come from the **Marks** plugin. It's on unless you remove it in the Market
 
 Here they are at work: ||the butler did it||, ==the north gate==, %%or the one after%%, ??four hundred??, @@Sam Ortiz@@, ^^the tickets^^ and ++ten++.
 
+**A hidden line.** A quote that starts with a bar, `>| the answer`, is a whole line kept blurred until the caret is in it, like a spoiler. Use it for the answer under a question.
+
 **Highlight colours.** Put a colour's name in brackets straight after a highlight: `==the cabin key==(green)`. The colours are blue, red, amber, green, teal, purple and gray. Blue is the default.
 
-**A note on a mark.** Words in brackets straight after one of these marks are a note on it: `??four hundred??(Sam said 400)`. The brackets are hidden, and tapping the words shows the note.
+**A note on a mark.** Words in brackets straight after one of these marks are a note on it: `??four hundred??(Sam said 400)`. The brackets are hidden, and tapping the words shows the note. Any name in brackets that isn't one of the colours is a note too.
 
 **A redaction is a look, not a lock.** The bar lifts while the caret is in the words, so you can read and edit them. The words are still in the file, and a share or an export has them. Use it for a name you'd rather not have on screen, not for a secret.
+
+In another Markdown app, these read as the characters you typed. A highlight is drawn in some of them, and an aside is hidden in some.
 
 ## Effects
 
@@ -107,23 +129,26 @@ Five marks that move. Each is its emoji twice on either side.
 | Shimmer | `✨✨silver thread✨✨` | A glint slides across every few seconds |
 | Haunt | `👻👻nobody there👻👻` | The words fade almost away and back |
 
-One emoji is just an emoji. An effect stops while the caret is in its words, so you edit plain text. When your device is set to reduce motion, effects hold still.
+One emoji is just an emoji. Effects can sit inside one another. An effect stops while the caret is in its words, so you edit plain text. When your device is set to reduce motion, effects hold still. Effects come from the Marks plugin too.
 
 ## Without typing a mark
 
-- **Press and hold** some words (right-click on a Mac) and choose **Style**. You get **Bold**, **Italic**, **Struck** and **Code**, then Ghost.md's own marks, then what a line can be (**Heading**, **Quote**, **List**, **Numbered**, **To-do**), then **Link**, **Table** and **Rule**.
-- **The + beside an empty line** puts in headings, lists, quotes, callouts, code, a divider, a diagram, a formula and each effect. In Simple, most of these are under **More**.
-- **In Simple,** the format bar over the keyboard has the common ones.
+- **Press and hold** some words (right-click on a Mac) and choose **Style**. You get **Bold**, **Italic**, **Struck** and **Code**, then Ghost.md's own marks, then what a line can be (**Heading**, **Quote**, **List**, **Numbered**, **To-do**), then **Link**, **Table** and **Rule**. A style you press stays lit, so you can make words bold and struck in one go. In Simple, each row says what it does, and Ghost.md's own marks wait behind **More**.
+- **The + beside an empty line.** In Advanced its first page is the things you reach for most: a picture, a video, a file, a place, the time, a table, a board, a database, a link to a note and a to-do. **More** holds the rest: headings, lists, a quote, a callout, a choice, a to-do with a due date, code, a divider, a ticket, a diagram, a formula, a canvas, a footnote, a tag, a counter, a sum, a blank for the AI, and each effect. In Simple the first page is a picture, a to-do, a heading, the two lists, a quote, a table, a link and a divider, each with a line saying what it is.
+- **In Simple,** a format bar sits over the keyboard while you type, with **Bold**, **Italic**, **Heading**, **List**, **To-do** and **Link**, then **Add image** and **Add to this line**. On a Mac it floats at the foot of the page.
 
 ## Two views
 
 - **Markdown** shows the words formatted with the marks still on the page, dimmed.
 - **Formatted** hides the marks, except on the line you're editing.
 
-Switch with the first round button in a note's tools, or **Show the marks** and **Show the formatted note** in its More sheet.
+In Advanced, switch with the round button just before a note's three dots. In Simple, it's **Show the marks** or **Show the formatted note** in the three dots' sheet. **Show the marks** is in search and commands too.
 
 ## Every mark on one page
 
-The cheat sheet, in Settings › About, has every mark with an example. **Ghost.md Academy** teaches them one at a time. The formatting reference at ghostmarkdown.com has them all too, with examples to copy.
+- **The cheat sheet**, in Settings › About, has every mark with an example.
+- **The Specification**, also in Settings › About in Advanced, says exactly how each one is written, for when you want the rules.
+- **Ghost.md Academy** teaches them one at a time.
+- **The formatting reference** at ghostmarkdown.com has them all too, with examples to copy.
 
 See also: [[Links, tags and footnotes]], [[Lists, to-dos and tickets]], [[Speaking your notes]], [[The Market]]

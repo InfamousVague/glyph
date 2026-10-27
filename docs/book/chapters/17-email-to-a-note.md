@@ -2,7 +2,7 @@
 
 Your account can have a private email address. Anything mailed to it becomes a note in your Inbox: forward yourself a receipt, a booking, a newsletter worth keeping, or an idea typed on someone else's computer.
 
-Works on: Android and Mac, which set up the address and file the mail. The notes then sync to your other devices, iPhone included. You need an account. See [[Accounts, sync and encryption]].
+**Works on:** Android and the Mac, which set up the address and file the mail. The notes then sync to your other devices, iPhone included. You need an account, signed in. See [[Accounts, sync and encryption]].
 
 ## Your Ghost address
 
@@ -10,26 +10,33 @@ An address looks like `name@in.ghostmarkdown.com`. Ghost.md makes up a readable 
 
 ### Turning it on
 
-Go to Settings › Meetings, and find **Email to a note**. Tap **Turn on an address**. Ghost.md makes one for you straight away.
+1. Go to Settings › Account, and find the **Email to a note** card.
+2. Tap **Turn on an address**. Ghost.md makes one for you straight away.
 
-The address appears on the **Invite Ghost** card, just above, because the same address invites Ghost to your meetings (more on that below). Beside it:
+Once it's on, the card shows:
 
-- **Copy** puts the address on your clipboard.
-- **Choose a name…** lets you pick your own name.
-- The round arrows make a new address. It asks first: **Make a new address?**, then **Make it**.
+- **Your address**, with **Copy** to put it on your clipboard.
+- **Make a new address**, which puts a new one in its place at once (see below).
+- **Turn off**.
 
-If your account's server doesn't offer meetings, the whole card is on Settings › Account instead.
+The same address invites Ghost to your meetings, so the **Invite Ghost** card in Settings › Google Meet and Settings › Zoom shows it too, with **Copy**, **Choose a name…** and a refresh button to make a new one. A change in one place is a change everywhere: it's one address.
 
 ### Choosing your own name
 
-Tap **Choose a name…** and type the part before the `@`. Ghost.md checks it as you type. A name must be:
+A name of your own is chosen on the **Invite Ghost** card, in Settings › Google Meet or Settings › Zoom.
+
+1. Tap **Choose a name…** and type the part before the `@`. Ghost.md checks it as you type, and says what's wrong, or that it's free.
+2. Tap **Use this name**.
+3. It asks "Switch to" your new address, and says that a calendar invite with the old one as a guest needs the new one. Tap **Switch**.
+
+A name must be:
 
 - **3 to 30 characters**: letters, numbers, dots, dashes and underscores only.
 - Separated sensibly: a dot, dash or underscore goes between letters or numbers, one at a time.
 - Not one Ghost.md would make up for you, and not a reserved name such as `admin`, `support` or `postmaster`.
 - Not already taken, now or in the past.
 
-When the name is free, tap **Use this name**, then **Switch**. Your old address stops taking mail at once.
+Your old address stops taking mail and invites at once. Capital letters don't matter: `Matt` and `matt` are the same name.
 
 A name of your own is easier to remember, and easier to guess. Anyone who guesses it can send mail to it. What arrives is still sealed to your account, and the address still takes no more than thirty mails an hour.
 
@@ -37,11 +44,13 @@ A name of your own is easier to remember, and easier to guess. Anyone who guesse
 
 **Make a new address** puts a new one in place of the old. The old one stops taking mail at once, and anyone who mails it gets a bounce. Use this if your address starts getting mail you don't want.
 
+On the Account card it happens as soon as you tap it. On the Invite Ghost card it asks first: **Make a new address?**, then **Make it**. Either way, a calendar invite that still has the old address on it needs the new one.
+
 An address you give up is never given to anyone else. You can take it back later, but no other account ever can.
 
 ### Turning it off
 
-**Turn off**, at the foot of the Email to a note card, turns mail and invites away. Mail already sent is still filed.
+**Turn off**, at the foot of the Email to a note card in Settings › Account, turns mail and invites away. Mail already sent is still filed. Without an address, Ghost can't be sent into a meeting at all, by invite or by **Join**, until you turn one on again.
 
 ## What the note looks like
 
@@ -69,7 +78,7 @@ The note isn't in any workspace, so it lands in your Inbox. File it wherever you
 
 ### Arriving
 
-Mail is filed the next time one of your Android phones or Macs syncs. Until then it waits, sealed, on the server. Each mail becomes one note, even if two devices sync at once.
+If Ghost.md is open on one of your Android phones or Macs, the mail is filed within seconds of arriving. Otherwise it's filed the next time one of them syncs, and until then it waits, sealed, on the server. Each mail becomes one note, even if two devices sync at once.
 
 A `+tag` after the name is ignored, so `name+receipts@in.ghostmarkdown.com` reaches you too. That's handy for telling where a mail came from.
 
@@ -109,6 +118,8 @@ The readable copy is never written to disk or to a log. The sealed copy waits un
 ## Inviting Ghost to a meeting
 
 The same address brings Ghost to your meetings. Add it as a guest on a calendar invite that has a Google Meet or Zoom link. Ghost joins by itself, records the meeting, and files it as a note, written up with who said what. The invite mail becomes a note too.
+
+The Google Meet and Zoom plugins are on to begin with. If the plugin for an invite's link is off, Ghost isn't booked, and the invite's note ends "Ghost wasn't booked: the Zoom plugin is off. Turn it on in Ghost.md to have Ghost join."
 
 Make a new address and a calendar invite that still has the old one needs the new one. See [[Meetings and the Meet bot]].
 

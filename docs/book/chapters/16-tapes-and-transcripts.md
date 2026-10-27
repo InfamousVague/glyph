@@ -1,6 +1,6 @@
 # Tapes and transcripts
 
-Every note you speak, and every meeting, keeps its recording. Ghost.md calls it the note's **tape**. It sits at the top of the note as a small cassette, and plays back what was said, with the words lighting up as you listen.
+Every note you speak, and every meeting, whether you recorded it or Ghost was in it, keeps its recording. Ghost.md calls it the note's **tape**. It sits at the top of the note as a small cassette, and plays back what was said, with the words lighting up as you listen.
 
 ## The tape
 
@@ -20,6 +20,8 @@ Beside it are a few more buttons:
 | **Summarize** | Writes a summary of the recording under the title |
 | **Remove** | Removes this note's recording, keeping its words |
 
+**Transcript** shows only while the tape isn't playing, and **Add** only where this device can record.
+
 There's no speed control and no slider to drag. To jump to a moment, tap its line in the transcript.
 
 ## The transcript
@@ -30,14 +32,16 @@ Tap **Transcript** to see what was said, line by line, as it was heard.
 - **Tap any line** and the tape jumps there and plays from that moment.
 - **Scroll away** while it plays and a **Follow** button appears. Tap it and the transcript catches up with the tape again.
 
-While a meeting is still being written up, the transcript says how far it has got, such as "Writing up… 42%".
+While a meeting is still being written up, the transcript says how far it has got, such as "Writing up… 42%", with the captions under it where there were any. A meeting opened from anywhere, its row in Settings or a cassette, opens at its transcript.
+
+In a meeting with names, the first line of each speaker's turn starts with their name in bold, and the names stay as the better words come in.
 
 ### The transcript and the note
 
 The note's words and the transcript aren't always the same thing:
 
 - **A voice note's** words are what you said, shaped by the cues into Markdown. The transcript is what was heard, with when each phrase was said. Edit the note freely: the transcript and the tape stay as they were.
-- **A meeting's** note keeps the transcript in its words, under `## Transcript`, below the summary. A meeting from Google Meet names who said what:
+- **A meeting's** note keeps the transcript in its words, under `## Transcript`, below the summary. A meeting Ghost was in, from Google Meet, Zoom with captions, or Discord, names who said what, and when:
 
 ```
 ## Transcript
@@ -53,9 +57,16 @@ Because it's in the note, a meeting's transcript is searchable, and you can corr
 
 A meeting gets a summary by itself when it's written up. For any other recording, tap **Summarize**. The summary goes under the title: the point of what was said, and the to-dos as to-dos.
 
-- If you've edited the summary and a new one comes, Ghost.md asks: **Replace**, or **Keep mine**.
-- If you record more with **Add** after the summary was written, the tape says the summary is from before the last take.
-- Summaries need the AI model on your device, or Claude with your key for meetings. Without either, the tape says it needs a model.
+- If you've edited the summary and tap **Summarize** again, Ghost.md asks "You edited the summary. Replace it?": **Replace**, or **Keep mine**.
+- If you record more with **Add** after the summary was written, the tape says "Summary is from before the last take."
+- Summaries need the AI model on your device, or, for meetings, the Claude plugin with your key. Without either, the tape says "Needs a model."
+
+The tape also says when a summary is held up:
+
+- "The summary comes after the better words": the words are being fixed first. See [[Speaking your notes]].
+- "The summary waits for Claude: Local only is on": Claude writes your meetings, and Local only holds it off. The meeting isn't summarised by the device's model meanwhile.
+- "The summary didn't come", with the reason.
+- "Waiting for a summary…", or "Being summarized on your phone": this device can't write it, so another of yours does. See [[Meetings and the Meet bot]].
 
 Choose what's summarised by itself in Settings › Recording, under **Summaries**. See [[Meetings and the Meet bot]].
 
@@ -65,13 +76,19 @@ Choose what's summarised by itself in Settings › Recording, under **Summaries*
 
 ## Playing a meeting from home
 
-In Advanced, the **Meetings** shelf on your home page holds a cassette for each meeting. Tap one and its note opens at the tape, already playing. On a Mac, rest the pointer on a cassette to hear it without opening it. See [[Meetings and the Meet bot]].
+In Advanced, the **Meetings** shelf on your home page holds a cassette for each meeting with a tape, the newest first, each in a colour of its own with its title, length and date. The one being recorded is first, its reels turning, with **Recording now**.
+
+- **Tap a cassette** and its note opens at the tape, already playing, even for a meeting written up on another device.
+- **On a Mac,** rest the pointer on a cassette to hear it without opening it.
+- **See all**, once there are more than the shelf holds, lists every note with a tape.
+
+The shelf isn't shown in Simple, or while you're searching.
 
 ## On your other devices
 
 - **The words sync** like any note's, transcript included.
 - **The sound syncs** too, sealed like everything else, for recordings up to about two hours and nineteen minutes. A longer one stays on the device that made it.
-- **Meetings** sync their sound only while **Sync meeting recordings** is on, in Settings › Meetings. It's on to begin with.
+- **Meetings** sync their sound only while **Sync meeting recordings** is on, on the **Meetings** card in Settings › Recording. It's on to begin with. The card says how many recordings stayed on this device, and why.
 
 A device that doesn't have a recording yet says "This recording is not on this device." The words are there all the same.
 
@@ -87,6 +104,6 @@ To free up space without losing any words, use **Remove audio older than a month
 
 **Export everything**, in Settings › Export, includes every recording as a WAV file, beside your notes.
 
-**Works on:** recording and the tape's Add on Android and the Mac. The iPhone can read the words of a recorded note, and a meeting's transcript, but can't record.
+**Works on:** recording, playing and the tape's Add on Android and the Mac. The iPhone can read the words of a recorded note, and a meeting's transcript, but can't record or play the tape yet.
 
 See also: [[Speaking your notes]], [[Meetings and the Meet bot]], [[Pictures, files and voice memos]], [[AI on your device]]

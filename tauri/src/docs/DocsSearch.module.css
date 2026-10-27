@@ -1,0 +1,237 @@
+/*
+ * The docs' search box in the bar, and its results under it (DocsSearch.tsx). On a phone the box is a round button
+ * that opens it across the whole bar, the results the page's width under the bar; from 40rem the box sits in the bar
+ * and the results drop under it.
+ */
+
+.search {
+  flex: none;
+}
+
+.opener {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin: 0;
+  padding: 0;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text);
+  cursor: pointer;
+}
+
+/* Closed on a phone, only the button shows; open, the field covers the bar. */
+.field {
+  display: none;
+  align-items: center;
+  gap: var(--glacier-space-2);
+}
+
+.search[data-wide] .opener {
+  display: none;
+}
+
+.search[data-wide] .field {
+  display: flex;
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  padding: 0 var(--app-gutter);
+  background: var(--app-paper-2);
+}
+
+.glass {
+  flex: none;
+  color: var(--glacier-text-muted);
+}
+
+.input {
+  flex: 1;
+  min-inline-size: 0;
+  block-size: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--glacier-text);
+  /* 16px, so a phone does not zoom the page when the box is tapped. */
+  font: inherit;
+  font-size: max(1rem, var(--glacier-font-size-sm));
+  outline: none;
+}
+
+.input::placeholder {
+  color: var(--glacier-text-muted);
+}
+
+.input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.key {
+  display: none;
+  flex: none;
+  min-inline-size: 1.25rem;
+  padding: 0 0.3rem;
+  border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  border-radius: var(--glacier-radius-sm);
+  color: var(--glacier-text-muted);
+  font: inherit;
+  font-size: var(--glacier-font-size-xs);
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.cancel {
+  appearance: none;
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: var(--glacier-radius-full);
+  background: none;
+  color: var(--glacier-text-muted);
+  cursor: pointer;
+}
+
+.panel {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0;
+  z-index: 3;
+  max-block-size: min(70dvh, 36rem);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: var(--glacier-space-2) var(--app-gutter) var(--glacier-space-3);
+  background: var(--app-paper-2);
+  border-block-end: var(--glacier-hairline) solid var(--glacier-border-subtle);
+  box-shadow: 0 1.5rem 3rem -1.5rem color-mix(in srgb, black 35%, transparent);
+}
+
+.panel[hidden] {
+  display: none;
+}
+
+.said {
+  margin: 0;
+  padding: var(--glacier-space-1) 0.75rem var(--glacier-space-2);
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+}
+
+.said:empty {
+  display: none;
+}
+
+.results {
+  display: grid;
+  gap: 1px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.result {
+  display: grid;
+  gap: 0.15rem;
+  min-inline-size: 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--glacier-radius-md);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+
+.result[aria-selected='true'] {
+  background: color-mix(in srgb, var(--glacier-text) 9%, transparent);
+}
+
+.chapter {
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-xs);
+  font-weight: var(--glacier-font-weight-medium);
+}
+
+.heading {
+  color: var(--glacier-text);
+  font-size: var(--glacier-font-size-sm);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+.snippet {
+  color: var(--glacier-text-muted);
+  font-size: var(--glacier-font-size-sm);
+  line-height: 1.45;
+}
+
+/* A found word: the page's ink behind it, lightly, and the word itself in the page's ink. */
+.hit {
+  border-radius: 0.2em;
+  background: color-mix(in srgb, var(--glacier-text) 16%, transparent);
+  color: var(--glacier-text);
+  font-weight: var(--glacier-font-weight-semibold);
+}
+
+@media (min-width: 40rem) {
+  .search {
+    position: relative;
+    flex: 0 1 18rem;
+    min-inline-size: 12rem;
+  }
+
+  .opener,
+  .search[data-wide] .opener {
+    display: none;
+  }
+
+  .field,
+  .search[data-wide] .field {
+    display: flex;
+    position: static;
+    padding: 0 0.35rem 0 0.75rem;
+    border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+    border-radius: var(--glacier-radius-full);
+    background: color-mix(in srgb, var(--glacier-text) 3%, transparent);
+  }
+
+  .field:focus-within {
+    border-color: var(--glacier-text-muted);
+  }
+
+  .key {
+    display: inline-block;
+  }
+
+  .field:focus-within .key {
+    display: none;
+  }
+
+  .cancel {
+    display: none;
+  }
+
+  .field:focus-within .cancel {
+    display: inline-flex;
+  }
+
+  .input {
+    block-size: 2.1rem;
+  }
+
+  .panel {
+    inset-block-start: calc(100% + 0.5rem);
+    inset-inline: auto 0;
+    inline-size: min(34rem, calc(100vw - 2 * var(--app-gutter)));
+    padding-inline: var(--glacier-space-2);
+    border: var(--glacier-hairline) solid var(--glacier-border-subtle);
+    border-radius: var(--glacier-radius-lg);
+  }
+}

@@ -26,7 +26,9 @@ Depending on the layout, the page is made of a few sections:
 
 ### The Meetings shelf
 
-If you've recorded meetings, a **Meetings** shelf sits near the top: a row of cassettes that scrolls sideways, newest first, each with its note's title on the label. Under each is how long it is and the day it was. A meeting being recorded right now comes first, its reels turning. Tap a cassette to open the meeting's note. **See all** opens the rest. See [[Meetings and the Meet bot]].
+If you've recorded meetings, a **Meetings** shelf sits near the top: a row of cassettes that scrolls sideways, newest first, each with its note's title on the label. Under each is how long it is and the day it was. A meeting being recorded right now comes first, its reels turning, with "Recording now" under it. Tap a cassette to open the meeting's note. The shelf holds twelve; **See all** opens the rest. See [[Meetings and the Meet bot]] and [[Tapes and transcripts]].
+
+On a computer, rest the pointer on a cassette and its tape plays from the start, the reels turning. Move away and it stops.
 
 The shelf doesn't show while you're searching, or in Simple.
 
@@ -51,6 +53,8 @@ The dock is the column of round buttons in the bottom corner. From top to bottom
 5. **Market:** plugins, themes and fonts. See [[The Market]].
 6. **Settings**, at the foot.
 
+Every page has a dock like it, holding what that page can do: on a note, its foot is the note's ⋯ instead of Settings. The dock shrinks to two thirds while the page scrolls, and steps aside while the keyboard is up so it never covers the caret. On a computer, each button's name comes up beside it when the pointer rests on it.
+
 ## The New sheet
 
 **Write a note** opens a sheet called **New**:
@@ -63,11 +67,29 @@ The dock is the column of round buttons in the bottom corner. From top to bottom
 | **Canvas** | Cards on a page with lines between them. |
 | **Notebook** | Notes in an order with an index, or a journal of dated entries. |
 | **Meeting** | Record a meeting. The screen can go off. It is written up afterwards. On Android and the Mac. |
-| **From a shared link** | A copy of a note or notebook someone shared with you. |
+| **Include sound from other apps** | A switch for the meeting's recording: other apps' sound on Android, **Record the computer's sound too** on a Mac. |
+| **From a shared link** | A copy of a note or notebook someone shared with you. Paste the link and choose **Save a copy**. |
+
+In Simple, the sheet shows **Note** and **More…**, which opens the rest in place.
 
 ## A blank page
 
 A new note that's still blank offers name chips based on today's date, **Start from a template**, and **Your templates**. They go away at your first letter. See [[Your first notes]].
+
+## The top bar
+
+In Advanced, a bar runs along the top of every screen. In the **Classic** look its first row holds, from the start:
+
+- **Home**, the house.
+- **All your notes**, the panel icon that shows the sidebar.
+- **Back to where you were** and **Forward again**.
+- The open screen's own tools.
+- **Organizations**, the people icon, with a picker of your teams.
+- The bell, lit with a dot when something unread has arrived. See [[Reminders and notifications]].
+- **Settings**, the cog, and the screen's More.
+- **Side panel**, at the far end, while a notebook or journal is open.
+
+The open notes' tabs run along the row under it.
 
 ## Tabs
 
@@ -89,23 +111,29 @@ Settings › Appearance › **Top bar** lays out the controls and the tabs four 
 
 ## The sidebar
 
-The panel icon at the left of the top bar opens your notes as a tree. On a phone it floats over the note as a card. A tap opens a note in a tab, and a tap outside closes the card.
+The panel icon near the start of the top bar, **All your notes**, shows your notes beside or over the open note. What it shows depends on the window.
 
-The tree has your workspaces and folders, with:
+### On a phone
+
+The panel icon opens your notes as a tree, floating over the note as a card. A tap opens a note in a tab, and a tap outside closes the card.
+
+The tree has your workspaces and folders, which fold shut, and the notes filed in none below them, with:
 
 - **Tags:** every tag in your notes, and how many.
-- **Market**.
-- **Smart notebooks**, if you've made any.
+- **Market:** plugins, themes and fonts.
+- **Smart notebooks**, if you've made any, each with how many notes it finds.
 - **Archive:** notes you've archived. Press and hold one and choose **Unarchive** to bring it back.
 - **Trash**, at the foot.
 
-Its tools along the top include **New note**, **New workspace** and **Search and commands**.
+Its tools along the top are **New note**, **New workspace**, **Search and commands**, **Show names only** (or **Show each note drawn small**), and **Browse files** where the phone can show the notes' folder. Its foot has a microphone to speak a note, on Android, then **Graph of your notes** and **Settings**.
 
 ### Wide windows and the Fold
 
-With room, on a Mac or a Galaxy Fold opened out, your notes can sit in a column beside the open note. It starts hidden. Press the panel icon to show it, and the device remembers your choice.
+With room, on a Mac or a Galaxy Fold opened out, the sidebar is a column of your notes beside the open note: the same plain list Simple's home has, grouped by when, with **Notes** and **To-dos** under its title and the + and the microphone at its foot. It starts hidden. Press the panel icon to show it, and the device remembers your choice.
 
-Settings › Appearance › **Sidebar** chooses how the side panel sits: **Popover**, over the note, or **Docked**, as a column beside it. This row only shows on a wide window.
+The tree's other rows live elsewhere on a wide window: workspaces and folders on the home page and in All notes, the Archive and the Trash in All notes, and Tags, smart notebooks and the graph in Search and commands.
+
+At the far end of the top bar, a second panel icon, **Side panel**, shows a notebook's index or a journal's month beside the page while one is open. Settings › Appearance › **Sidebar** chooses how that panel sits: **Popover**, over the note, or **Docked**, as a column beside it. This row only shows on a wide window.
 
 On a Fold opened out, menus keep to their own side of the crease.
 
@@ -113,7 +141,7 @@ On a Fold opened out, menus keep to their own side of the crease.
 
 **Archive** takes a note off the home page and out of your lists without deleting it.
 
-**Move to Trash** takes it out of every list. Notes in the Trash wait for **30 days**, then go for good. Open the Trash from the foot of the sidebar, from All notes, or by typing `trash` in Search and commands.
+**Move to Trash** takes it out of every list. Notes in the Trash wait for **30 days**, then go for good; each says how long it has left. A note in an organization's workspace waits until someone empties the Trash, since deleting it deletes it for every member. Open the Trash from the foot of the sidebar's tree, from All notes, or by typing `trash` in Search and commands.
 
 Tap a note there for:
 
@@ -124,6 +152,6 @@ Tap a note there for:
 
 ## Simple's home
 
-Simple's home is one plain list with a search field on top, notes grouped by when, and two tabs at the bottom: **Notes** and **To-dos**. A round microphone and a round **+** sit beside them. There are no tabs along the top, no sidebar and no Market. See [[Simple and Advanced]].
+Simple's home is one plain list with a search field on top, notes grouped by when, and two tabs at the bottom: **Notes** and **To-dos**. A round microphone and a round **+** sit beside them, and a Settings cog beside the title. There are no tabs along the top, no top bar, no dock and no Market. In Simple's Trash, a note offers **Restore**, with **Delete for good** behind **More**. See [[Simple and Advanced]].
 
 See also: [[Simple and Advanced]] · [[Your first notes]] · [[Workspaces, folders and search]] · [[Keys and the command palette]] · [[Meetings and the Meet bot]] · [[Settings]]
