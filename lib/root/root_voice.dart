@@ -181,6 +181,8 @@ extension _RootVoice on _GhostRootState {
       // A summary landed with the app on screen: said, with the way to the note.
       summarized: (done) {
         if (!mounted) return;
+        // Heard as well as said, where its sound is on (Settings › Sounds; Matt, 2026-10-27).
+        sounds.play(SoundEvent.writeupReady);
         // `Summarized “${title}”`, for ten seconds, and Open goes to the note where it was left.
         GlacierToast.of(context).toast(
           message: Text('Summarized “${done.title}”'),

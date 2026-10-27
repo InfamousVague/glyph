@@ -117,6 +117,8 @@ import 'read_instruction.dart';
 import 'route_chip.dart';
 import 'say_card.dart';
 import 'voice_waves.dart';
+import '../../sounds/sound_pack.dart' show SoundEvent;
+import '../../sounds/sounds.dart' show sounds;
 
 /// How long a quiet after words has to last before "Stop when I go quiet" saves the take (`QUIET_STOP_MS`).
 const int quietStopMs = 4000;
@@ -407,6 +409,10 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       info: _r.warn,
       warn: _r.warn,
     )..addListener(_sessionChanged);
+    // The recorder's start sound (Settings › Sounds; Matt, 2026-10-27), as the microphone is asked for, so it is heard
+    // before the first word; and from here until the screen goes, no other sound of the app's plays over the take.
+    sounds.play(SoundEvent.recordStart);
+    sounds.recording = true;
     _session.start();
     _aim();
     _readNotes();
@@ -430,6 +436,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
       ..close();
     _r.setRecorderLive(false);
     _r.host.setCapturing(false);
+    sounds.recording = false;
     publishVoiceLevel(0);
     _level.dispose();
     super.dispose();
@@ -1200,6 +1207,8 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     _r.host.setCapturing(false);
     _session.setPhase(Phase.finishing);
     _session.microphone?.stop();
+    // The start's answer, once the microphone has let go, so the tape ends before it (Settings › Sounds).
+    sounds.play(SoundEvent.recordStop);
     // Every command held, every card up and every one-shot open is settled before anything is composed.
     for (final segment in _queued ?? const <Segment>[]) {
       _take.listen(segment);
@@ -1651,6 +1660,7 @@ class CaptureScreenState extends State<CaptureScreen> implements TakeHost<Note> 
     final session = _session.session;
     if (session != null) unawaited(Future<void>.sync(session.cancel));
     _session.microphone?.stop();
+    sounds.play(SoundEvent.recordStop);
     await _writer.undoDraft();
     final locked = _locked;
     _r.host.endCapture(locked);

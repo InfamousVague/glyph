@@ -26,9 +26,10 @@ import 'support.dart';
 /// card began, so Library folder's card is one row and a gap further down than the page measured it
 /// ([_appearancePhone]). Simple's own shorter list, and the choice on Appearance, are mode_cards_test.dart's.
 
-/// What stands over Library folder's card now: Appearance's row (64.38 on a phone, as every row is) and the gap
-/// between two cards (17.85, as the page's second card has under its first).
-const double _appearancePhone = 64.38 + 17.85;
+/// What stands over Library folder's card now: Appearance's row (64.38 on a phone, as every row is), Sounds' under it
+/// on the same card since 2026-10-27 (65.38 with its hairline), and the gap between two cards (17.85, as the page's
+/// second card has under its first).
+const double _appearancePhone = 64.38 + 65.38 + 17.85;
 
 Future<void> _open(WidgetTester tester, {Preferences prefs = const Preferences(theme: 'light'), Size size = phone, int toCheatSheet = 0, int toModel = 0, SettingsTarget? toPage, VoidCallback? onClose}) =>
     pumpSettings(tester, SettingsSheet(open: true, onClose: onClose ?? () {}, toCheatSheet: toCheatSheet, toModel: toModel, toPage: toPage), size: size, prefs: prefs);
@@ -74,6 +75,8 @@ void main() {
         // Under Account's card since 2026-10-24, and first on its line the mode the app is in (GHST-103), advanced
         // until it is chosen: the choice is the page's first card.
         'Appearance': 'Advanced · Light · Maple Mono',
+        // Under Appearance on its card since 2026-10-27: the pack, and how many sounds are on.
+        'Sounds': 'Ghostly · 3 of 11 on',
         'Library folder': 'Where your notes are kept',
         'Backup': 'To a USB drive or SD card',
         'Export': 'Everything as one zip',
@@ -85,7 +88,7 @@ void main() {
         'Market': '0 of 0 plugins added',
         'About': '0.1.0',
       });
-      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
+      expect(_rows(tester).keys, ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
       await endSettings(tester);
     });
 
@@ -102,6 +105,8 @@ void main() {
         // On a card of its own under Account's since 2026-10-24, with how much of the app there is as its first card
         // (GHST-103), which had a page heading the list, on a card over Account's, from 2026-10-18.
         ('theme', 6, SettingsGlyph.sunMoon),
+        // The port's own (Matt, 2026-10-27: "build ... the sounds settings"), under Appearance on its card.
+        ('sounds', 6, SettingsGlyph.volume),
         ('library', 1, SettingsGlyph.folderOpen),
         ('backup', 1, SettingsGlyph.hardDriveUpload),
         ('export', 1, SettingsGlyph.hardDriveDownload),
@@ -135,12 +140,12 @@ void main() {
       }
     });
 
-    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Library cyan, Backup lime, Export rose, Recording red, AI magenta, Snippets amber, the Market green, About yellow; none grey', (tester) async {
+    testWidgets('wear a colour each: Account and Organizations blue, Workspaces indigo, Notifications coral, Appearance purple, Sounds amber, Library cyan, Backup lime, Export rose, Recording red, AI magenta, Snippets orange, the Market green, About yellow; none grey', (tester) async {
       await _open(tester, size: const Size(390, 1200));
       final chips = tester.widgetList<Container>(find.byKey(const ValueKey('settings-row-icon'))).toList();
       // Appearance's purple under Account's card since 2026-10-24; no row grey since the same day (Matt: "make sure all
       // settings sections icons have a color").
-      final want = ['#0a6fe0', '#0a6fe0', '#4f5bd5', '#c8643f', '#9a45c9', '#0a86a8', '#5a8a00', '#d6336c', '#dd3a30', '#b5279f', '#c27c00', '#2a9d4b', '#b58400'];
+      final want = ['#0a6fe0', '#0a6fe0', '#4f5bd5', '#c8643f', '#9a45c9', '#c27c00', '#0a86a8', '#5a8a00', '#d6336c', '#dd3a30', '#b5279f', '#d9600d', '#2a9d4b', '#b58400'];
       expect(chips.length, want.length);
       for (var i = 0; i < want.length; i++) {
         expect((chips[i].decoration! as BoxDecoration).color, sameColor(cssColor(tester, want[i]).withValues(alpha: 0.16)), reason: 'row $i');
@@ -177,7 +182,7 @@ void main() {
     testWidgets('leave out what an iPhone has no use for, and add the hidden pages once they are unlocked', (tester) async {
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       await _open(tester, size: const Size(390, 1200));
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Export', 'Snippets', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Sounds', 'Export', 'Snippets', 'Market', 'About']);
       debugDefaultTargetPlatformOverride = null;
       await endSettings(tester);
 
@@ -185,7 +190,7 @@ void main() {
       expect(_labels(tester), isNot(contains('Developer')));
       developerMode.set(true);
       await tester.pump();
-      expect(_labels(tester).sublist(13), ['Developer', 'Test results']);
+      expect(_labels(tester).sublist(14), ['Developer', 'Test results']);
       expect(_rows(tester)['Developer'], 'Benches, reset');
       await endSettings(tester);
     });

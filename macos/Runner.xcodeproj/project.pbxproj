@@ -30,6 +30,7 @@
 		7A10000000000000000000B1 /* GhostChannels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A1 /* GhostChannels.swift */; };
 		7A10000000000000000000B2 /* FilesChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A2 /* FilesChannel.swift */; };
 		7A10000000000000000000B3 /* TapeChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A3 /* TapeChannel.swift */; };
+		7A10000000000000000000B7 /* SoundsChannel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A10000000000000000000A7 /* SoundsChannel.swift */; };
 		6E05C0DE00000000000000B1 /* Keychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A1 /* Keychain.swift */; };
 		6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A2 /* PictureKeep.swift */; };
 		6E05C0DE00000000000000B3 /* DiagramRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E05C0DE00000000000000A3 /* DiagramRenderer.swift */; };
@@ -83,6 +84,7 @@
 		7A10000000000000000000A1 /* GhostChannels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GhostChannels.swift; sourceTree = "<group>"; };
 		7A10000000000000000000A2 /* FilesChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilesChannel.swift; sourceTree = "<group>"; };
 		7A10000000000000000000A3 /* TapeChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TapeChannel.swift; sourceTree = "<group>"; };
+		7A10000000000000000000A7 /* SoundsChannel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SoundsChannel.swift; sourceTree = "<group>"; };
 		6E05C0DE00000000000000A1 /* Keychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = Keychain.swift; path = ../apple/Keychain.swift; sourceTree = SOURCE_ROOT; };
 		6E05C0DE00000000000000A2 /* PictureKeep.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = PictureKeep.swift; path = ../apple/PictureKeep.swift; sourceTree = SOURCE_ROOT; };
 		6E05C0DE00000000000000A3 /* DiagramRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DiagramRenderer.swift; path = ../apple/DiagramRenderer.swift; sourceTree = SOURCE_ROOT; };
@@ -189,6 +191,7 @@
 				7A10000000000000000000A1 /* GhostChannels.swift */,
 				7A10000000000000000000A2 /* FilesChannel.swift */,
 				7A10000000000000000000A3 /* TapeChannel.swift */,
+				7A10000000000000000000A7 /* SoundsChannel.swift */,
 				6E05C0DE00000000000000A1 /* Keychain.swift */,
 				6E05C0DE00000000000000A2 /* PictureKeep.swift */,
 				6E05C0DE00000000000000A3 /* DiagramRenderer.swift */,
@@ -405,6 +408,7 @@
 				7A10000000000000000000B1 /* GhostChannels.swift in Sources */,
 				7A10000000000000000000B2 /* FilesChannel.swift in Sources */,
 				7A10000000000000000000B3 /* TapeChannel.swift in Sources */,
+				7A10000000000000000000B7 /* SoundsChannel.swift in Sources */,
 				6E05C0DE00000000000000B1 /* Keychain.swift in Sources */,
 				6E05C0DE00000000000000B2 /* PictureKeep.swift in Sources */,
 				6E05C0DE00000000000000B3 /* DiagramRenderer.swift in Sources */,

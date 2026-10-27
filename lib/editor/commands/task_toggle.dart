@@ -14,6 +14,8 @@ library;
 
 import '../../core/boards.dart';
 import '../../core/item_syntax.dart';
+import '../../sounds/sound_pack.dart' show SoundEvent;
+import '../../sounds/sounds.dart' show sounds;
 import '../state/change.dart';
 import '../state/state.dart';
 
@@ -52,6 +54,9 @@ List<ChangeSpec> settleFences(EditorState state, Map<int, bool> ticks) {
 /// the fence never drifts from the ticks ([settleFences]). `box` is what [boxAt] answered.
 Transaction toggleBox(EditorState state, ({int from, int to, bool done}) box) {
   final line = state.doc.lineAt(box.from).number;
+  // The tick's sound (Settings › Sounds; Matt, 2026-10-27): here, since every way a box is tapped comes through here
+  // (the editor's handler, its gestures, a screen reader's tap, a query's list), and only as it is ticked, not cleared.
+  if (!box.done) sounds.play(SoundEvent.todoTicked);
   return state.update(
     TransactionSpec(
       changes: <ChangeSpec>[

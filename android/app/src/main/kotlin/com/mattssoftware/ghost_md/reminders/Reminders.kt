@@ -21,6 +21,7 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import com.mattssoftware.ghost_md.R
+import com.mattssoftware.ghost_md.SoundChannels
 import com.mattssoftware.ghost_md.home.Doors
 import com.mattssoftware.ghost_md.home.HomeScreen
 import io.flutter.plugin.common.BinaryMessenger
@@ -303,13 +304,16 @@ object Reminders {
     if (!place && item.id !in fired) keepIds(context, KEY_FIRED, (fired + item.id).takeLast(FIRED_KEPT))
     if (!canNotify(context)) return
     ensureChannel(context)
+    // The pack's reminder sound where Settings › Sounds has it on: a channel of its own beside this one, since a
+    // channel's sound is fixed once it is made (SoundChannels.kt).
+    val channel = SoundChannels.channel(context, SoundChannels.REMINDER, NOTIFY_CHANNEL, "Reminders", NotificationManager.IMPORTANCE_HIGH)
     val open = Doors.press(context, Doors.noteAt(item.note, item.line, item.words), code(item.id))
-    val public = NotificationCompat.Builder(context, NOTIFY_CHANNEL)
+    val public = NotificationCompat.Builder(context, channel)
       .setSmallIcon(R.drawable.ghost_ic_alarm)
       .setContentTitle("A reminder from Ghost.md")
       .setContentIntent(open)
       .build()
-    val builder = NotificationCompat.Builder(context, NOTIFY_CHANNEL)
+    val builder = NotificationCompat.Builder(context, channel)
       .setSmallIcon(R.drawable.ghost_ic_alarm)
       .setContentTitle(item.title)
       .setContentText(item.text)

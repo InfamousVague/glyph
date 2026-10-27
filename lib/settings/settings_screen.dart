@@ -116,8 +116,10 @@ const Map<String, String> _hues = {
   'import': 'rose',
   'ai': 'magenta',
   'theme': 'purple',
-  // Snippets (2026-10-27) in the amber no other row wears.
-  'snippets': 'amber',
+  // Snippets (2026-10-27) in the orange no other row wears; Sounds took the amber the same day.
+  'snippets': 'orange',
+  // Sounds, under Appearance (Matt, 2026-10-27: "build ... the sounds settings"), in the amber no row had yet.
+  'sounds': 'amber',
   'recording': 'red',
   'market': 'green',
   'about': 'yellow',

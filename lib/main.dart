@@ -62,6 +62,7 @@ import 'tapes/previews.dart';
 import 'core/host_platform.dart';
 import 'web/too_old.dart';
 import 'web/web_opening.dart';
+import 'sounds/sounds.dart' show startSounds;
 
 Future<void> main() async {
   // The web build's copy in JavaScript, for a browser without WebAssembly's garbage collection: it says what the
@@ -133,6 +134,8 @@ Future<void> main() async {
   final previews = !kIsWeb && defaultTargetPlatform == TargetPlatform.macOS ? TapePreviews.mac() : null;
   // The icon packs' licences among the app's (lib/art/icon_packs.dart), read only if something asks for them.
   registerIconPackLicences();
+  // Settings › Sounds (lib/sounds/sounds.dart): the player made ready for the sounds that are on.
+  startSounds();
   PerfLaunch.step('runApp');
   final placeLookup = geocodePlace(geocodeFetcher(), lang: () => PlatformDispatcher.instance.locale.toLanguageTag());
   // A place by its name, for Remind me at a place: asked as the app, a second apart, never under Local only.

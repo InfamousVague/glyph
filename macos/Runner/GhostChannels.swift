@@ -53,6 +53,8 @@ final class GhostChannels: NSObject {
   /// The home page shelf's, the cassettes in view loaded into them ahead (lib/tapes/previews.dart `tapePreviewsMost`).
   private let previews: [TapeChannel]
   private let mic: MicChannel
+  /// The app's sounds inside the app, Settings › Sounds (SoundsChannel.swift; lib/sounds/sounds.dart).
+  private let sounds: SoundsChannel
   private var held: [FlutterMethodChannel] = []
   private weak var window: NSWindow?
   private var links: FlutterMethodChannel?
@@ -65,6 +67,7 @@ final class GhostChannels: NSObject {
     clips = TapeChannel(messenger: messenger, name: "ghost_md/clip")
     previews = (0..<6).map { TapeChannel(messenger: messenger, name: "ghost_md/preview/\($0)") }
     mic = MicChannel(messenger: messenger)
+    sounds = SoundsChannel(messenger: messenger)
     super.init()
 
     listen("ghost_md/device_paths", messenger) { [unowned self] call, result in
