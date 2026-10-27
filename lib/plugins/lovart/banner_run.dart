@@ -677,15 +677,15 @@ class BannerJob {
           left.remove(id);
           refusals = 0;
         } on LovartFailure catch (failure) {
-          if (failure.busy) {
-            // Lovart has no room for another: this note waits its turn (it is still first in [left]), one worker
-            // fewer asks, and this one waits before it asks again.
+          if (failure.passing) {
+            // Lovart has no room for another, or the way to it was lost a moment: this note waits its turn (it is
+            // still first in [left]), and this worker waits before it asks again. At the limit, one worker fewer asks.
             going.remove(id);
             refusals += 1;
-            if (allowed > 1) {
+            if (failure.busy && allowed > 1) {
               allowed -= 1;
             } else if (refusals >= bannerBusyMost) {
-              stopped ??= 'Lovart stayed at its limit of jobs at once. Make them again later to go on.';
+              stopped ??= failure.busy ? 'Lovart stayed at its limit of jobs at once. Make them again later to go on.' : failure.message;
             }
             if (stopped == null && !_stop) await _waitFor(bannerBusyWait * refusals.clamp(1, 4));
             continue;

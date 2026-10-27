@@ -319,6 +319,25 @@ void main() {
       expect(lovartBannerRun.value!.made, 2);
     });
 
+    test('a connection lost a moment waits and goes on, not stopping the run', () async {
+      await keys();
+      for (var i = 0; i < 3; i += 1) {
+        dated('n$i', '# Note $i\n\n$_words', i);
+      }
+      var lost = 2;
+      fake.onAsk = () {
+        if (lost > 0) {
+          lost -= 1;
+          fake.fails = const LovartFailure(lovartUnreachable);
+        } else {
+          fake.fails = null;
+        }
+      };
+      lovartBannerJob = BannerJob(notes: () => notes.values.toList(), banners: banners, wait: (_) async {});
+      await runBanners();
+      expect((lovartBannerRun.value!.made, lovartBannerRun.value!.stopped), (3, null));
+    });
+
     test('reads Lovart\'s refusals as busy only where they are', () {
       expect(const LovartFailure('x', status: 429).busy, isTrue);
       expect(const LovartFailure('x', status: 409).busy, isTrue);
@@ -919,7 +938,7 @@ class FakeJobs implements BackgroundJobs {
   Future<void> running(String id, {required String title, required String text, int? done, int? total}) async => said.add((title: title, text: text, done: done, total: total));
 
   @override
-  Future<void> ended(String id, {required String title, String? text}) async => ends.add(title);
+  Future<void> ended(String id, {required String title, String? text, bool quiet = false}) async => ends.add(title);
 
   @override
   void onStop(void Function(String id)? stop) => _stop = stop;

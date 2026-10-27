@@ -170,7 +170,7 @@ import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanSh
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
-import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, bannerToRedo, LovartMeetings, bannerRunEndWords, bannerRunLine, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
+import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
 import '../market/market_items.dart' show marketLanding;
@@ -452,6 +452,9 @@ class _GhostRootState extends State<GhostRoot> {
   /// the images"): the root's, so it goes on whatever page is up; claimed in the synced settings, so two of the
   /// account's devices never make the same notes' pictures; held up by the phone's foreground service and kept out of
   /// the Mac's App Nap while it runs; said by a toast as it ends.
+  // Any other picture Lovart is making (a header as a note is left, an {image: …}, a moodboard) holds the device as
+  // the run does, so the app is not frozen behind another (lib/plugins/lovart/lovart_hold.dart).
+  late final LovartHold _lovartHold = LovartHold(background: ChannelBackgroundJobs());
   late final BannerJob _bannerJob = BannerJob(
     notes: () => _library.value,
     banners: _banners,
@@ -1630,6 +1633,7 @@ class _GhostRootState extends State<GhostRoot> {
     if (identical(lovartBannerJob, _bannerJob)) lovartBannerJob = null;
     lovartBannerRun.removeListener(_bannerMoved);
     _bannerJob.dispose();
+    _lovartHold.dispose();
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();
@@ -1711,6 +1715,7 @@ class _GhostRootState extends State<GhostRoot> {
     lovartBannerRun.addListener(_bannerMoved);
     _bannerMoved();
     unawaited(_bannerJob.resume(changes: _pluginsHeard));
+    _lovartHold.start();
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).
     discordShareLink = _discordShare;

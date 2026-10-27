@@ -144,6 +144,15 @@ waits 20 s times how many refusals running (at most 80 s) before asking again. O
 a time stop it, saying so; the rest wait for Make them. A header made as a note is left that meets it is not marked
 given, so leaving the note again asks again.
 
+**In the background, all of it** (Matt, 2026-10-27: "The lovart generation stops when the app is not in focus please
+background the task"): the header run held the device, but a header made as a note is left, Header image, `{image: …}`
+and a moodboard did not, and the Fold froze the app twelve seconds after it went behind another, Lovart and the sync
+"couldn't be reached". lib/plugins/lovart/lovart_hold.dart holds the device (Android's foreground service, the Mac
+out of App Nap) as job `lovart-work` while any picture is being made outside the run, and lets it go quietly after the
+last. The device's half now keeps each job apart: one ending lets the hold go only where it was that job's (Android) or
+the last held (the Mac, a set of ids). A lost connection (`LovartFailure.lost`: unreachable, no answer, a 5xx) is
+waited out by the run as a busy Lovart is (`passing`), and a header as a note is left that meets it is asked again.
+
 **The queue** (Settings › Lovart › Queue; Matt, 2026-10-27: "Please show the lovart image queue in the lovart
 settings"): every picture being made on this device and the ones waiting, by note title, "Making" or its place in
 line, with what is left to make in credits (lib/plugins/lovart/lovart_queue.dart). It reads the run's kept queue

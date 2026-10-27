@@ -206,8 +206,9 @@ class LovartBanners {
           if (!asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
           rethrow;
         }
-        // Lovart at its limit of jobs at once: not this note's doing, so leaving it again asks again.
-        if (failure.busy && !asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
+        // Lovart at its limit of jobs at once, or out of reach a moment: not this note's doing, so leaving it again
+        // asks again.
+        if (failure.passing && !asked) _on.storage.set(bannersDoneKey, [for (final done in _done(_on)) if (done != id) done]);
         warn?.call('[lovart] no banner for the note: ${failure is LovartNeedsConfirmation ? failure.said : failure.message}');
         return false;
       }

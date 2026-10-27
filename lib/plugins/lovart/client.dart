@@ -69,6 +69,10 @@ Map<String, String> lovartHeaders({required String accessKey, required String se
 
 final RegExp _busyWords = RegExp(r'concurren|too many (jobs|tasks|requests)|(job|task)s? limit|limit of (jobs|tasks)|rate.?limit|slow down|still busy', caseSensitive: false);
 
+/// What is said when Lovart could not be reached, or did not answer in time.
+const String lovartUnreachable = 'Lovart couldn’t be reached. Check the connection and try again.';
+const String lovartNoAnswer = 'Lovart took too long to answer. Try again in a moment.';
+
 /// What Lovart refused, or what went wrong asking it, in a sentence a person can act on.
 class LovartFailure implements Exception {
   const LovartFailure(this.message, {this.status, this.code});
@@ -88,6 +92,13 @@ class LovartFailure implements Exception {
   /// once one of the running jobs is done (Matt, 2026-10-27: "It keeps stopping from hitting the concurrent job
   /// limit").
   bool get busy => status == 409 || status == 429 || code == 2011 || _busyWords.hasMatch(message);
+
+  /// The way to Lovart was lost, not refused: no connection, no answer in time, a gateway's 5xx, or a picture it made
+  /// that could not be fetched. Tried again, as [busy] is, once the connection may be back.
+  bool get lost => message == lovartUnreachable || message == lovartNoAnswer || (status != null && status! >= 500) || message.startsWith('An image Lovart made couldn’t be fetched');
+
+  /// Worth waiting out: [busy] or [lost].
+  bool get passing => busy || lost;
 
   @override
   String toString() => message;
@@ -188,7 +199,7 @@ class LovartClient {
           await sleep(Duration(seconds: 2 * (attempt + 1)));
           continue;
         }
-        throw const LovartFailure('Lovart took too long to answer. Try again in a moment.');
+        throw const LovartFailure(lovartNoAnswer);
       } on LovartFailure {
         rethrow;
       } catch (failure) {
@@ -197,7 +208,7 @@ class LovartClient {
           await sleep(Duration(seconds: 2 * (attempt + 1)));
           continue;
         }
-        throw const LovartFailure('Lovart couldn’t be reached. Check the connection and try again.');
+        throw const LovartFailure(lovartUnreachable);
       }
       if (!answer.ok) {
         final again = answer.status == 429 || (method == 'GET' && (answer.status == 404 || answer.status == 502 || answer.status == 503));

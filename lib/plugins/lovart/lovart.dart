@@ -44,6 +44,7 @@ export 'client.dart';
 export 'cues.dart';
 export 'inspiration.dart';
 export 'keep.dart';
+export 'lovart_hold.dart';
 export 'lovart_mark.dart';
 export 'lovart_pane.dart';
 export 'manifest.dart' show accessKeySecret, secretKeySecret, meetingsKey, projectKey, bannersKey, bannersDoneKey, bannerRunKey;

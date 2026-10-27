@@ -27,6 +27,8 @@ class MainFlutterWindow: NSWindow {
   /// A job the app runs by itself (lib/core/background_jobs.dart), and the hold that keeps App Nap off it.
   private var jobsChannel: FlutterMethodChannel?
   private var jobHold: NSObjectProtocol?
+  /// The jobs holding it: Lovart's header run, and any pictures Lovart is making besides. Let go when the last ends.
+  private var jobsHeld = Set<String>()
   private var lastPress: NSEvent?
   private var pressMonitor: Any?
 
@@ -72,13 +74,19 @@ class MainFlutterWindow: NSWindow {
     jobs.setMethodCallHandler { [weak self] call, result in
       switch call.method {
       case "running":
+        let id = ((call.arguments as? [String: Any])?["id"] as? String) ?? ""
+        self?.jobsHeld.insert(id)
         if self?.jobHold == nil {
           self?.jobHold = ProcessInfo.processInfo.beginActivity(options: [.userInitiated, .idleSystemSleepDisabled], reason: "Ghost.md is working on your notes")
         }
         result("running")
       case "ended":
-        if let hold = self?.jobHold { ProcessInfo.processInfo.endActivity(hold) }
-        self?.jobHold = nil
+        let id = ((call.arguments as? [String: Any])?["id"] as? String) ?? ""
+        self?.jobsHeld.remove(id)
+        if self?.jobsHeld.isEmpty ?? true {
+          if let hold = self?.jobHold { ProcessInfo.processInfo.endActivity(hold) }
+          self?.jobHold = nil
+        }
         result("ended")
       default:
         result(FlutterMethodNotImplemented)

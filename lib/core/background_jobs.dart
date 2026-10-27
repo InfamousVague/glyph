@@ -27,8 +27,9 @@ abstract interface class BackgroundJobs {
   /// how far it is where it says.
   Future<void> running(String id, {required String title, required String text, int? done, int? total});
 
-  /// It ended: the device lets it go, and says [title] (with [text] under it) where it notifies.
-  Future<void> ended(String id, {required String title, String? text});
+  /// It ended: the device lets it go, and says [title] (with [text] under it) where it notifies; [quiet], it says
+  /// nothing (a picture or two made, which the app shows itself). A job that is not the one held is let be.
+  Future<void> ended(String id, {required String title, String? text, bool quiet = false});
 
   /// Who is told when the person stops the job from the device's own notification.
   void onStop(void Function(String id)? stop);
@@ -42,7 +43,7 @@ class NoBackgroundJobs implements BackgroundJobs {
   Future<void> running(String id, {required String title, required String text, int? done, int? total}) async {}
 
   @override
-  Future<void> ended(String id, {required String title, String? text}) async {}
+  Future<void> ended(String id, {required String title, String? text, bool quiet = false}) async {}
 
   @override
   void onStop(void Function(String id)? stop) {}
@@ -74,7 +75,7 @@ class ChannelBackgroundJobs implements BackgroundJobs {
       _ask('running', {'id': id, 'title': title, 'text': text, 'done': ?done, 'total': ?total});
 
   @override
-  Future<void> ended(String id, {required String title, String? text}) => _ask('ended', {'id': id, 'title': title, 'text': ?text});
+  Future<void> ended(String id, {required String title, String? text, bool quiet = false}) => _ask('ended', {'id': id, 'title': title, 'text': ?text, if (quiet) 'quiet': true});
 
   @override
   void onStop(void Function(String id)? stop) {

@@ -55,7 +55,7 @@ class BackgroundJobs(private val context: Context) {
           BackgroundJobService.running(context, id, title, call.argument<String>("text") ?: "", call.argument<Int>("done"), call.argument<Int>("total"))
         )
         "ended" -> {
-          BackgroundJobService.ended(context, id, title, call.argument<String>("text"))
+          BackgroundJobService.ended(context, id, title, call.argument<String>("text"), call.argument<Boolean>("quiet") == true)
           result.success("ended")
         }
         else -> result.notImplemented()
@@ -197,11 +197,13 @@ class BackgroundJobService : Service() {
       }
     }
 
-    fun ended(context: Context, id: String, title: String, text: String?) {
+    fun ended(context: Context, id: String, title: String, text: String?, quiet: Boolean = false) {
       val had = said
+      // Another job holds the service now (the header run took over from a picture or two): it is let be.
+      if (had != null && had.id != id) return
       said = null
       current?.finish()
-      if (had != null && had.id == id) postEnded(context, id, title, text)
+      if (had != null && !quiet) postEnded(context, id, title, text)
     }
 
     private fun ensureChannel(context: Context) {
