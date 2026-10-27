@@ -80,6 +80,10 @@ void main() {
       expect(Preferences.defaults.snippets.map((each) => each.trigger), [';date', ';time']);
       expect(Preferences.fromJson(const <String, Object?>{}).snippets, defaultSnippets);
       expect(Preferences.fromJson({'snippets': <Object?>[]}).snippets, isEmpty);
+      // The defaults are not written, so a device that chose nothing keeps the web's stored shape; an empty list is.
+      expect(Preferences.defaults.toJson().containsKey('snippets'), isFalse);
+      expect(Preferences.defaults.copyWith(snippets: const []).toJson()['snippets'], isEmpty);
+      expect(Preferences.fromJson(Preferences.defaults.copyWith(snippets: const []).toJson()).snippets, isEmpty);
     });
 
     test('go out as a list of id, trigger and words, and come back the same', () {

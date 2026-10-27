@@ -12,7 +12,7 @@ import '../settings_search.dart';
 
 /// What Settings' search finds on Snippets, by the names the page draws.
 const List<SettingsFindable> snippetsFindable = [
-  SettingsFindable('Your snippets', 'snippet snippets text expansion expand shortcut abbreviation trigger semicolon signature sig address date time reorder delete'),
+  SettingsFindable('Your snippets', 'snippet snippets text expansion expand shortcut abbreviation trigger semicolon sig address date time reorder delete'),
   SettingsFindable('New snippet', 'add make create snippet text expansion trigger'),
 ];
 

@@ -115,12 +115,13 @@ void main() {
     await endSettings(tester);
   });
 
-  test('the section: Advanced\'s, on a card of its own under Appearance, read by its triggers, found by the search', () {
+  test('the section: Advanced\'s, on a card of its own before the Market\'s, read by its triggers, found by the search', () {
     final spec = settingsSections.firstWhere((each) => each.id == 'snippets');
     expect(spec.label, 'Snippets');
     expect(spec.group, snippetsGroup);
     final ids = [for (final each in settingsSections) each.id];
-    expect(ids.indexOf('snippets'), ids.indexOf('theme') + 1);
+    expect(ids.indexOf('snippets'), ids.indexOf('ai') + 1);
+    expect(ids.indexOf('market'), ids.indexOf('snippets') + 1);
     expect(spec.pane, isNotNull);
     expect(spec.settings!(_facts(const Preferences())).map((each) => each.name), ['Your snippets', 'New snippet']);
     expect(spec.where!(_facts(const Preferences())), isTrue);

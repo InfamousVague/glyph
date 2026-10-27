@@ -217,7 +217,7 @@ const String marketSectionId = 'market';
 /// in the middle of it would split it in two, since consecutive rows of one group are what share a card.
 const int appearanceGroup = 6;
 
-/// The card Snippets has to itself, under Appearance's (Matt, 2026-10-27: "build ... snippets").
+/// The card Snippets has to itself, before the Market's (Matt, 2026-10-27: "build ... snippets").
 const int snippetsGroup = 7;
 
 /// Ids that were a page once and are a card on another page now, each to its page and the card there, lit as a
@@ -419,23 +419,6 @@ final List<SettingsSectionSpec> _sections = [
     settings: (facts) => appearanceFindable(wide: facts.wide, haptics: facts.haptics, simple: facts.simple),
     pane: (context) => const AppearancePane(),
   ),
-  // The person's own text expansions (Matt, 2026-10-27: "build ... snippets"; lib/core/snippets.dart): on a card of
-  // their own under Appearance's, since they are about writing, which no other card is. Advanced's, as the +'s More
-  // they are offered in is behind More in Simple. The port's own: the web app has no page for them, so its file is
-  // the sheet's.
-  SettingsSectionSpec(
-    id: 'snippets',
-    label: 'Snippets',
-    words: 'snippet text expansion expand shortcut abbreviation trigger semicolon signature address',
-    glyph: SettingsGlyph.puzzle,
-    icon: (size) => AppIcon(Lucide.textCursorInput, size: size),
-    group: snippetsGroup,
-    webFile: 'settings/SettingsSheet.tsx',
-    where: _advanced,
-    summary: (facts) => snippetsSummary(facts.prefs),
-    settings: (facts) => snippetsFindable,
-    pane: SnippetsPane.hosted,
-  ),
   // Where the notes are, and the two ways to carry them off: a card of their own, where the app keeps its notes in
   // files (not an iPhone), and Export everywhere.
   SettingsSectionSpec(
@@ -525,6 +508,23 @@ final List<SettingsSectionSpec> _sections = [
     summary: (facts) => aiSummary(facts.prefs, facts.features.models),
     settings: (facts) => aiFindable,
     pane: AiPane.hosted,
+  ),
+  // The person's own text expansions (Matt, 2026-10-27: "build ... snippets"; lib/core/snippets.dart): on a card of
+  // their own, since they are about writing, which no other card is, before the Market's, so the cards the web's
+  // page has stand where they stood. Advanced's, as the +'s More they are offered in is behind More in Simple. The
+  // port's own: the web app has no page for them, so its file is the sheet's.
+  SettingsSectionSpec(
+    id: 'snippets',
+    label: 'Snippets',
+    words: 'snippet text expansion expand shortcut abbreviation trigger semicolon sig address',
+    glyph: SettingsGlyph.puzzle,
+    icon: (size) => AppIcon(Lucide.textCursorInput, size: size),
+    group: snippetsGroup,
+    webFile: 'settings/SettingsSheet.tsx',
+    where: _advanced,
+    summary: (facts) => snippetsSummary(facts.prefs),
+    settings: (facts) => snippetsFindable,
+    pane: SnippetsPane.hosted,
   ),
   // The Market (lib/market/market_screen.dart), first on a card of its own, with each added plugin's page after it
   // (settingsSections): its row shuts Settings and opens the Market, where the plugins, themes and fonts are.

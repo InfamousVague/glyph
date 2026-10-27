@@ -93,7 +93,7 @@ void main() {
       // service has Ghost in meetings, and these facts have no account (test/plugins/meetings_test.dart lists them).
       // Recording with them, for the Meetings card every kind shares (test/meet/meeting_sorting_test.dart).
       expect(_among(_facts(_simple, developer: true)).toSet(), simpleSections.difference({'plugin:google-meet', 'plugin:zoom', 'recording'}));
-      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
+      const everything = ['account', 'organizations', 'workspaces', 'daily', 'notifications', 'theme', 'library', 'backup', 'export', 'import', 'recording', 'ai', 'snippets', 'market', 'about', 'cheatsheet', 'spec', 'examples'];
       expect(_among(_facts(_advanced)), everything);
       // Until the choice is made the app is advanced, and so is Settings.
       expect(_among(_facts(const Preferences(theme: 'light'))), everything);
@@ -158,7 +158,7 @@ void main() {
       // Another device, or the walkthrough, choosing Advanced: the list is read from the preferences, live.
       preferences.update((now) => now.choosing('advanced'));
       await tester.pump();
-      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Market', 'About']);
+      expect(_labels(tester), ['Account', 'Organizations', 'Workspaces', 'Notifications', 'Appearance', 'Library folder', 'Backup', 'Export', 'Recording', 'AI', 'Snippets', 'Market', 'About']);
       expect(_line(tester, 'Appearance'), 'Advanced · Light · Maple Mono');
       await endSettings(tester);
     });
@@ -201,7 +201,7 @@ void main() {
       testBack.goBack();
       await tester.pump();
       await settleSettings(tester);
-      expect(_labels(tester), hasLength(12));
+      expect(_labels(tester), hasLength(13));
       await endSettings(tester);
     });
 

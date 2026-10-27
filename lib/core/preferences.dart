@@ -919,7 +919,9 @@ class Preferences {
         'lookUpBlanks': lookUpBlanks,
         'autoFill': autoFill,
         'notifications': notifications.toJson(),
-        'snippets': [for (final each in snippets) each.toJson()],
+        // Written once they are not the defaults: a store with none reads as the defaults, so a device that chose
+        // nothing keeps the web's stored shape to the letter, and a list emptied on purpose is written, empty.
+        if (!listEquals(snippets, defaultSnippets)) 'snippets': [for (final each in snippets) each.toJson()],
       };
 
   /// The two faces these preferences draw with ([facesOf]).
