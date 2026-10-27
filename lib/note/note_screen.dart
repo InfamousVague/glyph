@@ -1738,7 +1738,8 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
         // A chapter's book, its place in it and the chapters either side (docs/BOOKS.md).
         if (book != null && seams.bookBar != null) SliverToBoxAdapter(child: seams.bookBar!(context, book)),
         // Its banner, across the top: a picture made for it, under the header's wisp.
-        if (_words && seams.banner != null) SliverToBoxAdapter(child: seams.banner!(context, _id, _banner)),
+        // A notebook's index has one too, over its chapters, as its cover; a canvas and a journal do not.
+        if (seams.banner != null && (_words || (_isBook && !_isJournal && !_drawing))) SliverToBoxAdapter(child: seams.banner!(context, _id, _banner)),
         // Who wrote it, when it names anyone: a book says so for all its pages, in its index.
         if (!_paging && authors.isNotEmpty) SliverToBoxAdapter(child: NoteByline(authors: authors, start: columnStart)),
         // Where it was written: the map at the top of the note, where the page scrolls with the words.

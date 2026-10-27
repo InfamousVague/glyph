@@ -122,6 +122,10 @@ Once a meeting is written up, if it reads as a design meeting (mockups, a brand,
 
 It happens once per meeting, with your credits, even if the summary is written again. To ask again, use **Inspiration images** on the note. The switch is kept on each device, and each device that writes a meeting up asks for its own. See [[Meetings and the Meet bot]].
 
+## A notebook's cover
+
+A notebook's own page, the index with its chapters, gets a header image too, drawn over the chapter list like a cover. It's made when you leave the notebook, or from **Header image** on its menu. **Header images for every page** makes the notebook's own first, then any notebook inside it, then its pages. A journal's index doesn't get one.
+
 ## The queue
 
 **Settings › Lovart › Queue** shows what Lovart is making on this device right now, and what's waiting its turn: each note by its title, with what's being made for it (a header image, a picture from `{image: …}`, or a moodboard). The ones in progress say **Making**; the rest show their place in line. Above the list is how much the rest will cost in credits. A run going on another of your devices shows as one line saying where, and how far it's got.

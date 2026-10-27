@@ -155,7 +155,7 @@ Future<List<BannerAsk>> bannerAsks(List<Note> notes, {bool takenOff = false, Fut
 /// notebook that is itself a chapter, once each. A chapter is found by its title among [notes], one in the same
 /// organization as the notebook first (a team's notebook lists the team's pages). Not the notebook itself, and none
 /// in the archive.
-List<Note> bookPages(Note book, List<Note> notes) {
+List<Note> bookPages(Note book, List<Note> notes, {List<Note>? notebooks}) {
   String orgOf(Note note) {
     final path = note.path ?? '';
     if (!path.startsWith('orgs/')) return '';
@@ -179,6 +179,7 @@ List<Note> bookPages(Note book, List<Note> notes) {
       if (!seen.add(note.id)) continue;
       // A notebook that is a chapter: its pages, in its own order, a level or two down at most.
       if (isBookBody(note.body) && !isJournalBody(note.body)) {
+        notebooks?.add(note);
         if (depth < 2) walk(note, depth + 1);
         continue;
       }
@@ -190,13 +191,21 @@ List<Note> bookPages(Note book, List<Note> notes) {
   return pages;
 }
 
+/// Everything of a notebook that has a banner: its own index first (its cover), the index of each notebook that is one
+/// of its chapters, then its pages ([bookPages]).
+List<Note> bookBannerNotes(Note book, List<Note> notes) {
+  final notebooks = <Note>[];
+  final pages = bookPages(book, notes, notebooks: notebooks);
+  return [book, ...notebooks, ...pages];
+}
+
 /// What "Header images for every page" asks of a notebook's pages ([bookPages]): every page that is one to have a
 /// banner and has none, whatever the once-per-note marks say, since the person asked for these by name; with [redo],
 /// the ones whose banner is black and white or square, made again; with [redoAll], every one that has a banner. A
 /// ticket, a meeting, a mail, a canvas, a template or a short page is left as it is ([wantsBanner]).
 Future<List<BannerAsk>> bookBannerAsks(Note book, List<Note> notes, {Future<bool> Function(String name)? redo, bool redoAll = false}) async {
   final asks = <BannerAsk>[];
-  for (final page in bookPages(book, notes)) {
+  for (final page in bookBannerNotes(book, notes)) {
     if (!wantsBanner(page, replacing: true)) continue;
     final banner = bannerOf(page.body);
     if (banner == null) {
@@ -211,7 +220,7 @@ Future<List<BannerAsk>> bookBannerAsks(Note book, List<Note> notes, {Future<bool
 /// The counts a notebook's action says before it starts: its pages to have a banner with none, and those with one.
 ({int missing, int existing}) bookBannerCounts(Note book, List<Note> notes) {
   var missing = 0, existing = 0;
-  for (final page in bookPages(book, notes)) {
+  for (final page in bookBannerNotes(book, notes)) {
     if (!wantsBanner(page, replacing: true)) continue;
     if (bannerOf(page.body) == null) {
       missing += 1;

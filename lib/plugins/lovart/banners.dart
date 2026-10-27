@@ -126,7 +126,10 @@ bool wantsBanner(Note note, {bool replacing = false}) {
   final body = note.body;
   if (!replacing && bannerOf(body) != null) return false;
   final facts = NoteFacts.read(body);
-  if (facts.isTicket || facts.isBook || facts.isCanvas || facts.isTemplatePage || facts.isTemplatesBook) return false;
+  if (facts.isTicket || facts.isCanvas || facts.isTemplatePage || facts.isTemplatesBook) return false;
+  // A notebook's index is its cover, and has one (Matt, 2026-10-27: "The root index of a book doesn't have the header
+  // image attached and isn't generatable"), however few words it says of its own; a journal's is a list of days.
+  if (facts.isBook) return !facts.isJournal;
   // A mail as it arrived, and a meeting: Ghost's own, or a recording written up.
   if (facts.value('from') != null) return false;
   if (body.contains(ghostLineStart)) return false;

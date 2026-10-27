@@ -145,7 +145,7 @@ void main() {
       expect(wantsBanner(plain('# Standup\n\nGhost was in this meeting on 18 Oct, 14:00 to 14:45.\n\n$_words')), isFalse);
       expect(wantsBanner(plain('# Standup\n\n## Summary\n\n$_words', recordingMs: 60000)), isFalse);
       expect(wantsBanner(plain('---\nfrom: "Sam <sam@example.com>"\n---\n# Invite\n\n$_words')), isFalse);
-      expect(wantsBanner(plain('---\nbook: true\n---\n# Book\n\n$_words')), isFalse);
+      expect(wantsBanner(plain('---\nbook: true\njournal: true\n---\n# Journal\n\n$_words')), isFalse);
       expect(wantsBanner(plain('{"nodes":[],"edges":[]}')), isFalse);
       expect(wantsBanner(plain(withBanner('# Trip\n\n$_words', 'a.png'))), isFalse);
       expect(wantsBanner(Note(id: 'n', body: '# Trip\n\n$_words', createdAt: 0, updatedAt: 0, archivedAt: 5)), isFalse);
@@ -793,23 +793,24 @@ void main() {
       final book = docs();
       final asks = await bookBannerAsks(book, notes.values.toList(), redo: lovartBannerJob!.redo);
       final ids = asks.map((a) => a.id).toList();
-      expect(ids, hasLength(26 + 1 + 1 + 1 + 1), reason: '26 chapters, the section, the one taken off, the black-and-white one, the appendix\'s page');
+      expect(ids, hasLength(2 + 26 + 1 + 1 + 1 + 1), reason: 'the notebook\'s index and the appendix\'s, 26 chapters, the section, the one taken off, the black-and-white one, the appendix\'s page');
+      expect(ids.take(2), ['book', 'inner'], reason: 'the notebook\'s own index first, its cover, then a nested notebook\'s');
       expect(ids, isNot(anyOf(contains('ticket'), contains('short'), contains('colour'))));
       expect(asks.firstWhere((a) => a.id == 'off'), (id: 'off', again: true, replacing: null));
       expect(asks.firstWhere((a) => a.id == 'bw'), (id: 'bw', again: true, replacing: 'lovart-old-bw.png'));
       final all = await bookBannerAsks(book, notes.values.toList(), redoAll: true);
       expect(all.firstWhere((a) => a.id == 'colour').replacing, 'lovart-new.png');
-      expect(all, hasLength(31));
+      expect(all, hasLength(33));
     });
 
     test('says the count and about the credits before it starts, and Not now makes nothing', () {
       docs();
       final choices = bookBannerChoices('book');
       expect(choices.map((c) => c.id), ['missing', 'all', 'not-now']);
-      expect(choices[0].label, 'Make header images for 29 pages?');
-      expect(choices[0].hint, startsWith('About 174 credits. Of the 2 pages with one, any in black and white or square is made again too'));
-      expect(choices[1].label, 'Redo existing too: 31 pages?');
-      expect(choices[1].hint, startsWith('About 186 credits.'));
+      expect(choices[0].label, 'Make header images for 31 pages?');
+      expect(choices[0].hint, startsWith('About 186 credits. Of the 2 pages with one, any in black and white or square is made again too'));
+      expect(choices[1].label, 'Redo existing too: 33 pages?');
+      expect(choices[1].hint, startsWith('About 198 credits.'));
       final action = lovartPlugin.noteActions.singleWhere((a) => a.id == 'lovart-book-banners');
       expect(action.label, 'Header images for every page');
       expect(action.visible('book', notes['book']!.body), isTrue);
@@ -823,10 +824,10 @@ void main() {
       await action.run(open, 'not-now');
       expect(gated.asked, isEmpty);
       await action.run(open, 'missing');
-      expect(open.said.first, 'Making header images for 30 pages.');
+      expect(open.said.first, 'Making header images for 32 pages.');
       final run = lovartBannerRun.value!;
-      expect((run.total, run.made, run.running), (30, 30, false));
-      for (final id in ['d1', 'd26', 'section', 'off', 'appendix-page']) {
+      expect((run.total, run.made, run.running), (32, 32, false));
+      for (final id in ['book', 'inner', 'd1', 'd26', 'section', 'off', 'appendix-page']) {
         expect(bannerOf(notes[id]!.body), isNotNull, reason: id);
       }
       expect(bannerOf(notes['bw']!.body), isNot('lovart-old-bw.png'));
@@ -834,7 +835,7 @@ void main() {
       expect(bannerOf(notes['ticket']!.body), isNull);
       expect(bannerOf(notes['mine']!.body), isNull, reason: 'the account\'s own Chapter 1 is not the team\'s page');
       expect(notes.containsKey('book'), isTrue, reason: 'nothing is deleted');
-      expect(bannerOf(notes['book']!.body), isNull);
+      expect(notes['book']!.body, contains('book: true'), reason: 'the index is still a notebook, its banner beside');
     });
   });
 

@@ -88,6 +88,22 @@ void main() {
     });
   }
 
+  testWidgets('a notebook\'s index draws its banner over its chapters, a journal\'s does not', (tester) async {
+    final world = NoteWorld();
+    final asked = <String?>[];
+    final seams = NoteSeams(banner: (context, id, name) {
+      asked.add(name);
+      return SizedBox(key: ValueKey('banner ${name ?? 'none'}'), height: 40);
+    });
+    await pumpNote(tester, world, await seeded(tester, world, withBanner('---\nbook: true\n---\n# Trip book\n\n1. [[Day one]]\n2. [[Day two]]', 'lovart-cover.png')), seams: seams);
+    expect(find.byKey(const ValueKey('banner lovart-cover.png')), findsOneWidget);
+    await closeNote(tester);
+    asked.clear();
+    await pumpNote(tester, world, await seeded(tester, world, '---\nbook: true\njournal: true\n---\n# Days\n\n- [[2026-10-27 09.00]]'), seams: seams);
+    expect(asked, isEmpty);
+    await closeNote(tester);
+  });
+
   group('the banner', () {
     testWidgets('draws the kept picture four times as wide as tall, with Lovart\'s mark', (tester) async {
       final store = MemoryPictureStore();
