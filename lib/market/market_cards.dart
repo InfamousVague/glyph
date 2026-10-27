@@ -174,6 +174,12 @@ class MarketCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: pressed ? t.color('app-paper-3') : t.color('app-paper-2'),
             borderRadius: BorderRadius.circular(radius),
+          ),
+          // The ring over what the card holds, not under it (Matt, 2026-10-27: "the outlines on the cards on the
+          // marketplace also get clipped"): drawn as the card's ground, a preview's own paint covered it where its
+          // clipped edge rounded, and a chosen card's ring came out a pixel thin along its top and its start.
+          foregroundDecoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(radius),
             border: Border.all(
               color: selected ? t.color('app-ink') : (hovered ? t.colorOf('color-mix(in oklch, var(--app-ink) 22%, transparent)') : t.color('app-rule')),
               width: selected ? 2 : t.len('glacier-hairline'),
