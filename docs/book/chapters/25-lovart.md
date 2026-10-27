@@ -76,7 +76,7 @@ Lovart reads the note's title, and its summary or its opening words, and makes *
 
 ## Header images
 
-With Lovart added, a note can have a **header image**: a wide banner across the top of the page, four times as wide as it is tall. It is drawn in Ghost.md's own style, stipple dotwork in full colour on white, with the ghost small on the right doing whatever the note is about, and the left third left white.
+With Lovart added, a note can have a **header image**: a wide banner across the top of the page, made at 16:9 and shown at the shape of its drawing, between 16:9 and two and a half times as wide as it is tall. It is drawn in Ghost.md's own style, stipple dotwork in full colour on white, with the ghost small on the right doing whatever the note is about, and the left third left white.
 
 ### Made as you leave a note
 
