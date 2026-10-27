@@ -53,7 +53,7 @@ void main() {
 
   group('the catalogue’s order and words', () {
     test('lists the plugins by category, then by name, and has the categories they are in', () {
-      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Discord', 'GitHub', 'Google Meet', 'Notion', 'Slack', 'Webhooks', 'Zoom', 'Marks', 'Rich embeds']);
+      expect([for (final p in catalogueOrder(builtIn)) p.manifest.name], ['Claude', 'ElevenLabs', 'Lovart', 'Calendar', 'Contacts', 'Place reminders', 'Things', 'Todoist', 'Discord', 'GitHub', 'Google Meet', 'Notion', 'Slack', 'Webhooks', 'Zoom', 'Marks', 'Rich embeds']);
       expect([for (final c in categoriesOf(builtIn)) c.label], ['AI', 'Calendar & tasks', 'Import', 'Connections', 'Editor']);
       // Every plugin that ships has a category, a line of its own and what it adds.
       for (final plugin in builtIn) {
