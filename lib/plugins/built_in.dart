@@ -20,7 +20,7 @@
 /// reason the list is here. And the list is longer: the web's five, then the integrations the app has of its own,
 /// each made a plugin (Matt, 2026-10-17: "Ask Claude and other integrations should be shipped as plugins"): Calendar,
 /// Contacts, Rich embeds, Todoist and Things; then Lovart and Discord; then Google Meet and Zoom, which were Settings ›
-/// Meetings. The app's own Claude is the Claude plugin's other half.
+/// Meetings; then ElevenLabs. The app's own Claude is the Claude plugin's other half.
 library;
 
 import '../integrations/webhooks/plugin.dart' show webhooksPlugin;
@@ -29,6 +29,7 @@ import 'calendar/calendar.dart' show calendarPlugin;
 import 'claude/claude.dart' show claudePlugin;
 import 'contacts/contacts.dart' show contactsPlugin;
 import 'discord/discord.dart' show discordPlugin;
+import 'elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
 import 'github/github.dart' show githubPlugin;
 import 'lovart/lovart.dart' show lovartPlugin;
 import 'marks_plugin.dart' show marksPlugin;
@@ -65,6 +66,9 @@ final List<GlyphPlugin> builtIn = List.unmodifiable([
   // are two different plugins"): meetings/meetings.dart.
   googleMeetPlugin,
   zoomPlugin,
+  // Matt, 2026-10-27: "Build a plugin for elevenlabs and allow creating voice overs of notes using elevenlabs with
+  // several voices to choose from": Lovart's shape, for a note read aloud (elevenlabs/elevenlabs.dart).
+  elevenLabsPlugin,
 ]);
 
 void Function()? _unhear;

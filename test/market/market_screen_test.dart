@@ -82,6 +82,7 @@ void main() {
       expect(reach('lovart'), 'Mobile · Desktop');
       // Off an iPhone as Slack is (lib/core/iphone_app.dart; Matt, 2026-10-26).
       expect(reach('discord'), 'Android · Desktop');
+      expect(reach('elevenlabs'), 'Mobile · Desktop');
     });
 
     test('gives every plugin a hue it can draw, its Settings page’s where it has one', () {
@@ -115,7 +116,7 @@ void main() {
       expect(find.byType(MarketThemeCard, skipOffstage: false), findsNWidgets(themes.length));
       expect(find.byType(MarketFontCard, skipOffstage: false), findsNWidgets(typefaces.length));
       expect(onShelf(tester, 'added'), ['claude', 'github', 'google-meet', 'notion', 'zoom', 'marks', 'rich-embeds']);
-      expect(onShelf(tester, 'discover'), ['lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
+      expect(onShelf(tester, 'discover'), ['elevenlabs', 'lovart', 'calendar', 'contacts', 'place-reminders', 'things', 'todoist', 'discord', 'slack', 'webhooks']);
       expect(find.text('7 of ${builtIn.length} added', skipOffstage: false), findsOneWidget);
       await endSettings(tester);
     });

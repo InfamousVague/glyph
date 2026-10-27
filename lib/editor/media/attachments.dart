@@ -10,6 +10,10 @@
 /// any file over that way. A file not on this device says so, and where its line says it is larger than travels,
 /// that it stays on the device it was added on.
 ///
+/// A sound's card plays it where it sits (Matt, 2026-10-27, for the ElevenLabs plugin's voice-overs: "allow creating
+/// voice overs of notes"): a Play at its end, on the memos' player (clips.dart [clipPlayer]), which plays the file whole
+/// and is Stop while it sounds. Where the editor has no player, a sound is handed to another app as any file is.
+///
 /// Drawn only where the app keeps files ([FilesKit.current]): an iPhone, for now, shows the line as the link it is.
 /// A file's line in fenced code is the code's words, with no card and no fold.
 library;
@@ -29,6 +33,8 @@ import '../../files/files_kit.dart';
 import '../../files/pdf_view.dart';
 import '../../files/read_text.dart' show ReadThing;
 import '../editor.dart';
+import 'clip_refs.dart' show wholeSound;
+import 'clips.dart' show ClipPlayer, clipPlayer;
 import '../view/blocks.dart' show ClassedBlockWidget;
 import '../view/drawn_block.dart';
 import '../view/lines.dart';
@@ -125,12 +131,15 @@ class AttachmentWidget extends EditorWidget implements ClassedBlockWidget, Drawn
 
 /// A file's card: its mark, its name and what it is; a tap opens it.
 class AttachmentCard extends StatefulWidget {
-  const AttachmentCard({super.key, required this.file, this.kit});
+  const AttachmentCard({super.key, required this.file, this.kit, this.player});
 
   final AttachmentLine file;
 
   /// The files of this device; the app's own unless given.
   final FilesKit? kit;
+
+  /// What plays a sound's file; the editor's memos' player unless given.
+  final ClipPlayer? player;
 
   @override
   State<AttachmentCard> createState() => _AttachmentCardState();
@@ -223,6 +232,31 @@ class _AttachmentCardState extends State<AttachmentCard> {
     }
   }
 
+  /// Play, or Stop while this sound is what the player sounds.
+  Widget _soundButton(ClipPlayer player, String words, Color ink) {
+    final t = context.tokens;
+    final src = attachmentSoundSrc(widget.file.name);
+    return ListenableBuilder(
+      listenable: player,
+      builder: (context, _) {
+        final playing = player.playing?.src == src;
+        return Semantics(
+          button: true,
+          label: playing ? 'Stop $words' : 'Play $words',
+          child: GestureDetector(
+            key: const ValueKey<String>('file-play'),
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              if (playing) return player.stop();
+              unawaited(player.play(src, wholeSound).catchError((Object _) => _say('That sound couldn’t be played here.')));
+            },
+            child: SizedBox.square(dimension: t.lenOf('2.75rem'), child: Center(child: AppIcon(playing ? Lucide.square : Lucide.play, size: 18, color: ink))),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = context.tokens;
@@ -233,6 +267,7 @@ class _AttachmentCardState extends State<AttachmentCard> {
     final space1 = t.space(1), space2 = t.space(2), space3 = t.space(3);
     final words = attachmentWords(file.label);
     final meta = attachmentMeta(file, here: here, bytes: _bytes, pages: _pages);
+    final player = widget.player ?? EditorViewScope.maybeOf(context)?.state.facet(clipPlayer);
     final radius = t.radius('md');
     final mark = _thumb != null
         ? DecoratedBox(
@@ -276,6 +311,7 @@ class _AttachmentCardState extends State<AttachmentCard> {
                     ],
                   ),
                 ),
+                if (here && file.kind == AttachmentKind.sound && player != null) _soundButton(player, words, ink2),
                 if (here)
                   Semantics(
                     button: true,

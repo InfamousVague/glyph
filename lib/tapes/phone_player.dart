@@ -8,6 +8,11 @@
 /// `<audio>` for a memo beside the tape's (`src/app/editor/clips.ts`). The Mac has a few more, with
 /// [PhoneTapePlayer.preview], for the cassettes on the home page's shelf (lib/tapes/previews.dart).
 ///
+/// A memo's player also plays a whole sound that is not a note's recording ([loadArguments]): a sound file in a note,
+/// `file:<name>` (a voice-over among them, lib/plugins/elevenlabs/voice_over.dart), from the files' folder, and a
+/// sound kept in the app's cache, `cached:<name>` (an ElevenLabs voice's preview). The phone's half takes only a
+/// name that is a file's name there, never a path.
+///
 /// What differs: the element's five events are the channel's four (`position`, `playing`, `ended`, `failed`); a
 /// file that is not on this device is the channel's `onDevice`, where the scheme answered a HEAD with 404. Off
 /// Android there is no phone half: loading throws, and whether a recording is here is not known.
@@ -18,7 +23,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
+import '../core/attachment_refs.dart' show attachmentName;
 import 'player.dart';
+
+/// What `load` asks the phone's half for [src]: a note's recording by its id, a note's sound file (`file:<name>`), or
+/// a sound in the app's cache (`cached:<name>`). A name that is not a kept file's name is asked as nothing the half
+/// will open.
+Map<String, String> loadArguments(String src) {
+  for (final (lead, argument) in const [('file:', 'file'), ('cached:', 'cached')]) {
+    if (!src.startsWith(lead)) continue;
+    final name = src.substring(lead.length);
+    return {argument: attachmentName.hasMatch(name) ? name : ''};
+  }
+  return {'noteId': src};
+}
 
 class PhoneTapePlayer implements TapePlayer {
   PhoneTapePlayer({MethodChannel channel = const MethodChannel('ghost_md/tape'), EventChannel events = const EventChannel('ghost_md/tape/events')}) : _channel = channel {
@@ -74,7 +92,7 @@ class PhoneTapePlayer implements TapePlayer {
     _playing.value = false;
     _position.value = 0;
     _duration.value = null;
-    _duration.value = await _channel.invokeMethod<int>('load', {'noteId': noteId});
+    _duration.value = await _channel.invokeMethod<int>('load', loadArguments(noteId));
   }
 
   @override

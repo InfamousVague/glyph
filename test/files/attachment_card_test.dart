@@ -6,9 +6,13 @@ import 'dart:typed_data';
 
 import 'package:flutter/widgets.dart' hide Decoration;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:ghost_md/art/app_icon.dart';
+import 'package:ghost_md/art/lucide.g.dart';
 import 'package:ghost_md/core/stored.dart';
 import 'package:ghost_md/editor/editor.dart';
 import 'package:ghost_md/editor/media/attachments.dart';
+import 'package:ghost_md/editor/media/clip_refs.dart';
+import 'package:ghost_md/editor/media/clips.dart';
 import 'package:ghost_md/editor/media/inline_box.dart';
 import 'package:ghost_md/editor/plus/add_rows.dart';
 import 'package:ghost_md/files/attachment_store.dart';
@@ -21,6 +25,28 @@ import '../support/render.dart';
 import 'support.dart';
 
 const Key card = ValueKey<String>('cm-fileCard');
+
+/// The memos' player, as a sound's card is handed it: what it was asked to play, and what sounds.
+class SoundPlayer extends ChangeNotifier implements ClipPlayer {
+  final List<String> played = [];
+  ({String src, Clip clip})? _playing;
+
+  @override
+  ({String src, Clip clip})? get playing => _playing;
+
+  @override
+  Future<void> play(String src, Clip clip) async {
+    played.add('$src ${clip.startMs}-${clip.endMs}');
+    _playing = (src: src, clip: clip);
+    notifyListeners();
+  }
+
+  @override
+  void stop() {
+    _playing = null;
+    notifyListeners();
+  }
+}
 
 String? meta(WidgetTester tester) => tester.widgetList<InlineWords>(find.byKey(const ValueKey<String>('file-meta'))).map((w) => w.text).firstOrNull;
 
@@ -62,6 +88,23 @@ void main() {
     expect(meta(tester), startsWith('PDF · '));
     expect(meta(tester), endsWith(' · 3 pages'));
     expect(find.byKey(const ValueKey<String>('file-thumb')), findsWidgets, reason: 'a PDF’s first page is its mark');
+  });
+
+  testWidgets('a sound plays where it sits, whole, on the memos’ player, and is Stop while it sounds (a voice-over among them)', (tester) async {
+    final voice = await keep(tester, 'Voice-over, Elara.mp3', Uint8List.fromList([0xff, 0xfb, 0x90, 0x64]));
+    final lease = await keep(tester, 'Lease.pdf', tinyPdf(pages: 1));
+    final player = SoundPlayer();
+    await pumpNote(tester, '${voice.markdown}\n\n${lease.markdown}', more: <Extension>[attachmentCards(), clipPlayer.of(player)]);
+    await settleIo(tester);
+    expect(find.byKey(const ValueKey<String>('file-play')), findsOneWidget, reason: 'a sound has Play; a PDF does not');
+    await tester.tap(find.byKey(const ValueKey<String>('file-play')));
+    await tester.pump();
+    expect(player.played, ['file:${voice.name} 0-${wholeSound.endMs}']);
+    expect(find.descendant(of: find.byKey(const ValueKey<String>('file-play')), matching: find.byWidgetPredicate((w) => w is AppIcon && w.icon == Lucide.square)), findsOneWidget);
+    await tester.tap(find.byKey(const ValueKey<String>('file-play')));
+    await tester.pump();
+    expect(player.playing, isNull);
+    expect(player.played, hasLength(1));
   });
 
   testWidgets('says when the file is not on this device, and when it stays on the one it was added on', (tester) async {

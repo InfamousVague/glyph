@@ -102,6 +102,52 @@
       "link": "ghostmd://market/plugin/claude"
     },
     {
+      "id": "elevenlabs",
+      "name": "ElevenLabs",
+      "line": "Your notes, read aloud in the voice you choose",
+      "description": "Voice-overs of your notes, read aloud by ElevenLabs in a voice you choose, kept in the note as a sound you can play.",
+      "category": "ai",
+      "icon": "audio-lines",
+      "mark": null,
+      "hue": "mint",
+      "colours": [
+        "#1f9e8f",
+        "#5fe0cf"
+      ],
+      "platforms": {
+        "android": true,
+        "iphone": true,
+        "mac": true
+      },
+      "reach": "Mobile · Desktop",
+      "adds": [
+        "Voice-over, on any note: read aloud by ElevenLabs and kept at its top, to play where it sits",
+        "A choice of voices, with your own from ElevenLabs beside them, each to hear before you pick"
+      ],
+      "settings": true,
+      "permissions": [
+        {
+          "kind": "notes",
+          "label": "Your notes",
+          "why": "Puts the voice-over it makes at the top of the note it reads.",
+          "icon": "file-text"
+        },
+        {
+          "kind": "network",
+          "label": "The internet",
+          "why": "Asks ElevenLabs to read a note aloud, with your own ElevenLabs key: only the words of the note you ask a voice-over for go there. It talks to elevenlabs.io and nowhere else.",
+          "icon": "globe"
+        }
+      ],
+      "hosts": [
+        "elevenlabs.io"
+      ],
+      "standard": false,
+      "author": "Ghost.md",
+      "version": "1.0.0",
+      "link": "ghostmd://market/plugin/elevenlabs"
+    },
+    {
       "id": "lovart",
       "name": "Lovart",
       "line": "Images from your notes, by Lovart’s design agent",
@@ -3242,6 +3288,14 @@
     "interface": "Notes, Notebooks & Settings"
   },
   "icons": {
+    "audio-lines": [
+      "M2 10v3",
+      "M6 6v11",
+      "M10 3v18",
+      "M14 8v7",
+      "M18 5v13",
+      "M22 10v3"
+    ],
     "bot": [
       "M12 8V4H8",
       "M6 8H18A2 2 0 0 1 20 10V18A2 2 0 0 1 18 20H6A2 2 0 0 1 4 18V10A2 2 0 0 1 6 8Z",

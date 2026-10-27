@@ -8,7 +8,7 @@
 ///   ([claudeLimitName]). The secure store's own names; [ClaudeSettings.reload] after each is written. So a key put in
 ///   on the Fold is the Mac's at its next sync, and the summaries' handoff (lib/ai/summary_handoff.dart), which looks
 ///   again when Claude's settings change, sees the Mac able to write a meeting up.
-/// - **The plugins' switches** for the five whose connections travel, Claude, Slack, Discord, GitHub and Lovart
+/// - **The plugins' switches** for the six whose connections travel, Claude, Slack, Discord, GitHub, Lovart and ElevenLabs
 ///   (`plugin:<id>`, [Registry.setSwitch]): Claude turned on anywhere is on everywhere, and Slack and Discord are on
 ///   wherever their channels are. And the meeting plugins', Google Meet and Zoom (lib/plugins/meetings/; Matt,
 ///   2026-10-26: "Make sure the Google Meet and the Zoom plugins are two different plugins"): which kinds Ghost joins
@@ -28,6 +28,10 @@
 ///   request and works from any number of devices (Matt, 2026-10-26: "Yes please sync lovart too"). Its project
 ///   (`glyph-lovart-project`) stays: each device makes or finds its own. So does "Inspiration for design meetings"
 ///   (`glyph-lovart-meetings`) and the meetings it has done: each device that writes a meeting up asks for its own.
+/// - **ElevenLabs' key** (lib/plugins/elevenlabs/manifest.dart; Matt, 2026-10-27: "Build a plugin for elevenlabs"), an
+///   API key that works from any number of devices, as Lovart's do, and the voice and the model a voice-over is read
+///   with (`glyph-elevenlabs-voice`, `glyph-elevenlabs-model`), so a note read on the Mac sounds as one read on the
+///   Fold. The person's own voices as last listed (`glyph-elevenlabs-own-voices`) stay: each device asks ElevenLabs.
 ///
 /// ALREADY TRAVELLING, in the settings sealed as a whole (lib/sync/prefs.dart): the calendars' iCal addresses and
 /// Google's sign-in (`calendars`), and the webhooks with their secrets (`webhooks`). **Google's refresh token** may be
@@ -63,6 +67,7 @@ import '../claude/claude_settings.dart';
 import '../claude/claude_spend.dart' show claudeLimitName;
 import '../core/iphone_app.dart' show notOnIPhone;
 import '../plugins/discord/manifest.dart' as discord show discordChannelsKey, discordMeetingsKey, discordWebhookPrefix, host;
+import '../plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, host, modelKey, voiceKey;
 import '../plugins/github/manifest.dart' as github show host, tokenSecret;
 import '../plugins/host.dart' show onPluginStorage;
 import '../plugins/lovart/manifest.dart' as lovart show accessKeySecret, host, secretKeySecret;
@@ -75,7 +80,7 @@ import 'sealed_keys.dart';
 const List<String> claudeSyncedNames = [claudeKeyName, claudeModelName, claudeEffortName, claudeInboxName, claudeWatchName, claudeLimitName];
 
 /// The plugins whose switch travels.
-const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom'];
+const List<String> syncedSwitches = ['claude', 'slack', 'github', 'lovart', 'discord', 'google-meet', 'zoom', 'elevenlabs'];
 
 /// The Slack plugin's storage keys that travel: the channels' names, and where meetings post.
 const String slackChannelsKey = 'glyph-slack-channels';
@@ -95,6 +100,7 @@ List<SyncedItem> connectionItems(
   PluginHost? discordHost,
   PluginHost? githubHost,
   PluginHost? lovartHost,
+  PluginHost? elevenHost,
   Registry Function()? registry,
   TargetPlatform? platform,
 }) {
@@ -117,6 +123,8 @@ List<SyncedItem> connectionItems(
     if (discordHere) ..._discordItems(named, discordHost ?? discord.host),
     _secretItem(githubHost ?? github.host, github.tokenSecret),
     for (final name in const [lovart.accessKeySecret, lovart.secretKeySecret]) _secretItem(lovartHost ?? lovart.host, name),
+    _secretItem(elevenHost ?? eleven.host, eleven.apiKeySecret),
+    for (final key in const [eleven.voiceKey, eleven.modelKey]) _storageItem(elevenHost ?? eleven.host, key),
     for (final id in syncedSwitches)
       if (reg.byId(id) != null && (slackHere || id != 'slack') && (discordHere || id != 'discord')) _switchItem(reg, id),
   ];

@@ -45,6 +45,10 @@ class Clip {
   String toString() => 'Clip($startMs-$endMs${tape == null ? '' : '@$tape'})';
 }
 
+/// A whole sound, start to end, for a player that plays stretches (lib/tapes/clip_player.dart): a sound's file is
+/// never this long, so it plays until the sound itself ends.
+const Clip wholeSound = Clip(startMs: 0, endMs: 1 << 30);
+
 /// A clip, and where its mark sits in the text it was found in.
 class PlacedClip extends Clip {
   const PlacedClip({required super.startMs, required super.endMs, super.tape, required this.from, required this.to});

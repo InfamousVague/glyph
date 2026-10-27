@@ -20,7 +20,9 @@ import java.io.File
  *
  * THE CHANNEL, `ghost_md/tape` for one and `ghost_md/clip` for the other:
  * - `load {noteId}` -> the recording's length in ms, stopped at its start; an error where there is no such file or
- *   it cannot be read.
+ *   it cannot be read. `load {file}` the same for a sound file a note links (`<data>/images/files/<name>`, a voice-over
+ *   among them) and `load {cached}` for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's
+ *   preview): lib/tapes/phone_player.dart `loadArguments`.
  * - `play`, `pause` -> null; `seek {ms}` -> null.
  * - `onDevice {noteId}` -> whether that note's recording is a file here (the `rec` scheme's 200 or 404).
  * - `release` -> null: the player let go.
@@ -28,8 +30,9 @@ import java.io.File
  * THE EVENTS on the channel's name with `/events` after it, each a map: `{event: "position", ms}` ten times a second while it plays
  * (the element's `timeupdate`), `{event: "playing", on}`, `{event: "ended"}` and `{event: "failed"}`.
  *
- * Only ever a file under the app's own `recordings` folder, named by a note's id: an id is letters, digits, `-` and
- * `_`, so nothing a caller says can name a file anywhere else.
+ * Only ever a file under the app's own `recordings` folder, named by a note's id, or under its files' or its cache's
+ * sounds' folder, named as the app names a kept file: an id is letters, digits, `-` and `_`, a name that and an
+ * extension, so nothing a caller says can name a file anywhere else.
  */
 class TapePlayer(private val context: Context, private val channel: String = CHANNEL) {
     private val main = Handler(Looper.getMainLooper())
@@ -53,7 +56,7 @@ class TapePlayer(private val context: Context, private val channel: String = CHA
         MethodChannel(messenger, channel).setMethodCallHandler { call, result ->
             try {
                 when (call.method) {
-                    "load" -> result.success(load(call.argument<String>("noteId")))
+                    "load" -> result.success(load(soundOf(call.argument<String>("file"), call.argument<String>("cached")) ?: fileOf(call.argument<String>("noteId"))))
                     "play" -> { play(); result.success(null) }
                     "pause" -> { pause(); result.success(null) }
                     "seek" -> { player?.seekTo(call.argument<Int>("ms") ?: 0); result.success(null) }
@@ -73,9 +76,15 @@ class TapePlayer(private val context: Context, private val channel: String = CHA
         return File(File(context.dataDir, "recordings"), "$noteId.wav")
     }
 
-    private fun load(noteId: String?): Int {
+    /** A sound file a note links, or one in the cache's sounds, by its kept name; null where neither is asked for. */
+    private fun soundOf(file: String?, cached: String?): File? {
+        val name = file ?: cached ?: return null
+        if (!NAME.matches(name)) throw IllegalStateException("That is not a sound this app keeps.")
+        return if (file != null) File(File(File(context.dataDir, "images"), "files"), name) else File(File(context.cacheDir, "sounds"), name)
+    }
+
+    private fun load(file: File?): Int {
         release()
-        val file = fileOf(noteId)
         if (file == null || !file.isFile) throw IllegalStateException("This recording is not on this device.")
         val made = MediaPlayer()
         try {
@@ -135,5 +144,6 @@ class TapePlayer(private val context: Context, private val channel: String = CHA
         const val CLIPS = "ghost_md/clip"
         private const val TICK_MS = 100L
         private val ID = Regex("^[A-Za-z0-9_-]{1,64}$")
+        private val NAME = Regex("^[A-Za-z0-9_-]{1,64}\\.[a-z0-9]{1,10}$")
     }
 }

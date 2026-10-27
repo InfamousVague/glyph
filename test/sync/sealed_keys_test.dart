@@ -32,6 +32,8 @@ import 'package:ghost_md/plugins/discord/discord.dart' show discordChannels, dis
 import 'package:ghost_md/plugins/discord/manifest.dart' as discord show discordWebhookPrefix, manifest;
 import 'package:ghost_md/plugins/github/github.dart' show githubPlugin;
 import 'package:ghost_md/plugins/github/manifest.dart' as github show manifest, tokenSecret;
+import 'package:ghost_md/plugins/elevenlabs/elevenlabs.dart' show elevenLabsPlugin;
+import 'package:ghost_md/plugins/elevenlabs/manifest.dart' as eleven show apiKeySecret, manifest, modelKey, ownVoicesKey, voiceKey;
 import 'package:ghost_md/plugins/lovart/lovart.dart' show lovartPlugin;
 import 'package:ghost_md/plugins/lovart/manifest.dart' as lovart show accessKeySecret, manifest, secretKeySecret;
 import 'package:ghost_md/plugins/meetings/meetings.dart' show googleMeetPlugin, zoomPlugin;
@@ -81,6 +83,7 @@ const String webhook = 'https://hooks.slack.com/services/T000/B000/XXXXXXXXXXXXX
 const String githubToken = 'ghp_0123456789abcdefABCDEF0123456789abcd';
 const String lovartAccess = 'ak-LOVART-0123456789abcdef';
 const String lovartSecret = 'sk-LOVART-fedcba9876543210';
+const String elevenKey = 'sk_ELEVEN0123456789abcdef0123456789abcdef';
 const String discordWebhook = 'https://discord.com/api/webhooks/123456789012345678/aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-aB3_-x';
 
 /// One device: its settings, its secure stores, its plugins' storage and switches, its sync engine.
@@ -91,12 +94,13 @@ class KeysDevice {
     slackHost = createHost(slack.manifest, ground: ground);
     githubHost = createHost(github.manifest, ground: ground);
     lovartHost = createHost(lovart.manifest, ground: ground);
+    elevenHost = createHost(eleven.manifest, ground: ground);
     discordHost = createHost(discord.manifest, ground: ground);
-    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin, googleMeetPlugin, zoomPlugin], store: MemorySwitches());
+    registry = createRegistry([claudePlugin, slackPlugin, githubPlugin, lovartPlugin, discordPlugin, googleMeetPlugin, zoomPlugin, elevenLabsPlugin], store: MemorySwitches());
     claude = ClaudeSettings(claudeStore);
     sealed = keys
         ? SealedKeys(
-            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, registry: () => registry, platform: platform),
+            items: (named) => connectionItems(named, claude: claude, slackHost: slackHost, discordHost: discordHost, githubHost: githubHost, lovartHost: lovartHost, elevenHost: elevenHost, registry: () => registry, platform: platform),
             prefs: prefs,
             device: () => id,
             heard: connectionChanges(claude: claude, registry: () => registry),
@@ -143,6 +147,7 @@ class KeysDevice {
   late final PluginHost slackHost;
   late final PluginHost githubHost;
   late final PluginHost lovartHost;
+  late final PluginHost elevenHost;
   late final PluginHost discordHost;
   late final Registry registry;
   late final ClaudeSettings claude;
@@ -450,6 +455,41 @@ void main() {
     await fold.sync();
     expect(await fold.lovartHost.secrets.read(lovart.accessKeySecret), isNull);
     expect(await fold.lovartHost.secrets.read(lovart.secretKeySecret), isNull);
+  });
+
+  test('ElevenLabs’ key, its switch, the voice and the model, set on one device, are on the next after a sync, the key sealed (Matt, 2026-10-27: "Build a plugin for elevenlabs")', () async {
+    final fold = KeysDevice(service, 'fold-1');
+    final mac = KeysDevice(service, 'mac-1');
+    await fold.elevenHost.secrets.write(eleven.apiKeySecret, elevenKey);
+    fold.elevenHost.storage.set(eleven.voiceKey, 'OZ0L6eISlOejga3XjDFt');
+    fold.elevenHost.storage.set(eleven.modelKey, 'eleven_flash_v2_5');
+    fold.registry.setEnabled('elevenlabs', true);
+    // This device's own: the voices it last listed.
+    fold.elevenHost.storage.set(eleven.ownVoicesKey, [
+      {'id': 'mine1', 'name': 'Matt'},
+    ]);
+    await fold.sync();
+
+    expect(mac.registry.switchedOn('elevenlabs'), isFalse);
+    await mac.sync();
+    expect(await mac.elevenHost.secrets.read(eleven.apiKeySecret), elevenKey);
+    expect(mac.elevenHost.storage.get<Object?>(eleven.voiceKey, null), 'OZ0L6eISlOejga3XjDFt');
+    expect(mac.elevenHost.storage.get<Object?>(eleven.modelKey, null), 'eleven_flash_v2_5');
+    expect(mac.registry.switchedOn('elevenlabs'), isTrue);
+    expect(mac.elevenHost.storage.get<Object?>(eleven.ownVoicesKey, null), isNull);
+
+    String b64(String s) => base64Url.encode(utf8.encode(s)).replaceAll('=', '');
+    expect(fold.sent, isNotEmpty);
+    for (final body in fold.sent) {
+      expect(body, isNot(contains(elevenKey)));
+      expect(body, isNot(contains(b64(elevenKey))));
+    }
+
+    // Forgotten on the Mac, forgotten on the Fold.
+    await mac.elevenHost.secrets.write(eleven.apiKeySecret, null);
+    await mac.sync();
+    await fold.sync();
+    expect(await fold.elevenHost.secrets.read(eleven.apiKeySecret), isNull);
   });
 
   test('nothing secret is in what is sent, nor in the settings opened, nor in what a device keeps in the clear', () async {

@@ -22,7 +22,10 @@ import FlutterMacOS
 /// Only ever a file under the app's own `recordings` folder, named by a note's id: an id is letters, digits, `-`
 /// and `_`, and anything else is refused before a path is made of it.
 ///
-/// - `load {noteId}` -> the recording's length in ms; an error where it is not on this device or will not open.
+/// - `load {noteId}` -> the recording's length in ms; an error where it is not on this device or will not open. `load
+///   {file}` the same for a sound file a note links (`<data>/images/files/<name>`, a voice-over among them) and `load
+///   {cached}` for a sound kept in the cache (`<cache>/sounds/<name>`, an ElevenLabs voice's preview), each by a kept
+///   file's name and never a path (lib/tapes/phone_player.dart `loadArguments`).
 /// - `play`, `pause`, `seek {ms}`, `release` -> null. `onDevice {noteId}` -> whether the file is here.
 /// - Events on the channel's name with `/events` after it: `{event: "position", ms}` a few times a second while it plays,
 ///   `{event: "playing", on}`, `{event: "ended"}`, `{event: "failed"}`.
@@ -64,12 +67,22 @@ final class TapeChannel: NSObject, FlutterStreamHandler, AVAudioPlayerDelegate {
     return dirs.data.appendingPathComponent("recordings", isDirectory: true).appendingPathComponent("\(id).wav")
   }
 
+  /// A sound file a note links, or one in the cache's sounds, by its kept name: letters, digits, `-` and `_`, a dot, and
+  /// a lower-case extension. Nil for a name that is not one, or a device that will not say where its folders are.
+  private static func sound(file: String?, cached: String?) -> URL? {
+    guard let name = file ?? cached, name.range(of: "^[A-Za-z0-9_-]{1,64}\\.[a-z0-9]{1,10}$", options: .regularExpression) != nil, let dirs = GhostChannels.dirs() else { return nil }
+    if file != nil { return dirs.data.appendingPathComponent("images", isDirectory: true).appendingPathComponent("files", isDirectory: true).appendingPathComponent(name) }
+    return dirs.cache.appendingPathComponent("sounds", isDirectory: true).appendingPathComponent(name)
+  }
+
   private func asked(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
     let args = call.arguments as? [String: Any]
     switch call.method {
     case "load":
       release()
-      guard let file = TapeChannel.file(of: args?["noteId"] as? String), FileManager.default.fileExists(atPath: file.path) else {
+      let named = args?["file"] as? String, cached = args?["cached"] as? String
+      let found = named != nil || cached != nil ? TapeChannel.sound(file: named, cached: cached) : TapeChannel.file(of: args?["noteId"] as? String)
+      guard let file = found, FileManager.default.fileExists(atPath: file.path) else {
         return result(FlutterError(code: "tape", message: "The recording is not on this \(TapeChannel.device).", details: nil))
       }
       do {

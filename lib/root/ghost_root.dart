@@ -171,6 +171,7 @@ import '../plugins/discord/discord.dart' show MeetingDiscordPoster, discordCanSh
 import '../ai/summary_handoff.dart' show thisDevice;
 import '../core/background_jobs.dart' show ChannelBackgroundJobs;
 import '../note/note_banner.dart' show BannerLook, bannerLook;
+import '../plugins/elevenlabs/elevenlabs.dart' show ElevenLabsHold, elevenLabsPlayer;
 import '../plugins/lovart/lovart.dart' show BannerClaims, BannerJob, BannerRun, LovartBanners, LovartHold, LovartMeetings, bannerRunEndWords, bannerRunLine, bannerToRedo, lovartBannerJob, lovartBannerRun, lovartPictureStore, stopBannerRun;
 import '../plugins/registry.dart' show Registry, plugins;
 import '../plugins/slack/meetings.dart' show MeetingSlackPoster, meetingSlackPoster;
@@ -205,6 +206,7 @@ import '../simple/simple_home.dart';
 import '../simple/simple_todos.dart';
 import '../core/query/tick.dart' show tickedBody;
 import '../simple/simple_pane.dart';
+import '../tapes/clip_player.dart' show TapeClipPlayer;
 import '../tapes/player.dart' show TapePlayer;
 import '../tapes/previews.dart' show TapePreviews;
 import '../watch/watch_link.dart' show WatchTake;
@@ -458,6 +460,11 @@ class _GhostRootState extends State<GhostRoot> {
   // Any other picture Lovart is making (a header as a note is left, an {image: …}, a moodboard) holds the device as
   // the run does, so the app is not frozen behind another (lib/plugins/lovart/lovart_hold.dart).
   late final LovartHold _lovartHold = LovartHold(background: ChannelBackgroundJobs());
+  // A note ElevenLabs is reading aloud holds the device the same way (lib/plugins/elevenlabs/elevenlabs_hold.dart).
+  late final ElevenLabsHold _voiceOverHold = ElevenLabsHold(background: ChannelBackgroundJobs());
+
+  /// What ElevenLabs' voice previews play on: the memos' player, played whole (lib/plugins/elevenlabs/previews.dart).
+  late final TapeClipPlayer? _voicePreviews = widget.clipPlayer == null ? null : TapeClipPlayer(widget.clipPlayer!);
   late final BannerJob _bannerJob = BannerJob(
     notes: () => _library.value,
     banners: _banners,
@@ -1638,6 +1645,9 @@ class _GhostRootState extends State<GhostRoot> {
     lovartBannerRun.removeListener(_bannerMoved);
     _bannerJob.dispose();
     _lovartHold.dispose();
+    _voiceOverHold.dispose();
+    if (identical(elevenLabsPlayer, _voicePreviews)) elevenLabsPlayer = null;
+    _voicePreviews?.dispose();
     _aiReady.dispose();
     _builtReport.dispose();
     _stopFills?.call();
@@ -1720,6 +1730,8 @@ class _GhostRootState extends State<GhostRoot> {
     _bannerMoved();
     unawaited(_bannerJob.resume(changes: _pluginsHeard));
     _lovartHold.start();
+    _voiceOverHold.start();
+    if (_voicePreviews != null) elevenLabsPlayer = _voicePreviews;
     // A note too long for one Discord message is cut with its share link, made by the app's own share, where this
     // build has an account signed in (lib/plugins/discord/discord.dart).
     discordShareLink = _discordShare;

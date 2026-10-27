@@ -3,6 +3,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ghost_md/editor/media/clip_refs.dart';
 import 'package:ghost_md/tapes/clip_player.dart';
+import 'package:ghost_md/tapes/phone_player.dart' show loadArguments;
 
 import 'fake_player.dart';
 
@@ -68,5 +69,13 @@ void main() {
     player.fail();
     expect(clips.playing, isNull);
     clips.dispose();
+  });
+
+  test('the phone is asked for a note’s recording by its id, a note’s sound file or a cached sound by a kept name, never a path', () {
+    expect(loadArguments('n1'), {'noteId': 'n1'});
+    expect(loadArguments('file:5f0c2e9a-1b2c-4d3e-8f40-0a1b2c3d4e5f.mp3'), {'file': '5f0c2e9a-1b2c-4d3e-8f40-0a1b2c3d4e5f.mp3'});
+    expect(loadArguments('cached:elevenlabs-abc-eleven_v4.mp3'), {'cached': 'elevenlabs-abc-eleven_v4.mp3'});
+    expect(loadArguments('file:../../etc/passwd'), {'file': ''});
+    expect(loadArguments('cached:a/b.mp3'), {'cached': ''});
   });
 }

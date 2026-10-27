@@ -193,6 +193,17 @@ String attachmentMimeOf(String name) {
   };
 }
 
+/// A file's sound as the memos' player plays it, whole (lib/tapes/phone_player.dart): `file:<name>`, from the files'
+/// folder. A sound's card plays it there (lib/editor/media/attachments.dart), a voice-over's among them.
+String attachmentSoundSrc(String name) => 'file:$name';
+
+/// A sound kept in the app's cache, in its folder [cachedSoundsFolder] (an ElevenLabs voice's preview,
+/// lib/plugins/elevenlabs/previews.dart), as the same player plays it: `cached:<name>`.
+String cachedSoundSrc(String name) => 'cached:$name';
+
+/// The cache's folder of sounds that may be lost and made again.
+const String cachedSoundsFolder = 'sounds';
+
 /// Told of a note deleted for good, with its words as they were, so the files it linked go where no other note
 /// links them (lib/files/files_kit.dart sets it): the core does this itself for a note's pictures and films. None
 /// until the app keeps files.

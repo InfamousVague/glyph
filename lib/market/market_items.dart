@@ -18,6 +18,7 @@ import '../core/iphone_app.dart' show notOnIPhone;
 import '../core/preferences.dart';
 import '../plugins/catalogue.dart';
 import '../plugins/github/marks.dart';
+import '../plugins/elevenlabs/elevenlabs_mark.dart';
 import '../plugins/lovart/lovart_mark.dart';
 import '../plugins/notion/marks.dart';
 import '../plugins/places/places.dart' show placeRemindersId;
@@ -112,6 +113,8 @@ Widget pluginMark(GlyphPlugin plugin, double size, {Color color = const Color(0x
     'notion' => NotionMark(size: size),
     'github' => RepoMark(size: size),
     'lovart' => LovartMark(size: size, color: color),
+    // The ElevenLabs plugin's own two bars, not ElevenLabs' artwork: so not a brand mark the featured shelf leads with.
+    'elevenlabs' => ElevenLabsMark(size: size, color: color),
     _ => AppIcon(Lucide.all[plugin.icon] ?? Lucide.puzzle, size: size, color: color, strokeWidth: 1.8, wash: false),
   };
   return IconTheme.merge(data: IconThemeData(color: color, size: size), child: mark);

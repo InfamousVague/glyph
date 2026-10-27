@@ -8,6 +8,7 @@ import '../kit/settings_kit.dart';
 import 'settings_host.dart';
 import '../../claude/claude_mark.dart' show ClaudeMark;
 import '../../plugins/lovart/lovart_mark.dart' show LovartMark;
+import '../../plugins/elevenlabs/elevenlabs_mark.dart' show ElevenLabsMark;
 
 /// What is left in Settings of its Plugins (Matt, 2026-10-26: "move the plugins section out of the settings (leaving
 /// plugin specific settings to own their settings) add the plugins setting to the market page"): the catalogue,
@@ -34,6 +35,9 @@ Widget pluginIcon(GlyphPlugin plugin, double size) => switch (plugin.manifest.id
       'claude' => _MarkIcon(size: size, draw: (ink, side) => ClaudeMark(size: side, color: ink)),
       // Lovart's is a solid round, heavier than a line: a step smaller again.
       'lovart' => _MarkIcon(size: size, scale: 0.74, draw: (ink, side) => LovartMark(size: side, color: ink)),
+      // ElevenLabs' bars, the plugin's own mark (lib/plugins/elevenlabs/elevenlabs_mark.dart), at the box's whole: two
+      // bars are lighter than a Lucide glyph's lines.
+      'elevenlabs' => _MarkIcon(size: size, scale: 1, draw: (ink, side) => ElevenLabsMark(size: side, color: ink)),
       _ => AppIcon(Lucide.all[plugin.icon] ?? Lucide.puzzle, size: size),
     };
 
