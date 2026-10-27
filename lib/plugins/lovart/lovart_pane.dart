@@ -45,7 +45,7 @@ String _runWords(BannerRun? run, {bool takenOff = false, bool redoOld = false}) 
   final elsewhere = lovartBannerJob?.elsewhere();
   if (run?.running != true && elsewhere != null) return bannerElsewhereWords(elsewhere);
   if (run == null) return about;
-  if (run.running) return '${bannerRunLine(run)}, ${run.made} made so far. You can leave this page.';
+  if (run.running) return '${bannerRunLine(run)}. You can leave this page: they go on being made.';
   if (run.total == 0 && run.stopped != null) return run.stopped!;
   return '${bannerRunEndWords(run)}.';
 }
