@@ -4,6 +4,7 @@ import android.app.NotificationManager
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
+import android.media.MediaPlayer
 import android.media.SoundPool
 import android.os.Build
 import android.os.Handler
@@ -25,6 +26,11 @@ import java.io.File
  *   says to keep quiet ([quiet]).
  * - `notifications {pack, events}` -> null: the pack and the notification events switched on, kept for the
  *   notifications posted with no Dart running (SoundChannels.kt).
+ * - `narrate {key, bytes}` -> whether it plays: the walkthrough's voice for a page (lib/guide/narrator.dart; Matt,
+ *   2026-10-27: "a friendly elevenlabs v4 voice explaining each section"), half a minute of speech, which is too long
+ *   for the pool. Played on a `MediaPlayer` as speech on the media stream, so the volume keys turn it, in place of
+ *   any page's voice still playing; false where the phone asks for quiet, by the same rules as a sound.
+ * - `hush` -> null: the voice stopped, as the guide turns a page or goes.
  *
  * The phone is respected here, where it can be read: the ringer on silent or vibrate, Do Not Disturb, a call, and an
  * open recording (the meeting's service, another app's microphone) each keep an interface sound from playing. The
@@ -68,6 +74,11 @@ class Sounds(private val context: Context) {
                         SoundChannels.choose(context, call.argument<String>("pack") ?: "off", call.argument<List<String>>("events") ?: emptyList())
                         result.success(null)
                     }
+                    "narrate" -> result.success(narrate(call.argument<String>("key"), call.argument<ByteArray>("bytes")))
+                    "hush" -> {
+                        hush()
+                        result.success(null)
+                    }
                     "play" -> result.success(
                         play(call.argument<String>("key"), call.argument<Double>("volume") ?: 1.0, call.argument<Boolean>("whileRecording") == true),
                     )
@@ -104,6 +115,46 @@ class Sounds(private val context: Context) {
         return pool.play(id, level, level, 1, 0, 1f) != 0
     }
 
+    /** The walkthrough's voice playing now, if it is. */
+    private var voice: MediaPlayer? = null
+
+    private fun narrate(key: String?, bytes: ByteArray?): Boolean {
+        if (key == null || bytes == null || bytes.size > MOST_VOICE_BYTES) throw IllegalArgumentException("No voice to play.")
+        hush()
+        if (quiet(false)) return false
+        val folder = File(context.cacheDir, "sounds").apply { mkdirs() }
+        val file = File(folder, "voice-" + key.replace(Regex("[^A-Za-z0-9._-]"), "_"))
+        if (!file.exists() || file.length() != bytes.size.toLong()) file.writeBytes(bytes)
+        val player = MediaPlayer()
+        voice = player
+        player.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_SPEECH)
+                .build(),
+        )
+        player.setDataSource(file.absolutePath)
+        player.setOnPreparedListener { if (voice === it) it.start() }
+        player.setOnCompletionListener { if (voice === it) hush() }
+        player.setOnErrorListener { failed, _, _ ->
+            if (voice === failed) hush()
+            true
+        }
+        player.prepareAsync()
+        return true
+    }
+
+    private fun hush() {
+        val player = voice ?: return
+        voice = null
+        try {
+            player.stop()
+        } catch (_: IllegalStateException) {
+            // Not started yet: there is nothing to stop, only to let go.
+        }
+        player.release()
+    }
+
     /** Whether the phone asks for quiet now: silent or vibrate, Do Not Disturb, a call, or a recording open. */
     private fun quiet(whileRecording: Boolean): Boolean {
         val audio = context.getSystemService(AudioManager::class.java) ?: return false
@@ -122,6 +173,7 @@ class Sounds(private val context: Context) {
     fun release() {
         for (results in waiting.values) for (result in results) result.error("sounds", "Let go.", null)
         waiting.clear()
+        hush()
         pool.release()
     }
 
@@ -130,5 +182,8 @@ class Sounds(private val context: Context) {
 
         /** A sound is a second or so: anything near a megabyte is not one. */
         private const val MOST_BYTES = 1024 * 1024
+
+        /** A page's voice is half a minute at 64 kbps, a quarter of a megabyte: four is far past any. */
+        private const val MOST_VOICE_BYTES = 4 * 1024 * 1024
     }
 }

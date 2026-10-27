@@ -21,6 +21,8 @@ import 'package:glacier/glacier.dart';
 import '../../core/preferences.dart';
 import '../../settings/panes/ai_pane.dart' show ModelChoice, gb, modelName, models;
 import '../guide_models.dart';
+import '../narration.dart';
+import '../pages.dart';
 import 'parts.dart';
 
 class GuideModel extends StatelessWidget {
@@ -45,7 +47,8 @@ class GuideModel extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const GuideTitle('Choose your model'),
-            const GuideLead('It rewrites your notes on the phone. Bigger is more careful, and slower. Nothing leaves the phone.'),
+            // The words the voice says (narration.dart).
+            GuideLead(narration[GuidePage.model]!),
             GuideChoices(
               label: 'Model',
               children: [

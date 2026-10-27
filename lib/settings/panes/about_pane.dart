@@ -199,8 +199,8 @@ class AboutPane extends StatelessWidget {
           title: 'Help',
           children: [
             help(Lucide.graduationCap, 'Ghost.md Academy', 'Markdown taught a mark at a time. It shows you one, you type your own, and you watch it format.', onAcademy),
-            // What guide/pages.ts shows: four pages, the last of which offers the Academy.
-            help(Lucide.bookOpen, 'The welcome walkthrough', recordsVoice ? 'The pages from the first launch: the theme, the model, and where the rest is taught.' : 'The pages from the first launch: the theme, and where the rest is taught.', onGuide),
+            // What lib/guide/pages.dart shows: a tour of the app read aloud, simple or advanced, and the Academy.
+            help(Lucide.bookOpen, 'The welcome walkthrough', 'The tour from the first launch, read aloud: what it does, and where the rest is taught.', onGuide),
             help(Lucide.listChecks, 'Cheat sheet', 'Every mark you can type, and what it looks like, on one page.', open == null ? null : () => open('cheatsheet')),
             if (!simple) help(Lucide.fileCode, 'Specification', 'Exactly how every extension and AI fill is written, and the standard Markdown under them.', open == null ? null : () => open('spec')),
             if (offersGuideBook) help(Lucide.bookOpenText, guideTitle, 'The whole app in $guideChapters short chapters. Added to your notes the first time, and opened after that.', onGuideBook),

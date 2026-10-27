@@ -77,6 +77,11 @@ flutter:
     # file, .ogg for Android and .caf for Apple's. Ghostly's are placeholders until Matt's own drop in
     # (assets/sounds/README.md).
     - assets/sounds/ghostly/
+    # The walkthrough's voice (lib/guide/narrator.dart; Matt, 2026-10-27: "a friendly elevenlabs v4 voice explaining
+    # each section"): each page's words said once by ElevenLabs at build time (tool/onboarding_voice.py, the words in
+    # lib/guide/narration.dart), so a new person hears it with no key and no network; narration.json says which
+    # words, model and voice made each file.
+    - assets/onboarding/
   # The bend (lib/art/wisp_kit.dart): feTurbulence and feDisplacementMap as a fragment shader, for the heat on
   # words and the scene's haze. The wisp's smoke, and its nine other shaders, gave way to a gradient blur
   # (2026-10-24). On Android that blur is a backdrop filter of edge_blur.frag, across and then down, its softness

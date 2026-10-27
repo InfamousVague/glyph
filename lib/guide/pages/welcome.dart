@@ -2,7 +2,8 @@
 /// `src/app/guide/pages/Welcome.tsx`, with `.promises`, `.promise` and `.promiseIcon` of `Guide.module.css`.
 ///
 /// The name comes out of smoke like the app's other headlines, and the points pop in after it, one after another,
-/// their icons giving a wiggle now and then. There is no picture: the launch screen showed the icon a moment ago.
+/// their icons giving a wiggle now and then. Since 2026-10-27 the ghost waves from the page's colour band above it
+/// (band.dart), and the paragraph is the words the voice says (narration.dart).
 ///
 /// What differs: `recordsVoice` is the caller's to say (core/platform.ts reads the phone; the iPhone app records
 /// nothing yet and promises lists rather than a voice). The pop-in and the wiggle are worked from one clock here,
@@ -19,6 +20,8 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../art/wisp_text.dart';
+import '../narration.dart';
+import '../pages.dart';
 import 'parts.dart';
 
 /// `POINTS`, for a phone that records and one that does not.
@@ -73,7 +76,8 @@ class _GuideWelcomeState extends State<GuideWelcome> with SingleTickerProviderSt
           header: true,
           child: ConstrainedBox(constraints: BoxConstraints(maxWidth: chWidth(title, 14)), child: guideLines(title, WispText('Welcome to Ghost.md', pace: 16, style: title))),
         ),
-        GuideLead('${widget.recordsVoice ? 'Notes you type or say.' : 'Notes you type.'} Plain Markdown, kept on your own devices, the same on every one.'),
+        // The words the voice says (narration.dart), shown as it says them.
+        GuideLead(narration[GuidePage.welcome]!),
         Padding(
           padding: EdgeInsets.only(top: t.space(5)),
           child: Semantics(

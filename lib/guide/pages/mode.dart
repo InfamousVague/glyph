@@ -16,6 +16,8 @@ import 'package:glacier/glacier.dart';
 import '../../art/app_icon.dart';
 import '../../art/lucide.g.dart';
 import '../../core/preferences.dart';
+import '../narration.dart';
+import '../pages.dart';
 import 'parts.dart';
 
 /// The two modes, in the page's order, with the words Settings says too, on Appearance's first card
@@ -41,7 +43,8 @@ class GuideMode extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           const GuideTitle('How much of it?'),
-          const GuideLead('Start simple and grow into the rest, or have it all from the first day. You can change it any time in Settings › Appearance.'),
+          // The words the voice says (narration.dart).
+          GuideLead(narration[GuidePage.mode]!),
           GuideChoices(
             label: 'Mode',
             children: [

@@ -32,6 +32,16 @@ Future<void> pumpGuide(WidgetTester tester, Widget child, {Size size = const Siz
   await tester.pump();
 }
 
+/// Waits for the pictures on the screen (the ghost in the first and last pages' bands), which a test's clock never
+/// loads by itself.
+Future<void> loadPictures(WidgetTester tester) async {
+  for (final element in find.byType(Image, skipOffstage: false).evaluate().toList()) {
+    final image = (element.widget as Image).image;
+    await tester.runAsync(() => precacheImage(image, element));
+  }
+  await tester.pump();
+}
+
 /// In frames, as a phone would draw them.
 Future<void> wait(WidgetTester tester, int ms) async {
   for (var left = ms; left > 0; left -= 50) {

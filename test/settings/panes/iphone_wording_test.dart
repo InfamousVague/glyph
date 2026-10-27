@@ -106,14 +106,14 @@ void main() {
   });
 
   group('The walkthrough', () {
-    test('has no model page on an iPhone, and its last page is the last', () {
+    test('has no model page on an iPhone, nor the pages on speaking and the AI it has not, and its last page is the last', () {
       expect(walkthroughPagesNow, GuidePage.values);
-      expect(isReadingPage(3), isTrue);
+      expect(isReadingPage(5), isTrue);
       debugDefaultTargetPlatformOverride = TargetPlatform.iOS;
       final pages = walkthroughPagesNow;
-      final reading = [isReadingPage(2), isReadingPage(3)];
+      final reading = [isReadingPage(4), isReadingPage(5)];
       debugDefaultTargetPlatformOverride = null;
-      expect(pages, [GuidePage.welcome, GuidePage.theme, GuidePage.mode, GuidePage.start]);
+      expect(pages, [GuidePage.welcome, GuidePage.meetings, GuidePage.sync, GuidePage.market, GuidePage.mode, GuidePage.start]);
       expect(reading, [true, false]);
     });
   });
@@ -131,13 +131,14 @@ void main() {
       final findable = aboutFindable(updates: false, alerts: false, whatsNew: false).map((found) => found.name).toList();
       debugDefaultTargetPlatformOverride = null;
       expect(labels.take(5), ['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Examples']);
-      expect(shown, contains('The pages from the first launch: the theme, and where the rest is taught.'));
+      expect(shown, contains('The tour from the first launch, read aloud: what it does, and where the rest is taught.'));
+      expect(shown, isNot(contains('model')));
       expect(findable, isNot(contains('Ghost.md: The Guide')));
       await endSettings(tester);
 
       await openPane(tester, 'about');
       expect(rowLabels(tester).take(6), ['Ghost.md Academy', 'The welcome walkthrough', 'Cheat sheet', 'Specification', 'Ghost.md: The Guide', 'Examples']);
-      expect(_shown(tester), contains('the theme, the model, and where the rest is taught'));
+      expect(_shown(tester), contains('The tour from the first launch, read aloud: what it does, and where the rest is taught.'));
       expect(aboutFindable(updates: false, alerts: false, whatsNew: false).map((found) => found.name), contains('Ghost.md: The Guide'));
       await endSettings(tester);
     });
