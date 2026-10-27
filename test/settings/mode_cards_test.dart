@@ -132,7 +132,7 @@ void main() {
       expect(appearance.summary!(_facts(_simple)), 'Simple · Light · Maple Mono');
       expect(appearance.summary!(_facts(_advanced)), 'Advanced · Light · Maple Mono');
       expect(experienceFindable.map((f) => f.name), ['Mode']);
-      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size']);
+      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Focus mode']);
       expect(appearanceFindable(wide: true, haptics: true).map((f) => f.name).take(2), ['Mode', 'Page']);
       // The card's words are the walkthrough's, so the two say the same thing.
       expect(experienceChoices.map((c) => c.label), ['Simple', 'Advanced']);
@@ -184,7 +184,7 @@ void main() {
       await _tap(tester, _card('Simple'));
       expect((preferences.value.experience, preferences.value.experienceChosen, preferences.value.noteView), ('simple', true, 'formatted'));
       expect(tester.widget<ChoiceCards<String>>(_mode).value, 'simple');
-      expect(_titles(tester), ['Mode', 'Page', 'Type']);
+      expect(_titles(tester), ['Mode', 'Page', 'Type', 'Focus']);
       // Back on the list, Settings is already the short list, and Appearance's row says so.
       testBack.goBack();
       await tester.pump();
@@ -267,10 +267,11 @@ void main() {
       await endSettings(tester);
     });
 
-    testWidgets('Appearance in Simple is the mode, the theme cards and the text size, and no line to elsewhere', (tester) async {
+    testWidgets('Appearance in Simple is the mode, the theme cards, the text size and focus mode, and no line to elsewhere', (tester) async {
       await _open(tester, size: const Size(390, 1600), toPage: const SettingsTarget('theme', nonce: 1));
-      expect(_titles(tester), ['Mode', 'Page', 'Type']);
-      expect([for (final row in tester.widgetList<SettingRow>(find.byType(SettingRow))) row.label], ['Text size']);
+      // Focus mode's switch is Simple's too (Matt, 2026-10-27: "build ... focus mode"), its typewriter behind More.
+      expect(_titles(tester), ['Mode', 'Page', 'Type', 'Focus']);
+      expect([for (final row in tester.widgetList<SettingRow>(find.byType(SettingRow))) row.label], ['Text size', 'Focus mode', 'More']);
       expect(find.byType(AccentSwatch), findsNothing);
       expect(find.text('Accent'), findsNothing);
       expect(find.text('ACCENT'), findsNothing);
@@ -282,7 +283,7 @@ void main() {
       await _tap(tester, find.descendant(of: find.byWidgetPredicate((w) => w is ChoiceCards<String> && w.label == 'Theme'), matching: find.text('Dark')));
       expect(preferences.value.theme, 'dark');
       // The search's list of the page is the page's.
-      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size']);
+      expect(appearanceFindable(wide: true, haptics: true, simple: true).map((f) => f.name), ['Mode', 'Page', 'Type', 'Text size', 'Focus mode']);
       expect(appearanceFindable(wide: true, haptics: true).map((f) => f.name), containsAll(['Accent', 'Sidebar', 'Haptics']));
       // The footnote that led to the mode's page went with the page: the mode is on this one.
       expect(find.byKey(const ValueKey('appearance-more-looks')), findsNothing);

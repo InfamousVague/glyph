@@ -105,6 +105,7 @@ PaletteWorld paletteWorldFor({required AppShellState shell, required Workspaces 
     smartNotebooks: smartNotebooks,
     // Simple or advanced (GHST-103): the palette's own rule says which rows simple mode keeps.
     simple: prefs.simple,
+    focusMode: prefs.focusMode,
   );
 }
 
@@ -191,6 +192,7 @@ PaletteDoing paletteDoingFor({
     market: market,
     openSmart: openSmart,
     trash: trash,
+    setFocusMode: (on) => store.update((now) => now.copyWith(focusMode: on)),
   );
 }
 

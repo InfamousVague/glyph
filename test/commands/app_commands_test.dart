@@ -84,7 +84,10 @@ void main() {
     final page = [for (final row in (web['phone-dark-empty']['rows'] as List)) if (row['kind'] == 'row') (row['text'] as String).split(' | ').first];
     // Waiting on a feature: notebooks, journals, the recorder, the Academy and the walkthrough.
     const waiting = ['New notebook', 'New journal', 'Speak a new note', 'Ghost.md Academy', 'The welcome walkthrough'];
-    expect(offered(), [for (final row in page) if (!waiting.contains(row)) row]);
+    // Focus mode is the port's own (Matt, 2026-10-27: "build ... focus mode"), after the themes.
+    final ported = [for (final row in page) if (!waiting.contains(row)) row];
+    ported.insert(ported.lastIndexWhere((row) => row.startsWith('Theme: ')) + 1, 'Focus mode');
+    expect(offered(), ported);
     // With nowhere to open Settings at a page, neither of the commands that would.
     final bare = [for (final command in paletteCommands(world(), doing(pages: false))) command.descriptor.id];
     expect(bare, isNot(contains('organizations')));
@@ -207,6 +210,14 @@ void main() {
     await choose(tester, 'theme', 'Theme: Dark');
     expect(preferences.value.theme, 'dark');
     expect(preferences.value.accent, 'ink');
+
+    // Focus mode on and off again, the command saying which way it goes.
+    await choose(tester, 'focus', 'Focus mode');
+    expect(preferences.value.focusMode, isTrue);
+    expect(offered(), contains('Leave focus mode'));
+    expect(offered(), isNot(contains('Focus mode')));
+    await choose(tester, 'leave focus', 'Leave focus mode');
+    expect(preferences.value.focusMode, isFalse);
 
     await choose(tester, 'settings', 'Settings');
     await choose(tester, 'organizations', 'Organizations');

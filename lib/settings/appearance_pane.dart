@@ -5,6 +5,7 @@ import '../art/icon_packs.dart' show IconStyle, iconPackOf;
 import '../core/preferences.dart';
 import '../market/market_icons.dart' show IconStyleChooser;
 import 'accent_swatch.dart';
+import 'focus_section.dart';
 import 'kit/settings_kit.dart';
 import 'kit/settings_type.dart';
 import 'layout_cards.dart';
@@ -34,6 +35,8 @@ List<SettingsFindable> appearanceFindable({required bool wide, required bool hap
       if (simple) ...[
         const SettingsFindable('Type', 'text font'),
         const SettingsFindable('Text size', 'font bigger smaller larger'),
+        // Its typewriter scroll is behind Simple's More: "typewriter" lands on the switch.
+        const SettingsFindable('Focus mode', _focusWords),
       ] else ...appearanceFindableAdvanced(wide: wide, haptics: haptics),
     ];
 
@@ -47,6 +50,8 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       const SettingsFindable('Interface font', 'font typeface ui app tabs menus inter noto plex'),
       const SettingsFindable('Text size', 'font bigger smaller larger'),
       const SettingsFindable('Scale', 'size zoom interface ui bigger smaller'),
+      const SettingsFindable('Focus mode', _focusWords),
+      const SettingsFindable('Typewriter scroll', 'focus centre center middle line caret scroll'),
       const SettingsFindable('Icons', 'icon style outline solid filled bold pack glyphs lucide phosphor tabler material remix'),
       const SettingsFindable('Spacing', 'density compact padding roomy tight'),
       const SettingsFindable('Corners', 'rounding radius round square'),
@@ -60,6 +65,9 @@ List<SettingsFindable> appearanceFindableAdvanced({required bool wide, required 
       if (recordsVoice) const SettingsFindable('Ripples while recording', 'waves voice'),
       if (haptics) const SettingsFindable('Haptics', 'vibrate vibration buzz touch'),
     ];
+
+/// What finds focus mode (lib/settings/focus_section.dart), besides its name.
+const String _focusWords = 'focus dim fade typewriter zen distraction free writing concentrate paragraph';
 
 /// A map of a preference's words as the options a segmented control takes, in the map's own order (`optionsOf`).
 List<GlacierSegmentedOption> _options(Map<String, String> words) => [
@@ -164,7 +172,10 @@ class AppearancePane extends StatelessWidget {
         // How much of the app there is, first in either mode: in Simple it is the way to the rest of these cards.
         final mode = modeSection(prefs: prefs, store: store);
 
-        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize])]);
+        // Focus mode, in both modes, after the type it dims (Matt, 2026-10-27: "build ... focus mode").
+        final focus = FocusSection(store: store);
+
+        if (prefs.simple) return PaneBody(children: [mode, page, PaneSection(title: 'Type', description: sample, children: [textSize]), focus]);
 
         return PaneBody(
           children: [
@@ -218,6 +229,7 @@ class AppearancePane extends StatelessWidget {
                 ),
               ],
             ),
+            focus,
             // How the icons are drawn: the style, seen in the pack in use as it is chosen.
             PaneSection(
               title: 'Icons',
