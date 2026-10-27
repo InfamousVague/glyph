@@ -694,6 +694,13 @@ class _Writing extends FieldListener {
     } else {
       id = known;
       if (typer == null || !typer.whole) await _behind(id, input, typer);
+      // A whole note typed in is checked against the words Claude sent: the editor's own typing rules may have made
+      // something else of them (a `---` on a new note's first line was taken, and its front matter's first key became
+      // its title: "book: true"). The words sent are what the note is.
+      if ((tool == ClaudeTool.create || tool == ClaudeTool.rewrite) && words.isNotEmpty) {
+        final typed = await run.notes.read(id: id);
+        if (typed != null && typed.body != words) await run.desk.change(id, (_) => words);
+      }
     }
     // Made in the folder asked for, an organization's included: a note made new shares nothing of the person's.
     String? filedIn;

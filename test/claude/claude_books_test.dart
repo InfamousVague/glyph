@@ -94,10 +94,33 @@ class _Desk implements ClaudeDesk {
   bool showing(String noteId, EditorViewLike view) => identical(views[noteId], view);
 
   @override
-  Future<void> change(String noteId, String Function(String body) change) async => notes.bodies[noteId] = change(notes.bodies[noteId] ?? '');
+  Future<void> change(String noteId, String Function(String body) change) async {
+    final view = views[noteId];
+    if (view == null) {
+      notes.bodies[noteId] = change(notes.bodies[noteId] ?? '');
+      return;
+    }
+    final now = view.state.doc.toString();
+    view.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: now.length, insert: change(now))));
+  }
 
   @override
   bool get smoke => false;
+}
+
+/// Notes whose first read of a new note answers it without its opening `---`, as the editor's typing made of it.
+class _Eating extends _Notes {
+  bool _ate = false;
+
+  @override
+  Future<NoteRead?> read({String? id, String? title}) async {
+    final note = await super.read(id: id, title: title);
+    if (note == null || _ate || !note.body.startsWith('---\n')) return note;
+    _ate = true;
+    final eaten = note.body.substring(4);
+    desk!.views[note.id]!.dispatch(TransactionSpec(changes: ChangeSpec(from: 0, to: note.body.length, insert: eaten)));
+    return NoteRead(id: note.id, title: noteTitle(eaten), body: eaten);
+  }
 }
 
 /// The shelf as a map: notebooks, tickets, what is filed where, and the Trash.
@@ -246,6 +269,20 @@ void main() {
       expect(shelf.trashed, contains(made.single), reason: 'the half-made note goes to the Trash');
       expect([for (final step in run.steps) step.words], contains('Took back a note that was cut off before it was whole'));
       expect(run.touched, isNot(contains(made.single)));
+    });
+
+    testWidgets('a note typed in whole that the editor made something else of is put right to the words sent', (tester) async {
+      final words = '---\nbook: true\nkey: HT\n---\n# HelloTrade Tickets\n\nFrom the standup.\n';
+      final eats = _Eating();
+      final desk = _Desk(eats);
+      final api = _Api([
+        _turn(tool: ClaudeTool.create, pieces: _cut(jsonEncode({'body': words}), 6)),
+        _turn(words: 'Done.'),
+      ]);
+      final run = ClaudeRun(api: api, model: 'claude-sonnet-5-5', notes: eats, desk: desk, prompt: 'Make it');
+      await tester.runAsync(run.run);
+      expect(desk.views['n1']!.state.doc.toString(), words);
+      expect(run.touched, {'n1': 'HelloTrade Tickets'});
     });
 
     testWidgets('create_note makes its note in the folder asked for, an organization\'s too', (tester) async {
