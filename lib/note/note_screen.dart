@@ -1653,8 +1653,10 @@ class NoteScreenState extends State<NoteScreen> with TickerProviderStateMixin {
     return [
       if (seams.onFind != null && view != null && _raw) DockAction(id: 'note-find', label: 'Find in note', icon: Lucide.search, motion: DockMotion.lean, onPressed: () => seams.onFind!(view, '')),
       // One microphone only (GHST-104): where Talk to Claude is on this dock, the note's own mic is not, and what is
-      // said about the note goes to Claude (Matt, 2026-10-18: "there should only be one microphone icon").
-      if (speak != null && !widget.readOnly && widget.dock?.talk == null) DockAction(id: 'note-speak', label: speak, glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+      // said about the note goes to Claude (Matt, 2026-10-18: "there should only be one microphone icon"). The dock
+      // decides (lib/core/dock_layout.dart `DockLayout.arrange`), so with Talk hidden in the dock editor the note's
+      // own mic is back.
+      if (speak != null && !widget.readOnly) DockAction(id: 'note-speak', label: speak, glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
       if (seams.onAdd != null && view != null && plusAllowed) DockAction(id: 'note-add', label: 'Add to this line', tip: 'Add', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: () => seams.onAdd!(view)),
     ];
   }

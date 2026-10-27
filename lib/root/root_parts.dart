@@ -690,7 +690,8 @@ extension _RootParts on _GhostRootState {
       actions: [
         DockAction(id: 'search', label: 'Search and commands', glyph: HomeGlyph.magnifier, motion: DockMotion.lean, onPressed: _search),
         DockAction(id: 'add', label: 'Write a note', glyph: HomeGlyph.plus, motion: DockMotion.turn, onPressed: _plus),
-        if (_capture != null && talk == null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
+        // Given whether or not Talk is: the dock draws one microphone, and Speak where Talk is hidden in the editor.
+        if (_capture != null) DockAction(id: 'speak', label: 'Speak a voice note', glyph: HomeGlyph.mic, ink: true, onPressed: _speak),
         if (market && !preferences.value.simple) DockAction(id: 'market', label: 'Market', icon: Lucide.store, onPressed: _showMarket),
       ],
       foot: DockAction(id: 'settings', label: 'Settings', icon: Lucide.settings, onPressed: _openSettings),

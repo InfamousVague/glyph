@@ -53,6 +53,9 @@ const List<String> syncedPrefs = [
   // The icon pack and its style (Matt, 2026-10-27): a look, chosen once for every device, as the faces are.
   'iconPack',
   'iconStyle',
+  // The dock's buttons, their order and which are hidden (lib/core/dock_layout.dart; Matt, 2026-10-27: "build the
+  // dock editor"): the person's dock, the same on every device, with the wide window's own where there is one.
+  'dock',
   'refine',
   'quietStop',
   'review',

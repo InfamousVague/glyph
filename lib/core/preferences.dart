@@ -5,8 +5,10 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../perf/frame_log.dart';
+import 'dock_layout.dart';
 import 'tabs.dart' show TabGroups, mostTabs;
 
+export 'dock_layout.dart';
 export 'tabs.dart' show TabGroup, TabGroups, mostTabs;
 
 // Port of the web app's src/app/core/preferences.ts: the look-and-feel knobs, how they are kept, and how they reach
@@ -397,6 +399,7 @@ class Preferences {
     this.noteFace = 'maple',
     this.iconPack = 'lucide',
     this.iconStyle = 'outline',
+    this.dock = DockPrefs.defaults,
     this.refine = true,
     this.quietStop = false,
     this.review = true,
@@ -492,6 +495,8 @@ class Preferences {
       // A pack or a style from a later build, which this one cannot draw, is Lucide's outline.
       iconPack: iconPackChoices.contains(iconPack) ? iconPack as String : d.iconPack,
       iconStyle: iconStyleChoices.contains(iconStyle) ? iconStyle as String : d.iconStyle,
+      // The dock's buttons (lib/core/dock_layout.dart): an id this build does not know is left out, the rest kept.
+      dock: DockPrefs.fromJson(map['dock']),
       refine: flag('refine', d.refine),
       quietStop: flag('quietStop', d.quietStop),
       review: flag('review', d.review),
@@ -597,6 +602,10 @@ class Preferences {
   final String iconPack;
   final String iconStyle;
 
+  /// The dock's buttons, their order and which are hidden, on a phone and on a wide window (the dock editor; Matt,
+  /// 2026-10-27: "build the dock editor"). Travels, as the icons do: a dock is the person's, on every device.
+  final DockPrefs dock;
+
   /// Better words after recording: a larger, slower model goes over the kept recording in the background.
   final bool refine;
 
@@ -698,7 +707,7 @@ class Preferences {
   static const Set<String> _keys = {
     'theme', 'uiScale', 'sidebarStyle', 'homeLayout', 'homeLayoutChosen', 'experience', 'experienceChosen', 'topBar', 'accent', 'density', 'rounding', //
     'assist', 'textSize', 'typeface', //
-    'noteFace', 'iconPack', 'iconStyle', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
+    'noteFace', 'iconPack', 'iconStyle', 'dock', 'refine', 'quietStop', 'review', 'summaries', 'writeUp', 'syncMeetingRecordings', 'syncMeetingRecordingsChosen', 'meetingSound', 'localOnly', 'formatModel', 'codeLight', //
     'codeDark', 'codeChosen', 'noteView', 'openNotes', 'tabGroups', 'workspaces', 'trash', 'meetings', 'versions', 'shares', 'wisp', 'wispEdge', 'ripples', //
     'motionSpeed', 'linkPreviews', 'canvasSnap', 'mapTiles', 'placeNames', 'tagNewNotes', 'lookUpBlanks', 'autoFill', 'notifications',
   };
@@ -721,6 +730,7 @@ class Preferences {
     String? noteFace,
     String? iconPack,
     String? iconStyle,
+    DockPrefs? dock,
     bool? refine,
     bool? quietStop,
     bool? review,
@@ -774,6 +784,7 @@ class Preferences {
         noteFace: noteFace ?? this.noteFace,
         iconPack: iconPack ?? this.iconPack,
         iconStyle: iconStyle ?? this.iconStyle,
+        dock: dock ?? this.dock,
         refine: refine ?? this.refine,
         quietStop: quietStop ?? this.quietStop,
         review: review ?? this.review,
@@ -830,6 +841,7 @@ class Preferences {
         'noteFace': noteFace,
         'iconPack': iconPack,
         'iconStyle': iconStyle,
+        'dock': dock.toJson(),
         'refine': refine,
         'quietStop': quietStop,
         'review': review,
