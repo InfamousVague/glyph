@@ -36,6 +36,11 @@ class LaunchSeat extends ChangeNotifier {
   /// What the root says now; null while there is no root.
   LaunchFacts? get facts => _read?.call();
 
+  /// Whether the launch screen over the root has gone: the root waits for it before anything that must be seen
+  /// from its start, the walkthrough and its voice (Matt, 2026-10-28: "The tour starts before the loading page is
+  /// done"). A listenable of its own, not this seat's: the seat is told whenever the root changes.
+  final ValueNotifier<bool> over = ValueNotifier<bool>(false);
+
   /// The root is up: [read] is asked whenever [told] says something of the root's changed.
   void sit(LaunchFacts Function() read, Listenable told) {
     _by?.removeListener(notifyListeners);
@@ -55,6 +60,7 @@ class LaunchSeat extends ChangeNotifier {
   @override
   void dispose() {
     _by?.removeListener(notifyListeners);
+    over.dispose();
     super.dispose();
   }
 }
@@ -113,6 +119,7 @@ class _GhostOpeningState<T> extends State<GhostOpening<T>> {
         _run += 1;
         _app = null;
         _launching = true;
+        _seat.over.value = false;
       });
 
   /// What the launch screen draws from, each a value: it is built again when one is another.
@@ -152,7 +159,10 @@ class _GhostOpeningState<T> extends State<GhostOpening<T>> {
                 updates: launchUpdatesOf(widget.updates),
                 sync: facts.sync,
                 recording: _recording,
-                onDone: () => setState(() => _launching = false),
+                onDone: () {
+                  setState(() => _launching = false);
+                  _seat.over.value = true;
+                },
               ),
             ),
           ),

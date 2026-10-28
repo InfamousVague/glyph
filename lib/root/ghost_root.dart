@@ -1541,6 +1541,14 @@ class _GhostRootState extends State<GhostRoot> {
 
   late bool _launching = widget.launch && widget.launchSeat == null;
 
+  /// A launch screen is still up over the root: its own, or the one drawn over it from outside, until that says it
+  /// has gone ([LaunchSeat.over]).
+  bool get _launchUp => _launching || (widget.launch && !(widget.launchSeat?.over.value ?? true));
+
+  void _launchOver() {
+    if (mounted) _told(() {});
+  }
+
   /// What the launch screen reads of the root, where it is drawn over it from outside (`GhostRoot.launchSeat`).
   LaunchFacts _launchFacts() => (loading: _launchLoading, notes: _launchNotes, sync: _launchSync, recording: _meetingRecording);
 
@@ -1689,6 +1697,7 @@ class _GhostRootState extends State<GhostRoot> {
     _wired?.dispose();
     _pictures?.dispose();
     widget.launchSeat?.rise(_launchFacts);
+    widget.launchSeat?.over.removeListener(_launchOver);
     _made?.dispose();
     _menu.removeListener(_tick.tell);
     _menu.dispose();
@@ -1787,6 +1796,7 @@ class _GhostRootState extends State<GhostRoot> {
       ..start();
     // The launch screen over the root, where there is one, reads the root from here on.
     widget.launchSeat?.sit(_launchFacts, _tick);
+    widget.launchSeat?.over.addListener(_launchOver);
     _open();
     unawaited(_account());
     unawaited(_speakUp());

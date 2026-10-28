@@ -92,10 +92,12 @@ extension _RootParts on _GhostRootState {
           ),
         ),
         // The walkthrough, over everything but the way into an account, and never over a recorder: it is taken
-        // away while a capture is on screen and comes back, at its page, when the capture ends.
+        // away while a capture is on screen and comes back, at its page, when the capture ends. Nor before the
+        // launch screen has gone (Matt, 2026-10-28: "The tour starts before the loading page is done wait until the
+        // app is fully loaded to start the audio and tour"): it is made, and its voice starts, only once that is over.
         _part('guide', () {
           final guide = _guide;
-          if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
+          if (guide == null || !guide.open || _launchUp || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return null;
           return (guide.page, guide.tooSoon, _capture != null, _modelsForGuide);
         }, _guidePart),
         // Something another app shared: its sheet, over the app, one share at a time (lib/share/ui/share_in_sheet.dart).
@@ -1015,7 +1017,7 @@ extension _RootParts on _GhostRootState {
 
   Widget _guidePart(BuildContext context) {
     final guide = _guide;
-    if (guide == null || !guide.open || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return _nothing;
+    if (guide == null || !guide.open || _launchUp || (_gate?.open ?? false) || (_shell.currentState?.screen.isRecording ?? false)) return _nothing;
     return Guide(
       index: guide.page,
       tooSoon: guide.tooSoon,

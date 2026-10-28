@@ -10,6 +10,8 @@ import 'package:ghost_md/core/preferences.dart';
 import 'package:ghost_md/core/sample_library.dart';
 import 'package:ghost_md/core/workspaces.dart';
 import 'package:ghost_md/editor/queries/queries.dart' show queriesWatchMidnight;
+import 'package:ghost_md/guide/guide.dart' show Guide;
+import 'package:ghost_md/guide/guide_state.dart' show GuideController;
 import 'package:ghost_md/home/home_screen.dart';
 import 'package:ghost_md/launch/launch_screen.dart';
 import 'package:ghost_md/root/ghost_root.dart';
@@ -23,8 +25,9 @@ void main() {
     queriesWatchMidnight = false;
   });
 
-  Widget root(SampleLibrary library, {LaunchSeat? seat, VoidCallback? restart, bool launch = true}) => GhostRoot(
+  Widget root(SampleLibrary library, {LaunchSeat? seat, VoidCallback? restart, bool launch = true, GuideController? guide}) => GhostRoot(
         launch: launch,
+        guide: guide,
         launchSeat: seat,
         restart: restart,
         library: library,
@@ -75,6 +78,25 @@ void main() {
     await untilGone(tester);
     expect(find.byType(LaunchScreen), findsNothing);
     expect(find.byType(HomeScreen), findsOneWidget);
+    await away(tester);
+  });
+
+  testWidgets('the walkthrough, and its voice, wait under the launch screen and come once it has gone', (tester) async {
+    final guide = GuideController()..show(0);
+    await pumpApp(
+      tester,
+      prefs: const Preferences(theme: 'light'),
+      home: GhostOpening<SampleLibrary>(opened: Future.value(SampleLibrary.seeded()), builder: (context, library, seat, restart) => root(library, seat: seat, restart: restart, guide: guide)),
+    );
+    await tester.pump();
+    await tester.pump();
+    expect(find.byType(GhostRoot), findsOneWidget);
+    expect(find.byType(LaunchScreen), findsOneWidget);
+    expect(find.byType(Guide), findsNothing, reason: 'nothing of the tour is made, nor said, under the launch screen');
+    await untilGone(tester);
+    await tester.pump();
+    expect(find.byType(Guide), findsOneWidget);
+    guide.dispose();
     await away(tester);
   });
 
