@@ -29,7 +29,9 @@ import java.io.File
  * - `narrate {key, bytes}` -> whether it plays: the walkthrough's voice for a page (lib/guide/narrator.dart; Matt,
  *   2026-10-27: "a friendly elevenlabs v4 voice explaining each section"), half a minute of speech, which is too long
  *   for the pool. Played on a `MediaPlayer` as speech on the media stream, so the volume keys turn it, in place of
- *   any page's voice still playing; false where the phone asks for quiet, by the same rules as a sound.
+ *   any page's voice still playing; false only in a call or while something records ([busy]). Not the ringer or Do
+ *   Not Disturb: it is media the person opened the walkthrough to hear, which silent and Do Not Disturb let play (Matt,
+ *   2026-10-28: "The welcome audio isn't playing now", his phone's Sleep mode having turned Do Not Disturb on).
  * - `hush` -> null: the voice stopped, as the guide turns a page or goes.
  *
  * The phone is respected here, where it can be read: the ringer on silent or vibrate, Do Not Disturb, a call, and an
@@ -121,7 +123,7 @@ class Sounds(private val context: Context) {
     private fun narrate(key: String?, bytes: ByteArray?): Boolean {
         if (key == null || bytes == null || bytes.size > MOST_VOICE_BYTES) throw IllegalArgumentException("No voice to play.")
         hush()
-        if (quiet(false)) return false
+        if (busy()) return false
         val folder = File(context.cacheDir, "sounds").apply { mkdirs() }
         val file = File(folder, "voice-" + key.replace(Regex("[^A-Za-z0-9._-]"), "_"))
         if (!file.exists() || file.length() != bytes.size.toLong()) file.writeBytes(bytes)
@@ -167,6 +169,13 @@ class Sounds(private val context: Context) {
         }
         if (!whileRecording && Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && audio.activeRecordingConfigurations.isNotEmpty()) return true
         return false
+    }
+
+    /** A call, or a recording open (the meeting's service, another app's microphone): no voice over either. */
+    private fun busy(): Boolean {
+        val audio = context.getSystemService(AudioManager::class.java) ?: return false
+        if (audio.mode != AudioManager.MODE_NORMAL) return true
+        return Build.VERSION.SDK_INT >= Build.VERSION_CODES.N && audio.activeRecordingConfigurations.isNotEmpty()
     }
 
     /** The pool let go, with the activity. */

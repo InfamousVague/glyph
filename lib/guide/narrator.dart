@@ -9,9 +9,10 @@
 ///
 /// When it plays: as soon as a page shows. The app is not a web page, so nothing asks for a tap first; a person who
 /// would rather read switches the voice off with the speaker in the guide's bar, and that is remembered on this
-/// device (it is the device's sound, not a preference to sync). The native half keeps quiet where the device asks
-/// for quiet: on Android the ringer on silent or vibrate, Do Not Disturb, or a call, the same rules the app's
-/// sounds keep. Where there is no native half (an iPhone for now, the web, a test) nothing plays, and the words are on
+/// device (it is the device's sound, not a preference to sync). The native half keeps quiet only in a call or while
+/// something records: it is media the person opened the walkthrough to hear, which silent and Do Not Disturb let play
+/// (2026-10-28, on the Fold, whose Sleep mode had turned Do Not Disturb on: "The welcome audio isn't playing now").
+/// Where there is no native half (an iPhone for now, the web, a test) nothing plays, and the words are on
 /// the page all the same.
 library;
 
