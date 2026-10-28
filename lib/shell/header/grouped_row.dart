@@ -1,14 +1,21 @@
 /// Version 2 of the header toolbar, **Grouped** (lib/shell/header_toolbar.dart): the controls in clusters, each
 /// cluster a pill of its own, so the row reads as three things rather than ten.
 ///
-/// - **The way around**, at the start: Home and the notes' sidebar, a hairline, then Back and Forward, as one
-///   segmented pill on the page's second paper.
+/// - **The way around**, at the start: Home and the notes' sidebar in one pill on the page's second paper, then,
+///   apart from it by the bar's own gap, Back and Forward in another ([GroupedWay]; Matt, 2026-10-28: "the grouped
+///   ones need a bit of space between the home sidebar and navigation buttons"). Two pills read as two things on
+///   the folded Fold, where a hairline inside one pill was lost; one pill with a hole in it read as a broken pill.
 /// - **The note's own**, at the end: the view switch and the two most used of its actions (three on a wide window),
 ///   then ••• with the rest and More for this note, in a second pill. With nothing else to show, ••• is the note's
 ///   More itself.
 /// - **You**: one round button for the app's own - the bell, the organizations, Settings - whose menu has them with
-///   their badges, and which wears the bell's dot while something is new. The aside's toggle ends the row, a pill of
-///   one.
+///   their badges, and which wears the bell's dot while something is new. The aside's toggle ends the row, a round
+///   of its own.
+///
+/// **Every button is a circle** (Matt, 2026-10-28: "make the buttons circular instead of pill shaped for each item
+/// like the home item shows as a pill even though it's a single icon"): a segment is as wide as it is tall, and so
+/// are its hover, its press, its "on" ground and its focus ring. Only a pill that holds several buttons is a pill;
+/// one that holds a single button is that button's circle.
 ///
 /// Iconography: the chosen pack in its **Solid** style, a little smaller than today's, so the glyphs read as one set
 /// inside their pills. A control that is on (Home the page, the sidebar showing, the bookmark set) is a segment of
@@ -27,18 +34,7 @@ HeaderRow groupedRow(BuildContext context, HeaderParts parts) {
   final way = parts.way;
   return HeaderRow(
     lead: [
-      if (way.isNotEmpty)
-        solid(
-          GroupedPill(
-            children: [
-              for (final act in way) ...[
-                // A hairline between where you are and where you have been.
-                if (act.id == 'back' && way.any((each) => each.id == 'home' || each.id == 'sidebar')) const GroupedRule(),
-                GroupedSegment(act: act, fine: parts.fine),
-              ],
-            ],
-          ),
-        ),
+      if (way.isNotEmpty) solid(GroupedWay(way: way, fine: parts.fine)),
     ],
     trail: [
       ?parts.presence,
@@ -150,21 +146,29 @@ class GroupedPill extends StatelessWidget {
   }
 }
 
-/// The hairline between a pill's two halves.
-class GroupedRule extends StatelessWidget {
-  const GroupedRule({super.key});
+/// The way around as two pills, the bar's gap between them: where you are (Home, the sidebar) and where you have
+/// been (Back, Forward). A half with nothing in it is not drawn; a half with one button is that button's circle.
+class GroupedWay extends StatelessWidget {
+  const GroupedWay({super.key, required this.way, required this.fine});
+  final List<HeaderAct> way;
+  final bool fine;
 
   @override
   Widget build(BuildContext context) {
-    final t = context.tokens;
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 2),
-      child: Container(width: t.len('glacier-hairline'), height: t.len('app-bar-ring') * 0.45, color: t.color('glacier-border')),
+    final here = [for (final act in way) if (act.id == 'home' || act.id == 'sidebar') act];
+    final been = notShown(way, here);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      spacing: context.tokens.space(2),
+      children: [
+        for (final half in [here, been])
+          if (half.isNotEmpty) GroupedPill(children: [for (final act in half) GroupedSegment(act: act, fine: fine)]),
+      ],
     );
   }
 }
 
-/// One segment of a pill: a round inside it.
+/// One segment of a pill: a circle inside it, as wide as it is tall.
 class GroupedSegment extends StatelessWidget {
   const GroupedSegment({super.key, required this.act, required this.fine});
   final HeaderAct act;
@@ -190,9 +194,9 @@ class GroupedSegmentFace extends StatelessWidget {
     return withMarks(
       act,
       Container(
-        width: size + 4,
+        width: size,
         height: size,
-        decoration: BoxDecoration(color: on ? ink : (lit ? paper : null), borderRadius: BorderRadius.circular(999)),
+        decoration: BoxDecoration(color: on ? ink : (lit ? paper : null), shape: BoxShape.circle),
         child: Center(child: HeaderGlyph(act, size: 16, color: color, strokeWidth: 2)),
       ),
       rim: t.color('app-paper-2'),

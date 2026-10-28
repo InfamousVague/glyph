@@ -2,7 +2,8 @@
 /// contact sheet on 2.3.61: "Make a version that combines the command center and grouped sections"): Grouped's
 /// pills at either end and Command centre's pill in the middle.
 ///
-/// - **The way around**, at the start: Grouped's segmented pill - Home and the sidebar, a hairline, Back and Forward.
+/// - **The way around**, at the start: Grouped's two pills - Home and the sidebar, then Back and Forward, a gap
+///   between them - each button a circle (Matt, 2026-10-28: "make the buttons circular instead of pill shaped").
 /// - **The note's name**, between: Command centre's pill, a search glyph and the title, which opens the command
 ///   palette (⌘K or Ctrl K said on it under a mouse), taking whatever room the two ends leave.
 /// - **The note's own**, at the end: Grouped's second pill, the view switch and the two most used of its actions, with
@@ -55,17 +56,7 @@ HeaderRow groupedCommandRow(BuildContext context, HeaderParts parts) {
         );
   return HeaderRow(
     lead: [
-      if (way.isNotEmpty)
-        solid(
-          GroupedPill(
-            children: [
-              for (final act in way) ...[
-                if (act.id == 'back' && way.any((each) => each.id == 'home' || each.id == 'sidebar')) const GroupedRule(),
-                GroupedSegment(act: act, fine: parts.fine),
-              ],
-            ],
-          ),
-        ),
+      if (way.isNotEmpty) solid(GroupedWay(way: way, fine: parts.fine)),
     ],
     // The pill opens ••• itself where there is no palette.
     centre: styled(context, IconStyle.outline, CommandField(parts: parts, entries: entries)),

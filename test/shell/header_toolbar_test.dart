@@ -277,6 +277,29 @@ void main() {
     });
   });
 
+  // Matt, 2026-10-28: "the grouped ones need a bit of space between the home sidebar and navigation buttons also make
+  // the buttons circular instead of pill shaped for each item like the home item shows as a pill even though it's a
+  // single icon".
+  for (final version in [HeaderToolbarVersion.grouped, HeaderToolbarVersion.groupedCommand]) {
+    for (final window in windows) {
+      barTest('${version.number} ${version.label}, ${window.name}: every button a circle, and a gap between where you are and where you have been', (tester) async {
+        for (final note in [true, false]) {
+          await pumpShell(tester, version: version, window: window, note: note);
+          Rect rectOf(String id) => tester.getRect(find.byKey(HeaderAct.keyOf(id)).first);
+          final row = drawn(tester);
+          for (final id in row.where((id) => id != 'search')) {
+            final rect = rectOf(id);
+            expect((rect.width - rect.height).abs(), lessThan(0.5), reason: '$id is $rect, not a circle');
+          }
+          if (row.contains('sidebar') && row.contains('back')) {
+            final apart = rectOf('back').left - rectOf('sidebar').right;
+            expect(apart, greaterThanOrEqualTo(8), reason: 'the two pills $apart apart');
+          }
+        }
+      });
+    }
+  }
+
   barTest('Developer’s choice switches the bar at once, nothing restarted', (tester) async {
     final app = await pumpShell(tester, window: unfolded);
     expect(headerToolbarVersion, HeaderToolbarVersion.today);
